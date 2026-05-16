@@ -1,0 +1,19 @@
+{
+  "plugins": ["typescript", "react", "react-hooks", "jsx-a11y", "oxc"],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2022": true
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    ".context/**",
+    "dist/**",
+    ".output/**",
+    "apps/web/src/routeTree.gen.ts"
+  ],
+  "rules": {
+    "jsx-a11y/label-has-associated-control": "off",
+    "no-console": "warn"
+  }
+}

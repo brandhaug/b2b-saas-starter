@@ -1,0 +1,33 @@
+---
+title: Cloudflare deployment
+description: Deploy the starter to Cloudflare Workers, D1, Queues, and Email Service using Alchemy.
+category: getting-started
+order: 20
+tags: [cloudflare, alchemy, deployment]
+---
+
+The starter is Cloudflare-first. Production resources are declared once in the root `alchemy.run.ts` using Alchemy v2 and provisioned with a single command.
+
+## What gets provisioned
+
+- One D1 database shared by `apps/web`, `apps/api`, and `apps/background`
+- One Worker per app (web, api, background), each with `placement.mode = smart` where applicable
+- A Cloudflare Queue plus dead-letter queue (`b2b-saas-starter-webhooks` + `b2b-saas-starter-webhooks-dlq`) bound as a `QueueConsumer` on the background worker
+- Cloudflare `SendEmail` binding with `allowedSenderAddresses` for outbound transactional mail (Optional Provider Module)
+- Cloudflare `RateLimit` bindings on the web worker (`RATE_LIMITER_AUTH_READ`, `RATE_LIMITER_AUTH_WRITE`) and on the api worker (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, `RATE_LIMITER_INVITATIONS`, `RATE_LIMITER_ASSISTANT`, `RATE_LIMITER_MCP`)
+
+## Deploy
+
+```bash
+bun run deploy
+```
+
+`bun run deploy` is `bun alchemy.run.ts` — it executes the Alchemy Stack programmatically rather than going through a separate CLI. Each Worker also has a hand-maintained `wrangler.jsonc` that mirrors the Alchemy declaration so `wrangler dev` and `wrangler d1 migrations apply` keep working locally; Alchemy is the source of truth for production.
+
+## Environment configuration
+
+Sensitive values are wrapped in `effect/Redacted` inside `alchemy.run.ts` so they never appear in logs or stack traces. Optional providers are validated module-aware in `packages/env/src/server.ts` — missing config degrades the relevant Optional Provider Module to inactive rather than failing startup. See the secret matrix in `ARCHITECTURE.md` for the full list (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`, `SENTRY_DSN`, `POSTHOG_KEY`/`POSTHOG_HOST`, `CLOUDFLARE_EMAIL_FROM`, `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`, `WORKERS_AI_ENABLED`, `OPENAI_API_KEY`).
+
+## Rolling back
+
+`bun run destroy` (which is `bun alchemy.run.ts --destroy`) tears the entire stack down. Targeted rollbacks today go through redeploying a previous commit from CI — there is no versioned rollback flag in the starter's scripts.

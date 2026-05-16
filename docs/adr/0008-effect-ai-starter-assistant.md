@@ -1,0 +1,3 @@
+# Effect AI starter assistant
+
+The starter includes AI assistant capability as an optional provider module, but the implementation should prefer Effect AI patterns over framework-specific AI SDK wiring. Model calls, embeddings, planning, and tool use should be represented as typed Effect services with schema-checked inputs and outputs, deterministic tool contracts, redacted observability, and provider configuration that is optional for local development. Provider selection stays behind Effect services: Workers AI is the Cloudflare-first documented path, while OpenAI-compatible providers can be enabled through configuration without changing starter assistant behavior.

@@ -1,0 +1,28 @@
+---
+title: GitHub OAuth example
+description: The Example OAuth Provider used to demonstrate production OAuth without making it mandatory.
+category: integrations
+order: 10
+tags: [github, oauth, integration-surface]
+---
+
+GitHub OAuth is the Example OAuth Provider. It demonstrates the full production OAuth flow without implying that every consumer of the starter needs GitHub configured.
+
+## What's wired
+
+- Better Auth provider entry for GitHub
+- OAuth callback route and CSRF protection
+- Linking and unlinking from the user account
+- User profile sync (display name, avatar URL)
+
+## Configuration
+
+Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in the Worker environment. With both present, the sign-in page surfaces a "Continue with GitHub" button.
+
+## What happens without configuration
+
+The Local Auth Path still works. The sign-in page omits the GitHub button. No code path throws.
+
+## Extending to other providers
+
+Adding Google, Microsoft, or another provider is a few lines in the Better Auth config plus a logo and label on the sign-in page. Each provider is an independent Optional Provider Module — none of them are required.

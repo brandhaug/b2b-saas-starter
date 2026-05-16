@@ -1,0 +1,25 @@
+---
+title: Implementation reports
+description: Workspace-facing summaries of module configuration, readiness, and operational status.
+category: adoption-readiness
+order: 20
+tags: [reports, readiness]
+---
+
+An Implementation Report is a workspace-facing summary that combines Adoption Readiness, Starter Module state, recent Catalog Refresh history, and active Integration Surfaces.
+
+## Today's shape
+
+`ImplementationReport` in `packages/capabilities/src/catalog/implementation-reports.ts` is a persisted row with five fields: `id`, `title`, `status`, `summary`, and `createdAt`. The `ImplementationReports` capability is read-only — `list` returns the workspace's reports in newest-first order from D1 (it requires `WorkspaceContext`, which the route layer supplies); `SeedImplementationReports` supplies fixtures for the Seed Workspace.
+
+## Roadmap
+
+The richer reporting shape — readiness percentage and trend, per-module state with missing config, active Optional Provider Modules, recent Catalog Refresh runs, webhook success rate, audit highlights — is the target for this module. Future iterations will compose it from the existing capabilities (`AdoptionReadiness`, `StarterModuleCatalog`, `CatalogRefreshHistory`, `WebhookEndpoints`, `IntegrationSurfaces`, `AuditEventLog`) rather than store the rollup eagerly.
+
+## Report Schedule
+
+A Report Schedule is a workspace setting, not infrastructure cron. The `report_schedules` table in `packages/db/src/schema.ts` carries cadence, enablement, and recipients. Manual generation, scheduled email delivery, and audit-event emission on schedule edits are not yet wired.
+
+## Why this format
+
+Implementation Reports replace what an analytics product might call a "health dashboard." The framing is intentional: the starter is something a team adopts, and a report communicates progress against that adoption, not productivity metrics.

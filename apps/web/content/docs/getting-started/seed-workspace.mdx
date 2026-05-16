@@ -1,0 +1,25 @@
+---
+title: Seed workspace
+description: A deterministic workspace that boots the reference application with realistic Starter Module state.
+category: getting-started
+order: 30
+tags: [seed, reference-app]
+---
+
+The Seed Workspace exists so the reference application, tests, and screenshots all start from the same realistic state. It is not demo data — it is committed source the rest of the starter depends on.
+
+## What it contains
+
+- One workspace (`starter-lab`) with three members in three Workspace Roles (one owner, one admin, one member)
+- A populated catalog of Starter Modules with realistic Module State values across `ready`, `needs-config`, `disabled`, and `attention`
+- A history of Catalog Refresh runs
+- Seeded API Tokens and Webhook Endpoints for the workspace
+- At least one Implementation Report
+
+## When it runs
+
+`bun run db:seed` invokes `scripts/seed.ts`. The script collects the fixture from the seed capability layer and writes it to D1 with `INSERT OR REPLACE`, so re-running resets the workspace to a known shape without duplicating rows.
+
+## Why it matters
+
+Adoption Readiness math, wide-event observability, and the home-page architecture showcase all assume a Seed Workspace exists. Skipping the seed makes the starter render empty states everywhere and obscures what the starter actually ships.

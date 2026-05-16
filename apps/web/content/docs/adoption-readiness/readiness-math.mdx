@@ -1,0 +1,38 @@
+---
+title: Adoption readiness math
+description: How a workspace's Adoption Readiness is derived from per-module state.
+category: adoption-readiness
+order: 10
+tags: [readiness, modules]
+---
+
+Adoption Readiness is the visible state of how completely a workspace has configured and understood the starter modules it plans to use. It is derived, never stored as a primary value.
+
+## Per-module state
+
+Every Starter Module has one Module State per Workspace. `ModuleStatus` in `packages/capabilities/src/catalog/starter-module-catalog.ts` defines four values:
+
+- `ready` — fully configured and operational
+- `needs-config` — partial or missing configuration; the module cannot run yet
+- `disabled` — the workspace has turned the module off
+- `attention` — the module is configured but a recent run flagged something to look at
+
+`ModuleState` also carries an `enabled` flag, a `missingConfig` array, and an `updatedAt` timestamp.
+
+## Workspace-level readiness
+
+`computeReadinessScore(states)` in `packages/capabilities/src/catalog/adoption-readiness.ts` returns an integer percentage:
+
+```ts
+Math.round((states.filter((s) => s.status === 'ready').length / states.length) * 100)
+```
+
+Every Module State counts toward the denominator — disabled and attention rows are included today. If your workspace prefers to treat disabled modules as out-of-scope, filter them before passing into `computeReadinessScore`.
+
+## Why it's derived
+
+Storing readiness as a primary value invites it to drift from the module catalog. Deriving it on read means a Starter Module changing its readiness criteria propagates automatically.
+
+## Where it shows up
+
+The same derivation feeds workspace dashboards and home-page trend visualizations. The `AdoptionReadiness` capability also exposes `getTrend`, which returns a `ReadinessPoint[]` series and requires `WorkspaceContext` (supplied by the route layer); `LiveAdoptionReadiness` is currently a stub that returns an empty trend, while `SeedAdoptionReadiness` supplies the Seed Workspace's trend for the showcase.

@@ -1,0 +1,10 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client", "@cloudflare/workers-types", "bun-types"]
+  },
+  "include": ["src", "content", "vite.config.ts", "playwright.config.ts"]
+}

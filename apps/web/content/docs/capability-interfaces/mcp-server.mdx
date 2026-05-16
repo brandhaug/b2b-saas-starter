@@ -1,0 +1,25 @@
+---
+title: MCP server
+description: The same capabilities exposed as MCP tools and resources for AI clients.
+category: capability-interfaces
+order: 20
+tags: [mcp, ai, tools]
+---
+
+The MCP server is the second Capability Interface. It is intended to expose the same workspace, Starter Module, Adoption Readiness, audit, and webhook operations as REST — but shaped as MCP tools and resources.
+
+## Today's surface
+
+The API Worker exposes `GET /mcp`, which returns a static discovery document with one resource, `workspace://starter-lab/overview` (see `mcpDiscoverResponse` in `apps/api/src/index.ts`). Tool dispatch is intentionally not advertised until execution handlers are wired through the capability layer.
+
+## Planned tools and resources
+
+Tool handlers will wrap the same Effect services that REST routes wrap — `StarterModuleCatalog`, `AdoptionReadiness`, `ImplementationReports`, and friends from `@b2b-saas-starter/capabilities`. Their inputs and outputs will be derived from the same Effect Schemas the REST endpoints use, so the contract stays in one place.
+
+## Authentication
+
+The `/mcp` route accepts the same workspace-scoped API Tokens as REST: `Authorization: Bearer …` with the `read` scope, parsed and verified by `authorize()` in `apps/api/src/index.ts`. Per-tool scope checks will reuse the same `ApiTokenScope` values once tool dispatch lands. There is no separate MCP credential surface.
+
+## Why one set of capabilities
+
+REST and MCP are two presentation layers over one application. They are not separate products. Adding a new starter capability adds one Effect service; both interfaces pick it up.

@@ -1,0 +1,21 @@
+---
+title: Observability module
+description: Wide-event logging, optional Sentry and PostHog providers, and audit trails.
+category: starter-modules
+order: 40
+tags: [observability, logging, wide-events]
+---
+
+The observability module emits structured wide events from every request, cron tick, and queue handler. Optional provider env gates for Sentry and PostHog are present, but provider forwarding is reserved until the SDK capture paths are wired.
+
+## Wide events
+
+`packages/logger` exposes `withRequestScope` to bracket each request, cron tick, or queue handler. One canonical line is emitted when the scope closes (success or failure), with status, durationMs, and error metadata attached via `Effect.addFinalizer`. Callers add fields with `annotateWide` (an alias of `Effect.annotateLogsScoped`); trace IDs come from the `x-trace-id` header (`TRACE_HEADER` / `readTraceHeader`) and the background worker forwards them on outbound webhook dispatches. The `WideEventLoggerLive` Layer wraps `Logger.consoleJson` for production.
+
+## Sentry and PostHog
+
+Both are Optional Provider Modules. `SENTRY_DSN` and `POSTHOG_KEY` are recognized in `packages/env/src/server.ts` so `moduleConfigStatus('observability', …)` can report `env-present` when set. Worker-side Sentry forwarding and client-side PostHog capture are not yet wired — the env gates are reserved activation hooks. Missing configuration does not throw — the modules simply stay inactive.
+
+## Audit Events vs. wide events
+
+Wide events are operational and ephemeral. Audit Events are persisted in the `audit_events` D1 table and exposed via `AuditEventLog.list` (with `WorkspaceContext`) and `AuditEventLog.listGlobal`. Today `/admin` lists global events; a per-workspace audit UI is planned. The two streams coexist: any request that emits a wide event may also create an Audit Event when the action is governance-sensitive (plan change, member role change, token revocation, webhook endpoint update).

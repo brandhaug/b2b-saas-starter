@@ -1,0 +1,23 @@
+{
+  "name": "@b2b-saas-starter/api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@b2b-saas-starter/ai": "workspace:*",
+    "@b2b-saas-starter/capabilities": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@b2b-saas-starter/config": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

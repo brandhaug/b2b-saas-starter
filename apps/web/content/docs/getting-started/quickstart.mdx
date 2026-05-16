@@ -1,0 +1,35 @@
+---
+title: Quickstart
+description: Clone, install, seed, and run the starter locally in under five minutes.
+category: getting-started
+order: 10
+tags: [setup, local-dev]
+---
+
+The starter runs locally against a real Cloudflare-shaped stack: `apps/web` under the `@cloudflare/vite-plugin`, `apps/api` and `apps/background` under Wrangler, a SQLite-backed local D1 database, MDX-driven public content, and the Seed Workspace populated through `scripts/seed.ts`.
+
+## Prerequisites
+
+- Bun 1.3.3 or later
+- A Cloudflare account (only required for deployment, not local development)
+
+## Install and run
+
+```bash
+bun install
+bun run db:migrate:local
+bun run db:seed
+bun run dev
+```
+
+`turbo dev` boots all three apps in parallel:
+
+- `apps/web` on port 3071 — TanStack Start, public showcase, reference application
+- `apps/api` — REST and MCP Capability Interfaces
+- `apps/background` — cron and queue handlers
+
+Open `http://localhost:3071` and create an account via the Local Auth Path. The Seed Workspace renders without OAuth provider configuration; the seed users have no preset passwords, so register a new account to sign in.
+
+## What's wired by default
+
+The Seed Workspace populates one workspace with realistic Starter Modules, three members in three Workspace Roles, an audit history, seeded API Tokens and Webhook Endpoints, and at least one Implementation Report. The first Adoption Readiness pass runs against the seed automatically so the home page renders working data, not placeholders.

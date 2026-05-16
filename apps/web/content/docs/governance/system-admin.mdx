@@ -1,0 +1,27 @@
+---
+title: System admin
+description: Global user management via Better Auth's admin plugin, distinct from any Workspace Role.
+category: governance
+order: 30
+tags: [admin, system-admin]
+---
+
+A System Admin is a user with global user-management permissions through Better Auth's admin plugin. System Admin is not a Workspace Role; it operates at the user level. `packages/auth/src/index.ts` registers `admin({ adminRoles: ['admin'] })`, so users whose `user.role = 'admin'` are System Admins.
+
+## What's wired today
+
+The `/admin` route renders a global users table (name, email, workspace role, system status) and a global audit-event table sourced from `AuditEventLog.listGlobal`. The Better Auth admin plugin exposes the standard user-management endpoints (list, disable/enable, password reset, impersonate), but only listing is surfaced in the UI — disable, reset, and impersonate are intentionally deferred (ADR 0024).
+
+## What a System Admin cannot do
+
+- Sign in to an arbitrary workspace's UI without being a Member
+- Bypass workspace billing or governance limits
+- Read workspace-private content without explicit impersonation
+
+## Audit trail
+
+Every System Admin action is intended to emit an Audit Event with actor, target user, and action type. The `audit_events` table and `AuditEventLog.listGlobal` are wired and surfaced under `/admin`, but write paths for System Admin actions are not yet instrumented — see ARCHITECTURE.md §Audit log.
+
+## When to grant System Admin
+
+System Admin is for the operators of the deployment, not for workspace owners. Grant it sparingly. A workspace owner does not need System Admin to manage their workspace.

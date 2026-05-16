@@ -1,0 +1,28 @@
+---
+title: Catalog refresh
+category: operations
+order: 30
+description: Recurring updates to Starter Module metadata and the dependency catalog.
+tags: [catalog, cron]
+---
+
+A Catalog Refresh is a recurring operation that updates the Starter Module catalog and dependency information the starter depends on for its own self-description.
+
+## Two paths
+
+The Catalog Refresh runs in two places intentionally:
+
+- **Production cron** — the `apps/background` cron handler runs daily at 06:00 UTC (`0 6 * * *` in `apps/background/wrangler.jsonc`) and inserts a row into `catalog_refresh_runs` with `status`, `startedAt`, `completedAt`, and a JSON `summary` containing module count and `durationMs`.
+- **CI automation** — a GitHub Action runs the same logic on a cadence and opens a PR with the diff.
+
+Both paths share the `StarterModuleCatalog` and `CatalogRefreshHistory` capabilities in `@b2b-saas-starter/capabilities`, so the behavior cannot drift.
+
+## What it refreshes
+
+- Starter Module metadata (display name, summary, default Module State, config keys)
+- Dependency versions tracked for the Showcase Site changelog
+- Reference Application configuration defaults
+
+## Failure handling
+
+The cron handler currently records only successful runs. Failure-path Audit Events, Notifications, and run idempotency are not yet wired — re-running on the same day inserts a new `catalog_refresh_runs` row keyed by `crr_${Date.now()}`.

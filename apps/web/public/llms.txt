@@ -1,0 +1,9 @@
+# B2B SaaS Starter
+
+Cloudflare-first B2B SaaS starter using TanStack Start, Effect v4, Drizzle D1, Better Auth, Alchemy, REST, MCP, Cloudflare Email, Storybook, Vitest, Playwright, oxlint, oxfmt, and Turbo.
+
+Key docs:
+- /docs
+- /blog
+- /faq
+- /changelog

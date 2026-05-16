@@ -1,0 +1,17 @@
+// CLI helper config — used by `wrangler d1 migrations apply` and
+// `drizzle-kit` to talk to the shared D1 database. The Workers themselves
+// are deployed by Alchemy (see alchemy.run.ts); this file is *not* the
+// source of truth for production bindings. The placeholder `database_id`
+// is replaced by `wrangler d1 ... --remote` at apply time.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "b2b-saas-starter-db",
+  "compatibility_date": "2026-05-16",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "b2b-saas-starter",
+      "database_id": "placeholder"
+    }
+  ]
+}

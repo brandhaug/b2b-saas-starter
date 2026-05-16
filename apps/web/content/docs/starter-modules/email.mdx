@@ -1,0 +1,24 @@
+---
+title: Email module
+description: Outbound transactional email via Cloudflare Email Service and React Email templates.
+category: starter-modules
+order: 20
+tags: [email, react-email, cloudflare-email]
+---
+
+The email module is an Optional Provider Module: it has production wiring through Cloudflare Email Service and stays inactive locally until the binding is configured.
+
+## What's wired
+
+- React Email templates in `packages/email`
+- Preview server for designing templates without sending
+- Cloudflare `SendEmail` binding as the production sending boundary
+- A typed `EmailDispatcher` Effect service (`@b2b-saas-starter/email/EmailDispatcher`) that workspace, billing, and webhook code paths can depend on once wired
+
+## Template inventory
+
+The starter ships a workspace invitation template (`WorkspaceInvitationEmail`) built with the React Email Tailwind component and `pixelBasedPreset`, with `PreviewProps` for the local preview server. Add new templates alongside it in `packages/email/src/templates.tsx` (or split into `src/templates/*.tsx` if the library grows) and export them from `@b2b-saas-starter/email`.
+
+## Local development
+
+`react-email dev` runs the preview server. No real send happens locally. The `EmailDispatcher` service in `packages/email` selects `LogEmailDispatcherLayer` when no Cloudflare `EMAIL` binding is present, so tests and local dev render templates and log the dispatch without sending. With the `EMAIL` binding available, `selectEmailDispatcherLayer` swaps in `makeCloudflareEmailDispatcherLayer`.

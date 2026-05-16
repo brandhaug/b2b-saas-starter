@@ -1,0 +1,25 @@
+---
+title: Stripe billing integration
+description: Provider wiring, webhooks, customer portal, and the env gate that keeps it optional.
+category: integrations
+order: 20
+tags: [stripe, billing, webhooks]
+---
+
+Stripe is the provider behind the billing Optional Provider Module. The integration is scaffolded as an Optional Provider Module: pricing content renders without Stripe, and `moduleConfigStatus('billing', …)` in `packages/env/src/server.ts` reports `env-present` once `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are set. Checkout, portal redirect, and webhook handler routes are planned but not yet implemented in `apps/{web,api,background}/src`.
+
+## Env gate
+
+Stripe env recognition requires `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (see `moduleConfigStatus` in `packages/env/src/server.ts` and the secret matrix in `ARCHITECTURE.md`). Missing either keeps the integration inactive — public pricing still renders, and subscribe buttons fall back to a "Configure billing" message. Runtime activation waits for checkout, portal, webhook, and plan-state routes.
+
+## Webhook handling
+
+Inbound Stripe webhooks will land on the background Worker (the consumer listed in the secret matrix). The route, signature verification, plan-state updates, and `auditEvents` writes are not yet implemented — the env gate exists so the billing Optional Provider Module reports `needs-config` until configured.
+
+## Customer portal
+
+A workspace customer-portal redirect is part of the planned billing surface. The route is not yet implemented in `apps/web` or `apps/api`, and ARCHITECTURE.md notes that workspace-role enforcement is not wired at the route layer yet — both land together when billing activates.
+
+## What Stripe is not used for
+
+Stripe is not used for user authentication, not for invitation emails, and not for storing PII beyond the customer ID and last-four card display. The starter's domain stays in D1.

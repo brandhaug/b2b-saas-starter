@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "b2b-saas-starter-background",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-16",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "placement": {
+    "mode": "smart"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "b2b-saas-starter",
+      "database_id": "placeholder"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "WEBHOOK_QUEUE",
+        "queue": "b2b-saas-starter-webhooks"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "b2b-saas-starter-webhooks",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_retries": 6,
+        "max_concurrency": 4,
+        "retry_delay": 30,
+        "dead_letter_queue": "b2b-saas-starter-webhooks-dlq"
+      }
+    ]
+  },
+  "triggers": {
+    "crons": ["0 6 * * *"]
+  }
+}

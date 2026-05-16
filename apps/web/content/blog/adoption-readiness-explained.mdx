@@ -1,0 +1,30 @@
+---
+title: How Adoption Readiness works
+description: The starter's central metric is derived from Module State, not from analytics.
+date: '2026-05-16'
+author: Starter Team
+tags: [adoption-readiness, modules, design]
+---
+
+If you only learn one concept from this starter, learn Adoption Readiness. It is the visible state of how completely a workspace has configured and understood the Starter Modules it plans to use.
+
+## Why a derived metric
+
+A health-style number that you write into a row is invariably wrong by the time you look at it. The schema implies a single source of truth that turns out to be twelve places.
+
+Adoption Readiness is derived on every read from the Module State of each Starter Module. The numerator is "Starter Modules in `ready` state"; the denominator is "all Starter Modules tracked for the workspace". Module State for an unused module is `disabled`, and disabled modules still count toward the denominator today — see `computeReadinessScore` in `packages/capabilities/src/catalog/adoption-readiness.ts`. Filter them out before calling the function if your workspace prefers to treat disabled modules as out-of-scope.
+
+## What it is not
+
+Adoption Readiness is not a productivity metric. It is not a benchmark against other workspaces. It is not an analytics KPI. It is one number that answers: "how done am I with adopting this starter?"
+
+## Where it surfaces
+
+- The workspace dashboard
+- The home page architecture showcase, against the Seed Workspace
+- Every Implementation Report
+- A scheduled email digest, if a Report Schedule is configured
+
+## What changes a workspace's readiness
+
+A change to Module State. That is the only thing. No background job recomputes a score overnight; no analytics pipeline trickles a delta in. The number is always current with the modules.

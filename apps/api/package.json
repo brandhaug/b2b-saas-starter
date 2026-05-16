@@ -1,0 +1,27 @@
+{
+  "name": "api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787 --inspector-port 9787",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@b2b-saas-starter/ai": "workspace:*",
+    "@b2b-saas-starter/api": "workspace:*",
+    "@b2b-saas-starter/capabilities": "workspace:*",
+    "@b2b-saas-starter/db": "workspace:*",
+    "@b2b-saas-starter/email": "workspace:*",
+    "@b2b-saas-starter/logger": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@b2b-saas-starter/config": "workspace:*",
+    "@cloudflare/workers-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

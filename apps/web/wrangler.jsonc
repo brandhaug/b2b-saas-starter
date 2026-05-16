@@ -1,0 +1,38 @@
+// Wrangler config for `wrangler dev` and the @cloudflare/vite-plugin
+// local-dev server. Alchemy is the source of truth for production
+// deploys (see alchemy.run.ts); this file mirrors the binding wiring
+// so local dev sees the same shape.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "b2b-saas-starter-web",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-05-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "b2b-saas-starter",
+      "database_id": "placeholder"
+    }
+  ],
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER_AUTH_READ",
+        "type": "ratelimit",
+        "namespace_id": "2001",
+        "simple": { "limit": 60, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_AUTH_WRITE",
+        "type": "ratelimit",
+        "namespace_id": "2002",
+        "simple": { "limit": 20, "period": 60 }
+      }
+    ]
+  }
+}

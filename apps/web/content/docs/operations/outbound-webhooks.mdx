@@ -1,0 +1,29 @@
+---
+title: Outbound webhooks
+description: Workspace Webhook Endpoints, Cloudflare Queues, attempt history, and retries.
+category: operations
+order: 10
+tags: [webhooks, queues]
+---
+
+A Webhook Endpoint is a workspace-owned outbound event delivery target. The starter ships endpoint management, signed payloads, attempt history, and retry handling via Cloudflare Queues.
+
+## Endpoint lifecycle
+
+- Created from the workspace settings UI
+- Each endpoint has a URL, a signing secret, and a list of event types it subscribes to
+- Disabling an endpoint stops delivery without losing history
+- Deleting an endpoint preserves delivery records for an audit window
+- Lifecycle changes (create, disable, secret rotation) write Audit Events through `WebhookEndpoints` in `@b2b-saas-starter/capabilities`
+
+## Delivery
+
+When a domain event matching an endpoint's subscriptions occurs, a message is enqueued on the `b2b-saas-starter-webhooks` Cloudflare Queue. The background Worker consumes the queue, signs the payload, posts it, and calls `WebhookEndpoints.recordDeliveryAttempt` (via the `WorkspaceContext` of the message's workspace) to persist the attempt to `webhook_deliveries` with `status`, `attempts`, `lastAttemptAt`, `nextAttemptAt`, and `responseStatus`.
+
+## Retries
+
+Failed attempts back off linearly: `min(attempts, 6) × 30s` (so 30, 60, 90 … up to 180s). The QueueConsumer is configured with `maxRetries = 6`, `batchSize = 25`, `maxConcurrency = 4`, and `retryDelay = 30s` (see `alchemy.run.ts` and `apps/background/wrangler.jsonc`). On failure the worker calls `message.retry({ delaySeconds })` and lets Cloudflare schedule the next attempt. After `maxRetries`, Cloudflare moves the message to the dead-letter queue `b2b-saas-starter-webhooks-dlq` for replay. Audit Event and Notification emission on permanent failure are not yet wired.
+
+## Provider webhooks vs Webhook Endpoints
+
+Stripe webhooks, GitHub webhooks, and other provider callbacks are integration-specific routes on the API or background Worker — they are inbound traffic. A Webhook Endpoint is the outbound surface a workspace uses to push events to its own systems. They are not the same concept.

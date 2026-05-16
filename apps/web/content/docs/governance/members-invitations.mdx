@@ -1,0 +1,30 @@
+---
+title: Members and invitations
+description: How users join a workspace and what happens at each step.
+category: governance
+order: 20
+tags: [members, invitations]
+---
+
+A Member is a user who belongs to a workspace with one Workspace Role. An Invitation is a request for a user to join a workspace with a specific role.
+
+> **Status:** the `workspace_invitations` table is in the schema, and the API Worker exposes `POST /workspaces/:slug/invitations` to send an invitation email via the `WorkspaceInvitationEmail` template. The accept, resend, and revoke flows are not yet implemented. The sections below describe the intended design.
+
+## Invitation flow
+
+1. An owner or admin enters an email address and a target role
+2. The starter generates an invitation with a single-use token and emails the recipient via the `EmailDispatcher` capability and the `WorkspaceInvitationEmail` template
+3. The recipient signs in (via the Local Auth Path or an Example OAuth Provider) and accepts the invitation
+4. A Member row is created with the target role; the invitation is marked accepted
+
+## Pending invitations
+
+Pending invitations are intended to be visible in workspace settings. They can be resent (regenerating the token) or revoked, with revocation emitting an Audit Event. Today the settings UI does not yet render an invitations panel.
+
+## Existing users
+
+If the invited email already corresponds to a user, accepting the invitation should skip the sign-up flow and go straight to the workspace landing page.
+
+## Edge cases
+
+`workspace_invitations.expiresAt` is required but has no default; callers set the value at issuance time (the intended default is 7 days). Accepting an expired invitation should surface a "request a new invitation" message rather than silently failing. A user can be a Member of many workspaces simultaneously; switching workspaces is intended to be a session-level operation, not a re-auth.

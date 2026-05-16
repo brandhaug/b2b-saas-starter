@@ -1,0 +1,3 @@
+# Public content authored fresh, not ported from Contributor
+
+The starter's docs and blog posts are written fresh in Starter Module, Capability Interface, Adoption Readiness, Integration Surface, and Implementation Report language rather than ported and translated from Contributor's developer-productivity analytics content. UI patterns from Contributor (landing-page section shape, docs sidebar plus table of contents, MDX rendering, mini charts, mermaid diagrams) are adopted because they are domain-neutral, but Contributor's article text, marketing narrative, DORA framing, burnout framing, and review-culture framing are not copied into the starter.

@@ -1,0 +1,61 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "b2b-saas-starter-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-16",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "placement": {
+    "mode": "smart"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "b2b-saas-starter",
+      "database_id": "placeholder"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "WORKERS_AI_ENABLED": "false",
+    "EMAIL_FROM_ADDRESS": "noreply@example.com"
+  },
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER_REST",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": { "limit": 60, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_REST_WRITE",
+        "type": "ratelimit",
+        "namespace_id": "1002",
+        "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_INVITATIONS",
+        "type": "ratelimit",
+        "namespace_id": "1003",
+        "simple": { "limit": 10, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_ASSISTANT",
+        "type": "ratelimit",
+        "namespace_id": "1004",
+        "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_MCP",
+        "type": "ratelimit",
+        "namespace_id": "1005",
+        "simple": { "limit": 30, "period": 60 }
+      }
+    ]
+  }
+}

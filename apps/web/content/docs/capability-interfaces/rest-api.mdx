@@ -1,0 +1,45 @@
+---
+title: REST API
+description: Effect HttpApi exposed by the API Worker, generated OpenAPI, and the error model.
+category: capability-interfaces
+order: 10
+tags: [rest, openapi, http]
+---
+
+The REST API is one of two Capability Interfaces over `@b2b-saas-starter/capabilities`. The contracts are defined with Effect `HttpApi` in `packages/api`, served by the API Worker in `apps/api`, and documented through a generated OpenAPI document plus a Scalar reference UI.
+
+## Endpoint shape
+
+`HttpApiGroup` definitions in `packages/api/src/index.ts` declare each endpoint once with Effect Schema, and the wire path is workspace-slug scoped (no `/v1` prefix):
+
+```ts
+HttpApiGroup.make('workspace').add(
+  HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
+    params: SlugParams,
+    success: WorkspaceOverviewDto,
+    error: [WorkspaceNotFound, InternalError, Unauthorized, RateLimited]
+  })
+)
+```
+
+The same schemas feed the OpenAPI document. A typed client can be generated from the same `HttpApi` instance once the web Worker is ready to swap server functions for an API-backed reader.
+
+## Today's routing
+
+`apps/api/src/index.ts` is currently a hand-written `fetch` handler with regex routing that mirrors the `HttpApi` group paths. Migrating the worker onto the `HttpApi` groups themselves is the next step (ADR-0039); Hono is intentionally avoided.
+
+## Authentication
+
+Public REST clients authenticate with a workspace-scoped API Token in the `Authorization: Bearer …` header. The worker's `authorize()` step calls `ApiTokenRegistry.verifyBearerToken(token, requiredScope)` — missing header returns HTTP 401, invalid or insufficient token returns HTTP 403. Browser sessions are not accepted on the public API surface; cookies are an internal contract for the web Worker only.
+
+## Rate limiting
+
+Each route declares a Cloudflare RateLimit bucket — `rest_read`, `rest_write`, `invitations`, `assistant`, `mcp` — and the worker calls `binding.limit({ key: clientKey(request) })` before running the handler, falling back to an in-isolate brake when the bindings are absent.
+
+## Error model
+
+Tagged errors like `WorkspaceNotFound`, `Unauthorized`, `RateLimited`, and `InternalError` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. The same mapping is intended for the MCP server once tool dispatch lands. Adding a new domain error in `@b2b-saas-starter/capabilities` updates both interfaces at type-check time.
+
+## OpenAPI and Scalar
+
+Hitting `https://api.<domain>/reference` returns the Scalar reference UI. The raw OpenAPI document is at `/openapi.json` and regenerates on every deploy from the `HttpApi` groups in `packages/api`.

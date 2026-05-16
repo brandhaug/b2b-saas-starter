@@ -1,0 +1,7 @@
+{
+  "extends": "../config/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "bun-types"]
+  },
+  "include": ["src", "drizzle.config.ts"]
+}

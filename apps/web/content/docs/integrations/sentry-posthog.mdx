@@ -1,0 +1,21 @@
+---
+title: Sentry and PostHog
+description: Two Optional Provider Modules for error monitoring and product analytics.
+category: integrations
+order: 30
+tags: [sentry, posthog, observability]
+---
+
+Sentry and PostHog are Optional Provider Modules. They share the same env-gated activation pattern as Stripe and Cloudflare Email.
+
+## Sentry
+
+`SENTRY_DSN` is validated in `packages/env/src/server.ts` and the observability module reports `configured` once it is set. No Worker-side Sentry SDK is initialized yet — the wiring point is reserved, the integration is currently inactive. Tagged-error → Sentry mapping and Alchemy source-map upload are explicit non-goals for the first slice.
+
+## PostHog
+
+When `POSTHOG_KEY` (and optionally `POSTHOG_HOST`) is configured, the observability module reports `configured` via `moduleConfigStatus` in `packages/env/src/server.ts`. The PostHog browser SDK is not yet initialized in `apps/web` — the env gate is in place so the module can activate without a code change once init is added.
+
+## Local development
+
+Both providers stay inactive without configuration. The starter does not ship a hosted observability service or a free-tier project key — observability is opt-in.

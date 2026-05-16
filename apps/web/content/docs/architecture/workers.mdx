@@ -1,0 +1,35 @@
+---
+title: Workers
+description: The three Workers in the starter and what each one owns.
+category: architecture
+order: 20
+tags: [cloudflare, workers]
+---
+
+## Web Worker (`apps/web`)
+
+- TanStack Start with SSR, served by Vite via the `@cloudflare/vite-plugin` locally and deployed as a Cloudflare Worker
+- Public Showcase Site routes (landing, docs, blog, FAQ, pricing, changelog)
+- Reference Application routes (`/workspaces`, `/workspaces/$workspaceSlug`, `/workspaces/$workspaceSlug/settings`, `/admin`)
+- Better Auth catchall at `/api/auth/$`, with Cloudflare `RATE_LIMITER_AUTH_READ` and `RATE_LIMITER_AUTH_WRITE` bindings enforcing per-IP limits via `apps/web/src/lib/rate-limit.ts`
+- Server functions today resolve against `SeedLayer`; the `DB` binding is wired in wrangler/alchemy and will switch to `makeLiveLayerFromD1` when the live readers are adopted
+
+The web Worker can call `@b2b-saas-starter/capabilities` directly. It does not call the API Worker for its own UI — that would add a round trip without value.
+
+## API Worker (`apps/api`)
+
+- Hand-written `fetch` handler with regex routing in `apps/api/src/index.ts`, scheduled to migrate onto the HttpApi groups defined in `packages/api` (ADR 0039). Hono is intentionally avoided.
+- Workspace-scoped API Tokens: `Authorization: Bearer …` parsing, `ApiTokenRegistry.verifyBearerToken(token, requiredScope)`, and `ApiTokenRegistry.create`/`revoke` routes (both requiring `WorkspaceContext`) with `api_token.created`/`.revoked`/`.used` Audit Events
+- Per-bucket Cloudflare `RateLimit` bindings (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, `RATE_LIMITER_INVITATIONS`, `RATE_LIMITER_ASSISTANT`, `RATE_LIMITER_MCP`)
+- MCP discovery skeleton at `/mcp`; tool dispatch lands on top of the same capabilities
+- OpenAPI document at `/openapi.json` and Scalar reference UI at `/reference`
+
+External clients hit the API Worker. Internal UI hits its own server functions. Both paths share `@b2b-saas-starter/capabilities` so business behavior cannot drift.
+
+## Background Worker (`apps/background`)
+
+- Cron trigger for Catalog Refresh at `0 6 * * *` (daily 06:00 UTC)
+- Queue consumer for outbound Webhook Endpoint delivery: queue `b2b-saas-starter-webhooks` with `maxRetries: 6`, `batchSize: 25`, `maxConcurrency: 4`, `retryDelay: 30s`, and dead-letter queue `b2b-saas-starter-webhooks-dlq`. Failures call `message.retry({ delaySeconds })` so Cloudflare schedules the next attempt.
+- Wide-event emission for every cron tick and delivery attempt via `packages/logger`
+
+The background Worker writes delivery attempt history to D1 through `WebhookEndpoints.recordDeliveryAttempt`. Permanent-failure Audit Event writes are planned — `AuditEventLog.record` exists, but the webhook delivery path does not call it yet.

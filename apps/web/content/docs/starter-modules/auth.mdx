@@ -1,0 +1,33 @@
+---
+title: Auth module
+description: Better Auth with the Local Auth Path, example OAuth providers, and the admin plugin.
+category: starter-modules
+order: 10
+tags: [auth, better-auth]
+---
+
+The auth module is a Starter Module wired through Better Auth. The Local Auth Path (email and password) works without any external configuration; OAuth providers are activated only when their secrets are present.
+
+## What ships ready
+
+- Email/password authentication with sessions in D1
+- Username plugin (for friendlier display names)
+- Admin plugin (System Admin role) — registered with `adminRoles: ['admin']`
+- TanStack Start cookie bridge via the `tanstackStartCookies()` plugin
+- Better Auth React client (`authClient`) for current user and current session; workspace membership loads from the `WorkspaceMembership` capability in route loaders
+- Skip-to-content and accessible form patterns on the sign-in page
+
+## What activates when configured
+
+- GitHub OAuth (the Example OAuth Provider) — registered only when `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are both set
+- Additional Example OAuth Providers can be wired the same way
+
+Each provider is an Optional Provider Module. Missing config does not block local development.
+
+## Sessions
+
+Sessions are handled by Better Auth with the `tanstackStartCookies()` plugin: signed HTTP-only cookies, signed with `BETTER_AUTH_SECRET`, scoped per Better Auth's defaults. Trusted origins come from `BETTER_AUTH_TRUSTED_ORIGINS` (or fall back to `BETTER_AUTH_URL`). Workspace-aware session payloads and a workspace-switching refresh flow are intentional next steps, not yet wired.
+
+## System Admin
+
+The Better Auth admin plugin is enabled and exposes a System Admin UI behind `/admin`. System Admin is distinct from a Workspace Role: it controls user-level governance, not workspace-level membership.

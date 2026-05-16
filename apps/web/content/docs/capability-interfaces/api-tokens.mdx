@@ -1,0 +1,25 @@
+---
+title: API tokens
+description: Workspace-scoped credentials with scopes, prefixes, and revocation.
+category: capability-interfaces
+order: 30
+tags: [tokens, auth, security]
+---
+
+API Tokens are the credential type for REST and MCP. They belong to a Workspace, never to a user account.
+
+## Creation
+
+A workspace admin creates a token from the workspace settings UI, which calls `POST /workspaces/:slug/api-tokens` on the API Worker (scope `admin`). The token's plaintext value is shown exactly once at creation — `randomToken()` in `packages/capabilities/src/developer-platform/api-token-registry.ts` returns a `bsk_live_<48-hex>` value; D1 stores only the SHA-256 `tokenHash` and a 17-character `tokenPrefix` for display. `ApiTokenRegistry.create` requires `WorkspaceContext` (supplied by the route layer from the URL slug) and writes an `api_token.created` Audit Event through `AuditEventLog.record`.
+
+## Scopes
+
+Scopes are coarse on purpose: `read`, `write`, and `admin`. The API Worker's `authorize()` step (`apps/api/src/index.ts`) parses the `Authorization: Bearer …` header, calls `ApiTokenRegistry.verifyBearerToken(token, requiredScope)`, and rejects the request if the scope is missing. Each REST route declares its `requiredScope` in `matchRoute`. The MCP endpoint at `/mcp` requires `read` today; per-tool scope enforcement will follow once tool dispatch is wired.
+
+## Revocation
+
+Revocation is immediate. `ApiTokenRegistry.revoke` stamps `revokedAt` on the row and `verifyBearerToken` filters `isNull(revokedAt)` — subsequent requests get HTTP 403 (HTTP 401 is reserved for missing bearer header). Revocation also writes an `api_token.revoked` Audit Event via `AuditEventLog.record`; user-facing Notification emission on revocation is not yet wired.
+
+## What tokens are not
+
+API Tokens are not user sessions, not OAuth client secrets, and not provider API keys. They are a Workspace-scoped programmatic credential intended for the starter's public REST and MCP traffic.

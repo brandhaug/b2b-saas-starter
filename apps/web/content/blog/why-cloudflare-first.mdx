@@ -1,0 +1,32 @@
+---
+title: Why this starter is Cloudflare-first
+description: Workers, D1, Queues, Email, Turnstile, and Alchemy make one coherent production path.
+date: '2026-05-16'
+author: Starter Team
+tags: [cloudflare, deployment, architecture]
+---
+
+The starter is Cloudflare-first. That phrase appears in `CONTEXT.md` and in `ADR 0001`, and it shapes the rest of the architecture more than any other decision.
+
+## The bet
+
+Cloudflare's primitives — Workers, D1, Queues, Email Service, Rate Limiting, and env-gated Turnstile — compose into one production stack with one bill, one auth domain, and one deploy command. R2 and Durable Objects are intentionally out of the initial scaffold (see ARCHITECTURE.md "Explicit Non-Goals"). The starter takes that bet rather than trying to be platform-agnostic.
+
+## What "Cloudflare-first" rules in
+
+- D1 is the single database; there is no Postgres path
+- Workers are the single compute primitive; there is no Node server
+- Alchemy v2 owns infrastructure-as-code; each Worker's `wrangler.jsonc` mirrors the Alchemy declaration by hand
+- Cloudflare Queues handle outbound Webhook Endpoint delivery
+- Cloudflare Email Service is the outbound mail boundary
+
+## What it rules out (intentionally)
+
+- Vercel, Netlify, Fly, Render, and other deployment targets
+- Multi-cloud abstractions that hedge on the persistence layer
+- Service workers / PWA support without a real coordination need
+- Durable Objects until a feature genuinely needs single-writer coordination
+
+## What it does not rule out
+
+Sentry, PostHog, Stripe, GitHub OAuth, and other Optional Provider Modules all work on Cloudflare. The bet is on platform primitives, not on isolation from the rest of the ecosystem.

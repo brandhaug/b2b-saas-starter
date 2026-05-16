@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": ["alchemy.run.ts"],
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": [
+    "@b2b-saas-starter/config",
+    "@b2b-saas-starter/db",
+    "@tailwindcss/typography",
+    "babel-plugin-react-compiler",
+    "@effect/language-service",
+    "shadcn",
+    "tw-animate-css"
+  ],
+  "ignorePatterns": ["apps/web/src/index.css", "scripts/seed.ts"],
+  "dynamicallyLoaded": [
+    "apps/web/content/blog/*.mdx",
+    "apps/web/content/docs/**/*.mdx",
+    "apps/web/src/lib/cloudflare-workers-shim.ts"
+  ],
+  "resolve": {
+    "conditions": ["style"]
+  }
+}

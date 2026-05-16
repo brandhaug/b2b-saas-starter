@@ -1,0 +1,8 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "none",
+  "printWidth": 88,
+  "indentStyle": "tab",
+  "ignorePatterns": ["**/routeTree.gen.*", "**/*.d.ts"]
+}

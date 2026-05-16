@@ -1,0 +1,24 @@
+{
+  "name": "background",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8788 --inspector-port 9788",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "catalog:refresh": "bun src/catalog-refresh.ts"
+  },
+  "dependencies": {
+    "@b2b-saas-starter/capabilities": "workspace:*",
+    "@b2b-saas-starter/logger": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@b2b-saas-starter/config": "workspace:*",
+    "@cloudflare/workers-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

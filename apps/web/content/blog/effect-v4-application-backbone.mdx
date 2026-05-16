@@ -1,0 +1,25 @@
+---
+title: Effect v4 as the application backbone
+description: Why capabilities, HTTP contracts, client fetching, and AI boundaries are modeled with Effect.
+date: '2026-05-16'
+author: Starter Team
+tags: [effect, architecture]
+---
+
+Effect v4 sits in the middle of the starter on purpose. `packages/capabilities` owns the typed services for workspaces, Starter Modules, Adoption Readiness, Audit Events, API Tokens, and Webhook Endpoints. The web Worker, the API Worker, and the background Worker all depend on it.
+
+## What Effect buys us
+
+Three Workers share one application backbone without each importing the other's code. Effect's services and layers compose; testing a capability does not require booting a Worker.
+
+## Schemas as contracts
+
+Every request, response, and persisted shape is an Effect Schema. The same schema powers the OpenAPI document the API Worker serves at `/openapi.json`, the Effect Atom server-state layer the web Worker will adopt (ADR 0040), and the seed fixtures in `packages/capabilities/src/seed-fixture.ts` and `scripts/seed.ts`. A field rename ripples through every consumer at type-check time.
+
+## Errors as part of the type
+
+Domain errors are `Schema.TaggedErrorClass` types. The HTTP mapping is centralized — `AuthorizationDenied` is 403, `RateLimited` is 429, `WorkspaceNotFound` is 404. The MCP endpoint skeleton in `apps/api` will reuse the same mapping as it grows past discovery. Adding a new error class is one declaration; every interface picks it up.
+
+## Why not factor capabilities per Worker
+
+Splitting capabilities per Worker invites drift. The starter explicitly chooses one shared package over three convenient copies.

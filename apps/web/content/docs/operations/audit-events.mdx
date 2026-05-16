@@ -1,0 +1,23 @@
+---
+title: Audit events and notifications
+description: Persisted governance records and user-facing messages for workspace activity.
+category: operations
+order: 20
+tags: [audit, notifications, governance]
+---
+
+Audit Events and Notifications are two distinct concepts the starter does not conflate.
+
+## Audit Events
+
+An Audit Event is a persisted, queryable record of a governance-sensitive action. Each row in the `audit_events` D1 table captures `actorUserId`, `targetType`, `targetId`, an `eventType` string, and a metadata JSON blob. `AuditEventLog.list` (requires `WorkspaceContext` from the route layer) and `AuditEventLog.listGlobal` expose the recent rows; no richer filtering API yet.
+
+Today the starter writes Audit Events for `api_token.created`, `api_token.revoked`, `api_token.used`, and webhook endpoint create/disable/secret-rotation via `AuditEventLog.record`. Member role changes, billing webhook delivery, and System Admin actions are intentional next steps — the schema and capability are ready, the write paths are not yet instrumented.
+
+## Notifications
+
+A Notification is a user-facing message about workspace, module, report, billing, integration, or API token activity. The `NotificationFeed` capability is read-only today: messages are seeded for the Seed Workspace and surfaced to the user, but no write path automatically derives Notifications from Audit Events or non-audit signals yet.
+
+## Why they're separate
+
+Audit Events are inspectable evidence; Notifications are attention-routing. Conflating them either makes the audit trail noisy with non-governance content, or makes notifications a partial governance log that lies by omission. Wide-event logs already carry a `traceId` for request correlation; the `audit_events` row does not yet store one — add it to the metadata JSON when instrumenting writes if you need to join them.

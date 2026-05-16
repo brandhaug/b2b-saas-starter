@@ -1,0 +1,5 @@
+# B2B SaaS Starter Full Context
+
+This starter showcases a production-grade repository foundation. The public site markets the starter itself, while the reference application demonstrates workspaces, starter modules, module state, adoption readiness, integration surfaces, API tokens, outbound webhooks, notifications, implementation reports, audit events, and Better Auth admin.
+
+Architecture decisions live in /docs/adr in the repository.

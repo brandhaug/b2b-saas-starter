@@ -1,0 +1,27 @@
+---
+title: Workspace roles
+description: Owner, admin, and member — the three Workspace Roles in the starter.
+category: governance
+order: 10
+tags: [roles, permissions]
+---
+
+A Workspace Role is the permission level a Member has within one Workspace. The starter defines three roles in `workspace_members.role`: owner, admin, member.
+
+> **Enforcement status:** roles are modeled in the schema and surfaced through the `WorkspaceMembership` capability, but route-level enforcement is not yet wired. Every signed-in user currently passes `requireSession` regardless of role — see ARCHITECTURE.md §Authorization model.
+
+## Owner
+
+Exactly one Member per Workspace is the owner. Ownership transfer and owner-only governance Notifications are scaffolded in the data model; the transfer flow itself and the notification routing are not yet implemented.
+
+## Admin
+
+Admins are intended to manage members, Invitations, API Tokens, Webhook Endpoints, billing, and integration configuration. There can be multiple admins.
+
+## Member
+
+Members are intended to read workspace data and operate within the Reference Application without changing configuration. Most users are members.
+
+## Why three, not four
+
+Three is the minimum that supports a real B2B governance model without inventing roles that nothing meaningfully enforces. Adding finer-grained permissions would mean inventing a workspace-level policy language; the starter leaves that as a future module rather than guessing the right shape.

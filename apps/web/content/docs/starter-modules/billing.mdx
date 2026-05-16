@@ -1,0 +1,33 @@
+---
+title: Billing module
+description: Stripe-ready Optional Provider Module with public pricing and env-gated activation.
+category: starter-modules
+order: 30
+tags: [billing, stripe, optional-provider]
+---
+
+Billing is an Optional Provider Module. The starter scaffolds the module's surfaces today and activates them when Stripe configuration is present.
+
+## What's wired
+
+- Public `/pricing` page in `apps/web/src/routes/pricing.tsx` rendering a static plan list inline (moving plans into Public Knowledge Content is a planned refactor)
+- Stripe-ready env keys (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) recognized by `moduleConfigStatus('billing', …)` in `packages/env/src/server.ts`
+
+## What's planned
+
+- Workspace billing settings under `/workspaces/$workspaceSlug/settings` (no `/billing` child route yet)
+- Stripe checkout session endpoint
+- Stripe customer portal redirect
+- Stripe webhook handler with signature verification on the background Worker
+
+These routes are intentional next steps — see `docs/integrations/stripe-billing.mdx` for status.
+
+## Public pricing without Stripe
+
+Plans are listed even when Stripe is not configured. Subscribe buttons degrade to a "Configure billing" message when activation is missing, so the page remains useful as documentation.
+
+## What an active billing module unlocks
+
+- Per-workspace plan, status, and seat count surfaced in workspace settings
+- Implementation Report inclusion of billing state
+- Audit Events for plan changes, payment failures, and Stripe webhook deliveries
