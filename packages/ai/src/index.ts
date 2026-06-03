@@ -4,7 +4,8 @@ export class AssistantUnavailable extends Schema.TaggedErrorClass<AssistantUnava
   'AssistantUnavailable',
   {
     reason: Schema.String
-  }
+  },
+  { httpApiStatus: 503 }
 ) {}
 
 export const AssistantProvider = Schema.Literals([

@@ -88,14 +88,21 @@ export const withRequestScope = <A, E, R>(
         ...(options.environment ?? {}),
         ...(options.metadata ?? {})
       })
-      yield* Effect.addFinalizer((exit) =>
-        Effect.log(options.event, {
-          status: Exit.isSuccess(exit) ? 'ok' : 'error',
-          durationMs: Date.now() - startedAt,
-          ...(Exit.isFailure(exit) ? causeMetadata(exit.cause) : {})
-        })
+      // Emit the canonical wide event via onExit (not addFinalizer) so it runs
+      // while the scope's annotations are still active — including those added
+      // by handlers via annotateWide() during `body`. A scope finalizer runs
+      // only after annotateLogsScoped has restored the previous annotations
+      // (finalizers are LIFO), which silently drops all handler-set context
+      // from the event. onExit still fires on success, failure, and interrupt.
+      return yield* body.pipe(
+        Effect.onExit((exit) =>
+          Effect.log(options.event, {
+            status: Exit.isSuccess(exit) ? 'ok' : 'error',
+            durationMs: Date.now() - startedAt,
+            ...(Exit.isFailure(exit) ? causeMetadata(exit.cause) : {})
+          })
+        )
       )
-      return yield* body
     })
   )
 }
