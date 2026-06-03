@@ -1,3 +1,5 @@
-# Effect Atom for server state
+# Client server-state: loaders and server functions (Effect Atom deferred)
 
-The starter uses Effect Atom as the primary client server-state model for capability reads and mutations, especially those backed by Effect HTTP API contracts. TanStack Query may remain for TanStack Start compatibility or incidental tooling, but new starter capability data flows should not introduce a competing React Query abstraction.
+`apps/web` manages client server-state through TanStack Start route loaders that run `@b2b-saas-starter/capabilities` Effect services directly — there are no REST round-trips from the web app to `apps/api`, which is the external surface — and through TanStack Start server functions that wrap a capability call for mutations. TanStack Query is used only for incidental client-side polling and manual refresh, such as the workspace notifications panel.
+
+Effect Atom (`@effect/atom-react`, `AtomHttpApi.Service`) was originally intended as the primary client server-state model over the HTTP API contract. It is declared in the workspace catalog but is **not wired** today, because loaders plus server functions cover the reference app's needs. Effect Atom remains the documented extension point to revisit once a route needs subscription or optimistic-update semantics; new data flows should not introduce a second general-purpose React Query abstraction beyond the incidental polling already in place.
