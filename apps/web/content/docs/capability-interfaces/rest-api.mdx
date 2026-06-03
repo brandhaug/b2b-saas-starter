@@ -24,9 +24,9 @@ HttpApiGroup.make('workspace').add(
 
 The same schemas feed the OpenAPI document. A typed client can be generated from the same `HttpApi` instance once the web Worker is ready to swap server functions for an API-backed reader.
 
-## Today's routing
+## Routing
 
-`apps/api/src/index.ts` is currently a hand-written `fetch` handler with regex routing that mirrors the `HttpApi` group paths. Migrating the worker onto the `HttpApi` groups themselves is the next step (ADR-0039); Hono is intentionally avoided.
+`apps/api` serves the `HttpApi` groups directly: `HttpApiBuilder.layer(StarterApi)` plus per-group handler layers, converted to a Cloudflare web handler with `HttpRouter.toWebHandler` (`apps/api/src/http.ts`). Paths, params, payloads, success/error schemas, and status codes are all the contract's — there is no separate route table to drift from the OpenAPI document (ADR-0039). Hono is intentionally avoided.
 
 ## Authentication
 
