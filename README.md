@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/brandhaug-b2b-saas-starter-badge.png)](https://mseep.ai/app/brandhaug-b2b-saas-starter)
+
 # B2B SaaS Starter
 
 Cloudflare-first B2B SaaS monorepo. TanStack Start, Effect v4, Drizzle on D1, Better Auth, Alchemy v2, REST + MCP, React Email, Storybook, Vitest, Playwright, oxlint, oxfmt, Turbo, Bun.
