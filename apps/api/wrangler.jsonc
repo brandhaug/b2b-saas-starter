@@ -20,9 +20,17 @@
   "ai": {
     "binding": "AI"
   },
+  "queues": {
+    "producers": [
+      {
+        "binding": "WEBHOOK_QUEUE",
+        "queue": "b2b-saas-starter-webhooks"
+      }
+    ]
+  },
   "vars": {
     "WORKERS_AI_ENABLED": "false",
-    "EMAIL_FROM_ADDRESS": "noreply@example.com"
+    "CLOUDFLARE_EMAIL_FROM": "noreply@example.com"
   },
   "unsafe": {
     "bindings": [

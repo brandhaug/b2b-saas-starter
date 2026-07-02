@@ -2,13 +2,19 @@ import * as Alchemy from 'alchemy'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
-
-type RateLimitBindingSpec = {
-  readonly name: string
-  readonly namespaceId: string
-  readonly limit: number
-  readonly period: 10 | 60
-}
+import {
+  apiRateLimits,
+  webhookConsumerSettings,
+  webhookDeadLetterQueueName,
+  webhookDlqConsumerSettings,
+  webhookQueueName,
+  webRateLimits,
+  type RateLimitBindingSpec
+} from './infra/bindings.ts'
+import {
+  optionalModuleEnvPlainKeys,
+  optionalModuleEnvSecretKeys
+} from './packages/env/src/server.ts'
 
 type BindableWorker = {
   readonly bind: (
@@ -58,7 +64,26 @@ const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
 const BETTER_AUTH_URL = requiredEnv('BETTER_AUTH_URL')
 const BETTER_AUTH_TRUSTED_ORIGINS =
   process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? BETTER_AUTH_URL
-const EMAIL_FROM_ADDRESS = requiredEnv('CLOUDFLARE_EMAIL_FROM')
+// Optional: when unset, the SendEmail binding is skipped and the email
+// module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
+// read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalModuleEnv` below —
+// there is no second email var name.
+const CLOUDFLARE_EMAIL_FROM = process.env.CLOUDFLARE_EMAIL_FROM
+
+// Optional module env, forwarded to the web, API, and background workers so
+// the shared module-aware env validation (`@b2b-saas-starter/env`, ADR 0035)
+// reports module status from the deployed environment. Unset values leave the
+// module in needs-config instead of failing the deploy. The key lists (and
+// the secret-vs-plain split) live in `packages/env/src/server.ts` next to the
+// schema — adding a var there is the ONE place to edit.
+const optionalModuleEnv = {
+  ...Object.fromEntries(
+    optionalModuleEnvSecretKeys.map((key) => [key, optionalSecret(key)])
+  ),
+  ...Object.fromEntries(
+    optionalModuleEnvPlainKeys.map((key) => [key, process.env[key] ?? null])
+  )
+}
 
 const observability = {
   enabled: true,
@@ -80,31 +105,36 @@ export const Stack = Alchemy.Stack(
     })
 
     const webhookDeadLetterQueue = yield* Cloudflare.Queue('webhook-queue-dlq', {
-      name: 'b2b-saas-starter-webhooks-dlq'
+      name: webhookDeadLetterQueueName
     })
 
     const webhookQueue = yield* Cloudflare.Queue('webhook-queue', {
-      name: 'b2b-saas-starter-webhooks'
+      name: webhookQueueName
     })
 
-    const transactionalEmail = yield* Cloudflare.SendEmail('EMAIL', {
-      // Restrict the Worker to sending from the verified default. Add
-      // more `allowedSenderAddresses` here as you verify additional
-      // domains in Cloudflare Email Routing.
-      allowedSenderAddresses: [EMAIL_FROM_ADDRESS]
-    })
+    // Only provision the SendEmail binding when a verified sender is
+    // configured — without it the email module stays inactive instead of
+    // failing the deploy.
+    const transactionalEmail = CLOUDFLARE_EMAIL_FROM
+      ? yield* Cloudflare.SendEmail('EMAIL', {
+          // Restrict the Worker to sending from the verified default. Add
+          // more `allowedSenderAddresses` here as you verify additional
+          // domains in Cloudflare Email Routing.
+          allowedSenderAddresses: [CLOUDFLARE_EMAIL_FROM]
+        })
+      : undefined
 
     const api = yield* Cloudflare.Worker('api', {
       name: 'b2b-saas-starter-api',
       main: './apps/api/src/index.ts',
-      bindings: { DB: db, EMAIL: transactionalEmail },
-      env: {
-        EMAIL_FROM_ADDRESS,
-        WORKERS_AI_ENABLED: process.env.WORKERS_AI_ENABLED ?? 'false',
-        OPENAI_API_KEY: optionalSecret('OPENAI_API_KEY'),
-        OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? null,
-        OPENAI_MODEL_ID: process.env.OPENAI_MODEL_ID ?? null
+      bindings: {
+        DB: db,
+        // Producer only — the background worker consumes; the API worker
+        // enqueues webhook events after audit-worthy mutations.
+        WEBHOOK_QUEUE: webhookQueue,
+        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
+      env: optionalModuleEnv,
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
@@ -112,18 +142,17 @@ export const Stack = Alchemy.Stack(
 
     yield* attachWorkersAi(api)
 
-    yield* attachRateLimits(api, [
-      { name: 'RATE_LIMITER_REST', namespaceId: '1001', limit: 60, period: 60 },
-      { name: 'RATE_LIMITER_REST_WRITE', namespaceId: '1002', limit: 20, period: 60 },
-      { name: 'RATE_LIMITER_INVITATIONS', namespaceId: '1003', limit: 10, period: 60 },
-      { name: 'RATE_LIMITER_ASSISTANT', namespaceId: '1004', limit: 20, period: 60 },
-      { name: 'RATE_LIMITER_MCP', namespaceId: '1005', limit: 30, period: 60 }
-    ])
+    yield* attachRateLimits(api, apiRateLimits)
 
     const background = yield* Cloudflare.Worker('background', {
       name: 'b2b-saas-starter-background',
       main: './apps/background/src/index.ts',
-      bindings: { DB: db, WEBHOOK_QUEUE: webhookQueue, EMAIL: transactionalEmail },
+      bindings: {
+        DB: db,
+        WEBHOOK_QUEUE: webhookQueue,
+        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+      },
+      env: optionalModuleEnv,
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
@@ -133,25 +162,29 @@ export const Stack = Alchemy.Stack(
       queueId: webhookQueue.queueId,
       scriptName: background.workerName,
       deadLetterQueue: webhookDeadLetterQueue.queueName,
-      settings: {
-        batchSize: 25,
-        maxConcurrency: 4,
-        maxRetries: 6,
-        maxWaitTimeMs: 5_000,
-        retryDelay: 30
-      }
+      settings: webhookConsumerSettings
+    })
+
+    // Dead-letter consumer: the background worker records terminal
+    // `dead_lettered` delivery rows for messages that exhausted maxRetries.
+    yield* Cloudflare.QueueConsumer('webhook-dlq-consumer', {
+      queueId: webhookDeadLetterQueue.queueId,
+      scriptName: background.workerName,
+      settings: webhookDlqConsumerSettings
     })
 
     const web = yield* Cloudflare.Vite('web', {
       name: 'b2b-saas-starter-web',
       rootDir: './apps/web',
-      bindings: { DB: db, EMAIL: transactionalEmail },
+      bindings: {
+        DB: db,
+        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+      },
       env: {
+        ...optionalModuleEnv,
         BETTER_AUTH_SECRET,
         BETTER_AUTH_URL,
-        BETTER_AUTH_TRUSTED_ORIGINS,
-        GITHUB_CLIENT_ID: optionalSecret('GITHUB_CLIENT_ID'),
-        GITHUB_CLIENT_SECRET: optionalSecret('GITHUB_CLIENT_SECRET')
+        BETTER_AUTH_TRUSTED_ORIGINS
       },
       compatibility: {
         flags: ['nodejs_compat']
@@ -159,10 +192,7 @@ export const Stack = Alchemy.Stack(
       observability
     })
 
-    yield* attachRateLimits(web, [
-      { name: 'RATE_LIMITER_AUTH_READ', namespaceId: '2001', limit: 60, period: 60 },
-      { name: 'RATE_LIMITER_AUTH_WRITE', namespaceId: '2002', limit: 20, period: 60 }
-    ])
+    yield* attachRateLimits(web, webRateLimits)
 
     return {
       api,

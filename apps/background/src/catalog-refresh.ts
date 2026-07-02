@@ -1,25 +1,10 @@
 import { Effect } from 'effect'
-import {
-  CatalogRefreshHistory,
-  SeedLayer,
-  StarterModuleCatalog
-} from '@b2b-saas-starter/capabilities'
+import { runCatalogRefresh, SeedLayer } from '@b2b-saas-starter/capabilities'
 
-const program = Effect.gen(function* () {
-  const startedAt = new Date().toISOString()
-  const startedMs = Date.now()
-  const catalog = yield* StarterModuleCatalog
-  const history = yield* CatalogRefreshHistory
-  const modules = yield* catalog.listAllModules
-  yield* history.recordRun({
-    label: new Date(startedAt).toUTCString(),
-    status: 'ok',
-    modules: modules.length,
-    durationMs: Date.now() - startedMs,
-    startedAt
-  })
-  return modules.length
-}).pipe(
+// CLI/test entry point: run one catalog refresh against the Seed adapter and
+// print the outcome. The capture-record-refail sequence lives in
+// `runCatalogRefresh` (@b2b-saas-starter/capabilities).
+const program = runCatalogRefresh.pipe(
   Effect.provide(SeedLayer),
   Effect.tap((count) =>
     Effect.sync(() => {

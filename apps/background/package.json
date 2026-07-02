@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@b2b-saas-starter/capabilities": "workspace:*",
+    "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
     "effect": "catalog:"
   },
