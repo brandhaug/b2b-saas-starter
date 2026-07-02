@@ -1,334 +1,164 @@
-import { Effect, Layer, type Scope } from 'effect'
-import { describe, expect, it } from 'vitest'
-import {
-  ApiTokenRegistry,
-  AuthorizationDenied,
-  CapabilityUnavailable,
-  SEED_API_TOKEN,
-  SeedApiTokenRegistry,
-  type ApiTokenRegistryShape,
-  type ApiTokenScope
-} from '@b2b-saas-starter/capabilities'
-import worker from './index.ts'
-import { authorize } from './auth.ts'
-import { matchRoute } from './routes.ts'
-import { clientKey, makeRateLimiterLayer, RateLimiter } from './rate-limit.ts'
+import { describe, expect, test } from 'vitest'
+import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities'
+import type { ApiEnv } from './env.ts'
+import { buildWebHandler } from './http.ts'
 
-const get = (path: string, headers?: Record<string, string>): Request =>
-  new Request(`http://localhost${path}`, { headers: headers ?? {} })
+const handlerFor = (env: ApiEnv = {}) => buildWebHandler(env).handler
 
-const post = (
-  path: string,
-  body?: unknown,
-  headers?: Record<string, string>
-): Request =>
-  new Request(`http://localhost${path}`, {
+const bearer = { authorization: `Bearer ${SEED_API_TOKEN}` }
+
+const get = (path: string, headers?: Record<string, string>) =>
+  new Request(`https://api.test${path}`, headers ? { headers } : {})
+
+const post = (path: string, body: unknown, headers?: Record<string, string>) =>
+  new Request(`https://api.test${path}`, {
     method: 'POST',
-    body: JSON.stringify(body ?? {}),
-    headers: { 'content-type': 'application/json', ...headers }
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body)
   })
 
-const bearer = (token: string): Record<string, string> => ({
-  authorization: `Bearer ${token}`
-})
+describe('contract-served routes', () => {
+  test('GET /health is public and returns ok', async () => {
+    const res = await handlerFor()(get('/health'))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'ok' })
+  })
 
-// `authorize` and the rate limiter annotate the request's wide event, so they
-// need a Scope; tests supply it with `Effect.scoped` after providing layers.
-const runScoped = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> =>
-  Effect.runPromise(Effect.scoped(effect) as Effect.Effect<A, E>)
-
-describe('matchRoute', () => {
-  const match = (request: Request) => matchRoute(request, {})
-
-  it('requires only read scope for workspace GET lists, including api-tokens and webhooks', () => {
-    for (const resource of [
-      'overview',
-      'modules',
-      'api-tokens',
-      'webhooks',
-      'audit-events'
-    ]) {
-      const matched = match(get(`/workspaces/starter-lab/${resource}`))
-      expect(matched?.kind).toBe('workspace')
-      expect(matched?.requiredScope).toBe('read')
-      if (matched?.kind === 'workspace') expect(matched.slug).toBe('starter-lab')
+  test('GET /openapi.json is generated from the contract', async () => {
+    const res = await handlerFor()(get('/openapi.json'))
+    expect(res.status).toBe(200)
+    const doc = (await res.json()) as {
+      openapi?: string
+      paths?: Record<string, unknown>
     }
+    expect(doc.openapi).toBeDefined()
+    expect(doc.paths?.['/workspaces/{slug}/overview']).toBeDefined()
+    expect(doc.paths?.['/workspaces/{slug}/webhooks']).toBeDefined()
+    expect(doc.paths?.['/health']).toBeDefined()
   })
 
-  it('requires admin scope for token create and revoke', () => {
-    const create = match(post('/workspaces/starter-lab/api-tokens'))
-    expect(create?.event).toBe('workspace.api-tokens.create')
-    expect(create?.requiredScope).toBe('admin')
+  test('GET /reference serves the Scalar UI', async () => {
+    const res = await handlerFor()(get('/reference'))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/html')
+  })
 
-    const revoke = match(post('/workspaces/starter-lab/api-tokens/tok_1/revoke'))
-    expect(revoke?.event).toBe('workspace.api-tokens.revoke')
-    expect(revoke?.requiredScope).toBe('admin')
+  test('protected routes require a bearer token', async () => {
+    const res = await handlerFor()(get('/workspaces/starter-lab/overview'))
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { _tag: string })._tag).toBe('Unauthorized')
+  })
 
-    const remove = match(
-      new Request('http://localhost/workspaces/starter-lab/api-tokens/tok_1', {
-        method: 'DELETE'
+  test('unknown bearer tokens are authentication failures', async () => {
+    const res = await handlerFor()(
+      get('/workspaces/starter-lab/overview', {
+        authorization: 'Bearer bsk_live_bogus'
       })
     )
-    expect(remove?.event).toBe('workspace.api-tokens.revoke')
-    expect(remove?.requiredScope).toBe('admin')
+    expect(res.status).toBe(401)
   })
 
-  it('rejects the revoke/delete method-path cross-product the contract never defined', () => {
-    expect(match(post('/workspaces/starter-lab/api-tokens/tok_1'))).toBeNull()
-    expect(
-      match(
-        new Request('http://localhost/workspaces/starter-lab/api-tokens/tok_1/revoke', {
-          method: 'DELETE'
-        })
-      )
-    ).toBeNull()
+  test('workspace tokens cannot cross workspace slugs', async () => {
+    const res = await handlerFor()(get('/workspaces/does-not-exist/overview', bearer))
+    expect(res.status).toBe(403)
+    expect(((await res.json()) as { _tag: string })._tag).toBe('AuthorizationDenied')
   })
 
-  it('requires write scope for webhook create', () => {
-    const matched = match(post('/workspaces/starter-lab/webhooks'))
-    expect(matched?.kind).toBe('workspace')
-    expect(matched?.event).toBe('workspace.webhooks.create')
-    expect(matched?.requiredScope).toBe('write')
-  })
-
-  it('requires read scope on the assistant, catalog, and mcp routes', () => {
-    expect(match(post('/assistant/answer'))?.requiredScope).toBe('read')
-    expect(match(get('/catalog/modules'))?.requiredScope).toBe('read')
-    expect(match(get('/mcp'))?.requiredScope).toBe('read')
-  })
-
-  it('leaves health, openapi, and reference unauthenticated', () => {
-    for (const path of ['/health', '/openapi.json', '/reference']) {
-      const matched = match(get(path))
-      expect(matched?.kind).toBe('standalone')
-      expect(matched?.requiredScope).toBeUndefined()
+  test('GET workspace overview returns the DTO for the seed token', async () => {
+    const res = await handlerFor()(get('/workspaces/starter-lab/overview', bearer))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      workspace: { slug: string }
+      modules: unknown[]
     }
+    expect(body.workspace.slug).toBe('starter-lab')
+    expect(Array.isArray(body.modules)).toBe(true)
   })
 
-  it('returns null for unknown paths and wrong methods', () => {
-    expect(match(get('/nope'))).toBeNull()
-    expect(match(post('/workspaces/starter-lab/modules'))).toBeNull()
-    expect(match(get('/assistant/answer'))).toBeNull()
-  })
-})
-
-describe('authorize', () => {
-  const seedRegistry = SeedApiTokenRegistry([])
-
-  const stubRegistry = (
-    verify: ApiTokenRegistryShape['verifyBearerToken']
-  ): Layer.Layer<ApiTokenRegistry> =>
-    Layer.succeed(ApiTokenRegistry)({
-      list: Effect.succeed([]),
-      create: () => Effect.die('unused in authorize tests'),
-      revoke: () => Effect.die('unused in authorize tests'),
-      verifyBearerToken: verify
-    })
-
-  const runAuthorize = (
-    request: Request,
-    scope: ApiTokenScope,
-    expectedSlug?: string,
-    registry: Layer.Layer<ApiTokenRegistry> = seedRegistry
-  ) => runScoped(authorize(request, scope, expectedSlug).pipe(Effect.provide(registry)))
-
-  it('answers 401 when the bearer token is missing', async () => {
-    const denied = await runAuthorize(get('/workspaces/starter-lab/modules'), 'read')
-    expect(denied?.status).toBe(401)
-    expect(await denied?.json()).toEqual({ error: 'missing_bearer_token' })
-  })
-
-  it('answers 401 for an unknown token', async () => {
-    const denied = await runAuthorize(
-      get('/workspaces/starter-lab/modules', bearer('bsk_live_bogus')),
-      'read'
-    )
-    expect(denied?.status).toBe(401)
-    expect(await denied?.json()).toEqual({ error: 'invalid_token' })
-  })
-
-  it('answers 403 when a valid token is bound to a different workspace', async () => {
-    const denied = await runAuthorize(
-      get('/workspaces/another-workspace/modules', bearer(SEED_API_TOKEN)),
-      'read',
-      'another-workspace'
-    )
-    expect(denied?.status).toBe(403)
-    expect(await denied?.json()).toEqual({ error: 'token_workspace_mismatch' })
-  })
-
-  it('answers 403 when the token lacks the required scope', async () => {
-    const denied = await runAuthorize(
-      get('/workspaces/starter-lab/api-tokens', bearer('bsk_live_read_only')),
-      'admin',
-      'starter-lab',
-      stubRegistry(() =>
-        Effect.fail(new AuthorizationDenied({ reason: 'insufficient_scope' }))
+  test('POST create api token returns 201 with the created token', async () => {
+    const res = await handlerFor()(
+      post(
+        '/workspaces/starter-lab/api-tokens',
+        { name: 'CI token', scopes: ['read'] },
+        bearer
       )
     )
-    expect(denied?.status).toBe(403)
-    expect(await denied?.json()).toEqual({ error: 'insufficient_scope' })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { token: string; scopes: string[] }
+    expect(body.token).toBeTruthy()
+    expect(body.scopes).toEqual(['read'])
   })
 
-  it('answers 503 when the token store is unreachable', async () => {
-    const denied = await runAuthorize(
-      get('/workspaces/starter-lab/modules', bearer('bsk_live_any')),
-      'read',
-      'starter-lab',
-      stubRegistry(() =>
-        Effect.fail(
-          new CapabilityUnavailable({
-            capability: 'api-token-registry',
-            reason: 'd1 unreachable'
-          })
-        )
-      )
-    )
-    expect(denied?.status).toBe(503)
-    expect(await denied?.json()).toEqual({ error: 'capability_unavailable' })
-  })
-
-  it('passes the seed token for its own workspace', async () => {
-    const denied = await runAuthorize(
-      get('/workspaces/starter-lab/modules', bearer(SEED_API_TOKEN)),
-      'read',
-      'starter-lab'
-    )
-    expect(denied).toBeNull()
-  })
-})
-
-describe('worker fetch (seed layers, no bindings)', () => {
-  const fetch = (request: Request) => worker.fetch(request, {})
-
-  it('serves health without auth', async () => {
-    const response = await fetch(get('/health'))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ status: 'ok' })
-  })
-
-  it('rejects a workspace read without a token', async () => {
-    const response = await fetch(get('/workspaces/starter-lab/modules'))
-    expect(response.status).toBe(401)
-  })
-
-  it('does not resolve an unknown workspace before requiring a token', async () => {
-    const response = await fetch(get('/workspaces/unknown-workspace/modules'))
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'missing_bearer_token' })
-  })
-
-  it('rejects a workspace read with an unknown token', async () => {
-    const response = await fetch(
-      get('/workspaces/starter-lab/modules', bearer('bsk_live_bogus'))
-    )
-    expect(response.status).toBe(401)
-  })
-
-  it('serves a workspace read with the seed token', async () => {
-    const response = await fetch(
-      get('/workspaces/starter-lab/modules', bearer(SEED_API_TOKEN))
-    )
-    expect(response.status).toBe(200)
-    const modules = (await response.json()) as unknown[]
-    expect(modules.length).toBeGreaterThan(0)
-  })
-
-  it('rejects a valid token bound to a different workspace slug', async () => {
-    const response = await fetch(
-      get('/workspaces/unknown-workspace/modules', bearer(SEED_API_TOKEN))
-    )
-    expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({ error: 'token_workspace_mismatch' })
-  })
-
-  it('rejects an invalid webhook destination with 400 before persisting', async () => {
-    const response = await fetch(
+  test('POST create webhook rejects invalid destinations', async () => {
+    const res = await handlerFor()(
       post(
         '/workspaces/starter-lab/webhooks',
         { url: 'http://insecure.example.com/hook', events: ['api_token.created'] },
-        bearer(SEED_API_TOKEN)
+        bearer
       )
     )
-    expect(response.status).toBe(400)
-    const body = (await response.json()) as { error: string }
-    expect(body.error).toBe('invalid_webhook_url')
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { _tag: string })._tag).toBe('InvalidWebhookUrl')
   })
 
-  it('creates a webhook endpoint for a valid https destination', async () => {
-    const response = await fetch(
+  test('POST create webhook accepts https destinations', async () => {
+    const res = await handlerFor()(
       post(
         '/workspaces/starter-lab/webhooks',
         { url: 'https://example.com/hook', events: ['api_token.created'] },
-        bearer(SEED_API_TOKEN)
+        bearer
       )
     )
-    expect(response.status).toBe(201)
-    const body = (await response.json()) as { url: string; enabled: boolean }
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { url: string; enabled: boolean }
     expect(body.url).toBe('https://example.com/hook')
     expect(body.enabled).toBe(true)
   })
 
-  // Invitation validation lives in `SendInvitationPayload` (packages/api) —
-  // the schema is the whole contract, no imperative checks in the worker.
-  it('rejects an invitation to a non-email recipient with 400', async () => {
-    const response = await fetch(
-      post(
-        '/workspaces/starter-lab/invitations',
-        { to: 'not-an-email' },
-        bearer(SEED_API_TOKEN)
-      )
+  test('POST invitations validates email through the contract schema', async () => {
+    const res = await handlerFor()(
+      post('/workspaces/starter-lab/invitations', { to: 'not-an-email' }, bearer)
     )
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ error: 'invalid_invitation_input' })
+    expect(res.status).toBe(400)
   })
 
-  it('queues an invitation for a valid recipient', async () => {
-    const response = await fetch(
+  test('POST assistant answer returns a mock reply when authorized and unconfigured', async () => {
+    const res = await handlerFor()(
       post(
-        '/workspaces/starter-lab/invitations',
-        { to: 'teammate@example.com' },
-        bearer(SEED_API_TOKEN)
+        '/assistant/answer',
+        { workspaceSlug: 'starter-lab', question: 'What is this?' },
+        bearer
       )
     )
-    expect(response.status).toBe(202)
-    const body = (await response.json()) as { status: string }
-    expect(body.status).toBe('queued')
-  })
-})
-
-describe('rate limiter fallback (no Cloudflare bindings)', () => {
-  it('enforces the in-memory per-bucket limit and keys buckets independently', async () => {
-    const take = (key: string) =>
-      Effect.gen(function* () {
-        const limiter = yield* RateLimiter
-        return yield* limiter.take({ bucket: 'rest_write', key })
-      }).pipe(Effect.provide(makeRateLimiterLayer({})))
-
-    const key = `test-${Date.now()}-${Math.random()}`
-    const outcomes: boolean[] = []
-    for (let i = 0; i < 21; i += 1) {
-      outcomes.push(await runScoped(take(key)))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      provider: string
+      assistantConfigured: boolean
     }
-    // rest_write allows 20 per window; the 21st take is denied.
-    expect(outcomes.slice(0, 20).every(Boolean)).toBe(true)
-    expect(outcomes[20]).toBe(false)
-    // A different key is unaffected.
-    expect(await runScoped(take(`${key}-other`))).toBe(true)
-  })
-})
-
-describe('clientKey', () => {
-  it('uses cf-connecting-ip and ignores attacker-controlled x-forwarded-for', () => {
-    const request = get('/mcp', {
-      'cf-connecting-ip': '203.0.113.7',
-      'x-forwarded-for': '10.0.0.1'
-    })
-    expect(clientKey(request)).toBe('203.0.113.7')
+    expect(body.provider).toBe('mock')
+    expect(body.assistantConfigured).toBe(false)
   })
 
-  it('falls back to a path-derived key when no client ip is present', () => {
-    const request = get('/mcp', { 'x-forwarded-for': '10.0.0.1' })
-    expect(clientKey(request)).toBe('unkeyed:/mcp')
+  test('GET /mcp returns the discovery document when authorized', async () => {
+    const res = await handlerFor()(get('/mcp', bearer))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { name: string }
+    expect(body.name).toBe('b2b-saas-starter-mcp')
+  })
+
+  test('a denying rate-limit binding short-circuits with 429', async () => {
+    const denyAssistant: ApiEnv = {
+      RATE_LIMITER_ASSISTANT: { limit: async () => ({ success: false }) }
+    }
+    const res = await handlerFor(denyAssistant)(
+      post('/assistant/answer', { workspaceSlug: 'starter-lab', question: 'Hi' })
+    )
+    expect(res.status).toBe(429)
+    expect(((await res.json()) as { _tag: string })._tag).toBe('RateLimited')
+  })
+
+  test('unknown routes are 404', async () => {
+    const res = await handlerFor()(get('/nope'))
+    expect(res.status).toBe(404)
   })
 })

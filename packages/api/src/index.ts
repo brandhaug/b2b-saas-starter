@@ -3,14 +3,14 @@ import {
   HttpApi,
   HttpApiEndpoint,
   HttpApiGroup,
-  HttpApiMiddleware,
-  HttpApiSecurity,
+  HttpApiSchema,
   OpenApi
 } from 'effect/unstable/httpapi'
 import {
   AssistantPrompt,
   AssistantProvider,
-  AssistantReply
+  AssistantReply,
+  AssistantUnavailable
 } from '@b2b-saas-starter/ai'
 import {
   ApiToken,
@@ -53,27 +53,22 @@ export class RateLimited extends Schema.TaggedErrorClass<RateLimited>()(
   { httpApiStatus: 429 }
 ) {}
 
-/**
- * Declares the bearer security scheme in the OpenAPI document so Scalar's
- * "try it" can send `Authorization: Bearer …`. The worker enforces it in
- * `apps/api/src/auth.ts` (`authorize`). The `error` union here is the shared
- * failure surface of every authenticated route — auth (401/403), rate
- * limiting (429), and — because all capability I/O maps D1/queue outages to
- * `CapabilityUnavailable` — 503. Endpoints list only endpoint-specific errors.
- */
-export class BearerAuth extends HttpApiMiddleware.Service<BearerAuth>()(
-  '@b2b-saas-starter/api/BearerAuth',
-  {
-    security: { bearerAuth: HttpApiSecurity.bearer },
-    error: [
-      InternalError,
-      Unauthorized,
-      AuthorizationDenied,
-      RateLimited,
-      CapabilityUnavailable
-    ]
-  }
-) {}
+const WORKSPACE_ERRORS = [
+  WorkspaceNotFound,
+  InternalError,
+  Unauthorized,
+  AuthorizationDenied,
+  RateLimited,
+  CapabilityUnavailable
+] as const
+
+const PROTECTED_ERRORS = [
+  InternalError,
+  Unauthorized,
+  AuthorizationDenied,
+  RateLimited,
+  CapabilityUnavailable
+] as const
 
 export const SlugParams = Schema.Struct({ slug: Schema.String })
 
@@ -86,10 +81,6 @@ export const WorkspaceOverviewDto = Schema.Struct({
 })
 export type WorkspaceOverviewDto = typeof WorkspaceOverviewDto.Type
 
-// Workspace routes 404 on an unknown slug; everything shared (auth, rate
-// limiting, capability outages) lives on the BearerAuth middleware error union.
-const workspaceErrors = [WorkspaceNotFound] as const
-
 export const HealthApi = HttpApiGroup.make('health').add(
   HttpApiEndpoint.get('check', '/health', {
     success: Schema.Struct({ status: Schema.Literal('ok') })
@@ -101,66 +92,65 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
     HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
       params: SlugParams,
       success: WorkspaceOverviewDto,
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('modules', '/workspaces/:slug/modules', {
       params: SlugParams,
       success: Schema.Array(StarterModuleWithState),
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('members', '/workspaces/:slug/members', {
       params: SlugParams,
       success: Schema.Array(Member),
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('notifications', '/workspaces/:slug/notifications', {
       params: SlugParams,
       success: Schema.Array(Notification),
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('api-tokens', '/workspaces/:slug/api-tokens', {
       params: SlugParams,
       success: Schema.Array(ApiToken),
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('webhooks', '/workspaces/:slug/webhooks', {
       params: SlugParams,
       success: Schema.Array(WebhookEndpoint),
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('integrations', '/workspaces/:slug/integrations', {
       params: SlugParams,
       success: Schema.Array(IntegrationSurface),
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('reports', '/workspaces/:slug/reports', {
       params: SlugParams,
       success: Schema.Array(ImplementationReport),
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('audit-events', '/workspaces/:slug/audit-events', {
       params: SlugParams,
       success: Schema.Array(AuditEvent),
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
-  .middleware(BearerAuth)
 
 const TokenIdParams = Schema.Struct({ slug: Schema.String, tokenId: Schema.String })
 const RevokedResponse = Schema.Struct({ status: Schema.Literal('revoked') })
@@ -170,45 +160,34 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
     HttpApiEndpoint.post('create', '/workspaces/:slug/api-tokens', {
       params: SlugParams,
       payload: CreateApiTokenPayload,
-      success: CreatedApiTokenSchema.annotate({ httpApiStatus: 201 }),
-      error: workspaceErrors
+      success: CreatedApiTokenSchema.pipe(HttpApiSchema.status(201)),
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.post('revoke', '/workspaces/:slug/api-tokens/:tokenId/revoke', {
       params: TokenIdParams,
       success: RevokedResponse,
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
   .add(
-    // Same behavior as `revoke` — REST-style alias the worker also accepts.
     HttpApiEndpoint.delete('delete', '/workspaces/:slug/api-tokens/:tokenId', {
       params: TokenIdParams,
       success: RevokedResponse,
-      error: workspaceErrors
+      error: WORKSPACE_ERRORS
     })
   )
-  .middleware(BearerAuth)
 
-export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
-  .add(
-    HttpApiEndpoint.post('create', '/workspaces/:slug/webhooks', {
-      params: SlugParams,
-      payload: CreateWebhookEndpointPayload,
-      success: WebhookEndpoint.annotate({ httpApiStatus: 201 }),
-      // `InvalidWebhookUrl` (400) is the SSRF/shape guard on the destination
-      // URL — see packages/capabilities webhook-url.ts.
-      error: [InvalidWebhookUrl, ...workspaceErrors]
-    })
-  )
-  .middleware(BearerAuth)
+export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
+  HttpApiEndpoint.post('create', '/workspaces/:slug/webhooks', {
+    params: SlugParams,
+    payload: CreateWebhookEndpointPayload,
+    success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
+    error: [InvalidWebhookUrl, ...WORKSPACE_ERRORS]
+  })
+)
 
-/**
- * Wire payload for an invitation. The email-shape check (single `@` with a
- * non-empty local part and domain) plus the length bounds are the whole
- * validation contract — the worker decodes this schema and adds nothing.
- */
 export const SendInvitationPayload = Schema.Struct({
   to: Schema.String.check(
     Schema.isMinLength(3),
@@ -218,50 +197,46 @@ export const SendInvitationPayload = Schema.Struct({
 })
 export type SendInvitationPayload = typeof SendInvitationPayload.Type
 
-export const InvitationApi = HttpApiGroup.make('workspace-invitations')
-  .add(
-    HttpApiEndpoint.post('send', '/workspaces/:slug/invitations', {
-      params: SlugParams,
-      payload: SendInvitationPayload,
-      // The worker answers 202 Accepted — delivery is asynchronous.
-      success: Schema.Struct({
-        status: Schema.Literal('queued'),
-        delivery: Schema.Unknown
-      }).annotate({ httpApiStatus: 202 }),
-      error: workspaceErrors
-    })
-  )
-  .middleware(BearerAuth)
+export const InvitationApi = HttpApiGroup.make('workspace-invitations').add(
+  HttpApiEndpoint.post('send', '/workspaces/:slug/invitations', {
+    params: SlugParams,
+    payload: SendInvitationPayload,
+    success: Schema.Struct({
+      status: Schema.Literal('queued'),
+      delivery: Schema.Unknown
+    }).pipe(HttpApiSchema.status(202)),
+    error: WORKSPACE_ERRORS
+  })
+)
 
 export const CatalogApi = HttpApiGroup.make('catalog')
   .add(
     HttpApiEndpoint.get('modules', '/catalog/modules', {
-      success: Schema.Array(StarterModule)
+      success: Schema.Array(StarterModule),
+      error: PROTECTED_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('refresh-history', '/catalog/refresh-history', {
-      success: Schema.Array(CatalogRefreshRun)
+      success: Schema.Array(CatalogRefreshRun),
+      error: PROTECTED_ERRORS
     })
   )
-  .middleware(BearerAuth)
 
-export const AssistantApi = HttpApiGroup.make('assistant')
-  .add(
-    HttpApiEndpoint.post('answer', '/assistant/answer', {
-      payload: AssistantPrompt,
-      success: Schema.Struct({
-        answer: AssistantReply.fields.answer,
-        provider: AssistantProvider,
-        modelId: AssistantReply.fields.modelId,
-        usedTools: AssistantReply.fields.usedTools,
-        assistantConfigured: Schema.Boolean
-      })
-    })
-  )
-  .middleware(BearerAuth)
+export const AssistantApi = HttpApiGroup.make('assistant').add(
+  HttpApiEndpoint.post('answer', '/assistant/answer', {
+    payload: AssistantPrompt,
+    success: Schema.Struct({
+      answer: AssistantReply.fields.answer,
+      provider: AssistantProvider,
+      modelId: AssistantReply.fields.modelId,
+      usedTools: AssistantReply.fields.usedTools,
+      assistantConfigured: Schema.Boolean
+    }),
+    error: [...PROTECTED_ERRORS, AssistantUnavailable]
+  })
+)
 
-/** Minimal MCP tool descriptor — `inputSchema` carries a JSON Schema object. */
 export const McpToolDescriptor = Schema.Struct({
   name: Schema.String,
   description: Schema.String,
@@ -274,17 +249,14 @@ export const McpDiscovery = Schema.Struct({
   resources: Schema.Array(Schema.String),
   tools: Schema.Array(McpToolDescriptor)
 })
+export type McpDiscovery = typeof McpDiscovery.Type
 
-export const McpApi = HttpApiGroup.make('mcp')
-  .add(
-    HttpApiEndpoint.get('discover', '/mcp', {
-      success: McpDiscovery
-    }).annotate(
-      OpenApi.Description,
-      'MCP discovery only — lists resources and tools; tool execution is not yet advertised.'
-    )
-  )
-  .middleware(BearerAuth)
+export const McpApi = HttpApiGroup.make('mcp').add(
+  HttpApiEndpoint.get('discover', '/mcp', {
+    success: McpDiscovery,
+    error: PROTECTED_ERRORS
+  })
+)
 
 export const ModuleStatusDto = ModuleStatus
 
@@ -302,7 +274,7 @@ export const StarterApi = HttpApi.make('b2b-saas-starter')
       title: 'B2B SaaS Starter API',
       version: '0.1.0',
       description:
-        'Capability Interface surface for the starter. REST endpoints, MCP discovery (`GET /mcp`), and the assistant share the same capability layer. All routes except `/health` require an `Authorization: Bearer <token>` API token scoped to the workspace in the URL.',
+        'Capability Interface surface for the starter. REST endpoints, MCP discovery (`GET /mcp`), and the assistant share the same capability layer. All routes except `/health` require an `Authorization: Bearer <token>` API token.',
       servers: [{ url: '/', description: 'This worker' }]
     })
   )

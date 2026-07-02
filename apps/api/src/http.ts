@@ -1,76 +1,85 @@
-import { Data, Effect, Schema, type Scope } from 'effect'
-import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities'
-import { annotateWide } from '@b2b-saas-starter/logger'
+import { FileSystem, Layer, Path } from 'effect'
+import { Etag, HttpPlatform, HttpRouter } from 'effect/unstable/http'
+import { HttpApiBuilder, HttpApiScalar } from 'effect/unstable/httpapi'
+import { selectAssistantLayer } from '@b2b-saas-starter/ai'
+import { StarterApi } from '@b2b-saas-starter/api'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities'
+import { selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
+import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
+import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
+import {
+  apiTokenGroup,
+  assistantGroup,
+  catalogGroup,
+  healthGroup,
+  invitationGroup,
+  mcpGroup,
+  webhookGroup,
+  workspaceGroup
+} from './handlers.ts'
+import { makeRateLimiterLayer } from './rate-limit.ts'
 
-export const json = (body: unknown, init?: ResponseInit): Response => {
-  const headers = new Headers(init?.headers)
-  headers.set('content-type', 'application/json; charset=utf-8')
-  return new Response(JSON.stringify(body, null, 2), { ...init, headers })
+// Web-standard platform with no filesystem. HttpApiBuilder requires HttpPlatform
+// + FileSystem + Path + Etag for file/multipart responses we never emit; the
+// no-op FileSystem and posix Path keep the dependency satisfied on Workers,
+// which have no Node runtime.
+const PlatformLive = Layer.mergeAll(
+  Path.layer,
+  Etag.layer,
+  FileSystem.layerNoop({}),
+  HttpPlatform.layer.pipe(Layer.provide(FileSystem.layerNoop({})))
+)
+
+const makeApiLayer = (
+  env: ApiEnv
+): Layer.Layer<never, never, HttpRouter.HttpRouter> => {
+  const fromAddress = emailFromAddress(env)
+  const capabilities = Layer.mergeAll(
+    selectCapabilitiesLayer(starterEnv(env)),
+    selectAssistantLayer(providerEnv(env)),
+    selectEmailDispatcherLayer({
+      ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+      ...(fromAddress ? { EMAIL_FROM_ADDRESS: fromAddress } : {})
+    }),
+    makeRateLimiterLayer(env)
+  )
+
+  const groups = Layer.mergeAll(
+    healthGroup(env),
+    workspaceGroup(env),
+    apiTokenGroup(env),
+    webhookGroup(env),
+    invitationGroup(env),
+    catalogGroup(env),
+    assistantGroup(env),
+    mcpGroup(env)
+  )
+
+  const api = HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' }).pipe(
+    Layer.provide(groups)
+  )
+
+  return Layer.mergeAll(
+    api,
+    HttpApiScalar.layer(StarterApi, { path: '/reference' })
+  ).pipe(
+    HttpRouter.provideRequest(capabilities),
+    Layer.provide(PlatformLive),
+    Layer.provide(WideEventLoggerLive)
+  )
 }
 
-export const respond = <Success, Error, R>(
-  effect: Effect.Effect<Success, Error, R>
-): Effect.Effect<Response, Error, R | Scope.Scope> =>
-  effect.pipe(
-    Effect.flatMap((value) =>
-      annotateWide({ outcome: 'ok' }).pipe(Effect.as(json(value)))
-    )
-  )
+export const buildWebHandler = (
+  env: ApiEnv
+): {
+  readonly handler: (request: Request) => Promise<Response>
+  readonly dispose: () => Promise<void>
+} => HttpRouter.toWebHandler(makeApiLayer(env), { disableLogger: true })
 
-export const decodeJsonBody = (request: Request): Effect.Effect<unknown> =>
-  Effect.promise(async () => {
-    try {
-      return (await request.json()) as unknown
-    } catch {
-      return null
-    }
-  })
-
-/**
- * Rejected request body. `reason` doubles as the wide-event `outcome` and the
- * error body, so the pair can't drift per handler — `catchInvalidInput` maps
- * it to a 400 once, beside `catchCapabilityUnavailable`.
- */
-export class InvalidInput extends Data.TaggedError('InvalidInput')<{
-  readonly reason: string
-}> {}
-
-export const decodeBodyOr400 = <S extends Schema.ConstraintDecoder<unknown>>(
-  request: Request,
-  schema: S,
-  reason: string
-): Effect.Effect<S['Type'], InvalidInput> =>
-  decodeJsonBody(request).pipe(
-    Effect.flatMap((body) => {
-      const decoded = Schema.decodeUnknownOption(schema)(body)
-      return decoded._tag === 'None'
-        ? Effect.fail(new InvalidInput({ reason }))
-        : Effect.succeed(decoded.value)
-    })
-  )
-
-export const catchInvalidInput = <R>(
-  effect: Effect.Effect<Response, InvalidInput | CapabilityUnavailable, R | Scope.Scope>
-): Effect.Effect<Response, CapabilityUnavailable, R | Scope.Scope> =>
-  effect.pipe(
-    Effect.catchTag('InvalidInput', (cause) =>
-      annotateWide({ outcome: cause.reason }).pipe(
-        Effect.as(json({ error: cause.reason }, { status: 400 }))
-      )
-    )
-  )
-
-// Uniform 503 seam: every Live-layer D1/queue outage surfaces as
-// `CapabilityUnavailable` and must never escape as a defect or a 500.
-export const catchCapabilityUnavailable = <R>(
-  effect: Effect.Effect<Response, CapabilityUnavailable, R | Scope.Scope>
-): Effect.Effect<Response, never, R | Scope.Scope> =>
-  effect.pipe(
-    Effect.catchTag('CapabilityUnavailable', (cause) =>
-      annotateWide({
-        outcome: 'capability_unavailable',
-        capability: cause.capability,
-        capabilityReason: cause.reason
-      }).pipe(Effect.as(json({ error: 'capability_unavailable' }, { status: 503 })))
-    )
-  )
+let cached: ((request: Request) => Promise<Response>) | undefined
+export const getWebHandler = (
+  env: ApiEnv
+): ((request: Request) => Promise<Response>) => {
+  if (!cached) cached = buildWebHandler(env).handler
+  return cached
+}

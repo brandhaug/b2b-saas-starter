@@ -18,7 +18,7 @@ The web Worker can call `@b2b-saas-starter/capabilities` directly. It does not c
 
 ## API Worker (`apps/api`)
 
-- Hand-written `fetch` handler with regex routing in `apps/api/src/index.ts`, scheduled to migrate onto the HttpApi groups defined in `packages/api` (ADR 0039). Hono is intentionally avoided.
+- Serves the `StarterApi` HttpApi contract from `packages/api` directly via `HttpRouter.toWebHandler` — routing, schema decoding, OpenAPI, and the Scalar UI all derive from the contract, with no parallel route table (ADR 0039). Hono is intentionally avoided.
 - Workspace-scoped API Tokens: `Authorization: Bearer …` parsing, `ApiTokenRegistry.verifyBearerToken(token, requiredScope)`, and `ApiTokenRegistry.create`/`revoke` routes (both requiring `WorkspaceContext`) with `api_token.created`/`.revoked`/`.used` Audit Events
 - Per-bucket Cloudflare `RateLimit` bindings (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, `RATE_LIMITER_INVITATIONS`, `RATE_LIMITER_ASSISTANT`, `RATE_LIMITER_MCP`)
 - MCP discovery skeleton at `/mcp`; tool dispatch lands on top of the same capabilities
