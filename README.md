@@ -29,6 +29,7 @@ Requires [Bun](https://bun.sh) >= 1.3.3.
 
 ```bash
 bun install
+cp .env.example .env   # local defaults work out of the box; fill in optional providers as needed
 bun run dev
 ```
 

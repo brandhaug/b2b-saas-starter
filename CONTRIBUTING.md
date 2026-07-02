@@ -12,6 +12,7 @@ Thanks for considering a contribution. This repository is a B2B SaaS starter —
 
 ```bash
 bun install
+cp .env.example .env
 bun run dev
 ```
 
@@ -29,7 +30,7 @@ bun run test        # vitest across workspaces
 bun run check       # typecheck + lint + format:check + test
 ```
 
-`bun run check:fix` runs lint --fix and format. The pre-commit hook runs `check:fix` automatically.
+`bun run check:fix` runs lint --fix and format across the repo. The pre-commit hook runs `lint-staged` (oxlint --fix + oxfmt --write on staged files only) automatically.
 
 ## Commit Style
 

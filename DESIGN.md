@@ -159,7 +159,7 @@ components:
 
 ## Overview
 
-The B2B SaaS Starter is a production-leaning chrome — quiet, legible, system-typeface — built on shadcn/ui + Tailwind v4 with a single accent blue. It is a workspace UI for serious operators, not a marketing surface; the marketing routes inherit the same chrome to keep the brand coherent end-to-end.
+The B2B SaaS Starter is a production-leaning chrome — quiet, legible, system-typeface — built on shadcn/ui + Tailwind v4 with a single accent blue. It is a workspace UI for serious operators, not a marketing surface. The public Showcase Site shares the same shadcn token contract and primitives but commits harder to the brand: the `.marketing` scope (applied by `PublicLayout`) overrides the token values with a deep petrol teal + amber "signal" palette, and marketing `h1`/`h2` render in Archivo Variable drawn wide. One system, two registers.
 
 **Emotional goals.** Calm, considered, inspectable. The interface should feel like a tool a team will use every day — closer to Linear or Vercel's dashboard than to a launch-day landing page. No exuberance, no novelty, no overlap with consumer-product aesthetics.
 
@@ -188,6 +188,8 @@ The palette is rooted in neutral grays with a single saturated blue accent — c
 
 The sidebar has its own tokens (`--sidebar-*`) so navigation can lift independently from the body in either mode. Treat them as the source of truth for `WorkspaceShell` navigation chrome.
 
+**Marketing scope.** Public routes (wrapped in `.marketing` by `PublicLayout`) redefine the same token names in `apps/web/src/index.css`: primary becomes a deep petrol teal (`oklch(0.42 0.075 215)` light / lifted teal dark), neutrals tint toward the same hue, and two extra tokens exist — `--signal` (burnt amber, for schematic marks and status dots) and `--signal-ink` (its text-safe counterpart, ≥4.5:1 on the page background). `.band-deep` re-overrides the contract for petrol-drenched sections; inside a band, `primary` flips to amber so CTAs pop. Workspace routes never see any of this — the app keeps the neutral/blue chrome above.
+
 ## Typography
 
 Two variable system-grade fonts, both shipped via `@fontsource-variable`.
@@ -203,9 +205,9 @@ Two variable system-grade fonts, both shipped via `@fontsource-variable`.
 - `label` (Geist 500) — buttons, tabs, form labels, badge text. Not uppercase. Tracking neutral.
 - `mono` (Geist Mono, tabular figures) — IDs, tokens, code, numbers in tables. `font-feature: 'tnum'` is non-negotiable for any digit that updates.
 
-There is also a `--font-serif: 'Source Serif 4'` token reserved in `index.css` for editorial moments. It is **not currently loaded** — declare an `@fontsource` import before using it, or remove the token.
+There is also a display face for the public surface: **Archivo Variable** (`--font-display`), applied by `index.css` to `.marketing h1/h2` at `font-stretch: 118%` — industrial signage lettering for showcase headlines. It never runs inside the workspace shell, and it never runs as body copy.
 
-**Rules.** Geist runs everything except code. Geist Mono never runs as prose. Avoid uppercase labels — the brand is sentence-case.
+**Rules.** Geist runs everything except code and marketing display headings. Geist Mono never runs as prose. Avoid uppercase labels — the brand is sentence-case.
 
 ## Layout
 
@@ -262,8 +264,8 @@ Component tokens are defined in the YAML above and are the normative surface for
 
 **Don't**
 
-- Don't introduce a second accent hue. The one blue is the system.
-- Don't swap in system fonts "for performance." Geist + Geist Mono are load-bearing and shipped self-hosted via `@fontsource-variable`.
+- Don't introduce a second accent hue in the workspace. The one blue is the app system; petrol + amber belong to the `.marketing` scope only.
+- Don't swap in system fonts "for performance." Geist + Geist Mono (+ Archivo Variable on public routes) are load-bearing and shipped self-hosted via `@fontsource-variable`.
 - Don't round panels. The sharp/soft contrast between cards and controls is the brand.
 - Don't use `destructive` red for anything but genuinely destructive actions. It is a signal, not a color.
 - Don't reuse the chart palette for chrome — those hues exist to differentiate data series, not UI.

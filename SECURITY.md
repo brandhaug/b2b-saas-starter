@@ -5,7 +5,7 @@
 Please **do not** open a public issue for security problems.
 
 Use GitHub's private vulnerability reporting:
-<https://github.com/brandhaug/full-stack-typescript-monorepo-starter-with-authentication/security/advisories/new>
+<https://github.com/brandhaug/b2b-saas-starter/security/advisories/new>
 
 Or email **martin@brandhaug.net** with `[SECURITY]` in the subject.
 
