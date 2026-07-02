@@ -1,8 +1,13 @@
 name: Catalog Update
 
+# TEMPLATE — not scheduled. `bun run catalog:refresh` currently runs against
+# the in-memory Seed adapter and persists nothing, so a cron run would be a
+# no-op. Wire the script to the remote D1 database (Live adapter + Cloudflare
+# credentials) before re-enabling a schedule, e.g.:
+#
+#   schedule:
+#     - cron: '0 6 * * *'
 on:
-  schedule:
-    - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,8 +15,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.3
-      - run: bun install
+      - uses: ./.github/actions/setup
       - run: bun run catalog:refresh

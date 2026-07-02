@@ -3,18 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "description": "Cloudflare-first B2B SaaS starter monorepo with TanStack Start, Effect v4, Drizzle D1, Better Auth, and Alchemy.",
-  "homepage": "https://github.com/brandhaug/full-stack-typescript-monorepo-starter-with-authentication#readme",
+  "homepage": "https://github.com/brandhaug/b2b-saas-starter#readme",
   "bugs": {
-    "url": "https://github.com/brandhaug/full-stack-typescript-monorepo-starter-with-authentication/issues"
+    "url": "https://github.com/brandhaug/b2b-saas-starter/issues"
   },
   "license": "MIT",
   "author": "Martin Brandhaug <martin@brandhaug.net>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/brandhaug/full-stack-typescript-monorepo-starter-with-authentication.git"
+    "url": "git+https://github.com/brandhaug/b2b-saas-starter.git"
   },
   "workspaces": [
     "apps/*",
+    "infra",
     "packages/*"
   ],
   "type": "module",
@@ -40,6 +41,12 @@
     "catalog:refresh": "bun --cwd apps/background catalog:refresh",
     "prepare": "git config core.hooksPath .githooks"
   },
+  "dependencies": {
+    "@b2b-saas-starter/capabilities": "workspace:*",
+    "@b2b-saas-starter/db": "workspace:*",
+    "better-auth": "catalog:",
+    "drizzle-orm": "catalog:"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@effect/language-service": "catalog:",
@@ -53,7 +60,6 @@
     "bun-types": "catalog:",
     "drizzle-kit": "catalog:",
     "effect": "catalog:",
-    "husky": "catalog:",
     "lint-staged": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
@@ -74,14 +80,15 @@
     "@base-ui/react": "1.4.1",
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "4.20260516.1",
-    "@effect/atom-react": "4.0.0-beta.66",
+    "@effect/atom-react": "4.0.0-beta.93",
     "@effect/language-service": "0.86.1",
-    "@effect/platform-bun": "4.0.0-beta.66",
-    "@effect/platform-node": "4.0.0-beta.66",
-    "@effect/vitest": "4.0.0-beta.66",
+    "@effect/platform-bun": "4.0.0-beta.93",
+    "@effect/platform-node": "4.0.0-beta.93",
+    "@effect/sql-d1": "4.0.0-beta.93",
+    "@effect/vitest": "4.0.0-beta.93",
+    "@fontsource-variable/archivo": "5.2.8",
     "@fontsource-variable/geist": "5.2.8",
     "@fontsource-variable/geist-mono": "5.2.7",
-    "@fontsource/instrument-serif": "5.2.8",
     "@mdx-js/rollup": "3.1.1",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@playwright/test": "1.60.0",
@@ -119,11 +126,10 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
-    "drizzle-kit": "1.0.0-rc.2",
-    "drizzle-orm": "1.0.0-rc.2",
-    "effect": "4.0.0-beta.66",
+    "drizzle-kit": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.4",
+    "effect": "4.0.0-beta.93",
     "hono": "4.12.18",
-    "husky": "9.1.7",
     "jsdom": "29.1.1",
     "lint-staged": "17.0.4",
     "lucide-react": "1.16.0",

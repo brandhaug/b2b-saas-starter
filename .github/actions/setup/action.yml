@@ -1,0 +1,35 @@
+name: Setup
+description: >-
+  Install Bun (version from package.json's packageManager pin), restore the
+  bun and turbo caches, and install dependencies with a frozen lockfile.
+
+inputs:
+  turbo-key:
+    description: >-
+      Infix for the turbo cache key. Defaults to the calling job's id, so a
+      job named `ci` reads/writes `<os>-turbo-ci-<sha>` — the same semantics
+      the jobs had before this composite existed.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: package.json
+    - uses: actions/cache@v4
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+    - uses: actions/cache@v4
+      with:
+        path: .turbo
+        key: ${{ runner.os }}-turbo-${{ inputs.turbo-key || github.job }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-turbo-${{ inputs.turbo-key || github.job }}-
+          ${{ runner.os }}-turbo-
+    - run: bun install --frozen-lockfile
+      shell: bash

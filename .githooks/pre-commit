@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-bun run check:fix
+bunx lint-staged

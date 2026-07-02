@@ -2,11 +2,16 @@ import { Schema } from 'effect'
 
 const optional = Schema.optional(Schema.String)
 
+// Single source of truth for server env vars (ADR 0035). Add a new var HERE
+// (and, when alchemy should forward it to deployed workers, to exactly one of
+// the optional-module key lists below) — everything else derives from the
+// schema: `readServerEnv` picks these keys, `alchemy.run.ts` builds its
+// forwarding env from the key lists, and `apps/web/src/worker-env.d.ts`
+// derives its string vars from `ServerEnv`.
 export const ServerEnvSchema = Schema.Struct({
   BETTER_AUTH_SECRET: Schema.String,
   BETTER_AUTH_URL: Schema.String,
   BETTER_AUTH_TRUSTED_ORIGINS: optional,
-  PUBLIC_SITE_URL: Schema.String,
   GITHUB_CLIENT_ID: optional,
   GITHUB_CLIENT_SECRET: optional,
   STRIPE_SECRET_KEY: optional,
@@ -18,10 +23,46 @@ export const ServerEnvSchema = Schema.Struct({
   TURNSTILE_SITE_KEY: optional,
   TURNSTILE_SECRET_KEY: optional,
   WORKERS_AI_ENABLED: optional,
-  OPENAI_API_KEY: optional
+  OPENAI_API_KEY: optional,
+  OPENAI_BASE_URL: optional,
+  OPENAI_MODEL_ID: optional
 })
 
 export type ServerEnv = typeof ServerEnvSchema.Type
+
+/** Every env var the schema declares — derived from the schema, never hand-mirrored. */
+export const serverEnvKeys = Object.keys(ServerEnvSchema.fields) as ReadonlyArray<
+  keyof ServerEnv
+>
+
+// Optional module env forwarded by alchemy to all three workers. Secret keys
+// are wrapped in `Redacted` at deploy time; plain keys are forwarded as-is.
+// `satisfies` pins both lists to schema keys, so a typo or a var that was
+// removed from the schema is a compile error.
+export const optionalModuleEnvSecretKeys = [
+  'GITHUB_CLIENT_ID',
+  'GITHUB_CLIENT_SECRET',
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+  'TURNSTILE_SECRET_KEY',
+  'OPENAI_API_KEY'
+] as const satisfies ReadonlyArray<keyof ServerEnv>
+
+export const optionalModuleEnvPlainKeys = [
+  'SENTRY_DSN',
+  'POSTHOG_KEY',
+  'POSTHOG_HOST',
+  'TURNSTILE_SITE_KEY',
+  'CLOUDFLARE_EMAIL_FROM',
+  'WORKERS_AI_ENABLED',
+  'OPENAI_BASE_URL',
+  'OPENAI_MODEL_ID'
+] as const satisfies ReadonlyArray<keyof ServerEnv>
+
+export const optionalModuleEnvKeys: ReadonlyArray<keyof ServerEnv> = [
+  ...optionalModuleEnvSecretKeys,
+  ...optionalModuleEnvPlainKeys
+]
 
 export type ModuleConfigStatus = {
   readonly moduleId: string
@@ -33,41 +74,23 @@ export type ModuleConfigStatus = {
 const hasValue = (value: string | undefined): boolean =>
   typeof value === 'string' && value.length > 0
 
-type RequiredLocalDefaults = Pick<
-  ServerEnv,
-  'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL' | 'PUBLIC_SITE_URL'
->
-
 export function readServerEnv(
-  source: Record<string, string | undefined>,
+  source: Record<string, unknown>,
   options?: { readonly mode?: 'local' | 'strict' }
-) {
-  const localDefaults: Partial<RequiredLocalDefaults> =
+): ServerEnv {
+  const localDefaults: Partial<ServerEnv> =
     options?.mode === 'strict'
       ? {}
       : {
           BETTER_AUTH_SECRET: 'local-dev-secret-change-me-minimum-32-chars',
-          BETTER_AUTH_URL: 'http://localhost:3071',
-          PUBLIC_SITE_URL: 'http://localhost:3071'
+          BETTER_AUTH_URL: 'http://localhost:3071'
         }
-  return Schema.decodeUnknownSync(ServerEnvSchema)({
-    BETTER_AUTH_SECRET: source.BETTER_AUTH_SECRET ?? localDefaults.BETTER_AUTH_SECRET,
-    BETTER_AUTH_URL: source.BETTER_AUTH_URL ?? localDefaults.BETTER_AUTH_URL,
-    BETTER_AUTH_TRUSTED_ORIGINS: source.BETTER_AUTH_TRUSTED_ORIGINS,
-    PUBLIC_SITE_URL: source.PUBLIC_SITE_URL ?? localDefaults.PUBLIC_SITE_URL,
-    GITHUB_CLIENT_ID: source.GITHUB_CLIENT_ID,
-    GITHUB_CLIENT_SECRET: source.GITHUB_CLIENT_SECRET,
-    STRIPE_SECRET_KEY: source.STRIPE_SECRET_KEY,
-    STRIPE_WEBHOOK_SECRET: source.STRIPE_WEBHOOK_SECRET,
-    SENTRY_DSN: source.SENTRY_DSN,
-    POSTHOG_KEY: source.POSTHOG_KEY,
-    POSTHOG_HOST: source.POSTHOG_HOST,
-    CLOUDFLARE_EMAIL_FROM: source.CLOUDFLARE_EMAIL_FROM,
-    TURNSTILE_SITE_KEY: source.TURNSTILE_SITE_KEY,
-    TURNSTILE_SECRET_KEY: source.TURNSTILE_SECRET_KEY,
-    WORKERS_AI_ENABLED: source.WORKERS_AI_ENABLED,
-    OPENAI_API_KEY: source.OPENAI_API_KEY
-  })
+  // Pick only schema keys from the source (worker envs also carry bindings)
+  // and let the schema validate — the field list lives in ONE place above.
+  const picked = Object.fromEntries(
+    serverEnvKeys.map((key) => [key, source[key] ?? localDefaults[key]])
+  )
+  return Schema.decodeUnknownSync(ServerEnvSchema)(picked)
 }
 
 export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[] {
@@ -86,6 +109,18 @@ export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[
     }
   }
 
+  // The AI provider activates on EITHER Workers AI (flag) or an
+  // OpenAI-compatible key (`packages/ai`), so its status is an OR of the two
+  // instead of the all-required pattern above. `missing` lists both var names
+  // to say "configure one of these" (names only, never values).
+  const aiEnvPresent = env.WORKERS_AI_ENABLED === 'true' || hasValue(env.OPENAI_API_KEY)
+  const ai: ModuleConfigStatus = {
+    moduleId: 'ai',
+    configured: aiEnvPresent,
+    envPresent: aiEnvPresent,
+    missing: aiEnvPresent ? [] : ['WORKERS_AI_ENABLED', 'OPENAI_API_KEY']
+  }
+
   return [
     status('better-auth', ['BETTER_AUTH_SECRET', 'BETTER_AUTH_URL']),
     status('github-oauth', ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET']),
@@ -96,8 +131,21 @@ export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[
       runtimeWired: false
     }),
     status('cloudflare-email', ['CLOUDFLARE_EMAIL_FROM']),
-    status('turnstile', ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'])
+    status('turnstile', ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY']),
+    ai
   ]
+}
+
+/**
+ * The full ADR 0035 recipe for a worker: validate the raw worker env and
+ * derive module config status from it. Callers pass their `env` object
+ * directly — bindings and other non-schema keys are ignored, so no casts or
+ * var-name remaps are needed.
+ */
+export function makeStarterEnvModuleConfig(
+  env: Record<string, unknown>
+): readonly ModuleConfigStatus[] {
+  return moduleConfigStatus(readServerEnv(env))
 }
 
 export function redactedEnvStatus(env: ServerEnv) {

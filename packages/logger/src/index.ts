@@ -100,6 +100,84 @@ export const withRequestScope = <A, E, R>(
   )
 }
 
+/** Cloudflare colo hint from an incoming request's `cf` object, if present. */
+export const readCfColo = (request: Request): string | undefined => {
+  const cf = 'cf' in request ? (request as { cf?: unknown }).cf : undefined
+  return typeof cf === 'object' &&
+    cf !== null &&
+    'colo' in cf &&
+    typeof (cf as { colo: unknown }).colo === 'string'
+    ? (cf as { colo: string }).colo
+    : undefined
+}
+
+export type HttpRequestScopeOptions = {
+  readonly service: string
+  readonly event: string
+  readonly request: Request
+  /** Worker env (or `process.env`) — mined for commit/version/region fields. */
+  readonly env?: object | undefined
+  readonly metadata?: Record<string, unknown> | undefined
+}
+
+/**
+ * Wide-event envelope for an HTTP-triggered handler. Owns the whole recipe —
+ * trace propagation from `x-trace-id`, environment enrichment (env + cf colo),
+ * and `pathname`/`method` metadata — so every worker emits the same envelope
+ * from one call instead of hand-assembling `withRequestScope` options.
+ */
+export const withHttpRequestScope = <A, E, R>(
+  options: HttpRequestScopeOptions,
+  body: Effect.Effect<A, E, R>
+): Effect.Effect<A, E, Exclude<R, Scope.Scope>> => {
+  const url = new URL(options.request.url)
+  const colo = readCfColo(options.request)
+  return withRequestScope(
+    {
+      service: options.service,
+      event: options.event,
+      traceId: readTraceHeader(options.request),
+      environment: readWideEventEnvironment(options.env, colo ? { colo } : undefined),
+      metadata: {
+        pathname: url.pathname,
+        method: options.request.method,
+        ...(options.metadata ?? {})
+      }
+    },
+    body
+  )
+}
+
+export type TriggerScopeOptions = {
+  readonly service: string
+  readonly event: string
+  /** Worker env — mined for commit/version/region fields. */
+  readonly env?: object | undefined
+  /** Pass when the trace continues into outbound calls (e.g. webhook POSTs). */
+  readonly traceId?: string | undefined
+  readonly metadata?: Record<string, unknown> | undefined
+}
+
+/**
+ * Wide-event envelope for non-HTTP triggers — cron schedules and queue
+ * messages. Same contract as `withHttpRequestScope` minus the request-derived
+ * fields.
+ */
+export const withTriggerScope = <A, E, R>(
+  options: TriggerScopeOptions,
+  body: Effect.Effect<A, E, R>
+): Effect.Effect<A, E, Exclude<R, Scope.Scope>> =>
+  withRequestScope(
+    {
+      service: options.service,
+      event: options.event,
+      traceId: options.traceId,
+      environment: readWideEventEnvironment(options.env),
+      metadata: options.metadata
+    },
+    body
+  )
+
 export const annotateWide: {
   (key: string, value: unknown): Effect.Effect<void, never, Scope.Scope>
   (values: Record<string, unknown>): Effect.Effect<void, never, Scope.Scope>

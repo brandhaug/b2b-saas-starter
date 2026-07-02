@@ -1,0 +1,18 @@
+{
+  "name": "@b2b-saas-starter/infra",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./bindings.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@b2b-saas-starter/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
