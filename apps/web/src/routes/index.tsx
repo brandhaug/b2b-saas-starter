@@ -172,10 +172,9 @@ function HomePage() {
               {modules.length} starter modules, read live.
             </h2>
             <p className="max-w-sm text-sm text-muted-foreground">
-              This table isn't marketing copy. It's the module catalog of the{' '}
+              Read at request time from the{' '}
               <span className="font-mono text-signal-ink">{workspace.slug}</span> seed
-              workspace, loaded through the same capability layer the reference app
-              uses.
+              workspace, through the same capability layer the reference app uses.
             </p>
           </div>
           <table className="mt-10 w-full border-t border-border text-left">
@@ -308,12 +307,12 @@ function HomePage() {
           <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
             <div className="max-w-2xl">
               <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-                Providers are optional. The wiring isn't.
+                Every provider is optional.
               </h2>
               <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
                 Stripe, Sentry, PostHog, Email, and GitHub OAuth ship with real routes,
-                models, and settings — inactive until their env vars exist. Local
-                development never blocks on a provider account.
+                models, and settings that stay inactive until their env vars exist.
+                Local development never blocks on a provider account.
               </p>
             </div>
             <div className="mt-12 grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
