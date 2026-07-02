@@ -13,10 +13,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "wrangler d1 migrations apply b2b-saas-starter --local",
-    "db:migrate:remote": "wrangler d1 migrations apply b2b-saas-starter --remote"
+    "db:migrate:local": "bun scripts/migrate.ts",
+    "db:migrate:remote": "bun scripts/migrate.ts --remote"
   },
   "dependencies": {
+    "@effect/sql-d1": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:"
   },

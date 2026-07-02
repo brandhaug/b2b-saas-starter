@@ -2,39 +2,81 @@ import {
   ApiTokenRegistry,
   AuditEventLog,
   CatalogRefreshHistory,
+  hashApiToken,
   ImplementationReports,
   IntegrationSurfaces,
   NotificationFeed,
+  SEED_API_TOKEN,
   selectWorkspaceLayer,
   StarterModuleCatalog,
   WebhookEndpoints,
   WorkspaceContext,
   WorkspaceMembership
 } from '@b2b-saas-starter/capabilities'
+import {
+  account,
+  apiTokens,
+  auditEvents,
+  catalogRefreshRuns,
+  implementationReports,
+  integrationConnections,
+  notifications,
+  starterModules,
+  user,
+  webhookEndpoints,
+  workspaceMembers,
+  workspaceModuleStates,
+  workspaces
+} from '@b2b-saas-starter/db'
+import { getTableColumns, getTableName, type Table } from 'drizzle-orm'
 import { Effect } from 'effect'
+import { hashPassword } from 'better-auth/crypto'
+
+// Demo credential account so the authenticated area is reachable after
+// seeding. Documented in docs/setup.md and on the sign-in screen
+// (apps/web/src/lib/demo-workspace.ts must stay in sync).
+//
+// The password hash comes from Better Auth's own `hashPassword`
+// (better-auth/crypto) so it verifies against `signIn.email`. We don't call
+// `auth.api.signUpEmail` here because the app's auth instance includes the
+// TanStack Start cookie plugin, which requires a live request context that a
+// seed script doesn't have — and this script's design is to emit plain SQL
+// executed through `wrangler d1 execute`.
+const DEMO_USER = {
+  id: 'usr_demo',
+  email: 'demo@starter.local',
+  name: 'Demo Admin',
+  password: 'demo-starter-password'
+}
 
 const quote = (value: unknown): string => {
-  if (value === null || value === undefined) return 'NULL'
+  if (value === null) return 'NULL'
   if (typeof value === 'number') return String(value)
-  if (typeof value === 'boolean') return value ? '1' : '0'
-  if (typeof value !== 'string') return quote(JSON.stringify(value))
   return `'${String(value).replaceAll("'", "''")}'`
 }
 
-const json = (value: unknown): string => quote(JSON.stringify(value))
-
-const bytesToHex = (bytes: ArrayBuffer): string =>
-  Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join(
-    ''
-  )
-
-const hash = (value: string): Effect.Effect<string> =>
-  Effect.promise(() =>
-    crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)).then(bytesToHex)
-  )
-
-const insert = (table: string, row: Record<string, unknown>): string =>
-  `INSERT OR REPLACE INTO ${table} (${Object.keys(row).join(', ')}) VALUES (${Object.values(row).map(quote).join(', ')});`
+// Insert statements are derived from the Drizzle schema: rows are keyed by the
+// table's TS property names (a typo is a compile error), the SQL table and
+// column names come from `getTableName`/`getTableColumns`, and values pass
+// through each column's `mapToDriverValue` (JSON stringify, boolean → 0/1) —
+// so a schema rename breaks the seed loudly at compile time instead of
+// drifting silently against `packages/db`.
+const insert = <T extends Table>(
+  table: T,
+  row: { readonly [K in keyof T['_']['columns']]?: unknown }
+): string => {
+  const columns = getTableColumns(table)
+  const entries = Object.entries(row).map(([key, value]) => {
+    const column = columns[key]
+    if (column === undefined) {
+      throw new Error(`seed: unknown column ${key} for table ${getTableName(table)}`)
+    }
+    const driverValue =
+      value === null || value === undefined ? null : column.mapToDriverValue(value)
+    return [column.name, quote(driverValue)] as const
+  })
+  return `INSERT OR REPLACE INTO ${getTableName(table)} (${entries.map(([name]) => name).join(', ')}) VALUES (${entries.map(([, value]) => value).join(', ')});`
+}
 
 const now = '2026-05-16T09:00:00.000Z'
 const workspaceSlug = 'starter-lab'
@@ -66,175 +108,216 @@ const collectFixture = Effect.gen(function* () {
 
 type Fixture = Effect.Success<typeof collectFixture>
 
-const buildStatements = (fixture: Fixture) =>
-  Effect.gen(function* () {
-    const statements: string[] = ['PRAGMA foreign_keys = ON;']
-
-    statements.push(
-      insert('workspaces', {
-        id: fixture.workspace.id,
-        slug: fixture.workspace.slug,
-        name: fixture.workspace.name,
-        plan_id: fixture.workspace.planId,
-        created_at: now,
-        updated_at: now
-      })
+const resolveHashes = (fixture: Fixture) =>
+  Effect.all({
+    demoPassword: Effect.promise(() => hashPassword(DEMO_USER.password)),
+    // The first fixture token is seeded from the documented SEED_API_TOKEN so
+    // the same credential verifies against both the in-memory Seed layer and a
+    // seeded local D1 (Seed/Live equivalence). `hashApiToken` is the
+    // registry's own hashing scheme.
+    tokens: Effect.forEach(fixture.tokens, (token, index) =>
+      Effect.promise(() =>
+        hashApiToken(index === 0 ? SEED_API_TOKEN : `${token.prefix}_token`)
+      )
     )
-
-    for (const member of fixture.members) {
-      statements.push(
-        insert('user', {
-          id: member.id,
-          email: member.email,
-          name: member.name,
-          role: member.systemRole,
-          emailVerified: true,
-          createdAt: 1778918400,
-          updatedAt: 1778918400
-        }),
-        insert('workspace_members', {
-          workspace_id: fixture.workspace.id,
-          user_id: member.id,
-          role: member.role,
-          created_at: now
-        })
-      )
-    }
-
-    for (const module of fixture.modules) {
-      statements.push(
-        insert('starter_modules', {
-          id: module.id,
-          name: module.name,
-          summary: module.summary,
-          category: module.category,
-          docs_path: module.docsPath,
-          optional: module.optional
-        }),
-        insert('workspace_module_states', {
-          workspace_id: fixture.workspace.id,
-          module_id: module.id,
-          status: module.state.status,
-          enabled: module.state.enabled,
-          missing_config: json(module.state.missingConfig),
-          updated_at: module.state.updatedAt
-        })
-      )
-    }
-
-    for (const integration of fixture.integrations) {
-      statements.push(
-        insert('integration_connections', {
-          id: integration.id,
-          workspace_id: fixture.workspace.id,
-          provider: integration.provider,
-          display_name: integration.displayName,
-          status: integration.status,
-          connected_at: null,
-          last_checked_at: now
-        })
-      )
-    }
-
-    yield* Effect.forEach(fixture.tokens, (token) =>
-      Effect.gen(function* () {
-        const plaintext = `${token.prefix}_token`
-        const tokenHash = yield* hash(plaintext)
-        statements.push(
-          insert('api_tokens', {
-            id: token.id,
-            workspace_id: fixture.workspace.id,
-            name: token.name,
-            token_prefix: token.prefix,
-            token_hash: tokenHash,
-            scopes: json(token.scopes),
-            last_used_at: token.lastUsedAt,
-            revoked_at: null,
-            created_at: token.createdAt,
-            created_by_user_id: fixture.members[1]?.id ?? null
-          })
-        )
-      })
-    )
-
-    yield* Effect.forEach(fixture.webhooks, (endpoint) =>
-      Effect.gen(function* () {
-        const secret = `whsec_seed_${endpoint.id}`
-        const secretHash = yield* hash(secret)
-        statements.push(
-          insert('webhook_endpoints', {
-            id: endpoint.id,
-            workspace_id: fixture.workspace.id,
-            url: endpoint.url,
-            description: 'Seed workspace webhook endpoint',
-            signing_secret: secret,
-            signing_secret_hash: secretHash,
-            enabled: endpoint.enabled,
-            events: json(endpoint.events),
-            created_at: now
-          })
-        )
-      })
-    )
-
-    for (const report of fixture.reports) {
-      statements.push(
-        insert('implementation_reports', {
-          id: report.id,
-          workspace_id: fixture.workspace.id,
-          title: report.title,
-          status: report.status,
-          summary: report.summary,
-          created_at: report.createdAt
-        })
-      )
-    }
-
-    for (const event of fixture.auditEvents) {
-      statements.push(
-        insert('audit_events', {
-          id: event.id,
-          workspace_id: fixture.workspace.id,
-          actor_user_id: fixture.members.find((member) => member.name === event.actor)
-            ?.id,
-          event_type: event.eventType,
-          target_type: event.targetType,
-          target_id: event.id,
-          metadata: json({ seeded: true }),
-          created_at: event.createdAt
-        })
-      )
-    }
-
-    for (const notification of fixture.notifications) {
-      statements.push(
-        insert('notifications', {
-          id: notification.id,
-          workspace_id: fixture.workspace.id,
-          user_id: fixture.members[0]?.id,
-          title: notification.title,
-          message: notification.message,
-          read_at: notification.read ? now : null,
-          created_at: notification.createdAt
-        })
-      )
-    }
-
-    for (const run of fixture.refreshRuns) {
-      statements.push(
-        insert('catalog_refresh_runs', {
-          id: run.id,
-          workspace_id: fixture.workspace.id,
-          status: run.status,
-          started_at: run.startedAt,
-          completed_at: run.startedAt,
-          summary: json({ modules: run.modules, durationMs: run.durationMs })
-        })
-      )
-    }
-
-    return `${statements.join('\n')}\n`
   })
+
+type Hashes = Effect.Success<ReturnType<typeof resolveHashes>>
+
+const workspaceRows = (fixture: Fixture): readonly string[] => [
+  insert(workspaces, {
+    id: fixture.workspace.id,
+    slug: fixture.workspace.slug,
+    name: fixture.workspace.name,
+    planId: fixture.workspace.planId,
+    createdAt: now,
+    updatedAt: now
+  })
+]
+
+const memberRows = (fixture: Fixture): readonly string[] =>
+  fixture.members.flatMap((member) => [
+    insert(user, {
+      id: member.id,
+      email: member.email,
+      name: member.name,
+      role: member.systemRole,
+      emailVerified: true,
+      createdAt: 1778918400,
+      updatedAt: 1778918400
+    }),
+    insert(workspaceMembers, {
+      workspaceId: fixture.workspace.id,
+      userId: member.id,
+      role: member.role,
+      createdAt: now
+    })
+  ])
+
+// Demo sign-in: system admin (`role: 'admin'` — Better Auth admin plugin)
+// and a member of the seed workspace so the membership gate passes.
+const demoUserRows = (
+  fixture: Fixture,
+  demoPasswordHash: string
+): readonly string[] => [
+  insert(user, {
+    id: DEMO_USER.id,
+    email: DEMO_USER.email,
+    name: DEMO_USER.name,
+    role: 'admin',
+    emailVerified: true,
+    createdAt: 1778918400,
+    updatedAt: 1778918400
+  }),
+  insert(account, {
+    id: 'acc_demo_credential',
+    accountId: DEMO_USER.id,
+    providerId: 'credential',
+    userId: DEMO_USER.id,
+    password: demoPasswordHash,
+    createdAt: 1778918400,
+    updatedAt: 1778918400
+  }),
+  insert(workspaceMembers, {
+    workspaceId: fixture.workspace.id,
+    userId: DEMO_USER.id,
+    role: 'owner',
+    createdAt: now
+  })
+]
+
+const moduleRows = (fixture: Fixture): readonly string[] =>
+  fixture.modules.flatMap((module) => [
+    insert(starterModules, {
+      id: module.id,
+      name: module.name,
+      summary: module.summary,
+      category: module.category,
+      docsPath: module.docsPath,
+      optional: module.optional
+    }),
+    insert(workspaceModuleStates, {
+      workspaceId: fixture.workspace.id,
+      moduleId: module.id,
+      status: module.state.status,
+      enabled: module.state.enabled,
+      missingConfig: module.state.missingConfig,
+      updatedAt: module.state.updatedAt
+    })
+  ])
+
+const integrationRows = (fixture: Fixture): readonly string[] =>
+  fixture.integrations.map((integration) =>
+    insert(integrationConnections, {
+      id: integration.id,
+      workspaceId: fixture.workspace.id,
+      provider: integration.provider,
+      displayName: integration.displayName,
+      status: integration.status,
+      connectedAt: null,
+      lastCheckedAt: now
+    })
+  )
+
+const tokenRows = (
+  fixture: Fixture,
+  tokenHashes: readonly string[]
+): readonly string[] =>
+  fixture.tokens.map((token, index) =>
+    insert(apiTokens, {
+      id: token.id,
+      workspaceId: fixture.workspace.id,
+      name: token.name,
+      tokenPrefix: token.prefix,
+      tokenHash: tokenHashes[index],
+      scopes: token.scopes,
+      lastUsedAt: token.lastUsedAt,
+      revokedAt: null,
+      createdAt: token.createdAt,
+      createdByUserId: fixture.members[1]?.id ?? null
+    })
+  )
+
+const webhookRows = (fixture: Fixture): readonly string[] =>
+  fixture.webhooks.map((endpoint) =>
+    insert(webhookEndpoints, {
+      id: endpoint.id,
+      workspaceId: fixture.workspace.id,
+      url: endpoint.url,
+      description: 'Seed workspace webhook endpoint',
+      signingSecret: `whsec_seed_${endpoint.id}`,
+      enabled: endpoint.enabled,
+      events: endpoint.events,
+      createdAt: now
+    })
+  )
+
+const reportRows = (fixture: Fixture): readonly string[] =>
+  fixture.reports.map((report) =>
+    insert(implementationReports, {
+      id: report.id,
+      workspaceId: fixture.workspace.id,
+      title: report.title,
+      status: report.status,
+      summary: report.summary,
+      createdAt: report.createdAt
+    })
+  )
+
+const auditRows = (fixture: Fixture): readonly string[] =>
+  fixture.auditEvents.map((event) =>
+    insert(auditEvents, {
+      id: event.id,
+      workspaceId: fixture.workspace.id,
+      actorUserId: fixture.members.find((member) => member.name === event.actor)?.id,
+      eventType: event.eventType,
+      targetType: event.targetType,
+      targetId: event.id,
+      metadata: { seeded: true },
+      createdAt: event.createdAt
+    })
+  )
+
+const notificationRows = (fixture: Fixture): readonly string[] =>
+  fixture.notifications.map((notification) =>
+    insert(notifications, {
+      id: notification.id,
+      workspaceId: fixture.workspace.id,
+      userId: null,
+      title: notification.title,
+      message: notification.message,
+      readAt: notification.read ? now : null,
+      createdAt: notification.createdAt
+    })
+  )
+
+const refreshRunRows = (fixture: Fixture): readonly string[] =>
+  fixture.refreshRuns.map((run) =>
+    insert(catalogRefreshRuns, {
+      id: run.id,
+      workspaceId: fixture.workspace.id,
+      status: run.status,
+      startedAt: run.startedAt,
+      completedAt: run.startedAt,
+      summary: { modules: run.modules, durationMs: run.durationMs }
+    })
+  )
+
+const buildStatements = (fixture: Fixture, hashes: Hashes): string =>
+  `${[
+    'PRAGMA foreign_keys = ON;',
+    ...workspaceRows(fixture),
+    ...memberRows(fixture),
+    ...demoUserRows(fixture, hashes.demoPassword),
+    ...moduleRows(fixture),
+    ...integrationRows(fixture),
+    ...tokenRows(fixture, hashes.tokens),
+    ...webhookRows(fixture),
+    ...reportRows(fixture),
+    ...auditRows(fixture),
+    ...notificationRows(fixture),
+    ...refreshRunRows(fixture)
+  ].join('\n')}\n`
 
 const writeAndExecute = (sql: string) =>
   Effect.gen(function* () {
@@ -252,6 +335,9 @@ const writeAndExecute = (sql: string) =>
           'execute',
           'b2b-saas-starter',
           '--local',
+          // Use the db package's wrangler config so the seed lands in the
+          // same local D1 state that `bun run db:migrate:local` targets.
+          '--config=packages/db/wrangler.jsonc',
           '--file=.context/seed-starter-lab.sql'
         ],
         { stdout: 'inherit', stderr: 'inherit' }
@@ -264,7 +350,11 @@ const writeAndExecute = (sql: string) =>
   })
 
 const program = collectFixture.pipe(
-  Effect.flatMap(buildStatements),
+  Effect.flatMap((fixture) =>
+    resolveHashes(fixture).pipe(
+      Effect.map((hashes) => buildStatements(fixture, hashes))
+    )
+  ),
   Effect.flatMap(writeAndExecute),
   Effect.provide(selectWorkspaceLayer({}, workspaceSlug))
 )
