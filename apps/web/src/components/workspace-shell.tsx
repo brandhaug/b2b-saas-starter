@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import {
   BellIcon,
   BoxesIcon,
   LayoutDashboardIcon,
+  LogOutIcon,
   MenuIcon,
   SettingsIcon,
   ShieldIcon
@@ -20,17 +21,29 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet'
+import { authClient } from '@/lib/auth-client'
 
 export function WorkspaceShell({
   children,
   title,
   description,
-  unreadCount
+  unreadCount,
+  workspaceSlug
 }: {
   readonly children: ReactNode
   readonly title: string
   readonly description: string
-  readonly unreadCount: number
+  /**
+   * Unread-notification badge count. Omit on surfaces without a workspace
+   * notification feed (e.g. /admin) — no badge is rendered.
+   */
+  readonly unreadCount?: number
+  /**
+   * Current workspace slug for nav links. Pass `null` on non-workspace
+   * surfaces (e.g. /admin): the nav renders without the workspace links
+   * instead of borrowing a workspace.
+   */
+  readonly workspaceSlug: string | null
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   return (
@@ -42,7 +55,7 @@ export function WorkspaceShell({
         Skip to content
       </a>
       <aside className="hidden border-r border-border p-4 lg:block">
-        <WorkspaceNav />
+        <WorkspaceNav workspaceSlug={workspaceSlug} />
       </aside>
       <div className="min-w-0">
         <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
@@ -63,7 +76,10 @@ export function WorkspaceShell({
                 </SheetDescription>
               </SheetHeader>
               <div className="p-4">
-                <WorkspaceNav onNavigate={() => setMobileNavOpen(false)} />
+                <WorkspaceNav
+                  workspaceSlug={workspaceSlug}
+                  onNavigate={() => setMobileNavOpen(false)}
+                />
               </div>
             </SheetContent>
           </Sheet>
@@ -71,11 +87,14 @@ export function WorkspaceShell({
             <h1 className="truncate text-xl font-semibold">{title}</h1>
             <p className="truncate text-sm text-muted-foreground">{description}</p>
           </div>
-          <Badge variant="secondary" className="gap-1">
-            <BellIcon className="size-3" />
-            {unreadCount}
-          </Badge>
+          {unreadCount === undefined ? null : (
+            <Badge variant="secondary" className="gap-1">
+              <BellIcon className="size-3" />
+              {unreadCount}
+            </Badge>
+          )}
           <ThemeToggle />
+          <SignOutButton />
         </header>
         <main id="main-content" className="px-4 py-6 sm:px-6">
           {children}
@@ -85,9 +104,35 @@ export function WorkspaceShell({
   )
 }
 
+function SignOutButton() {
+  const router = useRouter()
+  const [signingOut, setSigningOut] = useState(false)
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Sign out"
+      disabled={signingOut}
+      onClick={async () => {
+        setSigningOut(true)
+        try {
+          await authClient.signOut()
+          await router.navigate({ to: '/sign-in' })
+        } finally {
+          setSigningOut(false)
+        }
+      }}
+    >
+      <LogOutIcon className="size-4" />
+    </Button>
+  )
+}
+
 function WorkspaceNav({
+  workspaceSlug,
   onNavigate
 }: {
+  readonly workspaceSlug: string | null
   readonly onNavigate?: (() => void) | undefined
 }) {
   return (
@@ -103,18 +148,24 @@ function WorkspaceNav({
         B2B Starter
       </Link>
       <nav className="mt-8 grid gap-1">
-        <NavLink
-          to="/workspaces/$workspaceSlug"
-          label="Overview"
-          icon={<LayoutDashboardIcon className="size-4" />}
-          onNavigate={onNavigate}
-        />
-        <NavLink
-          to="/workspaces/$workspaceSlug/settings"
-          label="Settings"
-          icon={<SettingsIcon className="size-4" />}
-          onNavigate={onNavigate}
-        />
+        {workspaceSlug === null ? null : (
+          <>
+            <NavLink
+              to="/workspaces/$workspaceSlug"
+              workspaceSlug={workspaceSlug}
+              label="Overview"
+              icon={<LayoutDashboardIcon className="size-4" />}
+              onNavigate={onNavigate}
+            />
+            <NavLink
+              to="/workspaces/$workspaceSlug/settings"
+              workspaceSlug={workspaceSlug}
+              label="Settings"
+              icon={<SettingsIcon className="size-4" />}
+              onNavigate={onNavigate}
+            />
+          </>
+        )}
         <Link
           to="/admin"
           onClick={onNavigate}
@@ -130,11 +181,13 @@ function WorkspaceNav({
 
 function NavLink({
   to,
+  workspaceSlug,
   label,
   icon,
   onNavigate
 }: {
   readonly to: '/workspaces/$workspaceSlug' | '/workspaces/$workspaceSlug/settings'
+  readonly workspaceSlug: string
   readonly label: string
   readonly icon: ReactNode
   readonly onNavigate?: (() => void) | undefined
@@ -142,7 +195,7 @@ function NavLink({
   return (
     <Link
       to={to}
-      params={{ workspaceSlug: 'starter-lab' }}
+      params={{ workspaceSlug }}
       onClick={onNavigate}
       className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
     >

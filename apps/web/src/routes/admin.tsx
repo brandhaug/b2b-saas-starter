@@ -6,41 +6,43 @@ import { DataTable } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { runWorkspaceCapabilities } from '@/lib/capabilities'
-import { requireSession } from '@/lib/server/auth'
-import {
-  AuditEventLog,
-  NotificationFeed,
-  WorkspaceMembership,
-  type AuditEvent,
-  type Member
-} from '@b2b-saas-starter/capabilities'
-
-const SHOWCASE_SLUG = 'starter-lab'
+import { RoutePending } from '@/components/route-pending'
+import { runCapabilities } from '@/lib/capabilities'
+import { listSystemUsersServerFn, type SystemUser } from '@/lib/server/admin'
+import { requireAdmin } from '@/lib/server/auth'
+import { AuditEventLog, type AuditEvent } from '@b2b-saas-starter/capabilities'
 
 export const Route = createFileRoute('/admin')({
-  beforeLoad: ({ location }) => requireSession(location.href),
-  loader: () =>
-    runWorkspaceCapabilities(
-      SHOWCASE_SLUG,
-      Effect.gen(function* () {
-        const membership = yield* WorkspaceMembership
-        const log = yield* AuditEventLog
-        const feed = yield* NotificationFeed
-        const [members, events, unread] = yield* Effect.all(
-          [membership.listMembers, log.listGlobal, feed.unreadCount],
-          { concurrency: 'unbounded' }
-        )
-        return { members, events, unread }
-      })
-    ),
+  // requireAdmin gates on the Better Auth admin role (non-admins get a 404).
+  // /admin keeps its own gate instead of joining the /workspaces layout —
+  // requireSession is not enough here.
+  beforeLoad: async ({ location }) => {
+    const session = await requireAdmin(location.href)
+    return { session }
+  },
+  // System-level reads only — no workspace is borrowed: users come from the
+  // Better Auth admin plugin, audit events from the global log via the
+  // non-workspace capabilities runner.
+  loader: async () => {
+    const [users, events] = await Promise.all([
+      listSystemUsersServerFn(),
+      runCapabilities(
+        Effect.gen(function* () {
+          const log = yield* AuditEventLog
+          return yield* log.listGlobal
+        })
+      )
+    ])
+    return { users, events }
+  },
+  pendingComponent: RoutePending,
   component: AdminPage
 })
 
 function AdminPage() {
-  const { members, events, unread } = Route.useLoaderData()
+  const { users, events } = Route.useLoaderData()
 
-  const memberColumns = useMemo<ColumnDef<Member>[]>(
+  const userColumns = useMemo<ColumnDef<SystemUser>[]>(
     () => [
       {
         accessorKey: 'name',
@@ -49,11 +51,11 @@ function AdminPage() {
         meta: { sticky: true }
       },
       { accessorKey: 'email', header: 'Email', enableSorting: true },
-      { accessorKey: 'role', header: 'Workspace role', enableSorting: true },
       {
-        accessorKey: 'systemRole',
-        header: 'System status',
-        cell: ({ row }) => <Badge variant="secondary">{row.original.systemRole}</Badge>
+        accessorKey: 'role',
+        header: 'System role',
+        enableSorting: true,
+        cell: ({ row }) => <Badge variant="secondary">{row.original.role}</Badge>
       }
     ],
     []
@@ -71,9 +73,9 @@ function AdminPage() {
 
   return (
     <WorkspaceShell
+      workspaceSlug={null}
       title="System admin"
       description="Basic Better Auth admin dashboard without impersonation UI."
-      unreadCount={unread}
     >
       <div className="grid gap-6">
         <Card>
@@ -82,8 +84,8 @@ function AdminPage() {
           </CardHeader>
           <CardContent>
             <DataTable
-              columns={memberColumns}
-              data={members}
+              columns={userColumns}
+              data={users}
               filterColumnId="name"
               filterPlaceholder="Filter users…"
               pageSize={5}

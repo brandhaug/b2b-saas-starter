@@ -1,55 +1,35 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Effect } from 'effect'
 import { ApiTokenForm } from '@/components/api-token-form'
+import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { runWorkspaceCapabilities } from '@/lib/capabilities'
-import { requireSession } from '@/lib/server/auth'
-import {
-  ApiTokenRegistry,
-  NotificationFeed,
-  StarterModuleCatalog,
-  WebhookEndpoints
-} from '@b2b-saas-starter/capabilities'
+import { workspaceSettingsSummary } from '@b2b-saas-starter/capabilities'
 
+// The auth gate lives on the /workspaces layout route (workspaces.tsx);
+// `context.session` arrives from there.
 export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
-  beforeLoad: ({ location }) => requireSession(location.href),
-  loader: ({ params }) =>
-    runWorkspaceCapabilities(
-      params.workspaceSlug,
-      Effect.gen(function* () {
-        const catalog = yield* StarterModuleCatalog
-        const tokens = yield* ApiTokenRegistry
-        const webhooks = yield* WebhookEndpoints
-        const feed = yield* NotificationFeed
-
-        const [modules, apiTokens, endpoints, unread] = yield* Effect.all(
-          [catalog.listModules, tokens.list, webhooks.list, feed.unreadCount],
-          { concurrency: 'unbounded' }
-        )
-        return {
-          modules,
-          apiTokenCount: apiTokens.length,
-          webhookCount: endpoints.length,
-          unread
-        }
-      })
-    ),
+  loader: ({ params, context }) =>
+    runWorkspaceCapabilities(params.workspaceSlug, workspaceSettingsSummary, {
+      userId: context.session.user.id
+    }),
+  pendingComponent: RoutePending,
   component: WorkspaceSettingsPage
 })
 
 function WorkspaceSettingsPage() {
   const { workspaceSlug } = Route.useParams()
-  const { modules, apiTokenCount, webhookCount, unread } = Route.useLoaderData()
+  const { modules, apiTokenCount, webhookCount, unreadCount } = Route.useLoaderData()
 
   return (
     <WorkspaceShell
+      workspaceSlug={workspaceSlug}
       title="Workspace settings"
       description="Module toggles, provider readiness, report schedule, API tokens, and webhook configuration."
-      unreadCount={unread}
+      unreadCount={unreadCount}
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

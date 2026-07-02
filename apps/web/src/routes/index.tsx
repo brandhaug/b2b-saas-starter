@@ -1,38 +1,22 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Effect } from 'effect'
-import {
-  ArrowRightIcon,
-  CheckCircle2Icon,
-  CircleDotIcon,
-  GitBranchIcon,
-  SearchIcon
-} from 'lucide-react'
+import { ArrowRightIcon } from 'lucide-react'
 import { GithubIcon } from '@/components/icons/github'
-import { lazy, Suspense } from 'react'
-import { CodeBlock } from '@/components/code-block'
-import { FeatureCard } from '@/components/landing/feature-card'
-import { SectionHeading } from '@/components/landing/section-heading'
-
-const MiniBarChart = lazy(() =>
-  import('@/components/landing/mini-bar-chart').then((m) => ({
-    default: m.MiniBarChart
-  }))
-)
+import { ArchitectureSchematic } from '@/components/landing/architecture-schematic'
 import { PublicLayout } from '@/components/public-layout'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getAllPosts } from '@/lib/blog'
 import { runWorkspaceCapabilities } from '@/lib/capabilities'
-import { architectureNodes, optionalProviderModules } from '@/lib/content'
+import { optionalProviderModules } from '@/lib/content'
+import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { getAllDocs } from '@/lib/docs'
 import { StarterModuleCatalog, WorkspaceContext } from '@b2b-saas-starter/capabilities'
 
-const SHOWCASE_SLUG = 'starter-lab'
-
 export const Route = createFileRoute('/')({
+  // Public showcase: no actor — a trusted server-side read of the demo
+  // workspace, not a user-scoped one.
   loader: () =>
     runWorkspaceCapabilities(
-      SHOWCASE_SLUG,
+      DEMO_WORKSPACE_SLUG,
       Effect.gen(function* () {
         const catalog = yield* StarterModuleCatalog
         const ctx = yield* WorkspaceContext
@@ -62,14 +46,19 @@ export const Route = createFileRoute('/')({
   })
 })
 
-const EVENTS_PER_MINUTE = [
-  { minute: 'm-5', count: 142 },
-  { minute: 'm-4', count: 168 },
-  { minute: 'm-3', count: 211 },
-  { minute: 'm-2', count: 189 },
-  { minute: 'm-1', count: 234 },
-  { minute: 'm-0', count: 256 }
-]
+const GITHUB_URL =
+  'https://github.com/brandhaug/full-stack-typescript-monorepo-starter-with-authentication'
+
+const BILL_OF_MATERIALS = [
+  'TanStack Start',
+  'Effect v4',
+  'Drizzle D1',
+  'Better Auth',
+  'shadcn/ui',
+  'Tailwind v4',
+  'Cloudflare Workers',
+  'Alchemy v2'
+] as const
 
 const REST_SNIPPET = `curl -H "Authorization: Bearer bsk_live_xxx" \\
   https://api.example.com/workspaces/starter-lab/overview
@@ -87,18 +76,6 @@ const MCP_SNIPPET = `{
   "tools": []
 }`
 
-const WIDE_EVENT_SNIPPET = `{
-  "ts": "2026-05-16T10:42:13.918Z",
-  "service": "apps/api",
-  "route": "GET /workspaces/starter-lab/overview",
-  "workspaceSlug": "starter-lab",
-  "userId": "usr_01HXY...",
-  "tokenId": "tok_01HXY...",
-  "durationMs": 27,
-  "status": 200,
-  "traceId": "01HXY..."
-}`
-
 const CLOUDFLARE_RUNTIME = [
   { label: 'apps/web', value: 'Worker' },
   { label: 'apps/api', value: 'Worker' },
@@ -108,7 +85,22 @@ const CLOUDFLARE_RUNTIME = [
   { label: 'Outbound email', value: 'Email Service' },
   { label: 'Static assets', value: 'Worker Assets' },
   { label: 'Infrastructure', value: 'Alchemy v2' }
-]
+] as const
+
+const DISABLED_STATUS_META = {
+  dot: 'border border-muted-foreground/70 bg-transparent',
+  text: 'text-muted-foreground'
+} as const
+
+const MODULE_STATUS_META: Record<
+  string,
+  { readonly dot: string; readonly text: string }
+> = {
+  ready: { dot: 'bg-primary', text: 'text-foreground' },
+  'needs-config': { dot: 'bg-signal', text: 'text-signal-ink' },
+  attention: { dot: 'bg-destructive', text: 'text-destructive' },
+  disabled: DISABLED_STATUS_META
+}
 
 const RECENT_POSTS = getAllPosts().slice(0, 3)
 const RECENT_DOCS = getAllDocs().slice(0, 4)
@@ -119,283 +111,349 @@ function HomePage() {
   return (
     <PublicLayout>
       <main id="main-content">
-        <section className="border-b border-border">
-          <div className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-5xl flex-col justify-center gap-8 px-4 py-20 sm:px-6">
-            <Badge variant="secondary" className="w-fit">
-              Cloudflare-first production starter
-            </Badge>
-            <div className="flex flex-col gap-6">
-              <h1 className="text-balance text-5xl font-semibold tracking-tight sm:text-6xl lg:text-7xl">
-                Inspect a B2B SaaS starter that ships with the hard parts wired.
-              </h1>
-              <p className="max-w-3xl text-pretty text-lg text-muted-foreground sm:text-xl">
-                TanStack Start, Effect v4, Drizzle D1, Better Auth, REST and MCP,
-                Cloudflare Email, webhooks, admin, audit, Storybook, Vitest, Playwright,
-                oxlint, oxfmt, and Turbo — in one coherent repo.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                to="/workspaces/$workspaceSlug"
-                params={{ workspaceSlug: workspace.slug }}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
-              >
-                Open reference app
-                <ArrowRightIcon className="size-4" />
-              </Link>
-              <Link
-                to="/docs"
-                className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium"
-              >
-                Read the docs
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                Architecture map
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                The homepage is a working stack showcase, not a fictional SaaS landing
-                page.
-              </p>
-            </div>
-            <GitBranchIcon className="size-5 text-muted-foreground" />
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {architectureNodes.map((node) => (
-              <Card key={node.id}>
-                <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-                  <span className="grid size-9 place-items-center rounded-md bg-muted">
-                    <node.icon className="size-4" />
-                  </span>
-                  <CardTitle className="text-base">{node.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{node.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        <section className="border-t border-border bg-muted/20 px-4 py-16 sm:py-20">
-          <SectionHeading
-            badge="Starter Modules"
-            title="What's wired by default"
-            description="Each module ships with production-ready surfaces and a Module State that the workspace can configure."
-          />
-          <div className="mx-auto mt-10 grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {modules.map((module) => (
-              <FeatureCard
-                key={module.id}
-                title={module.name}
-                description={module.summary}
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{module.category}</span>
-                  <StatusBadge status={module.state.status} />
+        {/* ————— Hero: the claim, and the schematic that proves it ————— */}
+        <section className="grid-paper border-b border-border">
+          <div className="mx-auto max-w-7xl px-4 pt-16 pb-10 sm:px-6 lg:pt-24">
+            <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16">
+              <div className="flex max-w-xl flex-col items-start">
+                <p className="rise font-mono text-sm text-signal-ink">
+                  A Cloudflare-first B2B SaaS starter
+                </p>
+                <h1 className="rise rise-2 mt-5 text-balance text-5xl font-semibold leading-[1.04] tracking-tight sm:text-6xl">
+                  The hard parts, already wired.
+                </h1>
+                <p className="rise rise-3 mt-6 text-pretty text-lg text-muted-foreground">
+                  Workspaces, auth, REST + MCP, webhooks, email, billing wiring, audit,
+                  and reports — typed end-to-end and proven by a working reference app.
+                  It boots locally with zero provider secrets.
+                </p>
+                <div className="rise rise-4 mt-9 flex flex-wrap items-center gap-3">
+                  <Link
+                    to="/workspaces/$workspaceSlug"
+                    params={{ workspaceSlug: workspace.slug }}
+                    className="inline-flex h-11 items-center gap-2 bg-primary px-5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    Open the reference app
+                    <ArrowRightIcon className="size-4" />
+                  </Link>
+                  <a
+                    href={GITHUB_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-11 items-center gap-2 border border-border bg-background px-5 text-sm font-medium transition-colors hover:bg-muted"
+                  >
+                    <GithubIcon className="size-4" />
+                    View on GitHub
+                  </a>
+                  <code className="font-mono text-xs text-muted-foreground max-sm:mt-2">
+                    $ bun install && bun run dev
+                  </code>
                 </div>
-              </FeatureCard>
-            ))}
+              </div>
+              <figure className="rise rise-3 overflow-x-auto border border-border bg-background/85 p-3 sm:p-4">
+                <ArchitectureSchematic />
+                <figcaption className="sr-only">
+                  Every label in this diagram is a real path in the repository.
+                </figcaption>
+              </figure>
+            </div>
+            <ul className="mt-14 flex flex-wrap gap-x-7 gap-y-2 border-t border-border pt-5 font-mono text-xs text-muted-foreground">
+              {BILL_OF_MATERIALS.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
         </section>
 
-        <section className="border-t border-border bg-muted/20 px-4 py-16 sm:py-20">
-          <SectionHeading
-            badge="Capability Interfaces"
-            title="REST endpoints and MCP discovery from one set of services"
-            description="The API Worker exposes REST endpoints and an MCP discovery resource from the same capability layer. Tool execution can be added without duplicating business behavior."
-          />
-          <div className="mx-auto mt-10 grid max-w-7xl gap-4 lg:grid-cols-2">
-            <CodeBlock language="bash" code={REST_SNIPPET} />
-            <CodeBlock language="json" code={MCP_SNIPPET} />
+        {/* ————— Module manifest: live seed data, not copy ————— */}
+        <section className="mx-auto max-w-7xl px-4 pt-20 pb-24 sm:px-6 lg:pt-28">
+          <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-4">
+            <h2 className="max-w-md text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+              {modules.length} starter modules, read live.
+            </h2>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              This table isn't marketing copy. It's the module catalog of the{' '}
+              <span className="font-mono text-signal-ink">{workspace.slug}</span> seed
+              workspace, loaded through the same capability layer the reference app
+              uses.
+            </p>
           </div>
-          <div className="mx-auto mt-4 max-w-7xl text-center">
+          <table className="mt-10 w-full border-t border-border text-left">
+            <caption className="sr-only">
+              Starter modules and their current module state in the seed workspace
+            </caption>
+            <thead>
+              <tr className="border-b border-border font-mono text-[11px] text-muted-foreground">
+                <th scope="col" className="w-10 py-2 pr-4 font-normal max-sm:hidden">
+                  #
+                </th>
+                <th scope="col" className="py-2 pr-4 font-normal">
+                  module
+                </th>
+                <th scope="col" className="py-2 pr-4 font-normal max-md:hidden">
+                  category
+                </th>
+                <th scope="col" className="py-2 font-normal">
+                  state
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {modules.map((module, index) => {
+                const meta =
+                  MODULE_STATUS_META[module.state.status] ?? DISABLED_STATUS_META
+                return (
+                  <tr
+                    key={module.id}
+                    className="border-b border-border transition-colors hover:bg-accent/40"
+                  >
+                    <td className="py-3.5 pr-4 font-mono text-xs text-muted-foreground max-sm:hidden">
+                      {String(index + 1).padStart(2, '0')}
+                    </td>
+                    <td className="max-w-xl py-3.5 pr-4">
+                      <p className="text-sm font-medium">{module.name}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {module.summary}
+                      </p>
+                    </td>
+                    <td className="py-3.5 pr-4 text-xs text-muted-foreground max-md:hidden">
+                      {module.category}
+                    </td>
+                    {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the status text is right here, one span deep */}
+                    <td className="py-3.5">
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`size-2 shrink-0 ${meta.dot}`} />
+                        <span className={`font-mono text-xs ${meta.text}`}>
+                          {module.state.status}
+                        </span>
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
+
+        {/* ————— Drench: the capability layer ————— */}
+        <section className="band-deep bg-background text-foreground">
+          <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:py-28">
+            <div className="max-w-2xl">
+              <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+                Write the capability once. Serve it three ways.
+              </h2>
+              <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
+                Server functions in the web app, REST endpoints, and MCP discovery all
+                call the same typed services in{' '}
+                <code className="font-mono text-sm text-signal">
+                  packages/capabilities
+                </code>
+                . No duplicated business behavior, no drift between surfaces.
+              </p>
+            </div>
+            <div className="mt-12 grid gap-4 lg:grid-cols-2">
+              <SnippetPanel
+                label="REST · GET /workspaces/:slug/overview"
+                code={REST_SNIPPET}
+              />
+              <SnippetPanel label="MCP · discovery" code={MCP_SNIPPET} />
+            </div>
             <Link
               to="/docs/$category/$slug"
               params={{ category: 'capability-interfaces', slug: 'rest-api' }}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              className="mt-8 inline-flex items-center gap-1.5 text-sm text-foreground underline-offset-4 hover:underline"
             >
               Read the API contract
-              <ArrowRightIcon className="size-3" />
+              <ArrowRightIcon className="size-3.5" />
             </Link>
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
-          <SectionHeading
-            badge="Cloudflare-First"
-            title="One platform, one deploy command"
-            description="Alchemy v2 declares every resource: Workers, D1, Queues, Email Service. The same description provisions local and production."
-          />
-          <div className="mx-auto mt-10 grid max-w-4xl gap-2 sm:grid-cols-2">
-            {CLOUDFLARE_RUNTIME.map((row) => (
-              <div
-                key={row.label}
-                className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-3"
-              >
-                <span className="text-sm font-medium">{row.label}</span>
-                <span className="text-xs text-muted-foreground">{row.value}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="border-t border-border bg-muted/20 px-4 py-16 sm:py-20">
-          <SectionHeading
-            badge="Optional Provider Modules"
-            title="Real wiring, env-gated activation"
-            description="Each provider is wired into the starter. None of them are required to run locally — missing configuration keeps the module inactive without breaking anything."
-          />
-          <div className="mx-auto mt-10 grid max-w-7xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {optionalProviderModules.map((provider) => (
-              <div
-                key={provider.id}
-                className="flex items-start gap-3 rounded-lg border border-border bg-card p-4"
-              >
-                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted">
-                  <provider.icon className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{provider.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{provider.role}</p>
-                  <Badge variant="secondary" className="mt-2 text-[10px]">
-                    Env-gated
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="border-t border-border bg-muted/20 px-4 py-16 sm:py-20">
-          <SectionHeading
-            badge="Observability"
-            title="Wide events, audit events, optional Sentry"
-            description="One canonical log line per request, persisted Audit Events for governance, and env-gated Sentry and PostHog when you want them."
-          />
-          <div className="mx-auto mt-10 grid max-w-7xl gap-4 lg:grid-cols-[1.1fr_1fr]">
-            <CodeBlock language="json" code={WIDE_EVENT_SNIPPET} />
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="mb-2 text-sm font-medium">Events per minute</p>
-              <p className="mb-3 text-xs text-muted-foreground">
-                Across the three Workers (illustrative).
+        {/* ————— Runtime map ————— */}
+        <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
+          <div className="grid gap-x-20 gap-y-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div>
+              <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+                One platform. One deploy.
+              </h2>
+              <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
+                Every resource is declared as TypeScript in{' '}
+                <code className="font-mono text-xs">alchemy.run.ts</code> — Workers, D1,
+                Queues, Email, secrets. The same description provisions local dev and
+                production, so the whole story is{' '}
+                <code className="font-mono text-xs text-signal-ink">
+                  bun run deploy
+                </code>
+                .
               </p>
-              <Suspense fallback={<div className="h-[180px]" />}>
-                <MiniBarChart
-                  data={EVENTS_PER_MINUTE}
-                  xKey="minute"
-                  dataKey="count"
-                  color="var(--chart-2)"
-                />
-              </Suspense>
             </div>
+            <dl className="grid content-start gap-x-12 sm:grid-cols-2">
+              {CLOUDFLARE_RUNTIME.map((row) => (
+                <div
+                  key={row.label}
+                  className="flex items-baseline justify-between gap-4 border-b border-border py-3"
+                >
+                  <dt className="text-sm font-medium">{row.label}</dt>
+                  <dd className="font-mono text-xs text-muted-foreground">
+                    {row.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
-          <SectionHeading
-            badge="Public Knowledge Content"
-            title="Docs, blog, FAQ — checked in as MDX"
-            description="Searched from generated indexes, rendered by the same MDX pipeline. No CMS, no database-backed marketing content."
-          />
-          <div className="mx-auto mt-10 max-w-3xl">
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-              <SearchIcon className="size-4" />
-              Search docs, blog, FAQ…
-              <kbd className="ml-auto rounded border border-border bg-muted px-1.5 py-0.5 text-[10px]">
-                ⌘K
-              </kbd>
+        {/* ————— Provider patch bay ————— */}
+        <section className="border-t border-border bg-muted/40">
+          <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
+            <div className="max-w-2xl">
+              <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+                Providers are optional. The wiring isn't.
+              </h2>
+              <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
+                Stripe, Sentry, PostHog, Email, and GitHub OAuth ship with real routes,
+                models, and settings — inactive until their env vars exist. Local
+                development never blocks on a provider account.
+              </p>
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {RECENT_DOCS.map((doc) => (
-                <Link
-                  key={`${doc.category}/${doc.slug}`}
-                  to="/docs/$category/$slug"
-                  params={{ category: doc.category, slug: doc.slug }}
-                  className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/40"
+            <div className="mt-12 grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
+              {optionalProviderModules.map((provider, index) => (
+                <div
+                  key={provider.id}
+                  className={`flex flex-col gap-6 bg-background p-5 ${
+                    index === optionalProviderModules.length - 1
+                      ? 'sm:col-span-2 lg:col-span-1'
+                      : ''
+                  }`}
                 >
-                  <p className="text-sm font-medium">{doc.frontmatter.title}</p>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                    {doc.frontmatter.description}
+                  <div className="flex items-center gap-2.5">
+                    <provider.icon className="size-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">{provider.name}</p>
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {provider.role}
                   </p>
-                </Link>
+                  <p className="mt-auto inline-flex items-center gap-2">
+                    <span className="size-2 rounded-full border border-signal-ink" />
+                    <span className="font-mono text-[11px] text-signal-ink">
+                      env-gated
+                    </span>
+                  </p>
+                </div>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="border-t border-border bg-muted/20 px-4 py-16 sm:py-20">
-          <SectionHeading
-            badge="From the blog"
-            title="Why we made the calls we made"
-            description="Articles about the technology and library decisions in this starter."
-          />
-          <div className="mx-auto mt-10 grid max-w-7xl gap-4 sm:grid-cols-3">
-            {RECENT_POSTS.map((post) => (
-              <Link
-                key={post.slug}
-                to="/blog/$slug"
-                params={{ slug: post.slug }}
-                className="group flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/40"
-              >
-                <p className="text-sm font-medium group-hover:text-primary">
-                  {post.frontmatter.title}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {post.frontmatter.description}
-                </p>
-                <time className="mt-auto pt-2 text-xs text-muted-foreground">
-                  {new Date(post.frontmatter.date).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </time>
-              </Link>
-            ))}
+        {/* ————— Knowledge: docs + decisions ————— */}
+        <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
+          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+            The reasoning is checked in.
+          </h2>
+          <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+            Docs, FAQ, blog, and changelog are versioned MDX in the repo — searched from
+            generated indexes, no CMS. The blog explains why each technology call was
+            made.
+          </p>
+          <div className="mt-12 grid gap-x-20 gap-y-14 lg:grid-cols-2">
+            <div>
+              <p className="border-b border-border pb-3 font-mono text-xs text-muted-foreground">
+                docs/
+              </p>
+              <ul>
+                {RECENT_DOCS.map((doc) => (
+                  <li key={`${doc.category}/${doc.slug}`}>
+                    <Link
+                      to="/docs/$category/$slug"
+                      params={{ category: doc.category, slug: doc.slug }}
+                      className="group flex items-baseline justify-between gap-6 border-b border-border py-4 transition-colors hover:bg-accent/40"
+                    >
+                      <span>
+                        <span className="block text-sm font-medium group-hover:text-primary">
+                          {doc.frontmatter.title}
+                        </span>
+                        <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
+                          {doc.frontmatter.description}
+                        </span>
+                      </span>
+                      <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="border-b border-border pb-3 font-mono text-xs text-muted-foreground">
+                blog/
+              </p>
+              <ul>
+                {RECENT_POSTS.map((post) => (
+                  <li key={post.slug}>
+                    <Link
+                      to="/blog/$slug"
+                      params={{ slug: post.slug }}
+                      className="group block border-b border-border py-4 transition-colors hover:bg-accent/40"
+                    >
+                      <span className="flex items-baseline justify-between gap-6">
+                        <span className="text-sm font-medium group-hover:text-primary">
+                          {post.frontmatter.title}
+                        </span>
+                        <time className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                          {new Date(post.frontmatter.date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </time>
+                      </span>
+                      <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
+                        {post.frontmatter.description}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </section>
 
-        <section className="border-t border-border bg-card px-4 py-20 sm:py-24">
-          <div className="mx-auto max-w-3xl text-center">
-            <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              Fork, run, deploy.
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
-              MIT licensed. The Reference Application boots locally with no external
-              provider configuration.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link
-                to="/workspaces/$workspaceSlug"
-                params={{ workspaceSlug: workspace.slug }}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
-              >
-                Open reference app
-                <ArrowRightIcon className="size-4" />
-              </Link>
-              <Link
-                to="/docs"
-                className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium"
-              >
-                Read the docs
-              </Link>
-              <a
-                href="https://github.com/brandhaug/full-stack-typescript-monorepo-starter-with-authentication"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-medium"
-              >
-                <GithubIcon className="size-4" />
-                View on GitHub
-              </a>
+        {/* ————— Closing: fork it ————— */}
+        <section className="band-deep bg-background text-foreground">
+          <div className="mx-auto grid max-w-7xl items-center gap-x-20 gap-y-12 px-4 py-24 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:py-28">
+            <div>
+              <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+                Fork it. It boots in two commands.
+              </h2>
+              <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
+                MIT licensed. The reference application runs locally against a seed
+                workspace — no Stripe key, no OAuth app, no email domain required.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link
+                  to="/workspaces/$workspaceSlug"
+                  params={{ workspaceSlug: workspace.slug }}
+                  className="inline-flex h-11 items-center gap-2 bg-primary px-5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Open the reference app
+                  <ArrowRightIcon className="size-4" />
+                </Link>
+                <Link
+                  to="/docs"
+                  className="inline-flex h-11 items-center border border-border px-5 text-sm font-medium transition-colors hover:bg-accent"
+                >
+                  Read the docs
+                </Link>
+              </div>
             </div>
+            <pre className="overflow-x-auto border border-border bg-card p-5 font-mono text-xs leading-loose text-foreground/90">
+              <code>{`$ git clone ${GITHUB_URL}.git
+$ bun install && bun run dev
+
+  web        http://localhost:3071
+  api        wired
+  background wired
+  providers  env-gated — nothing to configure`}</code>
+            </pre>
           </div>
         </section>
       </main>
@@ -403,16 +461,21 @@ function HomePage() {
   )
 }
 
-function StatusBadge({ status }: { readonly status: string }) {
-  const ready = status === 'ready'
+function SnippetPanel({
+  label,
+  code
+}: {
+  readonly label: string
+  readonly code: string
+}) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs">
-      {ready ? (
-        <CheckCircle2Icon className="size-3 text-chart-2" />
-      ) : (
-        <CircleDotIcon className="size-3 text-chart-5" />
-      )}
-      {status}
-    </span>
+    <figure className="min-w-0 border border-border bg-card">
+      <figcaption className="border-b border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">
+        {label}
+      </figcaption>
+      <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-foreground/90">
+        <code>{code}</code>
+      </pre>
+    </figure>
   )
 }

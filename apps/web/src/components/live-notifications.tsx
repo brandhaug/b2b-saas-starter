@@ -21,7 +21,7 @@ export function LiveNotifications({
   readonly workspaceSlug: string
   readonly fallback: readonly NotificationPreview[]
 }) {
-  const { data, isFetching, refetch } = useQuery({
+  const { data, error, isFetching, refetch } = useQuery({
     queryKey: notificationsQueryKey(workspaceSlug),
     queryFn: () => listNotificationsServerFn({ data: { workspaceSlug } }),
     initialData: fallback
@@ -48,6 +48,20 @@ export function LiveNotifications({
         </Button>
       </CardHeader>
       <CardContent className="grid gap-3">
+        {error ? (
+          <p className="text-xs text-destructive" role="alert">
+            {error instanceof Error
+              ? error.message
+              : 'Could not refresh notifications.'}
+          </p>
+        ) : null}
+        {notifications.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              You're all caught up — no notifications yet.
+            </p>
+          </div>
+        ) : null}
         {notifications.map((notification) => (
           <div key={notification.id} className="rounded-md border border-border p-3">
             <div className="flex items-center justify-between gap-3">

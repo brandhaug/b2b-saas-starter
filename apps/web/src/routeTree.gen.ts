@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -28,6 +29,11 @@ import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/wo
 import { Route as DocsCategorySlugRouteImport } from './routes/docs.$category.$slug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
+const WorkspacesRoute = WorkspacesRouteImport.update({
+  id: '/workspaces',
+  path: '/workspaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -74,9 +80,9 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const WorkspacesIndexRoute = WorkspacesIndexRouteImport.update({
-  id: '/workspaces/',
-  path: '/workspaces/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => WorkspacesRoute,
 } as any)
 const HelpIndexRoute = HelpIndexRouteImport.update({
   id: '/help/',
@@ -94,9 +100,9 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const WorkspacesWorkspaceSlugRoute = WorkspacesWorkspaceSlugRouteImport.update({
-  id: '/workspaces/$workspaceSlug',
-  path: '/workspaces/$workspaceSlug',
-  getParentRoute: () => rootRouteImport,
+  id: '/$workspaceSlug',
+  path: '/$workspaceSlug',
+  getParentRoute: () => WorkspacesRoute,
 } as any)
 const BlogSlugRoute = BlogSlugRouteImport.update({
   id: '/blog/$slug',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
+  '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog/': typeof BlogIndexRoute
@@ -170,6 +177,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
+  '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog/': typeof BlogIndexRoute
@@ -192,6 +200,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sign-in'
     | '/terms'
+    | '/workspaces'
     | '/blog/$slug'
     | '/workspaces/$workspaceSlug'
     | '/blog/'
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sign-in'
     | '/terms'
+    | '/workspaces'
     | '/blog/$slug'
     | '/workspaces/$workspaceSlug'
     | '/blog/'
@@ -252,16 +262,22 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   SignInRoute: typeof SignInRoute
   TermsRoute: typeof TermsRoute
+  WorkspacesRoute: typeof WorkspacesRouteWithChildren
   BlogSlugRoute: typeof BlogSlugRoute
-  WorkspacesWorkspaceSlugRoute: typeof WorkspacesWorkspaceSlugRouteWithChildren
   BlogIndexRoute: typeof BlogIndexRoute
   HelpIndexRoute: typeof HelpIndexRoute
-  WorkspacesIndexRoute: typeof WorkspacesIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workspaces': {
+      id: '/workspaces'
+      path: '/workspaces'
+      fullPath: '/workspaces'
+      preLoaderRoute: typeof WorkspacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -327,10 +343,10 @@ declare module '@tanstack/react-router' {
     }
     '/workspaces/': {
       id: '/workspaces/'
-      path: '/workspaces'
+      path: '/'
       fullPath: '/workspaces/'
       preLoaderRoute: typeof WorkspacesIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof WorkspacesRoute
     }
     '/help/': {
       id: '/help/'
@@ -355,10 +371,10 @@ declare module '@tanstack/react-router' {
     }
     '/workspaces/$workspaceSlug': {
       id: '/workspaces/$workspaceSlug'
-      path: '/workspaces/$workspaceSlug'
+      path: '/$workspaceSlug'
       fullPath: '/workspaces/$workspaceSlug'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof WorkspacesRoute
     }
     '/blog/$slug': {
       id: '/blog/$slug'
@@ -417,6 +433,20 @@ const WorkspacesWorkspaceSlugRouteWithChildren =
     WorkspacesWorkspaceSlugRouteChildren,
   )
 
+interface WorkspacesRouteChildren {
+  WorkspacesWorkspaceSlugRoute: typeof WorkspacesWorkspaceSlugRouteWithChildren
+  WorkspacesIndexRoute: typeof WorkspacesIndexRoute
+}
+
+const WorkspacesRouteChildren: WorkspacesRouteChildren = {
+  WorkspacesWorkspaceSlugRoute: WorkspacesWorkspaceSlugRouteWithChildren,
+  WorkspacesIndexRoute: WorkspacesIndexRoute,
+}
+
+const WorkspacesRouteWithChildren = WorkspacesRoute._addFileChildren(
+  WorkspacesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
@@ -427,11 +457,10 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   SignInRoute: SignInRoute,
   TermsRoute: TermsRoute,
+  WorkspacesRoute: WorkspacesRouteWithChildren,
   BlogSlugRoute: BlogSlugRoute,
-  WorkspacesWorkspaceSlugRoute: WorkspacesWorkspaceSlugRouteWithChildren,
   BlogIndexRoute: BlogIndexRoute,
   HelpIndexRoute: HelpIndexRoute,
-  WorkspacesIndexRoute: WorkspacesIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

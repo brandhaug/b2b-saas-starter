@@ -1,19 +1,4 @@
-import {
-  Activity,
-  BarChart3,
-  BookOpen,
-  Bot,
-  Cloud,
-  CreditCard,
-  FileText,
-  KeyRound,
-  Mail,
-  Network,
-  ShieldCheck,
-  Sparkles,
-  TestTube2,
-  Webhook
-} from 'lucide-react'
+import { Activity, BarChart3, CreditCard, Mail } from 'lucide-react'
 import { GithubIcon } from '@/components/icons/github'
 
 export const publicLinks = [
@@ -21,91 +6,6 @@ export const publicLinks = [
   { to: '/blog', label: 'Blog' },
   { to: '/pricing', label: 'Pricing' },
   { to: '/faq', label: 'FAQ' }
-] as const
-
-export const architectureNodes = [
-  {
-    id: 'web',
-    title: 'TanStack Start web',
-    description:
-      'Public showcase, auth, settings, dashboards, docs, and command palette.',
-    icon: BookOpen
-  },
-  {
-    id: 'api',
-    title: 'Effect HTTP API',
-    description:
-      'REST and MCP capability interfaces over the same application services.',
-    icon: Network
-  },
-  {
-    id: 'db',
-    title: 'Drizzle D1',
-    description:
-      'Shared SQLite persistence for auth, workspaces, modules, audit, and reports.',
-    icon: Cloud
-  },
-  {
-    id: 'auth',
-    title: 'Better Auth',
-    description: 'Email/password, GitHub OAuth example, admin plugin, and D1 sessions.',
-    icon: ShieldCheck
-  },
-  {
-    id: 'effect',
-    title: 'Effect v4',
-    description:
-      'Typed services, schemas, errors, HTTP contracts, atom queries, and AI.',
-    icon: Sparkles
-  },
-  {
-    id: 'email',
-    title: 'Cloudflare Email',
-    description:
-      'Outbound transactional email with React Email templates and previews.',
-    icon: Mail
-  },
-  {
-    id: 'tokens',
-    title: 'API tokens',
-    description: 'Workspace-scoped hashed credentials for REST and MCP clients.',
-    icon: KeyRound
-  },
-  {
-    id: 'webhooks',
-    title: 'Queues + webhooks',
-    description:
-      'Signed outbound delivery with D1 attempt history and queue-backed retry.',
-    icon: Webhook
-  },
-  {
-    id: 'billing',
-    title: 'Billing-ready',
-    description:
-      'Stripe-ready checkout, portal, and webhook surfaces behind env gates.',
-    icon: CreditCard
-  },
-  {
-    id: 'ai',
-    title: 'Effect AI',
-    description:
-      'Provider-abstracted assistant boundaries for docs and setup guidance.',
-    icon: Bot
-  },
-  {
-    id: 'tests',
-    title: 'Vitest + Playwright',
-    description:
-      'Focused unit and E2E coverage for public pages, auth, search, and workspace flows.',
-    icon: TestTube2
-  },
-  {
-    id: 'docs',
-    title: 'MDX knowledge',
-    description:
-      'Docs, FAQ, blog, changelog, llms.txt, and generated search artifacts.',
-    icon: FileText
-  }
 ] as const
 
 export const optionalProviderModules = [

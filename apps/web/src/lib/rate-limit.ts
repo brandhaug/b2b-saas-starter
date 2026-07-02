@@ -1,10 +1,19 @@
-import { Context, Effect, HashMap, Layer, Ref } from 'effect'
+import { Context, Layer } from 'effect'
+import {
+  clientKey,
+  makeRateLimiter,
+  type CloudflareRateLimit,
+  type RateLimitInput as GenericRateLimitInput,
+  type RateLimiterShape as GenericRateLimiterShape
+} from '@b2b-saas-starter/rate-limit'
 
-type CloudflareRateLimit = {
-  readonly limit: (input: { readonly key: string }) => Promise<{
-    readonly success: boolean
-  }>
-}
+// Thin config module over @b2b-saas-starter/rate-limit: this file owns the
+// web app's auth bucket union, fallback limits, and env-binding map; the
+// mechanism (Cloudflare binding dispatch, module-scope in-memory fallback,
+// degraded-mode telemetry, clientKey) lives in the shared package. The
+// module-scope fallback store matters here: the auth route rebuilds the
+// layer per request, so per-layer state would reset on every request and
+// never limit anything.
 
 export type RateLimitBindings = {
   readonly RATE_LIMITER_AUTH_READ?: CloudflareRateLimit
@@ -13,26 +22,18 @@ export type RateLimitBindings = {
 
 export type AuthRateLimitBucket = 'auth_read' | 'auth_write'
 
-export type RateLimitInput = {
-  readonly bucket: AuthRateLimitBucket
-  readonly key: string
-}
+export type RateLimitInput = GenericRateLimitInput<AuthRateLimitBucket>
 
-export type RateLimiterShape = {
-  readonly take: (input: RateLimitInput) => Effect.Effect<boolean>
-}
+export type RateLimiterShape = GenericRateLimiterShape<AuthRateLimitBucket>
 
 export class RateLimiter extends Context.Service<RateLimiter, RateLimiterShape>()(
   '@b2b-saas-starter/web/RateLimiter'
 ) {}
 
-const FALLBACK_WINDOW_MS = 60_000
 const FALLBACK_LIMITS: Record<AuthRateLimitBucket, number> = {
   auth_read: 60,
   auth_write: 20
 }
-
-type BucketState = { readonly count: number; readonly resetAt: number }
 
 const pickBinding = (
   env: RateLimitBindings,
@@ -43,55 +44,11 @@ const pickBinding = (
 export const makeRateLimiterLayer = (
   env: RateLimitBindings
 ): Layer.Layer<RateLimiter> =>
-  Layer.effect(RateLimiter)(
-    Effect.gen(function* () {
-      const fallback = yield* Ref.make(HashMap.empty<string, BucketState>())
-      return {
-        take: (input) =>
-          Effect.gen(function* () {
-            const binding = pickBinding(env, input.bucket)
-            if (binding) {
-              const outcome = yield* Effect.promise(async () => {
-                try {
-                  return await binding.limit({ key: input.key })
-                } catch {
-                  return null
-                }
-              })
-              if (outcome) return outcome.success
-            }
-            return yield* Ref.modify(fallback, (state) => {
-              const id = `${input.bucket}:${input.key}`
-              const now = Date.now()
-              const existing = HashMap.get(state, id)
-              if (existing._tag === 'None' || existing.value.resetAt < now) {
-                return [
-                  true,
-                  HashMap.set(state, id, {
-                    count: 1,
-                    resetAt: now + FALLBACK_WINDOW_MS
-                  })
-                ] as const
-              }
-              if (existing.value.count >= FALLBACK_LIMITS[input.bucket]) {
-                return [false, state] as const
-              }
-              return [
-                true,
-                HashMap.set(state, id, {
-                  count: existing.value.count + 1,
-                  resetAt: existing.value.resetAt
-                })
-              ] as const
-            })
-          })
-      }
+  Layer.succeed(RateLimiter)(
+    makeRateLimiter({
+      binding: (bucket) => pickBinding(env, bucket),
+      fallbackLimits: FALLBACK_LIMITS
     })
   )
 
-export const clientKey = (request: Request): string => {
-  const ip =
-    request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for')
-  if (ip) return ip
-  return `unkeyed:${new URL(request.url).pathname}`
-}
+export { clientKey }

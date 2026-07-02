@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useParams } from '@tanstack/react-router'
 import { SearchIcon } from 'lucide-react'
 import { publicLinks } from '@/lib/content'
 import {
@@ -16,6 +16,10 @@ import { CommandPaletteContext } from '@/lib/command-palette-context'
 export function CommandPaletteProvider({ children }: { readonly children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  // Target the current workspace when inside one; outside a workspace the
+  // command falls back to the workspace list — never a hardcoded workspace.
+  const params = useParams({ strict: false })
+  const workspaceSlug = params.workspaceSlug
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -52,13 +56,15 @@ export function CommandPaletteProvider({ children }: { readonly children: ReactN
             <CommandItem
               onSelect={() => {
                 setOpen(false)
-                void navigate({
-                  to: '/workspaces/$workspaceSlug',
-                  params: { workspaceSlug: 'starter-lab' }
-                })
+                void (workspaceSlug
+                  ? navigate({
+                      to: '/workspaces/$workspaceSlug',
+                      params: { workspaceSlug }
+                    })
+                  : navigate({ to: '/workspaces' }))
               }}
             >
-              Open Starter Lab
+              {workspaceSlug ? 'Open workspace overview' : 'Open workspaces'}
             </CommandItem>
             <CommandItem
               onSelect={() => {

@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Effect } from 'effect'
 import { AdoptionTrendChart } from '@/components/charts/adoption-trend-chart'
 import { CatalogRefreshChart } from '@/components/charts/catalog-refresh-chart'
 import { LiveNotifications } from '@/components/live-notifications'
+import { RoutePending } from '@/components/route-pending'
 import { ModuleStatusChart } from '@/components/charts/module-status-chart'
 import { WebhookSuccessChart } from '@/components/charts/webhook-success-chart'
 import { DataTable } from '@/components/data-table'
@@ -12,16 +12,7 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { runWorkspaceCapabilities } from '@/lib/capabilities'
-import { requireSession } from '@/lib/server/auth'
-import {
-  AdoptionReadiness,
-  CatalogRefreshHistory,
-  computeReadinessScore,
-  NotificationFeed,
-  StarterModuleCatalog,
-  WebhookEndpoints,
-  WorkspaceContext
-} from '@b2b-saas-starter/capabilities'
+import { workspaceDashboard } from '@b2b-saas-starter/capabilities'
 
 type ModuleRow = {
   readonly id: string
@@ -32,44 +23,16 @@ type ModuleRow = {
   readonly missingConfig: string
 }
 
+// The auth gate lives on the /workspaces layout route (workspaces.tsx);
+// `context.session` arrives from there.
 export const Route = createFileRoute('/workspaces/$workspaceSlug')({
-  beforeLoad: ({ location }) => requireSession(location.href),
-  loader: ({ params }) =>
-    runWorkspaceCapabilities(
-      params.workspaceSlug,
-      Effect.gen(function* () {
-        const ctx = yield* WorkspaceContext
-        const catalog = yield* StarterModuleCatalog
-        const feed = yield* NotificationFeed
-        const webhooks = yield* WebhookEndpoints
-        const refreshHistory = yield* CatalogRefreshHistory
-        const readiness = yield* AdoptionReadiness
-
-        const [modules, notifications, endpoints, refreshRuns, readinessTrend] =
-          yield* Effect.all(
-            [
-              catalog.listModules,
-              feed.list,
-              webhooks.list,
-              refreshHistory.listRecent,
-              readiness.getTrend
-            ],
-            { concurrency: 'unbounded' }
-          )
-
-        const states = modules.map((module) => module.state)
-        return {
-          workspace: ctx.workspace,
-          modules,
-          notifications,
-          webhooks: endpoints,
-          refreshRuns,
-          readinessTrend,
-          readinessScore: computeReadinessScore(states),
-          readyCount: states.filter((state) => state.status === 'ready').length
-        }
-      })
-    ),
+  // Shared read projection — the REST `overview` endpoint serves the same
+  // composition, so app and Capability Interface views cannot drift.
+  loader: ({ params, context }) =>
+    runWorkspaceCapabilities(params.workspaceSlug, workspaceDashboard, {
+      userId: context.session.user.id
+    }),
+  pendingComponent: RoutePending,
   component: WorkspaceDashboardPage
 })
 
@@ -82,7 +45,9 @@ function WorkspaceDashboardPage() {
     refreshRuns,
     readinessTrend,
     readinessScore,
-    readyCount
+    readyCount,
+    unreadCount,
+    moduleStatusCounts
   } = Route.useLoaderData()
 
   const moduleRows = useMemo<readonly ModuleRow[]>(
@@ -140,9 +105,10 @@ function WorkspaceDashboardPage() {
 
   return (
     <WorkspaceShell
+      workspaceSlug={workspace.slug}
       title={workspace.name}
       description="Adoption readiness, module state, integrations, API tokens, webhooks, and reports."
-      unreadCount={notifications.filter((notification) => !notification.read).length}
+      unreadCount={unreadCount}
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <Card>
@@ -183,7 +149,7 @@ function WorkspaceDashboardPage() {
               <CardTitle>Module status</CardTitle>
             </CardHeader>
             <CardContent>
-              <ModuleStatusChart modules={modules} />
+              <ModuleStatusChart data={moduleStatusCounts} />
             </CardContent>
           </Card>
           <Card>

@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import {
   Bar,
   BarChart,
@@ -9,10 +8,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
-import type {
-  ModuleStatus,
-  StarterModuleWithState
-} from '@b2b-saas-starter/capabilities'
+import type { ModuleStatus, ModuleStatusCount } from '@b2b-saas-starter/capabilities'
 import { AXIS_TICK, TOOLTIP_STYLE } from '../chart-defaults'
 
 const STATUS_COLORS: Record<ModuleStatus, string> = {
@@ -22,25 +18,13 @@ const STATUS_COLORS: Record<ModuleStatus, string> = {
   disabled: 'var(--muted-foreground)'
 }
 
+// Tallying happens in the `workspaceDashboard` projection
+// (`countModuleStatuses`) — this component only renders.
 export function ModuleStatusChart({
-  modules
+  data
 }: {
-  readonly modules: readonly StarterModuleWithState[]
+  readonly data: readonly ModuleStatusCount[]
 }) {
-  const data = useMemo(() => {
-    const counts: Record<ModuleStatus, number> = {
-      ready: 0,
-      'needs-config': 0,
-      attention: 0,
-      disabled: 0
-    }
-    for (const module of modules) counts[module.state.status] += 1
-    return (Object.keys(counts) as ModuleStatus[]).map((status) => ({
-      status,
-      count: counts[status]
-    }))
-  }, [modules])
-
   return (
     <div className="h-40 w-full">
       <ResponsiveContainer width="100%" height="100%">

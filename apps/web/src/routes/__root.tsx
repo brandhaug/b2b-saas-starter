@@ -1,7 +1,6 @@
 import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
-import '@fontsource/instrument-serif/400.css'
-import '@fontsource/instrument-serif/400-italic.css'
+import '@fontsource-variable/archivo/standard.css'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { lazy, Suspense } from 'react'

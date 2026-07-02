@@ -40,7 +40,7 @@
   --sidebar-border: oklch(0.9276 0.0058 264.5313);
   --sidebar-ring: oklch(0.6231 0.188 259.8145);
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-display: 'Archivo Variable', Geist, ui-sans-serif, sans-serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
   --radius: 0rem;
   --shadow-x: 0;
@@ -59,6 +59,8 @@
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
+  --signal: oklch(0.72 0.135 65);
+  --signal-ink: oklch(0.5 0.1 55);
 }
 
 .dark {
@@ -95,7 +97,7 @@
   --sidebar-border: oklch(0.3715 0 0);
   --sidebar-ring: oklch(0.6231 0.188 259.8145);
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-display: 'Archivo Variable', Geist, ui-sans-serif, sans-serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
   --radius: 0rem;
   --shadow-x: 0;
@@ -112,9 +114,82 @@
   --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
   --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+  --signal: oklch(0.8 0.13 75);
+  --signal-ink: oklch(0.8 0.13 75);
+}
+
+/* Public showcase palette: the marketing surface commits to a deep petrol
+   teal + amber signal color while the workspace app keeps the neutral/blue
+   chrome. Same shadcn token contract, different values — scoped by the
+   `.marketing` wrapper that PublicLayout applies. */
+.marketing {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.25 0.02 220);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.25 0.02 220);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.25 0.02 220);
+  --primary: oklch(0.42 0.075 215);
+  --primary-foreground: oklch(0.99 0.005 200);
+  --secondary: oklch(0.96 0.01 210);
+  --secondary-foreground: oklch(0.35 0.035 215);
+  --muted: oklch(0.972 0.007 210);
+  --muted-foreground: oklch(0.45 0.025 220);
+  --accent: oklch(0.945 0.02 205);
+  --accent-foreground: oklch(0.33 0.055 215);
+  --border: oklch(0.895 0.012 210);
+  --input: oklch(0.895 0.012 210);
+  --ring: oklch(0.55 0.09 210);
+}
+
+.dark .marketing {
+  --background: oklch(0.19 0.015 230);
+  --foreground: oklch(0.92 0.01 210);
+  --card: oklch(0.235 0.018 225);
+  --card-foreground: oklch(0.92 0.01 210);
+  --popover: oklch(0.235 0.018 225);
+  --popover-foreground: oklch(0.92 0.01 210);
+  --primary: oklch(0.75 0.09 200);
+  --primary-foreground: oklch(0.17 0.02 230);
+  --secondary: oklch(0.26 0.02 225);
+  --secondary-foreground: oklch(0.85 0.02 210);
+  --muted: oklch(0.235 0.018 225);
+  --muted-foreground: oklch(0.7 0.02 215);
+  --accent: oklch(0.3 0.045 220);
+  --accent-foreground: oklch(0.87 0.05 205);
+  --border: oklch(0.32 0.02 225);
+  --input: oklch(0.32 0.02 225);
+  --ring: oklch(0.72 0.09 200);
+}
+
+/* Petrol-drenched band. Redefines the same token contract so shadcn
+   utilities (bg-background, text-muted-foreground, …) work inside it.
+   Primary flips to amber so CTAs pop against the drench. */
+.band-deep {
+  --background: oklch(0.265 0.04 222);
+  --foreground: oklch(0.93 0.012 210);
+  --card: oklch(0.3 0.042 220);
+  --card-foreground: oklch(0.93 0.012 210);
+  --popover: oklch(0.3 0.042 220);
+  --popover-foreground: oklch(0.93 0.012 210);
+  --primary: oklch(0.8 0.135 75);
+  --primary-foreground: oklch(0.22 0.05 60);
+  --secondary: oklch(0.31 0.04 220);
+  --secondary-foreground: oklch(0.88 0.02 210);
+  --muted: oklch(0.3 0.04 220);
+  --muted-foreground: oklch(0.74 0.028 212);
+  --accent: oklch(0.33 0.05 218);
+  --accent-foreground: oklch(0.9 0.03 205);
+  --border: oklch(0.36 0.038 220);
+  --input: oklch(0.36 0.038 220);
+  --ring: oklch(0.8 0.135 75);
+  --signal: oklch(0.82 0.13 78);
+  --signal-ink: oklch(0.82 0.13 78);
 }
 
 @theme inline {
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -150,7 +225,7 @@
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-  --font-serif: var(--font-serif);
+  --font-display: var(--font-display);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -229,16 +304,56 @@
   scroll-margin-top: 2rem;
 }
 
-/* Serif display headings on marketing/content pages. Instrument Serif ships
-   only weight 400, so we override font-semibold to avoid synthetic bolding. */
-.marketing :is(h1, h2, h3),
-.prose :is(h1, h2, h3) {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  letter-spacing: 0.01em;
+/* Display voice for the public surface: Archivo drawn wide via its width
+   axis — industrial signage lettering to match the schematic identity.
+   Wide letterforms need only gentle negative tracking. */
+.marketing :is(h1, h2) {
+  font-family: var(--font-display);
+  font-stretch: 118%;
+  letter-spacing: -0.01em;
 }
-.marketing :is(h1, h2, h3) {
-  line-height: 1.15;
+
+/* Engineering-paper dot grid, used behind the showcase hero. */
+.grid-paper {
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--border) 80%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+}
+
+/* Showcase entrance choreography: one staggered hero reveal, nothing else.
+   Content is visible without the animation (it only enhances). */
+@keyframes marketing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: marketing-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rise-2 {
+  animation-delay: 90ms;
+}
+.rise-3 {
+  animation-delay: 180ms;
+}
+.rise-4 {
+  animation-delay: 280ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+  .schematic-pulse {
+    display: none;
+  }
 }
 
 /* Tailwind Typography wraps inline <code> with literal backticks by default. */

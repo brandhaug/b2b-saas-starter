@@ -1,6 +1,4 @@
-import { redirect } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { getRequest } from '@tanstack/react-start/server'
 import { Effect, Schema } from 'effect'
 import {
   ApiTokenRegistry,
@@ -8,36 +6,21 @@ import {
   type CreatedApiToken
 } from '@b2b-saas-starter/capabilities'
 import { runWorkspaceCapabilities } from '../capabilities'
-import { createServerContext } from '../server-context'
+import { requireRequestSession } from './auth'
 
+// All input constraints live in the schema — no imperative re-validation.
 const CreateApiTokenInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  name: Schema.NonEmptyString,
-  scopes: Schema.Array(ApiTokenScope)
+  name: Schema.NonEmptyString.check(Schema.isMaxLength(80)),
+  scopes: Schema.NonEmptyArray(ApiTokenScope)
 })
 
 const decodeInput = Schema.decodeUnknownSync(CreateApiTokenInput)
 
-const validateInput = (input: unknown): typeof CreateApiTokenInput.Type => {
-  const decoded = decodeInput(input)
-  if (decoded.name.length > 80) {
-    throw new Error('Token name must be 80 characters or fewer')
-  }
-  if (decoded.scopes.length === 0) {
-    throw new Error('At least one scope is required')
-  }
-  return decoded
-}
-
 export const createApiTokenServerFn = createServerFn({ method: 'POST' })
-  .inputValidator((input: unknown) => validateInput(input))
+  .inputValidator((input: unknown) => decodeInput(input))
   .handler(async ({ data }): Promise<CreatedApiToken> => {
-    const request = getRequest()
-    const auth = createServerContext().auth()
-    const session = await auth.api.getSession({ headers: request.headers })
-    if (!session) {
-      throw redirect({ to: '/sign-in' })
-    }
+    const session = await requireRequestSession()
     return runWorkspaceCapabilities(
       data.workspaceSlug,
       Effect.gen(function* () {
@@ -47,6 +30,7 @@ export const createApiTokenServerFn = createServerFn({ method: 'POST' })
           scopes: data.scopes,
           actorUserId: session.user.id
         })
-      })
+      }),
+      { userId: session.user.id }
     )
   })

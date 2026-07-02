@@ -8,16 +8,14 @@ import { PublicLayout } from '@/components/public-layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
+import { DEMO_CREDENTIALS, DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
+import { safeRedirect } from '@/lib/utils'
 
 const SignInSearch = Schema.Struct({
   redirect: Schema.optional(Schema.String)
 })
 
 const decodeSearch = Schema.decodeUnknownSync(SignInSearch)
-
-// Only allow same-origin path redirects to prevent open redirects.
-const safeRedirect = (raw: string | undefined): string =>
-  raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/workspaces'
 
 export const Route = createFileRoute('/sign-in')({
   validateSearch: (search) => decodeSearch(search),
@@ -145,9 +143,20 @@ function SignInPage() {
             <p className="text-xs text-muted-foreground">
               Configure GitHub OAuth secrets to enable.
             </p>
+            <p className="text-xs text-muted-foreground">
+              Seeded a local database? Sign in with{' '}
+              <code className="rounded bg-muted px-1 py-0.5">
+                {DEMO_CREDENTIALS.email}
+              </code>{' '}
+              /{' '}
+              <code className="rounded bg-muted px-1 py-0.5">
+                {DEMO_CREDENTIALS.password}
+              </code>
+              .
+            </p>
             <Link
               to="/workspaces/$workspaceSlug"
-              params={{ workspaceSlug: 'starter-lab' }}
+              params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
               className="text-center text-sm text-primary underline underline-offset-4"
             >
               Open seeded workspace instead

@@ -39,11 +39,13 @@ export function createAuth(options: CreateAuthOptions) {
     },
     socialProviders,
     plugins: [
-      tanstackStartCookies(),
       username(),
       admin({
         adminRoles: ['admin']
-      })
+      }),
+      // Better Auth requires cookie-integration plugins last so cookies set by
+      // other plugins' hooks are forwarded to the framework cookie store.
+      tanstackStartCookies()
     ]
   })
 }
