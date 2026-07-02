@@ -11,11 +11,13 @@ Lists members for the workspace selected by `WorkspaceContext`. The workspace co
 - `Workspace` — `{ id, slug, name, planId }`. Public DTO, no internal fields.
 - `Member` — `{ id, name, email, role, systemRole }`. `id`/`name`/`email` come from `user`; `role` from `workspaceMembers`; `systemRole` is `user.role === 'admin' ? 'admin' : 'user'`.
 - `WorkspaceMembership.listMembers` — `readonly Member[]` for the current `WorkspaceContext`.
+- `WorkspaceMembership.listWorkspacesForUser(userId)` — `readonly WorkspaceWithMembership[]` (`{ workspace, member }`). Cross-workspace read keyed by user id, no `WorkspaceContext` — the "my workspaces" model resolved before any single workspace is selected. Possibly empty; never discloses workspaces the user is not in. The `listWorkspacesForUser` projection in `workspace-projections.ts` builds per-workspace counts on top of it, using the returned `member` as the actor.
 
 ## Storage
 
 - Tables: `workspaces`, `workspaceMembers`, `user`.
-- `listMembers` joins `workspaceMembers` to `user` on `userId`; rows where the user has been deleted are dropped by the inner join. Switch to a left join + tombstone display if you need to surface "removed user" entries.
+- `listMembers` joins `workspaceMembers` to `user` on `userId`; rows where the user has been deleted are dropped by the inner join. Switch to a left join + tombstone display if you need to surface "removed user" entries. `listWorkspacesForUser` additionally joins `workspaces` for the workspace DTO.
+- The Seed layer takes the fixture workspace alongside the members (`SeedWorkspaceMembership(members, workspace)`) so `listWorkspacesForUser` has a workspace to return for fixture members.
 - `WorkspaceContext` is the single workspace-resolution point, so every workspace capability sees the same `WorkspaceNotFound` shape.
 
 ## Status & follow-ups

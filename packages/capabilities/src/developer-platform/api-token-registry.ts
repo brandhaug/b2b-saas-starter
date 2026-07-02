@@ -1,10 +1,17 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, desc, eq, isNull } from 'drizzle-orm'
-import { Database, apiTokenScopes, apiTokens, workspaces } from '@b2b-saas-starter/db'
+import {
+  apiTokens,
+  apiTokenScopes,
+  batch,
+  Database,
+  workspaces
+} from '@b2b-saas-starter/db'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { AuthorizationDenied } from '../errors.ts'
+import { AuthorizationDenied, type CapabilityUnavailable } from '../errors.ts'
 import { hashSha256, randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const API_TOKEN_SCOPES = apiTokenScopes
@@ -63,23 +70,53 @@ export type RevokeApiTokenInput = {
 }
 
 export type ApiTokenRegistryShape = {
-  readonly list: Effect.Effect<readonly ApiToken[], never, WorkspaceContext>
+  readonly list: Effect.Effect<
+    readonly ApiToken[],
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
   readonly create: (
     input: CreateApiTokenInput
-  ) => Effect.Effect<CreatedApiToken, never, WorkspaceContext>
+  ) => Effect.Effect<CreatedApiToken, CapabilityUnavailable, WorkspaceContext>
+  /** Resolves `true` when a token was revoked, `false` when nothing matched. */
   readonly revoke: (
     input: RevokeApiTokenInput
-  ) => Effect.Effect<void, never, WorkspaceContext>
+  ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
   readonly verifyBearerToken: (
     token: string,
     requiredScope: ApiTokenScope
-  ) => Effect.Effect<VerifiedApiToken, AuthorizationDenied>
+  ) => Effect.Effect<VerifiedApiToken, AuthorizationDenied | CapabilityUnavailable>
 }
 
 export class ApiTokenRegistry extends Context.Service<
   ApiTokenRegistry,
   ApiTokenRegistryShape
 >()('@b2b-saas-starter/capabilities/ApiTokenRegistry') {}
+
+/**
+ * The only bearer token the Seed layer accepts. Documented fixture credential
+ * for local development and tests — everything else fails with
+ * `AuthorizationDenied`, matching the Live layer's behavior for unknown tokens.
+ */
+export const SEED_API_TOKEN = 'bsk_seed_0000000000000000'
+
+/**
+ * Minimum interval between `lastUsedAt` writes. `verifyBearerToken` runs on
+ * every authenticated API request, so bumping the timestamp unconditionally
+ * would turn every read into a D1 write. `lastUsedAt` is a coarse
+ * "recently active" signal, not an audit trail — once a minute is plenty.
+ */
+export const LAST_USED_WRITE_INTERVAL_MS = 60_000
+
+/** Pure throttle decision for the `lastUsedAt` bump — exported for tests. */
+export const shouldBumpLastUsedAt = (
+  lastUsedAt: string | null,
+  now: number
+): boolean => {
+  if (!lastUsedAt) return true
+  const parsed = Date.parse(lastUsedAt)
+  return Number.isNaN(parsed) || now - parsed >= LAST_USED_WRITE_INTERVAL_MS
+}
 
 export const SeedApiTokenRegistry = (
   seed: readonly ApiToken[]
@@ -96,21 +133,32 @@ export const SeedApiTokenRegistry = (
         createdAt: new Date().toISOString(),
         token: 'bsk_seed_created_token'
       }),
-    revoke: () => Effect.void,
-    verifyBearerToken: (_token, requiredScope) =>
-      Effect.succeed({
-        id: seed[0]?.id ?? 'tok_seed',
-        workspaceId: 'wrk_starter',
-        workspaceSlug: 'starter-lab',
-        scopes: [requiredScope]
-      })
+    revoke: () => Effect.succeed(true),
+    verifyBearerToken: (token, _requiredScope) =>
+      // The seed token carries all scopes, so `insufficient_scope` is
+      // unreachable here — every failure is an unknown token.
+      token === SEED_API_TOKEN
+        ? Effect.succeed({
+            id: seed[0]?.id ?? 'tok_seed',
+            workspaceId: 'wrk_starter',
+            workspaceSlug: 'starter-lab',
+            scopes: API_TOKEN_SCOPES
+          })
+        : Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
   })
 
-const hashToken = hashSha256
+/**
+ * Hashing scheme for stored bearer-token hashes. The D1 seed script
+ * (`scripts/seed.ts`) shares this export so seeded token rows verify against
+ * `verifyBearerToken` — changing the scheme here changes both sides together.
+ */
+export const hashApiToken = hashSha256
 
 const randomToken = (): string => `bsk_live_${randomHex(24)}`
 
 const tokenPrefix = (token: string): string => token.slice(0, 17)
+
+const unavailable = orUnavailable('api-token-registry')
 
 export const LiveApiTokenRegistry: Layer.Layer<
   ApiTokenRegistry,
@@ -124,7 +172,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
     return {
       list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
-        const rows = yield* Effect.promise(() =>
+        const rows = yield* unavailable(
           db
             .select()
             .from(apiTokens)
@@ -155,22 +203,26 @@ export const LiveApiTokenRegistry: Layer.Layer<
             workspaceId: ctx.workspace.id,
             name: input.name,
             tokenPrefix: tokenPrefix(token),
-            tokenHash: yield* Effect.promise(() => hashToken(token)),
+            tokenHash: yield* Effect.promise(() => hashApiToken(token)),
             scopes: [...input.scopes],
             lastUsedAt: null,
             revokedAt: null,
             createdAt,
             createdByUserId: input.actorUserId ?? null
           }
-          yield* Effect.promise(() => db.insert(apiTokens).values(row))
-          yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
-            eventType: 'api_token.created',
-            targetType: 'api_token',
-            targetId: row.id,
-            metadata: { name: input.name, scopes: input.scopes }
-          })
+          yield* unavailable(
+            batch(db, [
+              db.insert(apiTokens).values(row),
+              audit.prepareRecord({
+                workspaceId: ctx.workspace.id,
+                actorUserId: input.actorUserId ?? null,
+                eventType: 'api_token.created',
+                targetType: 'api_token',
+                targetId: row.id,
+                metadata: { name: input.name, scopes: input.scopes }
+              })
+            ])
+          )
           return {
             id: row.id,
             name: row.name,
@@ -184,10 +236,10 @@ export const LiveApiTokenRegistry: Layer.Layer<
       revoke: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          yield* Effect.promise(() =>
+          const matched = yield* unavailable(
             db
-              .update(apiTokens)
-              .set({ revokedAt: new Date().toISOString() })
+              .select({ id: apiTokens.id })
+              .from(apiTokens)
               .where(
                 and(
                   eq(apiTokens.id, input.tokenId),
@@ -195,20 +247,39 @@ export const LiveApiTokenRegistry: Layer.Layer<
                   isNull(apiTokens.revokedAt)
                 )
               )
+              .limit(1)
           )
-          yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
-            eventType: 'api_token.revoked',
-            targetType: 'api_token',
-            targetId: input.tokenId,
-            metadata: {}
-          })
+          // No row in this workspace to revoke — skip both the update and the
+          // audit event instead of recording a phantom revocation.
+          if (matched.length === 0) return false
+          yield* unavailable(
+            batch(db, [
+              db
+                .update(apiTokens)
+                .set({ revokedAt: new Date().toISOString() })
+                .where(
+                  and(
+                    eq(apiTokens.id, input.tokenId),
+                    eq(apiTokens.workspaceId, ctx.workspace.id),
+                    isNull(apiTokens.revokedAt)
+                  )
+                ),
+              audit.prepareRecord({
+                workspaceId: ctx.workspace.id,
+                actorUserId: input.actorUserId ?? null,
+                eventType: 'api_token.revoked',
+                targetType: 'api_token',
+                targetId: input.tokenId,
+                metadata: {}
+              })
+            ])
+          )
+          return true
         }),
       verifyBearerToken: (token, requiredScope) =>
         Effect.gen(function* () {
-          const tokenHash = yield* Effect.promise(() => hashToken(token))
-          const row = yield* Effect.promise(() =>
+          const tokenHash = yield* Effect.promise(() => hashApiToken(token))
+          const row = yield* unavailable(
             db
               .select({ token: apiTokens, workspace: workspaces })
               .from(apiTokens)
@@ -218,25 +289,29 @@ export const LiveApiTokenRegistry: Layer.Layer<
               )
               .limit(1)
           ).pipe(Effect.map((rows) => rows[0]))
-          if (!row || !row.token.scopes.includes(requiredScope)) {
+          // Unknown/revoked token and known-token-without-scope fail with
+          // distinct reasons so the API worker can answer 401 vs 403.
+          if (!row) {
             return yield* Effect.fail(
-              new AuthorizationDenied({ reason: 'invalid_or_insufficient_token' })
+              new AuthorizationDenied({ reason: 'invalid_token' })
             )
           }
-          yield* Effect.promise(() =>
-            db
-              .update(apiTokens)
-              .set({ lastUsedAt: new Date().toISOString() })
-              .where(eq(apiTokens.id, row.token.id))
-          )
-          yield* audit.record({
-            workspaceId: row.workspace.id,
-            actorUserId: null,
-            eventType: 'api_token.used',
-            targetType: 'api_token',
-            targetId: row.token.id,
-            metadata: { requiredScope }
-          })
+          if (!row.token.scopes.includes(requiredScope)) {
+            return yield* Effect.fail(
+              new AuthorizationDenied({ reason: 'insufficient_scope' })
+            )
+          }
+          // Bump `lastUsedAt` at most once per LAST_USED_WRITE_INTERVAL_MS.
+          // The per-request `api_token.used` audit event was removed: it did a
+          // second D1 write per request and flooded the governance log.
+          if (shouldBumpLastUsedAt(row.token.lastUsedAt, Date.now())) {
+            yield* unavailable(
+              db
+                .update(apiTokens)
+                .set({ lastUsedAt: new Date().toISOString() })
+                .where(eq(apiTokens.id, row.token.id))
+            )
+          }
           return {
             id: row.token.id,
             workspaceId: row.workspace.id,

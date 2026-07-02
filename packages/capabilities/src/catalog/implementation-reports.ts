@@ -1,6 +1,8 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { desc, eq } from 'drizzle-orm'
 import { Database, implementationReports } from '@b2b-saas-starter/db'
+import type { CapabilityUnavailable } from '../errors.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const ImplementationReport = Schema.Struct({
@@ -13,7 +15,11 @@ export const ImplementationReport = Schema.Struct({
 export type ImplementationReport = typeof ImplementationReport.Type
 
 export type ImplementationReportsShape = {
-  readonly list: Effect.Effect<readonly ImplementationReport[], never, WorkspaceContext>
+  readonly list: Effect.Effect<
+    readonly ImplementationReport[],
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
 }
 
 export class ImplementationReports extends Context.Service<
@@ -38,7 +44,7 @@ export const LiveImplementationReports: Layer.Layer<
     return {
       list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
-        const rows = yield* Effect.promise(() =>
+        const rows = yield* orUnavailable('implementation-reports')(
           db
             .select()
             .from(implementationReports)

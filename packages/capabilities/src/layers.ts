@@ -1,10 +1,5 @@
 import { Layer } from 'effect'
-import {
-  Database,
-  layerFromD1,
-  layerFromDb,
-  type DrizzleDatabase
-} from '@b2b-saas-starter/db'
+import { Database, layerFromD1 } from '@b2b-saas-starter/db'
 
 // catalog
 import {
@@ -39,6 +34,12 @@ import {
   SeedWebhookEndpoints,
   WebhookEndpoints
 } from './developer-platform/webhook-endpoints.ts'
+import {
+  LiveWebhookPublisher,
+  SeedWebhookPublisher,
+  WebhookPublisher,
+  type WebhookQueueBinding
+} from './developer-platform/webhook-publisher.ts'
 
 // governance
 import {
@@ -74,7 +75,8 @@ import {
   seedNotifications,
   seedReadinessTrend,
   seedStarterModules,
-  seedWebhookEndpoints
+  seedWebhookEndpoints,
+  seedWorkspaceRecord
 } from './seed-fixture.ts'
 
 export type CapabilityServices =
@@ -87,6 +89,7 @@ export type CapabilityServices =
   | NotificationFeed
   | StarterModuleCatalog
   | WebhookEndpoints
+  | WebhookPublisher
   | WorkspaceMembership
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
@@ -101,37 +104,37 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
-  SeedWorkspaceMembership(seedMembers)
+  SeedWebhookPublisher,
+  SeedWorkspaceMembership(seedMembers, seedWorkspaceRecord)
 )
 
-export const LiveCapabilitiesLayer: Layer.Layer<
-  | AdoptionReadiness
-  | ApiTokenRegistry
-  | AuditEventLog
-  | CatalogRefreshHistory
-  | ImplementationReports
-  | IntegrationSurfaces
-  | NotificationFeed
-  | StarterModuleCatalog
-  | WebhookEndpoints
-  | WorkspaceMembership,
-  never,
-  Database
-> = Layer.mergeAll(
-  LiveAdoptionReadiness,
-  LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
-  LiveAuditEventLog,
-  LiveCatalogRefreshHistory,
-  LiveImplementationReports,
-  LiveIntegrationSurfaces,
-  LiveNotificationFeed,
-  LiveStarterModuleCatalog,
-  LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
-  LiveWorkspaceMembership
-)
+export type LiveCapabilitiesOptions = {
+  readonly webhookQueue?: WebhookQueueBinding | undefined
+}
 
-export const makeLiveLayerFromD1 = (d1: Parameters<typeof layerFromD1>[0]) =>
-  LiveCapabilitiesLayer.pipe(Layer.provide(layerFromD1(d1)))
+export const makeLiveCapabilitiesLayer = (
+  options: LiveCapabilitiesOptions = {}
+): Layer.Layer<CapabilityServices, never, Database> =>
+  Layer.mergeAll(
+    LiveAdoptionReadiness,
+    LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
+    LiveAuditEventLog,
+    LiveCatalogRefreshHistory,
+    LiveImplementationReports,
+    LiveIntegrationSurfaces,
+    LiveNotificationFeed,
+    LiveStarterModuleCatalog,
+    LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
+    LiveWebhookPublisher(options.webhookQueue),
+    LiveWorkspaceMembership
+  )
 
-export const makeLiveLayerFromDb = (db: DrizzleDatabase) =>
-  LiveCapabilitiesLayer.pipe(Layer.provide(layerFromDb(db)))
+/**
+ * Exported at module level for `runtime.ts` only — not re-exported from the
+ * package index. Consumers select layers through `selectCapabilitiesLayer` /
+ * `selectWorkspaceLayer`.
+ */
+export const makeLiveLayerFromD1 = (
+  d1: Parameters<typeof layerFromD1>[0],
+  options?: LiveCapabilitiesOptions
+) => makeLiveCapabilitiesLayer(options).pipe(Layer.provide(layerFromD1(d1)))

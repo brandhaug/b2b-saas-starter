@@ -10,12 +10,13 @@ Run history for the background catalog refresh (the cron that re-evaluates Start
 - `CatalogRefreshRun` — `{ id, label, status, modules, durationMs, startedAt }`. `label` is a short weekday tag (`'Mon'`, `'Tue'`, …) derived from `startedAt` for chart axes.
 - `CatalogRefreshHistory.listRecent` — `readonly CatalogRefreshRun[]`. Top 14 runs, newest first.
 - `CatalogRefreshHistory.recordRun({ label, status, modules, durationMs, startedAt })` — appends a row. The `label` param is currently ignored by the Live layer (re-derived from `startedAt`) but kept in the shape for Seed-layer test ergonomics.
+- `runCatalogRefresh` — `Effect<number, CapabilityUnavailable, StarterModuleCatalog | CatalogRefreshHistory>`. The one place the "no refresh run goes unrecorded" rule lives: captures the refresh outcome with `Effect.result`, records an ok/failed run with the real duration, re-fails on error, and resolves the refreshed module count. Every catalog-refresh entry point (`apps/background` cron and CLI) runs this instead of re-implementing the sequence.
 
 ## Storage
 
 - Table: `catalogRefreshRuns` (see [`@b2b-saas-starter/db`](../../../db/AGENTS.md)).
 - `summary` column is a JSON blob `{ modules, durationMs }`. Treat the JSON as the freeform extension point — adding fields here doesn't require a schema migration as long as the DTO stays stable.
-- `id` is generated as `crr_${Date.now()}`. Acceptable for the refresh cadence (daily-ish); if you raise the frequency, switch to a UUID.
+- `id` is generated via the shared `newCapabilityId('crr')` helper (`crr_${Date.now()}_${8-byte hex}`), so concurrent runs can't collide.
 - `workspaceId` is always `null` — refreshes are global. Per-workspace catalog refreshes would need a column change here.
 
 ## Status & follow-ups

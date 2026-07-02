@@ -1,10 +1,14 @@
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Result, Schema } from 'effect'
 import { desc } from 'drizzle-orm'
 import {
   Database,
   catalogRefreshRuns,
   type CatalogRefreshSummary
 } from '@b2b-saas-starter/db'
+import type { CapabilityUnavailable } from '../errors.ts'
+import { newCapabilityId } from '../internal/ids.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
+import { StarterModuleCatalog } from './starter-module-catalog.ts'
 
 export const CatalogRefreshStatus = Schema.Literals(['ok', 'failed'])
 export type CatalogRefreshStatus = typeof CatalogRefreshStatus.Type
@@ -25,20 +29,54 @@ export const CatalogRefreshSummarySchema = Schema.Struct({
 })
 
 export type CatalogRefreshHistoryShape = {
-  readonly listRecent: Effect.Effect<readonly CatalogRefreshRun[]>
+  readonly listRecent: Effect.Effect<
+    readonly CatalogRefreshRun[],
+    CapabilityUnavailable
+  >
   readonly recordRun: (input: {
     readonly label: string
     readonly status: CatalogRefreshStatus
     readonly modules: number
     readonly durationMs: number
     readonly startedAt: string
-  }) => Effect.Effect<void>
+  }) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class CatalogRefreshHistory extends Context.Service<
   CatalogRefreshHistory,
   CatalogRefreshHistoryShape
 >()('@b2b-saas-starter/capabilities/CatalogRefreshHistory') {}
+
+/**
+ * One catalog refresh run with the "no refresh run goes unrecorded" rule
+ * applied: the refresh outcome is captured with `Effect.result`, an ok/failed
+ * history row with the real duration is recorded via `recordRun`, and the
+ * original failure is then re-raised. Resolves the refreshed module count.
+ * Every catalog-refresh entry point (cron handler, CLI) runs this effect
+ * instead of re-implementing the capture-record-refail sequence.
+ */
+export const runCatalogRefresh: Effect.Effect<
+  number,
+  CapabilityUnavailable,
+  StarterModuleCatalog | CatalogRefreshHistory
+> = Effect.gen(function* () {
+  const startedAt = new Date().toISOString()
+  const startedMs = Date.now()
+  const catalog = yield* StarterModuleCatalog
+  const history = yield* CatalogRefreshHistory
+  const modules = yield* Effect.result(catalog.listAllModules)
+  yield* history.recordRun({
+    label: new Date(startedAt).toUTCString(),
+    status: Result.isSuccess(modules) ? 'ok' : 'failed',
+    modules: Result.isSuccess(modules) ? modules.success.length : 0,
+    durationMs: Date.now() - startedMs,
+    startedAt
+  })
+  if (Result.isFailure(modules)) {
+    return yield* Effect.fail(modules.failure)
+  }
+  return modules.success.length
+})
 
 export const SeedCatalogRefreshHistory = (
   seed: readonly CatalogRefreshRun[]
@@ -60,8 +98,9 @@ export const LiveCatalogRefreshHistory: Layer.Layer<
 > = Layer.effect(CatalogRefreshHistory)(
   Effect.gen(function* () {
     const db = yield* Database
+    const unavailable = orUnavailable('catalog-refresh-history')
     return {
-      listRecent: Effect.promise(() =>
+      listRecent: unavailable(
         db
           .select()
           .from(catalogRefreshRuns)
@@ -85,9 +124,9 @@ export const LiveCatalogRefreshHistory: Layer.Layer<
         )
       ),
       recordRun: (input) =>
-        Effect.promise(async () => {
-          await db.insert(catalogRefreshRuns).values({
-            id: `crr_${Date.now()}`,
+        unavailable(
+          db.insert(catalogRefreshRuns).values({
+            id: newCapabilityId('crr'),
             workspaceId: null,
             status: input.status,
             startedAt: input.startedAt,
@@ -97,7 +136,7 @@ export const LiveCatalogRefreshHistory: Layer.Layer<
               durationMs: input.durationMs
             } satisfies CatalogRefreshSummary
           })
-        })
+        ).pipe(Effect.asVoid)
     }
   })
 )

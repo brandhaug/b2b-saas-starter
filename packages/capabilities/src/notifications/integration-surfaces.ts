@@ -2,6 +2,8 @@ import { Context, Effect, Layer, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { Database, integrationConnections } from '@b2b-saas-starter/db'
 import { MODULE_STATUSES, ModuleStatus } from '../catalog/starter-module-catalog.ts'
+import type { CapabilityUnavailable } from '../errors.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const IntegrationSurface = Schema.Struct({
@@ -21,7 +23,11 @@ const decodeModuleStatusOrDisabled = (value: unknown): ModuleStatus =>
     : 'disabled'
 
 export type IntegrationSurfacesShape = {
-  readonly list: Effect.Effect<readonly IntegrationSurface[], never, WorkspaceContext>
+  readonly list: Effect.Effect<
+    readonly IntegrationSurface[],
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
 }
 
 export class IntegrationSurfaces extends Context.Service<
@@ -46,7 +52,7 @@ export const LiveIntegrationSurfaces: Layer.Layer<
     return {
       list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
-        const rows = yield* Effect.promise(() =>
+        const rows = yield* orUnavailable('integration-surfaces')(
           db
             .select()
             .from(integrationConnections)

@@ -1,6 +1,8 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { desc, eq } from 'drizzle-orm'
-import { Database, auditEvents, user } from '@b2b-saas-starter/db'
+import { auditEvents, Database, user, type BatchStatement } from '@b2b-saas-starter/db'
+import type { CapabilityUnavailable } from '../errors.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
@@ -23,14 +25,30 @@ export type RecordAuditEventInput = {
 }
 
 export type AuditEventLogShape = {
-  readonly list: Effect.Effect<readonly AuditEvent[], never, WorkspaceContext>
-  readonly listGlobal: Effect.Effect<readonly AuditEvent[]>
-  readonly record: (input: RecordAuditEventInput) => Effect.Effect<void>
+  readonly list: Effect.Effect<
+    readonly AuditEvent[],
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
+  readonly listGlobal: Effect.Effect<readonly AuditEvent[], CapabilityUnavailable>
+  readonly record: (
+    input: RecordAuditEventInput
+  ) => Effect.Effect<void, CapabilityUnavailable>
+  /**
+   * Builds the audit insert statement (id + timestamp owned here) without
+   * executing it, so mutating capabilities can run it atomically alongside
+   * their own write via `batch` from `@b2b-saas-starter/db`.
+   */
+  readonly prepareRecord: (input: RecordAuditEventInput) => BatchStatement
 }
 
 export class AuditEventLog extends Context.Service<AuditEventLog, AuditEventLogShape>()(
   '@b2b-saas-starter/capabilities/AuditEventLog'
 ) {}
+
+const noopStatement: BatchStatement = {
+  toSQL: () => ({ sql: 'select 1', params: [] })
+}
 
 export const SeedAuditEventLog = (
   seed: readonly AuditEvent[]
@@ -38,7 +56,8 @@ export const SeedAuditEventLog = (
   Layer.succeed(AuditEventLog)({
     list: Effect.succeed(seed),
     listGlobal: Effect.succeed(seed),
-    record: () => Effect.void
+    record: () => Effect.void,
+    prepareRecord: () => noopStatement
   })
 
 export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
@@ -47,7 +66,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
       const db = yield* Database
 
       const queryRows = (workspaceId?: string) =>
-        Effect.promise(() =>
+        orUnavailable('audit-event-log')(
           workspaceId === undefined
             ? db
                 .select({ event: auditEvents, actor: user })
@@ -74,6 +93,18 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           )
         )
 
+      const insertFor = (input: RecordAuditEventInput) =>
+        db.insert(auditEvents).values({
+          id: newCapabilityId('aud'),
+          workspaceId: input.workspaceId ?? null,
+          actorUserId: input.actorUserId ?? null,
+          eventType: input.eventType,
+          targetType: input.targetType,
+          targetId: input.targetId ?? null,
+          metadata: input.metadata ?? {},
+          createdAt: new Date().toISOString()
+        })
+
       return {
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
@@ -81,18 +112,8 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         }),
         listGlobal: queryRows(),
         record: (input) =>
-          Effect.promise(async () => {
-            await db.insert(auditEvents).values({
-              id: newCapabilityId('aud'),
-              workspaceId: input.workspaceId ?? null,
-              actorUserId: input.actorUserId ?? null,
-              eventType: input.eventType,
-              targetType: input.targetType,
-              targetId: input.targetId ?? null,
-              metadata: input.metadata ?? {},
-              createdAt: new Date().toISOString()
-            })
-          })
+          orUnavailable('audit-event-log')(insertFor(input)).pipe(Effect.asVoid),
+        prepareRecord: (input) => insertFor(input)
       }
     })
   )

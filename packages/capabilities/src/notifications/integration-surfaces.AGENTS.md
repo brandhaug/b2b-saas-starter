@@ -14,6 +14,7 @@ Workspace-scoped view of third-party connections (Slack, GitHub, Linear, Stripe,
 - Table: `integrationConnections` (see [`@b2b-saas-starter/db`](../../../db/AGENTS.md)).
 - The Live layer hard-codes `summary: ''` — the `summary` field exists in the schema but isn't yet sourced from D1. Fill this in once provider-specific summaries (e.g. "12 channels synced", "Repo: brandhaug/foo") have a place to live.
 - `status` is widened defensively in the Live layer: any row whose stored status isn't one of the four literal values falls back to `'disabled'`. Tighten this once we have a constraint on the column.
+- **Env overlay:** when the app passes `StarterEnv.moduleConfig`, `withModuleEnvStatus` in [`layers.ts`](../layers.ts) overrides `status` (and the `summary` for missing env) for env-mapped providers (`github` → `github-oauth`, `stripe` → `billing`, `turnstile`) on read (ADR 0035).
 
 ## Status & follow-ups
 

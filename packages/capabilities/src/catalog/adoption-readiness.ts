@@ -2,6 +2,8 @@ import { Context, Effect, Layer, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { Database, workspaceModuleStates } from '@b2b-saas-starter/db'
 import type { ModuleState } from './starter-module-catalog.ts'
+import type { CapabilityUnavailable } from '../errors.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const ReadinessPoint = Schema.Struct({
@@ -32,7 +34,11 @@ export const projectReadiness = (states: readonly ModuleState[]): ReadinessSnaps
 }
 
 export type AdoptionReadinessShape = {
-  readonly getTrend: Effect.Effect<readonly ReadinessPoint[], never, WorkspaceContext>
+  readonly getTrend: Effect.Effect<
+    readonly ReadinessPoint[],
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
 }
 
 export class AdoptionReadiness extends Context.Service<
@@ -54,7 +60,7 @@ export const LiveAdoptionReadiness: Layer.Layer<AdoptionReadiness, never, Databa
       return {
         getTrend: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          const states = yield* Effect.promise(() =>
+          const states = yield* orUnavailable('adoption-readiness')(
             db
               .select()
               .from(workspaceModuleStates)

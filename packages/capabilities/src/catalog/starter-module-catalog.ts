@@ -6,6 +6,8 @@ import {
   starterModules,
   workspaceModuleStates
 } from '@b2b-saas-starter/db'
+import type { CapabilityUnavailable } from '../errors.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const MODULE_STATUSES = moduleStatuses
@@ -45,10 +47,13 @@ export type StarterModuleWithState = typeof StarterModuleWithState.Type
 export type StarterModuleCatalogShape = {
   readonly listModules: Effect.Effect<
     readonly StarterModuleWithState[],
-    never,
+    CapabilityUnavailable,
     WorkspaceContext
   >
-  readonly listAllModules: Effect.Effect<readonly StarterModule[]>
+  readonly listAllModules: Effect.Effect<
+    readonly StarterModule[],
+    CapabilityUnavailable
+  >
 }
 
 export class StarterModuleCatalog extends Context.Service<
@@ -71,10 +76,11 @@ export const LiveStarterModuleCatalog: Layer.Layer<
 > = Layer.effect(StarterModuleCatalog)(
   Effect.gen(function* () {
     const db = yield* Database
+    const unavailable = orUnavailable('starter-module-catalog')
     return {
       listModules: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
-        const rows = yield* Effect.promise(() =>
+        const rows = yield* unavailable(
           db
             .select({ module: starterModules, state: workspaceModuleStates })
             .from(starterModules)
@@ -102,7 +108,7 @@ export const LiveStarterModuleCatalog: Layer.Layer<
           }
         }))
       }),
-      listAllModules: Effect.promise(() => db.select().from(starterModules)).pipe(
+      listAllModules: unavailable(db.select().from(starterModules)).pipe(
         Effect.map((rows) =>
           rows.map((row) => ({
             id: row.id,

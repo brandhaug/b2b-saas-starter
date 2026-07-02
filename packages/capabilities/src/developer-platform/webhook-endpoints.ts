@@ -1,9 +1,17 @@
-import { Context, Effect, Layer, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
-import { Database, webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
+import { and, count, eq, sql } from 'drizzle-orm'
+import {
+  batch,
+  Database,
+  webhookDeliveries,
+  webhookEndpoints
+} from '@b2b-saas-starter/db'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { hashSha256, randomHex } from '../internal/crypto.ts'
+import type { CapabilityUnavailable } from '../errors.ts'
+import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
+import { InvalidWebhookUrl, validateWebhookUrl } from './webhook-url.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const WebhookEndpoint = Schema.Struct({
@@ -15,10 +23,32 @@ export const WebhookEndpoint = Schema.Struct({
 })
 export type WebhookEndpoint = typeof WebhookEndpoint.Type
 
+/**
+ * Delivery status vocabulary (free-text column, keep these values consistent):
+ * - `delivered` — 2xx response.
+ * - `failed` — retryable failure (5xx, 408, 429, network error, timeout); the
+ *   queue will redeliver and `nextAttemptAt` is set.
+ * - `failed_permanent` — terminal failure (non-retryable 4xx, or the endpoint
+ *   URL failed the SSRF guard at dispatch); the message is acked.
+ * - `dead_lettered` — the message exhausted `maxRetries` and was consumed from
+ *   the dead-letter queue.
+ */
+export type WebhookDeliveryStatus =
+  | 'delivered'
+  | 'failed'
+  | 'failed_permanent'
+  | 'dead_lettered'
+
 export type WebhookDeliveryAttemptInput = {
+  /**
+   * Delivery row id. The background worker mints it before dispatch so the
+   * signed payload's `deliveryId` matches the persisted row. Generated here
+   * when omitted.
+   */
+  readonly id?: string
   readonly endpointId: string
   readonly eventType: string
-  readonly status: 'delivered' | 'failed'
+  readonly status: WebhookDeliveryStatus
   readonly attempts: number
   readonly responseStatus?: number | null
   readonly nextAttemptAt?: string | null
@@ -31,6 +61,14 @@ export type CreateWebhookEndpointInput = {
   readonly actorUserId?: string
 }
 
+/** Wire payload for endpoint creation, shared by the REST contract and the API worker. */
+export const CreateWebhookEndpointPayload = Schema.Struct({
+  url: Schema.String,
+  events: Schema.Array(Schema.String).check(Schema.isMinLength(1)),
+  description: Schema.optional(Schema.String)
+})
+export type CreateWebhookEndpointPayload = typeof CreateWebhookEndpointPayload.Type
+
 export type DisableWebhookEndpointInput = {
   readonly endpointId: string
   readonly actorUserId?: string
@@ -42,24 +80,45 @@ export type RotateWebhookSecretInput = {
 }
 
 export type WebhookEndpointsShape = {
-  readonly list: Effect.Effect<readonly WebhookEndpoint[], never, WorkspaceContext>
+  readonly list: Effect.Effect<
+    readonly WebhookEndpoint[],
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
   readonly create: (
     input: CreateWebhookEndpointInput
-  ) => Effect.Effect<WebhookEndpoint, never, WorkspaceContext>
+  ) => Effect.Effect<
+    WebhookEndpoint,
+    CapabilityUnavailable | InvalidWebhookUrl,
+    WorkspaceContext
+  >
+  /** Resolves `true` when an endpoint was disabled, `false` when nothing matched. */
   readonly disable: (
     input: DisableWebhookEndpointInput
-  ) => Effect.Effect<void, never, WorkspaceContext>
+  ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
+  /**
+   * Resolves `Option.some({ signingSecret })` with the newly persisted secret,
+   * or `Option.none()` when no endpoint matched in this workspace (no secret
+   * is minted in that case).
+   */
   readonly rotateSecret: (
     input: RotateWebhookSecretInput
-  ) => Effect.Effect<{ readonly signingSecret: string }, never, WorkspaceContext>
-  readonly getDispatchTarget: (endpointId: string) => Effect.Effect<{
-    readonly id: string
-    readonly url: string
-    readonly signingSecret: string
-  } | null>
+  ) => Effect.Effect<
+    Option.Option<{ readonly signingSecret: string }>,
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
+  readonly getDispatchTarget: (endpointId: string) => Effect.Effect<
+    {
+      readonly id: string
+      readonly url: string
+      readonly signingSecret: string
+    } | null,
+    CapabilityUnavailable
+  >
   readonly recordDeliveryAttempt: (
     input: WebhookDeliveryAttemptInput
-  ) => Effect.Effect<void>
+  ) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class WebhookEndpoints extends Context.Service<
@@ -67,28 +126,45 @@ export class WebhookEndpoints extends Context.Service<
   WebhookEndpointsShape
 >()('@b2b-saas-starter/capabilities/WebhookEndpoints') {}
 
+// Shared SSRF/shape guard — both layers must reject the same URLs so tests
+// against Seed exercise the same contract as Live.
+const ensureValidWebhookUrl = (url: string): Effect.Effect<void, InvalidWebhookUrl> => {
+  const check = validateWebhookUrl(url)
+  return check.valid
+    ? Effect.void
+    : Effect.fail(new InvalidWebhookUrl({ url, reason: check.reason }))
+}
+
 export const SeedWebhookEndpoints = (
   seed: readonly WebhookEndpoint[]
 ): Layer.Layer<WebhookEndpoints> =>
   Layer.succeed(WebhookEndpoints)({
     list: Effect.succeed(seed),
     create: (input) =>
-      Effect.succeed({
-        id: `wh_${Date.now()}`,
-        url: input.url,
-        enabled: true,
-        events: [...input.events],
-        successRate: 100
-      }),
-    disable: () => Effect.void,
-    rotateSecret: () => Effect.succeed({ signingSecret: 'whsec_seed_rotated' }),
+      ensureValidWebhookUrl(input.url).pipe(
+        Effect.as({
+          id: `wh_${Date.now()}`,
+          url: input.url,
+          enabled: true,
+          events: [...input.events],
+          successRate: 100
+        })
+      ),
+    disable: (input) =>
+      Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
+    rotateSecret: (input) =>
+      Effect.succeed(
+        seed.some((endpoint) => endpoint.id === input.endpointId)
+          ? Option.some({ signingSecret: 'whsec_seed_rotated' })
+          : Option.none()
+      ),
     getDispatchTarget: () => Effect.succeed(null),
     recordDeliveryAttempt: () => Effect.void
   })
 
 const randomSecret = (): string => `whsec_${randomHex(24)}`
 
-const hashSecret = hashSha256
+const unavailable = orUnavailable('webhook-endpoints')
 
 export const LiveWebhookEndpoints: Layer.Layer<
   WebhookEndpoints,
@@ -99,42 +175,109 @@ export const LiveWebhookEndpoints: Layer.Layer<
     const db = yield* Database
     const audit = yield* AuditEventLog
 
+    const endpointInWorkspace = (endpointId: string, workspaceId: string) =>
+      unavailable(
+        db
+          .select({ id: webhookEndpoints.id })
+          .from(webhookEndpoints)
+          .where(
+            and(
+              eq(webhookEndpoints.id, endpointId),
+              eq(webhookEndpoints.workspaceId, workspaceId)
+            )
+          )
+          .limit(1)
+      ).pipe(Effect.map((rows) => rows.length > 0))
+
+    /**
+     * One audited endpoint mutation: verify the endpoint belongs to the
+     * calling workspace, then run the update and its audit insert as one D1
+     * batch. Resolves the applied `set` values, or `Option.none()` (skipping
+     * both writes and the `makeSet` thunk) when no endpoint matched.
+     *
+     * This is check-then-act, not atomic: a concurrent delete between the
+     * lookup and the batch can make the UPDATE match zero rows while the
+     * audit insert still commits — a phantom audit row. `batch` discards
+     * per-statement results, so the update's row count can't gate the audit
+     * insert inside the same batch; the starter accepts that narrow race.
+     * What the shape does guarantee is workspace scoping: every mutation's
+     * where clause re-applies `(id, workspaceId)`, so a foreign workspace's
+     * endpoint is never mutated even when this pre-check goes stale.
+     */
+    const auditedEndpointUpdate = <
+      S extends Partial<typeof webhookEndpoints.$inferInsert>
+    >(
+      input: { readonly endpointId: string; readonly actorUserId?: string },
+      eventType: string,
+      makeSet: () => S
+    ): Effect.Effect<Option.Option<S>, CapabilityUnavailable, WorkspaceContext> =>
+      Effect.gen(function* () {
+        const ctx = yield* WorkspaceContext
+        const exists = yield* endpointInWorkspace(input.endpointId, ctx.workspace.id)
+        if (!exists) return Option.none()
+        const set = makeSet()
+        yield* unavailable(
+          batch(db, [
+            db
+              .update(webhookEndpoints)
+              .set(set)
+              .where(
+                and(
+                  eq(webhookEndpoints.id, input.endpointId),
+                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
+                )
+              ),
+            audit.prepareRecord({
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType,
+              targetType: 'webhook_endpoint',
+              targetId: input.endpointId,
+              metadata: {}
+            })
+          ])
+        )
+        return Option.some(set)
+      })
+
     return {
       list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
-        const endpoints = yield* Effect.promise(() =>
+        // Single grouped query: endpoints left-joined to their deliveries with
+        // count/conditional-sum aggregates, instead of one delivery scan per
+        // endpoint.
+        const rows = yield* unavailable(
           db
-            .select()
+            .select({
+              id: webhookEndpoints.id,
+              url: webhookEndpoints.url,
+              enabled: webhookEndpoints.enabled,
+              events: webhookEndpoints.events,
+              total: count(webhookDeliveries.id),
+              delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = 'delivered' then 1 else 0 end), 0)`
+            })
             .from(webhookEndpoints)
+            .leftJoin(
+              webhookDeliveries,
+              eq(webhookDeliveries.endpointId, webhookEndpoints.id)
+            )
             .where(eq(webhookEndpoints.workspaceId, ctx.workspace.id))
+            .groupBy(webhookEndpoints.id)
         )
-        const results: WebhookEndpoint[] = []
-        for (const endpoint of endpoints) {
-          const deliveries = yield* Effect.promise(() =>
-            db
-              .select()
-              .from(webhookDeliveries)
-              .where(eq(webhookDeliveries.endpointId, endpoint.id))
-          )
-          const successful = deliveries.filter(
-            (delivery) => delivery.status === 'delivered'
-          ).length
-          const successRate =
-            deliveries.length === 0
+        return rows.map((row) => ({
+          id: row.id,
+          url: row.url,
+          enabled: row.enabled,
+          events: row.events,
+          successRate:
+            row.total === 0
               ? 100
-              : Math.round((successful / deliveries.length) * 100)
-          results.push({
-            id: endpoint.id,
-            url: endpoint.url,
-            enabled: endpoint.enabled,
-            events: endpoint.events,
-            successRate
-          })
-        }
-        return results
+              : Math.round((Number(row.delivered) / row.total) * 100)
+        }))
       }),
       create: (input) =>
         Effect.gen(function* () {
+          yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext
           const signingSecret = randomSecret()
           const endpoint = {
@@ -143,20 +286,23 @@ export const LiveWebhookEndpoints: Layer.Layer<
             url: input.url,
             description: input.description,
             signingSecret,
-            signingSecretHash: yield* Effect.promise(() => hashSecret(signingSecret)),
             enabled: true,
             events: [...input.events],
             createdAt: new Date().toISOString()
           }
-          yield* Effect.promise(() => db.insert(webhookEndpoints).values(endpoint))
-          yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
-            eventType: 'webhook_endpoint.created',
-            targetType: 'webhook_endpoint',
-            targetId: endpoint.id,
-            metadata: { url: input.url, events: input.events }
-          })
+          yield* unavailable(
+            batch(db, [
+              db.insert(webhookEndpoints).values(endpoint),
+              audit.prepareRecord({
+                workspaceId: ctx.workspace.id,
+                actorUserId: input.actorUserId ?? null,
+                eventType: 'webhook_endpoint.created',
+                targetType: 'webhook_endpoint',
+                targetId: endpoint.id,
+                metadata: { url: input.url, events: input.events }
+              })
+            ])
+          )
           return {
             id: endpoint.id,
             url: endpoint.url,
@@ -166,51 +312,19 @@ export const LiveWebhookEndpoints: Layer.Layer<
           }
         }),
       disable: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          yield* Effect.promise(() =>
-            db
-              .update(webhookEndpoints)
-              .set({ enabled: false })
-              .where(eq(webhookEndpoints.id, input.endpointId))
-          )
-          yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
-            eventType: 'webhook_endpoint.disabled',
-            targetType: 'webhook_endpoint',
-            targetId: input.endpointId,
-            metadata: {}
-          })
-        }),
+        auditedEndpointUpdate(input, 'webhook_endpoint.disabled', () => ({
+          enabled: false
+        })).pipe(Effect.map(Option.isSome)),
       rotateSecret: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          const signingSecret = randomSecret()
-          const signingSecretHash = yield* Effect.promise(() =>
-            hashSecret(signingSecret)
+        auditedEndpointUpdate(input, 'webhook_endpoint.secret_rotated', () => ({
+          signingSecret: randomSecret()
+        })).pipe(
+          Effect.map((applied) =>
+            Option.map(applied, (set) => ({ signingSecret: set.signingSecret }))
           )
-          yield* Effect.promise(() =>
-            db
-              .update(webhookEndpoints)
-              .set({
-                signingSecret,
-                signingSecretHash
-              })
-              .where(eq(webhookEndpoints.id, input.endpointId))
-          )
-          yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
-            eventType: 'webhook_endpoint.secret_rotated',
-            targetType: 'webhook_endpoint',
-            targetId: input.endpointId,
-            metadata: {}
-          })
-          return { signingSecret }
-        }),
+        ),
       getDispatchTarget: (endpointId) =>
-        Effect.promise(() =>
+        unavailable(
           db
             .select()
             .from(webhookEndpoints)
@@ -228,9 +342,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
           })
         ),
       recordDeliveryAttempt: (input) =>
-        Effect.promise(async () => {
-          await db.insert(webhookDeliveries).values({
-            id: newCapabilityId('whd'),
+        unavailable(
+          db.insert(webhookDeliveries).values({
+            id: input.id ?? newCapabilityId('whd'),
             endpointId: input.endpointId,
             eventType: input.eventType,
             status: input.status,
@@ -239,7 +353,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             nextAttemptAt: input.nextAttemptAt ?? null,
             responseStatus: input.responseStatus ?? null
           })
-        })
+        ).pipe(Effect.asVoid)
     }
   })
 )

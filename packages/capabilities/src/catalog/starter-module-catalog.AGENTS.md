@@ -18,6 +18,7 @@ The canonical list of Starter Modules (auth, billing, email, analytics, …) plu
 - Tables: `starterModules` (catalog) and `workspaceModuleStates` (per-workspace overlay). Left join on `moduleId` — modules without a state row default to `{ enabled: false, status: 'disabled', missingConfig: [], updatedAt: <now> }`.
 - `missingConfig` is a JSON array of env-var-shaped strings (e.g. `['STRIPE_SECRET_KEY']`) and is the source of truth for "what's blocking ready" copy in the UI.
 - `status` is backed by the shared DB enum; missing state rows collapse to `'disabled'`.
+- **Env overlay:** when the app passes `StarterEnv.moduleConfig` (env-derived statuses from `@b2b-saas-starter/env`, ADR 0035), `withModuleEnvStatus` in [`layers.ts`](../layers.ts) overrides `state.status` + `state.missingConfig` for env-mapped modules (`better-auth`, `cloudflare-email`, `observability`) on read. Stored state remains the source for everything else.
 
 ## Status & follow-ups
 

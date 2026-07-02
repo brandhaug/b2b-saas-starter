@@ -10,13 +10,14 @@ Append-only stream of workspace and system events for compliance, security revie
 - `AuditEventLog.list` — `readonly AuditEvent[]` for the current `WorkspaceContext`. Returns up to 100 most recent events for the workspace.
 - `AuditEventLog.listGlobal` — `readonly AuditEvent[]`. Top 100 across all workspaces, including `workspaceId = null` system events. Admin-only consumer.
 - `AuditEventLog.record(input)` — append-only insert. `RecordAuditEventInput` is `{ workspaceId?, actorUserId?, eventType, targetType, targetId?, metadata? }`. `eventType` and `targetType` are free-form strings on the wire; producers should namespace (`api_token.created`, `api_token.revoked`, `api_token.used`). The Seed layer is a no-op so tests can assert call-site invocation without a fixture.
+- `AuditEventLog.prepareRecord(input)` — builds the audit insert statement (this capability still owns id + timestamp) **without executing it**, so mutating capabilities can run `batch(db, [mutation, auditInsert])` from `@b2b-saas-starter/db` and get an atomic D1 write. The Seed layer returns an inert `select 1` statement.
 
 ## Storage
 
 - Table: `auditEvents` (see [`@b2b-saas-starter/db`](../../../db/AGENTS.md)).
 - Joins to `user` on `actorUserId` to resolve the display name. Left join — `auditUser?.name ?? 'system'` is the fallback.
 - 100-row cap is hardcoded in the Live layer. Increase carefully — this is also what bounds the admin UI's payload.
-- `record()` mints IDs as `aud_${Date.now()}_${rand}` inline. If you migrate to a domain ULID/cuid, update both `record()` and any callers asserting on the ID shape.
+- `record()`/`prepareRecord()` mint IDs via the shared `newCapabilityId('aud')` helper (`aud_${Date.now()}_${8-byte hex}`). If you migrate to a domain ULID/cuid, update `internal/ids.ts` and any callers asserting on the ID shape.
 
 ## Status & follow-ups
 

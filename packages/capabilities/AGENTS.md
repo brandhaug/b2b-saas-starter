@@ -10,7 +10,7 @@ Each capability follows the same five-part shape:
 2. **Service class** — `Context.Service<Self, Shape>` with a stable opaque tag (`@b2b-saas-starter/capabilities/<Name>`).
 3. **Seed layer** — `SeedXxx(...)`: in-memory fixture for tests and the demo workspace.
 4. **Live layer** — `LiveXxx`: D1-backed via `Database` from `@b2b-saas-starter/db`.
-5. **Composition** — re-exported through `layers.ts` into `SeedLayer` and `LiveCapabilitiesLayer`.
+5. **Composition** — re-exported through `layers.ts` into `SeedLayer` and `makeLiveCapabilitiesLayer(options)`.
 
 No capability holds I/O state outside the layer it returns — everything is parameterized by the `Database` service so layers can be swapped per environment.
 
@@ -27,28 +27,35 @@ src/
 ├── internal/           – shared crypto / id helpers
 ├── errors.ts           – shared typed errors
 ├── workspace-context.ts – per-request workspace resolution
+├── workspace-projections.ts – named read projections composed from the services below
 ├── seed-fixture.ts     – in-memory fixture data
-├── layers.ts           – SeedLayer + LiveCapabilitiesLayer composition
-├── runtime.ts          – Effect runtime helpers
+├── layers.ts           – SeedLayer + makeLiveCapabilitiesLayer composition (pure wiring)
+├── module-env-overlay.ts – withModuleEnvStatus + env-module-id mapping tables
+├── runtime.ts          – Effect runtime helpers (StarterEnv → layer selection)
 └── index.ts            – public barrel; the only path consumers should import from
 ```
 
+`StarterEnv` (`runtime.ts`) selects Seed vs Live by the `DB` binding and optionally carries `moduleConfig` — env-derived module statuses computed by the app via `@b2b-saas-starter/env` (ADR 0035). When present, `withModuleEnvStatus` (`module-env-overlay.ts`) decorates `StarterModuleCatalog` and `IntegrationSurfaces` so their reported status/`missingConfig` reflects the worker's real env (needs-config / attention / ready) instead of stored fixture or D1 state. Only env var _names_ pass through — never values. The env-module-id ↔ catalog-module-id / integration-provider mappings live beside the overlay in `module-env-overlay.ts`; env module ids without a mapping (e.g. `ai`, which has no catalog module or integration surface yet) are ignored.
+
+`workspace-projections.ts` holds named read projections (`workspaceOverview`, `workspaceDashboard`, `workspaceSettingsSummary`, `listWorkspacesForUser`, `countModuleStatuses`) — pure compositions over the capability services with pre-computed aggregates (readiness score, unread count, per-status module tallies, per-workspace counts). They have **no Seed/Live adapters of their own** (ADR 0044 removed that god-object shape); web loaders and the REST `overview` endpoint consume them so app and Capability Interface views assemble the same data. Compute an aggregate here, not in a route handler or `useMemo`. `listWorkspacesForUser(userId)` is the "my workspaces" model: it takes no ambient `WorkspaceContext`, resolving the user's memberships via `WorkspaceMembership.listWorkspacesForUser` and scoping each per-workspace read itself.
+
 Each capability gets a leaf intent node alongside its source file. Read it before changing the capability's contract.
 
-| Context            | Capability                                                                  | Reads from D1 tables                                    | Status                                               |
-| ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------- |
-| catalog            | [`adoption-readiness`](src/catalog/adoption-readiness.AGENTS.md)            | (computed)                                              | live stub — returns empty trend                      |
-| catalog            | [`catalog-refresh-history`](src/catalog/catalog-refresh-history.AGENTS.md)  | `catalogRefreshRuns`                                    | full read + write                                    |
-| catalog            | [`implementation-reports`](src/catalog/implementation-reports.AGENTS.md)    | `implementationReports`, `workspaces`                   | read-only                                            |
-| catalog            | [`starter-module-catalog`](src/catalog/starter-module-catalog.AGENTS.md)    | `starterModules`, `workspaceModuleStates`, `workspaces` | read-only                                            |
-| developer-platform | [`api-token-registry`](src/developer-platform/api-token-registry.AGENTS.md) | `apiTokens`, `workspaces`                               | list, create, revoke, verify bearer (audit-emitting) |
-| developer-platform | [`webhook-endpoints`](src/developer-platform/webhook-endpoints.AGENTS.md)   | `webhookEndpoints`, `webhookDeliveries`, `workspaces`   | read-only                                            |
-| governance         | [`audit-event-log`](src/governance/audit-event-log.AGENTS.md)               | `auditEvents`, `user`, `workspaces`                     | list + `record(input)` for upstream emitters         |
-| governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`                | read-only                                            |
-| notifications      | [`integration-surfaces`](src/notifications/integration-surfaces.AGENTS.md)  | `integrationConnections`, `workspaces`                  | read-only                                            |
-| notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                           | read-only                                            |
+| Context            | Capability                                                                  | Reads from D1 tables                                    | Status                                                          |
+| ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------- |
+| catalog            | [`adoption-readiness`](src/catalog/adoption-readiness.AGENTS.md)            | (computed)                                              | live stub — returns empty trend                                 |
+| catalog            | [`catalog-refresh-history`](src/catalog/catalog-refresh-history.AGENTS.md)  | `catalogRefreshRuns`                                    | full read + write                                               |
+| catalog            | [`implementation-reports`](src/catalog/implementation-reports.AGENTS.md)    | `implementationReports`, `workspaces`                   | read-only                                                       |
+| catalog            | [`starter-module-catalog`](src/catalog/starter-module-catalog.AGENTS.md)    | `starterModules`, `workspaceModuleStates`, `workspaces` | read-only                                                       |
+| developer-platform | [`api-token-registry`](src/developer-platform/api-token-registry.AGENTS.md) | `apiTokens`, `workspaces`                               | list, create, revoke, verify bearer (audit-emitting)            |
+| developer-platform | [`webhook-endpoints`](src/developer-platform/webhook-endpoints.AGENTS.md)   | `webhookEndpoints`, `webhookDeliveries`, `workspaces`   | list, create, disable, rotate secret (audit-emitting)           |
+| developer-platform | [`webhook-publisher`](src/developer-platform/webhook-publisher.AGENTS.md)   | `webhookEndpoints`                                      | enqueue-only fan-out to `WEBHOOK_QUEUE` (no-op without binding) |
+| governance         | [`audit-event-log`](src/governance/audit-event-log.AGENTS.md)               | `auditEvents`, `user`, `workspaces`                     | list + `record(input)` for upstream emitters                    |
+| governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`                | read-only (incl. cross-workspace `listWorkspacesForUser`)       |
+| notifications      | [`integration-surfaces`](src/notifications/integration-surfaces.AGENTS.md)  | `integrationConnections`, `workspaces`                  | read-only                                                       |
+| notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                           | read-only                                                       |
 
-Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503), and `AuthorizationDenied` (403 — raised by `verifyBearerToken`). Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
+Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect), and `AuthorizationDenied` (403 — raised by `verifyBearerToken`). Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
 
 ## Where to put a new capability
 
@@ -62,9 +69,9 @@ Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (40
 ## Cross-cutting invariants
 
 1. **Per-workspace methods read the resolved workspace from `WorkspaceContext`, never from a `slug` parameter.** The slug→`Workspace` resolution happens once per request via `liveWorkspaceContext(slug)` or `seedWorkspaceContext(seedWorkspace, slug)` at the route boundary. Capability methods declare `WorkspaceContext` as an Effect requirement and read `ctx.workspace.id` internally. Callers still never see internal IDs.
-2. **Capabilities don't check authorization, except `ApiTokenRegistry.verifyBearerToken`.** Workspace existence is enforced by the `WorkspaceContext` layer (raises `WorkspaceNotFound` on unknown slug). The one carve-out is `verifyBearerToken`, which is itself the auth gate for the API worker and raises `AuthorizationDenied` (403) on bad tokens. Authorization of the actor against the workspace will be added via `WorkspaceContext.actor`. See [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md#authorization-model).
-3. **Audit-event writes go through `AuditEventLog.record`, not direct D1 inserts.** Mutating capabilities (`ApiTokenRegistry`, `WebhookEndpoints`) depend on `AuditEventLog` and call `record({ workspaceId, actorUserId, eventType, targetType, targetId, metadata })`. The `AuditEventLog` adapter owns id generation and timestamps so format changes happen in one place.
-4. **Seed and Live must satisfy the same `Shape`.** The `XxxShape` type is the contract; both layers must implement it identically. Tests bind `Seed*` plus `seedWorkspaceContext(...)` and rely on this equivalence to exercise route logic without D1.
+2. **Capabilities don't check authorization — the `WorkspaceContext` layer and `ApiTokenRegistry.verifyBearerToken` do.** Workspace existence AND actor membership are enforced by the `WorkspaceContext` layer: `liveWorkspaceContext(slug, actor)` raises `WorkspaceNotFound` on an unknown slug, and — when an `ActorRef` (`{ userId }`) is passed — also for actors who are not members of the workspace, so a probing user cannot learn whether a workspace exists. `seedWorkspaceContext(…, actor, members)` mirrors the same semantics against the fixture members (`runtime.ts` passes `seedMembers`); `members` defaults to `[]`, so a bare `ActorRef` fails closed unless the fixture members are supplied. Callers that omit `actor` entirely (trusted server-side reads, e.g. the public showcase loader and the API worker after `verifyBearerToken`) get `actor: null`. Tests that already hold a fully resolved `Actor` inject it via `testWorkspaceContext(workspace, actor)` — no membership check, test-injection only. The one method-level carve-out is `verifyBearerToken`, which is itself the auth gate for the API worker and raises `AuthorizationDenied` (403) on bad tokens. See [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md#authorization-model).
+3. **Audit-event writes go through `AuditEventLog`, not direct D1 inserts.** Mutating capabilities (`ApiTokenRegistry`, `WebhookEndpoints`) depend on `AuditEventLog` and either call `record(input)` or — for atomicity with their own write — run `batch(db, [mutation, audit.prepareRecord(input)])` so the mutation and audit row commit or roll back together on D1. The `AuditEventLog` adapter owns id generation and timestamps so format changes happen in one place. Mutations that match zero rows must skip the audit event.
+4. **Seed and Live must satisfy the same `Shape`.** The `XxxShape` type is the contract; both layers must implement it identically. Tests bind `Seed*` plus `testWorkspaceContext(...)` and rely on this equivalence to exercise route logic without D1.
 5. **No barrel re-exports outside `index.ts`.** Internal files import from `./<context>/<capability>.ts` (or `../<context>/<capability>.ts` from within a context). Consumers go through `@b2b-saas-starter/capabilities`.
 6. **Cross-context imports are explicit.** When a capability in one context depends on another (e.g. `developer-platform/*` → `governance/audit-event-log`), the relative path makes the seam visible. Don't paper over it with re-exports.
 
