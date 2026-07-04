@@ -33,4 +33,4 @@ export {
 } from './layers.ts'
 export * from './module-env-overlay.ts'
 export * from './runtime.ts'
-export { seedWorkspaceRecord } from './seed-fixture.ts'
+export { demoUserIdentity, seedWorkspaceRecord } from './seed-fixture.ts'

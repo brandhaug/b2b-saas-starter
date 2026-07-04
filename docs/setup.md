@@ -29,7 +29,7 @@ Seeding also creates a demo credential account so the authenticated area is reac
 | -------------------- | ----------------------- | --------------------------------------------- |
 | `demo@starter.local` | `demo-starter-password` | System admin (`/admin`) + `starter-lab` owner |
 
-Sign in at `/sign-in` with these credentials once the app is running against the seeded database. (The plain `bun run dev` vite server uses a workers shim without a D1 binding, so capability data comes from the in-memory seed layer and credential sign-in requires a real local D1.)
+Sign in at `/sign-in` with these credentials once the database is migrated and seeded. The dev server detects the persisted local D1 on startup and attaches it as the `DB` binding (see `apps/web/src/lib/cloudflare-workers-shim-dev.ts`), so credential sign-in and the Live capability layers work locally. Without a migrated database the shim leaves `DB` unset and the app runs provider-light on the in-memory seed layer. Restart `bun run dev` after the first migrate + seed so the binding attaches.
 
 Schema changes: edit `packages/db/src/schema.ts`, then `bun run db:generate` to emit a migration.
 

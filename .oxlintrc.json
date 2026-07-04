@@ -15,5 +15,13 @@
   "rules": {
     "jsx-a11y/label-has-associated-control": "off",
     "no-console": "warn"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["scripts/**", "packages/*/scripts/**"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
 }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { hasLocalD1State } from '../src/lib/local-d1-state'
 
 test('public homepage renders the starter showcase', async ({ page }) => {
   await page.goto('/')
@@ -25,12 +26,22 @@ test('unauthenticated workspace visit redirects to sign-in', async ({ page }) =>
   )
 })
 
-// TODO(e2e): add an authenticated sign-in flow test once the e2e run has a
-// real database. The Playwright webServer is `bun run dev`, which aliases
-// `cloudflare:workers` to the local shim (no D1 binding) — Better Auth can
-// serve `getSession` for anonymous visitors, but `signIn.email` needs the
-// `user`/`account` tables, so credential sign-in cannot succeed against this
-// server. When CI provisions a local D1 (migrate + `bun run db:seed`) and the
-// dev server runs with a real binding, sign in with the seeded demo
-// credentials (demo@starter.local, see docs/setup.md) and assert the
-// workspace dashboard renders.
+test('seeded demo user signs in and reaches the workspace dashboard', async ({
+  page
+}) => {
+  test.skip(
+    !hasLocalD1State(),
+    'requires a migrated + seeded local D1 (bun run db:migrate:local && bun run db:seed)'
+  )
+  await page.goto('/sign-in?redirect=%2Fworkspaces%2Fstarter-lab')
+  // Interacting before React hydrates falls through to a native GET submit
+  // (the dev server transforms modules on first hit, so hydration lags the
+  // DOM). The sign-in form flips data-hydrated in an effect — wait for it.
+  await page.locator('form[data-hydrated="true"]').waitFor()
+  await page.getByLabel('Email').fill('demo@starter.local')
+  await page.getByLabel('Password').fill('demo-starter-password')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page.waitForURL(/\/workspaces\/starter-lab/)
+  // The seeded dashboard renders real capability data, not the auth screen.
+  await expect(page.getByRole('heading', { name: /starter lab/i })).toBeVisible()
+})

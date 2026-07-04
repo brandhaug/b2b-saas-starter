@@ -29,6 +29,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: bunx playwright install --with-deps chromium
+      # Migrate + seed the local D1 so the dev server attaches it (see
+      # apps/web/src/lib/cloudflare-workers-shim-dev.ts) and the authenticated
+      # sign-in flow test runs instead of skipping.
+      - run: bun run db:migrate:local
+      - run: bun run db:seed
       # Playwright's webServer config (apps/web/playwright.config.ts) starts
       # `bun run dev` on :3071 itself — no separate server step needed.
       - run: bun run test:e2e

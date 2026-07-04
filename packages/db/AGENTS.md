@@ -9,6 +9,7 @@ Drizzle ORM (drizzle-orm `1.0.0-rc.4`) schema, migrations, and the shared `Datab
 - `src/client.ts` — `createDb(d1)`, the **promise-based** `drizzle-orm/d1` client. Kept solely for Better Auth's `drizzleAdapter` (`packages/auth`), which needs promises. Don't reach for it in capabilities — use the `Database` service.
 - `migrations/` — `drizzle-kit` output, one folder per migration (`<timestamp_name>/migration.sql`). Generate with `bun run db:generate` after editing `schema.ts`; commit schema + migration together.
 - `scripts/migrate.ts` — applies migrations via `wrangler d1 execute` with a `d1_migrations` tracking table (`bun run db:migrate:local` / `db:migrate:remote`). Don't switch back to `wrangler d1 migrations apply`: wrangler's runner only sees flat `migrations/*.sql` files and silently skips drizzle-kit's folder-style output.
+- `src/testing.ts` — test-only `./testing` subpath: `provisionTestD1()` boots an isolated, non-persisted local D1 (workerd via wrangler's `getPlatformProxy`) with every committed migration applied. `src/live-d1.test.ts` uses it to validate migrations, column-mode round-trips, cascade deletes, and `batch` atomicity against real D1 semantics; `packages/capabilities/src/live-layers.test.ts` uses it for Live-adapter coverage. Never import the subpath from application code.
 
 ## D1 gotchas captured in the schema
 

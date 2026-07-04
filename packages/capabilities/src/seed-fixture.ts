@@ -18,7 +18,23 @@ export const seedWorkspaceRecord: Workspace = {
   planId: 'team'
 }
 
+/**
+ * The demo credential account's identity, shared with the D1 seed
+ * (scripts/seed.ts, which adds only the password locally). One constant
+ * preserves Seed/Live equivalence: client-side navigations resolve
+ * membership against the fixture members, so the demo user must be a member
+ * in BOTH layers or SPA navigation 404s while full-page loads succeed.
+ */
+export const demoUserIdentity = {
+  id: 'usr_demo',
+  name: 'Demo Admin',
+  email: 'demo@starter.local',
+  role: 'owner',
+  systemRole: 'admin'
+} as const
+
 export const seedMembers: readonly Member[] = [
+  demoUserIdentity,
   {
     id: 'usr_martin',
     name: 'Martin Brandhaug',

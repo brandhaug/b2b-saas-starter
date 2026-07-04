@@ -353,7 +353,7 @@ describe('workspace list projection', () => {
     const item = items[0]
     expect(item?.workspace.slug).toBe('starter-lab')
     expect(item?.moduleCount).toBeGreaterThan(5)
-    expect(item?.memberCount).toBe(3)
+    expect(item?.memberCount).toBe(4)
     expect(item?.notificationCount).toBeGreaterThan(0)
   })
 

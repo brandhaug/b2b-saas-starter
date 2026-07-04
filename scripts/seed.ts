@@ -2,6 +2,7 @@ import {
   ApiTokenRegistry,
   AuditEventLog,
   CatalogRefreshHistory,
+  demoUserIdentity,
   hashApiToken,
   ImplementationReports,
   IntegrationSurfaces,
@@ -33,8 +34,10 @@ import { Effect } from 'effect'
 import { hashPassword } from 'better-auth/crypto'
 
 // Demo credential account so the authenticated area is reachable after
-// seeding. Documented in docs/setup.md and on the sign-in screen
-// (apps/web/src/lib/demo-workspace.ts must stay in sync).
+// seeding. The identity is the shared `demoUserIdentity` constant from the
+// capabilities seed fixture; only the password lives here. Documented in
+// docs/setup.md and on the sign-in screen (apps/web/src/lib/demo-workspace.ts
+// must stay in sync).
 //
 // The password hash comes from Better Auth's own `hashPassword`
 // (better-auth/crypto) so it verifies against `signIn.email`. We don't call
@@ -42,17 +45,17 @@ import { hashPassword } from 'better-auth/crypto'
 // TanStack Start cookie plugin, which requires a live request context that a
 // seed script doesn't have — and this script's design is to emit plain SQL
 // executed through `wrangler d1 execute`.
-const DEMO_USER = {
-  id: 'usr_demo',
-  email: 'demo@starter.local',
-  name: 'Demo Admin',
-  password: 'demo-starter-password'
-}
+const DEMO_USER_PASSWORD = 'demo-starter-password'
 
 const quote = (value: unknown): string => {
   if (value === null) return 'NULL'
   if (typeof value === 'number') return String(value)
-  return `'${String(value).replaceAll("'", "''")}'`
+  if (typeof value !== 'string') {
+    // mapToDriverValue only yields string | number | null for this schema;
+    // anything else would silently serialize as '[object Object]'.
+    throw new Error(`unsupported driver value type: ${typeof value}`)
+  }
+  return `'${value.replaceAll("'", "''")}'`
 }
 
 // Insert statements are derived from the Drizzle schema: rows are keyed by the
@@ -110,7 +113,7 @@ type Fixture = Effect.Success<typeof collectFixture>
 
 const resolveHashes = (fixture: Fixture) =>
   Effect.all({
-    demoPassword: Effect.promise(() => hashPassword(DEMO_USER.password)),
+    demoPassword: Effect.promise(() => hashPassword(DEMO_USER_PASSWORD)),
     // The first fixture token is seeded from the documented SEED_API_TOKEN so
     // the same credential verifies against both the in-memory Seed layer and a
     // seeded local D1 (Seed/Live equivalence). `hashApiToken` is the
@@ -161,27 +164,27 @@ const demoUserRows = (
   demoPasswordHash: string
 ): readonly string[] => [
   insert(user, {
-    id: DEMO_USER.id,
-    email: DEMO_USER.email,
-    name: DEMO_USER.name,
-    role: 'admin',
+    id: demoUserIdentity.id,
+    email: demoUserIdentity.email,
+    name: demoUserIdentity.name,
+    role: demoUserIdentity.systemRole,
     emailVerified: true,
     createdAt: 1778918400,
     updatedAt: 1778918400
   }),
   insert(account, {
     id: 'acc_demo_credential',
-    accountId: DEMO_USER.id,
+    accountId: demoUserIdentity.id,
     providerId: 'credential',
-    userId: DEMO_USER.id,
+    userId: demoUserIdentity.id,
     password: demoPasswordHash,
     createdAt: 1778918400,
     updatedAt: 1778918400
   }),
   insert(workspaceMembers, {
     workspaceId: fixture.workspace.id,
-    userId: DEMO_USER.id,
-    role: 'owner',
+    userId: demoUserIdentity.id,
+    role: demoUserIdentity.role,
     createdAt: now
   })
 ]

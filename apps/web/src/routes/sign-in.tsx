@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Schema } from 'effect'
@@ -31,6 +31,12 @@ function SignInPage() {
   const { redirect } = Route.useSearch()
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // Hydration signal for e2e: interacting before React hydrates falls through
+  // to a native GET submit, so the smoke test waits for this attribute.
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => {
+    setHydrated(true)
+  }, [])
   const form = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
     onSubmit: async ({ value }) => {
@@ -62,6 +68,7 @@ function SignInPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <form
+              data-hydrated={hydrated ? 'true' : undefined}
               onSubmit={(event) => {
                 event.preventDefault()
                 event.stopPropagation()

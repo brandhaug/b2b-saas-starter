@@ -7,12 +7,12 @@
 // runner would create, so already-applied migrations are skipped on re-run.
 //
 // Usage: bun scripts/migrate.ts [--remote]   (defaults to --local)
-import { mkdtempSync, readdirSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { listMigrations } from '../src/migrations-fs.ts'
 
 const packageDir = join(import.meta.dir, '..')
-const migrationsDir = join(packageDir, 'migrations')
 const target = process.argv.includes('--remote') ? '--remote' : '--local'
 
 const wranglerExecute = async (args: string[], captureJson: boolean) => {
@@ -38,10 +38,7 @@ const wranglerExecute = async (args: string[], captureJson: boolean) => {
   return stdout
 }
 
-const migrations = readdirSync(migrationsDir, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name)
-  .sort()
+const migrations = listMigrations()
 
 await wranglerExecute(
   [
@@ -60,7 +57,7 @@ const applied = new Set<string>(
   )
 )
 
-const pending = migrations.filter((name) => !applied.has(name))
+const pending = migrations.filter(({ name }) => !applied.has(name))
 if (pending.length === 0) {
   console.log(
     `No migrations to apply (${migrations.length} already applied, ${target}).`
@@ -69,9 +66,8 @@ if (pending.length === 0) {
 }
 
 const tmp = mkdtempSync(join(tmpdir(), 'd1-migrate-'))
-for (const name of pending) {
+for (const { name, sql } of pending) {
   console.log(`Applying ${name} (${target})...`)
-  const sql = await Bun.file(join(migrationsDir, name, 'migration.sql')).text()
   // Record the migration in the same batch that applies it, so a failed
   // migration is never marked as applied.
   const file = join(tmp, `${name}.sql`)

@@ -41,20 +41,30 @@ function remarkMermaid() {
   }
 }
 
-export default defineConfig(({ mode }) => {
-  const useWorkersShim =
-    mode === 'test' || process.env.B2B_STARTER_USE_WORKERS_SHIM === '1'
+// Which `cloudflare:workers` shim to alias, or null to leave the specifier
+// alone (the deployed worker resolves it natively). `vite dev` gets the dev
+// shim, which attaches the persisted local D1 when packages/db has migrated
+// state; test and opt-in builds keep the inert shim so bundles never pull in
+// wrangler.
+function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | null {
+  if (mode !== 'test' && process.env.B2B_STARTER_USE_WORKERS_SHIM !== '1') {
+    return null
+  }
+  return command === 'serve' && mode !== 'test'
+    ? './src/lib/cloudflare-workers-shim-dev.ts'
+    : './src/lib/cloudflare-workers-shim.ts'
+}
+
+export default defineConfig(({ command, mode }) => {
+  const workersShim = resolveWorkersShim(command, mode)
   return {
     server: { port: 3071, host: 'localhost' },
     preview: { port: 3071, host: 'localhost' },
     resolve: {
       tsconfigPaths: true,
-      alias: useWorkersShim
+      alias: workersShim
         ? {
-            'cloudflare:workers': resolve(
-              import.meta.dirname,
-              './src/lib/cloudflare-workers-shim.ts'
-            )
+            'cloudflare:workers': resolve(import.meta.dirname, workersShim)
           }
         : {}
     },
