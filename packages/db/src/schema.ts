@@ -170,7 +170,10 @@ export const workspaceInvitations = sqliteTable(
     createdAt: isoCreatedAt(),
     createdByUserId: text('created_by_user_id').references(() => user.id)
   },
-  (table) => [workspaceIdIndex('workspace_invitations', table.workspaceId)]
+  (table) => [
+    workspaceIdIndex('workspace_invitations', table.workspaceId),
+    index('workspace_invitations_created_by_user_id_idx').on(table.createdByUserId)
+  ]
 )
 
 export const starterModules = sqliteTable('starter_modules', {
@@ -230,7 +233,10 @@ export const apiTokens = sqliteTable(
     createdAt: isoCreatedAt(),
     createdByUserId: text('created_by_user_id').references(() => user.id)
   },
-  (table) => [workspaceIdIndex('api_tokens', table.workspaceId)]
+  (table) => [
+    workspaceIdIndex('api_tokens', table.workspaceId),
+    index('api_tokens_created_by_user_id_idx').on(table.createdByUserId)
+  ]
 )
 
 export const webhookEndpoints = sqliteTable(
@@ -330,7 +336,8 @@ export const auditEvents = sqliteTable(
     index('audit_events_workspace_created_at_idx').on(
       table.workspaceId,
       table.createdAt
-    )
+    ),
+    index('audit_events_actor_user_id_idx').on(table.actorUserId)
   ]
 )
 
