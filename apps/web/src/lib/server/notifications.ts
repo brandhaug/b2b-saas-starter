@@ -11,7 +11,7 @@ const ListNotificationsInput = Schema.Struct({
 const decodeInput = Schema.decodeUnknownSync(ListNotificationsInput)
 
 export const listNotificationsServerFn = createServerFn({ method: 'GET' })
-  .inputValidator((input: unknown) => decodeInput(input))
+  .validator((input: unknown) => decodeInput(input))
   .handler(async ({ data }) => {
     const session = await requireRequestSession()
     return runWorkspaceCapabilities(

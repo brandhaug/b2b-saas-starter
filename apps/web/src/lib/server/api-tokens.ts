@@ -18,7 +18,7 @@ const CreateApiTokenInput = Schema.Struct({
 const decodeInput = Schema.decodeUnknownSync(CreateApiTokenInput)
 
 export const createApiTokenServerFn = createServerFn({ method: 'POST' })
-  .inputValidator((input: unknown) => decodeInput(input))
+  .validator((input: unknown) => decodeInput(input))
   .handler(async ({ data }): Promise<CreatedApiToken> => {
     const session = await requireRequestSession()
     return runWorkspaceCapabilities(
