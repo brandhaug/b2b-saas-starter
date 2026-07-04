@@ -1,0 +1,7 @@
+# Defer API versioning
+
+The public REST and MCP surface (the `StarterApi` contract in `packages/api`, served by `apps/api`) carries no version prefix and no negotiation strategy, and the OpenAPI document reports `0.1.0`. Explicit versioning stays deferred until a concrete trigger: the first external consumer that cannot tolerate breaking changes, or the first intentional breaking change to a shipped endpoint. Until then the contract may change freely, with the `0.x` OpenAPI version signaling that instability.
+
+Options recorded for when the trigger fires: a URL path prefix (`/v2/...`), content negotiation via an `Accept` header, and token-pinned versioning where each API token records the contract version it was issued against. The starter should adopt the path prefix. It is the simplest to implement and explain, caches and routing rules key on it naturally, and each version gets an obvious OpenAPI document and Scalar reference URL. Header negotiation hides the version from logs and curl reproductions, and token pinning couples contract evolution to the API Token Registry for little benefit at starter scale.
+
+The Effect HttpApi structure keeps the eventual mechanics cheap: version groups can live side by side, either as per-version `HttpApiGroup`s or a second `HttpApi` mounted under the prefix, with handlers layered from the same capabilities, so `/v2` can ship while `/v1` keeps serving.
