@@ -1,0 +1,132 @@
+---
+title: Module wiring guide
+description: Wire each optional env-gated provider — exact variables, where the values come from, unconfigured states, and how to verify activation.
+category: getting-started
+order: 25
+tags: [env, optional-providers, configuration]
+---
+
+Every third-party provider in the starter is an Optional Provider Module. The app boots with zero provider secrets; each provider activates when its environment variables are set and reports a configuration status while they are not. This guide covers each provider: what it does, the exact variables, where the values come from, what you see while it is unconfigured, and a concrete way to confirm activation.
+
+## How activation works
+
+`packages/env/src/server.ts` is the single source of truth. `ServerEnvSchema` declares every server variable, and `moduleConfigStatus` derives one status per module from which variables have values:
+
+- `needs-config` — one or more required variables are unset. Only the missing variable names surface, never values.
+- `attention` — the variables are set but the runtime is not wired yet (billing, observability).
+- `ready` — variables set and runtime wired.
+
+`withModuleEnvStatus` in `packages/capabilities/src/module-env-overlay.ts` overlays these statuses onto the Starter Module catalog and the Integration Surfaces list. Catalog-mapped modules (`better-auth`, `cloudflare-email`, `observability`) surface in the homepage module table (`/`) and the workspace dashboard module table. Integration-mapped providers (`github`, `stripe`, `turnstile`) surface through the REST endpoint `GET /workspaces/:slug/integrations`, where an unconfigured surface carries the summary `Set <VAR>, <VAR> to activate this integration.` The `ai` module has no catalog or integration mapping yet, so the overlay ignores it.
+
+## Where values go
+
+| Runtime                                              | Where to set variables                                                                                                                                   |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web dev server (`bun run dev` from the repo root)    | Root `.env`, copied from `.env.example`                                                                                                                  |
+| API worker under Wrangler (`bun --cwd apps/api dev`) | `apps/api/.dev.vars`; `apps/api/wrangler.jsonc` ships `WORKERS_AI_ENABLED = "false"` and `CLOUDFLARE_EMAIL_FROM = "noreply@example.com"` as dev defaults |
+| Deployed Workers (`bun run deploy`)                  | The deploy shell environment; `alchemy.run.ts` forwards the optional-module keys to all three Workers and wraps secret-shaped values in `Redacted`       |
+
+Local status checks are easiest in the web app: it runs the in-memory Seed layer with the env overlay applied, so the homepage module table at `http://localhost:3071/` reflects your `.env` after a restart. The API worker under Wrangler runs the Live layer against its own local D1 state, so the REST status checks below are most meaningful on a deployed stack with a workspace API Token.
+
+## GitHub OAuth
+
+The Example OAuth Provider. `createAuth` in `packages/auth/src/index.ts` registers the GitHub social provider only when both variables are set; email/password sign-in works either way.
+
+| Variable               | Value                   |
+| ---------------------- | ----------------------- |
+| `GITHUB_CLIENT_ID`     | OAuth app client ID     |
+| `GITHUB_CLIENT_SECRET` | OAuth app client secret |
+
+Create an OAuth app under GitHub → Settings → Developer settings → OAuth Apps. Set the authorization callback URL to `<BETTER_AUTH_URL>/api/auth/callback/github` (locally `http://localhost:3071/api/auth/callback/github`).
+
+**Unconfigured:** `/sign-in` shows a disabled "Continue with GitHub" button with the caption "Configure GitHub OAuth secrets to enable." The `github` Integration Surface reports `needs-config`.
+
+**Verify:** set both variables and restart `bun run dev`. The server side is now active — Better Auth accepts `authClient.signIn.social({ provider: 'github' })` calls. The sign-in button in `apps/web/src/routes/sign-in.tsx` is a disabled placeholder either way; wiring it to the social sign-in call is the first OAuth task in a fork. On a deployed stack, `GET /workspaces/<slug>/integrations` reports the `github` surface as `ready` and drops the set-vars summary.
+
+## Cloudflare Email
+
+Transactional email through Cloudflare Email Service. React Email templates live in `packages/email`; the wired consumer is the workspace invitation endpoint (`POST /workspaces/:slug/invitations` on the API worker).
+
+| Variable                | Value                                                             |
+| ----------------------- | ----------------------------------------------------------------- |
+| `CLOUDFLARE_EMAIL_FROM` | A sender address on a domain verified in Cloudflare Email Routing |
+
+Verify the domain under your Cloudflare zone → Email Routing. At deploy time, `alchemy.run.ts` provisions the `EMAIL` SendEmail binding only when this variable is set and restricts sending to it via `allowedSenderAddresses`. At runtime, `selectEmailDispatcherLayer` in `packages/email` uses the Cloudflare dispatcher when the binding and sender exist; otherwise the log dispatcher renders templates and logs `email.dispatched` with `mode: "log"` — no real send. The API worker also accepts `EMAIL_FROM_ADDRESS` as a back-compat alias, but `CLOUDFLARE_EMAIL_FROM` is the name used end to end.
+
+**Unconfigured:** the Cloudflare Email module reports `needs-config` with `CLOUDFLARE_EMAIL_FROM` listed as missing, on the homepage module table and the workspace dashboard.
+
+**Verify:** set the variable in `.env`, restart `bun run dev`, and open `http://localhost:3071/` — the Cloudflare Email row reads `ready`. Real sending requires the deployed `EMAIL` binding, so a full end-to-end check is sending an invitation on a deployed stack and confirming `delivery.mode` is `cloudflare-email` in the response.
+
+## Turnstile
+
+CAPTCHA env gate. No Turnstile widget is rendered anywhere in the app yet — the variables are validated and the Integration Surface reports status, so the surface flips without schema work once you add the widget to a form.
+
+| Variable               | Value                                |
+| ---------------------- | ------------------------------------ |
+| `TURNSTILE_SITE_KEY`   | Widget site key (safe to expose)     |
+| `TURNSTILE_SECRET_KEY` | Widget secret key (server-side only) |
+
+Create a widget under the Cloudflare dashboard → Turnstile.
+
+**Unconfigured:** the `turnstile` Integration Surface reports `needs-config` with the set-vars summary.
+
+**Verify:** with both variables set for the API worker, `GET /workspaces/<slug>/integrations` reports the `turnstile` surface as `ready`.
+
+## Assistant (Workers AI or OpenAI-compatible)
+
+The starter assistant answers `POST /assistant/answer` on the API worker. `selectAssistantLayer` in `packages/ai` picks the provider in order:
+
+1. Workers AI, when `WORKERS_AI_ENABLED` is `true` and the `AI` binding exists (default model `@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `apps/api/wrangler.jsonc` and attached to the deployed API worker by `alchemy.run.ts` — no API key involved.
+2. OpenAI-compatible, when `OPENAI_API_KEY` is set (defaults: base URL `https://api.openai.com/v1`, model `gpt-4o-mini`). Any OpenAI-compatible endpoint works via `OPENAI_BASE_URL`.
+3. A mock provider otherwise.
+
+| Variable             | Value                                                      |
+| -------------------- | ---------------------------------------------------------- |
+| `WORKERS_AI_ENABLED` | `true` to use the Workers AI binding                       |
+| `OPENAI_API_KEY`     | API key for an OpenAI-compatible provider                  |
+| `OPENAI_BASE_URL`    | Optional override, defaults to `https://api.openai.com/v1` |
+| `OPENAI_MODEL_ID`    | Optional override, defaults to `gpt-4o-mini`               |
+
+**Unconfigured:** the endpoint still answers. The reply comes from the mock provider (`provider: "mock"`, `assistantConfigured: false`) and its text names the variables that enable a real provider. There is no assistant UI in the web app yet.
+
+**Verify:** on a stack where the API worker has the variables, call the endpoint with a workspace API Token:
+
+```bash
+curl -s https://<api-host>/assistant/answer \
+  -H 'authorization: Bearer <api-token>' \
+  -H 'content-type: application/json' \
+  -d '{"workspaceSlug":"<slug>","question":"Which modules need config?"}'
+```
+
+The response's `provider` field reads `workers-ai` or `openai-compatible` and `assistantConfigured` is `true`.
+
+## Stripe billing
+
+The env gate for the billing module. `moduleConfigStatus` marks billing `runtimeWired: false`: checkout, the customer portal, and the inbound webhook route are planned and not yet implemented, so the best status billing can reach today is `attention` — env recognized, runtime pending. The Stripe billing integration doc in the Integration surfaces section covers the planned scope.
+
+| Variable                | Value                                                            |
+| ----------------------- | ---------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`     | Stripe Dashboard → Developers → API keys                         |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret shown when you create the Stripe webhook endpoint |
+
+**Unconfigured:** the `stripe` Integration Surface reports `needs-config` with the set-vars summary.
+
+**Verify:** set both variables for the API worker and `GET /workspaces/<slug>/integrations` reports the `stripe` surface as `attention`.
+
+## Sentry and PostHog (observability)
+
+One shared observability module. `moduleConfigStatus` requires both `SENTRY_DSN` and `POSTHOG_KEY` for the env to count as present — setting only one keeps the module in `needs-config`. Neither SDK is initialized in the Workers yet (`runtimeWired: false`), so the best status is `attention`; the env gate exists so the module activates without a schema change once init lands.
+
+| Variable       | Value                                                           |
+| -------------- | --------------------------------------------------------------- |
+| `SENTRY_DSN`   | Sentry project → Settings → Client Keys (DSN)                   |
+| `POSTHOG_KEY`  | PostHog project settings → project API key                      |
+| `POSTHOG_HOST` | Optional; `.env.example` defaults to `https://us.i.posthog.com` |
+
+**Unconfigured:** the Observability module reports `needs-config` with the missing variable names, on the homepage module table and the workspace dashboard.
+
+**Verify:** set both `SENTRY_DSN` and `POSTHOG_KEY` in `.env`, restart `bun run dev`, and open `http://localhost:3071/` — the Observability row moves from `needs-config` to `attention`. In the workspace dashboard the missing-config cell reads "None".
+
+## Adding a provider variable
+
+Declare the variable in `ServerEnvSchema` and add it to exactly one of the two optional-module key lists in `packages/env/src/server.ts` (secret or plain). Everything else derives from the schema: `readServerEnv` picks the keys, `alchemy.run.ts` builds its forwarding env from the lists, and `apps/web/src/worker-env.d.ts` derives its string vars from `ServerEnv`. Map the module id in `packages/capabilities/src/module-env-overlay.ts` when the module should surface in the catalog or the integrations list. The full secret matrix lives in `ARCHITECTURE.md`.

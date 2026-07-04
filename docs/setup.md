@@ -12,7 +12,7 @@ cp .env.example .env
 bun run dev
 ```
 
-Open <http://localhost:3071>. The `.env` defaults work out of the box — optional providers (GitHub OAuth, Stripe, Sentry, PostHog, Turnstile, email, AI) stay inactive until you fill in their variables.
+Open <http://localhost:3071>. The `.env` defaults work out of the box — optional providers (GitHub OAuth, Stripe, Sentry, PostHog, Turnstile, email, AI) stay inactive until you fill in their variables. The [module wiring guide](../apps/web/content/docs/getting-started/module-wiring.mdx) covers each provider: exact variables, where the values come from, and how to verify activation.
 
 ## Database
 
