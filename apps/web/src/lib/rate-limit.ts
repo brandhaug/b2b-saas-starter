@@ -20,7 +20,7 @@ export type RateLimitBindings = {
   readonly RATE_LIMITER_AUTH_WRITE?: CloudflareRateLimit
 }
 
-export type AuthRateLimitBucket = 'auth_read' | 'auth_write'
+type AuthRateLimitBucket = 'auth_read' | 'auth_write'
 
 export type RateLimitInput = GenericRateLimitInput<AuthRateLimitBucket>
 
