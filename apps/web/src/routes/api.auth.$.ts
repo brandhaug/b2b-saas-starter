@@ -7,6 +7,7 @@ import {
   withHttpRequestScope
 } from '@b2b-saas-starter/logger'
 import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
+import { recordAuthAudit } from '@/lib/server/auth-audit'
 import { createServerContext } from '@/lib/server-context'
 
 const authRuntime = ManagedRuntime.make(WideEventLoggerLive)
@@ -37,6 +38,15 @@ async function handleAuth(request: Request): Promise<Response> {
         const response = yield* Effect.promise(() =>
           createServerContext().auth().handler(request)
         )
+        // Governance audit for credential sign-in attempts (ADR 0025) —
+        // best-effort by contract, so it can't fail the auth response, but a
+        // dropped write is surfaced on the wide event.
+        const authAudit = yield* Effect.promise(() =>
+          recordAuthAudit(request, response)
+        )
+        if (authAudit !== 'skipped') {
+          yield* annotateWide({ authAudit })
+        }
         yield* annotateWide({ outcome: 'ok', statusCode: response.status })
         return response
       }).pipe(Effect.provide(rateLimitLayer))
