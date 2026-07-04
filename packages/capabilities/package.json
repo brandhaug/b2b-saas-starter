@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --coverage"
   },
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
