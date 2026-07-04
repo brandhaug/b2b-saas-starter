@@ -47,11 +47,28 @@ export type WebhookDeliveryAttemptInput = {
    */
   readonly id?: string
   readonly endpointId: string
+  /**
+   * Owning workspace of the endpoint, carried in the queue message. Terminal
+   * statuses use it to scope their audit event.
+   */
+  readonly workspaceId: string
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
   readonly attempts: number
   readonly responseStatus?: number | null
   readonly nextAttemptAt?: string | null
+}
+
+/**
+ * Audit event emitted per terminal delivery status — retryable attempts stay
+ * out of the governance log. Naming follows the `auth.sign_in` /
+ * `auth.sign_in_failed` convention from the web app's auth audit.
+ */
+export const terminalDeliveryAuditEventType: Partial<
+  Record<WebhookDeliveryStatus, string>
+> = {
+  failed_permanent: 'webhook.delivery_failed',
+  dead_lettered: 'webhook.delivery_dead_lettered'
 }
 
 export type CreateWebhookEndpointInput = {
@@ -108,7 +125,18 @@ export type WebhookEndpointsShape = {
     CapabilityUnavailable,
     WorkspaceContext
   >
-  readonly getDispatchTarget: (endpointId: string) => Effect.Effect<
+  /**
+   * Background-worker surface — no `WorkspaceContext` exists on the queue
+   * consumer, so the workspace ID travels in the queue message (stamped by
+   * `WebhookPublisher` from the producing request's context) and is verified
+   * here: the lookup filters on `(endpointId, workspaceId)` and resolves
+   * `null` on a cross-workspace mismatch, so a forged or misrouted message
+   * never yields another workspace's signing secret.
+   */
+  readonly getDispatchTarget: (
+    endpointId: string,
+    workspaceId: string
+  ) => Effect.Effect<
     {
       readonly id: string
       readonly url: string
@@ -323,12 +351,17 @@ export const LiveWebhookEndpoints: Layer.Layer<
             Option.map(applied, (set) => ({ signingSecret: set.signingSecret }))
           )
         ),
-      getDispatchTarget: (endpointId) =>
+      getDispatchTarget: (endpointId, workspaceId) =>
         unavailable(
           db
             .select()
             .from(webhookEndpoints)
-            .where(eq(webhookEndpoints.id, endpointId))
+            .where(
+              and(
+                eq(webhookEndpoints.id, endpointId),
+                eq(webhookEndpoints.workspaceId, workspaceId)
+              )
+            )
             .limit(1)
         ).pipe(
           Effect.map((rows) => {
@@ -341,19 +374,46 @@ export const LiveWebhookEndpoints: Layer.Layer<
             }
           })
         ),
-      recordDeliveryAttempt: (input) =>
-        unavailable(
-          db.insert(webhookDeliveries).values({
-            id: input.id ?? newCapabilityId('whd'),
-            endpointId: input.endpointId,
-            eventType: input.eventType,
-            status: input.status,
-            attempts: input.attempts,
-            lastAttemptAt: new Date().toISOString(),
-            nextAttemptAt: input.nextAttemptAt ?? null,
-            responseStatus: input.responseStatus ?? null
-          })
+      recordDeliveryAttempt: (input) => {
+        const deliveryId = input.id ?? newCapabilityId('whd')
+        const deliveryInsert = db.insert(webhookDeliveries).values({
+          id: deliveryId,
+          endpointId: input.endpointId,
+          eventType: input.eventType,
+          status: input.status,
+          attempts: input.attempts,
+          lastAttemptAt: new Date().toISOString(),
+          nextAttemptAt: input.nextAttemptAt ?? null,
+          responseStatus: input.responseStatus ?? null
+        })
+        const auditEventType = terminalDeliveryAuditEventType[input.status]
+        if (auditEventType === undefined) {
+          return unavailable(deliveryInsert).pipe(Effect.asVoid)
+        }
+        // Terminal outcome: the attempt row and its audit event commit or roll
+        // back together, mirroring ApiTokenRegistry's mutation+audit batches.
+        // `workspaceId` comes from the queue message — verified against the
+        // endpoint by `getDispatchTarget` on the delivery path, trusted as
+        // stamped by our own publisher on the dead-letter path.
+        return unavailable(
+          batch(db, [
+            deliveryInsert,
+            audit.prepareRecord({
+              workspaceId: input.workspaceId,
+              actorUserId: null,
+              eventType: auditEventType,
+              targetType: 'webhook_endpoint',
+              targetId: input.endpointId,
+              metadata: {
+                deliveryId,
+                eventType: input.eventType,
+                attempts: input.attempts,
+                responseStatus: input.responseStatus ?? null
+              }
+            })
+          ])
         ).pipe(Effect.asVoid)
+      }
     }
   })
 )

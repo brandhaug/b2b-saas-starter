@@ -157,12 +157,19 @@ export const processWebhookMessage = (
     const message = decoded.success
     yield* annotateWide({
       endpointId: message.endpointId,
+      workspaceId: message.workspaceId,
       eventType: message.eventType
     })
     const webhooks = yield* WebhookEndpoints
-    const target = yield* webhooks.getDispatchTarget(message.endpointId)
+    // The workspace ID from the message is verified inside the capability:
+    // a cross-workspace mismatch resolves null, same as a disabled or deleted
+    // endpoint, so no signing secret leaves the workspace that enqueued it.
+    const target = yield* webhooks.getDispatchTarget(
+      message.endpointId,
+      message.workspaceId
+    )
     if (!target) {
-      yield* annotateWide({ outcome: 'skipped', skipReason: 'disabled' })
+      yield* annotateWide({ outcome: 'skipped', skipReason: 'not_dispatchable' })
       return 'ack' as const
     }
     yield* annotateWide({ endpointUrl: target.url })
@@ -175,6 +182,7 @@ export const processWebhookMessage = (
       yield* webhooks.recordDeliveryAttempt({
         id: newDeliveryId(),
         endpointId: target.id,
+        workspaceId: message.workspaceId,
         eventType: message.eventType,
         status: 'failed_permanent',
         attempts,
@@ -228,6 +236,9 @@ export const processWebhookMessage = (
     yield* webhooks.recordDeliveryAttempt({
       id: deliveryId,
       endpointId: target.id,
+      // Terminal statuses batch an audit event with the attempt row inside
+      // the capability; the workspace id scopes it to the endpoint's owner.
+      workspaceId: message.workspaceId,
       eventType: message.eventType,
       status,
       attempts,
@@ -265,16 +276,18 @@ const deliverWebhook = (
 }
 
 /**
- * Dead-letter consumer: the message exhausted `maxRetries` on the primary
- * queue. Record a terminal `dead_lettered` delivery row and emit a wide event
- * so operators can see (and replay) exhausted deliveries.
+ * Core of the dead-letter consumer: the message exhausted `maxRetries` on the
+ * primary queue, so record a terminal `dead_lettered` delivery row (the
+ * capability batches the matching audit event with it). Exported with the
+ * `WebhookEndpoints` requirement left open for tests, like
+ * `processWebhookMessage`; `recordDeadLetter` wraps it with the real layers
+ * and the wide-event scope.
  */
-const recordDeadLetter = (
+export const processDeadLetterMessage = (
   input: unknown,
-  attempts: number,
-  env: Env
-): Effect.Effect<void> => {
-  const program = Effect.gen(function* () {
+  attempts: number
+): Effect.Effect<void, CapabilityUnavailable, WebhookEndpoints | Scope.Scope> =>
+  Effect.gen(function* () {
     // Same boundary decode as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
     const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(input)
@@ -288,12 +301,14 @@ const recordDeadLetter = (
     const message = decoded.success
     yield* annotateWide({
       endpointId: message.endpointId,
+      workspaceId: message.workspaceId,
       eventType: message.eventType
     })
     const webhooks = yield* WebhookEndpoints
     yield* webhooks.recordDeliveryAttempt({
       id: newDeliveryId(),
       endpointId: message.endpointId,
+      workspaceId: message.workspaceId,
       eventType: message.eventType,
       status: 'dead_lettered',
       attempts,
@@ -301,7 +316,21 @@ const recordDeadLetter = (
       nextAttemptAt: null
     })
     yield* annotateWide({ outcome: 'dead_lettered' })
-  }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
+  })
+
+/**
+ * Dead-letter consumer entry: wraps `processDeadLetterMessage` with the real
+ * capabilities layer and a wide event so operators can see (and replay)
+ * exhausted deliveries.
+ */
+const recordDeadLetter = (
+  input: unknown,
+  attempts: number,
+  env: Env
+): Effect.Effect<void> => {
+  const program = processDeadLetterMessage(input, attempts).pipe(
+    Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
+  )
 
   return withTriggerScope(
     {

@@ -23,6 +23,8 @@ The column is free-text; keep this vocabulary consistent (also documented on `We
 
 `nextAttemptAt` is derived from the same `backoffSeconds(attempts)` (`min(attempts, 6) × 30s`) used for the actual `message.retry({ delaySeconds })`, so the persisted schedule matches reality. Terminal rows have `nextAttemptAt: null`.
 
+Terminal statuses also emit an audit event: the worker passes the queue message's `workspaceId` in every `recordDeliveryAttempt` call, and the Live capability batches an `AuditEventLog` insert (`webhook.delivery_failed` for `failed_permanent`, `webhook.delivery_dead_lettered` for `dead_lettered`; `targetType: 'webhook_endpoint'`, `actorUserId: null`) with the attempt row so both commit or roll back together. Don't emit these from the worker directly — the mapping lives on `terminalDeliveryAuditEventType` in `packages/capabilities/src/developer-platform/webhook-endpoints.ts`.
+
 ### SSRF guard
 
 `validateWebhookUrl` (shared from `@b2b-saas-starter/capabilities`, source in `packages/capabilities/src/developer-platform/webhook-url.ts`) runs at endpoint creation **and again at dispatch time**. Invalid URLs at dispatch record a terminal `failed_permanent` row and ack. DNS-rebinding protection is out of scope for the starter.
@@ -45,14 +47,14 @@ Verification recipe for receivers:
 
 ### Message boundary
 
-Queue payloads are `unknown` at runtime. `processWebhookMessage` and `recordDeadLetter` decode the body against `WebhookQueueMessage` — the Effect Schema shared with the producer (`WebhookPublisher` in `@b2b-saas-starter/capabilities`) so both sides use one wire shape. A malformed message is terminal: redelivery can never fix its shape, and there is no trusted `endpointId` to attach a delivery row to, so it is recorded on the wide event (`skipReason: 'malformed_message'`) and acked — never retried. `WebhookMessage` in `src/index.ts` is just a type alias for `typeof WebhookQueueMessage.Type`.
+Queue payloads are `unknown` at runtime. `processWebhookMessage` and `processDeadLetterMessage` decode the body against `WebhookQueueMessage` — the Effect Schema shared with the producer (`WebhookPublisher` in `@b2b-saas-starter/capabilities`) so both sides use one wire shape. The message carries `workspaceId` (stamped by the publisher from the producing request's `WorkspaceContext`), and `getDispatchTarget(endpointId, workspaceId)` verifies it before returning the signing secret — a cross-workspace mismatch resolves `null` and acks as `skipReason: 'not_dispatchable'`, same as a disabled or deleted endpoint. A malformed message is terminal: redelivery can never fix its shape, and there is no trusted `endpointId` to attach a delivery row to, so it is recorded on the wide event (`skipReason: 'malformed_message'`) and acked — never retried. `WebhookMessage` in `src/index.ts` is just a type alias for `typeof WebhookQueueMessage.Type`.
 
-Pure helpers (`backoffSeconds`, `classifyResponseStatus`, `computeWebhookSignature`, `signatureHeaderValue`) are exported from `src/index.ts` for the tests in `src/index.test.ts` — keep them dependency-free. The full delivery orchestration is also exported as `processWebhookMessage(input, attempts, traceId)` with its `WebhookEndpoints` + `HttpClient` requirements left open: tests inject stub layers to exercise delivered/retry/terminal/disabled/SSRF/malformed paths without a queue; the `queue` handler wraps it with the real layers and the wide-event scope (`deliverWebhook`).
+Pure helpers (`backoffSeconds`, `classifyResponseStatus`, `computeWebhookSignature`, `signatureHeaderValue`) are exported from `src/index.ts` for the tests in `src/index.test.ts` — keep them dependency-free. The full delivery orchestration is also exported as `processWebhookMessage(input, attempts, traceId)`, and the DLQ core as `processDeadLetterMessage(input, attempts)`, with their `WebhookEndpoints` (+ `HttpClient` for delivery) requirements left open: tests inject stub layers to exercise delivered/retry/terminal/disabled/SSRF/malformed paths without a queue; the `queue` handler wraps them with the real layers and the wide-event scope (`deliverWebhook` / `recordDeadLetter`). Real-D1 coverage of the terminal-outcome audit rows lives with the capability, in `packages/capabilities/src/live-layers.test.ts`.
 
 ## Planned, not wired
 
 - Email fan-out and report scheduling are referenced in the starter narrative but have no handlers in `src/index.ts` yet. Wire alongside their capability counterparts (`@b2b-saas-starter/email`, `implementation-reports`).
-- Audit Event / Notification emission on `failed_permanent` and `dead_lettered` deliveries.
+- Notification emission on `failed_permanent` and `dead_lettered` deliveries (the audit events are wired — see the delivery contract above).
 
 ## Conventions
 

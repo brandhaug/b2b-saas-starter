@@ -8,9 +8,13 @@ import { WorkspaceContext } from '../workspace-context.ts'
 /**
  * Message enqueued per endpoint. The queue consumer in `apps/background`
  * imports this schema, so producer and consumer share one wire shape.
+ * `workspaceId` is stamped from the producing request's `WorkspaceContext`
+ * and re-verified by `WebhookEndpoints.getDispatchTarget` before the
+ * endpoint's signing secret is released to the consumer.
  */
 export const WebhookQueueMessage = Schema.Struct({
   endpointId: Schema.String,
+  workspaceId: Schema.String,
   eventType: Schema.String,
   payload: Schema.Unknown
 })
@@ -91,6 +95,7 @@ export const LiveWebhookPublisher = (
                     subscribed.map((endpoint) => ({
                       body: {
                         endpointId: endpoint.id,
+                        workspaceId: ctx.workspace.id,
                         eventType: input.eventType,
                         payload: input.payload
                       }

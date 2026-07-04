@@ -8,12 +8,14 @@ import {
 import {
   validateWebhookUrl,
   WebhookEndpoints,
+  type CapabilityUnavailable,
   type WebhookDeliveryAttemptInput
 } from '@b2b-saas-starter/capabilities'
 import {
   backoffSeconds,
   classifyResponseStatus,
   computeWebhookSignature,
+  processDeadLetterMessage,
   processWebhookMessage,
   signatureHeaderValue,
   type WebhookMessage
@@ -72,38 +74,52 @@ describe('webhook signature', () => {
   })
 })
 
+const message: WebhookMessage = {
+  endpointId: 'wh_1',
+  workspaceId: 'ws_1',
+  eventType: 'api_token.created',
+  payload: { hello: 'world' }
+}
+
+const target = {
+  id: 'wh_1',
+  url: 'https://example.com/hook',
+  signingSecret: 'whsec_test'
+}
+
+// Mirrors the Live workspace check: the target only resolves when the
+// message's workspaceId matches the endpoint's owning workspace (ws_1).
+const stubEndpoints = (
+  dispatchTarget: typeof target | null,
+  recorded: WebhookDeliveryAttemptInput[]
+): Layer.Layer<WebhookEndpoints> =>
+  Layer.succeed(WebhookEndpoints)({
+    list: Effect.die('unused in delivery tests'),
+    create: () => Effect.die('unused in delivery tests'),
+    disable: () => Effect.die('unused in delivery tests'),
+    rotateSecret: () => Effect.die('unused in delivery tests'),
+    getDispatchTarget: (endpointId, workspaceId) =>
+      Effect.succeed(
+        endpointId === dispatchTarget?.id && workspaceId === 'ws_1'
+          ? dispatchTarget
+          : null
+      ),
+    recordDeliveryAttempt: (input) =>
+      Effect.sync(() => {
+        recorded.push(input)
+      })
+  })
+
+// Both consumers surface D1 outages as CapabilityUnavailable; the stubs never
+// fail, so the error channel is eliminated with orDie instead of a cast.
+const runScoped = <A>(
+  effect: Effect.Effect<A, CapabilityUnavailable, Scope.Scope>
+): Promise<A> => Effect.runPromise(Effect.scoped(Effect.orDie(effect)))
+
 describe('processWebhookMessage', () => {
-  const message: WebhookMessage = {
-    endpointId: 'wh_1',
-    eventType: 'api_token.created',
-    payload: { hello: 'world' }
-  }
-
-  const target = {
-    id: 'wh_1',
-    url: 'https://example.com/hook',
-    signingSecret: 'whsec_test'
-  }
-
-  const stubEndpoints = (
-    dispatchTarget: typeof target | null,
-    recorded: WebhookDeliveryAttemptInput[]
-  ): Layer.Layer<WebhookEndpoints> =>
-    Layer.succeed(WebhookEndpoints)({
-      list: Effect.die('unused in delivery tests'),
-      create: () => Effect.die('unused in delivery tests'),
-      disable: () => Effect.die('unused in delivery tests'),
-      rotateSecret: () => Effect.die('unused in delivery tests'),
-      getDispatchTarget: () => Effect.succeed(dispatchTarget),
-      recordDeliveryAttempt: (input) =>
-        Effect.sync(() => {
-          recorded.push(input)
-        })
-    })
-
   const stubHttp = (
     status: number,
-    captured: { request?: HttpClientRequest.HttpClientRequest }
+    captured: { request?: HttpClientRequest.HttpClientRequest } = {}
   ): Layer.Layer<HttpClient.HttpClient> =>
     Layer.succeed(HttpClient.HttpClient)(
       HttpClient.make((request) => {
@@ -122,19 +138,16 @@ describe('processWebhookMessage', () => {
   ) => {
     const recorded: WebhookDeliveryAttemptInput[] = []
     const captured: { request?: HttpClientRequest.HttpClientRequest } = {}
-    const effect = processWebhookMessage(input, attempts, 'trace-test').pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          stubEndpoints(dispatchTarget, recorded),
-          stubHttp(status, captured)
+    return runScoped(
+      processWebhookMessage(input, attempts, 'trace-test').pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            stubEndpoints(dispatchTarget, recorded),
+            stubHttp(status, captured)
+          )
         )
       )
-    ) as Effect.Effect<'ack' | 'retry', never, Scope.Scope>
-    return Effect.runPromise(Effect.scoped(effect)).then((outcome) => ({
-      outcome,
-      recorded,
-      captured
-    }))
+    ).then((outcome) => ({ outcome, recorded, captured }))
   }
 
   it('delivers on 2xx, signs the request, and persists a delivered row', async () => {
@@ -161,13 +174,15 @@ describe('processWebhookMessage', () => {
     expect(recorded[0]?.nextAttemptAt).toBeTruthy()
   })
 
-  it('acks a non-retryable 4xx as failed_permanent', async () => {
+  it('acks a non-retryable 4xx as failed_permanent with the audit workspace id', async () => {
     const { outcome, recorded } = await run(target, 404)
     expect(outcome).toBe('ack')
     expect(recorded[0]).toMatchObject({
       status: 'failed_permanent',
       responseStatus: 404,
-      nextAttemptAt: null
+      nextAttemptAt: null,
+      // The Live capability scopes the batched audit event with this id.
+      workspaceId: 'ws_1'
     })
   })
 
@@ -188,6 +203,27 @@ describe('processWebhookMessage', () => {
     expect(captured.request).toBeUndefined()
   })
 
+  it('treats a message without a workspaceId as malformed (legacy in-flight shape)', async () => {
+    const { outcome, recorded, captured } = await run(target, 200, 1, {
+      endpointId: 'wh_1',
+      eventType: 'api_token.created',
+      payload: {}
+    })
+    expect(outcome).toBe('ack')
+    expect(recorded).toHaveLength(0)
+    expect(captured.request).toBeUndefined()
+  })
+
+  it('acks a cross-workspace message without releasing the signing secret', async () => {
+    const { outcome, recorded, captured } = await run(target, 200, 1, {
+      ...message,
+      workspaceId: 'ws_other'
+    })
+    expect(outcome).toBe('ack')
+    expect(recorded).toHaveLength(0)
+    expect(captured.request).toBeUndefined()
+  })
+
   it('acks an SSRF-invalid target as failed_permanent without dispatching', async () => {
     const { outcome, recorded, captured } = await run(
       { ...target, url: 'https://127.0.0.1/hook' },
@@ -196,9 +232,40 @@ describe('processWebhookMessage', () => {
     expect(outcome).toBe('ack')
     expect(recorded[0]).toMatchObject({
       status: 'failed_permanent',
-      responseStatus: null
+      responseStatus: null,
+      workspaceId: 'ws_1'
     })
     expect(captured.request).toBeUndefined()
+  })
+})
+
+describe('processDeadLetterMessage', () => {
+  const runDeadLetter = (input: unknown, attempts = 4) => {
+    const recorded: WebhookDeliveryAttemptInput[] = []
+    return runScoped(
+      processDeadLetterMessage(input, attempts).pipe(
+        Effect.provide(stubEndpoints(target, recorded))
+      )
+    ).then(() => recorded)
+  }
+
+  it('records a dead_lettered row carrying the audit workspace id', async () => {
+    const recorded = await runDeadLetter(message)
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]).toMatchObject({
+      endpointId: 'wh_1',
+      workspaceId: 'ws_1',
+      eventType: 'api_token.created',
+      status: 'dead_lettered',
+      attempts: 4,
+      responseStatus: null,
+      nextAttemptAt: null
+    })
+  })
+
+  it('acks a malformed dead letter without recording', async () => {
+    const recorded = await runDeadLetter({ endpointId: 42 })
+    expect(recorded).toHaveLength(0)
   })
 })
 
