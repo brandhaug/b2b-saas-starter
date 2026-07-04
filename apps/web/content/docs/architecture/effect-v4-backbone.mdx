@@ -14,11 +14,11 @@ Each domain (workspace, Starter Module, Adoption Readiness, audit, API tokens, w
 
 ## Schemas as contracts
 
-Effect Schema defines the shape of every request, response, and persisted row. The same schema is reused by the `HttpApi` groups in `packages/api` for OpenAPI generation, and by the seed fixtures in `packages/capabilities/src/seed-fixture.ts` and `scripts/seed.ts`. Effect Atom is the planned server-state layer for the web Worker (ADR 0040) — the schemas are ready for it; the binding is not yet implemented.
+Effect Schema defines the shape of every request, response, and persisted row. The same schema is reused by the `HttpApi` groups in `packages/api` for OpenAPI generation, and by the seed fixtures in `packages/capabilities/src/seed-fixture.ts` and `scripts/seed.ts`. Route loaders and server functions cover the web app's server-state today; Effect Atom stays a documented extension point (ADR 0040), and the schemas are ready for it.
 
 ## Errors
 
-Domain errors are `Schema.TaggedErrorClass` types. Each carries an `httpApiStatus` annotation so the HttpApi-driven mapping is mechanical: `Unauthorized` → 401, `WorkspaceNotFound` → 404, `RateLimited` → 429, `InternalError` → 500, `AuthorizationDenied` → 403 in the API Worker's manual mapping. The API Worker (`apps/api/src/index.ts`) does this mapping by hand today and is scheduled to migrate onto the `HttpApi` groups directly (ADR 0039); the MCP endpoint is currently a discovery skeleton and will reuse the same mapping as it grows past discovery.
+Domain errors are `Schema.TaggedErrorClass` types. Each carries an `httpApiStatus` annotation so the mapping is mechanical: `Unauthorized` → 401, `WorkspaceNotFound` → 404, `RateLimited` → 429, `InternalError` → 500, `AuthorizationDenied` → 403. The API Worker serves the `HttpApi` groups directly, so status codes derive from the contract rather than hand-written mapping (ADR 0039); the MCP endpoint is currently a discovery skeleton and reuses the same contract as it grows past discovery.
 
 ## Why one place per concern
 

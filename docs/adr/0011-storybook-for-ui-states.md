@@ -1,3 +1,3 @@
 # Storybook for UI states
 
-The starter includes Storybook for reusable UI components and representative reference app states. Stories should cover landing sections, auth forms, settings panels, starter module and readiness cards, command palette/search, and other reusable surfaces, without requiring every route to have a story before the initial scaffold is useful.
+The starter includes Storybook for reusable UI components and representative reference app states. Stories cover the sign-in card, settings panel, starter module and readiness cards, command palette, API token form, and notification card, without requiring every route or surface to have a story before the scaffold is useful.

@@ -14,7 +14,7 @@ A workspace admin creates a token from the workspace settings UI, which calls `P
 
 ## Scopes
 
-Scopes are coarse on purpose: `read`, `write`, and `admin`. The API Worker's `enforceScope(request, scope)` guard (`apps/api/src/handlers.ts`) parses the `Authorization: Bearer …` header, calls `ApiTokenRegistry.verifyBearerToken(token, requiredScope)`, and rejects the request — HTTP 401 when the header is missing, HTTP 403 when the token is invalid or under-scoped. Each handler applies the guard with the route's required scope. The MCP endpoint at `/mcp` is unauthenticated discovery today; per-tool scope enforcement will follow once tool dispatch is wired.
+Scopes are coarse on purpose: `read`, `write`, and `admin`. The API Worker's `enforceScope(request, scope)` guard (`apps/api/src/handlers.ts`) parses the `Authorization: Bearer …` header, calls `ApiTokenRegistry.verifyBearerToken(token, requiredScope)`, and rejects the request — HTTP 401 when the header is missing, HTTP 403 when the token is invalid or under-scoped. Each handler applies the guard with the route's required scope. The MCP discovery endpoint at `/mcp` requires a `read`-scoped token like the REST reads; per-tool scope enforcement will follow once tool dispatch is wired.
 
 ## Revocation
 

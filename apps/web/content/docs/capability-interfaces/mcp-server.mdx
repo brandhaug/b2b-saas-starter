@@ -10,7 +10,7 @@ The MCP server is the second Capability Interface. It is intended to expose the 
 
 ## Today's surface
 
-The API Worker exposes `GET /mcp`, which returns a static discovery document with one resource, `workspace://starter-lab/overview` (see `mcpDiscoverResponse` in `apps/api/src/index.ts`). Tool dispatch is intentionally not advertised until execution handlers are wired through the capability layer.
+The API Worker exposes `GET /mcp`, which returns a static discovery document with one resource, `workspace://starter-lab/overview` (see the `mcp` group in `apps/api/src/handlers.ts`). Tool dispatch is intentionally not advertised until execution handlers are wired through the capability layer.
 
 ## Planned tools and resources
 
@@ -18,7 +18,7 @@ Tool handlers will wrap the same Effect services that REST routes wrap — `Star
 
 ## Authentication
 
-The `/mcp` route accepts the same workspace-scoped API Tokens as REST: `Authorization: Bearer …` with the `read` scope, parsed and verified by `authorize()` in `apps/api/src/index.ts`. Per-tool scope checks will reuse the same `ApiTokenScope` values once tool dispatch lands. There is no separate MCP credential surface.
+The `/mcp` route accepts the same workspace-scoped API Tokens as REST: `Authorization: Bearer …` with the `read` scope, parsed and verified by `enforceScope()` in `apps/api/src/handlers.ts`. Per-tool scope checks will reuse the same `ApiTokenScope` values once tool dispatch lands. There is no separate MCP credential surface.
 
 ## Why one set of capabilities
 
