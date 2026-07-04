@@ -1,14 +1,14 @@
 import { notFound, redirect } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
+import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import type { Session } from '@b2b-saas-starter/auth'
 import { createServerContext } from '../server-context'
 
-const readSession = (): Promise<Session | null> => {
+const readSession = createServerOnlyFn((): Promise<Session | null> => {
   const request = getRequest()
   const auth = createServerContext().auth()
   return auth.api.getSession({ headers: request.headers })
-}
+})
 
 const getSessionServerFn = createServerFn({ method: 'GET' }).handler(readSession)
 
