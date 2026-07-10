@@ -32,18 +32,10 @@ export const makeSchedulingRequestHandler = (dependencies: {
         const rules = yield* Effect.forEach(snapshot.providers, (provider) =>
           scheduling.listProviderRules(provider.id)
         )
-        const firstBookable = snapshot.services.find(
-          (service) =>
-            service.status === 'active' && service.eligibleProviderIds.length > 0
-        )
-        const availability = firstBookable
-          ? yield* scheduling.availability({
-              providerId: firstBookable.eligibleProviderIds[0]!,
-              serviceId: firstBookable.id,
-              from: dependencies.now(),
-              days: 14
-            })
-          : null
+        const availability = yield* scheduling.previewAvailability({
+          from: dependencies.now(),
+          days: 14
+        })
         return {
           snapshot,
           merchant,

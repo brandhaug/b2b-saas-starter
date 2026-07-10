@@ -122,6 +122,14 @@ type SchedulingShape = {
     SchedulingValidationError | CapabilityUnavailable,
     MerchantContext
   >
+  readonly previewAvailability: (input: {
+    readonly from: string
+    readonly days?: number
+  }) => Effect.Effect<
+    Availability | null,
+    SchedulingValidationError | CapabilityUnavailable,
+    MerchantContext
+  >
 }
 
 export class Scheduling extends Context.Service<Scheduling, SchedulingShape>()(
@@ -192,20 +200,22 @@ const validRules = (rules: readonly ScheduleRuleInput[]) =>
       rule.weekday <= 6
   )
 
-const localParts = (instant: Date, timezone: string) => {
+const localDate = (instant: Date, timezone: string): string => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
     month: '2-digit',
-    day: '2-digit',
-    weekday: 'short'
+    day: '2-digit'
   }).formatToParts(instant)
   const read = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)!.value
-  return {
-    date: `${read('year')}-${read('month')}-${read('day')}`,
-    weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(read('weekday'))
-  }
+  return `${read('year')}-${read('month')}-${read('day')}`
+}
+
+const addCalendarDays = (date: string, days: number): string => {
+  const value = new Date(`${date}T12:00:00.000Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
 }
 
 const zonedInstant = (date: string, time: string, timezone: string): Date => {
@@ -239,13 +249,14 @@ const deriveSlots = (
   days: number
 ): Availability => {
   const start = new Date(from)
+  const startDate = localDate(start, timezone)
   const slots: Array<{ startsAt: string; endsAt: string }> = []
   for (let offset = 0; offset < days; offset++) {
-    const probe = new Date(start.getTime() + offset * 86_400_000)
-    const local = localParts(probe, timezone)
-    for (const rule of rules.filter((item) => item.weekday === local.weekday)) {
-      let cursor = zonedInstant(local.date, rule.startTime, timezone)
-      const end = zonedInstant(local.date, rule.endTime, timezone)
+    const date = addCalendarDays(startDate, offset)
+    const weekday = new Date(`${date}T12:00:00.000Z`).getUTCDay()
+    for (const rule of rules.filter((item) => item.weekday === weekday)) {
+      let cursor = zonedInstant(date, rule.startTime, timezone)
+      const end = zonedInstant(date, rule.endTime, timezone)
       while (cursor.getTime() + durationMinutes * 60_000 <= end.getTime()) {
         const endsAt = new Date(cursor.getTime() + durationMinutes * 60_000)
         if (cursor.getTime() >= start.getTime()) {
@@ -325,7 +336,13 @@ export const SeedScheduling = (store: SeedSchedulingStore): Layer.Layer<Scheduli
           (pair) =>
             pair.providerId === input.providerId && pair.serviceId === input.serviceId
         )
-        if (!service || !eligible)
+        const provider = store.scenario.providers.find(
+          (item) =>
+            item.id === input.providerId &&
+            item.merchantId === merchant.id &&
+            item.status === 'active'
+        )
+        if (!service || !eligible || !provider)
           return yield* Effect.fail(
             new SchedulingValidationError({ reason: 'service_not_found' })
           )
@@ -336,6 +353,37 @@ export const SeedScheduling = (store: SeedSchedulingStore): Layer.Layer<Scheduli
           )
         return deriveSlots(
           seedRulesFor(store, merchant.id, input.providerId),
+          merchant.timezone,
+          service.durationMinutes,
+          input.from,
+          days
+        )
+      }),
+    previewAvailability: (input) =>
+      Effect.gen(function* () {
+        const merchant = yield* MerchantContext
+        const service = store.scenario.services.find(
+          (item) => item.merchantId === merchant.id && item.status === 'active'
+        )
+        const pair = service
+          ? store.scenario.eligibility.find((item) => item.serviceId === service.id)
+          : undefined
+        const provider = pair
+          ? store.scenario.providers.find(
+              (item) =>
+                item.id === pair.providerId &&
+                item.merchantId === merchant.id &&
+                item.status === 'active'
+            )
+          : undefined
+        if (!service || !provider) return null
+        const days = input.days ?? 14
+        if (!Number.isFinite(Date.parse(input.from)) || days < 1 || days > 31)
+          return yield* Effect.fail(
+            new SchedulingValidationError({ reason: 'invalid_range' })
+          )
+        return deriveSlots(
+          seedRulesFor(store, merchant.id, provider.id),
           merchant.timezone,
           service.durationMinutes,
           input.from,
@@ -410,7 +458,8 @@ export const SeedBookingPublication = (
         return { status: 'published' as const }
       }),
     unpublish: () =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
+        yield* MerchantContext
         store.pageStatus = 'unpublished'
         return { status: 'unpublished' as const }
       }),
@@ -442,6 +491,25 @@ const toRule = (row: typeof scheduleRules.$inferSelect): ScheduleRule => ({
   endTime: row.endTime
 })
 
+const requireLiveProvider = (
+  db: EffectDatabase,
+  merchantId: string,
+  providerId: string
+) =>
+  orUnavailable('scheduling')(
+    db
+      .select({ id: providers.id })
+      .from(providers)
+      .where(and(eq(providers.id, providerId), eq(providers.merchantId, merchantId)))
+      .limit(1)
+  ).pipe(
+    Effect.flatMap((rows) =>
+      rows[0]
+        ? Effect.succeed(rows[0])
+        : Effect.fail(new SchedulingValidationError({ reason: 'provider_not_found' }))
+    )
+  )
+
 export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.effect(
   Scheduling,
   Effect.gen(function* () {
@@ -450,19 +518,7 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
       listProviderRules: (providerId) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
-          const provider = yield* orUnavailable('scheduling')(
-            db
-              .select({ id: providers.id })
-              .from(providers)
-              .where(
-                and(eq(providers.id, providerId), eq(providers.merchantId, merchant.id))
-              )
-              .limit(1)
-          )
-          if (!provider[0])
-            return yield* Effect.fail(
-              new SchedulingValidationError({ reason: 'provider_not_found' })
-            )
+          yield* requireLiveProvider(db, merchant.id, providerId)
           return (yield* liveRules(db, merchant.id, providerId)).map(toRule)
         }),
       saveProviderRules: (providerId, rules) =>
@@ -472,19 +528,7 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
             return yield* Effect.fail(
               new SchedulingValidationError({ reason: 'invalid_rule' })
             )
-          const provider = yield* orUnavailable('scheduling')(
-            db
-              .select({ id: providers.id })
-              .from(providers)
-              .where(
-                and(eq(providers.id, providerId), eq(providers.merchantId, merchant.id))
-              )
-              .limit(1)
-          )
-          if (!provider[0])
-            return yield* Effect.fail(
-              new SchedulingValidationError({ reason: 'provider_not_found' })
-            )
+          yield* requireLiveProvider(db, merchant.id, providerId)
           const now = new Date().toISOString()
           yield* batch(db, [
             db
@@ -530,6 +574,14 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
                   eq(providerServiceEligibility.providerId, input.providerId)
                 )
               )
+              .innerJoin(
+                providers,
+                and(
+                  eq(providers.id, input.providerId),
+                  eq(providers.merchantId, merchant.id),
+                  eq(providers.status, 'active')
+                )
+              )
               .where(
                 and(
                   eq(services.id, input.serviceId),
@@ -552,6 +604,48 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
             (yield* liveRules(db, merchant.id, input.providerId)).map(toRule),
             merchant.timezone,
             rows[0].service.durationMinutes,
+            input.from,
+            days
+          )
+        }),
+      previewAvailability: (input) =>
+        Effect.gen(function* () {
+          const merchant = yield* MerchantContext
+          const rows = yield* orUnavailable('scheduling')(
+            db
+              .select({
+                serviceId: services.id,
+                durationMinutes: services.durationMinutes,
+                providerId: providers.id
+              })
+              .from(services)
+              .innerJoin(
+                providerServiceEligibility,
+                eq(providerServiceEligibility.serviceId, services.id)
+              )
+              .innerJoin(
+                providers,
+                and(
+                  eq(providers.id, providerServiceEligibility.providerId),
+                  eq(providers.status, 'active')
+                )
+              )
+              .where(
+                and(eq(services.merchantId, merchant.id), eq(services.status, 'active'))
+              )
+              .limit(1)
+          )
+          const row = rows[0]
+          if (!row) return null
+          const days = input.days ?? 14
+          if (!Number.isFinite(Date.parse(input.from)) || days < 1 || days > 31)
+            return yield* Effect.fail(
+              new SchedulingValidationError({ reason: 'invalid_range' })
+            )
+          return deriveSlots(
+            (yield* liveRules(db, merchant.id, row.providerId)).map(toRule),
+            merchant.timezone,
+            row.durationMinutes,
             input.from,
             days
           )

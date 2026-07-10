@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { CatalogShell } from '@/components/catalog-shell.tsx'
-import { formValue } from '@/lib/form-value.ts'
+import type { ScheduleRule } from '@b2b-saas-starter/capabilities'
 import {
   getSchedulingConfiguration,
   saveScheduleRules,
@@ -55,75 +55,15 @@ function AvailabilityPage() {
               ))}
             </select>
           </label>
-          <form
-            className="mt-5 grid gap-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              const form = new FormData(event.currentTarget)
-              const nextRules = weekdays.flatMap((_, weekday) =>
-                form.get(`enabled-${weekday}`) === 'on'
-                  ? [
-                      {
-                        weekday,
-                        startTime: formValue(form, `start-${weekday}`),
-                        endTime: formValue(form, `end-${weekday}`)
-                      }
-                    ]
-                  : []
-              )
-              setPending(true)
-              void saveScheduleRules({ data: { providerId, rules: nextRules } })
-                .then(() => {
-                  setMessage('Recurring hours saved.')
-                  return router.invalidate()
-                })
-                .catch(() =>
-                  setMessage(
-                    'Use a valid weekly interval with the end after the start.'
-                  )
-                )
-                .finally(() => setPending(false))
-            }}
-          >
-            {weekdays.map((day, weekday) => {
-              const rule = rules.find((item) => item.weekday === weekday)
-              return (
-                <div
-                  key={`${providerId}-${day}`}
-                  className="grid grid-cols-[7rem_1fr_1fr] items-center gap-2"
-                >
-                  <label className="flex items-center gap-2 text-xs">
-                    <input
-                      name={`enabled-${weekday}`}
-                      type="checkbox"
-                      defaultChecked={Boolean(rule)}
-                    />
-                    {day.slice(0, 3)}
-                  </label>
-                  <input
-                    aria-label={`${day} start time`}
-                    name={`start-${weekday}`}
-                    type="time"
-                    defaultValue={rule?.startTime ?? '09:00'}
-                    className="h-9 rounded-md border bg-card px-2 text-xs"
-                  />
-                  <input
-                    aria-label={`${day} end time`}
-                    name={`end-${weekday}`}
-                    type="time"
-                    defaultValue={rule?.endTime ?? '17:00'}
-                    className="h-9 rounded-md border bg-card px-2 text-xs"
-                  />
-                </div>
-              )
-            })}
-            <button
-              disabled={pending || !providerId}
-              className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
-            >
-              Save weekly hours
-            </button>
-          </form>
+          <ProviderRulesForm
+            key={providerId}
+            providerId={providerId}
+            rules={rules}
+            pending={pending}
+            onPending={setPending}
+            onMessage={setMessage}
+            onSaved={() => router.invalidate()}
+          />
           <ul className="mt-5 space-y-2 text-sm text-muted-foreground">
             {rules.map((rule) => (
               <li key={rule.id}>
@@ -143,6 +83,7 @@ function AvailabilityPage() {
             Public Page: <span className="capitalize">{data.publication.status}</span>
           </p>
           <button
+            type="button"
             disabled={
               pending ||
               (!data.publication.readiness.ready &&
@@ -177,5 +118,128 @@ function AvailabilityPage() {
       </div>
       {message ? <p className="mt-4 text-sm text-muted-foreground">{message}</p> : null}
     </CatalogShell>
+  )
+}
+
+type DraftRule = {
+  readonly key: string
+  readonly weekday: number
+  readonly startTime: string
+  readonly endTime: string
+}
+
+function ProviderRulesForm({
+  providerId,
+  rules,
+  pending,
+  onPending,
+  onMessage,
+  onSaved
+}: {
+  readonly providerId: string
+  readonly rules: readonly ScheduleRule[]
+  readonly pending: boolean
+  readonly onPending: (pending: boolean) => void
+  readonly onMessage: (message: string) => void
+  readonly onSaved: () => Promise<unknown>
+}) {
+  const [drafts, setDrafts] = useState<readonly DraftRule[]>(() =>
+    rules.map((rule) => ({ ...rule, key: rule.id }))
+  )
+  const update = (key: string, values: Partial<Omit<DraftRule, 'key'>>) =>
+    setDrafts((current) =>
+      current.map((rule) => (rule.key === key ? { ...rule, ...values } : rule))
+    )
+
+  return (
+    <div className="mt-5 grid gap-3">
+      {drafts.map((rule) => (
+        <div
+          key={rule.key}
+          className="grid grid-cols-[6rem_1fr_1fr_auto] items-center gap-2"
+        >
+          <select
+            aria-label="Weekday"
+            value={rule.weekday}
+            onChange={(event) =>
+              update(rule.key, { weekday: Number(event.target.value) })
+            }
+            className="h-9 rounded-md border bg-card px-2 text-xs"
+          >
+            {weekdays.map((day, weekday) => (
+              <option key={day} value={weekday}>
+                {day.slice(0, 3)}
+              </option>
+            ))}
+          </select>
+          <input
+            aria-label="Start time"
+            type="time"
+            required
+            value={rule.startTime}
+            onChange={(event) => update(rule.key, { startTime: event.target.value })}
+            className="h-9 rounded-md border bg-card px-2 text-xs"
+          />
+          <input
+            aria-label="End time"
+            type="time"
+            required
+            value={rule.endTime}
+            onChange={(event) => update(rule.key, { endTime: event.target.value })}
+            className="h-9 rounded-md border bg-card px-2 text-xs"
+          />
+          <button
+            type="button"
+            onClick={() =>
+              setDrafts((current) => current.filter((item) => item.key !== rule.key))
+            }
+            className="h-9 px-2 text-xs text-muted-foreground"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() =>
+          setDrafts((current) => [
+            ...current,
+            {
+              key: `new-${Date.now()}`,
+              weekday: 1,
+              startTime: '09:00',
+              endTime: '17:00'
+            }
+          ])
+        }
+        className="h-9 rounded-md border px-3 text-sm"
+      >
+        Add interval
+      </button>
+      <button
+        type="button"
+        disabled={pending || !providerId}
+        onClick={() => {
+          onPending(true)
+          void saveScheduleRules({
+            data: {
+              providerId,
+              rules: drafts.map(({ key: _, ...rule }) => rule)
+            }
+          })
+            .then(() => {
+              onMessage('Recurring hours saved.')
+              return onSaved()
+            })
+            .catch(() =>
+              onMessage('Use valid weekly intervals with each end after its start.')
+            )
+            .finally(() => onPending(false))
+        }}
+        className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+      >
+        Save weekly hours
+      </button>
+    </div>
   )
 }

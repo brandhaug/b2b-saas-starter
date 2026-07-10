@@ -3,6 +3,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { Effect, Layer, Schema } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
+  CapabilityUnavailable,
   liveMerchantContext,
   ScheduleRuleInput,
   selectCapabilitiesLayer
@@ -20,7 +21,11 @@ const SaveRules = Schema.Struct({
 const SetPublished = Schema.Struct({ published: Schema.Boolean })
 
 const run: SchedulingRunner = async (userId, effect) => {
-  if (!env.DB) throw new Error('Scheduling requires the Merchant App D1 binding.')
+  if (!env.DB)
+    throw new CapabilityUnavailable({
+      capability: 'scheduling',
+      reason: 'Merchant App D1 binding is unavailable.'
+    })
   const context = liveMerchantContext(userId).pipe(Layer.provide(layerFromD1(env.DB)))
   return Effect.runPromise(
     Effect.provide(
