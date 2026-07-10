@@ -6,6 +6,8 @@
  * 3073 usable at the canonical `/:merchantSlug/booking` URL by adding that
  * base only on its private hop to Vite (which runs on 3074).
  */
+import { bookingVitePath } from './lib/dev-ingress.ts'
+
 const vite = Bun.spawn(
   ['/bin/zsh', '-lc', 'BOOKING_VITE_DEV=1 bunx --bun vite dev --port 3074'],
   {
@@ -31,9 +33,7 @@ const server = Bun.serve({
   async fetch(request) {
     const target = new URL(request.url)
     target.port = '3074'
-    if (!target.pathname.startsWith('/_booking/')) {
-      target.pathname = `/_booking${target.pathname}`
-    }
+    target.pathname = bookingVitePath(target.pathname)
 
     try {
       const upstream = await fetch(proxyRequest(request, target))
