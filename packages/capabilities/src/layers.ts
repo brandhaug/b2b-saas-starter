@@ -62,6 +62,12 @@ import {
   MerchantOnboarding,
   SeedMerchantCatalog
 } from './merchant-catalog/merchant-onboarding.ts'
+import {
+  LiveMerchantCatalogConfiguration,
+  MerchantCatalog,
+  SeedMerchantCatalogConfiguration,
+  type SeedMerchantCatalogConfigurationStore
+} from './merchant-catalog/merchant-catalog.ts'
 
 // notifications
 import {
@@ -97,6 +103,7 @@ export type CapabilityServices =
   | ImplementationReports
   | IntegrationSurfaces
   | MerchantMembership
+  | MerchantCatalog
   | MerchantOnboarding
   | NotificationFeed
   | StarterModuleCatalog
@@ -120,6 +127,19 @@ seedMerchantCatalog.merchants.set(seedBookingScenario.merchant.slug, {
     status: seedBookingScenario.publicBookingPage.status
   }
 })
+const seedMerchantCatalogConfiguration: SeedMerchantCatalogConfigurationStore = {
+  services: new Map(
+    seedBookingScenario.services.map((service) => [service.id, service])
+  ),
+  providers: new Map(
+    seedBookingScenario.providers.map((provider) => [provider.id, provider])
+  ),
+  eligibility: new Set(
+    seedBookingScenario.eligibility.map(
+      (pair) => `${pair.merchantId}\0${pair.providerId}\0${pair.serviceId}`
+    )
+  )
+}
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedAdoptionReadiness(seedReadinessTrend),
@@ -129,6 +149,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedImplementationReports(seedImplementationReports),
   SeedIntegrationSurfaces(seedIntegrationSurfaces),
   SeedMerchantCatalog(seedMerchantCatalog),
+  SeedMerchantCatalogConfiguration(seedMerchantCatalogConfiguration),
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -151,6 +172,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveImplementationReports,
     LiveIntegrationSurfaces,
     LiveMerchantCatalog,
+    LiveMerchantCatalogConfiguration,
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),

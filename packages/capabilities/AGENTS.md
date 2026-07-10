@@ -56,6 +56,7 @@ Each capability gets a leaf intent node alongside its source file. Read it befor
 | notifications      | [`integration-surfaces`](src/notifications/integration-surfaces.AGENTS.md)  | `integrationConnections`, `workspaces`                                           | read-only                                                       |
 | notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                                                    | read-only                                                       |
 | merchant-catalog   | [`merchant-onboarding`](src/merchant-catalog/merchant-onboarding.AGENTS.md) | `user`, `merchants`, `merchant_memberships`, `providers`, `public_booking_pages` | onboarding + authorization resolution                           |
+| merchant-catalog   | [`merchant-catalog`](src/merchant-catalog/merchant-catalog.AGENTS.md)       | `merchants`, `providers`, `services`, `provider_service_eligibility`             | catalog lifecycle + explicit eligibility                        |
 
 Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect), and `AuthorizationDenied` (403 — raised by `verifyBearerToken`). Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
 

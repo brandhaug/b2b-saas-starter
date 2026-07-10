@@ -34,7 +34,9 @@ export const providerKinds = [
   'cloudflare-email'
 ] as const
 export const merchantMemberRoles = ['owner'] as const
+export const merchantPlans = ['solo', 'team'] as const
 export const providerStatuses = ['active', 'inactive'] as const
+export const serviceStatuses = ['active', 'inactive'] as const
 export const publicPageStatuses = ['published', 'unpublished'] as const
 
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
@@ -143,6 +145,7 @@ export const merchants = sqliteTable('merchants', {
   slug: text('slug').unique().notNull(),
   timezone: text('timezone').notNull(),
   currency: text('currency').notNull(),
+  plan: text('plan', { enum: merchantPlans }).default('solo').notNull(),
   createdAt: isoCreatedAt(),
   updatedAt: isoUpdatedAt()
 })
@@ -193,6 +196,56 @@ export const providers = sqliteTable(
     uniqueIndex('providers_one_default_per_merchant_idx')
       .on(table.merchantId)
       .where(sql`${table.isDefault} = 1`)
+  ]
+)
+
+export const services = sqliteTable(
+  'services',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    category: text('category'),
+    priceMinor: integer('price_minor').notNull(),
+    currency: text('currency').notNull(),
+    durationMinutes: integer('duration_minutes').notNull(),
+    status: text('status', { enum: serviceStatuses }).default('active').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('services_merchant_id_idx').on(table.merchantId),
+    check('services_name_not_blank', sql`length(trim(${table.name})) > 0`),
+    check('services_positive_price', sql`${table.priceMinor} > 0`),
+    check('services_positive_duration', sql`${table.durationMinutes} > 0`),
+    check(
+      'services_currency_format',
+      sql`length(${table.currency}) = 3 AND ${table.currency} = upper(${table.currency})`
+    )
+  ]
+)
+
+export const providerServiceEligibility = sqliteTable(
+  'provider_service_eligibility',
+  {
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => providers.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    primaryKey({ columns: [table.providerId, table.serviceId] }),
+    index('provider_service_eligibility_merchant_id_idx').on(table.merchantId),
+    index('provider_service_eligibility_service_id_idx').on(table.serviceId)
   ]
 )
 

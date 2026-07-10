@@ -46,11 +46,12 @@ export const MerchantRecord = Schema.Struct({
   slug: Schema.String,
   timezone: Schema.String,
   currency: Schema.String,
+  plan: Schema.Literals(['solo', 'team']),
   ownerUserId: Schema.String,
   defaultProvider: Schema.Struct({
     id: Schema.String,
     displayName: Schema.String,
-    status: Schema.Literal('active')
+    status: Schema.Literals(['active', 'inactive'])
   }),
   publicBookingPage: Schema.Struct({
     id: Schema.String,
@@ -197,6 +198,7 @@ const seedCreateRecord = (
   slug: input.slug,
   timezone: input.timezone,
   currency: input.currency,
+  plan: 'solo',
   ownerUserId: person.id,
   defaultProvider: {
     id: `prv_${person.id}`,
@@ -294,11 +296,12 @@ const toMerchantRecord = (row: MerchantGraphRow): MerchantRecord => ({
   slug: row.merchant.slug,
   timezone: row.merchant.timezone,
   currency: row.merchant.currency,
+  plan: row.merchant.plan,
   ownerUserId: row.membership.userId,
   defaultProvider: {
     id: row.provider.id,
     displayName: row.provider.displayName,
-    status: 'active'
+    status: row.provider.status
   },
   publicBookingPage: {
     id: row.page.id,
@@ -437,6 +440,7 @@ const LiveMerchantOnboarding: Layer.Layer<MerchantOnboarding, never, Database> =
                 slug: input.slug,
                 timezone: input.timezone,
                 currency: input.currency,
+                plan: 'solo',
                 createdAt: now,
                 updatedAt: now
               }),
@@ -470,6 +474,7 @@ const LiveMerchantOnboarding: Layer.Layer<MerchantOnboarding, never, Database> =
               slug: input.slug,
               timezone: input.timezone,
               currency: input.currency,
+              plan: 'solo',
               ownerUserId: userId,
               defaultProvider: {
                 id: providerId,
@@ -503,6 +508,30 @@ export type SeedBookingScenario = {
     readonly linkedUserId: string
     readonly isDefault: true
   }
+  readonly providers: ReadonlyArray<{
+    readonly id: string
+    readonly merchantId: string
+    readonly linkedUserId: string | null
+    readonly displayName: string
+    readonly status: 'active' | 'inactive'
+    readonly isDefault: boolean
+  }>
+  readonly services: ReadonlyArray<{
+    readonly id: string
+    readonly merchantId: string
+    readonly name: string
+    readonly description: string | null
+    readonly category: string | null
+    readonly priceMinor: number
+    readonly currency: string
+    readonly durationMinutes: number
+    readonly status: 'active' | 'inactive'
+  }>
+  readonly eligibility: ReadonlyArray<{
+    readonly merchantId: string
+    readonly providerId: string
+    readonly serviceId: string
+  }>
   readonly publicBookingPage: MerchantRecord['publicBookingPage'] & {
     readonly merchantId: string
   }
@@ -527,21 +556,82 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     slug: 'mara-booking-studio',
     timezone: 'Europe/Bucharest',
     currency: 'RON',
+    plan: 'team',
     ownerUserId: owner.id
   } as const
+  const provider = {
+    id: 'prv_seed_default',
+    merchantId: merchant.id,
+    linkedUserId: owner.id,
+    displayName: owner.name,
+    status: 'active',
+    isDefault: true
+  } as const
+  const teamProvider = {
+    id: 'prv_seed_elena',
+    merchantId: merchant.id,
+    linkedUserId: null,
+    displayName: 'Elena Pop',
+    status: 'active',
+    isDefault: false
+  } as const
+  const services = [
+    {
+      id: 'svc_seed_signature_cut',
+      merchantId: merchant.id,
+      name: 'Signature Cut',
+      description: 'Consultation, wash, and precision cut.',
+      category: 'Hair',
+      priceMinor: 9000,
+      currency: merchant.currency,
+      durationMinutes: 60,
+      status: 'active'
+    },
+    {
+      id: 'svc_seed_beard_detail',
+      merchantId: merchant.id,
+      name: 'Beard Detail',
+      description: null,
+      category: 'Grooming',
+      priceMinor: 4500,
+      currency: merchant.currency,
+      durationMinutes: 30,
+      status: 'active'
+    },
+    {
+      id: 'svc_seed_style_consultation',
+      merchantId: merchant.id,
+      name: 'Style Consultation',
+      description: 'A focused plan for a future appointment.',
+      category: null,
+      priceMinor: 2500,
+      currency: merchant.currency,
+      durationMinutes: 20,
+      status: 'inactive'
+    }
+  ] as const
   return {
     anchorTime,
     owner,
     merchant,
     membership: { merchantId: merchant.id, userId: owner.id, role: 'owner' },
-    provider: {
-      id: 'prv_seed_default',
-      merchantId: merchant.id,
-      linkedUserId: owner.id,
-      displayName: owner.name,
-      status: 'active',
-      isDefault: true
-    },
+    provider,
+    providers: [provider, teamProvider],
+    services,
+    eligibility: [
+      { merchantId: merchant.id, providerId: provider.id, serviceId: services[0].id },
+      {
+        merchantId: merchant.id,
+        providerId: teamProvider.id,
+        serviceId: services[0].id
+      },
+      { merchantId: merchant.id, providerId: provider.id, serviceId: services[1].id },
+      {
+        merchantId: merchant.id,
+        providerId: teamProvider.id,
+        serviceId: services[2].id
+      }
+    ],
     publicBookingPage: {
       id: 'pg_seed_booking_studio',
       merchantId: merchant.id,
@@ -549,3 +639,22 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     }
   }
 }
+
+/** Derived test presentations preserve the canonical fixture as the only authored graph. */
+export const deriveSoloSeedBookingScenario = (
+  scenario: SeedBookingScenario
+): SeedBookingScenario => {
+  const defaultProvider = scenario.providers.find((provider) => provider.isDefault)!
+  return {
+    ...scenario,
+    merchant: { ...scenario.merchant, plan: 'solo' },
+    providers: [defaultProvider],
+    eligibility: scenario.eligibility.filter(
+      (pair) => pair.providerId === defaultProvider.id
+    )
+  }
+}
+
+export const deriveIncompleteSeedBookingScenario = (
+  scenario: SeedBookingScenario
+): SeedBookingScenario => ({ ...scenario, services: [], eligibility: [] })

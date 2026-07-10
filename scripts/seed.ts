@@ -25,9 +25,11 @@ import {
   merchantMemberships,
   merchants,
   notifications,
+  providerServiceEligibility,
   providers,
   publicBookingPages,
   starterModules,
+  services,
   user,
   webhookEndpoints,
   workspaceMembers,
@@ -332,6 +334,7 @@ const bookingScenarioRows = (): readonly string[] => [
     slug: bookingScenario.merchant.slug,
     timezone: bookingScenario.merchant.timezone,
     currency: bookingScenario.merchant.currency,
+    plan: bookingScenario.merchant.plan,
     createdAt: bookingScenario.anchorTime,
     updatedAt: bookingScenario.anchorTime
   }),
@@ -341,16 +344,31 @@ const bookingScenarioRows = (): readonly string[] => [
     role: bookingScenario.membership.role,
     createdAt: bookingScenario.anchorTime
   }),
-  insert(providers, {
-    id: bookingScenario.provider.id,
-    merchantId: bookingScenario.provider.merchantId,
-    linkedUserId: bookingScenario.provider.linkedUserId,
-    displayName: bookingScenario.provider.displayName,
-    status: bookingScenario.provider.status,
-    isDefault: bookingScenario.provider.isDefault,
-    createdAt: bookingScenario.anchorTime,
-    updatedAt: bookingScenario.anchorTime
-  }),
+  ...bookingScenario.providers.map((provider) =>
+    insert(providers, {
+      id: provider.id,
+      merchantId: provider.merchantId,
+      linkedUserId: provider.linkedUserId,
+      displayName: provider.displayName,
+      status: provider.status,
+      isDefault: provider.isDefault,
+      createdAt: bookingScenario.anchorTime,
+      updatedAt: bookingScenario.anchorTime
+    })
+  ),
+  ...bookingScenario.services.map((service) =>
+    insert(services, {
+      ...service,
+      createdAt: bookingScenario.anchorTime,
+      updatedAt: bookingScenario.anchorTime
+    })
+  ),
+  ...bookingScenario.eligibility.map((pair) =>
+    insert(providerServiceEligibility, {
+      ...pair,
+      createdAt: bookingScenario.anchorTime
+    })
+  ),
   insert(publicBookingPages, {
     id: bookingScenario.publicBookingPage.id,
     merchantId: bookingScenario.publicBookingPage.merchantId,

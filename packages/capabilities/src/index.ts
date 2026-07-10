@@ -4,6 +4,8 @@ export * from './workspace-projections.ts'
 
 // merchant-catalog
 export * from './merchant-catalog/merchant-onboarding.ts'
+export * from './merchant-catalog/merchant-context.ts'
+export * from './merchant-catalog/merchant-catalog.ts'
 
 // catalog
 export * from './catalog/adoption-readiness.ts'

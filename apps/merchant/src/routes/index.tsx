@@ -205,11 +205,10 @@ function MerchantHome({ merchant }: MerchantHomeProps) {
           />
         </dl>
         <Link
-          to="/prototype/minimum-merchant-surface"
-          search={{ variant: 'A', screen: 'launch' }}
+          to="/services"
           className="mt-6 inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
         >
-          Continue Merchant setup
+          Configure Services
         </Link>
         <button
           className="ml-4 mt-6 h-9 rounded-md px-3 text-sm text-primary underline underline-offset-4"

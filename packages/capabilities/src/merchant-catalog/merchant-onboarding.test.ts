@@ -5,6 +5,8 @@ import {
   MerchantOnboarding,
   SeedMerchantCatalog,
   buildSeedBookingScenario,
+  deriveIncompleteSeedBookingScenario,
+  deriveSoloSeedBookingScenario,
   emptySeedMerchantCatalog
 } from './merchant-onboarding.ts'
 
@@ -161,6 +163,14 @@ describe('Seed Booking Scenario builder', () => {
     expect(first.merchant.id).toBe('mer_seed_booking_studio')
     expect(first.membership.userId).not.toBe(first.provider.id)
     expect(first.publicBookingPage.status).toBe('unpublished')
+    expect(first.providers).toHaveLength(2)
+    expect(first.services).toHaveLength(3)
+    expect(new Set(first.eligibility.map((pair) => pair.providerId)).size).toBe(2)
+    expect(deriveSoloSeedBookingScenario(first)).toMatchObject({
+      merchant: { plan: 'solo' },
+      providers: [{ isDefault: true }]
+    })
+    expect(deriveIncompleteSeedBookingScenario(first).services).toEqual([])
     expect(() => buildSeedBookingScenario('not-a-time')).toThrow()
   })
 })
