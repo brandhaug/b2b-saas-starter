@@ -118,9 +118,26 @@ export class PlatformApiTokenRegistry extends Context.Service<
   PlatformApiTokenRegistryShape
 >()('@b2b-saas-starter/capabilities/PlatformApiTokenRegistry') {}
 
+export const SEED_PLATFORM_API_TOKEN = 'bpk_seed_platform_api_token'
+
 export const SeedPlatformApiTokenRegistry =
   (): Layer.Layer<PlatformApiTokenRegistry> => {
-    let tokens: Array<CreatedPlatformApiToken & { readonly merchantId: string }> = []
+    let tokens: Array<CreatedPlatformApiToken & { readonly merchantId: string }> = [
+      {
+        id: 'pat_seed_platform',
+        merchantId: 'mer_seed_booking_studio',
+        name: 'Seed integration',
+        prefix: 'bpk_seed_platform',
+        scopes: [...PLATFORM_API_TOKEN_SCOPES],
+        status: 'active',
+        lastUsedAt: null,
+        expiresAt: null,
+        revokedAt: null,
+        createdAt: '2026-07-10T09:30:00.000Z',
+        createdByUserId: null,
+        token: SEED_PLATFORM_API_TOKEN
+      }
+    ]
     const service: PlatformApiTokenRegistryShape = {
       bootstrap: (input) =>
         tokens.some((token) => token.merchantId === input.merchantId) ||

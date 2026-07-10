@@ -27,6 +27,7 @@ export * from './catalog/starter-module-catalog.ts'
 // developer-platform
 export * from './developer-platform/api-token-registry.ts'
 export * from './developer-platform/platform-api-token-registry.ts'
+export * from './developer-platform/platform-api-reads.ts'
 export * from './developer-platform/webhook-endpoints.ts'
 export * from './developer-platform/webhook-publisher.ts'
 export * from './developer-platform/webhook-url.ts'

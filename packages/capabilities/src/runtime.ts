@@ -23,6 +23,7 @@ type D1Binding = Parameters<typeof layerFromD1>[0]
 export type StarterEnv = {
   readonly DB?: D1Binding | undefined
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding | undefined
+  readonly PLATFORM_API_CURSOR_SECRET?: string | undefined
   /**
    * Env-derived module configuration, computed by the app from its real
    * worker env via `moduleConfigStatus(readServerEnv(env))` in
@@ -35,7 +36,10 @@ export type StarterEnv = {
 
 export const selectCapabilitiesLayer = (env: StarterEnv): CapabilitiesLayer => {
   const base = env.DB
-    ? makeLiveLayerFromD1(env.DB, { webhookQueue: env.WEBHOOK_QUEUE })
+    ? makeLiveLayerFromD1(env.DB, {
+        webhookQueue: env.WEBHOOK_QUEUE,
+        platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET
+      })
     : SeedLayer
   return withModuleEnvStatus(base, env.moduleConfig)
 }
@@ -50,7 +54,10 @@ export const selectWorkspaceLayer = (
 > => {
   const base = env.DB
     ? Layer.mergeAll(
-        makeLiveCapabilitiesLayer({ webhookQueue: env.WEBHOOK_QUEUE }),
+        makeLiveCapabilitiesLayer({
+          webhookQueue: env.WEBHOOK_QUEUE,
+          platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET
+        }),
         liveWorkspaceContext(slug, actor)
       ).pipe(Layer.provide(layerFromD1(env.DB)))
     : // Passing `seedMembers` makes the seed path enforce the same actor

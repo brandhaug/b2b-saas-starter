@@ -1,17 +1,17 @@
 # apps/api
 
-Cloudflare Worker for external interfaces. Dev server on `:8787`. **Serves the `StarterApi` HttpApi contract (`@b2b-saas-starter/api`) directly** via `HttpRouter.toWebHandler` — no Hono, and no hand-maintained route table. The web app does **not** consume this; this is the surface for external clients and MCP.
+Cloudflare Worker for the Booking Product Platform API. Dev server on `:8787`. It serves the Effect HTTP API contract (`@b2b-saas-starter/api`) directly via `HttpRouter.toWebHandler`; first-party apps do not consume this server-to-server surface.
 
 ## How it's wired
 
 - `src/index.ts` — thin `fetch` that delegates to a per-isolate web handler (`getWebHandler(env)`).
 - `src/env.ts` — Cloudflare bindings + env type, plus `starterEnv(env)` for module-aware capability config.
 - `src/http.ts` — assembles the app layer: `HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' })`, the Scalar UI (`/reference`), Workers-safe platform services, and request-scoped capabilities via `HttpRouter.provideRequest`.
-- `src/handlers.ts` — one `HttpApiBuilder.group(...)` per contract group: health, workspace, api-token-registry, webhook-endpoints, workspace-invitations, catalog, assistant, mcp.
+- `src/handlers.ts` — one `HttpApiBuilder.group(...)` per contract group: health, Merchant, Services, Providers, Appointments, and Platform API Tokens.
 
 ## Owned today
 
-- **REST** — workspace routes for overview, modules, members, notifications, api-tokens, webhooks, integrations, reports, audit-events, plus token create/revoke/delete, webhook create, invitations, catalog, assistant, and MCP discovery. Paths, params, payloads, success/error schemas, and status codes come from `packages/api`.
+- **REST** — merchant-scoped read-only Merchant, Service, Provider, and Appointment routes plus Platform API Token developer configuration. Generic Starter routes are not served.
 - **Per-request `WorkspaceContext`** — workspace handlers provide `selectWorkspaceLayer(starterEnv(env), slug)` inline; `WorkspaceNotFound` flows through as the contract's 404. Capability methods still never receive a slug parameter.
 - **OpenAPI + Scalar** — `/openapi.json` is emitted by `HttpApiBuilder` from the contract; `/reference` is served by `HttpApiScalar.layer`. No `openapi.ts`/`reference.ts` files.
 - **Bearer auth** — `enforceScope(request, scope, expectedWorkspaceSlug?)` in `handlers.ts` reads `Authorization: Bearer ...`, calls `ApiTokenRegistry.verifyBearerToken`, maps unknown tokens to `Unauthorized` (401), insufficient scope to `AuthorizationDenied` (403), and capability outages to `CapabilityUnavailable` (503). Workspace routes pass the URL slug so a workspace-A token cannot unlock workspace B.

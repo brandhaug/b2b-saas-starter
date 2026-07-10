@@ -441,7 +441,8 @@ export const appointments = sqliteTable(
     startsAt: text('starts_at').notNull(),
     endsAt: text('ends_at').notNull(),
     snapshot: text('snapshot', { mode: 'json' }).$type<StoredAppointmentSnapshot>(),
-    createdAt: isoCreatedAt()
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
   },
   (table) => [
     index('appointments_merchant_id_idx').on(table.merchantId),

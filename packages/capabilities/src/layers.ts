@@ -73,6 +73,11 @@ import {
   SeedPlatformApiTokenRegistry
 } from './developer-platform/platform-api-token-registry.ts'
 import {
+  LivePlatformApiReads,
+  PlatformApiReads,
+  SeedPlatformApiReads
+} from './developer-platform/platform-api-reads.ts'
+import {
   LiveWebhookEndpoints,
   SeedWebhookEndpoints,
   WebhookEndpoints
@@ -153,6 +158,7 @@ export type CapabilityServices =
   | AdoptionReadiness
   | ApiTokenRegistry
   | PlatformApiTokenRegistry
+  | PlatformApiReads
   | AuditEventLog
   | CatalogRefreshHistory
   | ImplementationReports
@@ -216,6 +222,81 @@ const seedOperationalAppointments = makeSeedOperationalAppointments({
   provider: seedBookingScenario.provider,
   service: seedBookingScenario.services[0]!
 })
+const seedPlatformTimestamp = '2026-07-10T09:30:00.000Z'
+const seedPlatformApiReads = new Map([
+  [
+    seedBookingScenario.merchant.id,
+    {
+      merchant: {
+        id: seedBookingScenario.merchant.id,
+        publicName: seedBookingScenario.merchant.publicName,
+        slug: seedBookingScenario.merchant.slug,
+        timeZone: seedBookingScenario.merchant.timezone,
+        currency: seedBookingScenario.merchant.currency,
+        publicPage: {
+          status: seedBookingScenario.publicBookingPage.status,
+          bookingUrl:
+            seedBookingScenario.publicBookingPage.status === 'published'
+              ? `/${seedBookingScenario.merchant.slug}/booking`
+              : null
+        },
+        createdAt: seedPlatformTimestamp,
+        updatedAt: seedPlatformTimestamp
+      },
+      services: seedBookingScenario.services.map((service) => ({
+        id: service.id,
+        name: service.name,
+        description: service.description,
+        category: service.category,
+        status: service.status,
+        durationMinutes: service.durationMinutes,
+        price: { amountMinor: service.priceMinor, currency: service.currency },
+        providerIds: seedBookingScenario.eligibility
+          .filter((pair) => pair.serviceId === service.id)
+          .map((pair) => pair.providerId)
+          .sort(),
+        createdAt: seedPlatformTimestamp,
+        updatedAt: seedPlatformTimestamp
+      })),
+      providers: seedBookingScenario.providers.map((provider) => ({
+        id: provider.id,
+        displayName: provider.displayName,
+        status: provider.status,
+        isDefault: provider.isDefault,
+        serviceIds: seedBookingScenario.eligibility
+          .filter((pair) => pair.providerId === provider.id)
+          .map((pair) => pair.serviceId)
+          .sort(),
+        createdAt: seedPlatformTimestamp,
+        updatedAt: seedPlatformTimestamp
+      })),
+      appointments: seedOperationalAppointments.map((appointment) => ({
+        id: appointment.id,
+        status: appointment.status,
+        startsAt: appointment.startsAt,
+        endsAt: appointment.endsAt,
+        timeZone: appointment.snapshot.merchantTimezone,
+        providerPreference: appointment.snapshot.providerPreference,
+        provider: appointment.snapshot.assignedProvider,
+        services: appointment.snapshot.services.map((service) => ({
+          id: service.id,
+          role: service.role,
+          name: service.name,
+          durationMinutes: service.durationMinutes,
+          price: { amountMinor: service.priceMinor, currency: service.currency }
+        })),
+        customer: appointment.snapshot.customerDetails,
+        checkoutPath: appointment.snapshot.checkoutPath,
+        total: {
+          amountMinor: appointment.snapshot.totalMinor,
+          currency: appointment.snapshot.currency
+        },
+        createdAt: appointment.createdAt,
+        updatedAt: appointment.createdAt
+      }))
+    }
+  ]
+])
 const seedScheduling = emptySeedSchedulingStore(seedBookingScenario)
 const seedMerchantCatalog = emptySeedMerchantCatalog([seedBookingScenario.owner])
 seedMerchantCatalog.merchants.set(seedBookingScenario.merchant.slug, {
@@ -246,6 +327,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedAdoptionReadiness(seedReadinessTrend),
   SeedApiTokenRegistry(seedApiTokens),
   SeedPlatformApiTokenRegistry(),
+  SeedPlatformApiReads(seedPlatformApiReads),
   SeedAuditEventLog(seedAuditEvents),
   SeedCatalogRefreshHistory(seedCatalogRefreshHistory),
   SeedImplementationReports(seedImplementationReports),
@@ -269,6 +351,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
+  readonly platformApiCursorSecret?: string | undefined
   readonly confirmationKeyring?:
     | Parameters<typeof LiveBookingConfirmation>[0]
     | undefined
@@ -281,6 +364,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveAdoptionReadiness,
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LivePlatformApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
+    LivePlatformApiReads(options.platformApiCursorSecret ?? ''),
     LiveAuditEventLog,
     LiveCatalogRefreshHistory,
     LiveImplementationReports,

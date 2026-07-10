@@ -1,39 +1,23 @@
 import { Effect, Result, type Scope } from 'effect'
 import type { HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
-import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import {
-  InternalError,
   PlatformInsufficientScope,
+  PlatformInvalidCursor,
   PlatformInvalidRequest,
+  PlatformResourceNotFound,
   PlatformScopeEscalationDenied,
   PlatformUnauthorized,
   RateLimited,
-  StarterApi,
-  Unauthorized
+  StarterApi
 } from '@b2b-saas-starter/api'
 import {
-  ApiTokenRegistry,
-  type ApiTokenScope,
-  AuditEventLog,
-  AuthorizationDenied,
-  CapabilityUnavailable,
-  CatalogRefreshHistory,
-  ImplementationReports,
-  IntegrationSurfaces,
-  NotificationFeed,
+  type CapabilityUnavailable,
+  PlatformApiReads,
   PlatformApiTokenRegistry,
   type PlatformApiTokenScope,
-  type VerifiedPlatformApiToken,
-  selectWorkspaceLayer,
-  StarterModuleCatalog,
-  WebhookEndpoints,
-  WebhookPublisher,
-  workspaceOverview,
-  WorkspaceContext,
-  WorkspaceMembership
+  type VerifiedPlatformApiToken
 } from '@b2b-saas-starter/capabilities'
-import { EmailDispatcher, WorkspaceInvitationEmail } from '@b2b-saas-starter/email'
 import {
   annotateWide,
   newTraceId,
@@ -41,98 +25,24 @@ import {
   TRACE_HEADER,
   withRequestScope
 } from '@b2b-saas-starter/logger'
-import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
+import type { ApiEnv } from './env.ts'
 import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
 
-const clientKey = (request: HttpServerRequest.HttpServerRequest): string =>
-  request.headers['cf-connecting-ip'] ?? `unkeyed:${request.url}`
-
-const bearerToken = (request: HttpServerRequest.HttpServerRequest): string | null => {
+const bearerToken = (request: HttpServerRequest.HttpServerRequest) => {
   const header = request.headers.authorization
-  if (!header?.startsWith('Bearer ')) return null
-  return header.slice('Bearer '.length).trim()
+  return header?.startsWith('Bearer ') ? header.slice(7).trim() : null
 }
-
-const enforceRateLimit = (
-  request: HttpServerRequest.HttpServerRequest,
-  bucket: RateLimitBucket,
-  key = clientKey(request)
-): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> =>
-  Effect.gen(function* () {
-    const limiter = yield* RateLimiter
-    const allowed = yield* limiter.take({ bucket, key })
-    if (!allowed) {
-      yield* annotateWide({ outcome: 'rate_limited', rateLimitBucket: bucket })
-      return yield* Effect.fail(new RateLimited({ bucket }))
-    }
-  })
-
-const enforceScope = (
-  request: HttpServerRequest.HttpServerRequest,
-  scope: ApiTokenScope,
-  expectedWorkspaceSlug?: string
-): Effect.Effect<
-  void,
-  Unauthorized | AuthorizationDenied | CapabilityUnavailable,
-  ApiTokenRegistry | Scope.Scope
-> =>
-  Effect.gen(function* () {
-    const token = bearerToken(request)
-    if (!token) {
-      yield* annotateWide({ outcome: 'missing_bearer_token' })
-      return yield* Effect.fail(new Unauthorized({ message: 'missing_bearer_token' }))
-    }
-
-    const registry = yield* ApiTokenRegistry
-    const verified = yield* Effect.result(registry.verifyBearerToken(token, scope))
-    if (Result.isFailure(verified)) {
-      const failure = verified.failure
-      if (failure._tag === 'CapabilityUnavailable') {
-        yield* annotateWide({
-          outcome: 'capability_unavailable',
-          capability: failure.capability,
-          capabilityReason: failure.reason
-        })
-        return yield* Effect.fail(failure)
-      }
-      if (failure.reason === 'invalid_token') {
-        yield* annotateWide({ outcome: 'unauthorized', authReason: failure.reason })
-        return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
-      }
-      yield* annotateWide({ outcome: 'forbidden', authReason: failure.reason })
-      return yield* Effect.fail(new AuthorizationDenied({ reason: failure.reason }))
-    }
-
-    if (
-      expectedWorkspaceSlug !== undefined &&
-      verified.success.workspaceSlug !== expectedWorkspaceSlug
-    ) {
-      yield* annotateWide({
-        outcome: 'forbidden',
-        authReason: 'token_workspace_mismatch',
-        tokenWorkspaceSlug: verified.success.workspaceSlug
-      })
-      return yield* Effect.fail(
-        new AuthorizationDenied({ reason: 'token_workspace_mismatch' })
-      )
-    }
-
-    yield* annotateWide({
-      tokenId: verified.success.id,
-      workspaceId: verified.success.workspaceId,
-      tokenWorkspaceSlug: verified.success.workspaceSlug,
-      tokenScopes: verified.success.scopes,
-      requiredScope: scope
-    })
-  })
-
-const platformError = (
+const clientKey = (request: HttpServerRequest.HttpServerRequest) =>
+  request.headers['cf-connecting-ip'] ?? 'unkeyed'
+const errorBody = (
   code:
     | 'unauthorized'
     | 'insufficient_scope'
-    | 'scope_escalation_denied'
-    | 'invalid_request',
-  traceId: string,
+    | 'invalid_cursor'
+    | 'invalid_request'
+    | 'resource_not_found'
+    | 'scope_escalation_denied',
+  request: HttpServerRequest.HttpServerRequest,
   details: Record<string, unknown> = {}
 ) => ({
   error: {
@@ -142,58 +52,66 @@ const platformError = (
         ? 'Authentication is required.'
         : code === 'insufficient_scope'
           ? 'The credential lacks the required scope.'
-          : code === 'scope_escalation_denied'
-            ? 'A credential cannot delegate scopes it does not hold.'
-            : 'The request is invalid.',
-    traceId,
+          : code === 'invalid_cursor'
+            ? 'The cursor is invalid.'
+            : code === 'resource_not_found'
+              ? 'The resource was not found.'
+              : code === 'scope_escalation_denied'
+                ? 'A credential cannot delegate scopes it does not hold.'
+                : 'The request is invalid.',
+    traceId: request.headers[TRACE_HEADER] ?? newTraceId(),
     details
   }
 })
-
-const verifyPlatformToken = (
+const limit = (
   request: HttpServerRequest.HttpServerRequest,
-  requiredScope: PlatformApiTokenScope
+  bucket: RateLimitBucket,
+  key: string
+) =>
+  Effect.gen(function* () {
+    const limiter = yield* RateLimiter
+    if (!(yield* limiter.take({ bucket, key })))
+      return yield* Effect.fail(new RateLimited({ bucket }))
+  })
+const verify = (
+  request: HttpServerRequest.HttpServerRequest,
+  scope: PlatformApiTokenScope
 ): Effect.Effect<
   VerifiedPlatformApiToken,
   | PlatformUnauthorized
   | PlatformInsufficientScope
-  | CapabilityUnavailable
-  | RateLimited,
+  | RateLimited
+  | CapabilityUnavailable,
   PlatformApiTokenRegistry | RateLimiter | Scope.Scope
 > =>
   Effect.gen(function* () {
-    const traceId = request.headers[TRACE_HEADER] ?? newTraceId()
     const credential = bearerToken(request)
     if (!credential) {
-      yield* enforceRateLimit(request, 'auth_failure')
+      yield* limit(request, 'auth_failure', clientKey(request))
       return yield* Effect.fail(
-        new PlatformUnauthorized(platformError('unauthorized', traceId))
+        new PlatformUnauthorized(errorBody('unauthorized', request))
       )
     }
     const registry = yield* PlatformApiTokenRegistry
-    const verified = yield* Effect.result(registry.verify(credential, requiredScope))
-    if (Result.isSuccess(verified)) return verified.success
-    if (verified.failure._tag === 'CapabilityUnavailable') {
-      return yield* Effect.fail(verified.failure)
-    }
-    if (verified.failure.reason === 'insufficient_scope') {
+    const result = yield* Effect.result(registry.verify(credential, scope))
+    if (Result.isSuccess(result)) return result.success
+    if (result.failure._tag === 'CapabilityUnavailable')
+      return yield* Effect.fail(result.failure)
+    if (result.failure.reason === 'insufficient_scope')
       return yield* Effect.fail(
         new PlatformInsufficientScope(
-          platformError('insufficient_scope', traceId, { requiredScope })
+          errorBody('insufficient_scope', request, { requiredScope: scope })
         )
       )
-    }
-    yield* enforceRateLimit(request, 'auth_failure')
+    yield* limit(request, 'auth_failure', clientKey(request))
     return yield* Effect.fail(
-      new PlatformUnauthorized(platformError('unauthorized', traceId))
+      new PlatformUnauthorized(errorBody('unauthorized', request))
     )
   })
-
 const observed = <A, E, R>(
   env: ApiEnv,
   request: HttpServerRequest.HttpServerRequest,
   event: string,
-  metadata: Record<string, unknown>,
   body: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> =>
   withRequestScope(
@@ -202,223 +120,174 @@ const observed = <A, E, R>(
       event: `request.${event}`,
       traceId: request.headers[TRACE_HEADER],
       environment: readWideEventEnvironment(env),
-      metadata: { pathname: request.url, method: request.method, ...metadata }
+      metadata: { pathname: request.url, method: request.method }
     },
     body.pipe(Effect.tap(() => annotateWide({ outcome: 'ok' })))
   )
-
-const provideWorkspace = <A, E, R>(
+const read = <A, E, R>(
   env: ApiEnv,
-  slug: string,
-  body: Effect.Effect<A, E, R>
-) => body.pipe(Effect.provide(selectWorkspaceLayer(starterEnv(env), slug)))
-
-const publishWebhookEvent = (
-  eventType: string,
-  payload: unknown
-): Effect.Effect<void, never, WebhookPublisher | WorkspaceContext | Scope.Scope> =>
-  Effect.gen(function* () {
-    const publisher = yield* WebhookPublisher
-    const published = yield* Effect.result(publisher.publish({ eventType, payload }))
-    if (Result.isFailure(published)) {
-      yield* annotateWide({
-        webhookPublish: 'failed',
-        webhookPublishReason: published.failure.reason
-      })
+  request: HttpServerRequest.HttpServerRequest,
+  event: string,
+  scope: PlatformApiTokenScope,
+  body: (caller: VerifiedPlatformApiToken) => Effect.Effect<A, E, R>
+) =>
+  observed(
+    env,
+    request,
+    event,
+    Effect.gen(function* () {
+      const caller = yield* verify(request, scope)
+      yield* limit(request, 'data_read', caller.id)
+      return yield* body(caller)
+    })
+  )
+const mapReadError = <A, E extends { _tag: string }, R>(
+  request: HttpServerRequest.HttpServerRequest,
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<
+  A,
+  PlatformInvalidCursor | PlatformResourceNotFound | CapabilityUnavailable,
+  R
+> =>
+  Effect.catch(
+    effect,
+    (
+      failure
+    ): Effect.Effect<
+      never,
+      PlatformInvalidCursor | PlatformResourceNotFound | CapabilityUnavailable
+    > => {
+      if (failure._tag === 'PlatformReadInvalidCursor')
+        return Effect.fail(
+          new PlatformInvalidCursor(errorBody('invalid_cursor', request))
+        )
+      if (failure._tag === 'CapabilityUnavailable')
+        return Effect.fail(failure as unknown as CapabilityUnavailable)
+      return Effect.fail(
+        new PlatformResourceNotFound(errorBody('resource_not_found', request))
+      )
     }
-  })
+  )
+const validLimit = (
+  value: number | undefined,
+  request: HttpServerRequest.HttpServerRequest
+) =>
+  value === undefined || (Number.isSafeInteger(value) && value >= 1 && value <= 100)
+    ? Effect.succeed(value)
+    : Effect.fail(
+        new PlatformInvalidRequest(
+          errorBody('invalid_request', request, { limit: 'between_1_and_100' })
+        )
+      )
+const many = <A>(value: A | readonly A[] | undefined): readonly A[] | undefined =>
+  value === undefined ? undefined : Array.isArray(value) ? value : [value as A]
+const queryInput = (query: Record<string, unknown>) => ({
+  ...query,
+  status: many(query.status as string | readonly string[] | undefined),
+  providerId: many(query.providerId as string | readonly string[] | undefined),
+  serviceId: many(query.serviceId as string | readonly string[] | undefined)
+})
 
 export const healthGroup = (env: ApiEnv) =>
   HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
     handlers.handle('check', ({ request }) =>
-      observed(env, request, 'health', {}, Effect.succeed({ status: 'ok' as const }))
+      observed(env, request, 'health', Effect.succeed({ status: 'ok' as const }))
     )
   )
-
-export const workspaceGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
-    const read = <A, E, R>(
-      event: string,
-      scope: ApiTokenScope,
-      slug: string,
-      request: HttpServerRequest.HttpServerRequest,
-      body: Effect.Effect<A, E, R>
-    ) =>
-      observed(
-        env,
-        request,
-        `workspace.${event}`,
-        { workspaceSlug: slug },
+export const merchantGroup = (env: ApiEnv) =>
+  HttpApiBuilder.group(StarterApi, 'merchant', (handlers) =>
+    handlers.handle('get', ({ request }) =>
+      read(env, request, 'merchant.get', 'merchant:read', (caller) =>
         Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'rest_read')
-          yield* enforceScope(request, scope, slug)
-          return yield* provideWorkspace(env, slug, body)
+          const api = yield* PlatformApiReads
+          return { data: yield* mapReadError(request, api.merchant(caller.merchantId)) }
         })
       )
-
-    return handlers
-      .handle('overview', ({ params, request }) =>
-        read('overview', 'read', params.slug, request, workspaceOverview)
-      )
-      .handle('modules', ({ params, request }) =>
-        read(
-          'modules',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(StarterModuleCatalog, (catalog) => catalog.listModules)
-        )
-      )
-      .handle('members', ({ params, request }) =>
-        read(
-          'members',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(WorkspaceMembership, (membership) => membership.listMembers)
-        )
-      )
-      .handle('notifications', ({ params, request }) =>
-        read(
-          'notifications',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(NotificationFeed, (feed) => feed.list)
-        )
-      )
-      .handle('api-tokens', ({ params, request }) =>
-        read(
-          'api-tokens',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
-        )
-      )
-      .handle('webhooks', ({ params, request }) =>
-        read(
-          'webhooks',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
-        )
-      )
-      .handle('integrations', ({ params, request }) =>
-        read(
-          'integrations',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(IntegrationSurfaces, (integrations) => integrations.list)
-        )
-      )
-      .handle('reports', ({ params, request }) =>
-        read(
-          'reports',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(ImplementationReports, (reports) => reports.list)
-        )
-      )
-      .handle('audit-events', ({ params, request }) =>
-        read(
-          'audit-events',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(AuditEventLog, (log) => log.list)
-        )
-      )
-  })
-
-export const apiTokenGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'api-token-registry', (handlers) =>
+    )
+  )
+export const servicesGroup = (env: ApiEnv) =>
+  HttpApiBuilder.group(StarterApi, 'services', (handlers) =>
     handlers
-      .handle('create', ({ params, payload, request }) =>
-        observed(
-          env,
-          request,
-          'api-tokens.create',
-          { workspaceSlug: params.slug },
+      .handle('list', ({ query, request }) =>
+        read(env, request, 'services.list', 'services:read', (caller) =>
           Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_write')
-            yield* enforceScope(request, 'admin', params.slug)
-            const created = yield* provideWorkspace(
-              env,
-              params.slug,
-              Effect.gen(function* () {
-                const tokens = yield* ApiTokenRegistry
-                const next = yield* tokens.create({
-                  name: payload.name,
-                  scopes: payload.scopes
-                })
-                yield* publishWebhookEvent('api_token.created', {
-                  id: next.id,
-                  name: next.name,
-                  prefix: next.prefix,
-                  scopes: next.scopes,
-                  createdAt: next.createdAt
-                })
-                return next
-              })
+            yield* validLimit(query.limit, request)
+            const api = yield* PlatformApiReads
+            return yield* mapReadError(
+              request,
+              api.services(caller.merchantId, queryInput(query))
             )
-            yield* annotateWide({ tokenId: created.id, tokenScopes: created.scopes })
-            return created
           })
         )
       )
-      .handle('revoke', ({ params, request }) =>
-        observed(
-          env,
-          request,
-          'api-tokens.revoke',
-          { workspaceSlug: params.slug },
+      .handle('get', ({ params, request }) =>
+        read(env, request, 'services.get', 'services:read', (caller) =>
           Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_write')
-            yield* enforceScope(request, 'admin', params.slug)
-            yield* provideWorkspace(
-              env,
-              params.slug,
-              Effect.gen(function* () {
-                const tokens = yield* ApiTokenRegistry
-                const revoked = yield* tokens.revoke({ tokenId: params.tokenId })
-                if (revoked) {
-                  yield* publishWebhookEvent('api_token.revoked', {
-                    tokenId: params.tokenId
-                  })
-                }
-              })
-            )
-            return { status: 'revoked' as const }
+            const api = yield* PlatformApiReads
+            return {
+              data: yield* mapReadError(
+                request,
+                api.service(caller.merchantId, params.serviceId)
+              )
+            }
           })
         )
       )
-      .handle('delete', ({ params, request }) =>
-        observed(
-          env,
-          request,
-          'api-tokens.delete',
-          { workspaceSlug: params.slug },
+  )
+export const providersGroup = (env: ApiEnv) =>
+  HttpApiBuilder.group(StarterApi, 'providers', (handlers) =>
+    handlers
+      .handle('list', ({ query, request }) =>
+        read(env, request, 'providers.list', 'providers:read', (caller) =>
           Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_write')
-            yield* enforceScope(request, 'admin', params.slug)
-            yield* provideWorkspace(
-              env,
-              params.slug,
-              Effect.gen(function* () {
-                const tokens = yield* ApiTokenRegistry
-                const revoked = yield* tokens.revoke({ tokenId: params.tokenId })
-                if (revoked) {
-                  yield* publishWebhookEvent('api_token.revoked', {
-                    tokenId: params.tokenId
-                  })
-                }
-              })
+            yield* validLimit(query.limit, request)
+            const api = yield* PlatformApiReads
+            return yield* mapReadError(
+              request,
+              api.providers(caller.merchantId, queryInput(query))
             )
-            return { status: 'revoked' as const }
+          })
+        )
+      )
+      .handle('get', ({ params, request }) =>
+        read(env, request, 'providers.get', 'providers:read', (caller) =>
+          Effect.gen(function* () {
+            const api = yield* PlatformApiReads
+            return {
+              data: yield* mapReadError(
+                request,
+                api.provider(caller.merchantId, params.providerId)
+              )
+            }
+          })
+        )
+      )
+  )
+export const appointmentsGroup = (env: ApiEnv) =>
+  HttpApiBuilder.group(StarterApi, 'appointments', (handlers) =>
+    handlers
+      .handle('list', ({ query, request }) =>
+        read(env, request, 'appointments.list', 'appointments:read', (caller) =>
+          Effect.gen(function* () {
+            yield* validLimit(query.limit, request)
+            const api = yield* PlatformApiReads
+            return yield* mapReadError(
+              request,
+              api.appointments(caller.merchantId, queryInput(query))
+            )
+          })
+        )
+      )
+      .handle('get', ({ params, request }) =>
+        read(env, request, 'appointments.get', 'appointments:read', (caller) =>
+          Effect.gen(function* () {
+            const api = yield* PlatformApiReads
+            return {
+              data: yield* mapReadError(
+                request,
+                api.appointment(caller.merchantId, params.appointmentId)
+              )
+            }
           })
         )
       )
@@ -431,31 +300,22 @@ export const platformApiTokenGroup = (env: ApiEnv) =>
         observed(
           env,
           request,
-          'platform-api-tokens.list',
-          {},
+          'tokens.list',
           Effect.gen(function* () {
-            const caller = yield* verifyPlatformToken(request, 'api_tokens:manage')
-            yield* enforceRateLimit(request, 'developer_config', caller.id)
-            const registry = yield* PlatformApiTokenRegistry
-            const listed = yield* Effect.result(
-              registry.list({
+            const caller = yield* verify(request, 'api_tokens:manage')
+            yield* limit(request, 'developer_config', caller.id)
+            const api = yield* PlatformApiTokenRegistry
+            const result = yield* Effect.result(
+              api.list({
                 merchantId: caller.merchantId,
                 ...(query.status ? { statuses: query.status } : {}),
                 ...(query.cursor ? { cursor: query.cursor } : {}),
                 ...(query.limit !== undefined ? { limit: query.limit } : {})
               })
             )
-            if (Result.isSuccess(listed)) return listed.success
-            if (listed.failure._tag === 'CapabilityUnavailable') {
-              return yield* Effect.fail(listed.failure)
-            }
+            if (Result.isSuccess(result)) return result.success
             return yield* Effect.fail(
-              new PlatformInvalidRequest(
-                platformError(
-                  'invalid_request',
-                  request.headers[TRACE_HEADER] ?? newTraceId()
-                )
-              )
+              new PlatformInvalidRequest(errorBody('invalid_request', request))
             )
           })
         )
@@ -464,35 +324,27 @@ export const platformApiTokenGroup = (env: ApiEnv) =>
         observed(
           env,
           request,
-          'platform-api-tokens.create',
-          {},
+          'tokens.create',
           Effect.gen(function* () {
-            const caller = yield* verifyPlatformToken(request, 'api_tokens:manage')
-            yield* enforceRateLimit(request, 'developer_config', caller.id)
-            const registry = yield* PlatformApiTokenRegistry
-            const created = yield* Effect.result(
-              registry.create({
+            const caller = yield* verify(request, 'api_tokens:manage')
+            yield* limit(request, 'developer_config', caller.id)
+            const api = yield* PlatformApiTokenRegistry
+            const result = yield* Effect.result(
+              api.create({
                 merchantId: caller.merchantId,
-                name: payload.name,
-                scopes: payload.scopes,
-                expiresAt: payload.expiresAt,
+                ...payload,
                 delegatedBy: caller
               })
             )
-            if (Result.isSuccess(created)) return created.success
-            if (created.failure._tag === 'CapabilityUnavailable') {
-              return yield* Effect.fail(created.failure)
-            }
-            const traceId = request.headers[TRACE_HEADER] ?? newTraceId()
-            if (created.failure.reason === 'invalid_input') {
-              return yield* Effect.fail(
-                new PlatformInvalidRequest(platformError('invalid_request', traceId))
-              )
-            }
+            if (Result.isSuccess(result)) return result.success
+            if (result.failure._tag === 'CapabilityUnavailable')
+              return yield* Effect.fail(result.failure)
             return yield* Effect.fail(
-              new PlatformScopeEscalationDenied(
-                platformError('scope_escalation_denied', traceId)
-              )
+              result.failure.reason === 'scope_escalation_denied'
+                ? new PlatformScopeEscalationDenied(
+                    errorBody('scope_escalation_denied', request)
+                  )
+                : new PlatformInvalidRequest(errorBody('invalid_request', request))
             )
           })
         )
@@ -501,13 +353,12 @@ export const platformApiTokenGroup = (env: ApiEnv) =>
         observed(
           env,
           request,
-          'platform-api-tokens.revoke',
-          {},
+          'tokens.revoke',
           Effect.gen(function* () {
-            const caller = yield* verifyPlatformToken(request, 'api_tokens:manage')
-            yield* enforceRateLimit(request, 'developer_config', caller.id)
-            const registry = yield* PlatformApiTokenRegistry
-            yield* registry.revoke({
+            const caller = yield* verify(request, 'api_tokens:manage')
+            yield* limit(request, 'developer_config', caller.id)
+            const api = yield* PlatformApiTokenRegistry
+            yield* api.revoke({
               merchantId: caller.merchantId,
               tokenId: params.tokenId,
               actorTokenId: caller.id
@@ -515,176 +366,4 @@ export const platformApiTokenGroup = (env: ApiEnv) =>
           })
         )
       )
-  )
-
-export const webhookGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
-    handlers.handle('create', ({ params, payload, request }) =>
-      observed(
-        env,
-        request,
-        'webhooks.create',
-        { workspaceSlug: params.slug },
-        Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'rest_write')
-          yield* enforceScope(request, 'write', params.slug)
-          const created = yield* provideWorkspace(
-            env,
-            params.slug,
-            Effect.gen(function* () {
-              const webhooks = yield* WebhookEndpoints
-              const endpoint = yield* webhooks.create({
-                url: payload.url,
-                events: payload.events,
-                ...(payload.description !== undefined
-                  ? { description: payload.description }
-                  : {})
-              })
-              yield* publishWebhookEvent('webhook_endpoint.created', endpoint)
-              return endpoint
-            })
-          )
-          yield* annotateWide({ webhookEndpointId: created.id })
-          return created
-        })
-      )
-    )
-  )
-
-export const invitationGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'workspace-invitations', (handlers) =>
-    handlers.handle('send', ({ params, payload, request }) =>
-      observed(
-        env,
-        request,
-        'invitations.send',
-        { workspaceSlug: params.slug },
-        Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'invitations')
-          yield* enforceScope(request, 'admin', params.slug)
-          return yield* provideWorkspace(
-            env,
-            params.slug,
-            Effect.gen(function* () {
-              const ctx = yield* WorkspaceContext
-              const dispatcher = yield* EmailDispatcher
-              const host = request.headers.host
-              const proto = request.headers['x-forwarded-proto'] ?? 'https'
-              const origin = host ? `${proto}://${host}` : ''
-              const inviteUrl = `${origin}/invitations/accept?workspace=${ctx.workspace.slug}`
-              const delivery = yield* Effect.result(
-                dispatcher.send({
-                  from: emailFromAddress(env) ?? 'noreply@example.com',
-                  to: payload.to,
-                  subject: `You are invited to ${ctx.workspace.name}`,
-                  element: WorkspaceInvitationEmail({
-                    workspaceName: ctx.workspace.name,
-                    inviteUrl
-                  })
-                })
-              )
-              if (Result.isFailure(delivery)) {
-                yield* annotateWide({
-                  outcome: 'invitation_send_failed',
-                  emailError: delivery.failure.message
-                })
-                return yield* Effect.fail(
-                  new InternalError({
-                    traceId: request.headers[TRACE_HEADER] ?? newTraceId()
-                  })
-                )
-              }
-              yield* publishWebhookEvent('workspace_invitation.sent', {
-                workspaceSlug: ctx.workspace.slug,
-                to: payload.to
-              })
-              return { status: 'queued' as const, delivery: delivery.success }
-            })
-          )
-        })
-      )
-    )
-  )
-
-export const catalogGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'catalog', (handlers) =>
-    handlers
-      .handle('modules', ({ request }) =>
-        observed(
-          env,
-          request,
-          'catalog.modules',
-          {},
-          Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_read')
-            yield* enforceScope(request, 'read')
-            return yield* Effect.flatMap(
-              StarterModuleCatalog,
-              (catalog) => catalog.listAllModules
-            )
-          })
-        )
-      )
-      .handle('refresh-history', ({ request }) =>
-        observed(
-          env,
-          request,
-          'catalog.refresh-history',
-          {},
-          Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_read')
-            yield* enforceScope(request, 'read')
-            return yield* Effect.flatMap(
-              CatalogRefreshHistory,
-              (history) => history.listRecent
-            )
-          })
-        )
-      )
-  )
-
-export const assistantGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'assistant', (handlers) =>
-    handlers.handle('answer', ({ payload, request }) =>
-      observed(
-        env,
-        request,
-        'assistant.answer',
-        {},
-        Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'assistant')
-          yield* enforceScope(request, 'read')
-          const service = yield* AssistantService
-          const reply = yield* service.ask(payload)
-          return {
-            answer: reply.answer,
-            provider: reply.provider,
-            modelId: reply.modelId,
-            usedTools: reply.usedTools,
-            assistantConfigured: isAssistantConfigured(providerEnv(env))
-          }
-        })
-      )
-    )
-  )
-
-export const mcpGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'mcp', (handlers) =>
-    handlers.handle('discover', ({ request }) =>
-      observed(
-        env,
-        request,
-        'mcp.discover',
-        {},
-        Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'mcp')
-          yield* enforceScope(request, 'read')
-          return {
-            name: 'b2b-saas-starter-mcp',
-            resources: ['workspace://starter-lab/overview'],
-            tools: []
-          }
-        })
-      )
-    )
   )

@@ -8,15 +8,12 @@ import { selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import { newTraceId, TRACE_HEADER, WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import {
-  apiTokenGroup,
-  assistantGroup,
-  catalogGroup,
+  appointmentsGroup,
   healthGroup,
-  invitationGroup,
-  mcpGroup,
+  merchantGroup,
   platformApiTokenGroup,
-  webhookGroup,
-  workspaceGroup
+  providersGroup,
+  servicesGroup
 } from './handlers.ts'
 import { makeRateLimiterLayer } from './rate-limit.ts'
 
@@ -47,14 +44,11 @@ const makeApiLayer = (
 
   const groups = Layer.mergeAll(
     healthGroup(env),
-    workspaceGroup(env),
-    apiTokenGroup(env),
-    platformApiTokenGroup(env),
-    webhookGroup(env),
-    invitationGroup(env),
-    catalogGroup(env),
-    assistantGroup(env),
-    mcpGroup(env)
+    merchantGroup(env),
+    servicesGroup(env),
+    providersGroup(env),
+    appointmentsGroup(env),
+    platformApiTokenGroup(env)
   )
 
   const api = HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' }).pipe(
@@ -121,8 +115,15 @@ export const buildWebHandler = (
               : response.status === 400
                 ? 'invalid_request'
                 : response.status >= 500
-                  ? 'service_unavailable'
+                  ? 'capability_unavailable'
                   : 'request_failed'
+          const currentBucket =
+            current &&
+            typeof current === 'object' &&
+            'bucket' in current &&
+            typeof current.bucket === 'string'
+              ? current.bucket
+              : undefined
           return Response.json(
             {
               error: {
@@ -132,7 +133,10 @@ export const buildWebHandler = (
                     ? 'Rate limit exceeded.'
                     : 'The request failed.',
                 traceId: request.headers.get(TRACE_HEADER) ?? newTraceId(),
-                details: response.status === 429 ? { bucket: 'developer_config' } : {}
+                details:
+                  response.status === 429
+                    ? { bucket: currentBucket ?? 'data_read' }
+                    : {}
               }
             },
             { status: response.status, headers }

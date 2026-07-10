@@ -1,188 +1,221 @@
-import { describe, expect, test } from 'vitest'
-import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities'
+import { describe, expect, test, vi } from 'vitest'
+import { SEED_PLATFORM_API_TOKEN } from '@b2b-saas-starter/capabilities'
 import type { ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 
 const handlerFor = (env: ApiEnv = {}) => buildWebHandler(env).handler
+const bearer = { authorization: `Bearer ${SEED_PLATFORM_API_TOKEN}` }
+const get = (path: string, headers: Record<string, string> = {}) =>
+  new Request(`https://api.test${path}`, { headers })
 
-const bearer = { authorization: `Bearer ${SEED_API_TOKEN}` }
-
-const get = (path: string, headers?: Record<string, string>) =>
-  new Request(`https://api.test${path}`, headers ? { headers } : {})
-
-const post = (path: string, body: unknown, headers?: Record<string, string>) =>
-  new Request(`https://api.test${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...headers },
-    body: JSON.stringify(body)
-  })
-
-describe('contract-served routes', () => {
-  test('GET /health is public and returns ok', async () => {
-    const res = await handlerFor()(get('/health'))
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ status: 'ok' })
-  })
-
-  test('GET /openapi.json is generated from the contract', async () => {
-    const res = await handlerFor()(get('/openapi.json'))
-    expect(res.status).toBe(200)
-    const doc = (await res.json()) as {
-      openapi?: string
-      paths?: Record<string, unknown>
+describe('Booking Product Platform API v1', () => {
+  test('keeps only health and documentation public and unversioned', async () => {
+    expect((await handlerFor()(get('/health'))).status).toBe(200)
+    expect((await handlerFor()(get('/reference'))).status).toBe(200)
+    const response = await handlerFor()(get('/openapi.json'))
+    const document = (await response.json()) as {
+      info: { title: string }
+      paths: Record<string, unknown>
     }
-    expect(doc.openapi).toBeDefined()
-    expect(doc.paths?.['/workspaces/{slug}/overview']).toBeDefined()
-    expect(doc.paths?.['/workspaces/{slug}/webhooks']).toBeDefined()
-    expect(doc.paths?.['/health']).toBeDefined()
-    expect(doc.paths?.['/v1/api-tokens']).toBeDefined()
+    expect(document.info.title).toBe('Booking Product Platform API')
+    expect(Object.keys(document.paths).sort()).toEqual([
+      '/health',
+      '/v1/api-tokens',
+      '/v1/api-tokens/{tokenId}',
+      '/v1/appointments',
+      '/v1/appointments/{appointmentId}',
+      '/v1/merchant',
+      '/v1/providers',
+      '/v1/providers/{providerId}',
+      '/v1/services',
+      '/v1/services/{serviceId}'
+    ])
+    expect(document.paths['/workspaces/{slug}/overview']).toBeUndefined()
+    expect(document.paths['/mcp']).toBeUndefined()
   })
 
-  test('GET /reference serves the Scalar UI', async () => {
-    const res = await handlerFor()(get('/reference'))
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('text/html')
-  })
-
-  test('protected routes require a bearer token', async () => {
-    const res = await handlerFor()(get('/workspaces/starter-lab/overview'))
-    expect(res.status).toBe(401)
-    expect(((await res.json()) as { _tag: string })._tag).toBe('Unauthorized')
-  })
-
-  test('Merchant Better Auth cookies never authenticate Platform API requests', async () => {
-    const res = await handlerFor()(
-      get('/workspaces/starter-lab/overview', {
-        cookie: 'merchant.session_token=merchant-session-token'
-      })
-    )
-    expect(res.status).toBe(401)
-    expect(((await res.json()) as { _tag: string })._tag).toBe('Unauthorized')
-  })
-
-  test('unknown bearer tokens are authentication failures', async () => {
-    const res = await handlerFor()(
-      get('/workspaces/starter-lab/overview', {
-        authorization: 'Bearer bsk_live_bogus'
-      })
-    )
-    expect(res.status).toBe(401)
-  })
-
-  test('Platform API authentication has a stable private bearer failure', async () => {
-    const res = await handlerFor()(get('/v1/api-tokens'))
-    expect(res.status).toBe(401)
-    expect(res.headers.get('www-authenticate')).toBe('Bearer')
-    const body = (await res.json()) as {
+  test('requires a Platform bearer token and returns private typed errors', async () => {
+    const response = await handlerFor()(get('/v1/merchant'))
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toBe('Bearer')
+    const body = (await response.json()) as {
       error: { code: string; traceId: string; details: unknown }
     }
     expect(body.error.code).toBe('unauthorized')
     expect(body.error.traceId).toBeTruthy()
     expect(body.error.details).toEqual({})
-    expect(res.headers.has('access-control-allow-origin')).toBe(false)
   })
 
-  test('workspace tokens cannot cross workspace slugs', async () => {
-    const res = await handlerFor()(get('/workspaces/does-not-exist/overview', bearer))
-    expect(res.status).toBe(403)
-    expect(((await res.json()) as { _tag: string })._tag).toBe('AuthorizationDenied')
-  })
+  test('reads Merchant, Services, Providers, and Appointments with stable envelopes', async () => {
+    const handler = handlerFor()
+    const merchant = await handler(get('/v1/merchant', bearer))
+    expect(merchant.status).toBe(200)
+    expect(merchant.headers.get('cache-control')).toBe('private, no-store')
+    expect(await merchant.json()).toMatchObject({
+      data: { id: 'mer_seed_booking_studio', currency: 'RON' }
+    })
 
-  test('GET workspace overview returns the DTO for the seed token', async () => {
-    const res = await handlerFor()(get('/workspaces/starter-lab/overview', bearer))
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as {
-      workspace: { slug: string }
-      modules: unknown[]
+    for (const resource of ['services', 'providers', 'appointments']) {
+      const response = await handler(get(`/v1/${resource}`, bearer))
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as {
+        data: Array<Record<string, unknown>>
+        page: { nextCursor: string | null }
+        total?: number
+      }
+      expect(body.data.length).toBeGreaterThan(0)
+      expect(body.page).toEqual({ nextCursor: null })
+      expect(body.total).toBeUndefined()
+      const id = body.data[0]!.id as string
+      const detail = await handler(get(`/v1/${resource}/${id}`, bearer))
+      expect(detail.status).toBe(200)
+      expect(await detail.json()).toMatchObject({ data: { id } })
     }
-    expect(body.workspace.slug).toBe('starter-lab')
-    expect(Array.isArray(body.modules)).toBe(true)
   })
 
-  test('POST create api token returns 201 with the created token', async () => {
-    const res = await handlerFor()(
-      post(
-        '/workspaces/starter-lab/api-tokens',
-        { name: 'CI token', scopes: ['read'] },
-        bearer
-      )
-    )
-    expect(res.status).toBe(201)
-    const body = (await res.json()) as { token: string; scopes: string[] }
-    expect(body.token).toBeTruthy()
-    expect(body.scopes).toEqual(['read'])
-  })
-
-  test('POST create webhook rejects invalid destinations', async () => {
-    const res = await handlerFor()(
-      post(
-        '/workspaces/starter-lab/webhooks',
-        { url: 'http://insecure.example.com/hook', events: ['api_token.created'] },
-        bearer
-      )
-    )
-    expect(res.status).toBe(400)
-    expect(((await res.json()) as { _tag: string })._tag).toBe('InvalidWebhookUrl')
-  })
-
-  test('POST create webhook accepts https destinations', async () => {
-    const res = await handlerFor()(
-      post(
-        '/workspaces/starter-lab/webhooks',
-        { url: 'https://example.com/hook', events: ['api_token.created'] },
-        bearer
-      )
-    )
-    expect(res.status).toBe(201)
-    const body = (await res.json()) as { url: string; enabled: boolean }
-    expect(body.url).toBe('https://example.com/hook')
-    expect(body.enabled).toBe(true)
-  })
-
-  test('POST invitations validates email through the contract schema', async () => {
-    const res = await handlerFor()(
-      post('/workspaces/starter-lab/invitations', { to: 'not-an-email' }, bearer)
-    )
-    expect(res.status).toBe(400)
-  })
-
-  test('POST assistant answer returns a mock reply when authorized and unconfigured', async () => {
-    const res = await handlerFor()(
-      post(
-        '/assistant/answer',
-        { workspaceSlug: 'starter-lab', question: 'What is this?' },
-        bearer
-      )
-    )
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as {
-      provider: string
-      assistantConfigured: boolean
+  test('Appointment responses expose Customer Details without leaking them elsewhere', async () => {
+    const handler = handlerFor()
+    const response = await handler(get('/v1/appointments', bearer))
+    const body = (await response.json()) as {
+      data: Array<{ customer: { name: string; email: string } }>
     }
-    expect(body.provider).toBe('mock')
-    expect(body.assistantConfigured).toBe(false)
-  })
-
-  test('GET /mcp returns the discovery document when authorized', async () => {
-    const res = await handlerFor()(get('/mcp', bearer))
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { name: string }
-    expect(body.name).toBe('b2b-saas-starter-mcp')
-  })
-
-  test('a denying rate-limit binding short-circuits with 429', async () => {
-    const denyAssistant: ApiEnv = {
-      RATE_LIMITER_ASSISTANT: { limit: async () => ({ success: false }) }
-    }
-    const res = await handlerFor(denyAssistant)(
-      post('/assistant/answer', { workspaceSlug: 'starter-lab', question: 'Hi' })
+    expect(body.data[0]?.customer.name).toBeTruthy()
+    expect(body.data[0]?.customer.email).toContain('@')
+    const openapi = await (await handler(get('/openapi.json'))).text()
+    expect(openapi).not.toContain(body.data[0]!.customer.email)
+    const invalid = await handler(
+      get('/v1/appointments?cursor=customer@example.com', bearer)
     )
-    expect(res.status).toBe(429)
-    expect(((await res.json()) as { _tag: string })._tag).toBe('RateLimited')
+    expect(invalid.status).toBe(400)
+    expect(await invalid.text()).not.toContain('customer@example.com')
   })
 
-  test('unknown routes are 404', async () => {
-    const res = await handlerFor()(get('/nope'))
-    expect(res.status).toBe(404)
+  test('applies repeatable filters and inclusive/exclusive Appointment times', async () => {
+    const handler = handlerFor()
+    const all = (await (await handler(get('/v1/appointments', bearer))).json()) as {
+      data: Array<{ startsAt: string; provider: { id: string }; status: string }>
+    }
+    const appointment = all.data[0]!
+    const included = (await (
+      await handler(
+        get(
+          `/v1/appointments?status=${appointment.status}&providerId=${appointment.provider.id}&startsAtFrom=${encodeURIComponent(appointment.startsAt)}`,
+          bearer
+        )
+      )
+    ).json()) as { data: unknown[] }
+    expect(included.data).toHaveLength(1)
+    const excluded = (await (
+      await handler(
+        get(
+          `/v1/appointments?startsAtBefore=${encodeURIComponent(appointment.startsAt)}`,
+          bearer
+        )
+      )
+    ).json()) as { data: Array<{ startsAt: string }> }
+    expect(excluded.data.every((item) => item.startsAt < appointment.startsAt)).toBe(
+      true
+    )
+    expect(excluded.data.some((item) => item.startsAt === appointment.startsAt)).toBe(
+      false
+    )
+  })
+
+  test('rejects invalid limits and tampered cursors with stable codes', async () => {
+    const handler = handlerFor()
+    for (const path of [
+      '/v1/services?limit=101',
+      '/v1/providers?cursor=tampered',
+      '/v1/appointments?cursor=tampered'
+    ]) {
+      const response = await handler(get(path, bearer))
+      expect(response.status).toBe(400)
+      const body = (await response.json()) as { error: { code: string } }
+      expect(['invalid_request', 'invalid_cursor']).toContain(body.error.code)
+    }
+  })
+
+  test('uses PII-free endpoint/filter-bound cursors that do not bind limit', async () => {
+    const handler = handlerFor()
+    const first = (await (
+      await handler(get('/v1/appointments?limit=1', bearer))
+    ).json()) as { data: unknown[]; page: { nextCursor: string } }
+    expect(first.data).toHaveLength(1)
+    const cursor = first.page.nextCursor
+    expect(cursor).toBeTruthy()
+    expect(cursor).not.toContain('example.com')
+    const payload = JSON.parse(
+      atob(cursor.split('.')[0]!.replaceAll('-', '+').replaceAll('_', '/'))
+    ) as Record<string, unknown>
+    expect(Object.keys(payload).sort()).toEqual(['e', 'f', 'p', 'v', 'x'])
+    expect(JSON.stringify(payload)).not.toContain('customer')
+    expect(
+      (
+        await handler(
+          get(`/v1/appointments?limit=50&cursor=${encodeURIComponent(cursor)}`, bearer)
+        )
+      ).status
+    ).toBe(200)
+    expect(
+      (
+        await handler(
+          get(
+            `/v1/appointments?status=scheduled&cursor=${encodeURIComponent(cursor)}`,
+            bearer
+          )
+        )
+      ).status
+    ).toBe(400)
+    expect(
+      (await handler(get(`/v1/providers?cursor=${encodeURIComponent(cursor)}`, bearer)))
+        .status
+    ).toBe(400)
+  })
+
+  test('expires cursors after twenty-four hours', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-07-11T00:00:00.000Z'))
+      const handler = handlerFor()
+      const first = (await (
+        await handler(get('/v1/appointments?limit=1', bearer))
+      ).json()) as { page: { nextCursor: string } }
+      vi.setSystemTime(new Date('2026-07-12T00:00:00.001Z'))
+      const expired = await handler(
+        get(
+          `/v1/appointments?cursor=${encodeURIComponent(first.page.nextCursor)}`,
+          bearer
+        )
+      )
+      expect(expired.status).toBe(400)
+      expect((await expired.json()) as object).toMatchObject({
+        error: { code: 'invalid_cursor' }
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('uses the data_read rate-limit bucket', async () => {
+    const response = await handlerFor({
+      RATE_LIMITER_DATA_READ: { limit: async () => ({ success: false }) }
+    })(get('/v1/services', bearer))
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('60')
+    const body = (await response.json()) as { error: { details: { bucket: string } } }
+    expect(body.error.details.bucket).toBe('data_read')
+  })
+
+  test('does not expose retired or customer booking routes', async () => {
+    const handler = handlerFor()
+    for (const path of [
+      '/workspaces/starter-lab/overview',
+      '/mcp',
+      '/v1/customers',
+      '/v1/availability',
+      '/v1/booking-sessions'
+    ]) {
+      expect((await handler(get(path, bearer))).status).toBe(404)
+    }
   })
 })

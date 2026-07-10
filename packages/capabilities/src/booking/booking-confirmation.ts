@@ -536,7 +536,8 @@ export const LiveBookingConfirmation = (
                       sql<StoredAppointmentSnapshot>`${JSON.stringify(snapshot)}`.as(
                         'snapshot'
                       ),
-                    createdAt: sql<string>`${input.now}`.as('created_at')
+                    createdAt: sql<string>`${input.now}`.as('created_at'),
+                    updatedAt: sql<string>`${input.now}`.as('updated_at')
                   })
                   .from(timeSlotHolds)
                   .innerJoin(

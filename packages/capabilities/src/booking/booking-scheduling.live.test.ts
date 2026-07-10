@@ -124,7 +124,8 @@ beforeAll(async () => {
             status: 'scheduled',
             startsAt: '2026-07-13T11:00:00.000Z',
             endsAt: '2026-07-13T12:00:00.000Z',
-            createdAt: now
+            createdAt: now,
+            updatedAt: now
           },
           {
             id: 'apt_completed_history',
@@ -133,7 +134,8 @@ beforeAll(async () => {
             status: 'completed',
             startsAt: '2026-07-13T12:00:00.000Z',
             endsAt: '2026-07-13T13:00:00.000Z',
-            createdAt: now
+            createdAt: now,
+            updatedAt: now
           }
         ])
       }),
