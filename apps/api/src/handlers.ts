@@ -16,6 +16,7 @@ import {
   PlatformApiReads,
   PlatformApiTokenRegistry,
   type PlatformApiTokenScope,
+  PlatformWebhookEndpoints,
   type VerifiedPlatformApiToken
 } from '@b2b-saas-starter/capabilities'
 import {
@@ -367,3 +368,170 @@ export const platformApiTokenGroup = (env: ApiEnv) =>
         )
       )
   )
+
+export const platformWebhookGroup = (env: ApiEnv) =>
+  HttpApiBuilder.group(StarterApi, 'platform-webhooks', (handlers) => {
+    const run = <A, E, R>(
+      request: HttpServerRequest.HttpServerRequest,
+      event: string,
+      body: (caller: VerifiedPlatformApiToken) => Effect.Effect<A, E, R>
+    ) =>
+      observed(
+        env,
+        request,
+        event,
+        Effect.gen(function* () {
+          const caller = yield* verify(request, 'webhooks:manage')
+          yield* limit(request, 'developer_config', caller.id)
+          return yield* body(caller)
+        })
+      )
+    const mapped = <A, R>(
+      request: HttpServerRequest.HttpServerRequest,
+      effect: Effect.Effect<A, { readonly _tag: string }, R>
+    ): Effect.Effect<
+      A,
+      | PlatformInvalidRequest
+      | PlatformInvalidCursor
+      | PlatformResourceNotFound
+      | CapabilityUnavailable,
+      R
+    > =>
+      Effect.catch(
+        effect,
+        (
+          failure
+        ): Effect.Effect<
+          never,
+          | PlatformInvalidRequest
+          | PlatformInvalidCursor
+          | PlatformResourceNotFound
+          | CapabilityUnavailable
+        > => {
+          if (failure._tag === 'CapabilityUnavailable')
+            return Effect.fail(failure as CapabilityUnavailable)
+          if (failure._tag === 'PlatformWebhookNotFound')
+            return Effect.fail(
+              new PlatformResourceNotFound(errorBody('resource_not_found', request))
+            )
+          if (failure._tag === 'PlatformWebhookInvalidCursor')
+            return Effect.fail(
+              new PlatformInvalidCursor(errorBody('invalid_cursor', request))
+            )
+          return Effect.fail(
+            new PlatformInvalidRequest(errorBody('invalid_request', request))
+          )
+        }
+      )
+    return handlers
+      .handle('list', ({ query, request }) =>
+        run(request, 'webhooks.list', (caller) =>
+          Effect.gen(function* () {
+            yield* validLimit(query.limit, request)
+            const api = yield* PlatformWebhookEndpoints
+            const statuses = query.status ? many(query.status) : undefined
+            return yield* mapped(
+              request,
+              api.list({
+                merchantId: caller.merchantId,
+                ...(statuses ? { statuses } : {}),
+                ...(query.cursor ? { cursor: query.cursor } : {}),
+                ...(query.limit ? { limit: query.limit } : {})
+              })
+            )
+          })
+        )
+      )
+      .handle('create', ({ payload, request }) =>
+        run(request, 'webhooks.create', (caller) =>
+          Effect.gen(function* () {
+            const api = yield* PlatformWebhookEndpoints
+            return yield* mapped(
+              request,
+              api.create({
+                merchantId: caller.merchantId,
+                url: payload.url,
+                events: payload.events,
+                ...(payload.description !== undefined
+                  ? { description: payload.description }
+                  : {}),
+                actorTokenId: caller.id
+              })
+            )
+          })
+        )
+      )
+      .handle('patch', ({ params, payload, request }) =>
+        run(request, 'webhooks.patch', (caller) =>
+          Effect.gen(function* () {
+            const api = yield* PlatformWebhookEndpoints
+            return {
+              data: yield* mapped(
+                request,
+                api.patch({
+                  merchantId: caller.merchantId,
+                  endpointId: params.endpointId,
+                  ...(payload.url !== undefined ? { url: payload.url } : {}),
+                  ...(payload.description !== undefined
+                    ? { description: payload.description }
+                    : {}),
+                  ...(payload.events !== undefined ? { events: payload.events } : {}),
+                  actorTokenId: caller.id
+                })
+              )
+            }
+          })
+        )
+      )
+      .handle('disable', ({ params, request }) =>
+        run(request, 'webhooks.disable', (caller) =>
+          Effect.gen(function* () {
+            const api = yield* PlatformWebhookEndpoints
+            yield* api.disable({
+              merchantId: caller.merchantId,
+              endpointId: params.endpointId,
+              actorTokenId: caller.id
+            })
+          })
+        )
+      )
+      .handle('rotate', ({ params, request }) =>
+        run(request, 'webhooks.rotate', (caller) =>
+          Effect.gen(function* () {
+            const api = yield* PlatformWebhookEndpoints
+            return yield* mapped(
+              request,
+              api.rotateSecret({
+                merchantId: caller.merchantId,
+                endpointId: params.endpointId,
+                actorTokenId: caller.id
+              })
+            )
+          })
+        )
+      )
+      .handle('deliveries', ({ params, query, request }) =>
+        run(request, 'webhooks.deliveries', (caller) =>
+          Effect.gen(function* () {
+            yield* validLimit(query.limit, request)
+            const api = yield* PlatformWebhookEndpoints
+            const statuses = query.status ? many(query.status) : undefined
+            const events = query.event ? many(query.event) : undefined
+            return yield* mapped(
+              request,
+              api.deliveries({
+                merchantId: caller.merchantId,
+                endpointId: params.endpointId,
+                ...(statuses ? { statuses } : {}),
+                ...(events ? { events } : {}),
+                ...(query.attemptedAtFrom
+                  ? { attemptedAtFrom: query.attemptedAtFrom }
+                  : {}),
+                ...(query.cursor ? { cursor: query.cursor } : {}),
+                ...(query.limit ? { limit: query.limit } : {})
+              })
+            )
+          })
+        )
+      )
+  })

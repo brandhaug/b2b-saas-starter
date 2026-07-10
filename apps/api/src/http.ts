@@ -12,6 +12,7 @@ import {
   healthGroup,
   merchantGroup,
   platformApiTokenGroup,
+  platformWebhookGroup,
   providersGroup,
   servicesGroup
 } from './handlers.ts'
@@ -48,7 +49,8 @@ const makeApiLayer = (
     servicesGroup(env),
     providersGroup(env),
     appointmentsGroup(env),
-    platformApiTokenGroup(env)
+    platformApiTokenGroup(env),
+    platformWebhookGroup(env)
   )
 
   const api = HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' }).pipe(

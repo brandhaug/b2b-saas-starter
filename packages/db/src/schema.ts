@@ -700,6 +700,57 @@ export const webhookDeliveries = sqliteTable(
   (table) => [index('webhook_deliveries_endpoint_id_idx').on(table.endpointId)]
 )
 
+export const platformWebhookEndpoints = sqliteTable(
+  'platform_webhook_endpoints',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    description: text('description'),
+    signingSecret: text('signing_secret').notNull(),
+    status: text('status').$type<'active' | 'disabled'>().notNull(),
+    events: text('events', { mode: 'json' }).$type<readonly string[]>().notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt(),
+    disabledAt: text('disabled_at')
+  },
+  (table) => [
+    index('platform_webhook_endpoints_merchant_updated_idx').on(
+      table.merchantId,
+      table.updatedAt,
+      table.id
+    )
+  ]
+)
+
+export const platformWebhookDeliveries = sqliteTable(
+  'platform_webhook_deliveries',
+  {
+    id: id(),
+    endpointId: text('endpoint_id')
+      .notNull()
+      .references(() => platformWebhookEndpoints.id, { onDelete: 'cascade' }),
+    eventId: text('event_id').notNull(),
+    eventType: text('event_type').notNull(),
+    status: text('status').notNull(),
+    failureCode: text('failure_code'),
+    attemptNumber: integer('attempt_number').notNull(),
+    responseStatus: integer('response_status'),
+    durationMs: integer('duration_ms').notNull(),
+    attemptedAt: text('attempted_at').notNull(),
+    nextAttemptAt: text('next_attempt_at')
+  },
+  (table) => [
+    index('platform_webhook_deliveries_endpoint_attempted_idx').on(
+      table.endpointId,
+      table.attemptedAt,
+      table.id
+    )
+  ]
+)
+
 export const implementationReports = sqliteTable(
   'implementation_reports',
   {

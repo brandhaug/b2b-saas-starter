@@ -33,6 +33,13 @@ describe('validateWebhookUrl', () => {
     expect(validateWebhookUrl('https://user@example.com/').valid).toBe(false)
   })
 
+  it('rejects fragments and over-length destinations', () => {
+    expect(validateWebhookUrl('https://example.com/hook#fragment').valid).toBe(false)
+    expect(validateWebhookUrl(`https://example.com/${'x'.repeat(2049)}`).valid).toBe(
+      false
+    )
+  })
+
   it('rejects private, loopback, and link-local IP literals', () => {
     for (const url of [
       'https://10.1.2.3/',

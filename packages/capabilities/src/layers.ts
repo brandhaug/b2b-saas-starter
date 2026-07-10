@@ -78,6 +78,11 @@ import {
   SeedPlatformApiReads
 } from './developer-platform/platform-api-reads.ts'
 import {
+  LivePlatformWebhookEndpoints,
+  PlatformWebhookEndpoints,
+  SeedPlatformWebhookEndpoints
+} from './developer-platform/platform-webhook-endpoints.ts'
+import {
   LiveWebhookEndpoints,
   SeedWebhookEndpoints,
   WebhookEndpoints
@@ -159,6 +164,7 @@ export type CapabilityServices =
   | ApiTokenRegistry
   | PlatformApiTokenRegistry
   | PlatformApiReads
+  | PlatformWebhookEndpoints
   | AuditEventLog
   | CatalogRefreshHistory
   | ImplementationReports
@@ -328,6 +334,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedApiTokenRegistry(seedApiTokens),
   SeedPlatformApiTokenRegistry(),
   SeedPlatformApiReads(seedPlatformApiReads),
+  SeedPlatformWebhookEndpoints(),
   SeedAuditEventLog(seedAuditEvents),
   SeedCatalogRefreshHistory(seedCatalogRefreshHistory),
   SeedImplementationReports(seedImplementationReports),
@@ -365,6 +372,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LivePlatformApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LivePlatformApiReads(options.platformApiCursorSecret ?? ''),
+    LivePlatformWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
     LiveAuditEventLog,
     LiveCatalogRefreshHistory,
     LiveImplementationReports,

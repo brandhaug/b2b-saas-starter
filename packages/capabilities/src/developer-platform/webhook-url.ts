@@ -89,6 +89,9 @@ const checkIpv6Literal = (hostname: string): string | null => {
  * deliberately out of scope for the starter.
  */
 export const validateWebhookUrl = (raw: string): WebhookUrlValidation => {
+  if (raw.length > 2048) {
+    return { valid: false, reason: 'must be no longer than 2048 characters' }
+  }
   let url: URL
   try {
     url = new URL(raw)
@@ -100,6 +103,9 @@ export const validateWebhookUrl = (raw: string): WebhookUrlValidation => {
   }
   if (url.username !== '' || url.password !== '') {
     return { valid: false, reason: 'must not embed credentials' }
+  }
+  if (url.hash !== '') {
+    return { valid: false, reason: 'must not contain a fragment' }
   }
   const hostname = url.hostname.toLowerCase()
   if (hostname === '') {

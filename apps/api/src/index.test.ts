@@ -28,7 +28,11 @@ describe('Booking Product Platform API v1', () => {
       '/v1/providers',
       '/v1/providers/{providerId}',
       '/v1/services',
-      '/v1/services/{serviceId}'
+      '/v1/services/{serviceId}',
+      '/v1/webhook-endpoints',
+      '/v1/webhook-endpoints/{endpointId}',
+      '/v1/webhook-endpoints/{endpointId}/deliveries',
+      '/v1/webhook-endpoints/{endpointId}/rotate-secret'
     ])
     expect(document.paths['/workspaces/{slug}/overview']).toBeUndefined()
     expect(document.paths['/mcp']).toBeUndefined()
@@ -204,6 +208,80 @@ describe('Booking Product Platform API v1', () => {
     expect(response.headers.get('retry-after')).toBe('60')
     const body = (await response.json()) as { error: { details: { bucket: string } } }
     expect(body.error.details.bucket).toBe('data_read')
+  })
+
+  test('configures terminal webhook endpoints with one-time secret disclosure', async () => {
+    const handler = handlerFor()
+    const create = await handler(
+      new Request('https://api.test/v1/webhook-endpoints', {
+        method: 'POST',
+        headers: { ...bearer, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://hooks.example.com/appointments',
+          events: ['appointment.created']
+        })
+      })
+    )
+    expect(create.status).toBe(201)
+    const created = (await create.json()) as {
+      data: { id: string; status: string; signingSecret?: string }
+      signingSecret: string
+    }
+    expect(created.signingSecret).toMatch(/^whsec_/)
+    expect(created.data.signingSecret).toBeUndefined()
+    const list = await handler(get('/v1/webhook-endpoints', bearer))
+    expect(await list.text()).not.toContain(created.signingSecret)
+    const empty = await handler(
+      get(`/v1/webhook-endpoints/${created.data.id}/deliveries`, bearer)
+    )
+    expect(await empty.json()).toEqual({ data: [], page: { nextCursor: null } })
+    expect(
+      (
+        await handler(
+          new Request(`https://api.test/v1/webhook-endpoints/${created.data.id}`, {
+            method: 'DELETE',
+            headers: bearer
+          })
+        )
+      ).status
+    ).toBe(204)
+    expect(
+      (
+        await handler(
+          new Request(`https://api.test/v1/webhook-endpoints/${created.data.id}`, {
+            method: 'DELETE',
+            headers: bearer
+          })
+        )
+      ).status
+    ).toBe(204)
+    const patch = await handler(
+      new Request(`https://api.test/v1/webhook-endpoints/${created.data.id}`, {
+        method: 'PATCH',
+        headers: { ...bearer, 'content-type': 'application/json' },
+        body: JSON.stringify({ url: 'https://other.example.com/hook' })
+      })
+    )
+    expect(patch.status).toBe(404)
+  })
+
+  test('rejects unsafe webhook configuration and closed event families', async () => {
+    const handler = handlerFor()
+    for (const payload of [
+      { url: 'https://user@example.com/hook', events: ['appointment.created'] },
+      { url: 'https://example.com/hook#secret', events: ['appointment.created'] },
+      { url: 'https://example.com/hook', events: ['customer.created'] },
+      { url: 'https://example.com/hook', events: [] }
+    ]) {
+      const response = await handler(
+        new Request('https://api.test/v1/webhook-endpoints', {
+          method: 'POST',
+          headers: { ...bearer, 'content-type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+      )
+      expect(response.status).toBe(400)
+    }
   })
 
   test('does not expose retired or customer booking routes', async () => {
