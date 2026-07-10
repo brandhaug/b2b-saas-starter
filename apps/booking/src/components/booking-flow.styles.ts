@@ -248,6 +248,12 @@ export const styles = stylex.create({
   dateCell: {
     textAlign: 'center'
   },
+  dateButton: {
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: '#292929'
+  },
   dateCircle: {
     display: 'grid',
     width: 36,
@@ -305,6 +311,13 @@ export const styles = stylex.create({
     borderColor: '#4f7ee8',
     backgroundColor: '#4f7ee8',
     color: '#ffffff'
+  },
+  selectedTimeFeedback: {
+    marginTop: 20,
+    color: '#4f7ee8',
+    fontSize: 12,
+    fontWeight: 650,
+    textAlign: 'center'
   },
   fieldGrid: {
     display: 'grid',

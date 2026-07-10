@@ -166,6 +166,10 @@ describe('Seed Booking Scenario builder', () => {
     expect(first.scheduleRules).toHaveLength(10)
     expect(first.providers).toHaveLength(2)
     expect(first.services).toHaveLength(3)
+    expect(first.appointments).toEqual([
+      expect.objectContaining({ id: 'apt_seed_past', status: 'completed' }),
+      expect.objectContaining({ id: 'apt_seed_future', status: 'scheduled' })
+    ])
     expect(new Set(first.eligibility.map((pair) => pair.providerId)).size).toBe(2)
     expect(deriveSoloSeedBookingScenario(first)).toMatchObject({
       merchant: { plan: 'solo' },

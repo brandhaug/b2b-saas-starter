@@ -79,6 +79,7 @@ describe('Booking selection flow', () => {
 
   it('skips Provider choice for Solo, hands off to Additional Services, and opens the full order summary', () => {
     const chooseServices = vi.fn()
+    const continueToTime = vi.fn()
     const selected: BookingJourney = {
       ...teamJourney,
       presentation: 'solo',
@@ -92,6 +93,7 @@ describe('Booking selection flow', () => {
         busy={false}
         onChooseProvider={vi.fn()}
         onChooseServices={chooseServices}
+        onContinue={continueToTime}
       />
     )
 
@@ -110,6 +112,8 @@ describe('Booking selection flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /view order/i }))
     expect(screen.getByRole('dialog', { name: /order summary/i })).toBeTruthy()
     expect(screen.getAllByText('$45.00').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
+    expect(continueToTime).toHaveBeenCalledOnce()
   })
 
   it('renders the no-services path without advancing', () => {

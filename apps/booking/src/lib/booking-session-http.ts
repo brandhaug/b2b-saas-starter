@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect'
 import {
   BookingPageUnavailable,
+  BookingSchedulingRejected,
   BookingSelectionRejected,
   ServiceSelection as ServiceSelectionSchema,
   BookingSessionGone,
@@ -10,6 +11,8 @@ import {
   type BookingSession,
   type BookingSessionEntry,
   type BookingJourney,
+  type BookingAvailability,
+  type TimeSlotHold,
   type ProviderPreference,
   type PresentedBookingSessionCapability,
   type ServiceSelection
@@ -32,6 +35,7 @@ type BookingSessionHttpFailure =
   | CapabilityUnavailable
   | InvalidBookingSessionCookie
   | BookingSelectionRejected
+  | BookingSchedulingRejected
 
 type BookingSessionEffect<A, E = never> = Effect.Effect<A, E>
 
@@ -158,6 +162,22 @@ export type BookingSessionHttpDependencies = {
       BookingSelectionRejected | CapabilityUnavailable
     >
   }
+  readonly scheduling?: {
+    readonly availability: (
+      session: BookingSession,
+      input: { readonly from: string; readonly days?: number; readonly now: string }
+    ) => BookingSessionEffect<
+      BookingAvailability,
+      BookingSchedulingRejected | CapabilityUnavailable
+    >
+    readonly hold: (
+      session: BookingSession,
+      input: { readonly startsAt: string; readonly now: string }
+    ) => BookingSessionEffect<
+      TimeSlotHold,
+      BookingSchedulingRejected | CapabilityUnavailable
+    >
+  }
   readonly takeRead: (key: string) => BookingSessionEffect<boolean>
   readonly takeWrite: (key: string) => BookingSessionEffect<boolean>
   readonly fallback: (request: Request) => BookingSessionEffect<Response>
@@ -198,6 +218,20 @@ const mapSessionFailure = (
 ): Response => {
   if (error instanceof BookingSessionGone) return expired(merchantSlug)
   if (error instanceof CapabilityUnavailable) return unavailable()
+  if (error instanceof BookingSchedulingRejected) {
+    return withPrivateHeaders(
+      Response.json(
+        {
+          kind: error.reason === 'slot_lost' ? 'slot_lost' : 'not_ready',
+          message:
+            error.reason === 'slot_lost'
+              ? 'That time was just booked'
+              : 'Choose your services again to continue'
+        },
+        { status: 409 }
+      )
+    )
+  }
   return hiddenNotFound()
 }
 
@@ -221,6 +255,13 @@ const withPrivateHeaders = (response: Response): Response => {
 }
 
 const jsonJourney = (value: BookingJourney): Response =>
+  withPrivateHeaders(
+    Response.json(value, {
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    })
+  )
+
+const jsonPrivate = (value: BookingAvailability | TimeSlotHold): Response =>
   withPrivateHeaders(
     Response.json(value, {
       headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -370,6 +411,37 @@ export const handleBookingSessionRequest = (
       )
       return result._tag === 'Success'
         ? jsonJourney(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'availability' && request.method === 'GET') {
+      if (!dependencies.scheduling) return unavailable()
+      const from = url.searchParams.get('from') ?? now
+      const daysInput = url.searchParams.get('days')
+      const days = daysInput === null ? undefined : Number(daysInput)
+      const result = yield* Effect.result(
+        dependencies.scheduling.availability(authorization.success, {
+          from,
+          ...(days === undefined ? {} : { days }),
+          now
+        })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'hold' && request.method === 'POST') {
+      if (!dependencies.scheduling) return unavailable()
+      const body = yield* readJson(request)
+      const startsAt =
+        typeof body === 'object' && body !== null
+          ? (body as Record<string, unknown>).startsAt
+          : null
+      if (typeof startsAt !== 'string') return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.scheduling.hold(authorization.success, { startsAt, now })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
     }
     return withPrivateHeaders(yield* dependencies.fallback(request))

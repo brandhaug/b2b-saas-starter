@@ -13,12 +13,14 @@ export function BookingSelectionFlow({
   journey,
   busy,
   onChooseProvider,
-  onChooseServices
+  onChooseServices,
+  onContinue
 }: {
   readonly journey: BookingJourney
   readonly busy: boolean
   readonly onChooseProvider: (preference: ProviderPreference) => void
   readonly onChooseServices: (selection: ServiceSelection) => void
+  readonly onContinue?: () => void
 }) {
   const [editingProvider, setEditingProvider] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
@@ -97,6 +99,7 @@ export function BookingSelectionFlow({
           journey={journey}
           primary={selectedPrimary}
           onClose={() => setOrderOpen(false)}
+          {...(onContinue ? { onContinue } : {})}
         />
       ) : null}
     </div>
@@ -306,11 +309,13 @@ function ServiceContents({
 function OrderSummary({
   journey,
   primary,
-  onClose
+  onClose,
+  onContinue
 }: {
   readonly journey: BookingJourney
   readonly primary: PublicBookableService
   readonly onClose: () => void
+  readonly onContinue?: () => void
 }) {
   const additions = journey.selection.additionalServiceIds
     .map((id) => journey.services.find((service) => service.id === id))
@@ -359,7 +364,11 @@ function OrderSummary({
         </div>
         <button
           type="button"
-          disabled
+          disabled={!onContinue}
+          onClick={() => {
+            onClose()
+            onContinue?.()
+          }}
           {...stylex.props(styles.primaryButton, styles.drawerButton)}
         >
           Choose time

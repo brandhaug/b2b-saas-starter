@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Effect } from 'effect'
 import {
+  BookingSchedulingRejected,
   BookingSelectionRejected,
   BookingSessionGone,
   type BookingJourney
@@ -366,5 +367,79 @@ describe('Booking Session HTTP boundary', () => {
     )
     expect(proven.status).toBe(410)
     expect(await proven.text()).toContain('/mara-studio/booking')
+  })
+
+  it('serves authorized Availability and returns a safe slot-lost recovery state', async () => {
+    const capability = '7'.repeat(64)
+    const base = 'https://www.example.test/mara-studio/booking/session/bsn_private'
+    const session = {
+      id: 'bsn_private',
+      merchantSlug: 'mara-studio',
+      checkoutPath: 'pay_in_person' as const,
+      lifecycle: 'active' as const,
+      createdAt: '2026-07-10T09:30:00.000Z',
+      lastActivityAt: '2026-07-10T09:30:00.000Z',
+      idleExpiresAt: '2026-07-10T10:00:00.000Z',
+      absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
+    }
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () => Effect.succeed(session),
+      scheduling: {
+        availability: () =>
+          Effect.succeed({
+            timezone: 'UTC',
+            slots: [
+              {
+                startsAt: '2026-07-13T09:00:00.000Z',
+                endsAt: '2026-07-13T10:00:00.000Z'
+              }
+            ],
+            hold: null
+          }),
+        hold: () =>
+          Effect.fail(
+            new BookingSchedulingRejected({
+              reason: 'slot_lost',
+              message: 'That time was just booked'
+            })
+          )
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called')),
+      now: () => '2026-07-10T09:30:00.000Z'
+    }
+    const headers = { cookie: `booking_session_bsn_private=${capability}` }
+    const availability = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/availability`, { headers }),
+        dependencies
+      )
+    )
+    expect(availability.status).toBe(200)
+    expect(await availability.json()).toMatchObject({ timezone: 'UTC', hold: null })
+
+    const lost = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/hold`, {
+          method: 'POST',
+          headers: {
+            ...headers,
+            origin: 'https://www.example.test',
+            'sec-fetch-site': 'same-origin',
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({ startsAt: '2026-07-13T09:00:00.000Z' })
+        }),
+        dependencies
+      )
+    )
+    expect(lost.status).toBe(409)
+    expect(await lost.json()).toEqual({
+      kind: 'slot_lost',
+      message: 'That time was just booked'
+    })
   })
 })

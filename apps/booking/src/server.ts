@@ -3,9 +3,11 @@ import { env as workerEnv } from 'cloudflare:workers'
 import { Effect, Layer } from 'effect'
 import {
   BookingSelection,
+  BookingScheduling,
   BookingSessions,
   enterBookingSession,
   LiveBookingSelection,
+  LiveBookingScheduling,
   LiveBookingSessions
 } from '@b2b-saas-starter/capabilities'
 import { layerFromD1 } from '@b2b-saas-starter/db'
@@ -61,6 +63,9 @@ export default {
     }
     const sessionsLayer = LiveBookingSessions.pipe(Layer.provide(layerFromD1(env.DB)))
     const selectionLayer = LiveBookingSelection.pipe(Layer.provide(layerFromD1(env.DB)))
+    const schedulingLayer = LiveBookingScheduling.pipe(
+      Layer.provide(layerFromD1(env.DB))
+    )
     return Effect.runPromise(
       handleBookingSessionRequest(request, {
         publicSiteOrigin: env.PUBLIC_SITE_ORIGIN,
@@ -89,6 +94,22 @@ export default {
                 selection.chooseServices(session, input)
               ),
               selectionLayer
+            )
+        },
+        scheduling: {
+          availability: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingScheduling, (scheduling) =>
+                scheduling.availability(session, input)
+              ),
+              schedulingLayer
+            ),
+          hold: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingScheduling, (scheduling) =>
+                scheduling.hold(session, input)
+              ),
+              schedulingLayer
             )
         },
         takeRead: (key) =>

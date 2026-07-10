@@ -17,6 +17,7 @@ import {
 } from '@b2b-saas-starter/capabilities'
 import {
   account,
+  appointments,
   apiTokens,
   auditEvents,
   catalogRefreshRuns,
@@ -376,6 +377,9 @@ const bookingScenarioRows = (): readonly string[] => [
       createdAt: bookingScenario.anchorTime,
       updatedAt: bookingScenario.anchorTime
     })
+  ),
+  ...bookingScenario.appointments.map((appointment) =>
+    insert(appointments, appointment)
   ),
   insert(publicBookingPages, {
     id: bookingScenario.publicBookingPage.id,

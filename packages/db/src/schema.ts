@@ -40,6 +40,35 @@ export const serviceStatuses = ['active', 'inactive'] as const
 export const publicPageStatuses = ['published', 'unpublished'] as const
 export const bookingSessionCheckoutPaths = ['pay_in_person'] as const
 export const bookingSessionLifecycles = ['active', 'consumed'] as const
+export const appointmentStatuses = [
+  'scheduled',
+  'completed',
+  'cancelled',
+  'no_show'
+] as const
+
+export type StoredBookingQuote = {
+  readonly startsAt: string
+  readonly endsAt: string
+  readonly providerPreference:
+    | { readonly kind: 'any' }
+    | { readonly kind: 'specific'; readonly providerId: string }
+  readonly assignedProvider: {
+    readonly id: string
+    readonly displayName: string
+  }
+  readonly services: ReadonlyArray<{
+    readonly id: string
+    readonly role: 'primary' | 'additional'
+    readonly name: string
+    readonly durationMinutes: number
+    readonly priceMinor: number
+    readonly currency: string
+  }>
+  readonly durationMinutes: number
+  readonly currency: string
+  readonly totalMinor: number
+}
 
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
 // tables store epoch-seconds in integer columns (its plugin contract), starter
@@ -367,6 +396,74 @@ export const bookingSessionAdditionalServices = sqliteTable(
       'booking_session_additional_services_non_negative_position',
       sql`${table.position} >= 0`
     )
+  ]
+)
+
+export const appointments = sqliteTable(
+  'appointments',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => providers.id, { onDelete: 'restrict' }),
+    status: text('status', { enum: appointmentStatuses })
+      .default('scheduled')
+      .notNull(),
+    startsAt: text('starts_at').notNull(),
+    endsAt: text('ends_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('appointments_merchant_id_idx').on(table.merchantId),
+    index('appointments_provider_interval_idx').on(
+      table.providerId,
+      table.startsAt,
+      table.endsAt
+    ),
+    check(
+      'appointments_valid_status',
+      sql`${table.status} in ('scheduled', 'completed', 'cancelled', 'no_show')`
+    ),
+    check('appointments_valid_interval', sql`${table.startsAt} < ${table.endsAt}`)
+  ]
+)
+
+export const timeSlotHolds = sqliteTable(
+  'time_slot_holds',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    bookingSessionId: text('booking_session_id')
+      .notNull()
+      .references(() => bookingSessions.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => providers.id, { onDelete: 'restrict' }),
+    startsAt: text('starts_at').notNull(),
+    endsAt: text('ends_at').notNull(),
+    createdAt: isoCreatedAt(),
+    expiresAt: text('expires_at').notNull(),
+    quote: text('quote', { mode: 'json' }).$type<StoredBookingQuote>().notNull()
+  },
+  (table) => [
+    index('time_slot_holds_merchant_id_idx').on(table.merchantId),
+    index('time_slot_holds_session_expiry_idx').on(
+      table.bookingSessionId,
+      table.expiresAt
+    ),
+    index('time_slot_holds_provider_interval_idx').on(
+      table.providerId,
+      table.startsAt,
+      table.endsAt,
+      table.expiresAt
+    ),
+    check('time_slot_holds_valid_interval', sql`${table.startsAt} < ${table.endsAt}`),
+    check('time_slot_holds_valid_expiry', sql`${table.createdAt} < ${table.expiresAt}`)
   ]
 )
 

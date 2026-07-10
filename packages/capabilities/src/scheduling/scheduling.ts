@@ -241,7 +241,7 @@ const zonedInstant = (date: string, time: string, timezone: string): Date => {
   return new Date(candidate)
 }
 
-const deriveSlots = (
+export const deriveSlots = (
   rules: readonly ScheduleRule[],
   timezone: string,
   durationMinutes: number,

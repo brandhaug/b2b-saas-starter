@@ -532,6 +532,15 @@ export type SeedBookingScenario = {
     readonly startTime: string
     readonly endTime: string
   }>
+  readonly appointments: ReadonlyArray<{
+    readonly id: string
+    readonly merchantId: string
+    readonly providerId: string
+    readonly status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+    readonly startsAt: string
+    readonly endsAt: string
+    readonly createdAt: string
+  }>
   readonly publicBookingPage: MerchantRecord['publicBookingPage'] & {
     readonly merchantId: string
   }
@@ -610,6 +619,8 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
       status: 'inactive'
     }
   ] as const
+  const instant = (offsetMinutes: number) =>
+    new Date(Date.parse(anchorTime) + offsetMinutes * 60_000).toISOString()
   return {
     anchorTime,
     owner,
@@ -649,6 +660,26 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
         startTime: '10:00',
         endTime: '18:00'
       }))
+    ],
+    appointments: [
+      {
+        id: 'apt_seed_past',
+        merchantId: merchant.id,
+        providerId: provider.id,
+        status: 'completed',
+        startsAt: instant(-24 * 60),
+        endsAt: instant(-23 * 60),
+        createdAt: anchorTime
+      },
+      {
+        id: 'apt_seed_future',
+        merchantId: merchant.id,
+        providerId: provider.id,
+        status: 'scheduled',
+        startsAt: instant(3 * 24 * 60),
+        endsAt: instant(3 * 24 * 60 + 60),
+        createdAt: anchorTime
+      }
     ],
     publicBookingPage: {
       id: 'pg_seed_booking_studio',

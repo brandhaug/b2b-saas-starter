@@ -5,6 +5,7 @@ export * from './workspace-projections.ts'
 // booking
 export * from './booking/booking-sessions.ts'
 export * from './booking/booking-selection.ts'
+export * from './booking/booking-scheduling.ts'
 
 // merchant-catalog
 export * from './merchant-catalog/merchant-onboarding.ts'
