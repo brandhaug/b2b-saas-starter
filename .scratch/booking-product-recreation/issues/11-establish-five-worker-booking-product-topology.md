@@ -12,14 +12,14 @@ Make the Public Site, Merchant App, Booking App, Platform API, and Background Wo
 
 ## Acceptance criteria
 
-- [ ] The Merchant App and Booking App are production TanStack Start Cloudflare Workers with their settled package names and local ports, not prototype-only processes.
-- [ ] Root development commands expose direct commands for all five applications, and the repository build, typecheck, and test commands include both browser applications.
-- [ ] Production infrastructure declares five independently deployable Workers, one shared D1 database, the settled queue producers and consumers, isolated rate-limit bindings, and no public route for the Background Worker.
-- [ ] The Public Site delegates only valid `/:merchantSlug/booking*` requests and Booking App assets to the Booking App, preserves the original URL and trace ID, and never performs Merchant lookup while dispatching.
-- [ ] Reserved Public Site slugs cannot be interpreted as Merchant booking paths, and non-booking paths remain owned by the Public Site.
-- [ ] A missing or failed Booking App service binding returns the branded `503 Booking temporarily unavailable` response with `Retry-After` and the request trace ID.
-- [ ] Local end-to-end traffic enters through the Public Site port and proxies booking paths and assets to the Booking App while preserving their public URL; the Booking App port remains usable for isolated development.
-- [ ] Binding-drift and routing smoke tests cover local and deployed configuration, asset routing, reserved paths, trace propagation, and the `503` fallback.
+- [x] The Merchant App and Booking App are production TanStack Start Cloudflare Workers with their settled package names and local ports, not prototype-only processes.
+- [x] Root development commands expose direct commands for all five applications, and the repository build, typecheck, and test commands include both browser applications.
+- [x] Production infrastructure declares five independently deployable Workers, one shared D1 database, the settled queue producers and consumers, isolated rate-limit bindings, and no public route for the Background Worker.
+- [x] The Public Site delegates only valid `/:merchantSlug/booking*` requests and Booking App assets to the Booking App, preserves the original URL and trace ID, and never performs Merchant lookup while dispatching.
+- [x] Reserved Public Site slugs cannot be interpreted as Merchant booking paths, and non-booking paths remain owned by the Public Site.
+- [x] A missing or failed Booking App service binding returns the branded `503 Booking temporarily unavailable` response with `Retry-After` and the request trace ID.
+- [x] Local end-to-end traffic enters through the Public Site port and proxies booking paths and assets to the Booking App while preserving their public URL; the Booking App port remains usable for isolated development.
+- [x] Binding-drift and routing smoke tests cover local and deployed configuration, asset routing, reserved paths, trace propagation, and the `503` fallback.
 
 ## Comments
 
@@ -42,10 +42,10 @@ Make the Public Site, Merchant App, Booking App, Platform API, and Background Wo
 
 **Acceptance criteria:**
 
-- [ ] All five Workers build, typecheck, test, and run locally through the root commands and share the settled production bindings.
-- [ ] Reserved slugs, non-booking paths, Booking assets, trace propagation, and the canonical public URL route correctly in local and deployed configurations.
-- [ ] A missing or failed Booking binding produces the prescribed branded `503` response without leaking an internal failure.
-- [ ] Binding-drift and routing smoke tests cover each behavior above.
+- [x] All five Workers build, typecheck, test, and run locally through the root commands and share the settled production bindings.
+- [x] Reserved slugs, non-booking paths, Booking assets, trace propagation, and the canonical public URL route correctly in local and deployed configurations.
+- [x] A missing or failed Booking binding produces the prescribed branded `503` response without leaking an internal failure.
+- [x] Binding-drift and routing smoke tests cover each behavior above.
 
 **Out of scope:**
 
