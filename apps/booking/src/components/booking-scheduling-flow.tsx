@@ -63,8 +63,12 @@ export function BookingSchedulingFlow({
   const [chosenDate, setChosenDate] = useState<string | null>(
     heldDate ?? days[0] ?? null
   )
+  const [page, setPage] = useState(0)
+  const visibleDays = days.slice(page * 6, page * 6 + 6)
   const activeDate =
-    chosenDate && days.includes(chosenDate) ? chosenDate : (days[0] ?? null)
+    chosenDate && visibleDays.includes(chosenDate)
+      ? chosenDate
+      : (visibleDays[0] ?? null)
   const visible = availability.slots.filter(
     (slot) => localDate(slot.startsAt) === activeDate
   )
@@ -96,7 +100,23 @@ export function BookingSchedulingFlow({
               </p>
             </div>
           ) : null}
-          {availability.slots.length === 0 ? (
+          {availability.slots.length === 0 && availability.hold ? (
+            <div {...stylex.props(styles.empty)}>
+              <span {...stylex.props(styles.emptyIcon)}>
+                <CalendarDays {...stylex.props(styles.icon20)} />
+              </span>
+              <h2 {...stylex.props(styles.emptyTitle)}>Your time is held</h2>
+              <p {...stylex.props(styles.emptyCopy)}>
+                {formatters.longDate.format(new Date(availability.hold.quote.startsAt))}{' '}
+                at {formatters.time.format(new Date(availability.hold.quote.startsAt))}
+                {' · '}
+                {availability.hold.quote.assignedProvider.displayName}
+              </p>
+              <p {...stylex.props(styles.selectedTimeFeedback)}>
+                Your frozen quote remains held for checkout.
+              </p>
+            </div>
+          ) : availability.slots.length === 0 ? (
             <div {...stylex.props(styles.empty)}>
               <span {...stylex.props(styles.emptyIcon)}>
                 <CalendarDays {...stylex.props(styles.icon20)} />
@@ -111,8 +131,34 @@ export function BookingSchedulingFlow({
               <p {...stylex.props(styles.month)}>
                 {formatters.month.format(asLocalNoon(activeDate!))}
               </p>
+              <div {...stylex.props(styles.calendarControls)}>
+                <button
+                  type="button"
+                  disabled={page === 0}
+                  onClick={() => {
+                    const nextPage = page - 1
+                    setPage(nextPage)
+                    setChosenDate(days[nextPage * 6] ?? null)
+                  }}
+                  {...stylex.props(styles.textButton)}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={(page + 1) * 6 >= days.length}
+                  onClick={() => {
+                    const nextPage = page + 1
+                    setPage(nextPage)
+                    setChosenDate(days[nextPage * 6] ?? null)
+                  }}
+                  {...stylex.props(styles.textButton)}
+                >
+                  Next dates
+                </button>
+              </div>
               <div {...stylex.props(styles.dateGrid)}>
-                {days.map((date) => (
+                {visibleDays.map((date) => (
                   <button
                     key={date}
                     type="button"
@@ -183,7 +229,7 @@ const calendarDays = (
 ) => {
   if (!slots[0]) return []
   const first = formatter.format(new Date(slots[0].startsAt))
-  return Array.from({ length: 6 }, (_, index) => addDay(first, index))
+  return Array.from({ length: 14 }, (_, index) => addDay(first, index))
 }
 
 const asLocalNoon = (date: string) => new Date(`${date}T12:00:00.000Z`)

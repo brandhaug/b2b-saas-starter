@@ -144,7 +144,7 @@ type SchedulingInputs = {
   readonly holds: readonly Conflict[]
 }
 
-type SeedStoredHold = TimeSlotHold & {
+type StoredHold = TimeSlotHold & {
   readonly merchantId: string
   readonly providerId: string
   readonly startsAt: string
@@ -153,7 +153,7 @@ type SeedStoredHold = TimeSlotHold & {
 export type SeedBookingSchedulingStore = {
   readonly scenario: SeedBookingScenario
   readonly selections: SeedBookingSelectionStore
-  readonly holds: Map<string, SeedStoredHold>
+  readonly holds: Map<string, StoredHold>
 }
 
 export const emptySeedBookingSchedulingStore = (
@@ -175,7 +175,7 @@ const failure = (reason: BookingSchedulingRejected['reason']) =>
   })
 const validRange = (from: string, days: number) =>
   Number.isFinite(Date.parse(from)) && Number.isInteger(days) && days >= 1 && days <= 31
-const toPublicHold = (hold: SeedStoredHold): TimeSlotHold => ({
+const toPublicHold = (hold: StoredHold): TimeSlotHold => ({
   id: hold.id,
   bookingSessionId: hold.bookingSessionId,
   createdAt: hold.createdAt,
@@ -329,7 +329,7 @@ const makeStoredHold = (input: {
   readonly slot: BookingTimeSlot
   readonly sessionId: string
   readonly now: string
-}): SeedStoredHold => ({
+}): StoredHold => ({
   id: newCapabilityId('hld'),
   merchantId: input.scheduling.merchantId,
   bookingSessionId: input.sessionId,

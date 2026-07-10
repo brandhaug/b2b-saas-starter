@@ -19,6 +19,7 @@ import {
   type PresentedBookingSessionCapability,
   type ServiceSelection
 } from '@b2b-saas-starter/capabilities'
+import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 
 export class InvalidBookingSessionCookie extends Schema.TaggedErrorClass<InvalidBookingSessionCookie>()(
   'InvalidBookingSessionCookie',
@@ -425,8 +426,14 @@ export const handleBookingSessionRequest = (
     }
     if (endpoint === 'availability' && request.method === 'GET') {
       if (!dependencies.scheduling) return unavailable()
-      const from = url.searchParams.get('from') ?? now
-      const daysInput = url.searchParams.get('days')
+      const queryResult = yield* Effect.result(
+        Schema.decodeUnknownEffect(BookingAvailabilityQuery)(
+          Object.fromEntries(url.searchParams)
+        )
+      )
+      if (queryResult._tag === 'Failure') return hiddenNotFound()
+      const from = queryResult.success.from ?? now
+      const daysInput = queryResult.success.days
       const days = daysInput === null ? undefined : Number(daysInput)
       const result = yield* Effect.result(
         dependencies.scheduling.availability(authorization.success, {

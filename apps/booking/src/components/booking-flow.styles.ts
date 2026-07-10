@@ -245,6 +245,11 @@ export const styles = stylex.create({
     gap: 8,
     marginTop: 16
   },
+  calendarControls: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginTop: 8
+  },
   dateCell: {
     textAlign: 'center'
   },

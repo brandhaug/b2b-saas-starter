@@ -25,6 +25,7 @@ import {
 
 let test: TestD1
 const now = '2026-07-10T09:30:00.000Z'
+const issuedCapabilities = new Map<string, string>()
 
 beforeAll(async () => {
   test = await provisionTestD1()
@@ -162,6 +163,7 @@ const prepareSession = async (
     )
   )
   const layer = LiveBookingSelection.pipe(Layer.provide(dbLayer))
+  issuedCapabilities.set(session.session.id, session.capability)
   await Effect.runPromise(
     Effect.provide(
       Effect.flatMap(BookingSelection, (selection) =>
@@ -240,15 +242,39 @@ describe('Live Booking Scheduling', () => {
       }
     })
     if (winner?._tag === 'Success') {
+      const winningSession =
+        winner.success.bookingSessionId === first.id ? first : second
+      const activeAfterUnrelatedSessionActivity = await Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(BookingSessions, (sessions) =>
+            sessions.authorize({
+              merchantSlug: winningSession.merchantSlug,
+              sessionId: winningSession.id,
+              capability: issuedCapabilities.get(winningSession.id)!,
+              now: '2026-07-10T09:35:00.000Z'
+            })
+          ),
+          LiveBookingSessions.pipe(Layer.provide(layerFromD1(test.d1)))
+        )
+      )
       const reread = await run(
         Effect.flatMap(BookingScheduling, (scheduling) =>
-          scheduling.currentHold(
-            winner.success.bookingSessionId === first.id ? first : second,
-            { now: '2026-07-10T09:35:00.000Z' }
-          )
+          scheduling.currentHold(activeAfterUnrelatedSessionActivity, {
+            now: '2026-07-10T09:35:00.000Z'
+          })
         )
       )
       expect(reread?.expiresAt).toBe(winner.success.expiresAt)
+      const afterAvailabilityRead = await run(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.availability(activeAfterUnrelatedSessionActivity, {
+            from: '2026-07-13T00:00:00.000Z',
+            days: 1,
+            now: '2026-07-10T09:35:00.000Z'
+          })
+        )
+      )
+      expect(afterAvailabilityRead.hold?.expiresAt).toBe(winner.success.expiresAt)
     }
 
     const overlapping = await prepareSession({

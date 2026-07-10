@@ -20,6 +20,10 @@ const availability: BookingAvailability = {
     {
       startsAt: '2026-07-14T09:00:00.000Z',
       endsAt: '2026-07-14T10:00:00.000Z'
+    },
+    {
+      startsAt: '2026-07-20T09:00:00.000Z',
+      endsAt: '2026-07-20T10:00:00.000Z'
     }
   ],
   hold: null
@@ -40,6 +44,10 @@ describe('Booking scheduling flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /monday, july 13/i }))
     fireEvent.click(screen.getByRole('button', { name: '09:00' }))
     expect(select).toHaveBeenCalledWith('2026-07-13T09:00:00.000Z')
+    fireEvent.click(screen.getByRole('button', { name: 'Next dates' }))
+    fireEvent.click(screen.getByRole('button', { name: /monday, july 20/i }))
+    fireEvent.click(screen.getByRole('button', { name: '09:00' }))
+    expect(select).toHaveBeenLastCalledWith('2026-07-20T09:00:00.000Z')
   })
 
   it('renders no-times and safe slot-lost recovery without hiding saved selections', () => {
@@ -73,5 +81,46 @@ describe('Booking scheduling flow', () => {
       />
     )
     expect(screen.getByText('Your held time expired')).toBeTruthy()
+  })
+
+  it('keeps a valid frozen hold visible when current Availability has no slots', () => {
+    render(
+      <BookingSchedulingFlow
+        availability={{
+          timezone: 'UTC',
+          slots: [],
+          hold: {
+            id: 'hld_one',
+            bookingSessionId: 'bsn_one',
+            createdAt: '2026-07-10T09:30:00.000Z',
+            expiresAt: '2026-07-10T09:40:00.000Z',
+            quote: {
+              startsAt: '2026-07-13T09:00:00.000Z',
+              endsAt: '2026-07-13T10:00:00.000Z',
+              providerPreference: { kind: 'any' },
+              assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
+              services: [
+                {
+                  id: 'svc_cut',
+                  role: 'primary',
+                  name: 'Cut',
+                  durationMinutes: 60,
+                  priceMinor: 5000,
+                  currency: 'USD'
+                }
+              ],
+              durationMinutes: 60,
+              currency: 'USD',
+              totalMinor: 5000
+            }
+          }
+        }}
+        busy={false}
+        slotLost={false}
+        onSelect={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Your time is held')).toBeTruthy()
+    expect(screen.getByText(/frozen quote remains held/i)).toBeTruthy()
   })
 })
