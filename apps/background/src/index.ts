@@ -21,6 +21,7 @@ import {
 type Env = {
   readonly DB?: D1Database
   readonly WEBHOOK_QUEUE?: Queue
+  readonly BOOKING_EVENTS_QUEUE?: Queue
 }
 
 // Module-aware env validation (ADR 0035).
@@ -37,6 +38,7 @@ export type DeliveryOutcome = 'ack' | 'retry'
 
 /** Queue name of the dead-letter consumer branch (see wrangler.jsonc). */
 const DEAD_LETTER_QUEUE = 'b2b-saas-starter-webhooks-dlq'
+const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
 
 const StaticLayer = Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
 const staticRuntime = ManagedRuntime.make(StaticLayer)
@@ -352,6 +354,14 @@ export default {
   // Queue message bodies are untyped at runtime; `processWebhookMessage` and
   // `recordDeadLetter` decode them at their boundary.
   async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    if (batch.queue === BOOKING_EVENTS_QUEUE) {
+      // The queue is wired now so Booking App deployments can publish committed
+      // outbox wake-ups. Processing the durable outbox belongs to ticket 26;
+      // acknowledging this no-op trigger is safe because that outbox is the
+      // source of truth and its recovery sweep will be introduced with it.
+      await Promise.all(batch.messages.map((message) => Promise.resolve(message.ack())))
+      return
+    }
     if (batch.queue === DEAD_LETTER_QUEUE) {
       await Promise.all(
         batch.messages.map(async (message) => {

@@ -4,6 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   apiRateLimits,
+  bookingEventsConsumerSettings,
+  bookingEventsQueueName,
+  bookingRateLimits,
+  merchantRateLimits,
   webhookConsumerSettings,
   webhookDeadLetterQueueName,
   webhookDlqConsumerSettings,
@@ -12,6 +16,7 @@ import {
   type QueueConsumerSettings,
   type RateLimitBindingSpec
 } from './bindings.ts'
+import { bookingProductWorkers, bookingServiceBinding } from './topology.ts'
 
 // `infra/bindings.ts` is the source of truth alchemy deploys from; the
 // wrangler.jsonc files hand-mirror the same specs for `wrangler dev`. This
@@ -19,6 +24,9 @@ import {
 // pattern as apps/api/src/contract-sync.test.ts for HTTP contracts.
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
+
+const alchemySource = (): string =>
+  readFileSync(join(repoRoot, 'alchemy.run.ts'), 'utf8')
 
 // Minimal JSONC → JSON: strips // and /* */ comments outside of strings.
 // (No jsonc parser ships in the repo's dependency set.)
@@ -153,13 +161,29 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
     expectRateLimitSync(rateLimitBindings(readWranglerConfig('web')), webRateLimits)
   })
 
+  it('Merchant and Booking rate limits are isolated and match their workers', () => {
+    expectRateLimitSync(
+      rateLimitBindings(readWranglerConfig('merchant')),
+      merchantRateLimits
+    )
+    expectRateLimitSync(
+      rateLimitBindings(readWranglerConfig('booking')),
+      bookingRateLimits
+    )
+    expect(
+      new Set(
+        [...merchantRateLimits, ...bookingRateLimits].map((spec) => spec.namespaceId)
+      )
+    ).toHaveLength(merchantRateLimits.length + bookingRateLimits.length)
+  })
+
   it('apps/background queue consumers match the webhook consumer settings', () => {
     const config = readWranglerConfig('background')
     const queues = config['queues'] as
       | { readonly consumers?: readonly WranglerQueueConsumer[] }
       | undefined
     const consumers = queues?.consumers ?? []
-    expect(consumers).toHaveLength(2)
+    expect(consumers).toHaveLength(3)
     expectConsumerSync(
       consumers.find((consumer) => consumer.queue === webhookQueueName),
       webhookQueueName,
@@ -171,9 +195,14 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
       webhookDeadLetterQueueName,
       webhookDlqConsumerSettings
     )
+    expectConsumerSync(
+      consumers.find((consumer) => consumer.queue === bookingEventsQueueName),
+      bookingEventsQueueName,
+      bookingEventsConsumerSettings
+    )
   })
 
-  it('webhook producers point at the same queue name', () => {
+  it('queue producers point at the settled queues', () => {
     for (const app of ['api', 'background'] as const) {
       const config = readWranglerConfig(app)
       const queues = config['queues'] as
@@ -186,5 +215,51 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
         webhookQueueName
       )
     }
+
+    const booking = readWranglerConfig('booking')
+    const bookingQueues = booking['queues'] as
+      | { readonly producers?: readonly { binding: string; queue: string }[] }
+      | undefined
+    expect(
+      bookingQueues?.producers?.find(
+        (candidate) => candidate.binding === 'BOOKING_EVENTS_QUEUE'
+      )?.queue
+    ).toBe(bookingEventsQueueName)
+  })
+
+  it('declares the five settled Workers and the Public Site service binding', () => {
+    for (const [app, worker] of Object.entries(bookingProductWorkers)) {
+      const config = readWranglerConfig(app)
+      expect(config['name']).toBe(worker.name)
+      expect(config['workers_dev']).toBe(false)
+      expect(config['d1_databases']).toEqual([
+        {
+          binding: 'DB',
+          database_name: 'b2b-saas-starter',
+          database_id: 'placeholder'
+        }
+      ])
+    }
+
+    const web = readWranglerConfig('web')
+    expect(web['services']).toEqual([
+      { binding: bookingServiceBinding.name, service: bookingServiceBinding.service }
+    ])
+  })
+
+  it('keeps the deployed Alchemy topology aligned with the local Worker configs', () => {
+    const source = alchemySource()
+    for (const [app, worker] of Object.entries(bookingProductWorkers)) {
+      expect(source).toContain(`'${app}'`)
+      expect(source).toContain(`bookingProductWorkers.${app}.name`)
+      expect(source).toContain('url: false')
+      expect(worker.localPort).toBeGreaterThan(0)
+    }
+    expect(source).toContain('BOOKING: booking')
+    expect(source).toContain('BOOKING_EVENTS_QUEUE: bookingEventsQueue')
+    expect(source).toContain("Cloudflare.QueueConsumer('booking-events-consumer'")
+    expect(source).toContain('domain: publicSiteDomain')
+    expect(source).toContain('domain: merchantAppDomain')
+    expect(source).toContain('domain: platformApiDomain')
   })
 })

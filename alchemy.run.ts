@@ -4,6 +4,10 @@ import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import {
   apiRateLimits,
+  bookingEventsConsumerSettings,
+  bookingEventsQueueName,
+  bookingRateLimits,
+  merchantRateLimits,
   webhookConsumerSettings,
   webhookDeadLetterQueueName,
   webhookDlqConsumerSettings,
@@ -11,6 +15,7 @@ import {
   webRateLimits,
   type RateLimitBindingSpec
 } from './infra/bindings.ts'
+import { bookingProductWorkers } from './infra/topology.ts'
 import {
   optionalModuleEnvPlainKeys,
   optionalModuleEnvSecretKeys
@@ -55,6 +60,17 @@ function requiredEnv(name: string): string {
   return value
 }
 
+function requiredHostname(name: string): string {
+  const value = requiredEnv(name)
+  try {
+    const hostname = new URL(value).hostname
+    if (!hostname) throw new Error('origin has no hostname')
+    return hostname
+  } catch {
+    throw new Error(`Expected ${name} to be a valid origin URL`)
+  }
+}
+
 function optionalSecret(name: string) {
   const value = process.env[name]
   return value ? Redacted.make(value) : undefined
@@ -64,6 +80,9 @@ const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
 const BETTER_AUTH_URL = requiredEnv('BETTER_AUTH_URL')
 const BETTER_AUTH_TRUSTED_ORIGINS =
   process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? BETTER_AUTH_URL
+const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
+const merchantAppDomain = requiredHostname('MERCHANT_APP_ORIGIN')
+const platformApiDomain = requiredHostname('PLATFORM_API_ORIGIN')
 // Optional: when unset, the SendEmail binding is skipped and the email
 // module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
 // read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalModuleEnv` below —
@@ -112,6 +131,10 @@ export const Stack = Alchemy.Stack(
       name: webhookQueueName
     })
 
+    const bookingEventsQueue = yield* Cloudflare.Queue('booking-events-queue', {
+      name: bookingEventsQueueName
+    })
+
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
     // failing the deploy.
@@ -125,7 +148,9 @@ export const Stack = Alchemy.Stack(
       : undefined
 
     const api = yield* Cloudflare.Worker('api', {
-      name: 'b2b-saas-starter-api',
+      name: bookingProductWorkers.api.name,
+      url: false,
+      domain: platformApiDomain,
       main: './apps/api/src/index.ts',
       bindings: {
         DB: db,
@@ -144,12 +169,56 @@ export const Stack = Alchemy.Stack(
 
     yield* attachRateLimits(api, apiRateLimits)
 
+    const merchant = yield* Cloudflare.Vite('merchant', {
+      name: bookingProductWorkers.merchant.name,
+      url: false,
+      domain: merchantAppDomain,
+      rootDir: './apps/merchant',
+      bindings: {
+        DB: db,
+        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+      },
+      env: {
+        ...optionalModuleEnv,
+        BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL,
+        BETTER_AUTH_TRUSTED_ORIGINS
+      },
+      compatibility: {
+        flags: ['nodejs_compat']
+      },
+      observability
+    })
+
+    yield* attachRateLimits(merchant, merchantRateLimits)
+
+    const booking = yield* Cloudflare.Vite('booking', {
+      name: bookingProductWorkers.booking.name,
+      // Customer traffic reaches this worker only through `web`'s BOOKING
+      // service binding. Its direct local Vite server is development-only.
+      url: false,
+      rootDir: './apps/booking',
+      bindings: {
+        DB: db,
+        BOOKING_EVENTS_QUEUE: bookingEventsQueue
+      },
+      env: optionalModuleEnv,
+      compatibility: {
+        flags: ['nodejs_compat']
+      },
+      observability
+    })
+
+    yield* attachRateLimits(booking, bookingRateLimits)
+
     const background = yield* Cloudflare.Worker('background', {
-      name: 'b2b-saas-starter-background',
+      name: bookingProductWorkers.background.name,
+      url: false,
       main: './apps/background/src/index.ts',
       bindings: {
         DB: db,
         WEBHOOK_QUEUE: webhookQueue,
+        BOOKING_EVENTS_QUEUE: bookingEventsQueue,
         ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
       env: optionalModuleEnv,
@@ -173,11 +242,20 @@ export const Stack = Alchemy.Stack(
       settings: webhookDlqConsumerSettings
     })
 
+    yield* Cloudflare.QueueConsumer('booking-events-consumer', {
+      queueId: bookingEventsQueue.queueId,
+      scriptName: background.workerName,
+      settings: bookingEventsConsumerSettings
+    })
+
     const web = yield* Cloudflare.Vite('web', {
-      name: 'b2b-saas-starter-web',
+      name: bookingProductWorkers.web.name,
+      url: false,
+      domain: publicSiteDomain,
       rootDir: './apps/web',
       bindings: {
         DB: db,
+        BOOKING: booking,
         ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
       env: {
@@ -197,7 +275,10 @@ export const Stack = Alchemy.Stack(
     return {
       api,
       background,
+      booking,
+      bookingEventsQueue,
       db,
+      merchant,
       transactionalEmail,
       web,
       webhookQueue,

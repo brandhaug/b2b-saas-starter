@@ -39,4 +39,39 @@ type GlobalWithLocalD1 = typeof globalThis & {
 const globalWithLocalD1 = globalThis as GlobalWithLocalD1
 globalWithLocalD1[globalKey] ??= provisionLocalD1()
 
-export const env = { ...baseEnv, DB: await globalWithLocalD1[globalKey] }
+const bookingDevOrigin = new URL(
+  process.env.BOOKING_DEV_ORIGIN ?? 'http://localhost:3073'
+)
+
+const localBookingBinding = {
+  async fetch(request: Request): Promise<Response> {
+    const target = new URL(request.url)
+    target.protocol = bookingDevOrigin.protocol
+    target.host = bookingDevOrigin.host
+    const init: RequestInit = { method: request.method, headers: request.headers }
+    if (request.method !== 'GET' && request.method !== 'HEAD' && request.body) {
+      init.body = request.body
+    }
+    const upstream = await fetch(new Request(target, init))
+    // Node's development server uses hop-by-hop transfer headers that cannot
+    // be relayed through another development server unchanged.
+    const headers = new Headers(upstream.headers)
+    headers.delete('connection')
+    headers.delete('keep-alive')
+    headers.delete('transfer-encoding')
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers
+    })
+  }
+}
+
+// A local stand-in for the production BOOKING service binding. It changes
+// only the internal upstream origin; the browser continues to use :3071 and
+// the original merchant-scoped URL reaches the Booking App unchanged.
+export const env = {
+  ...baseEnv,
+  DB: await globalWithLocalD1[globalKey],
+  ...(import.meta.env.SSR ? { BOOKING: localBookingBinding } : {})
+}

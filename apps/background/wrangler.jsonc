@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "b2b-saas-starter-background",
   "main": "src/index.ts",
+  "workers_dev": false,
   "compatibility_date": "2026-05-16",
   "observability": {
     "enabled": true,
@@ -22,6 +23,10 @@
       {
         "binding": "WEBHOOK_QUEUE",
         "queue": "b2b-saas-starter-webhooks"
+      },
+      {
+        "binding": "BOOKING_EVENTS_QUEUE",
+        "queue": "b2b-saas-starter-booking-events"
       }
     ],
     "consumers": [
@@ -42,6 +47,14 @@
         "max_batch_timeout": 5,
         "max_retries": 1,
         "max_concurrency": 1
+      },
+      {
+        "queue": "b2b-saas-starter-booking-events",
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "max_retries": 6,
+        "max_concurrency": 4,
+        "retry_delay": 30
       }
     ]
   },

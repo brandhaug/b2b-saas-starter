@@ -12,6 +12,8 @@ interface WebWorkerEnv extends Readonly<import('@b2b-saas-starter/env').ServerEn
   readonly DB?: D1Database
   readonly RATE_LIMITER_AUTH_READ?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   readonly RATE_LIMITER_AUTH_WRITE?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
+  /** Booking App service binding; absent only in test/provider-light contexts. */
+  readonly BOOKING?: Fetcher
 }
 
 // `env` from `cloudflare:workers` is typed as `Cloudflare.Env`

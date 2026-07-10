@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "b2b-saas-starter-booking",
+  "main": "src/server.ts",
+  "workers_dev": false,
+  "compatibility_date": "2026-05-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "b2b-saas-starter",
+      "database_id": "placeholder"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "BOOKING_EVENTS_QUEUE",
+        "queue": "b2b-saas-starter-booking-events"
+      }
+    ]
+  },
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER_BOOKING_READ",
+        "type": "ratelimit",
+        "namespace_id": "4001",
+        "simple": { "limit": 120, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_BOOKING_WRITE",
+        "type": "ratelimit",
+        "namespace_id": "4002",
+        "simple": { "limit": 30, "period": 60 }
+      }
+    ]
+  }
+}

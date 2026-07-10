@@ -1,0 +1,117 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+:root {
+  color-scheme: light;
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.3211 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.3211 0 0);
+  --primary: oklch(0.6231 0.188 259.8145);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.967 0.0029 264.5419);
+  --secondary-foreground: oklch(0.4461 0.0263 256.8018);
+  --muted: oklch(0.9846 0.0017 247.8389);
+  --muted-foreground: oklch(0.551 0.0234 264.3637);
+  --accent: oklch(0.9514 0.025 236.8242);
+  --accent-foreground: oklch(0.3791 0.1378 265.5222);
+  --border: oklch(0.9276 0.0058 264.5313);
+  --input: oklch(0.9276 0.0058 264.5313);
+  --ring: oklch(0.6231 0.188 259.8145);
+  --destructive: oklch(0.6368 0.2078 25.3313);
+  --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+}
+
+* {
+  border-color: var(--border);
+  outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+html {
+  font-family: var(--font-sans);
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+button,
+a,
+input,
+select {
+  touch-action: manipulation;
+}
+
+button:not(:disabled),
+[role='button']:not(:disabled) {
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--primary) 24%, transparent);
+}
+
+.prototype-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--border) 55%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--border) 55%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 24px 24px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prototype-enter {
+    animation: prototype-enter 180ms ease-out both;
+  }
+
+  @keyframes prototype-enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
