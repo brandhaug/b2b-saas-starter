@@ -15,24 +15,28 @@ Each record is a short, statement-style decision: a title plus prose describing 
 ## Application architecture
 
 - [0002 — Effect v4 application backbone](./0002-effect-v4-application-backbone.md)
-- [0003 — Split web and API workers](./0003-split-web-and-api-workers.md)
+- [0003 — Split web and API workers](./0003-split-web-and-api-workers.md) (superseded by 0051)
 - [0037 — Shared capabilities package](./0037-shared-capabilities-package.md)
 - [0038 — Effect errors over better-result](./0038-effect-errors-over-better-result.md)
 - [0039 — Effect HTTP API over Hono](./0039-effect-http-api-over-hono.md)
 - [0040 — Client server-state: loaders and server functions](./0040-effect-atom-for-server-state.md)
 - [0044 — Per-capability Effect services with Seed and Live adapters](./0044-per-capability-effect-services-with-seed-and-live-adapters.md)
-- [0048 — Defer API versioning](./0048-defer-api-versioning.md)
+- [0048 — Defer API versioning](./0048-defer-api-versioning.md) (superseded by 0051)
+- [0050 — Booking bounded contexts](./0050-booking-bounded-contexts.md)
+- [0051 — Booking product application topology](./0051-booking-product-application-topology.md)
+- [0052 — D1-backed first-slice booking storage](./0052-first-slice-booking-storage.md)
 
 ## Product surfaces
 
-- [0016 — Homepage as architecture showcase](./0016-homepage-as-architecture-showcase.md)
+- [0016 — Homepage as architecture showcase](./0016-homepage-as-architecture-showcase.md) (superseded by 0051)
 - [0023 — Public pricing with env-gated billing](./0023-public-pricing-with-env-gated-billing.md)
 - [0024 — Better Auth admin dashboard](./0024-better-auth-admin-dashboard.md)
 - [0025 — Persisted audit events](./0025-persisted-audit-events.md)
-- [0026 — Workspace API tokens](./0026-workspace-api-tokens.md)
+- [0026 — Workspace API tokens](./0026-workspace-api-tokens.md) (superseded by 0053)
 - [0027 — Public content search first](./0027-public-content-search-first.md)
-- [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md)
+- [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md) (superseded by 0053)
 - [0043 — Starter-specific charts](./0043-starter-specific-charts.md)
+- [0053 — Read-and-notify merchant Platform API](./0053-read-and-notify-merchant-platform-api.md)
 
 ## Background work and delivery
 
@@ -45,6 +49,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0030 — Sensitive surface rate limiting](./0030-sensitive-surface-rate-limiting.md)
 - [0031 — Env-gated Turnstile](./0031-env-gated-turnstile.md)
 - [0035 — Shared module-aware env validation](./0035-shared-module-aware-env-validation.md)
+- [0054 — Booking auth and session boundaries](./0054-booking-auth-and-session-boundaries.md)
 
 ## Optional providers
 
@@ -72,7 +77,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 ## Testing and local development
 
 - [0012 — Focused Playwright coverage](./0012-focused-playwright-coverage.md)
-- [0017 — Deterministic seed workspace](./0017-deterministic-seed-workspace.md)
+- [0017 — Deterministic seed workspace](./0017-deterministic-seed-workspace.md) (superseded by 0052)
 
 ## Deferred by default
 

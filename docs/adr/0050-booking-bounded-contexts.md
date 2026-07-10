@@ -1,0 +1,3 @@
+# Booking bounded contexts
+
+The Booking Product recreation models the first Booking Vertical Slice as separate Merchant Catalog, Scheduling, and Booking bounded contexts instead of one legacy-shaped booking module. Booking owns the fixed `pay_in_person` Checkout Path because the first slice has no online-payment policy or lifecycle worth isolating. Payments is reserved as a future bounded context for Pay Now, when provider integration and payment behavior can change independently; creating it earlier would produce an anemic boundary around a constant. This separation still prevents legacy Cart and Sale Order concepts from becoming the target domain model by accident.

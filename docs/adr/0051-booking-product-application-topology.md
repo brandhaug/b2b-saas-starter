@@ -1,0 +1,7 @@
+# Booking product application topology
+
+The Booking Product deploys five Cloudflare Workers: `apps/web` owns the canonical `www.<domain>` Public Site and merchant pages, `apps/merchant` owns the authenticated `app.<domain>` Merchant App, `apps/booking` owns the customer journey at `www.<domain>/:merchantSlug/booking`, `apps/api` owns the server-to-server Platform API at `api.<domain>`, and `apps/background` owns queue and cron work. Because Cloudflare route patterns cannot express the dynamic merchant segment before `/booking`, `apps/web` is the public ingress and delegates booking paths and `/_booking/*` assets to `apps/booking` through a service binding; the Booking Worker has no direct production route.
+
+The first-party browser Workers call shared Effect capabilities directly against one D1 database rather than using the Platform API as an internal data layer. Merchant authentication is host-only to the Merchant App, customer Booking Sessions are anonymous and capability-protected, the Platform API starts at `/v1` and cannot create or confirm bookings, and Appointment side effects flow through a transactional outbox, `BOOKING_EVENTS_QUEUE`, and the Background Worker.
+
+This decision supersedes [ADR 0003](./0003-split-web-and-api-workers.md), [ADR 0016](./0016-homepage-as-architecture-showcase.md), and [ADR 0048](./0048-defer-api-versioning.md), whose generic Starter topology, repository-showcase homepage, and unversioned Starter API no longer describe the Booking Product.

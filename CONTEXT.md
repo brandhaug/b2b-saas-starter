@@ -1,8 +1,236 @@
-# B2B SaaS Starter
+# Booking Product Recreation
 
-B2B SaaS Starter is a repository product that showcases a production-grade full-stack SaaS foundation. Its included application is a reference implementation that demonstrates the starter's architecture and feature set.
+Booking Product Recreation is the effort to rebuild the `ssqu/recreate` product inside this repository's Cloudflare-first architecture. The repository is moving from a generic starter/reference application toward an actual booking product with separate public, merchant, booking, API, and background surfaces.
 
 ## Language
+
+**Booking Product**:
+The actual recreated product being built from `ssqu/recreate`.
+_Avoid_: Starter demo, template showcase
+
+**Public Site**:
+The unauthenticated landing and product information surface.
+_Avoid_: Merchant app, booking app
+
+**Public Booking Page**:
+The public customer-facing page for a merchant where customers can learn enough to start booking.
+_Avoid_: Storefront, profile page, microsite
+
+**Public Page Status**:
+The visibility lifecycle of a public booking page: **Published** or **Unpublished**.
+_Avoid_: Appointment status, merchant status
+
+**Published**:
+A public page status for a page that is available to customers.
+_Avoid_: Cached version, immutable revision
+
+**Unpublished**:
+A public page status for a page that is not available to customers, including a newly created merchant or a page later removed from public access.
+_Avoid_: Draft, deleted, suspended merchant
+
+**Booking Readiness**:
+The derived condition that determines whether a public booking page can be Published: it has a public name and slug, an active service, an eligible provider, and schedule rules.
+_Avoid_: Adoption Readiness, current time-slot availability, team setup
+
+**Merchant App**:
+The authenticated business-facing application where merchants manage their public page, services, providers, appointments, customers, settings, and reports.
+_Avoid_: Admin app, back office, app app
+
+**Booking App**:
+The public customer-facing booking experience for choosing a service, provider preference when needed, time, customer details, checkout path, and appointment confirmation.
+_Avoid_: Widget, public app, storefront
+
+**Platform API**:
+The external server-to-server integration surface for merchant-owned data, appointment records, API tokens, and webhook configuration.
+_Avoid_: Booking API, customer booking channel, first-party app data layer
+
+**Booking Vertical Slice**:
+The first recreated journey that proves the architecture end to end: merchant-managed booking data, public booking, checkout path, and appointment confirmation.
+_Avoid_: Full port, demo flow
+
+**Merchant**:
+The Booking Product tenant and authorization boundary: a business or operator that owns a public booking presence and bookable configuration. In the first slice a merchant may be a solopreneur; later it can grow into a team, brand, or multi-shop operation.
+_Avoid_: Account, workspace, tenant
+
+**Merchant Member**:
+An authenticated person authorized to operate a Merchant. A Merchant Member is not necessarily a bookable Provider.
+_Avoid_: Workspace member, Provider, staff member
+
+**Merchant Owner**:
+The sole Merchant Member role in the first Booking Vertical Slice, with authority over the Merchant and all first-slice Merchant App operations. Each Merchant has one Merchant Owner, and each Merchant Owner owns one Merchant.
+_Avoid_: Workspace owner, shop user, Provider
+
+**Merchant Onboarding**:
+The authenticated setup path through which a person creates a Merchant and becomes its Merchant Owner.
+_Avoid_: Sign-up, merchant registration, workspace creation
+
+**Merchant Catalog**:
+The bounded context for merchant-owned bookable configuration: merchants, brands, shops, shop addresses, providers, and services.
+_Avoid_: One generic booking bucket, product catalog
+
+**Brand**:
+A future customer-visible grouping under a merchant for multiple public identities, locations, or business lines.
+_Avoid_: Account, workspace, chain
+
+**Shop**:
+An optional merchant business unit or location used when a merchant has multiple places or sub-businesses for booking.
+_Avoid_: Location, store, branch
+
+**Shop Address**:
+The physical address details for a shop when location-specific booking is needed.
+_Avoid_: Location
+
+**Provider**:
+The bookable person who performs services for a merchant. In a Solo plan the merchant is the default provider; in a Team plan the merchant can add more providers.
+_Avoid_: Staff member, employee, barber, professional
+
+**Provider Status**:
+The booking lifecycle of a provider: **Active** or **Inactive**. An inactive provider remains part of historical appointments but cannot receive a new appointment.
+_Avoid_: Employment status, member status, deleted provider
+
+**Professional**:
+Customer-facing copy for a provider in the booking flow.
+_Avoid_: Canonical entity name
+
+**Barber**:
+Legacy and vertical-specific wording for a provider in the barber booking vertical.
+_Avoid_: Canonical entity name
+
+**Service**:
+A bookable catalog item with duration, positive customer-facing price, category, and provider eligibility.
+_Avoid_: Product, add-on
+
+**Service Status**:
+The booking lifecycle of a service: **Active** or **Inactive**. An inactive service remains part of historical appointments but cannot enter a new booking session.
+_Avoid_: Deleted service, availability
+
+**Primary Service**:
+The main service selected for an appointment.
+_Avoid_: Service line item
+
+**Additional Service**:
+A service selected alongside the primary service in the same appointment.
+_Avoid_: Add-on
+
+**Add-on**:
+Customer-facing copy for an additional service.
+_Avoid_: Canonical entity name, separate first-slice entity
+
+**Scheduling**:
+The bounded context for deciding when a service can be booked with an eligible provider for a merchant public booking presence.
+_Avoid_: Calendar UI, appointment record
+
+**Availability**:
+The set of candidate times for a selected public booking page, services, and provider choice in a booking session.
+_Avoid_: Schedule rules, calendar
+
+**Time Slot**:
+One bookable candidate time within availability.
+_Avoid_: Calendar event
+
+**Time Slot Hold**:
+A short-lived exclusive claim on a Provider and time interval held by an active Booking Session while the customer completes booking.
+_Avoid_: Appointment, reservation, persisted availability
+
+**Schedule Rules**:
+Merchant-side configuration that produces availability.
+_Avoid_: Availability
+
+**Booking**:
+The bounded context for the customer journey from booking session through confirmed appointment.
+_Avoid_: Cart, sale order
+
+**Booking Session**:
+An in-progress customer booking attempt before confirmation.
+_Avoid_: Cart, reservation
+
+**Booking Session Capability**:
+A secret held by the customer's browser that, together with its Booking Session ID, grants limited access to one active Booking Session.
+_Avoid_: Customer session, customer login, booking URL
+
+**Booking Quote**:
+The Service, price, duration, currency, and assigned Provider facts accepted for the lifetime of a Booking Session's Time Slot Hold. Its total is the exact customer-facing sum of its Service prices rather than an estimate or payment balance.
+_Avoid_: Payment intent, Appointment snapshot, live catalog data
+
+**Appointment**:
+A confirmed booking for a customer, with selected services, scheduled time, and assigned provider or any-provider assignment. It preserves the customer-visible facts accepted at confirmation so later catalog changes do not rewrite booking history.
+_Avoid_: Reservation, sale order
+
+**Appointment Status**:
+The operational state of an appointment: **Scheduled**, **Completed**, **Cancelled**, or **No Show**. Confirmation creates a scheduled appointment; rescheduling changes its time rather than introducing another status.
+_Avoid_: Booking session status, payment status, rescheduled
+
+**Confirmation**:
+The customer-visible booking summary and status view derived from an Appointment after a Booking Session is confirmed. It does not infer or display a payment status.
+_Avoid_: Sale order, receipt-only page
+
+**Confirmation Access Token**:
+A secret issued for a confirmed appointment that grants a customer limited access to its confirmation without requiring a customer account.
+_Avoid_: Booking session capability, customer login, appointment ID
+
+**Customer**:
+The person for whom an appointment is booked.
+_Avoid_: User, account, customer profile
+
+**Customer Details**:
+The unverified name, email, and phone captured during a booking session. Customer Details do not establish a durable or authenticated customer identity.
+_Avoid_: Customer account, identity profile
+
+**Customer Directory**:
+An appointment-derived Merchant view of captured Customer Details. It is not a durable customer identity registry or CRM.
+_Avoid_: Customer account, customer profile, CRM
+
+**Provider Preference**:
+The customer's choice of either a specific provider or any eligible provider during a booking session.
+_Avoid_: Staff preference, barber selection
+
+**Specific Provider**:
+A provider preference where the customer chooses one provider before availability.
+_Avoid_: Specific staff, specific barber
+
+**Any Provider**:
+A provider preference where the customer chooses any eligible provider before availability.
+_Avoid_: Any staff, any barber
+
+**Paying Customer**:
+The payer for a booking when payment behavior needs to distinguish the payer from the appointment customer.
+_Avoid_: Default synonym for customer
+
+**Cart**:
+Legacy source wording for a booking session.
+_Avoid_: Canonical entity name
+
+**Sale Order**:
+Legacy source wording for the checkout result and confirmation payload.
+_Avoid_: Canonical entity name
+
+**Payments**:
+A future bounded context for online-payment policy, provider integration, and payment lifecycle behavior during booking.
+_Avoid_: Billing, sales ledger
+
+**Checkout Path**:
+The payment timing and collection path applied to a Booking Session. A customer may select it when more than one path is available, but the first slice applies Pay In Person automatically.
+_Avoid_: Checkout Choice, Payment Intent, checkout type
+
+**Checkout Policy**:
+The Checkout Paths a Merchant permits for new Booking Sessions.
+_Avoid_: Customer selection, payment-provider configuration
+
+**Pay Now**:
+A checkout path that collects payment during booking.
+_Avoid_: Stripe payment, book and pay
+
+**Pay In Person**:
+A checkout path that confirms the appointment without immediate payment or a payment credential. It does not represent or track whether the merchant later collects payment.
+_Avoid_: Book no pay, unpaid order
+
+**Payment Intent**:
+A provider-specific object used by payment integrations.
+_Avoid_: Canonical first-slice entity
+
+**Legacy Source**:
+The `ssqu/recreate` codebase used as the behavior and product reference for the recreation.
+_Avoid_: Code to copy wholesale, target architecture
 
 **Starter**:
 A reusable repository foundation for building B2B SaaS products.
@@ -85,8 +313,8 @@ The permission level a member has within a workspace: owner, admin, or member.
 _Avoid_: Permission group, access tier
 
 **System Admin**:
-A user with global user-management permissions through Better Auth's admin plugin.
-_Avoid_: Workspace owner, workspace admin, operator
+A user with global Better Auth user-management permissions but no implicit authority over a Merchant or its data.
+_Avoid_: Merchant Owner, Merchant support agent, operator
 
 **Audit Event**:
 A recorded security, admin, workspace, billing, integration, API, or catalog action.
@@ -97,19 +325,84 @@ A user-facing message about workspace, module, report, billing, integration, or 
 _Avoid_: Audit event, log line, email
 
 **API Token**:
-A workspace-scoped credential for REST and MCP access.
-_Avoid_: Personal access token, integration secret, session token
+A credential belonging to exactly one **Merchant** and granting scoped access to the Platform API.
+_Avoid_: Workspace token, personal access token, integration secret, session token
+
+**API Token Status**:
+The credential lifecycle of an API Token: **Active**, **Expired**, or **Revoked**.
+_Avoid_: User session status, scope
 
 **Webhook Endpoint**:
-A workspace-owned outbound event delivery target.
+A **Merchant**-owned outbound event delivery target.
 _Avoid_: Provider webhook, callback URL, integration
 
-**Seed Workspace**:
-A deterministic workspace included for local development, tests, and showcase screenshots.
-_Avoid_: Fake account, sample tenant
+**Webhook Endpoint Status**:
+The delivery lifecycle of a Webhook Endpoint: **Active** or **Disabled**.
+_Avoid_: Delivery health, webhook delivery status
+
+**Webhook Event**:
+A **Merchant**-scoped notification that a subscribed domain change occurred. It identifies the changed resource without carrying Customer Details.
+_Avoid_: Audit event, webhook delivery attempt, full resource snapshot
+
+**Webhook Delivery Attempt**:
+One signed attempt to send a Webhook Event to a Webhook Endpoint. Retries are separate delivery attempts for the same event.
+_Avoid_: Webhook event, audit event, manual replay
+
+**Seed Booking Scenario**:
+A deterministic, connected Merchant booking story used by local development, tests, and product screenshots.
+_Avoid_: Seed Workspace, unrelated demo fixtures, sample tenant
 
 ## Relationships
 
+- A **Booking Product** has one **Public Site**, one **Merchant App**, one **Booking App**, one **Platform API**, and background operations.
+- The **Booking App**, not the **Platform API**, owns customer Booking Sessions, availability search, checkout, and Appointment confirmation.
+- A **Booking Vertical Slice** is the first scoped recreation of the **Legacy Source** inside the **Booking Product**.
+- A **Merchant** owns a **Public Booking Page**.
+- **Merchant**, not **Workspace**, is the tenant and authorization boundary for Booking Product data.
+- A **Merchant** has one or more **Merchant Members**.
+- A **Merchant Member** and a **Provider** are separate roles; a person may be both, either, or neither.
+- A **Public Booking Page** has one **Public Page Status**.
+- A **Public Booking Page** can become **Published** only when it satisfies **Booking Readiness**.
+- A **Merchant** can start as a solopreneur and later grow into a team, brand, or multi-shop operation.
+- A **Public Booking Page** is the customer entry point into the **Booking App**.
+- The **Merchant App** owns business configuration and operations, while the **Booking App** owns the customer booking journey.
+- **Merchant Catalog**, **Scheduling**, and **Booking** are separate bounded contexts for the first **Booking Vertical Slice**; **Payments** is reserved for a future **Pay Now** path.
+- **Booking** consumes bookable configuration from **Merchant Catalog** and candidate times from **Scheduling**.
+- A **Merchant** owns its public identity directly in the Solo first slice.
+- A **Merchant** can later have one or more **Brands**.
+- A **Brand** can later have one or more **Shops**.
+- A **Shop** has one **Shop Address**.
+- A **Merchant** has one or more **Providers**.
+- A **Merchant** offers one or more **Services**.
+- A **Provider** has one **Provider Status**.
+- A **Service** has one **Service Status**.
+- A **Provider** can later be assigned to one or more **Shops** when multi-location booking is enabled.
+- A **Service** can later be assigned to one or more **Shops** when multi-location booking is enabled.
+- A **Provider** is eligible to perform one or more **Services**.
+- "Location" is customer-facing copy for choosing a **Shop**, not a canonical first-slice entity.
+- "Professional" and "Barber" can appear as customer-facing or vertical-specific copy, but **Provider** is the canonical first-slice entity.
+- A **Booking Session** has one **Provider Preference** when provider choice is visible.
+- **Any Provider** resolves to a concrete **Provider** when the Booking Session acquires its Time Slot Hold, while preserving that the customer booked through the any-provider path.
+- A **Booking Session** can become one **Appointment** after checkout succeeds.
+- An **Appointment** has one **Appointment Status**.
+- A **Booking Session** captures **Customer Details** for the **Customer**.
+- A **Customer Directory** is derived from Appointment history rather than durable Customer profiles.
+- **Scheduling** produces **Availability** for a **Booking Session**.
+- **Availability** contains one or more **Time Slots**.
+- A **Time Slot** can carry the **Providers** eligible for that time.
+- A **Booking Session** can hold one **Time Slot** temporarily while booking is in progress.
+- A **Time Slot Hold** carries one **Booking Quote** until the hold expires or is confirmed.
+- An **Appointment** can have one **Primary Service** and zero or more **Additional Services**.
+- An **Appointment** belongs to one **Customer**.
+- A **Confirmation** presents the outcome of one **Appointment**.
+- A **Confirmation** is derived from its **Appointment** rather than maintained as a separate business record.
+- A **Confirmation Access Token** grants limited customer access to one **Confirmation** without creating a customer account.
+- **Paying Customer** is only used when payment behavior needs to differ from the **Customer**.
+- A **Booking Session** has one **Checkout Path** before confirmation.
+- **Pay In Person** is the fixed first-slice checkout path rather than a Merchant setting; **Checkout Policy** and **Pay Now** are deferred.
+- **Payment Intent** belongs behind payment-provider integration behavior, not the first-slice domain model.
+- "Cart" and "Sale Order" are **Legacy Source** terms translated into **Booking Session**, **Appointment**, and **Confirmation** in the target model.
+- "Add-on" is customer-facing copy for an **Additional Service**, not a separate first-slice entity.
 - A **Starter** includes exactly one **Reference Application**
 - A **Reference Application** proves the reusable patterns promoted by the **Showcase Site**
 - A **Showcase Site** describes the **Starter**, not a fictional SaaS product
@@ -132,9 +425,13 @@ _Avoid_: Fake account, sample tenant
 - A **System Admin** manages users globally and is distinct from a **Workspace Role**
 - An **Audit Event** can be associated with a user, workspace, system admin action, or provider action
 - A **Notification** can be created from workspace, module, report, billing, integration, or API token activity
-- An **API Token** belongs to exactly one **Workspace** and can create **Audit Events**
-- A **Webhook Endpoint** belongs to exactly one **Workspace** and receives selected outbound events
-- A **Seed Workspace** demonstrates **Starter Modules**, **Adoption Readiness**, **Members**, **Integration Surfaces**, and **Implementation Reports**
+- An **API Token** belongs to exactly one **Merchant** and can create **Audit Events**
+- An **API Token** has one **API Token Status**.
+- A **Webhook Endpoint** belongs to exactly one **Merchant** and receives selected outbound events
+- A **Webhook Endpoint** has one **Webhook Endpoint Status**.
+- A **Webhook Endpoint** subscribes to selected **Webhook Events**.
+- A **Webhook Event** can have one or more **Webhook Delivery Attempts**.
+- A **Seed Booking Scenario** demonstrates one complete **Booking Vertical Slice** through a coherent Merchant data graph.
 
 ## Example Dialogue
 
@@ -193,13 +490,13 @@ _Avoid_: Fake account, sample tenant
 > **Domain expert:** "No. They can create **Notifications** for users and **Audit Events** when governance-sensitive."
 >
 > **Dev:** "Should REST and MCP only use browser sessions?"
-> **Domain expert:** "No. External clients should use workspace-scoped **API Tokens** with scopes and revocation."
+> **Domain expert:** "No. External clients should use merchant-scoped **API Tokens** with scopes and revocation."
 >
 > **Dev:** "Are billing webhooks and customer webhooks the same thing?"
-> **Domain expert:** "No. Provider callbacks are integration-specific routes, while a **Webhook Endpoint** is a workspace-owned outbound event target."
+> **Domain expert:** "No. Provider callbacks are integration-specific routes, while a **Webhook Endpoint** is a merchant-owned outbound event target."
 >
 > **Dev:** "Should the app start empty after local setup?"
-> **Domain expert:** "No. It should include a **Seed Workspace** so the reference app, tests, and screenshots have stable starter data."
+> **Domain expert:** "No. It should include a **Seed Booking Scenario** so local development, tests, and product screenshots exercise the same booking story."
 
 ## Flagged Ambiguities
 
@@ -220,6 +517,14 @@ _Avoid_: Fake account, sample tenant
 - "Admin" is ambiguous. Resolved: use **System Admin** for global Better Auth admin users and **Workspace Role** for workspace-level permissions.
 - "Audit log" should not be confused with operational logs. Resolved: persisted governance records are **Audit Events**.
 - "Notification" should not be used for persisted governance history. Resolved: **Notifications** are user-facing messages, while **Audit Events** are inspectable governance records.
-- REST and MCP credentials should not be modeled as user sessions or provider secrets. Resolved: use workspace-scoped **API Tokens**.
-- "Webhook" is ambiguous. Resolved: use **Webhook Endpoint** for outbound workspace event delivery; provider callbacks are integration routes.
-- "Demo data" should be deterministic and part of the reference app's local experience. Resolved: use a **Seed Workspace**.
+- Platform API credentials should not be modeled as user sessions or provider secrets. Resolved: use merchant-scoped **API Tokens**.
+- "Webhook" is ambiguous. Resolved: use **Webhook Endpoint** for outbound merchant event delivery; provider callbacks are integration routes.
+- "Demo data" should be deterministic and part of the Booking Product's local experience. Resolved: use a **Seed Booking Scenario**.
+- "Location" looks like a separate entity in the **Legacy Source**, but it is shop-shaped in the first booking flow. Resolved: use **Shop** plus **Shop Address**, and reserve "location" for customer-facing copy.
+- "Barber" and "professional" both appear in the **Legacy Source** for the person being booked. Resolved: use **Provider** as the canonical entity, with "Professional" and "Barber" reserved for copy or legacy translation.
+- "Add-on" appears in the **Legacy Source**, but the first booking flow treats other compatible services as add-ons. Resolved: use **Additional Service** canonically and reserve "add-on" for customer-facing copy.
+- "Cart", "reservation", and "sale order" overlap in the **Legacy Source** booking flow. Resolved: use **Booking Session** for the in-progress attempt, **Appointment** for the confirmed booking, and **Confirmation** for the customer-visible result.
+- "Customer" can mean a durable profile in the **Legacy Source**, but the first slice only needs appointment ownership and contact information. Resolved: use **Customer** and **Customer Details**, and defer customer accounts, saved cards, notification consents, and marketing profiles.
+- "Availability" could mean schedule configuration or customer-visible slots. Resolved: use **Availability** for candidate **Time Slots** in a **Booking Session**, and reserve **Schedule Rules** for future merchant calendar configuration.
+- "Any Barber" is represented in the **Legacy Source** as a synthetic barber plus a separate `bookedWithAnyBarber` flag. Resolved: use **Provider Preference** with **Specific Provider** and **Any Provider**, preserving whether a booking used the any-provider path even after assignment.
+- "Payment Intent" appears in provider-specific legacy payment flows. Resolved: use **Checkout Path**, **Pay Now**, and **Pay In Person** canonically, and keep **Payment Intent** behind payment integration behavior.
