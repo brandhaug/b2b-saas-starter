@@ -596,6 +596,7 @@ describe('Booking Session HTTP boundary', () => {
 
   it('exchanges a valid Confirmation token for an exact-path 24-hour cookie and serves the clean view', async () => {
     const token = 'a'.repeat(64)
+    const cookieCredential = 'b'.repeat(64)
     const confirmation = {
       routeId: 'cnf_clean',
       status: 'scheduled' as const,
@@ -631,7 +632,12 @@ describe('Booking Session HTTP boundary', () => {
       authorize: () => Effect.die(new Error('not called')),
       confirmation: {
         confirm: () => Effect.die(new Error('not called')),
-        read: () => Effect.succeed({ kind: 'found' as const, confirmation })
+        read: () =>
+          Effect.succeed({
+            kind: 'found' as const,
+            confirmation,
+            cookieCredential
+          })
       },
       takeRead: () => Effect.succeed(true),
       takeWrite: () => Effect.succeed(true),
@@ -647,6 +653,8 @@ describe('Booking Session HTTP boundary', () => {
     expect(exchange.status).toBe(303)
     expect(exchange.headers.get('location')).toBe(path)
     expect(exchange.headers.get('set-cookie')).toContain(`Path=${path}`)
+    expect(exchange.headers.get('set-cookie')).toContain(cookieCredential)
+    expect(exchange.headers.get('set-cookie')).not.toContain(token)
     expect(exchange.headers.get('set-cookie')).toContain('Max-Age=86400')
     expect(exchange.headers.get('set-cookie')).toContain('HttpOnly')
     expect(exchange.headers.get('set-cookie')).not.toContain('Domain=')
@@ -654,7 +662,7 @@ describe('Booking Session HTTP boundary', () => {
     const clean = await Effect.runPromise(
       handleBookingSessionRequest(
         new Request(`https://www.example.test${path}`, {
-          headers: { cookie: `confirmation_cnf_clean=${token}` }
+          headers: { cookie: `confirmation_cnf_clean=${cookieCredential}` }
         }),
         dependencies
       )
@@ -663,5 +671,38 @@ describe('Booking Session HTTP boundary', () => {
     expect(await clean.text()).toContain('Appointment Confirmation')
     expect(clean.headers.get('cache-control')).toBe('private, no-store')
     expect(clean.headers.get('referrer-policy')).toBe('no-referrer')
+  })
+
+  it('uses uniform private 404s for unknown credentials and a private explanatory 410 only for authentic expiry', async () => {
+    const token = 'c'.repeat(64)
+    const baseDependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () => Effect.die(new Error('not called')),
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called'))
+    }
+    const url = `https://www.example.test/mara-studio/booking/confirmations/cnf_private?token=${token}`
+    for (const result of [
+      { kind: 'not_found' as const },
+      { kind: 'expired' as const }
+    ]) {
+      const response = await Effect.runPromise(
+        handleBookingSessionRequest(new Request(url), {
+          ...baseDependencies,
+          confirmation: {
+            confirm: () => Effect.die(new Error('not called')),
+            read: () => Effect.succeed(result)
+          }
+        })
+      )
+      expect(response.status).toBe(result.kind === 'expired' ? 410 : 404)
+      expect(response.headers.get('cache-control')).toBe('private, no-store')
+      expect(response.headers.get('referrer-policy')).toBe('no-referrer')
+      if (result.kind === 'expired')
+        expect(await response.text()).toContain('Confirmation link has expired')
+      else expect(await response.text()).toBe('Not found')
+    }
   })
 })

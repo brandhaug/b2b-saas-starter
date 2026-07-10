@@ -219,7 +219,9 @@ export type BookingSessionHttpDependencies = {
     >
     readonly read: (input: {
       readonly routeId: string
-      readonly token: string
+      readonly merchantSlug: string
+      readonly credential: string
+      readonly credentialKind: 'bearer' | 'cookie'
       readonly now: string
     }) => BookingSessionEffect<ConfirmationReadResult, CapabilityUnavailable>
   }
@@ -432,11 +434,17 @@ export const handleBookingSessionRequest = (
         .find((part) => part.startsWith(`${cookieName}=`))
         ?.slice(cookieName.length + 1)
       const queryToken = url.searchParams.get('token')
-      const token = queryToken ?? cookieToken
-      if (!token || !CONFIRMATION_TOKEN.test(token))
+      const credential = queryToken ?? cookieToken
+      if (!credential || !CONFIRMATION_TOKEN.test(credential))
         return withPrivateHeaders(hiddenNotFound())
       const result = yield* Effect.result(
-        dependencies.confirmation.read({ routeId, token, now })
+        dependencies.confirmation.read({
+          routeId,
+          merchantSlug,
+          credential,
+          credentialKind: queryToken ? 'bearer' : 'cookie',
+          now
+        })
       )
       if (result._tag === 'Failure') return withPrivateHeaders(unavailable())
       if (result.success.kind === 'not_found')
@@ -454,7 +462,7 @@ export const handleBookingSessionRequest = (
         headers.append(
           'set-cookie',
           [
-            `${cookieName}=${token}`,
+            `${cookieName}=${result.success.cookieCredential}`,
             `Path=${canonicalPath}`,
             'Max-Age=86400',
             'HttpOnly',

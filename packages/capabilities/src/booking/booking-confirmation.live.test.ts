@@ -9,6 +9,7 @@ import {
   layerFromD1,
   merchants,
   providers,
+  publicBookingPages,
   timeSlotHolds
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
@@ -121,6 +122,13 @@ beforeAll(async () => {
           displayName: 'Ava',
           status: 'active',
           isDefault: true,
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(publicBookingPages).values({
+          id: 'pbp_confirm',
+          merchantId: 'mer_confirm',
+          status: 'unpublished',
           createdAt: now,
           updatedAt: now
         })
@@ -277,7 +285,13 @@ describe('Live Booking Confirmation', () => {
       Effect.runPromise(
         Effect.provide(
           Effect.flatMap(BookingConfirmation, (service) =>
-            service.read({ routeId: confirmed.access.routeId, token, now: at })
+            service.read({
+              routeId: confirmed.access.routeId,
+              merchantSlug: 'confirm-live',
+              credential: token,
+              credentialKind: 'bearer',
+              now: at
+            })
           ),
           LiveBookingConfirmation(keyringOverride).pipe(
             Layer.provide(layerFromD1(test.d1))
@@ -298,6 +312,22 @@ describe('Live Booking Confirmation', () => {
       }
     })
     await expect(read('0'.repeat(64))).resolves.toEqual({ kind: 'not_found' })
+    await expect(
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(BookingConfirmation, (service) =>
+            service.read({
+              routeId: confirmed.access.routeId,
+              merchantSlug: 'another-merchant',
+              credential: confirmed.access.token,
+              credentialKind: 'bearer',
+              now
+            })
+          ),
+          layer()
+        )
+      )
+    ).resolves.toEqual({ kind: 'not_found' })
 
     await test.d1
       .prepare("UPDATE appointments SET status = 'cancelled' WHERE id = ?")

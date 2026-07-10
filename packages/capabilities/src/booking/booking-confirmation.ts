@@ -62,18 +62,26 @@ export class BookingConfirmationRejected extends Schema.TaggedErrorClass<Booking
 ) {}
 
 type Failure = BookingConfirmationRejected | CapabilityUnavailable
-export type CustomerConfirmation = {
-  readonly routeId: string
-  readonly status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
-  readonly startsAt: string
-  readonly endsAt: string
-  readonly snapshot: StoredAppointmentSnapshot
-  readonly merchant: { readonly publicName: string }
-}
-export type ConfirmationReadResult =
-  | { readonly kind: 'found'; readonly confirmation: CustomerConfirmation }
-  | { readonly kind: 'expired' }
-  | { readonly kind: 'not_found' }
+const AppointmentSnapshot = Schema.Unknown as Schema.Schema<StoredAppointmentSnapshot>
+export const CustomerConfirmation = Schema.Struct({
+  routeId: Schema.String,
+  status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
+  startsAt: Schema.String,
+  endsAt: Schema.String,
+  snapshot: AppointmentSnapshot,
+  merchant: Schema.Struct({ publicName: Schema.String })
+})
+export type CustomerConfirmation = typeof CustomerConfirmation.Type
+export const ConfirmationReadResult = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal('found'),
+    confirmation: CustomerConfirmation,
+    cookieCredential: Schema.String
+  }),
+  Schema.Struct({ kind: Schema.Literal('expired') }),
+  Schema.Struct({ kind: Schema.Literal('not_found') })
+])
+export type ConfirmationReadResult = typeof ConfirmationReadResult.Type
 export type BookingConfirmationShape = {
   readonly confirm: (
     session: BookingSession,
@@ -81,7 +89,9 @@ export type BookingConfirmationShape = {
   ) => Effect.Effect<BookingConfirmationResult, Failure>
   readonly read: (input: {
     readonly routeId: string
-    readonly token: string
+    readonly merchantSlug: string
+    readonly credential: string
+    readonly credentialKind: 'bearer' | 'cookie'
     readonly now: string
   }) => Effect.Effect<ConfirmationReadResult, CapabilityUnavailable>
 }
@@ -116,6 +126,18 @@ export const deriveConfirmationToken = (
   return hmac(
     key,
     `${metadata.routeId}.${metadata.tokenVersion}.${metadata.expiresAt}.${metadata.signingKeyId}`
+  )
+}
+
+export const deriveConfirmationCookieCredential = (
+  metadata: Omit<ConfirmationAccess, 'token'>,
+  keyring: ConfirmationSigningKeyring
+): Promise<string> => {
+  const key = keyring.keys[metadata.signingKeyId]
+  if (!key) return Promise.reject(new Error('Unknown Confirmation signing key'))
+  return hmac(
+    key,
+    `cookie.${metadata.routeId}.${metadata.tokenVersion}.${metadata.expiresAt}.${metadata.signingKeyId}`
   )
 }
 
@@ -185,27 +207,38 @@ export const SeedBookingConfirmation = (
         const appointment = [...store.appointments.values()].find(
           (candidate) => `cnf_${candidate.id}` === input.routeId
         )
-        if (!metadata || !appointment) return { kind: 'not_found' as const }
-        const valid = yield* Effect.promise(() =>
-          verifyConfirmationToken(metadata, input.token, keyring, input.now)
+        if (
+          !metadata ||
+          !appointment ||
+          store.checkout.scheduling.scenario.merchant.slug !== input.merchantSlug
         )
+          return { kind: 'not_found' as const }
+        const expected = yield* Effect.promise(() =>
+          (input.credentialKind === 'bearer'
+            ? deriveConfirmationToken(metadata, keyring)
+            : deriveConfirmationCookieCredential(metadata, keyring)
+          ).catch(() => '')
+        )
+        const valid = metadata.expiresAt > input.now && expected === input.credential
         if (!valid) {
-          const expected = yield* Effect.promise(() =>
-            deriveConfirmationToken(metadata, keyring).catch(() => '')
-          )
-          return expected === input.token && metadata.expiresAt <= input.now
+          return expected === input.credential && metadata.expiresAt <= input.now
             ? { kind: 'expired' as const }
             : { kind: 'not_found' as const }
         }
         return {
           kind: 'found' as const,
+          cookieCredential: yield* Effect.promise(() =>
+            deriveConfirmationCookieCredential(metadata, keyring)
+          ),
           confirmation: {
             routeId: input.routeId,
             status: appointment.status,
             startsAt: appointment.startsAt,
             endsAt: appointment.endsAt,
             snapshot: appointment.snapshot as StoredAppointmentSnapshot,
-            merchant: { publicName: 'Merchant' }
+            merchant: {
+              publicName: store.checkout.scheduling.scenario.merchant.publicName
+            }
           }
         }
       }),
@@ -359,7 +392,12 @@ export const LiveBookingConfirmation = (
                   eq(appointments.id, confirmationAccess.appointmentId)
                 )
                 .innerJoin(merchants, eq(merchants.id, appointments.merchantId))
-                .where(eq(confirmationAccess.routeId, input.routeId))
+                .where(
+                  and(
+                    eq(confirmationAccess.routeId, input.routeId),
+                    eq(merchants.slug, input.merchantSlug)
+                  )
+                )
                 .limit(1)
             )
             const row = rows[0]
@@ -371,28 +409,27 @@ export const LiveBookingConfirmation = (
               expiresAt: row.access.expiresAt,
               revokedAt: row.access.revokedAt
             }
-            const valid = yield* Effect.promise(() =>
-              verifyConfirmationToken(metadata, input.token, keyring, input.now)
+            const expected = yield* Effect.promise(() =>
+              (input.credentialKind === 'bearer'
+                ? deriveConfirmationToken(metadata, keyring)
+                : deriveConfirmationCookieCredential(metadata, keyring)
+              ).catch(() => '')
             )
+            const valid =
+              !metadata.revokedAt &&
+              metadata.expiresAt > input.now &&
+              expected === input.credential
             if (!valid) {
               if (!metadata.revokedAt && metadata.expiresAt <= input.now) {
-                const expected = yield* Effect.promise(() =>
-                  deriveConfirmationToken(
-                    {
-                      routeId: metadata.routeId,
-                      tokenVersion: metadata.tokenVersion,
-                      signingKeyId: metadata.signingKeyId,
-                      expiresAt: metadata.expiresAt
-                    },
-                    keyring
-                  ).catch(() => '')
-                )
-                if (expected === input.token) return { kind: 'expired' as const }
+                if (expected === input.credential) return { kind: 'expired' as const }
               }
               return { kind: 'not_found' as const }
             }
             return {
               kind: 'found' as const,
+              cookieCredential: yield* Effect.promise(() =>
+                deriveConfirmationCookieCredential(metadata, keyring)
+              ),
               confirmation: {
                 routeId: row.access.routeId,
                 status: row.appointment.status,
