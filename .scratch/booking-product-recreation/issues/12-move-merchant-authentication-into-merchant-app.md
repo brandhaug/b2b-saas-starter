@@ -2,7 +2,7 @@
 
 Type: task
 Category: enhancement
-Status: ready-for-agent
+Status: resolved
 Blocked by: 11
 Parent: 10
 
@@ -12,14 +12,14 @@ Give Merchant Owners a complete email-and-password authentication experience at 
 
 ## Acceptance criteria
 
-- [ ] Merchant sign-up, sign-in, sign-out, email verification, verification resend, password recovery, and password reset are owned by the Merchant App through Better Auth.
-- [ ] Production self-service sign-up presents an explicit needs-configuration state when verification email cannot be delivered; local development and tests expose deterministic verification and reset links without an external provider.
-- [ ] Merchant browser sessions use the settled seven-day rolling lifetime, one-day refresh window, and host-only `HttpOnly`, production-`Secure`, `SameSite=Lax` cookie at the Merchant App origin.
-- [ ] Password reset revokes all existing sessions, sign-out revokes the current session, and owner email or password changes require password reauthentication within the preceding fifteen minutes.
-- [ ] Authentication and recovery responses do not disclose whether an account exists, and their IP and normalized-email-hash rate limits never log the submitted email.
-- [ ] An anonymous navigation is redirected to sign-in with a validated return path, while an unauthenticated server mutation returns a typed `401` rather than a redirect.
-- [ ] The Public Site and Booking App receive no Better Auth secret or merchant-session binding, and the Platform API rejects Better Auth sessions and cookies.
-- [ ] Authentication tests cover configuration-gated email, verification, recovery, cookie attributes, session revocation, safe return paths, enumeration resistance, and rate limiting.
+- [x] Merchant sign-up, sign-in, sign-out, email verification, verification resend, password recovery, and password reset are owned by the Merchant App through Better Auth.
+- [x] Production self-service sign-up presents an explicit needs-configuration state when verification email cannot be delivered; local development and tests expose deterministic verification and reset links without an external provider.
+- [x] Merchant browser sessions use the settled seven-day rolling lifetime, one-day refresh window, and host-only `HttpOnly`, production-`Secure`, `SameSite=Lax` cookie at the Merchant App origin.
+- [x] Password reset revokes all existing sessions, sign-out revokes the current session, and owner email or password changes require password reauthentication within the preceding fifteen minutes.
+- [x] Authentication and recovery responses do not disclose whether an account exists, and their IP and normalized-email-hash rate limits never log the submitted email.
+- [x] An anonymous navigation is redirected to sign-in with a validated return path, while an unauthenticated server mutation returns a typed `401` rather than a redirect.
+- [x] The Public Site and Booking App receive no Better Auth secret or merchant-session binding, and the Platform API rejects Better Auth sessions and cookies.
+- [x] Authentication tests cover configuration-gated email, verification, recovery, cookie attributes, session revocation, safe return paths, enumeration resistance, and rate limiting.
 
 ## Comments
 
@@ -42,10 +42,10 @@ Give Merchant Owners a complete email-and-password authentication experience at 
 
 **Acceptance criteria:**
 
-- [ ] Lifecycle, configuration-gated email delivery, and deterministic local/test verification and reset behavior work without an external provider.
-- [ ] Cookie attributes, revocation, reauthentication, safe redirects, and typed mutation authorization follow the settled contract.
-- [ ] Recovery and authentication responses are enumeration-resistant and protected by IP and normalized-email-hash limits without recording submitted emails.
-- [ ] Tests demonstrate that no Merchant session or secret is accepted or exposed outside the Merchant App boundary.
+- [x] Lifecycle, configuration-gated email delivery, and deterministic local/test verification and reset behavior work without an external provider.
+- [x] Cookie attributes, revocation, reauthentication, safe redirects, and typed mutation authorization follow the settled contract.
+- [x] Recovery and authentication responses are enumeration-resistant and protected by IP and normalized-email-hash limits without recording submitted emails.
+- [x] Tests demonstrate that no Merchant session or secret is accepted or exposed outside the Merchant App boundary.
 
 **Out of scope:**
 
