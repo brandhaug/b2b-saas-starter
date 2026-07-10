@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MerchantSlugBookingRouteImport } from './routes/$merchantSlug.booking'
+import { Route as MerchantSlugBookingSessionSessionIdRouteImport } from './routes/$merchantSlug.booking_.session.$sessionId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,51 @@ const MerchantSlugBookingRoute = MerchantSlugBookingRouteImport.update({
   path: '/$merchantSlug/booking',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MerchantSlugBookingSessionSessionIdRoute =
+  MerchantSlugBookingSessionSessionIdRouteImport.update({
+    id: '/$merchantSlug/booking_/session/$sessionId',
+    path: '/$merchantSlug/booking/session/$sessionId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$merchantSlug/booking': typeof MerchantSlugBookingRoute
+  '/$merchantSlug/booking/session/$sessionId': typeof MerchantSlugBookingSessionSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$merchantSlug/booking': typeof MerchantSlugBookingRoute
+  '/$merchantSlug/booking/session/$sessionId': typeof MerchantSlugBookingSessionSessionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$merchantSlug/booking': typeof MerchantSlugBookingRoute
+  '/$merchantSlug/booking_/session/$sessionId': typeof MerchantSlugBookingSessionSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$merchantSlug/booking'
+  fullPaths:
+    | '/'
+    | '/$merchantSlug/booking'
+    | '/$merchantSlug/booking/session/$sessionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$merchantSlug/booking'
-  id: '__root__' | '/' | '/$merchantSlug/booking'
+  to:
+    | '/'
+    | '/$merchantSlug/booking'
+    | '/$merchantSlug/booking/session/$sessionId'
+  id:
+    | '__root__'
+    | '/'
+    | '/$merchantSlug/booking'
+    | '/$merchantSlug/booking_/session/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MerchantSlugBookingRoute: typeof MerchantSlugBookingRoute
+  MerchantSlugBookingSessionSessionIdRoute: typeof MerchantSlugBookingSessionSessionIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +86,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantSlugBookingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$merchantSlug/booking_/session/$sessionId': {
+      id: '/$merchantSlug/booking_/session/$sessionId'
+      path: '/$merchantSlug/booking/session/$sessionId'
+      fullPath: '/$merchantSlug/booking/session/$sessionId'
+      preLoaderRoute: typeof MerchantSlugBookingSessionSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MerchantSlugBookingRoute: MerchantSlugBookingRoute,
+  MerchantSlugBookingSessionSessionIdRoute:
+    MerchantSlugBookingSessionSessionIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

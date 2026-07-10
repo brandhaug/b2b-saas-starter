@@ -1,6 +1,14 @@
 import { Layer } from 'effect'
 import { Database, layerFromD1 } from '@b2b-saas-starter/db'
 
+// booking
+import {
+  BookingSessions,
+  emptySeedBookingSessionStore,
+  LiveBookingSessions,
+  SeedBookingSessions
+} from './booking/booking-sessions.ts'
+
 // catalog
 import {
   AdoptionReadiness,
@@ -119,6 +127,7 @@ export type CapabilityServices =
   | StarterModuleCatalog
   | Scheduling
   | BookingPublication
+  | BookingSessions
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceMembership
@@ -126,6 +135,15 @@ export type CapabilityServices =
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
 const seedBookingScenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
+const seedBookingSessions = emptySeedBookingSessionStore({
+  merchants: [
+    {
+      id: seedBookingScenario.merchant.id,
+      slug: seedBookingScenario.merchant.slug,
+      published: seedBookingScenario.publicBookingPage.status === 'published'
+    }
+  ]
+})
 const seedScheduling = emptySeedSchedulingStore(seedBookingScenario)
 const seedMerchantCatalog = emptySeedMerchantCatalog([seedBookingScenario.owner])
 seedMerchantCatalog.merchants.set(seedBookingScenario.merchant.slug, {
@@ -163,6 +181,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedMerchantCatalog(seedMerchantCatalogConfiguration),
   SeedScheduling(seedScheduling),
   SeedBookingPublication(seedScheduling),
+  SeedBookingSessions(seedBookingSessions),
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -188,6 +207,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveMerchantCatalog,
     LiveScheduling,
     LiveBookingPublication,
+    LiveBookingSessions,
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),

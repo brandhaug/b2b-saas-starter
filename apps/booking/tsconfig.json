@@ -4,7 +4,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client", "bun-types"]
+    "types": ["vite/client", "@cloudflare/workers-types", "bun-types"]
   },
   "include": ["src", "vite.config.ts"]
 }

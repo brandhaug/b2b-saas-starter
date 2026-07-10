@@ -200,7 +200,7 @@ export const Stack = Alchemy.Stack(
         DB: db,
         BOOKING_EVENTS_QUEUE: bookingEventsQueue
       },
-      env: optionalModuleEnv,
+      env: { ...optionalModuleEnv, PUBLIC_SITE_ORIGIN: publicSiteOrigin },
       compatibility: {
         flags: ['nodejs_compat']
       },

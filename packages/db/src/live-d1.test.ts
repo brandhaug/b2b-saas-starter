@@ -55,6 +55,7 @@ describe('migrations', () => {
       'provider_service_eligibility',
       'schedule_rules',
       'public_booking_pages',
+      'booking_sessions',
       'workspaces',
       'workspace_members',
       'workspace_invitations',

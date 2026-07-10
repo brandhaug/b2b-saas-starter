@@ -38,6 +38,8 @@ export const merchantPlans = ['solo', 'team'] as const
 export const providerStatuses = ['active', 'inactive'] as const
 export const serviceStatuses = ['active', 'inactive'] as const
 export const publicPageStatuses = ['published', 'unpublished'] as const
+export const bookingSessionCheckoutPaths = ['pay_in_person'] as const
+export const bookingSessionLifecycles = ['active', 'consumed'] as const
 
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
 // tables store epoch-seconds in integer columns (its plugin contract), starter
@@ -294,6 +296,43 @@ export const publicBookingPages = sqliteTable(
     check(
       'public_booking_pages_valid_status',
       sql`${table.status} in ('published', 'unpublished')`
+    )
+  ]
+)
+
+export const bookingSessions = sqliteTable(
+  'booking_sessions',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    capabilityHash: text('capability_hash').unique().notNull(),
+    checkoutPath: text('checkout_path', { enum: bookingSessionCheckoutPaths })
+      .default('pay_in_person')
+      .notNull(),
+    lifecycle: text('lifecycle', { enum: bookingSessionLifecycles })
+      .default('active')
+      .notNull(),
+    createdAt: isoCreatedAt(),
+    lastActivityAt: text('last_activity_at').notNull(),
+    idleExpiresAt: text('idle_expires_at').notNull(),
+    absoluteExpiresAt: text('absolute_expires_at').notNull()
+  },
+  (table) => [
+    index('booking_sessions_merchant_id_idx').on(table.merchantId),
+    index('booking_sessions_expiry_idx').on(
+      table.lifecycle,
+      table.idleExpiresAt,
+      table.absoluteExpiresAt
+    ),
+    check(
+      'booking_sessions_pay_in_person_only',
+      sql`${table.checkoutPath} = 'pay_in_person'`
+    ),
+    check(
+      'booking_sessions_valid_lifecycle',
+      sql`${table.lifecycle} in ('active', 'consumed')`
     )
   ]
 )

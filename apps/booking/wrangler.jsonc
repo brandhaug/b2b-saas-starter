@@ -9,6 +9,9 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "vars": {
+    "PUBLIC_SITE_ORIGIN": "http://localhost:3071"
+  },
   "d1_databases": [
     {
       "binding": "DB",
