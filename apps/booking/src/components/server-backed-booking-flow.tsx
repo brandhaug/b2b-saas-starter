@@ -4,6 +4,7 @@ import { Schema } from 'effect'
 import { useEffect, useMemo, useState } from 'react'
 import {
   BookingAvailability as BookingAvailabilitySchema,
+  CheckoutReview as CheckoutReviewSchema,
   BookingSchedulingRecovery as BookingSchedulingRecoverySchema,
   TimeSlotHold as TimeSlotHoldSchema,
   type BookingAvailability,
@@ -33,6 +34,7 @@ export function ServerBackedBookingFlow({
   const [checkout, setCheckout] = useState(false)
   const [review, setReview] = useState<CheckoutReview | null>(null)
   const [invalidDetails, setInvalidDetails] = useState(false)
+  const [expiredSession, setExpiredSession] = useState(false)
   const base = `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(sessionId)}`
   const queryKey = ['booking-selection', merchantSlug, sessionId] as const
   const journey = useQuery({
@@ -115,17 +117,22 @@ export function ServerBackedBookingFlow({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(details)
       })
+      if (response.status === 410) return { kind: 'session_expired' as const }
       if (response.status === 422) return { kind: 'invalid' as const }
       if (response.status === 409) return { kind: 'expired' as const }
       if (!response.ok) throw new Error('checkout unavailable')
       return {
         kind: 'review' as const,
-        review: (await response.json()) as CheckoutReview
+        review: Schema.decodeUnknownSync(CheckoutReviewSchema)(await response.json())
       }
     },
     onSuccess: (result) => {
       if (result.kind === 'invalid') {
         setInvalidDetails(true)
+        return
+      }
+      if (result.kind === 'session_expired') {
+        setExpiredSession(true)
         return
       }
       if (result.kind === 'expired') {
@@ -138,6 +145,22 @@ export function ServerBackedBookingFlow({
       setInvalidDetails(false)
       setReview(result.review)
     }
+  })
+  const confirmMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`${base}/confirm`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: '{}'
+      })
+      if (response.status === 410) {
+        setExpiredSession(true)
+        return
+      }
+      if (!response.ok) throw new Error('confirmation unavailable')
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: availabilityKey })
   })
   const heldUntil = availability.data?.hold?.expiresAt
   useEffect(() => {
@@ -174,13 +197,24 @@ export function ServerBackedBookingFlow({
       />
     )
   if (scheduling) {
+    if (expiredSession) {
+      return (
+        <Status
+          title="This Booking Session has expired"
+          copy="Start again to choose a new appointment."
+          href={`/${encodeURIComponent(merchantSlug)}/booking`}
+          action="Start again"
+        />
+      )
+    }
     if (checkout) {
       return (
         <BookingCheckoutFlow
           review={review}
-          busy={detailsMutation.isPending}
+          busy={detailsMutation.isPending || confirmMutation.isPending}
           invalid={invalidDetails}
           onSubmit={(details) => detailsMutation.mutate(details)}
+          onBook={() => confirmMutation.mutate()}
         />
       )
     }
@@ -224,13 +258,24 @@ export function ServerBackedBookingFlow({
   )
 }
 
-function Status({ title, copy }: { readonly title: string; readonly copy: string }) {
+function Status({
+  title,
+  copy,
+  href,
+  action
+}: {
+  readonly title: string
+  readonly copy: string
+  readonly href?: string
+  readonly action?: string
+}) {
   return (
     <div {...stylex.props(styles.app)}>
       <div {...stylex.props(styles.widget)}>
         <main {...stylex.props(styles.main, styles.empty)}>
           <h1 {...stylex.props(styles.emptyTitle)}>{title}</h1>
           <p {...stylex.props(styles.emptyCopy)}>{copy}</p>
+          {href && action ? <a href={href}>{action}</a> : null}
         </main>
       </div>
     </div>

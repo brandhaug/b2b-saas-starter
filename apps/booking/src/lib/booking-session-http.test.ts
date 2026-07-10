@@ -549,5 +549,20 @@ describe('Booking Session HTTP boundary', () => {
       )
     )
     expect(confirm.status).toBe(404)
+
+    const acceptedCommand = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/confirm`, {
+          method: 'POST',
+          headers,
+          body: '{}'
+        }),
+        dependencies
+      )
+    )
+    expect(acceptedCommand.status).toBe(501)
+    expect(await acceptedCommand.json()).toMatchObject({
+      kind: 'confirmation_pending'
+    })
   })
 })

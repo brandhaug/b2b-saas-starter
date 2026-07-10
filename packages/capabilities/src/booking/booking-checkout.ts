@@ -82,14 +82,16 @@ export const emptySeedBookingCheckoutStore = (
 export const SeedBookingCheckout = (
   store: SeedBookingCheckoutStore
 ): Layer.Layer<BookingCheckout> => {
+  const activeHold = (session: BookingSession, now: string) =>
+    [...store.scheduling.holds.values()].find(
+      (candidate) =>
+        candidate.bookingSessionId === session.id && candidate.expiresAt > now
+    )
   const review = (session: BookingSession, now: string) =>
     Effect.gen(function* () {
       const details = store.details.get(session.id)
       if (!details) return yield* unavailable('details_missing')
-      const hold = [...store.scheduling.holds.values()].find(
-        (candidate) =>
-          candidate.bookingSessionId === session.id && candidate.expiresAt > now
-      )
+      const hold = activeHold(session, now)
       if (!hold) return yield* unavailable('hold_expired')
       return {
         customerDetails: details,
@@ -102,10 +104,7 @@ export const SeedBookingCheckout = (
     review: (session, input) => review(session, input.now),
     saveCustomerDetails: (session, details, input) =>
       Effect.gen(function* () {
-        const hold = [...store.scheduling.holds.values()].find(
-          (candidate) =>
-            candidate.bookingSessionId === session.id && candidate.expiresAt > input.now
-        )
+        const hold = activeHold(session, input.now)
         if (!hold) return yield* unavailable('hold_expired')
         store.details.set(session.id, details)
         return yield* review(session, input.now)

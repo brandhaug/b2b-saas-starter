@@ -14,6 +14,7 @@ describe('Booking checkout', () => {
         busy={false}
         invalid={false}
         onSubmit={submit}
+        onBook={vi.fn()}
       />
     )
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mia' } })
@@ -29,12 +30,29 @@ describe('Booking checkout', () => {
     expect(screen.queryByRole('checkbox')).toBeNull()
   })
 
+  it('keeps invalid Customer Details correctable', () => {
+    render(
+      <BookingCheckoutFlow
+        review={null}
+        busy={false}
+        invalid
+        onSubmit={vi.fn()}
+        onBook={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('alert').textContent).toContain('Check your name and email')
+    expect(screen.getByLabelText('Name')).toBeTruthy()
+    expect(screen.getByLabelText('Email')).toBeTruthy()
+  })
+
   it('renders only the server review and settled Pay In Person copy', () => {
+    const book = vi.fn()
     render(
       <BookingCheckoutFlow
         busy={false}
         invalid={false}
         onSubmit={vi.fn()}
+        onBook={book}
         review={{
           customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
           checkoutPath: 'pay_in_person',
@@ -64,6 +82,8 @@ describe('Booking checkout', () => {
     expect(screen.getByRole('heading', { name: 'Confirm booking' })).toBeTruthy()
     expect(screen.getByText('Pay In Person')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Book' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }))
+    expect(book).toHaveBeenCalledWith()
     expect(
       screen.getByRole('link', { name: 'Terms of Service' }).getAttribute('href')
     ).toBe('/terms')

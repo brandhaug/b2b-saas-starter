@@ -539,6 +539,25 @@ export const handleBookingSessionRequest = (
         ? jsonPrivate(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
     }
-    if (endpoint === 'confirm') return hiddenNotFound()
+    if (endpoint === 'confirm' && request.method === 'POST') {
+      const input = yield* readJson(request)
+      if (
+        typeof input !== 'object' ||
+        input === null ||
+        Array.isArray(input) ||
+        Object.keys(input).length !== 0
+      ) {
+        return hiddenNotFound()
+      }
+      return withPrivateHeaders(
+        Response.json(
+          {
+            kind: 'confirmation_pending',
+            message: 'Booking confirmation is temporarily unavailable'
+          },
+          { status: 501 }
+        )
+      )
+    }
     return withPrivateHeaders(yield* dependencies.fallback(request))
   })

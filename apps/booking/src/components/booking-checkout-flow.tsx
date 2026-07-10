@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import type { FormEvent } from 'react'
+import { useMemo, type FormEvent } from 'react'
 import type { CheckoutReview } from '@b2b-saas-starter/capabilities'
 import { styles } from './booking-flow.styles.ts'
 
@@ -7,7 +7,8 @@ export function BookingCheckoutFlow({
   review,
   busy,
   invalid,
-  onSubmit
+  onSubmit,
+  onBook
 }: {
   readonly review: CheckoutReview | null
   readonly busy: boolean
@@ -17,6 +18,7 @@ export function BookingCheckoutFlow({
     readonly email: string
     readonly phone: string | null
   }) => void
+  readonly onBook: () => void
 }) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -63,7 +65,7 @@ export function BookingCheckoutFlow({
               </div>
             </form>
           ) : (
-            <Review review={review} />
+            <Review review={review} busy={busy} onBook={onBook} />
           )}
         </main>
       </div>
@@ -85,15 +87,32 @@ function Field(props: {
   )
 }
 
-function Review({ review }: { readonly review: CheckoutReview }) {
-  const currency = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: review.quote.currency
-  })
-  const date = new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'full',
-    timeStyle: 'short'
-  }).format(new Date(review.quote.startsAt))
+function Review({
+  review,
+  busy,
+  onBook
+}: {
+  readonly review: CheckoutReview
+  readonly busy: boolean
+  readonly onBook: () => void
+}) {
+  const currency = useMemo(
+    () =>
+      new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: review.quote.currency
+      }),
+    [review.quote.currency]
+  )
+  const date = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-US', {
+        dateStyle: 'full',
+        timeStyle: 'short',
+        timeZone: 'UTC'
+      }).format(new Date(review.quote.startsAt)),
+    [review.quote.startsAt]
+  )
   return (
     <section>
       <p>{date}</p>
@@ -109,7 +128,12 @@ function Review({ review }: { readonly review: CheckoutReview }) {
         Total: {currency.format(review.quote.totalMinor / 100)} {review.quote.currency}
       </p>
       <p>Pay In Person</p>
-      <button type="button" {...stylex.props(styles.primaryButton)}>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => onBook()}
+        {...stylex.props(styles.primaryButton)}
+      >
         Book
       </button>
       <p {...stylex.props(styles.privacy)}>
