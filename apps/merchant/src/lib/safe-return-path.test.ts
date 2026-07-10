@@ -10,6 +10,7 @@ describe('safe Merchant App return paths', () => {
     ],
     ['https://attacker.example', '/'],
     ['//attacker.example', '/'],
+    ['/\\attacker.example', '/'],
     ['sign-in', '/']
   ])('keeps only same-origin paths: %s', (raw, expected) => {
     expect(safeMerchantReturnPath(raw)).toBe(expected)
