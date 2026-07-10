@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
+    "./local-development": "./src/local-development.ts",
     "./schema": "./src/schema.ts",
     "./service": "./src/service.ts",
     "./testing": "./src/testing.ts"

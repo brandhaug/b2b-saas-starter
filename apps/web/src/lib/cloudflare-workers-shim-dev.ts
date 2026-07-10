@@ -16,18 +16,12 @@ import { env as baseEnv } from './cloudflare-workers-shim.ts'
 
 const provisionLocalD1 = async (): Promise<D1Database | undefined> => {
   if (!import.meta.env.SSR) return undefined
-  const { join } = await import('node:path')
-  const { dbPackageDir, hasLocalD1State, localD1PersistPath } =
-    await import('./local-d1-state.ts')
+  const { hasLocalD1State, provisionLocalD1 } =
+    await import('@b2b-saas-starter/db/local-development')
   if (!hasLocalD1State()) return undefined
-  const { getPlatformProxy } = await import('wrangler')
-  const proxy = await getPlatformProxy<{ DB: D1Database }>({
-    configPath: join(dbPackageDir, 'wrangler.jsonc'),
-    persist: { path: localD1PersistPath }
-  })
   // oxlint-disable-next-line no-console -- dev-server terminal is the intended surface for this one-time notice
   console.log('[dev] local D1 attached from packages/db/.wrangler (seeded state)')
-  return proxy.env.DB
+  return provisionLocalD1()
 }
 
 // Vite can re-evaluate this module across SSR module-graph invalidations;

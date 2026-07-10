@@ -1,21 +1,17 @@
 import type { D1Database } from '@cloudflare/workers-types'
-import { join } from 'node:path'
-import { getPlatformProxy } from 'wrangler'
 import { env as baseEnv } from './cloudflare-workers-shim.ts'
 
-const databaseConfig = join(
-  import.meta.dirname,
-  '../../../../packages/db/wrangler.jsonc'
-)
+const provisionLocalD1 = async (): Promise<D1Database | undefined> => {
+  if (!import.meta.env.SSR) return undefined
+  const localDevelopment = await import('@b2b-saas-starter/db/local-development')
+  return localDevelopment.provisionLocalD1()
+}
 
-const localD1 = getPlatformProxy<{ DB: D1Database }>({
-  configPath: databaseConfig,
-  persist: { path: join(import.meta.dirname, '../../../../packages/db/.wrangler') }
-}).then((proxy) => proxy.env.DB)
+const localD1 = provisionLocalD1()
 
 export const env = {
   ...baseEnv,
   // The module graph is also evaluated in the browser; only the server needs
   // the D1 binding and can await it safely before an auth request is handled.
-  DB: import.meta.env.SSR ? await localD1 : undefined
+  DB: await localD1
 }

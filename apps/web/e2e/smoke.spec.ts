@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { hasLocalD1State } from '../src/lib/local-d1-state'
+import { hasLocalD1State } from '@b2b-saas-starter/db/local-development'
 
 test('public homepage renders the starter showcase', async ({ page }) => {
   await page.goto('/')
