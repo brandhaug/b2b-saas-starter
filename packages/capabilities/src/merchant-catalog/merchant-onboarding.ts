@@ -56,7 +56,7 @@ export const MerchantRecord = Schema.Struct({
   }),
   publicBookingPage: Schema.Struct({
     id: Schema.String,
-    status: Schema.Literal('unpublished')
+    status: Schema.Literals(['published', 'unpublished'])
   })
 })
 export type MerchantRecord = typeof MerchantRecord.Type
@@ -297,7 +297,7 @@ const toMerchantRecord = (row: MerchantGraphRow): MerchantRecord => ({
   },
   publicBookingPage: {
     id: row.page.id,
-    status: 'unpublished'
+    status: row.page.status
   }
 })
 
@@ -524,6 +524,14 @@ export type SeedBookingScenario = {
     readonly providerId: string
     readonly serviceId: string
   }>
+  readonly scheduleRules: ReadonlyArray<{
+    readonly id: string
+    readonly merchantId: string
+    readonly providerId: string
+    readonly weekday: number
+    readonly startTime: string
+    readonly endTime: string
+  }>
   readonly publicBookingPage: MerchantRecord['publicBookingPage'] & {
     readonly merchantId: string
   }
@@ -624,10 +632,28 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
         serviceId: services[2].id
       }
     ],
+    scheduleRules: [
+      ...[1, 2, 3, 4, 5].map((weekday) => ({
+        id: `sch_seed_default_${weekday}`,
+        merchantId: merchant.id,
+        providerId: provider.id,
+        weekday,
+        startTime: '09:00',
+        endTime: '17:00'
+      })),
+      ...[2, 3, 4, 5, 6].map((weekday) => ({
+        id: `sch_seed_elena_${weekday}`,
+        merchantId: merchant.id,
+        providerId: teamProvider.id,
+        weekday,
+        startTime: '10:00',
+        endTime: '18:00'
+      }))
+    ],
     publicBookingPage: {
       id: 'pg_seed_booking_studio',
       merchantId: merchant.id,
-      status: 'unpublished'
+      status: 'published'
     }
   }
 }

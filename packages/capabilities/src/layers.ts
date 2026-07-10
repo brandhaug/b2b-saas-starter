@@ -81,6 +81,15 @@ import {
   NotificationFeed,
   SeedNotificationFeed
 } from './notifications/notification-feed.ts'
+import {
+  BookingPublication,
+  emptySeedSchedulingStore,
+  LiveBookingPublication,
+  LiveScheduling,
+  Scheduling,
+  SeedBookingPublication,
+  SeedScheduling
+} from './scheduling/scheduling.ts'
 
 import {
   seedApiTokens,
@@ -108,6 +117,8 @@ export type CapabilityServices =
   | MerchantOnboarding
   | NotificationFeed
   | StarterModuleCatalog
+  | Scheduling
+  | BookingPublication
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceMembership
@@ -115,6 +126,7 @@ export type CapabilityServices =
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
 const seedBookingScenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
+const seedScheduling = emptySeedSchedulingStore(seedBookingScenario)
 const seedMerchantCatalog = emptySeedMerchantCatalog([seedBookingScenario.owner])
 seedMerchantCatalog.merchants.set(seedBookingScenario.merchant.slug, {
   ...seedBookingScenario.merchant,
@@ -149,6 +161,8 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedIntegrationSurfaces(seedIntegrationSurfaces),
   SeedMerchantOnboarding(seedMerchantCatalog),
   SeedMerchantCatalog(seedMerchantCatalogConfiguration),
+  SeedScheduling(seedScheduling),
+  SeedBookingPublication(seedScheduling),
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -172,6 +186,8 @@ export const makeLiveCapabilitiesLayer = (
     LiveIntegrationSurfaces,
     LiveMerchantOnboarding,
     LiveMerchantCatalog,
+    LiveScheduling,
+    LiveBookingPublication,
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),

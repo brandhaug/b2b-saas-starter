@@ -249,6 +249,33 @@ export const providerServiceEligibility = sqliteTable(
   ]
 )
 
+export const scheduleRules = sqliteTable(
+  'schedule_rules',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => providers.id, { onDelete: 'cascade' }),
+    weekday: integer('weekday').notNull(),
+    startTime: text('start_time').notNull(),
+    endTime: text('end_time').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('schedule_rules_merchant_id_idx').on(table.merchantId),
+    index('schedule_rules_provider_id_idx').on(table.providerId),
+    check('schedule_rules_valid_weekday', sql`${table.weekday} between 0 and 6`),
+    check(
+      'schedule_rules_valid_interval',
+      sql`${table.startTime} glob '[0-2][0-9]:[0-5][0-9]' AND ${table.endTime} glob '[0-2][0-9]:[0-5][0-9]' AND ${table.startTime} < ${table.endTime}`
+    )
+  ]
+)
+
 export const publicBookingPages = sqliteTable(
   'public_booking_pages',
   {

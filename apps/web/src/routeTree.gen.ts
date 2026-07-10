@@ -18,6 +18,7 @@ import { Route as FaqRouteImport } from './routes/faq'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as MerchantSlugRouteImport } from './routes/$merchantSlug'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
@@ -74,6 +75,11 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MerchantSlugRoute = MerchantSlugRouteImport.update({
+  id: '/$merchantSlug',
+  path: '/$merchantSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -128,6 +134,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$merchantSlug': typeof MerchantSlugRoute
   '/admin': typeof AdminRoute
   '/changelog': typeof ChangelogRoute
   '/docs': typeof DocsRouteWithChildren
@@ -149,6 +156,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$merchantSlug': typeof MerchantSlugRoute
   '/admin': typeof AdminRoute
   '/changelog': typeof ChangelogRoute
   '/faq': typeof FaqRoute
@@ -169,6 +177,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$merchantSlug': typeof MerchantSlugRoute
   '/admin': typeof AdminRoute
   '/changelog': typeof ChangelogRoute
   '/docs': typeof DocsRouteWithChildren
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$merchantSlug'
     | '/admin'
     | '/changelog'
     | '/docs'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$merchantSlug'
     | '/admin'
     | '/changelog'
     | '/faq'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/$merchantSlug'
     | '/admin'
     | '/changelog'
     | '/docs'
@@ -254,6 +266,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MerchantSlugRoute: typeof MerchantSlugRoute
   AdminRoute: typeof AdminRoute
   ChangelogRoute: typeof ChangelogRoute
   DocsRoute: typeof DocsRouteWithChildren
@@ -332,6 +345,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$merchantSlug': {
+      id: '/$merchantSlug'
+      path: '/$merchantSlug'
+      fullPath: '/$merchantSlug'
+      preLoaderRoute: typeof MerchantSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -449,6 +469,7 @@ const WorkspacesRouteWithChildren = WorkspacesRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MerchantSlugRoute: MerchantSlugRoute,
   AdminRoute: AdminRoute,
   ChangelogRoute: ChangelogRoute,
   DocsRoute: DocsRouteWithChildren,

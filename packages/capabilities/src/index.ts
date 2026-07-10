@@ -7,6 +7,9 @@ export * from './merchant-catalog/merchant-onboarding.ts'
 export * from './merchant-catalog/merchant-context.ts'
 export * from './merchant-catalog/merchant-catalog.ts'
 
+// scheduling
+export * from './scheduling/scheduling.ts'
+
 // catalog
 export * from './catalog/adoption-readiness.ts'
 export * from './catalog/catalog-refresh-history.ts'

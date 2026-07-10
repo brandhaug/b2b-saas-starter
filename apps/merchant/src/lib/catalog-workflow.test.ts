@@ -37,7 +37,10 @@ const snapshot = (presentation: 'solo' | 'team'): MerchantCatalogSnapshot => ({
 
 describe('Merchant Catalog presentation', () => {
   it('keeps Services visible but removes Provider administration from Solo', () => {
-    expect(catalogDestinations('solo').map((item) => item.label)).toEqual(['Services'])
+    expect(catalogDestinations('solo').map((item) => item.label)).toEqual([
+      'Services',
+      'Availability'
+    ])
     expect(serviceProviderChoices(snapshot('solo'), 'svc_cut')).toEqual([
       { id: 'prv_default', displayName: 'Mara', selected: true }
     ])
@@ -46,7 +49,8 @@ describe('Merchant Catalog presentation', () => {
   it('uses the reduced Services and Providers vocabulary for Team', () => {
     expect(catalogDestinations('team').map((item) => item.label)).toEqual([
       'Services',
-      'Providers'
+      'Providers',
+      'Availability'
     ])
     expect(serviceProviderChoices(snapshot('team'), 'svc_cut')).toEqual([
       { id: 'prv_default', displayName: 'Mara', selected: true },

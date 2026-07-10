@@ -28,6 +28,7 @@ import {
   providerServiceEligibility,
   providers,
   publicBookingPages,
+  scheduleRules,
   starterModules,
   services,
   user,
@@ -367,6 +368,13 @@ const bookingScenarioRows = (): readonly string[] => [
     insert(providerServiceEligibility, {
       ...pair,
       createdAt: bookingScenario.anchorTime
+    })
+  ),
+  ...bookingScenario.scheduleRules.map((rule) =>
+    insert(scheduleRules, {
+      ...rule,
+      createdAt: bookingScenario.anchorTime,
+      updatedAt: bookingScenario.anchorTime
     })
   ),
   insert(publicBookingPages, {

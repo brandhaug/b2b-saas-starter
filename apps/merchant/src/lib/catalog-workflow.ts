@@ -4,7 +4,8 @@ export const catalogDestinations = (presentation: 'solo' | 'team') => [
   { label: 'Services', to: '/services' as const },
   ...(presentation === 'team'
     ? [{ label: 'Providers', to: '/providers' as const }]
-    : [])
+    : []),
+  { label: 'Availability', to: '/availability' as const }
 ]
 
 export const serviceProviderChoices = (

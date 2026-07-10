@@ -216,9 +216,15 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
         <div className="p-5">
           <p className="text-sm font-semibold">Schedule</p>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Schedule Rules keep their source vocabulary here, but persistence and
-            Availability derivation belong to the next slice.
+            Configure recurring weekly hours in the Merchant timezone and inspect
+            derived Availability.
           </p>
+          <Link
+            to="/availability"
+            className="mt-4 inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+          >
+            Configure schedule
+          </Link>
         </div>
       ) : null}
       {message ? (
