@@ -524,7 +524,11 @@ const liveInputs = (
       ),
       orUnavailable('booking-scheduling')(
         db
-          .select()
+          .select({
+            providerId: appointments.providerId,
+            startsAt: appointments.startsAt,
+            endsAt: appointments.endsAt
+          })
           .from(appointments)
           .where(
             and(

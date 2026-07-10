@@ -18,6 +18,7 @@ import {
 import {
   account,
   appointments,
+  confirmationAccess,
   apiTokens,
   auditEvents,
   catalogRefreshRuns,
@@ -380,6 +381,9 @@ const bookingScenarioRows = (): readonly string[] => [
   ),
   ...bookingScenario.appointments.map((appointment) =>
     insert(appointments, appointment)
+  ),
+  ...bookingScenario.confirmationAccess.map((access) =>
+    insert(confirmationAccess, access)
   ),
   insert(publicBookingPages, {
     id: bookingScenario.publicBookingPage.id,

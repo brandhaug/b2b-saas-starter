@@ -70,6 +70,16 @@ export type StoredBookingQuote = {
   readonly totalMinor: number
 }
 
+export type StoredAppointmentSnapshot = StoredBookingQuote & {
+  readonly merchantTimezone: string
+  readonly customerDetails: {
+    readonly name: string
+    readonly email: string
+    readonly phone: string | null
+  }
+  readonly checkoutPath: 'pay_in_person'
+}
+
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
 // tables store epoch-seconds in integer columns (its plugin contract), starter
 // tables store ISO strings in text columns — see AGENTS.md before normalizing.
@@ -337,9 +347,9 @@ export const bookingSessions = sqliteTable(
       .notNull()
       .references(() => merchants.id, { onDelete: 'cascade' }),
     capabilityHash: text('capability_hash').unique().notNull(),
-    checkoutPath: text('checkout_path', { enum: bookingSessionCheckoutPaths })
-      .default('pay_in_person')
-      .notNull(),
+    checkoutPath: text('checkout_path', { enum: bookingSessionCheckoutPaths }).default(
+      'pay_in_person'
+    ),
     lifecycle: text('lifecycle', { enum: bookingSessionLifecycles })
       .default('active')
       .notNull(),
@@ -355,6 +365,9 @@ export const bookingSessions = sqliteTable(
     customerName: text('customer_name'),
     customerEmail: text('customer_email'),
     customerPhone: text('customer_phone'),
+    confirmedAppointmentId: text('confirmed_appointment_id'),
+    confirmedAt: text('confirmed_at'),
+    replayExpiresAt: text('replay_expires_at'),
     createdAt: isoCreatedAt(),
     lastActivityAt: text('last_activity_at').notNull(),
     idleExpiresAt: text('idle_expires_at').notNull(),
@@ -412,11 +425,13 @@ export const appointments = sqliteTable(
     providerId: text('provider_id')
       .notNull()
       .references(() => providers.id, { onDelete: 'restrict' }),
+    bookingSessionId: text('booking_session_id').unique(),
     status: text('status', { enum: appointmentStatuses })
       .default('scheduled')
       .notNull(),
     startsAt: text('starts_at').notNull(),
     endsAt: text('ends_at').notNull(),
+    snapshot: text('snapshot', { mode: 'json' }).$type<StoredAppointmentSnapshot>(),
     createdAt: isoCreatedAt()
   },
   (table) => [
@@ -431,6 +446,41 @@ export const appointments = sqliteTable(
       sql`${table.status} in ('scheduled', 'completed', 'cancelled', 'no_show')`
     ),
     check('appointments_valid_interval', sql`${table.startsAt} < ${table.endsAt}`)
+  ]
+)
+
+export const confirmationAccess = sqliteTable(
+  'confirmation_access',
+  {
+    routeId: text('route_id').primaryKey(),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .unique()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    tokenVersion: integer('token_version').default(1).notNull(),
+    signingKeyId: text('signing_key_id').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    revokedAt: text('revoked_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [index('confirmation_access_expiry_idx').on(table.expiresAt)]
+)
+
+export const bookingOutbox = sqliteTable(
+  'booking_outbox',
+  {
+    id: id(),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .unique()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['appointment.created'] }).notNull(),
+    traceId: text('trace_id').notNull(),
+    createdAt: isoCreatedAt(),
+    processedAt: text('processed_at')
+  },
+  (table) => [
+    index('booking_outbox_pending_idx').on(table.processedAt, table.createdAt)
   ]
 )
 

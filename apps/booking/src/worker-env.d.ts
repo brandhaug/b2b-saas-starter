@@ -11,6 +11,9 @@ interface BookingWorkerEnv {
       readonly success: boolean
     }>
   }
+  readonly BOOKING_EVENTS_QUEUE?: Queue<{ readonly outboxId: string }>
+  readonly CONFIRMATION_SIGNING_KEYS: string
+  readonly CONFIRMATION_CURRENT_KEY_ID: string
 }
 
 declare namespace Cloudflare {

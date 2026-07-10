@@ -541,6 +541,15 @@ export type SeedBookingScenario = {
     readonly endsAt: string
     readonly createdAt: string
   }>
+  readonly confirmationAccess: ReadonlyArray<{
+    readonly routeId: string
+    readonly appointmentId: string
+    readonly tokenVersion: number
+    readonly signingKeyId: string
+    readonly expiresAt: string
+    readonly revokedAt: string | null
+    readonly createdAt: string
+  }>
   readonly publicBookingPage: MerchantRecord['publicBookingPage'] & {
     readonly merchantId: string
   }
@@ -678,6 +687,17 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
         status: 'scheduled',
         startsAt: instant(3 * 24 * 60),
         endsAt: instant(3 * 24 * 60 + 60),
+        createdAt: anchorTime
+      }
+    ],
+    confirmationAccess: [
+      {
+        routeId: 'cnf_seed_future',
+        appointmentId: 'apt_seed_future',
+        tokenVersion: 1,
+        signingKeyId: 'seed-current',
+        expiresAt: instant(33 * 24 * 60 + 60),
+        revokedAt: null,
         createdAt: anchorTime
       }
     ],

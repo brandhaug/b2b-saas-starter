@@ -11,6 +11,10 @@
   "placement": {
     "mode": "smart"
   },
+  "vars": {
+    "CONFIRMATION_CURRENT_KEY_ID": "local-v1",
+    "CONFIRMATION_SIGNING_KEYS": "{\"local-v1\":\"replace-before-production-confirmation-key\"}"
+  },
   "d1_databases": [
     {
       "binding": "DB",

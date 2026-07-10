@@ -22,6 +22,8 @@ type Env = {
   readonly DB?: D1Database
   readonly WEBHOOK_QUEUE?: Queue
   readonly BOOKING_EVENTS_QUEUE?: Queue
+  readonly CONFIRMATION_CURRENT_KEY_ID?: string
+  readonly CONFIRMATION_SIGNING_KEYS?: string
 }
 
 // Module-aware env validation (ADR 0035).

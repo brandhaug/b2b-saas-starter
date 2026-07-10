@@ -71,6 +71,7 @@ export type AuthorizeBookingSessionInput = {
   readonly sessionId: string
   readonly capability: string
   readonly now: string
+  readonly allowConfirmedReplay?: boolean
 }
 
 export type PresentedBookingSessionCapability = {
@@ -128,6 +129,8 @@ export const enterBookingSession = (input: {
 export type SeedBookingSessionRecord = BookingSession & {
   readonly merchantId: string
   readonly capabilityHash: string
+  readonly replayExpiresAt?: string | null
+  readonly confirmedAppointmentId?: string | null
 }
 
 export type SeedBookingSessionStore = {
@@ -192,7 +195,10 @@ const notFound = () =>
 const gone = () =>
   new BookingSessionGone({ message: 'This Booking Session has expired' })
 
-type StoredBookingSession = BookingSession & { readonly capabilityHash: string }
+type StoredBookingSession = BookingSession & {
+  readonly capabilityHash: string
+  readonly replayExpiresAt?: string | null
+}
 
 const authorizeStoredSession = (
   record: StoredBookingSession | undefined,
@@ -208,13 +214,20 @@ const authorizeStoredSession = (
     if (!record || !validLocator || !validCapability) return yield* notFound()
 
     const nowMs = new Date(input.now).getTime()
+    const confirmedReplay =
+      record.lifecycle === 'consumed' &&
+      input.allowConfirmedReplay === true &&
+      !!record.replayExpiresAt &&
+      nowMs < new Date(record.replayExpiresAt).getTime()
     if (
-      record.lifecycle !== 'active' ||
-      nowMs >= new Date(record.idleExpiresAt).getTime() ||
-      nowMs >= new Date(record.absoluteExpiresAt).getTime()
+      !confirmedReplay &&
+      (record.lifecycle !== 'active' ||
+        nowMs >= new Date(record.idleExpiresAt).getTime() ||
+        nowMs >= new Date(record.absoluteExpiresAt).getTime())
     ) {
       return yield* gone()
     }
+    if (confirmedReplay) return record
     return {
       ...record,
       lastActivityAt: input.now,
@@ -273,7 +286,7 @@ const toBookingSession = (
 ): BookingSession => ({
   id: row.id,
   merchantSlug,
-  checkoutPath: row.checkoutPath,
+  checkoutPath: row.checkoutPath ?? 'pay_in_person',
   lifecycle: row.lifecycle,
   createdAt: row.createdAt,
   lastActivityAt: row.lastActivityAt,
@@ -360,13 +373,15 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
               row
                 ? {
                     ...toBookingSession(row.session, row.merchantSlug),
-                    capabilityHash: row.session.capabilityHash
+                    capabilityHash: row.session.capabilityHash,
+                    replayExpiresAt: row.session.replayExpiresAt
                   }
                 : undefined,
               input,
               candidateHash
             )
             if (!row) return yield* notFound()
+            if (authorized.lifecycle === 'consumed') return authorized
             const refreshed = yield* orUnavailable('booking-sessions')(
               db
                 .update(bookingSessions)

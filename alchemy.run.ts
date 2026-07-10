@@ -77,6 +77,10 @@ function optionalSecret(name: string) {
 }
 
 const MERCHANT_AUTH_SECRET = Redacted.make(requiredEnv('MERCHANT_AUTH_SECRET'))
+const CONFIRMATION_SIGNING_KEYS = Redacted.make(
+  requiredEnv('CONFIRMATION_SIGNING_KEYS')
+)
+const CONFIRMATION_CURRENT_KEY_ID = requiredEnv('CONFIRMATION_CURRENT_KEY_ID')
 const merchantAppOrigin = requiredEnv('MERCHANT_APP_ORIGIN')
 const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
 const merchantAppDomain = requiredHostname('MERCHANT_APP_ORIGIN')
@@ -198,7 +202,9 @@ export const Stack = Alchemy.Stack(
       rootDir: './apps/booking',
       bindings: {
         DB: db,
-        BOOKING_EVENTS_QUEUE: bookingEventsQueue
+        BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        CONFIRMATION_SIGNING_KEYS,
+        CONFIRMATION_CURRENT_KEY_ID
       },
       env: { ...optionalModuleEnv, PUBLIC_SITE_ORIGIN: publicSiteOrigin },
       compatibility: {
@@ -217,6 +223,8 @@ export const Stack = Alchemy.Stack(
         DB: db,
         WEBHOOK_QUEUE: webhookQueue,
         BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        CONFIRMATION_SIGNING_KEYS,
+        CONFIRMATION_CURRENT_KEY_ID,
         ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
       env: optionalModuleEnv,

@@ -159,8 +159,11 @@ export function ServerBackedBookingFlow({
         return
       }
       if (!response.ok) throw new Error('confirmation unavailable')
+      return (await response.json()) as { readonly location: string }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: availabilityKey })
+    onSuccess: (result) => {
+      if (result) window.location.assign(result.location)
+    }
   })
   const heldUntil = availability.data?.hold?.expiresAt
   useEffect(() => {

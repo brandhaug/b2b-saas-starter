@@ -500,6 +500,30 @@ describe('Booking Session HTTP boundary', () => {
         },
         review: () => Effect.die(new Error('not called'))
       },
+      confirmation: {
+        confirm: () =>
+          Effect.succeed({
+            appointment: {
+              id: 'apt_confirmed',
+              merchantId: 'mer_mara',
+              providerId: 'prv_ava',
+              status: 'scheduled' as const,
+              startsAt: quote.startsAt,
+              endsAt: quote.endsAt,
+              snapshot: quote,
+              createdAt: '2026-07-10T09:30:00.000Z'
+            },
+            access: {
+              routeId: 'cnf_clean',
+              tokenVersion: 1,
+              signingKeyId: 'current',
+              expiresAt: '2026-08-12T10:00:00.000Z',
+              token: 'secret-confirmation-token'
+            },
+            outboxId: 'obx_confirmed',
+            replayed: false
+          })
+      },
       takeRead: () => Effect.succeed(true),
       takeWrite: () => Effect.succeed(true),
       fallback: () => Effect.die(new Error('not called')),
@@ -560,9 +584,13 @@ describe('Booking Session HTTP boundary', () => {
         dependencies
       )
     )
-    expect(acceptedCommand.status).toBe(501)
+    expect(acceptedCommand.status).toBe(200)
     expect(await acceptedCommand.json()).toMatchObject({
-      kind: 'confirmation_pending'
+      location: '/mara-studio/booking/confirmations/cnf_clean',
+      outboxId: 'obx_confirmed'
     })
+    expect(acceptedCommand.headers.get('set-cookie')).toContain(
+      'confirmation_cnf_clean=secret-confirmation-token'
+    )
   })
 })

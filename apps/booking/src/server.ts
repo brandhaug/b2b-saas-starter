@@ -6,11 +6,13 @@ import {
   BookingScheduling,
   BookingCheckout,
   BookingSessions,
+  BookingConfirmation,
   enterBookingSession,
   LiveBookingSelection,
   LiveBookingScheduling,
   LiveBookingCheckout,
-  LiveBookingSessions
+  LiveBookingSessions,
+  LiveBookingConfirmation
 } from '@b2b-saas-starter/capabilities'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
@@ -26,6 +28,23 @@ export type BookingWorkerEnv = {
   readonly PUBLIC_SITE_ORIGIN: string
   readonly RATE_LIMITER_BOOKING_READ?: RateLimitBinding
   readonly RATE_LIMITER_BOOKING_WRITE?: RateLimitBinding
+  readonly BOOKING_EVENTS_QUEUE?: {
+    readonly send: (message: { readonly outboxId: string }) => Promise<unknown>
+  }
+  readonly CONFIRMATION_SIGNING_KEYS: string
+  readonly CONFIRMATION_CURRENT_KEY_ID: string
+}
+
+export const publishBookingWakeUp = async <A extends { readonly outboxId: string }>(
+  queue: BookingWorkerEnv['BOOKING_EVENTS_QUEUE'],
+  result: A
+): Promise<A> => {
+  try {
+    await queue?.send({ outboxId: result.outboxId })
+  } catch {
+    // The durable outbox is authoritative; publication is only a wake-up.
+  }
+  return result
 }
 
 type FallbackRateState = { count: number; resetAt: number }
@@ -57,7 +76,12 @@ const takeRate = async (
 export default {
   async fetch(request: Request, passedEnv?: BookingWorkerEnv): Promise<Response> {
     const env = passedEnv ?? (workerEnv as Partial<BookingWorkerEnv>)
-    if (!env.DB || !env.PUBLIC_SITE_ORIGIN) {
+    if (
+      !env.DB ||
+      !env.PUBLIC_SITE_ORIGIN ||
+      !env.CONFIRMATION_SIGNING_KEYS ||
+      !env.CONFIRMATION_CURRENT_KEY_ID
+    ) {
       return new Response('Booking temporarily unavailable', {
         status: 503,
         headers: { 'retry-after': '60' }
@@ -69,6 +93,16 @@ export default {
       Layer.provide(layerFromD1(env.DB))
     )
     const checkoutLayer = LiveBookingCheckout.pipe(Layer.provide(layerFromD1(env.DB)))
+    let signingKeys: Readonly<Record<string, string>> = {}
+    try {
+      signingKeys = JSON.parse(env.CONFIRMATION_SIGNING_KEYS) as Record<string, string>
+    } catch {
+      /* handled by capability */
+    }
+    const confirmationLayer = LiveBookingConfirmation({
+      currentKeyId: env.CONFIRMATION_CURRENT_KEY_ID,
+      keys: signingKeys
+    }).pipe(Layer.provide(layerFromD1(env.DB)))
     return Effect.runPromise(
       handleBookingSessionRequest(request, {
         publicSiteOrigin: env.PUBLIC_SITE_ORIGIN,
@@ -129,6 +163,21 @@ export default {
                 checkout.review(session, input)
               ),
               checkoutLayer
+            )
+        },
+        confirmation: {
+          confirm: (session, input) =>
+            Effect.flatMap(
+              Effect.provide(
+                Effect.flatMap(BookingConfirmation, (confirmation) =>
+                  confirmation.confirm(session, input)
+                ),
+                confirmationLayer
+              ),
+              (result) =>
+                Effect.promise(() =>
+                  publishBookingWakeUp(env.BOOKING_EVENTS_QUEUE, result)
+                )
             )
         },
         takeRead: (key) =>

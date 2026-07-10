@@ -4,6 +4,7 @@ import {
   HoldTimeSlotInput as HoldTimeSlotInputSchema,
   BookingSchedulingRejected,
   CheckoutUnavailable,
+  BookingConfirmationRejected,
   CustomerDetails as CustomerDetailsSchema,
   BookingSelectionRejected,
   ServiceSelection as ServiceSelectionSchema,
@@ -21,7 +22,8 @@ import {
   type PresentedBookingSessionCapability,
   type ServiceSelection,
   type CheckoutReview,
-  type CustomerDetails
+  type CustomerDetails,
+  type BookingConfirmationResult
 } from '@b2b-saas-starter/capabilities'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 
@@ -44,6 +46,7 @@ type BookingSessionHttpFailure =
   | BookingSelectionRejected
   | BookingSchedulingRejected
   | CheckoutUnavailable
+  | BookingConfirmationRejected
 
 type BookingSessionEffect<A, E = never> = Effect.Effect<A, E>
 
@@ -203,6 +206,15 @@ export type BookingSessionHttpDependencies = {
       CheckoutUnavailable | CapabilityUnavailable
     >
   }
+  readonly confirmation?: {
+    readonly confirm: (
+      session: BookingSession,
+      input: { readonly now: string; readonly traceId: string }
+    ) => BookingSessionEffect<
+      BookingConfirmationResult,
+      BookingConfirmationRejected | CapabilityUnavailable
+    >
+  }
   readonly takeRead: (key: string) => BookingSessionEffect<boolean>
   readonly takeWrite: (key: string) => BookingSessionEffect<boolean>
   readonly fallback: (request: Request) => BookingSessionEffect<Response>
@@ -260,6 +272,11 @@ const mapSessionFailure = (
   if (error instanceof CheckoutUnavailable) {
     return withPrivateHeaders(
       Response.json({ kind: 'hold_expired', message: error.message }, { status: 409 })
+    )
+  }
+  if (error instanceof BookingConfirmationRejected) {
+    return withPrivateHeaders(
+      Response.json({ kind: error.reason, message: error.message }, { status: 409 })
     )
   }
   return hiddenNotFound()
@@ -427,12 +444,14 @@ export const handleBookingSessionRequest = (
     ).find((candidate) => candidate.sessionId === sessionId)
     if (!presented) return hiddenNotFound()
 
+    const endpoint = segments.length === 5 ? segments[4] : null
     const authorization = yield* Effect.result(
       dependencies.authorize({
         merchantSlug,
         sessionId,
         capability: presented.capability,
-        now
+        now,
+        allowConfirmedReplay: endpoint === 'confirm'
       })
     )
     if (authorization._tag === 'Failure') {
@@ -442,7 +461,9 @@ export const handleBookingSessionRequest = (
       return tooManyRequests()
     }
 
-    const endpoint = segments.length === 5 ? segments[4] : null
+    if (authorization.success.lifecycle === 'consumed' && endpoint !== 'confirm') {
+      return expired(merchantSlug)
+    }
     if (endpoint === 'selection' && request.method === 'GET') {
       if (!dependencies.selection) return unavailable()
       const result = yield* Effect.result(
@@ -549,15 +570,45 @@ export const handleBookingSessionRequest = (
       ) {
         return hiddenNotFound()
       }
-      return withPrivateHeaders(
-        Response.json(
-          {
-            kind: 'confirmation_pending',
-            message: 'Booking confirmation is temporarily unavailable'
-          },
-          { status: 501 }
-        )
+      if (!dependencies.confirmation) return unavailable()
+      const traceId = request.headers.get('cf-ray') ?? `trace_${crypto.randomUUID()}`
+      const result = yield* Effect.result(
+        dependencies.confirmation.confirm(authorization.success, { now, traceId })
       )
+      if (result._tag === 'Failure')
+        return mapSessionFailure(result.failure, merchantSlug)
+      const confirmed = result.success
+      const location = `/${encodeURIComponent(merchantSlug)}/booking/confirmations/${encodeURIComponent(confirmed.access.routeId)}`
+      const maxAge = Math.max(
+        0,
+        Math.floor((Date.parse(confirmed.access.expiresAt) - Date.parse(now)) / 1000)
+      )
+      const response = Response.json({
+        appointment: confirmed.appointment,
+        access: {
+          routeId: confirmed.access.routeId,
+          tokenVersion: confirmed.access.tokenVersion,
+          signingKeyId: confirmed.access.signingKeyId,
+          expiresAt: confirmed.access.expiresAt
+        },
+        outboxId: confirmed.outboxId,
+        replayed: confirmed.replayed,
+        location
+      })
+      response.headers.append(
+        'set-cookie',
+        [
+          `confirmation_${confirmed.access.routeId}=${confirmed.access.token}`,
+          `Path=${location}`,
+          `Max-Age=${maxAge}`,
+          'HttpOnly',
+          url.protocol === 'https:' ? 'Secure' : null,
+          'SameSite=Lax'
+        ]
+          .filter((part): part is string => part !== null)
+          .join('; ')
+      )
+      return withPrivateHeaders(response)
     }
     return withPrivateHeaders(yield* dependencies.fallback(request))
   })

@@ -27,6 +27,12 @@ import {
   LiveBookingCheckout,
   SeedBookingCheckout
 } from './booking/booking-checkout.ts'
+import {
+  BookingConfirmation,
+  emptySeedBookingConfirmationStore,
+  LiveBookingConfirmation,
+  SeedBookingConfirmation
+} from './booking/booking-confirmation.ts'
 
 // catalog
 import {
@@ -150,6 +156,7 @@ export type CapabilityServices =
   | BookingSelection
   | BookingScheduling
   | BookingCheckout
+  | BookingConfirmation
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceMembership
@@ -183,6 +190,14 @@ const seedBookingScheduling = emptySeedBookingSchedulingStore(
   seedBookingSelection
 )
 const seedBookingCheckout = emptySeedBookingCheckoutStore(seedBookingScheduling)
+const seedConfirmationKeyring = {
+  currentKeyId: 'seed-current',
+  keys: { 'seed-current': 'deterministic-seed-confirmation-key' }
+} as const
+const seedBookingConfirmation = emptySeedBookingConfirmationStore(
+  seedBookingSessions,
+  seedBookingCheckout
+)
 const seedScheduling = emptySeedSchedulingStore(seedBookingScenario)
 const seedMerchantCatalog = emptySeedMerchantCatalog([seedBookingScenario.owner])
 seedMerchantCatalog.merchants.set(seedBookingScenario.merchant.slug, {
@@ -224,6 +239,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedBookingSelection(seedBookingSelection),
   SeedBookingScheduling(seedBookingScheduling),
   SeedBookingCheckout(seedBookingCheckout),
+  SeedBookingConfirmation(seedBookingConfirmation, seedConfirmationKeyring),
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -233,6 +249,9 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
+  readonly confirmationKeyring?:
+    | Parameters<typeof LiveBookingConfirmation>[0]
+    | undefined
 }
 
 export const makeLiveCapabilitiesLayer = (
@@ -253,6 +272,9 @@ export const makeLiveCapabilitiesLayer = (
     LiveBookingSelection,
     LiveBookingScheduling,
     LiveBookingCheckout,
+    LiveBookingConfirmation(
+      options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} }
+    ),
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),

@@ -7,6 +7,7 @@ export * from './booking/booking-sessions.ts'
 export * from './booking/booking-selection.ts'
 export * from './booking/booking-scheduling.ts'
 export * from './booking/booking-checkout.ts'
+export * from './booking/booking-confirmation.ts'
 
 // merchant-catalog
 export * from './merchant-catalog/merchant-onboarding.ts'
