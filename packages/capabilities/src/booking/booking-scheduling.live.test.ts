@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   appointments,
+  bookingSessions,
   Database,
   layerFromD1,
   merchants,
@@ -114,15 +115,26 @@ beforeAll(async () => {
             updatedAt: now
           }))
         )
-        yield* db.insert(appointments).values({
-          id: 'apt_schedule_block',
-          merchantId: 'mer_schedule_hold',
-          providerId: 'prv_schedule_one',
-          status: 'scheduled',
-          startsAt: '2026-07-13T11:00:00.000Z',
-          endsAt: '2026-07-13T12:00:00.000Z',
-          createdAt: now
-        })
+        yield* db.insert(appointments).values([
+          {
+            id: 'apt_schedule_block',
+            merchantId: 'mer_schedule_hold',
+            providerId: 'prv_schedule_one',
+            status: 'scheduled',
+            startsAt: '2026-07-13T11:00:00.000Z',
+            endsAt: '2026-07-13T12:00:00.000Z',
+            createdAt: now
+          },
+          {
+            id: 'apt_completed_history',
+            merchantId: 'mer_schedule_hold',
+            providerId: 'prv_schedule_one',
+            status: 'completed',
+            startsAt: '2026-07-13T12:00:00.000Z',
+            endsAt: '2026-07-13T13:00:00.000Z',
+            createdAt: now
+          }
+        ])
       }),
       layerFromD1(test.d1)
     )
@@ -131,7 +143,15 @@ beforeAll(async () => {
 
 afterAll(async () => test.dispose())
 
-const prepareSession = async (): Promise<BookingSession> => {
+const prepareSession = async (
+  selectedServices: {
+    readonly primaryServiceId: string
+    readonly additionalServiceIds: readonly string[]
+  } = {
+    primaryServiceId: 'svc_schedule_primary',
+    additionalServiceIds: ['svc_schedule_extra']
+  }
+): Promise<BookingSession> => {
   const dbLayer = layerFromD1(test.d1)
   const session = await Effect.runPromise(
     Effect.provide(
@@ -157,8 +177,8 @@ const prepareSession = async (): Promise<BookingSession> => {
     Effect.provide(
       Effect.flatMap(BookingSelection, (selection) =>
         selection.chooseServices(session.session, {
-          primaryServiceId: 'svc_schedule_primary',
-          additionalServiceIds: ['svc_schedule_extra']
+          primaryServiceId: selectedServices.primaryServiceId,
+          additionalServiceIds: selectedServices.additionalServiceIds
         })
       ),
       layer
@@ -187,6 +207,9 @@ describe('Live Booking Scheduling', () => {
     expect(availability.slots.map((slot) => slot.startsAt)).not.toContain(
       '2026-07-13T11:00:00.000Z'
     )
+    expect(availability.slots.map((slot) => slot.startsAt)).toContain(
+      '2026-07-13T12:00:00.000Z'
+    )
 
     const attempt = (session: BookingSession) =>
       run(
@@ -209,6 +232,76 @@ describe('Live Booking Scheduling', () => {
       )
     )
     expect(rows).toHaveLength(1)
+    const winner = results.find((result) => result._tag === 'Success')
+    expect(winner).toMatchObject({
+      _tag: 'Success',
+      success: {
+        quote: { assignedProvider: { id: 'prv_schedule_one' } }
+      }
+    })
+    if (winner?._tag === 'Success') {
+      const reread = await run(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.currentHold(
+            winner.success.bookingSessionId === first.id ? first : second,
+            { now: '2026-07-10T09:35:00.000Z' }
+          )
+        )
+      )
+      expect(reread?.expiresAt).toBe(winner.success.expiresAt)
+    }
+
+    const overlapping = await prepareSession({
+      primaryServiceId: 'svc_schedule_extra',
+      additionalServiceIds: []
+    })
+    const overlapResult = await run(
+      Effect.result(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.hold(overlapping, {
+            startsAt: '2026-07-13T09:20:00.000Z',
+            now
+          })
+        )
+      )
+    )
+    expect(overlapResult).toMatchObject({
+      _tag: 'Failure',
+      failure: { reason: 'slot_lost' }
+    })
+  })
+
+  it('atomically refuses a Session that became inactive after authorization', async () => {
+    const stale = await prepareSession()
+    const dbLayer = layerFromD1(test.d1)
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(Database, (db) =>
+          db
+            .update(bookingSessions)
+            .set({ lifecycle: 'consumed' })
+            .where(eq(bookingSessions.id, stale.id))
+        ),
+        dbLayer
+      )
+    )
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.result(
+          Effect.flatMap(BookingScheduling, (scheduling) =>
+            scheduling.hold(stale, {
+              startsAt: '2026-07-13T13:00:00.000Z',
+              now
+            })
+          )
+        ),
+        LiveBookingScheduling.pipe(Layer.provide(dbLayer))
+      )
+    )
+    expect(result).toMatchObject({
+      _tag: 'Failure',
+      failure: { reason: 'slot_lost' }
+    })
   })
 
   it('keeps held quotes immutable and rebuilds them from current facts after expiry', async () => {
@@ -271,6 +364,47 @@ describe('Live Booking Scheduling', () => {
     )
     expect(reread?.expiresAt).toBe('2026-07-10T09:40:00.000Z')
     expect(reread?.quote.totalMinor).toBe(5000)
+
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db
+            .update(scheduleRules)
+            .set({ startTime: '12:00', updatedAt: '2026-07-10T09:36:00.000Z' })
+            .where(eq(scheduleRules.providerId, held.quote.assignedProvider.id))
+          yield* db
+            .update(publicBookingPages)
+            .set({ status: 'unpublished', updatedAt: '2026-07-10T09:36:00.000Z' })
+            .where(eq(publicBookingPages.merchantId, 'mer_schedule_hold'))
+        }),
+        dbLayer
+      )
+    )
+    const afterMerchantEdits = await run(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.currentHold(anySession, {
+          now: '2026-07-10T09:39:59.000Z'
+        })
+      )
+    )
+    expect(afterMerchantEdits?.quote).toEqual(held.quote)
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db
+            .update(scheduleRules)
+            .set({ startTime: '09:00', updatedAt: '2026-07-10T09:40:00.000Z' })
+            .where(eq(scheduleRules.providerId, held.quote.assignedProvider.id))
+          yield* db
+            .update(publicBookingPages)
+            .set({ status: 'published', updatedAt: '2026-07-10T09:40:00.000Z' })
+            .where(eq(publicBookingPages.merchantId, 'mer_schedule_hold'))
+        }),
+        dbLayer
+      )
+    )
 
     const replacement = await run(
       Effect.flatMap(BookingScheduling, (scheduling) =>

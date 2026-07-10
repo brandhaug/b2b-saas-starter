@@ -11,19 +11,54 @@ export function BookingSchedulingFlow({
   availability,
   busy,
   slotLost,
+  holdExpired = false,
   onSelect
 }: {
   readonly availability: BookingAvailability
   readonly busy: boolean
   readonly slotLost: boolean
+  readonly holdExpired?: boolean
   readonly onSelect: (startsAt: string) => void
 }) {
+  const formatters = useMemo(
+    () => ({
+      date: new Intl.DateTimeFormat('en-CA', {
+        timeZone: availability.timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }),
+      month: new Intl.DateTimeFormat('en-US', {
+        timeZone: availability.timezone,
+        month: 'long',
+        year: 'numeric'
+      }),
+      longDate: new Intl.DateTimeFormat('en-US', {
+        timeZone: availability.timezone,
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      }),
+      weekday: new Intl.DateTimeFormat('en-US', {
+        timeZone: availability.timezone,
+        weekday: 'short'
+      }),
+      time: new Intl.DateTimeFormat('en-GB', {
+        timeZone: availability.timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+    }),
+    [availability.timezone]
+  )
+  const localDate = (instant: string) => formatters.date.format(new Date(instant))
   const days = useMemo(
-    () => calendarDays(availability.slots, availability.timezone),
-    [availability.slots, availability.timezone]
+    () => calendarDays(availability.slots, formatters.date),
+    [availability.slots, formatters.date]
   )
   const heldDate = availability.hold
-    ? localDate(availability.hold.quote.startsAt, availability.timezone)
+    ? localDate(availability.hold.quote.startsAt)
     : null
   const [chosenDate, setChosenDate] = useState<string | null>(
     heldDate ?? days[0] ?? null
@@ -31,7 +66,7 @@ export function BookingSchedulingFlow({
   const activeDate =
     chosenDate && days.includes(chosenDate) ? chosenDate : (days[0] ?? null)
   const visible = availability.slots.filter(
-    (slot) => localDate(slot.startsAt, availability.timezone) === activeDate
+    (slot) => localDate(slot.startsAt) === activeDate
   )
 
   return (
@@ -51,9 +86,11 @@ export function BookingSchedulingFlow({
           </button>
         </header>
         <main {...stylex.props(styles.main)}>
-          {slotLost ? (
+          {slotLost || holdExpired ? (
             <div {...stylex.props(styles.alert)}>
-              <p {...stylex.props(styles.alertTitle)}>That time was just booked</p>
+              <p {...stylex.props(styles.alertTitle)}>
+                {holdExpired ? 'Your held time expired' : 'That time was just booked'}
+              </p>
               <p {...stylex.props(styles.alertCopy)}>
                 Your service choices are still saved.
               </p>
@@ -72,14 +109,14 @@ export function BookingSchedulingFlow({
           ) : (
             <>
               <p {...stylex.props(styles.month)}>
-                {monthLabel(activeDate!, availability.timezone)}
+                {formatters.month.format(asLocalNoon(activeDate!))}
               </p>
               <div {...stylex.props(styles.dateGrid)}>
                 {days.map((date) => (
                   <button
                     key={date}
                     type="button"
-                    aria-label={longDate(date, availability.timezone)}
+                    aria-label={formatters.longDate.format(asLocalNoon(date))}
                     onClick={() => setChosenDate(date)}
                     {...stylex.props(styles.dateCell, styles.dateButton)}
                   >
@@ -92,13 +129,13 @@ export function BookingSchedulingFlow({
                       {date.slice(-2).replace(/^0/, '')}
                     </span>
                     <span {...stylex.props(styles.dayLabel)}>
-                      {weekday(date, availability.timezone)}
+                      {formatters.weekday.format(asLocalNoon(date))}
                     </span>
                   </button>
                 ))}
               </div>
               <p {...stylex.props(styles.dayHeading)}>
-                {longDate(activeDate!, availability.timezone)}
+                {formatters.longDate.format(asLocalNoon(activeDate!))}
               </p>
               <div {...stylex.props(styles.timeGrid)}>
                 {visible.map((slot) => {
@@ -108,14 +145,14 @@ export function BookingSchedulingFlow({
                       key={slot.startsAt}
                       type="button"
                       disabled={busy}
-                      aria-label={timeLabel(slot.startsAt, availability.timezone)}
+                      aria-label={formatters.time.format(new Date(slot.startsAt))}
                       onClick={() => onSelect(slot.startsAt)}
                       {...stylex.props(
                         styles.timeButton,
                         selected && styles.selectedTime
                       )}
                     >
-                      {timeLabel(slot.startsAt, availability.timezone)}
+                      {formatters.time.format(new Date(slot.startsAt))}
                     </button>
                   )
                 })}
@@ -134,49 +171,19 @@ export function BookingSchedulingFlow({
   )
 }
 
-const localDate = (instant: string, timezone: string) =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).format(new Date(instant))
-
 const addDay = (date: string, offset: number) => {
   const value = new Date(`${date}T12:00:00.000Z`)
   value.setUTCDate(value.getUTCDate() + offset)
   return value.toISOString().slice(0, 10)
 }
 
-const calendarDays = (slots: readonly BookingTimeSlot[], timezone: string) => {
+const calendarDays = (
+  slots: readonly BookingTimeSlot[],
+  formatter: Intl.DateTimeFormat
+) => {
   if (!slots[0]) return []
-  const first = localDate(slots[0].startsAt, timezone)
+  const first = formatter.format(new Date(slots[0].startsAt))
   return Array.from({ length: 6 }, (_, index) => addDay(first, index))
 }
 
 const asLocalNoon = (date: string) => new Date(`${date}T12:00:00.000Z`)
-const monthLabel = (date: string, timezone: string) =>
-  new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    month: 'long',
-    year: 'numeric'
-  }).format(asLocalNoon(date))
-const longDate = (date: string, timezone: string) =>
-  new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric'
-  }).format(asLocalNoon(date))
-const weekday = (date: string, timezone: string) =>
-  new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    weekday: 'short'
-  }).format(asLocalNoon(date))
-const timeLabel = (instant: string, timezone: string) =>
-  new Intl.DateTimeFormat('en-GB', {
-    timeZone: timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).format(new Date(instant))

@@ -2,7 +2,7 @@ import { Effect } from 'effect'
 import { count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { provisionTestD1, type TestD1 } from './testing.ts'
-import { Database, layerFromD1, batch, DbBatchError } from './index.ts'
+import { Database, DbBatchError, batch, batchQueries, layerFromD1 } from './index.ts'
 import {
   apiTokens,
   merchantMemberships,
@@ -314,6 +314,31 @@ describe('first-slice Merchant constraints over live D1', () => {
 })
 
 describe('batch atomicity over live D1', () => {
+  it('executes compiled conditional writes and returns mutation metadata', async () => {
+    const results = await run(
+      Effect.flatMap(Database, (database) =>
+        batchQueries(database, [
+          {
+            sql: `INSERT INTO workspaces
+              (id, slug, name, plan_id, created_at, updated_at)
+              SELECT ?, ?, ?, 'starter', ?, ? WHERE NOT EXISTS (
+                SELECT 1 FROM workspaces WHERE id = ?
+              )`,
+            params: [
+              'wrk_conditional_batch',
+              'conditional-batch',
+              'Conditional batch',
+              iso,
+              iso,
+              'wrk_conditional_batch'
+            ]
+          }
+        ])
+      )
+    )
+    expect(results[0]?.meta.changes).toBe(1)
+  })
+
   it('rolls back every statement when one fails', async () => {
     const outcome = await run(
       Effect.gen(function* () {

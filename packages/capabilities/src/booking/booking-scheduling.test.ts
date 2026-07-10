@@ -90,7 +90,7 @@ describe('Booking Scheduling', () => {
   })
 
   it('atomically assigns Any Provider and freezes an exact ten-minute quote', async () => {
-    const { scenario, run } = await fixture()
+    const { scenario, store, run } = await fixture()
     const held = await run(
       Effect.flatMap(BookingScheduling, (scheduling) =>
         scheduling.hold(session('bsn_one'), {
@@ -134,6 +134,24 @@ describe('Booking Scheduling', () => {
     )
     expect(reread?.expiresAt).toBe(held.expiresAt)
     expect(reread?.quote.totalMinor).toBe(13_500)
+    store.selections.selections.set('bsn_one', {
+      providerPreference: null,
+      primaryServiceId: null,
+      additionalServiceIds: []
+    })
+    const heldAvailability = await run(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.availability(session('bsn_one'), {
+          from: '2026-07-13T00:00:00.000Z',
+          days: 1,
+          now: '2026-07-10T09:35:00.000Z'
+        })
+      )
+    )
+    expect(heldAvailability).toMatchObject({
+      slots: [],
+      hold: { quote: { totalMinor: 13_500 } }
+    })
   })
 
   it('prevents competing holds, releases expiry, and preserves upstream selections', async () => {

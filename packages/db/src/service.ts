@@ -33,6 +33,11 @@ export type BatchStatement = {
   readonly toSQL: () => Query
 }
 
+export type CompiledBatchQuery = Query
+export type BatchQueryResult = {
+  readonly meta: { readonly changes?: number | undefined }
+}
+
 /**
  * Executes multiple statements as a single atomic D1 batch (implicit
  * transaction — all statements commit or roll back together). The effect-d1
@@ -51,6 +56,28 @@ export const batch = (
           const query = statement.toSQL()
           return raw.prepare(query.sql).bind(...query.params)
         })
+      )
+    },
+    catch: (cause) =>
+      new DbBatchError({
+        reason: cause instanceof Error ? cause.message : String(cause)
+      })
+  })
+
+/**
+ * Executes already-compiled conditional SQL inside the Database adapter and
+ * returns D1 mutation metadata. Capability code uses this for atomic
+ * INSERT-SELECT commands that Drizzle cannot express without dropping to SQL.
+ */
+export const batchQueries = (
+  db: EffectDatabase,
+  queries: readonly CompiledBatchQuery[]
+): Effect.Effect<readonly BatchQueryResult[], DbBatchError> =>
+  Effect.tryPromise({
+    try: async () => {
+      const raw = db.$client.config.db
+      return raw.batch(
+        queries.map((query) => raw.prepare(query.sql).bind(...query.params))
       )
     },
     catch: (cause) =>

@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect'
 import {
   BookingPageUnavailable,
+  HoldTimeSlotInput as HoldTimeSlotInputSchema,
   BookingSchedulingRejected,
   BookingSelectionRejected,
   ServiceSelection as ServiceSelectionSchema,
@@ -13,6 +14,7 @@ import {
   type BookingJourney,
   type BookingAvailability,
   type TimeSlotHold,
+  type HoldTimeSlotInput,
   type ProviderPreference,
   type PresentedBookingSessionCapability,
   type ServiceSelection
@@ -289,6 +291,14 @@ const servicesFrom = (value: unknown): ServiceSelection | null => {
   }
 }
 
+const holdTimeSlotFrom = (value: unknown): HoldTimeSlotInput | null => {
+  try {
+    return Schema.decodeUnknownSync(HoldTimeSlotInputSchema)(value)
+  } catch {
+    return null
+  }
+}
+
 export const handleBookingSessionRequest = (
   request: Request,
   dependencies: BookingSessionHttpDependencies
@@ -431,14 +441,13 @@ export const handleBookingSessionRequest = (
     }
     if (endpoint === 'hold' && request.method === 'POST') {
       if (!dependencies.scheduling) return unavailable()
-      const body = yield* readJson(request)
-      const startsAt =
-        typeof body === 'object' && body !== null
-          ? (body as Record<string, unknown>).startsAt
-          : null
-      if (typeof startsAt !== 'string') return hiddenNotFound()
+      const input = holdTimeSlotFrom(yield* readJson(request))
+      if (!input) return hiddenNotFound()
       const result = yield* Effect.result(
-        dependencies.scheduling.hold(authorization.success, { startsAt, now })
+        dependencies.scheduling.hold(authorization.success, {
+          startsAt: input.startsAt,
+          now
+        })
       )
       return result._tag === 'Success'
         ? jsonPrivate(result.success)

@@ -1,7 +1,8 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, asc, eq, gt, ne } from 'drizzle-orm'
+import { and, asc, eq, gt } from 'drizzle-orm'
 import {
   appointments,
+  batchQueries,
   bookingSessionAdditionalServices,
   bookingSessions,
   Database,
@@ -11,6 +12,7 @@ import {
   scheduleRules,
   services,
   timeSlotHolds,
+  type CompiledBatchQuery,
   type StoredBookingQuote
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
@@ -69,6 +71,15 @@ export const BookingAvailability = Schema.Struct({
   hold: Schema.NullOr(TimeSlotHold)
 })
 export type BookingAvailability = typeof BookingAvailability.Type
+
+export const HoldTimeSlotInput = Schema.Struct({ startsAt: Schema.String })
+export type HoldTimeSlotInput = typeof HoldTimeSlotInput.Type
+
+export const BookingSchedulingRecovery = Schema.Struct({
+  kind: Schema.Literals(['slot_lost', 'not_ready']),
+  message: Schema.String
+})
+export type BookingSchedulingRecovery = typeof BookingSchedulingRecovery.Type
 
 export class BookingSchedulingRejected extends Schema.TaggedErrorClass<BookingSchedulingRejected>()(
   'BookingSchedulingRejected',
@@ -293,6 +304,43 @@ const quoteFor = (
   }
 }
 
+const providersAvailableForSlot = (
+  input: SchedulingInputs,
+  generated: ReturnType<typeof candidates>,
+  slot: BookingTimeSlot,
+  now: string,
+  sessionId: string
+) => {
+  const duration = generated.selected.reduce(
+    (sum, service) => sum + service.durationMinutes,
+    0
+  )
+  return generated.providers.filter((provider) =>
+    providerSlots(input, provider.id, duration, slot.startsAt, 1, now, sessionId).some(
+      (candidate) => candidate.startsAt === slot.startsAt
+    )
+  )
+}
+
+const makeStoredHold = (input: {
+  readonly scheduling: SchedulingInputs
+  readonly selected: readonly SchedulingService[]
+  readonly provider: SchedulingProvider
+  readonly slot: BookingTimeSlot
+  readonly sessionId: string
+  readonly now: string
+}): SeedStoredHold => ({
+  id: newCapabilityId('hld'),
+  merchantId: input.scheduling.merchantId,
+  bookingSessionId: input.sessionId,
+  providerId: input.provider.id,
+  startsAt: input.slot.startsAt,
+  endsAt: input.slot.endsAt,
+  createdAt: input.now,
+  expiresAt: new Date(Date.parse(input.now) + 10 * 60_000).toISOString(),
+  quote: quoteFor(input.scheduling, input.selected, input.provider, input.slot)
+})
+
 const seedInputs = (
   store: SeedBookingSchedulingStore,
   session: BookingSession
@@ -321,7 +369,7 @@ const seedInputs = (
     ),
     rules: scenario.scheduleRules,
     appointments: scenario.appointments
-      .filter((appointment) => appointment.status !== 'cancelled')
+      .filter((appointment) => appointment.status === 'scheduled')
       .map((appointment) => appointment),
     holds: [...store.holds.values()]
   })
@@ -341,13 +389,30 @@ export const SeedBookingScheduling = (
       Effect.gen(function* () {
         const days = range.days ?? 14
         if (!validRange(range.from, days)) return yield* failure('invalid_range')
-        const input = yield* seedInputs(store, session)
-        const generated = candidates(input, { ...range, days }, session.id)
-        if (!generated.selected.length || !generated.providers.length)
-          return yield* failure('not_ready')
         const hold = [...store.holds.values()].find(
           (item) => item.bookingSessionId === session.id && item.expiresAt > range.now
         )
+        const inputResult = yield* Effect.result(seedInputs(store, session))
+        if (inputResult._tag === 'Failure') {
+          if (hold)
+            return {
+              timezone: store.scenario.merchant.timezone,
+              slots: [],
+              hold: toPublicHold(hold)
+            }
+          return yield* inputResult.failure
+        }
+        const input = inputResult.success
+        const generated = candidates(input, { ...range, days }, session.id)
+        if (!generated.selected.length || !generated.providers.length) {
+          if (hold)
+            return {
+              timezone: input.timezone,
+              slots: [],
+              hold: toPublicHold(hold)
+            }
+          return yield* failure('not_ready')
+        }
         return {
           timezone: input.timezone,
           slots: generated.slots,
@@ -358,6 +423,13 @@ export const SeedBookingScheduling = (
       Effect.gen(function* () {
         if (!Number.isFinite(Date.parse(command.startsAt)))
           return yield* failure('slot_lost')
+        const existing = [...store.holds.values()].find(
+          (hold) =>
+            hold.bookingSessionId === session.id &&
+            hold.expiresAt > command.now &&
+            hold.startsAt === command.startsAt
+        )
+        if (existing) return toPublicHold(existing)
         const input = yield* seedInputs(store, session)
         const generated = candidates(
           input,
@@ -366,39 +438,26 @@ export const SeedBookingScheduling = (
         )
         const slot = generated.slots.find((item) => item.startsAt === command.startsAt)
         if (!slot) return yield* failure('slot_lost')
-        const provider = generated.providers.find((candidate) =>
-          providerSlots(
-            input,
-            candidate.id,
-            generated.selected.reduce(
-              (sum, service) => sum + service.durationMinutes,
-              0
-            ),
-            command.startsAt,
-            1,
-            command.now,
-            session.id
-          ).some((item) => item.startsAt === command.startsAt)
-        )
+        const provider = providersAvailableForSlot(
+          input,
+          generated,
+          slot,
+          command.now,
+          session.id
+        )[0]
         if (!provider) return yield* failure('slot_lost')
-        const id = newCapabilityId('hld')
-        const createdAt = command.now
-        const expiresAt = new Date(Date.parse(createdAt) + 10 * 60_000).toISOString()
-        const stored: SeedStoredHold = {
-          id,
-          merchantId: input.merchantId,
-          bookingSessionId: session.id,
-          providerId: provider.id,
-          startsAt: slot.startsAt,
-          endsAt: slot.endsAt,
-          createdAt,
-          expiresAt,
-          quote: quoteFor(input, generated.selected, provider, slot)
-        }
+        const stored = makeStoredHold({
+          scheduling: input,
+          selected: generated.selected,
+          provider,
+          slot,
+          sessionId: session.id,
+          now: command.now
+        })
         for (const [existingId, existing] of store.holds) {
           if (existing.bookingSessionId === session.id) store.holds.delete(existingId)
         }
-        store.holds.set(id, stored)
+        store.holds.set(stored.id, stored)
         return toPublicHold(stored)
       })
   })
@@ -470,7 +529,7 @@ const liveInputs = (
           .where(
             and(
               eq(appointments.merchantId, row.merchantId),
-              ne(appointments.status, 'cancelled')
+              eq(appointments.status, 'scheduled')
             )
           )
       ),
@@ -509,6 +568,25 @@ const livePublicHold = (row: typeof timeSlotHolds.$inferSelect): TimeSlotHold =>
   quote: row.quote
 })
 
+const liveTimezone = (db: typeof Database.Service, session: BookingSession) =>
+  orUnavailable('booking-scheduling')(
+    db
+      .select({ timezone: merchants.timezone })
+      .from(bookingSessions)
+      .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
+      .where(
+        and(
+          eq(bookingSessions.id, session.id),
+          eq(merchants.slug, session.merchantSlug)
+        )
+      )
+      .limit(1)
+  ).pipe(
+    Effect.flatMap((rows) =>
+      rows[0] ? Effect.succeed(rows[0].timezone) : Effect.fail(failure('not_ready'))
+    )
+  )
+
 export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Database> =
   Layer.effect(
     BookingScheduling,
@@ -535,20 +613,36 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
           Effect.gen(function* () {
             const days = range.days ?? 14
             if (!validRange(range.from, days)) return yield* failure('invalid_range')
-            const input = yield* liveInputs(db, session)
+            const hold = yield* currentHold(session, range.now)
+            const inputResult = yield* Effect.result(liveInputs(db, session))
+            if (inputResult._tag === 'Failure') {
+              if (hold && inputResult.failure instanceof BookingSchedulingRejected) {
+                return {
+                  timezone: yield* liveTimezone(db, session),
+                  slots: [],
+                  hold
+                }
+              }
+              return yield* inputResult.failure
+            }
+            const input = inputResult.success
             const generated = candidates(input, { ...range, days }, session.id)
-            if (!generated.selected.length || !generated.providers.length)
+            if (!generated.selected.length || !generated.providers.length) {
+              if (hold) return { timezone: input.timezone, slots: [], hold }
               return yield* failure('not_ready')
+            }
             return {
               timezone: input.timezone,
               slots: generated.slots,
-              hold: yield* currentHold(session, range.now)
+              hold
             }
           }),
         hold: (session, command) =>
           Effect.gen(function* () {
             if (!Number.isFinite(Date.parse(command.startsAt)))
               return yield* failure('slot_lost')
+            const existing = yield* currentHold(session, command.now)
+            if (existing?.quote.startsAt === command.startsAt) return existing
             const input = yield* liveInputs(db, session)
             const generated = candidates(
               input,
@@ -563,24 +657,23 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
               (sum, service) => sum + service.durationMinutes,
               0
             )
-            const providersForSlot = generated.providers.filter((provider) =>
-              providerSlots(
-                input,
-                provider.id,
-                duration,
-                command.startsAt,
-                1,
-                command.now,
-                session.id
-              ).some((candidate) => candidate.startsAt === command.startsAt)
+            const providersForSlot = providersAvailableForSlot(
+              input,
+              generated,
+              slot,
+              command.now,
+              session.id
             )
             for (const provider of providersForSlot) {
-              const id = newCapabilityId('hld')
-              const createdAt = command.now
-              const expiresAt = new Date(
-                Date.parse(createdAt) + 10 * 60_000
-              ).toISOString()
-              const quote = quoteFor(input, generated.selected, provider, slot)
+              const stored = makeStoredHold({
+                scheduling: input,
+                selected: generated.selected,
+                provider,
+                slot,
+                sessionId: session.id,
+                now: command.now
+              })
+              const { id, createdAt, expiresAt, quote } = stored
               const matchingRule = input.rules.find(
                 (rule) =>
                   rule.providerId === provider.id &&
@@ -594,6 +687,26 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
               )
               if (!matchingRule) continue
               const catalogChecks = [
+                `EXISTS (
+                  SELECT 1 FROM booking_sessions
+                  WHERE id = ? AND merchant_id = ? AND lifecycle = 'active'
+                    AND idle_expires_at > ? AND absolute_expires_at > ?
+                    AND provider_preference = ?
+                    AND ${
+                      input.preference.kind === 'any'
+                        ? 'provider_id IS NULL'
+                        : 'provider_id = ?'
+                    }
+                    AND primary_service_id = ?
+                )`,
+                `(SELECT COUNT(*) FROM booking_session_additional_services
+                  WHERE booking_session_id = ?) = ?`,
+                ...input.additionalServiceIds.map(
+                  () => `EXISTS (
+                    SELECT 1 FROM booking_session_additional_services
+                    WHERE booking_session_id = ? AND service_id = ? AND position = ?
+                  )`
+                ),
                 `EXISTS (
                   SELECT 1 FROM providers
                   WHERE id = ? AND merchant_id = ? AND status = 'active'
@@ -619,6 +732,22 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 )
               ]
               const catalogParams = [
+                session.id,
+                input.merchantId,
+                command.now,
+                command.now,
+                input.preference.kind,
+                ...(input.preference.kind === 'specific'
+                  ? [input.preference.providerId]
+                  : []),
+                input.primaryServiceId,
+                session.id,
+                input.additionalServiceIds.length,
+                ...input.additionalServiceIds.flatMap((serviceId, position) => [
+                  session.id,
+                  serviceId,
+                  position
+                ]),
                 provider.id,
                 input.merchantId,
                 provider.displayName,
@@ -638,60 +767,50 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                   service.currency
                 ])
               ]
-              const raw = db.$client.config.db
-              const result = yield* Effect.tryPromise({
-                try: () =>
-                  raw.batch([
-                    raw
-                      .prepare(
-                        `INSERT INTO time_slot_holds (id, merchant_id, booking_session_id, provider_id, starts_at, ends_at, created_at, expires_at, quote)
+              const insertQuery = {
+                sql: `INSERT INTO time_slot_holds (id, merchant_id, booking_session_id, provider_id, starts_at, ends_at, created_at, expires_at, quote)
                          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
                          WHERE ${catalogChecks.join(' AND ')}
                          AND NOT EXISTS (
                            SELECT 1 FROM appointments
-                           WHERE provider_id = ? AND status <> 'cancelled'
+                           WHERE provider_id = ? AND status = 'scheduled'
                              AND starts_at < ? AND ends_at > ?
                          ) AND NOT EXISTS (
                            SELECT 1 FROM time_slot_holds
                            WHERE provider_id = ? AND expires_at > ?
                              AND booking_session_id <> ?
                              AND starts_at < ? AND ends_at > ?
-                         )`
-                      )
-                      .bind(
-                        id,
-                        input.merchantId,
-                        session.id,
-                        provider.id,
-                        slot.startsAt,
-                        slot.endsAt,
-                        createdAt,
-                        expiresAt,
-                        JSON.stringify(quote satisfies StoredBookingQuote),
-                        ...catalogParams,
-                        provider.id,
-                        slot.endsAt,
-                        slot.startsAt,
-                        provider.id,
-                        command.now,
-                        session.id,
-                        slot.endsAt,
-                        slot.startsAt
-                      ),
-                    raw
-                      .prepare(
-                        `DELETE FROM time_slot_holds
+                         )`,
+                params: [
+                  id,
+                  input.merchantId,
+                  session.id,
+                  provider.id,
+                  slot.startsAt,
+                  slot.endsAt,
+                  createdAt,
+                  expiresAt,
+                  JSON.stringify(quote satisfies StoredBookingQuote),
+                  ...catalogParams,
+                  provider.id,
+                  slot.endsAt,
+                  slot.startsAt,
+                  provider.id,
+                  command.now,
+                  session.id,
+                  slot.endsAt,
+                  slot.startsAt
+                ]
+              } satisfies CompiledBatchQuery
+              const removePreviousQuery = {
+                sql: `DELETE FROM time_slot_holds
                          WHERE booking_session_id = ? AND id <> ?
-                           AND EXISTS (SELECT 1 FROM time_slot_holds WHERE id = ?)`
-                      )
-                      .bind(session.id, id, id)
-                  ]),
-                catch: (cause) =>
-                  new CapabilityUnavailable({
-                    capability: 'booking-scheduling',
-                    reason: cause instanceof Error ? cause.message : String(cause)
-                  })
-              })
+                           AND EXISTS (SELECT 1 FROM time_slot_holds WHERE id = ?)`,
+                params: [session.id, id, id]
+              } satisfies CompiledBatchQuery
+              const result = yield* orUnavailable('booking-scheduling')(
+                batchQueries(db, [insertQuery, removePreviousQuery])
+              )
               if ((result[0]?.meta.changes ?? 0) > 0) {
                 return {
                   id,

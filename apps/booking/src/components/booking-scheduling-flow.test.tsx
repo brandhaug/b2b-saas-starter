@@ -62,5 +62,16 @@ describe('Booking scheduling flow', () => {
     )
     expect(screen.getByText('That time was just booked')).toBeTruthy()
     expect(screen.getByText('Your service choices are still saved.')).toBeTruthy()
+
+    rerender(
+      <BookingSchedulingFlow
+        availability={availability}
+        busy={false}
+        slotLost={false}
+        holdExpired
+        onSelect={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Your held time expired')).toBeTruthy()
   })
 })
