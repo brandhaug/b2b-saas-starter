@@ -2,7 +2,7 @@
 
 Type: task
 Category: enhancement
-Status: ready-for-agent
+Status: resolved
 Blocked by:
 Parent: 10
 
