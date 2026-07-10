@@ -75,7 +75,12 @@ describe('server-backed Booking scheduling', () => {
     }
     let availabilityReads = 0
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input)
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
       if (url.endsWith('/selection')) return Response.json(journey)
       if (url.endsWith('/availability')) {
         availabilityReads += 1
