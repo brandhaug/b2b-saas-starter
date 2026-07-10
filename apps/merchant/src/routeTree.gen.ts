@@ -16,9 +16,12 @@ import { Route as ServicesRouteImport } from './routes/services'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProvidersRouteImport } from './routes/providers'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as AvailabilityRouteImport } from './routes/availability'
+import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PrototypeMinimumMerchantSurfaceRouteImport } from './routes/prototype.minimum-merchant-surface'
+import { Route as AppointmentsAppointmentIdRouteImport } from './routes/appointments.$appointmentId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
@@ -56,9 +59,19 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AvailabilityRoute = AvailabilityRouteImport.update({
   id: '/availability',
   path: '/availability',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppointmentsRoute = AppointmentsRouteImport.update({
+  id: '/appointments',
+  path: '/appointments',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -72,6 +85,12 @@ const PrototypeMinimumMerchantSurfaceRoute =
     path: '/prototype/minimum-merchant-surface',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AppointmentsAppointmentIdRoute =
+  AppointmentsAppointmentIdRouteImport.update({
+    id: '/$appointmentId',
+    path: '/$appointmentId',
+    getParentRoute: () => AppointmentsRoute,
+  } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -80,7 +99,9 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/appointments': typeof AppointmentsRouteWithChildren
   '/availability': typeof AvailabilityRoute
+  '/customers': typeof CustomersRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/providers': typeof ProvidersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -88,12 +109,15 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/prototype/minimum-merchant-surface': typeof PrototypeMinimumMerchantSurfaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/appointments': typeof AppointmentsRouteWithChildren
   '/availability': typeof AvailabilityRoute
+  '/customers': typeof CustomersRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/providers': typeof ProvidersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -101,13 +125,16 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/prototype/minimum-merchant-surface': typeof PrototypeMinimumMerchantSurfaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/appointments': typeof AppointmentsRouteWithChildren
   '/availability': typeof AvailabilityRoute
+  '/customers': typeof CustomersRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/providers': typeof ProvidersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -115,6 +142,7 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/prototype/minimum-merchant-surface': typeof PrototypeMinimumMerchantSurfaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -122,7 +150,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/appointments'
     | '/availability'
+    | '/customers'
     | '/forgot-password'
     | '/providers'
     | '/reset-password'
@@ -130,12 +160,15 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/verify-email'
+    | '/appointments/$appointmentId'
     | '/prototype/minimum-merchant-surface'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/appointments'
     | '/availability'
+    | '/customers'
     | '/forgot-password'
     | '/providers'
     | '/reset-password'
@@ -143,12 +176,15 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/verify-email'
+    | '/appointments/$appointmentId'
     | '/prototype/minimum-merchant-surface'
     | '/api/auth/$'
   id:
     | '__root__'
     | '/'
+    | '/appointments'
     | '/availability'
+    | '/customers'
     | '/forgot-password'
     | '/providers'
     | '/reset-password'
@@ -156,13 +192,16 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/verify-email'
+    | '/appointments/$appointmentId'
     | '/prototype/minimum-merchant-surface'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppointmentsRoute: typeof AppointmentsRouteWithChildren
   AvailabilityRoute: typeof AvailabilityRoute
+  CustomersRoute: typeof CustomersRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   ProvidersRoute: typeof ProvidersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -225,11 +264,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/availability': {
       id: '/availability'
       path: '/availability'
       fullPath: '/availability'
       preLoaderRoute: typeof AvailabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/appointments': {
+      id: '/appointments'
+      path: '/appointments'
+      fullPath: '/appointments'
+      preLoaderRoute: typeof AppointmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -246,6 +299,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrototypeMinimumMerchantSurfaceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/appointments/$appointmentId': {
+      id: '/appointments/$appointmentId'
+      path: '/$appointmentId'
+      fullPath: '/appointments/$appointmentId'
+      preLoaderRoute: typeof AppointmentsAppointmentIdRouteImport
+      parentRoute: typeof AppointmentsRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -256,9 +316,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppointmentsRouteChildren {
+  AppointmentsAppointmentIdRoute: typeof AppointmentsAppointmentIdRoute
+}
+
+const AppointmentsRouteChildren: AppointmentsRouteChildren = {
+  AppointmentsAppointmentIdRoute: AppointmentsAppointmentIdRoute,
+}
+
+const AppointmentsRouteWithChildren = AppointmentsRoute._addFileChildren(
+  AppointmentsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppointmentsRoute: AppointmentsRouteWithChildren,
   AvailabilityRoute: AvailabilityRoute,
+  CustomersRoute: CustomersRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   ProvidersRoute: ProvidersRoute,
   ResetPasswordRoute: ResetPasswordRoute,

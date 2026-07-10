@@ -33,6 +33,11 @@ import {
   LiveBookingConfirmation,
   SeedBookingConfirmation
 } from './booking/booking-confirmation.ts'
+import {
+  AppointmentOperations,
+  LiveAppointmentOperations,
+  SeedAppointmentOperations
+} from './booking/appointment-operations.ts'
 
 // catalog
 import {
@@ -130,6 +135,7 @@ import {
   seedCatalogRefreshHistory,
   seedImplementationReports,
   seedIntegrationSurfaces,
+  makeSeedOperationalAppointments,
   seedMembers,
   seedNotifications,
   seedReadinessTrend,
@@ -157,6 +163,7 @@ export type CapabilityServices =
   | BookingScheduling
   | BookingCheckout
   | BookingConfirmation
+  | AppointmentOperations
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceMembership
@@ -198,6 +205,11 @@ const seedBookingConfirmation = emptySeedBookingConfirmationStore(
   seedBookingSessions,
   seedBookingCheckout
 )
+const seedOperationalAppointments = makeSeedOperationalAppointments({
+  merchant: seedBookingScenario.merchant,
+  provider: seedBookingScenario.provider,
+  service: seedBookingScenario.services[0]!
+})
 const seedScheduling = emptySeedSchedulingStore(seedBookingScenario)
 const seedMerchantCatalog = emptySeedMerchantCatalog([seedBookingScenario.owner])
 seedMerchantCatalog.merchants.set(seedBookingScenario.merchant.slug, {
@@ -240,6 +252,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedBookingScheduling(seedBookingScheduling),
   SeedBookingCheckout(seedBookingCheckout),
   SeedBookingConfirmation(seedBookingConfirmation, seedConfirmationKeyring),
+  SeedAppointmentOperations(seedOperationalAppointments),
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -275,6 +288,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveBookingConfirmation(
       options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} }
     ),
+    LiveAppointmentOperations,
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),

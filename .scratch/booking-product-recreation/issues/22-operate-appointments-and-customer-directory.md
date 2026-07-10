@@ -2,7 +2,7 @@
 
 Type: task
 Category: enhancement
-Status: ready-for-agent
+Status: done
 Blocked by: 20
 Parent: 10
 
@@ -16,14 +16,14 @@ Before implementing this ticket, inspect `/Users/hassan/Desktop/ssqu/recreate/ap
 
 ## Acceptance criteria
 
-- [ ] The Merchant App uses Appointments as the returning-user operational home and presents the source-reduced Provider-oriented day calendar.
-- [ ] Appointment detail displays status, scheduled time, Provider Preference and assignment, immutable Provider and Service snapshots, Customer Details, quoted total, and Pay In Person without a payment-status badge.
-- [ ] Catalog edits, Provider or Service inactivation, and Public Page unpublishing cannot rewrite existing Appointment or Confirmation facts.
-- [ ] The Customers destination derives entries from Appointment Customer Details and does not merge, deduplicate, or claim durable identity when email or phone values match.
-- [ ] Customers provides no standalone creation, editing, imports, notes, tags, marketing consent, saved payment methods, campaigns, or account controls.
-- [ ] Manual Appointment creation, cancellation, rescheduling, completion, no-show mutation, refunds, and payment reconciliation remain absent from the first slice.
-- [ ] Every Merchant read is membership-gated and cross-Merchant Appointment or Customer access resolves through the same non-disclosing not-found behavior.
-- [ ] Seeded past and future Appointments, newly confirmed Appointments, snapshot immutability, empty states, Provider calendar grouping, and Customer Directory derivation are covered by tests.
+- [x] The Merchant App uses Appointments as the returning-user operational home and presents the source-reduced Provider-oriented day calendar.
+- [x] Appointment detail displays status, scheduled time, Provider Preference and assignment, immutable Provider and Service snapshots, Customer Details, quoted total, and Pay In Person without a payment-status badge.
+- [x] Catalog edits, Provider or Service inactivation, and Public Page unpublishing cannot rewrite existing Appointment or Confirmation facts.
+- [x] The Customers destination derives entries from Appointment Customer Details and does not merge, deduplicate, or claim durable identity when email or phone values match.
+- [x] Customers provides no standalone creation, editing, imports, notes, tags, marketing consent, saved payment methods, campaigns, or account controls.
+- [x] Manual Appointment creation, cancellation, rescheduling, completion, no-show mutation, refunds, and payment reconciliation remain absent from the first slice.
+- [x] Every Merchant read is membership-gated and cross-Merchant Appointment or Customer access resolves through the same non-disclosing not-found behavior.
+- [x] Seeded past and future Appointments, newly confirmed Appointments, snapshot immutability, empty states, Provider calendar grouping, and Customer Directory derivation are covered by tests.
 
 ## Comments
 
@@ -46,12 +46,18 @@ Before implementing this ticket, inspect `/Users/hassan/Desktop/ssqu/recreate/ap
 
 **Acceptance criteria:**
 
-- [ ] The Merchant home, calendar, and detail views show immutable Appointment facts and preserve them across catalog, Provider, and public-page changes.
-- [ ] Customer entries are appointment-derived and cannot be created, edited, deduplicated, or expanded into CRM, payment, or marketing behavior.
-- [ ] All Merchant reads resolve persisted membership and return non-disclosing not-found behavior across Merchant boundaries.
-- [ ] Seeded and newly confirmed Appointment, calendar, detail, empty-state, snapshot, and directory tests pass.
+- [x] The Merchant home, calendar, and detail views show immutable Appointment facts and preserve them across catalog, Provider, and public-page changes.
+- [x] Customer entries are appointment-derived and cannot be created, edited, deduplicated, or expanded into CRM, payment, or marketing behavior.
+- [x] All Merchant reads resolve persisted membership and return non-disclosing not-found behavior across Merchant boundaries.
+- [x] Seeded and newly confirmed Appointment, calendar, detail, empty-state, snapshot, and directory tests pass.
 
 **Out of scope:**
 
 - Appointment mutation, cancellation, rescheduling, completion, no-show, refunds, or payment reconciliation.
 - Durable Customer records, identity matching, or standalone customer management.
+
+## Implementation update
+
+Implemented in the Merchant App and the `AppointmentOperations` capability. Returning Merchant Owners now land on the Provider-oriented Appointment calendar; Appointment detail and Customer Directory projections read only stored Appointment snapshots. Every operation requires the membership-resolved `MerchantContext`, while unknown and cross-Merchant Appointment IDs both return `not_found`. No Appointment or Customer mutation surface was introduced.
+
+Verified with focused capability tests, repository typechecking, the Merchant production build, lint and format checks, and the full repository test suite.

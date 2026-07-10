@@ -10,6 +10,7 @@ import {
   merchants,
   providers,
   publicBookingPages,
+  services,
   timeSlotHolds
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
@@ -20,6 +21,11 @@ import {
   LiveBookingConfirmation,
   verifyConfirmationToken
 } from './booking-confirmation.ts'
+import {
+  AppointmentOperations,
+  LiveAppointmentOperations
+} from './appointment-operations.ts'
+import { testMerchantContext } from '../merchant-catalog/merchant-context.ts'
 import type { BookingSession } from './booking-sessions.ts'
 
 let test: TestD1
@@ -128,10 +134,34 @@ beforeAll(async () => {
         yield* db.insert(publicBookingPages).values({
           id: 'pbp_confirm',
           merchantId: 'mer_confirm',
-          status: 'unpublished',
+          status: 'published',
           createdAt: now,
           updatedAt: now
         })
+        yield* db.insert(services).values([
+          {
+            id: 'svc_primary',
+            merchantId: 'mer_confirm',
+            name: 'Cut',
+            priceMinor: 5000,
+            currency: 'USD',
+            durationMinutes: 60,
+            status: 'active',
+            createdAt: now,
+            updatedAt: now
+          },
+          {
+            id: 'svc_extra',
+            merchantId: 'mer_confirm',
+            name: 'Detail',
+            priceMinor: 2500,
+            currency: 'USD',
+            durationMinutes: 30,
+            status: 'active',
+            createdAt: now,
+            updatedAt: now
+          }
+        ])
         yield* seedSession('bsn_confirm')
         yield* seedSession('bsn_rollback')
         yield* seedSession('bsn_competing')
@@ -165,6 +195,49 @@ describe('Live Booking Confirmation', () => {
       merchantTimezone: 'America/New_York',
       customerDetails: { name: 'Mia', email: 'mia@example.com', phone: '+1 555' },
       checkoutPath: 'pay_in_person'
+    })
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db
+            .update(providers)
+            .set({ displayName: 'Renamed Ava', status: 'inactive' })
+          yield* db
+            .update(services)
+            .set({ name: 'Renamed Service', status: 'inactive' })
+          yield* db.update(publicBookingPages).set({ status: 'unpublished' })
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+    const operationsLayer = Layer.merge(
+      LiveAppointmentOperations.pipe(Layer.provide(layerFromD1(test.d1))),
+      testMerchantContext({
+        id: 'mer_confirm',
+        publicName: 'Confirm Live',
+        slug: 'confirm-live',
+        timezone: 'America/New_York',
+        currency: 'USD',
+        plan: 'solo'
+      })
+    )
+    const operational = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(AppointmentOperations, (service) =>
+          service.detail(first.appointment.id)
+        ),
+        operationsLayer
+      )
+    )
+    expect(operational).toMatchObject({
+      kind: 'found',
+      appointment: {
+        snapshot: {
+          assignedProvider: { displayName: 'Ava' },
+          services: [{ name: 'Cut' }, { name: 'Detail' }]
+        }
+      }
     })
     expect(first.access.token).toBe(
       await deriveConfirmationToken(

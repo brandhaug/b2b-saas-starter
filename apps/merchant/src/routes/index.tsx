@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { InputHTMLAttributes } from 'react'
-import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import type { MerchantRecord } from '@b2b-saas-starter/capabilities'
+import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
 import { merchantAuthClient } from '@/lib/auth-client.ts'
 import { formValue } from '@/lib/form-value.ts'
+import { dateInTimezone } from '@/lib/appointment-format.ts'
 import {
   completeMerchantOnboarding,
   getMerchantOnboardingStatus
@@ -14,7 +14,15 @@ export const Route = createFileRoute('/')({
   beforeLoad: async ({ location }) => {
     await requireMerchantSession(location.href)
   },
-  loader: () => getMerchantOnboardingStatus(),
+  loader: async () => {
+    const status = await getMerchantOnboardingStatus()
+    if (status.state === 'merchant')
+      throw redirect({
+        to: '/appointments',
+        search: { date: dateInTimezone(new Date(), status.merchant.timezone) }
+      })
+    return status
+  },
   component: IndexPage
 })
 
@@ -27,7 +35,7 @@ function IndexPage() {
   if (status.state === 'onboarding') {
     return <MerchantOnboardingForm />
   }
-  return <MerchantHome merchant={status.merchant} />
+  return null
 }
 
 function VerificationRequired() {
@@ -175,62 +183,5 @@ function Field({
       {label}
       <input className="h-9 rounded-md border bg-card px-3" required {...input} />
     </label>
-  )
-}
-
-type MerchantHomeProps = {
-  readonly merchant: MerchantRecord
-}
-
-function MerchantHome({ merchant }: MerchantHomeProps) {
-  const router = useRouter()
-  return (
-    <main className="grid min-h-dvh place-items-center p-6">
-      <section className="w-full max-w-2xl border bg-card p-6">
-        <p className="text-xs font-medium text-primary">Merchant App</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-          {merchant.publicName}
-        </h1>
-        <dl className="mt-6 grid gap-4 border-y py-5 text-sm sm:grid-cols-2">
-          <Summary
-            label="Public Booking Page"
-            value={merchant.publicBookingPage.status}
-          />
-          <Summary label="Booking slug" value={merchant.slug} />
-          <Summary label="Timezone" value={merchant.timezone} />
-          <Summary label="Currency" value={merchant.currency} />
-          <Summary
-            label="Default Provider"
-            value={merchant.defaultProvider.displayName}
-          />
-        </dl>
-        <Link
-          to="/services"
-          className="mt-6 inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
-        >
-          Configure Services
-        </Link>
-        <button
-          className="ml-4 mt-6 h-9 rounded-md px-3 text-sm text-primary underline underline-offset-4"
-          type="button"
-          onClick={() =>
-            void merchantAuthClient
-              .signOut()
-              .then(() => router.history.push('/sign-in'))
-          }
-        >
-          Sign out
-        </button>
-      </section>
-    </main>
-  )
-}
-
-function Summary({ label, value }: { readonly label: string; readonly value: string }) {
-  return (
-    <div>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="mt-1 font-medium capitalize">{value}</dd>
-    </div>
   )
 }
