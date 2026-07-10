@@ -4,10 +4,12 @@ import { Effect, Layer } from 'effect'
 import {
   BookingSelection,
   BookingScheduling,
+  BookingCheckout,
   BookingSessions,
   enterBookingSession,
   LiveBookingSelection,
   LiveBookingScheduling,
+  LiveBookingCheckout,
   LiveBookingSessions
 } from '@b2b-saas-starter/capabilities'
 import { layerFromD1 } from '@b2b-saas-starter/db'
@@ -66,6 +68,7 @@ export default {
     const schedulingLayer = LiveBookingScheduling.pipe(
       Layer.provide(layerFromD1(env.DB))
     )
+    const checkoutLayer = LiveBookingCheckout.pipe(Layer.provide(layerFromD1(env.DB)))
     return Effect.runPromise(
       handleBookingSessionRequest(request, {
         publicSiteOrigin: env.PUBLIC_SITE_ORIGIN,
@@ -110,6 +113,22 @@ export default {
                 scheduling.hold(session, input)
               ),
               schedulingLayer
+            )
+        },
+        checkout: {
+          saveCustomerDetails: (session, details, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (checkout) =>
+                checkout.saveCustomerDetails(session, details, input)
+              ),
+              checkoutLayer
+            ),
+          review: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (checkout) =>
+                checkout.review(session, input)
+              ),
+              checkoutLayer
             )
         },
         takeRead: (key) =>

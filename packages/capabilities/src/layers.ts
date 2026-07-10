@@ -21,6 +21,12 @@ import {
   LiveBookingScheduling,
   SeedBookingScheduling
 } from './booking/booking-scheduling.ts'
+import {
+  BookingCheckout,
+  emptySeedBookingCheckoutStore,
+  LiveBookingCheckout,
+  SeedBookingCheckout
+} from './booking/booking-checkout.ts'
 
 // catalog
 import {
@@ -143,6 +149,7 @@ export type CapabilityServices =
   | BookingSessions
   | BookingSelection
   | BookingScheduling
+  | BookingCheckout
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceMembership
@@ -175,6 +182,7 @@ const seedBookingScheduling = emptySeedBookingSchedulingStore(
   seedBookingScenario,
   seedBookingSelection
 )
+const seedBookingCheckout = emptySeedBookingCheckoutStore(seedBookingScheduling)
 const seedScheduling = emptySeedSchedulingStore(seedBookingScenario)
 const seedMerchantCatalog = emptySeedMerchantCatalog([seedBookingScenario.owner])
 seedMerchantCatalog.merchants.set(seedBookingScenario.merchant.slug, {
@@ -215,6 +223,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedBookingSessions(seedBookingSessions),
   SeedBookingSelection(seedBookingSelection),
   SeedBookingScheduling(seedBookingScheduling),
+  SeedBookingCheckout(seedBookingCheckout),
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -243,6 +252,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveBookingSessions,
     LiveBookingSelection,
     LiveBookingScheduling,
+    LiveBookingCheckout,
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),

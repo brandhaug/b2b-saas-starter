@@ -3,6 +3,8 @@ import {
   BookingPageUnavailable,
   HoldTimeSlotInput as HoldTimeSlotInputSchema,
   BookingSchedulingRejected,
+  CheckoutUnavailable,
+  CustomerDetails as CustomerDetailsSchema,
   BookingSelectionRejected,
   ServiceSelection as ServiceSelectionSchema,
   BookingSessionGone,
@@ -17,7 +19,9 @@ import {
   type HoldTimeSlotInput,
   type ProviderPreference,
   type PresentedBookingSessionCapability,
-  type ServiceSelection
+  type ServiceSelection,
+  type CheckoutReview,
+  type CustomerDetails
 } from '@b2b-saas-starter/capabilities'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 
@@ -39,6 +43,7 @@ type BookingSessionHttpFailure =
   | InvalidBookingSessionCookie
   | BookingSelectionRejected
   | BookingSchedulingRejected
+  | CheckoutUnavailable
 
 type BookingSessionEffect<A, E = never> = Effect.Effect<A, E>
 
@@ -181,6 +186,23 @@ export type BookingSessionHttpDependencies = {
       BookingSchedulingRejected | CapabilityUnavailable
     >
   }
+  readonly checkout?: {
+    readonly saveCustomerDetails: (
+      session: BookingSession,
+      details: CustomerDetails,
+      input: { readonly now: string }
+    ) => BookingSessionEffect<
+      CheckoutReview,
+      CheckoutUnavailable | CapabilityUnavailable
+    >
+    readonly review: (
+      session: BookingSession,
+      input: { readonly now: string }
+    ) => BookingSessionEffect<
+      CheckoutReview,
+      CheckoutUnavailable | CapabilityUnavailable
+    >
+  }
   readonly takeRead: (key: string) => BookingSessionEffect<boolean>
   readonly takeWrite: (key: string) => BookingSessionEffect<boolean>
   readonly fallback: (request: Request) => BookingSessionEffect<Response>
@@ -235,6 +257,11 @@ const mapSessionFailure = (
       )
     )
   }
+  if (error instanceof CheckoutUnavailable) {
+    return withPrivateHeaders(
+      Response.json({ kind: 'hold_expired', message: error.message }, { status: 409 })
+    )
+  }
   return hiddenNotFound()
 }
 
@@ -264,7 +291,9 @@ const jsonJourney = (value: BookingJourney): Response =>
     })
   )
 
-const jsonPrivate = (value: BookingAvailability | TimeSlotHold): Response =>
+const jsonPrivate = (
+  value: BookingAvailability | TimeSlotHold | CheckoutReview
+): Response =>
   withPrivateHeaders(
     Response.json(value, {
       headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -295,6 +324,27 @@ const servicesFrom = (value: unknown): ServiceSelection | null => {
 const holdTimeSlotFrom = (value: unknown): HoldTimeSlotInput | null => {
   try {
     return Schema.decodeUnknownSync(HoldTimeSlotInputSchema)(value)
+  } catch {
+    return null
+  }
+}
+
+const customerDetailsFrom = (value: unknown): CustomerDetails | null => {
+  try {
+    if (typeof value !== 'object' || value === null) return null
+    const input = value as Record<string, unknown>
+    const normalized = {
+      name: typeof input.name === 'string' ? input.name.trim() : input.name,
+      email:
+        typeof input.email === 'string'
+          ? input.email.trim().toLowerCase()
+          : input.email,
+      phone:
+        typeof input.phone === 'string'
+          ? input.phone.trim() || null
+          : (input.phone ?? null)
+    }
+    return Schema.decodeUnknownSync(CustomerDetailsSchema)(normalized)
   } catch {
     return null
   }
@@ -460,5 +510,35 @@ export const handleBookingSessionRequest = (
         ? jsonPrivate(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
     }
+    if (endpoint === 'customer-details' && request.method === 'POST') {
+      if (!dependencies.checkout) return unavailable()
+      const details = customerDetailsFrom(yield* readJson(request))
+      if (!details) {
+        return withPrivateHeaders(
+          Response.json(
+            { kind: 'invalid_customer_details', message: 'Check your details' },
+            { status: 422 }
+          )
+        )
+      }
+      const result = yield* Effect.result(
+        dependencies.checkout.saveCustomerDetails(authorization.success, details, {
+          now
+        })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'checkout' && request.method === 'GET') {
+      if (!dependencies.checkout) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.checkout.review(authorization.success, { now })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'confirm') return hiddenNotFound()
     return withPrivateHeaders(yield* dependencies.fallback(request))
   })

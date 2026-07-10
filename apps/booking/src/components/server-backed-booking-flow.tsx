@@ -10,8 +10,11 @@ import {
   type BookingSchedulingRecovery,
   type BookingJourney,
   type ProviderPreference,
-  type ServiceSelection
+  type ServiceSelection,
+  type CheckoutReview,
+  type CustomerDetails
 } from '@b2b-saas-starter/capabilities'
+import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
 import { styles } from './booking-flow.styles.ts'
@@ -27,6 +30,9 @@ export function ServerBackedBookingFlow({
   const [scheduling, setScheduling] = useState(false)
   const [slotLost, setSlotLost] = useState(false)
   const [holdExpired, setHoldExpired] = useState(false)
+  const [checkout, setCheckout] = useState(false)
+  const [review, setReview] = useState<CheckoutReview | null>(null)
+  const [invalidDetails, setInvalidDetails] = useState(false)
   const base = `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(sessionId)}`
   const queryKey = ['booking-selection', merchantSlug, sessionId] as const
   const journey = useQuery({
@@ -101,6 +107,38 @@ export function ServerBackedBookingFlow({
       )
     }
   })
+  const detailsMutation = useMutation({
+    mutationFn: async (details: CustomerDetails) => {
+      const response = await fetch(`${base}/customer-details`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(details)
+      })
+      if (response.status === 422) return { kind: 'invalid' as const }
+      if (response.status === 409) return { kind: 'expired' as const }
+      if (!response.ok) throw new Error('checkout unavailable')
+      return {
+        kind: 'review' as const,
+        review: (await response.json()) as CheckoutReview
+      }
+    },
+    onSuccess: (result) => {
+      if (result.kind === 'invalid') {
+        setInvalidDetails(true)
+        return
+      }
+      if (result.kind === 'expired') {
+        setCheckout(false)
+        setHoldExpired(true)
+        setReview(null)
+        void queryClient.invalidateQueries({ queryKey: availabilityKey })
+        return
+      }
+      setInvalidDetails(false)
+      setReview(result.review)
+    }
+  })
   const heldUntil = availability.data?.hold?.expiresAt
   useEffect(() => {
     if (!heldUntil) return
@@ -136,6 +174,16 @@ export function ServerBackedBookingFlow({
       />
     )
   if (scheduling) {
+    if (checkout) {
+      return (
+        <BookingCheckoutFlow
+          review={review}
+          busy={detailsMutation.isPending}
+          invalid={invalidDetails}
+          onSubmit={(details) => detailsMutation.mutate(details)}
+        />
+      )
+    }
     if (availability.isError || holdMutation.isError)
       return (
         <Status
@@ -157,6 +205,7 @@ export function ServerBackedBookingFlow({
         slotLost={slotLost}
         holdExpired={holdExpired}
         onSelect={(startsAt) => holdMutation.mutate(startsAt)}
+        onCheckout={() => setCheckout(true)}
       />
     )
   }

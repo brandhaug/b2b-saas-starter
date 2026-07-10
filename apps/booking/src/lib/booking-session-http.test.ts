@@ -446,4 +446,108 @@ describe('Booking Session HTTP boundary', () => {
       message: 'That time was just booked'
     })
   })
+
+  it('accepts only Customer Details and returns server-owned Pay In Person review facts', async () => {
+    const capability = '8'.repeat(64)
+    const base = 'https://www.example.test/mara-studio/booking/session/bsn_private'
+    const quote = {
+      startsAt: '2026-07-13T09:00:00.000Z',
+      endsAt: '2026-07-13T10:00:00.000Z',
+      providerPreference: { kind: 'any' as const },
+      assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
+      services: [
+        {
+          id: 'svc_cut',
+          role: 'primary' as const,
+          name: 'Cut',
+          durationMinutes: 60,
+          priceMinor: 5000,
+          currency: 'USD'
+        }
+      ],
+      durationMinutes: 60,
+      currency: 'USD',
+      totalMinor: 5000
+    }
+    let received: unknown
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () =>
+        Effect.succeed({
+          id: 'bsn_private',
+          merchantSlug: 'mara-studio',
+          checkoutPath: 'pay_in_person' as const,
+          lifecycle: 'active' as const,
+          createdAt: '2026-07-10T09:30:00.000Z',
+          lastActivityAt: '2026-07-10T09:30:00.000Z',
+          idleExpiresAt: '2026-07-10T10:00:00.000Z',
+          absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
+        }),
+      checkout: {
+        saveCustomerDetails: (_session: unknown, details: unknown) => {
+          received = details
+          return Effect.succeed({
+            customerDetails: details as {
+              name: string
+              email: string
+              phone: string | null
+            },
+            checkoutPath: 'pay_in_person' as const,
+            holdExpiresAt: '2026-07-10T09:40:00.000Z',
+            quote
+          })
+        },
+        review: () => Effect.die(new Error('not called'))
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called')),
+      now: () => '2026-07-10T09:30:00.000Z'
+    }
+    const headers = {
+      cookie: `booking_session_bsn_private=${capability}`,
+      origin: 'https://www.example.test',
+      'sec-fetch-site': 'same-origin',
+      'content-type': 'application/json'
+    }
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/customer-details`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: ' Mia ',
+            email: 'MIA@EXAMPLE.COM',
+            phone: '',
+            checkoutPath: 'pay_now',
+            totalMinor: 1,
+            providerId: 'prv_attacker'
+          })
+        }),
+        dependencies
+      )
+    )
+    expect(received).toEqual({
+      name: 'Mia',
+      email: 'mia@example.com',
+      phone: null
+    })
+    expect(await response.json()).toMatchObject({
+      checkoutPath: 'pay_in_person',
+      quote: { totalMinor: 5000, assignedProvider: { id: 'prv_ava' } }
+    })
+
+    const confirm = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/confirm`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ quote, checkoutPath: 'pay_now' })
+        }),
+        dependencies
+      )
+    )
+    expect(confirm.status).toBe(404)
+  })
 })

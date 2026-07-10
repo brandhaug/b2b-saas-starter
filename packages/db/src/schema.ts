@@ -352,6 +352,9 @@ export const bookingSessions = sqliteTable(
     primaryServiceId: text('primary_service_id').references(() => services.id, {
       onDelete: 'set null'
     }),
+    customerName: text('customer_name'),
+    customerEmail: text('customer_email'),
+    customerPhone: text('customer_phone'),
     createdAt: isoCreatedAt(),
     lastActivityAt: text('last_activity_at').notNull(),
     idleExpiresAt: text('idle_expires_at').notNull(),

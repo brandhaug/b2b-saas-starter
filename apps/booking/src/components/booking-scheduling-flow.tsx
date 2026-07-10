@@ -12,13 +12,15 @@ export function BookingSchedulingFlow({
   busy,
   slotLost,
   holdExpired = false,
-  onSelect
+  onSelect,
+  onCheckout
 }: {
   readonly availability: BookingAvailability
   readonly busy: boolean
   readonly slotLost: boolean
   readonly holdExpired?: boolean
   readonly onSelect: (startsAt: string) => void
+  readonly onCheckout?: () => void
 }) {
   const formatters = useMemo(
     () => ({
@@ -211,6 +213,19 @@ export function BookingSchedulingFlow({
               ) : null}
             </>
           )}
+          {availability.hold && onCheckout ? (
+            <div {...stylex.props(styles.inlineActions)}>
+              <span />
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onCheckout}
+                {...stylex.props(styles.primaryButton)}
+              >
+                Go to checkout
+              </button>
+            </div>
+          ) : null}
         </main>
       </div>
     </div>
