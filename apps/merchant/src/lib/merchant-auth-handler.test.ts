@@ -96,4 +96,26 @@ describe('Merchant authentication HTTP boundary', () => {
     })
     expect(auth.handler).not.toHaveBeenCalled()
   })
+
+  it('short-circuits a denied IP or email rate limit with 429', async () => {
+    const auth = { handler: vi.fn() }
+    const handler = createMerchantAuthHandler({
+      auth,
+      emailDelivery: { isConfigured: true },
+      environment: 'production',
+      rateLimiter: { take: vi.fn().mockResolvedValue(false) }
+    })
+
+    const response = await handler(
+      new Request('https://app.example.test/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'owner@example.test', password: 'not-logged' })
+      })
+    )
+
+    expect(response.status).toBe(429)
+    await expect(response.json()).resolves.toEqual({ error: 'rate_limited' })
+    expect(auth.handler).not.toHaveBeenCalled()
+  })
 })

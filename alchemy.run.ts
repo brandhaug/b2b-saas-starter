@@ -76,10 +76,6 @@ function optionalSecret(name: string) {
   return value ? Redacted.make(value) : undefined
 }
 
-const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
-const BETTER_AUTH_URL = requiredEnv('BETTER_AUTH_URL')
-const BETTER_AUTH_TRUSTED_ORIGINS =
-  process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? BETTER_AUTH_URL
 const MERCHANT_AUTH_SECRET = Redacted.make(requiredEnv('MERCHANT_AUTH_SECRET'))
 const merchantAppOrigin = requiredEnv('MERCHANT_APP_ORIGIN')
 const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
@@ -260,12 +256,9 @@ export const Stack = Alchemy.Stack(
         BOOKING: booking,
         ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
-      env: {
-        ...optionalModuleEnv,
-        BETTER_AUTH_SECRET,
-        BETTER_AUTH_URL,
-        BETTER_AUTH_TRUSTED_ORIGINS
-      },
+      // Merchant credentials belong only to the Merchant App. The Public
+      // Site no longer receives a Better Auth secret or session binding.
+      env: optionalModuleEnv,
       compatibility: {
         flags: ['nodejs_compat']
       },

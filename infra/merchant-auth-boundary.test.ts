@@ -26,5 +26,6 @@ describe('Merchant authentication deployment boundary', () => {
     expect(merchant).not.toContain('BETTER_AUTH_SECRET')
     expect(booking).not.toContain('MERCHANT_AUTH_SECRET')
     expect(web).not.toContain('MERCHANT_AUTH_SECRET')
+    expect(web).not.toContain('BETTER_AUTH_SECRET')
   })
 })

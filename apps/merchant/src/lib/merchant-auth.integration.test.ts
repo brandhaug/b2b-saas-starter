@@ -150,6 +150,28 @@ describe('Merchant Owner Better Auth lifecycle', () => {
     expect(await session.json()).toBeNull()
   })
 
+  it('does not disclose whether a Merchant Owner account exists during sign-in', async () => {
+    const email = `enumeration-${crypto.randomUUID()}@merchant.test`
+    await call('/sign-up/email', {
+      name: 'Enumeration Owner',
+      email,
+      password,
+      callbackURL: `${origin}/verify-email`
+    })
+    await auth.handler(new Request(verificationLinks[0]!))
+
+    const known = await call('/sign-in/email', {
+      email,
+      password: 'incorrect-password'
+    })
+    const unknown = await call('/sign-in/email', {
+      email: `unknown-${crypto.randomUUID()}@merchant.test`,
+      password: 'incorrect-password'
+    })
+    expect(known.status).toBe(unknown.status)
+    expect(await known.json()).toEqual(await unknown.json())
+  })
+
   it('requires a password reauthentication within fifteen minutes for email and password changes', async () => {
     const email = `sensitive-${crypto.randomUUID()}@merchant.test`
     await call('/sign-up/email', {
