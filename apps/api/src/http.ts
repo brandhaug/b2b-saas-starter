@@ -5,7 +5,7 @@ import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { StarterApi } from '@b2b-saas-starter/api'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities'
 import { selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
-import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
+import { newTraceId, TRACE_HEADER, WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import {
   apiTokenGroup,
@@ -14,6 +14,7 @@ import {
   healthGroup,
   invitationGroup,
   mcpGroup,
+  platformApiTokenGroup,
   webhookGroup,
   workspaceGroup
 } from './handlers.ts'
@@ -48,6 +49,7 @@ const makeApiLayer = (
     healthGroup(env),
     workspaceGroup(env),
     apiTokenGroup(env),
+    platformApiTokenGroup(env),
     webhookGroup(env),
     invitationGroup(env),
     catalogGroup(env),
@@ -74,7 +76,77 @@ export const buildWebHandler = (
 ): {
   readonly handler: (request: Request) => Promise<Response>
   readonly dispose: () => Promise<void>
-} => HttpRouter.toWebHandler(makeApiLayer(env), { disableLogger: true })
+} => {
+  const built = HttpRouter.toWebHandler(makeApiLayer(env), { disableLogger: true })
+  return {
+    dispose: built.dispose,
+    handler: async (request: Request) => {
+      const pathname = new URL(request.url).pathname
+      if (
+        pathname.startsWith('/v1/') &&
+        request.method === 'POST' &&
+        (await request.clone().arrayBuffer()).byteLength > 16 * 1024
+      ) {
+        return Response.json(
+          {
+            error: {
+              code: 'invalid_request',
+              message: 'The request is invalid.',
+              traceId: request.headers.get(TRACE_HEADER) ?? newTraceId(),
+              details: { body: 'maximum_16_kib' }
+            }
+          },
+          { status: 400 }
+        )
+      }
+      const response = await built.handler(request)
+      if (!pathname.startsWith('/v1/')) return response
+      const headers = new Headers(response.headers)
+      if (response.status === 401) headers.set('WWW-Authenticate', 'Bearer')
+      if (response.status === 429) headers.set('Retry-After', '60')
+      if (request.headers.has('authorization')) {
+        headers.set('Cache-Control', 'private, no-store')
+      }
+      headers.delete('Access-Control-Allow-Origin')
+      headers.delete('X-RateLimit-Remaining')
+      if (!response.ok) {
+        const current = await response
+          .clone()
+          .json()
+          .catch(() => null)
+        if (!current || typeof current !== 'object' || !('error' in current)) {
+          const code =
+            response.status === 429
+              ? 'rate_limited'
+              : response.status === 400
+                ? 'invalid_request'
+                : response.status >= 500
+                  ? 'service_unavailable'
+                  : 'request_failed'
+          return Response.json(
+            {
+              error: {
+                code,
+                message:
+                  response.status === 429
+                    ? 'Rate limit exceeded.'
+                    : 'The request failed.',
+                traceId: request.headers.get(TRACE_HEADER) ?? newTraceId(),
+                details: response.status === 429 ? { bucket: 'developer_config' } : {}
+              }
+            },
+            { status: response.status, headers }
+          )
+        }
+      }
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      })
+    }
+  }
+}
 
 let cached: ((request: Request) => Promise<Response>) | undefined
 export const getWebHandler = (

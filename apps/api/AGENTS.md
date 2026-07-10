@@ -15,8 +15,9 @@ Cloudflare Worker for external interfaces. Dev server on `:8787`. **Serves the `
 - **Per-request `WorkspaceContext`** — workspace handlers provide `selectWorkspaceLayer(starterEnv(env), slug)` inline; `WorkspaceNotFound` flows through as the contract's 404. Capability methods still never receive a slug parameter.
 - **OpenAPI + Scalar** — `/openapi.json` is emitted by `HttpApiBuilder` from the contract; `/reference` is served by `HttpApiScalar.layer`. No `openapi.ts`/`reference.ts` files.
 - **Bearer auth** — `enforceScope(request, scope, expectedWorkspaceSlug?)` in `handlers.ts` reads `Authorization: Bearer ...`, calls `ApiTokenRegistry.verifyBearerToken`, maps unknown tokens to `Unauthorized` (401), insufficient scope to `AuthorizationDenied` (403), and capability outages to `CapabilityUnavailable` (503). Workspace routes pass the URL slug so a workspace-A token cannot unlock workspace B.
+- **Platform API v1 tokens** — `/v1/api-tokens` uses Merchant-scoped credentials, token-derived Merchant context, stable trace-bearing errors, private/no-store responses, uniform bearer failures, and scope-bounded delegation.
 - **Webhook fan-out** — after audit-worthy mutations (token create/revoke, webhook create, invitation send), handlers call `WebhookPublisher.publish`. Publishing is best-effort: queue outage annotates the wide event but never fails the response. The producer binding is `WEBHOOK_QUEUE`; without it the publisher no-ops.
-- **Rate limiting** — `src/rate-limit.ts` is a config shim over `@b2b-saas-starter/rate-limit`. Five buckets are bound in `wrangler.jsonc`: `rest_read`, `rest_write`, `invitations`, `assistant`, `mcp`.
+- **Rate limiting** — the legacy five buckets remain alongside Platform API `data_read`, `developer_config`, and `auth_failure`; authenticated Platform buckets key by token ID and authentication failures key by source IP.
 - **MCP discovery** — `/mcp` returns a discovery response only. Do not advertise tool execution until handlers are wired through the capability layer.
 
 ## Conventions

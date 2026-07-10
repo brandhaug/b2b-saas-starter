@@ -27,6 +27,9 @@ import {
   Member,
   ModuleStatus,
   Notification,
+  PlatformApiToken,
+  PlatformApiTokenScope,
+  PlatformApiTokenStatus,
   ReadinessPoint,
   StarterModule,
   StarterModuleWithState,
@@ -51,6 +54,36 @@ export class RateLimited extends Schema.TaggedErrorClass<RateLimited>()(
   'RateLimited',
   { bucket: Schema.String },
   { httpApiStatus: 429 }
+) {}
+
+const PlatformErrorBody = (code: string) =>
+  Schema.Struct({
+    error: Schema.Struct({
+      code: Schema.Literal(code),
+      message: Schema.String,
+      traceId: Schema.String,
+      details: Schema.Record(Schema.String, Schema.Unknown)
+    })
+  })
+export class PlatformUnauthorized extends Schema.TaggedErrorClass<PlatformUnauthorized>()(
+  'PlatformUnauthorized',
+  PlatformErrorBody('unauthorized').fields,
+  { httpApiStatus: 401 }
+) {}
+export class PlatformInsufficientScope extends Schema.TaggedErrorClass<PlatformInsufficientScope>()(
+  'PlatformInsufficientScope',
+  PlatformErrorBody('insufficient_scope').fields,
+  { httpApiStatus: 403 }
+) {}
+export class PlatformScopeEscalationDenied extends Schema.TaggedErrorClass<PlatformScopeEscalationDenied>()(
+  'PlatformScopeEscalationDenied',
+  PlatformErrorBody('scope_escalation_denied').fields,
+  { httpApiStatus: 403 }
+) {}
+export class PlatformInvalidRequest extends Schema.TaggedErrorClass<PlatformInvalidRequest>()(
+  'PlatformInvalidRequest',
+  PlatformErrorBody('invalid_request').fields,
+  { httpApiStatus: 400 }
 ) {}
 
 const WORKSPACE_ERRORS = [
@@ -179,6 +212,57 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
     })
   )
 
+const PlatformTokenQuery = Schema.Struct({
+  status: Schema.optional(Schema.Array(PlatformApiTokenStatus)),
+  cursor: Schema.optional(Schema.String),
+  limit: Schema.optional(Schema.NumberFromString)
+})
+const PlatformTokenCreate = Schema.Struct({
+  name: Schema.String,
+  scopes: Schema.Array(PlatformApiTokenScope),
+  expiresAt: Schema.NullOr(Schema.String)
+})
+const PlatformTokenPage = Schema.Struct({
+  data: Schema.Array(PlatformApiToken),
+  page: Schema.Struct({ nextCursor: Schema.NullOr(Schema.String) })
+})
+const PlatformCreatedToken = Schema.Struct({
+  ...PlatformApiToken.fields,
+  token: Schema.String
+})
+const PlatformTokenIdParams = Schema.Struct({ tokenId: Schema.String })
+const PLATFORM_TOKEN_ERRORS = [
+  PlatformUnauthorized,
+  PlatformInsufficientScope,
+  PlatformScopeEscalationDenied,
+  PlatformInvalidRequest,
+  RateLimited,
+  CapabilityUnavailable
+] as const
+
+export const PlatformApiTokenApi = HttpApiGroup.make('platform-api-tokens')
+  .add(
+    HttpApiEndpoint.get('list', '/v1/api-tokens', {
+      query: PlatformTokenQuery,
+      success: PlatformTokenPage,
+      error: PLATFORM_TOKEN_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.post('create', '/v1/api-tokens', {
+      payload: PlatformTokenCreate,
+      success: PlatformCreatedToken.pipe(HttpApiSchema.status(201)),
+      error: PLATFORM_TOKEN_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.delete('revoke', '/v1/api-tokens/:tokenId', {
+      params: PlatformTokenIdParams,
+      success: Schema.Void.pipe(HttpApiSchema.status(204)),
+      error: PLATFORM_TOKEN_ERRORS
+    })
+  )
+
 export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
   HttpApiEndpoint.post('create', '/workspaces/:slug/webhooks', {
     params: SlugParams,
@@ -264,6 +348,7 @@ export const StarterApi = HttpApi.make('b2b-saas-starter')
   .add(HealthApi)
   .add(WorkspaceApi)
   .add(ApiTokenApi)
+  .add(PlatformApiTokenApi)
   .add(WebhookApi)
   .add(InvitationApi)
   .add(CatalogApi)

@@ -68,6 +68,11 @@ import {
   SeedApiTokenRegistry
 } from './developer-platform/api-token-registry.ts'
 import {
+  LivePlatformApiTokenRegistry,
+  PlatformApiTokenRegistry,
+  SeedPlatformApiTokenRegistry
+} from './developer-platform/platform-api-token-registry.ts'
+import {
   LiveWebhookEndpoints,
   SeedWebhookEndpoints,
   WebhookEndpoints
@@ -147,6 +152,7 @@ import {
 export type CapabilityServices =
   | AdoptionReadiness
   | ApiTokenRegistry
+  | PlatformApiTokenRegistry
   | AuditEventLog
   | CatalogRefreshHistory
   | ImplementationReports
@@ -239,6 +245,7 @@ const seedMerchantCatalogConfiguration: SeedMerchantCatalogConfigurationStore = 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedAdoptionReadiness(seedReadinessTrend),
   SeedApiTokenRegistry(seedApiTokens),
+  SeedPlatformApiTokenRegistry(),
   SeedAuditEventLog(seedAuditEvents),
   SeedCatalogRefreshHistory(seedCatalogRefreshHistory),
   SeedImplementationReports(seedImplementationReports),
@@ -273,6 +280,7 @@ export const makeLiveCapabilitiesLayer = (
   Layer.mergeAll(
     LiveAdoptionReadiness,
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
+    LivePlatformApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LiveAuditEventLog,
     LiveCatalogRefreshHistory,
     LiveImplementationReports,

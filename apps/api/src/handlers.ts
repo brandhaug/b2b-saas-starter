@@ -4,6 +4,10 @@ import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import {
   InternalError,
+  PlatformInsufficientScope,
+  PlatformInvalidRequest,
+  PlatformScopeEscalationDenied,
+  PlatformUnauthorized,
   RateLimited,
   StarterApi,
   Unauthorized
@@ -18,6 +22,9 @@ import {
   ImplementationReports,
   IntegrationSurfaces,
   NotificationFeed,
+  PlatformApiTokenRegistry,
+  type PlatformApiTokenScope,
+  type VerifiedPlatformApiToken,
   selectWorkspaceLayer,
   StarterModuleCatalog,
   WebhookEndpoints,
@@ -48,11 +55,12 @@ const bearerToken = (request: HttpServerRequest.HttpServerRequest): string | nul
 
 const enforceRateLimit = (
   request: HttpServerRequest.HttpServerRequest,
-  bucket: RateLimitBucket
+  bucket: RateLimitBucket,
+  key = clientKey(request)
 ): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> =>
   Effect.gen(function* () {
     const limiter = yield* RateLimiter
-    const allowed = yield* limiter.take({ bucket, key: clientKey(request) })
+    const allowed = yield* limiter.take({ bucket, key })
     if (!allowed) {
       yield* annotateWide({ outcome: 'rate_limited', rateLimitBucket: bucket })
       return yield* Effect.fail(new RateLimited({ bucket }))
@@ -116,6 +124,69 @@ const enforceScope = (
       tokenScopes: verified.success.scopes,
       requiredScope: scope
     })
+  })
+
+const platformError = (
+  code:
+    | 'unauthorized'
+    | 'insufficient_scope'
+    | 'scope_escalation_denied'
+    | 'invalid_request',
+  traceId: string,
+  details: Record<string, unknown> = {}
+) => ({
+  error: {
+    code,
+    message:
+      code === 'unauthorized'
+        ? 'Authentication is required.'
+        : code === 'insufficient_scope'
+          ? 'The credential lacks the required scope.'
+          : code === 'scope_escalation_denied'
+            ? 'A credential cannot delegate scopes it does not hold.'
+            : 'The request is invalid.',
+    traceId,
+    details
+  }
+})
+
+const verifyPlatformToken = (
+  request: HttpServerRequest.HttpServerRequest,
+  requiredScope: PlatformApiTokenScope
+): Effect.Effect<
+  VerifiedPlatformApiToken,
+  | PlatformUnauthorized
+  | PlatformInsufficientScope
+  | CapabilityUnavailable
+  | RateLimited,
+  PlatformApiTokenRegistry | RateLimiter | Scope.Scope
+> =>
+  Effect.gen(function* () {
+    const traceId = request.headers[TRACE_HEADER] ?? newTraceId()
+    const credential = bearerToken(request)
+    if (!credential) {
+      yield* enforceRateLimit(request, 'auth_failure')
+      return yield* Effect.fail(
+        new PlatformUnauthorized(platformError('unauthorized', traceId))
+      )
+    }
+    const registry = yield* PlatformApiTokenRegistry
+    const verified = yield* Effect.result(registry.verify(credential, requiredScope))
+    if (Result.isSuccess(verified)) return verified.success
+    if (verified.failure._tag === 'CapabilityUnavailable') {
+      return yield* Effect.fail(verified.failure)
+    }
+    if (verified.failure.reason === 'insufficient_scope') {
+      return yield* Effect.fail(
+        new PlatformInsufficientScope(
+          platformError('insufficient_scope', traceId, { requiredScope })
+        )
+      )
+    }
+    yield* enforceRateLimit(request, 'auth_failure')
+    return yield* Effect.fail(
+      new PlatformUnauthorized(platformError('unauthorized', traceId))
+    )
   })
 
 const observed = <A, E, R>(
@@ -348,6 +419,99 @@ export const apiTokenGroup = (env: ApiEnv) =>
               })
             )
             return { status: 'revoked' as const }
+          })
+        )
+      )
+  )
+
+export const platformApiTokenGroup = (env: ApiEnv) =>
+  HttpApiBuilder.group(StarterApi, 'platform-api-tokens', (handlers) =>
+    handlers
+      .handle('list', ({ query, request }) =>
+        observed(
+          env,
+          request,
+          'platform-api-tokens.list',
+          {},
+          Effect.gen(function* () {
+            const caller = yield* verifyPlatformToken(request, 'api_tokens:manage')
+            yield* enforceRateLimit(request, 'developer_config', caller.id)
+            const registry = yield* PlatformApiTokenRegistry
+            const listed = yield* Effect.result(
+              registry.list({
+                merchantId: caller.merchantId,
+                ...(query.status ? { statuses: query.status } : {}),
+                ...(query.cursor ? { cursor: query.cursor } : {}),
+                ...(query.limit !== undefined ? { limit: query.limit } : {})
+              })
+            )
+            if (Result.isSuccess(listed)) return listed.success
+            if (listed.failure._tag === 'CapabilityUnavailable') {
+              return yield* Effect.fail(listed.failure)
+            }
+            return yield* Effect.fail(
+              new PlatformInvalidRequest(
+                platformError(
+                  'invalid_request',
+                  request.headers[TRACE_HEADER] ?? newTraceId()
+                )
+              )
+            )
+          })
+        )
+      )
+      .handle('create', ({ payload, request }) =>
+        observed(
+          env,
+          request,
+          'platform-api-tokens.create',
+          {},
+          Effect.gen(function* () {
+            const caller = yield* verifyPlatformToken(request, 'api_tokens:manage')
+            yield* enforceRateLimit(request, 'developer_config', caller.id)
+            const registry = yield* PlatformApiTokenRegistry
+            const created = yield* Effect.result(
+              registry.create({
+                merchantId: caller.merchantId,
+                name: payload.name,
+                scopes: payload.scopes,
+                expiresAt: payload.expiresAt,
+                delegatedBy: caller
+              })
+            )
+            if (Result.isSuccess(created)) return created.success
+            if (created.failure._tag === 'CapabilityUnavailable') {
+              return yield* Effect.fail(created.failure)
+            }
+            const traceId = request.headers[TRACE_HEADER] ?? newTraceId()
+            if (created.failure.reason === 'invalid_input') {
+              return yield* Effect.fail(
+                new PlatformInvalidRequest(platformError('invalid_request', traceId))
+              )
+            }
+            return yield* Effect.fail(
+              new PlatformScopeEscalationDenied(
+                platformError('scope_escalation_denied', traceId)
+              )
+            )
+          })
+        )
+      )
+      .handle('revoke', ({ params, request }) =>
+        observed(
+          env,
+          request,
+          'platform-api-tokens.revoke',
+          {},
+          Effect.gen(function* () {
+            const caller = yield* verifyPlatformToken(request, 'api_tokens:manage')
+            yield* enforceRateLimit(request, 'developer_config', caller.id)
+            const registry = yield* PlatformApiTokenRegistry
+            yield* registry.revoke({
+              merchantId: caller.merchantId,
+              tokenId: params.tokenId,
+              actorTokenId: caller.id
+            })
           })
         )
       )

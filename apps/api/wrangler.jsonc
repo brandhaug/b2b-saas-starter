@@ -64,6 +64,24 @@
         "type": "ratelimit",
         "namespace_id": "1005",
         "simple": { "limit": 30, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_DATA_READ",
+        "type": "ratelimit",
+        "namespace_id": "1006",
+        "simple": { "limit": 60, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_DEVELOPER_CONFIG",
+        "type": "ratelimit",
+        "namespace_id": "1007",
+        "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_AUTH_FAILURE",
+        "type": "ratelimit",
+        "namespace_id": "1008",
+        "simple": { "limit": 30, "period": 60 }
       }
     ]
   }

@@ -35,6 +35,7 @@ describe('contract-served routes', () => {
     expect(doc.paths?.['/workspaces/{slug}/overview']).toBeDefined()
     expect(doc.paths?.['/workspaces/{slug}/webhooks']).toBeDefined()
     expect(doc.paths?.['/health']).toBeDefined()
+    expect(doc.paths?.['/v1/api-tokens']).toBeDefined()
   })
 
   test('GET /reference serves the Scalar UI', async () => {
@@ -66,6 +67,19 @@ describe('contract-served routes', () => {
       })
     )
     expect(res.status).toBe(401)
+  })
+
+  test('Platform API authentication has a stable private bearer failure', async () => {
+    const res = await handlerFor()(get('/v1/api-tokens'))
+    expect(res.status).toBe(401)
+    expect(res.headers.get('www-authenticate')).toBe('Bearer')
+    const body = (await res.json()) as {
+      error: { code: string; traceId: string; details: unknown }
+    }
+    expect(body.error.code).toBe('unauthorized')
+    expect(body.error.traceId).toBeTruthy()
+    expect(body.error.details).toEqual({})
+    expect(res.headers.has('access-control-allow-origin')).toBe(false)
   })
 
   test('workspace tokens cannot cross workspace slugs', async () => {

@@ -19,6 +19,15 @@ export const moduleStatuses = [
 ] as const
 export const apiTokenScopes = ['read', 'write', 'admin'] as const
 export type ApiTokenScopeValue = (typeof apiTokenScopes)[number]
+export const platformApiTokenScopes = [
+  'merchant:read',
+  'services:read',
+  'providers:read',
+  'appointments:read',
+  'api_tokens:manage',
+  'webhooks:manage'
+] as const
+export type PlatformApiTokenScopeValue = (typeof platformApiTokenScopes)[number]
 export type CatalogRefreshSummary = {
   readonly modules: number
   readonly durationMs: number
@@ -624,6 +633,35 @@ export const apiTokens = sqliteTable(
   (table) => [
     workspaceIdIndex('api_tokens', table.workspaceId),
     index('api_tokens_created_by_user_id_idx').on(table.createdByUserId)
+  ]
+)
+
+export const platformApiTokens = sqliteTable(
+  'platform_api_tokens',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    tokenPrefix: text('token_prefix').notNull(),
+    tokenHash: text('token_hash').unique().notNull(),
+    scopes: text('scopes', { mode: 'json' })
+      .$type<readonly PlatformApiTokenScopeValue[]>()
+      .notNull(),
+    lastUsedAt: text('last_used_at'),
+    expiresAt: text('expires_at'),
+    revokedAt: text('revoked_at'),
+    createdAt: isoCreatedAt(),
+    createdByUserId: text('created_by_user_id').references(() => user.id)
+  },
+  (table) => [
+    index('platform_api_tokens_merchant_created_idx').on(
+      table.merchantId,
+      table.createdAt,
+      table.id
+    ),
+    index('platform_api_tokens_created_by_user_id_idx').on(table.createdByUserId)
   ]
 )
 
