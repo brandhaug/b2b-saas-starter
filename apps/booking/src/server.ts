@@ -1,4 +1,5 @@
 import startServer from '@tanstack/react-start/server-entry'
+import { env as workerEnv } from 'cloudflare:workers'
 import { Effect, Layer } from 'effect'
 import {
   BookingSelection,
@@ -51,13 +52,13 @@ const takeRate = async (
 
 export default {
   async fetch(request: Request, passedEnv?: BookingWorkerEnv): Promise<Response> {
-    if (!passedEnv?.DB || !passedEnv.PUBLIC_SITE_ORIGIN) {
+    const env = passedEnv ?? (workerEnv as Partial<BookingWorkerEnv>)
+    if (!env.DB || !env.PUBLIC_SITE_ORIGIN) {
       return new Response('Booking temporarily unavailable', {
         status: 503,
         headers: { 'retry-after': '60' }
       })
     }
-    const env = passedEnv
     const sessionsLayer = LiveBookingSessions.pipe(Layer.provide(layerFromD1(env.DB)))
     const selectionLayer = LiveBookingSelection.pipe(Layer.provide(layerFromD1(env.DB)))
     return Effect.runPromise(

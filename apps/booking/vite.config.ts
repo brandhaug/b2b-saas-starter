@@ -1,7 +1,15 @@
 import stylex from '@stylexjs/unplugin'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
+
+const workersShim = resolve(
+  import.meta.dirname,
+  process.env.BOOKING_VITE_DEV === '1'
+    ? './src/lib/cloudflare-workers-shim-dev.ts'
+    : './src/lib/cloudflare-workers-shim.ts'
+)
 
 export default defineConfig(() => ({
   // Customer URLs stay merchant-scoped. Production's output directory gives
@@ -13,6 +21,9 @@ export default defineConfig(() => ({
   build: { assetsDir: '_booking/assets' },
   server: { host: 'localhost', port: 3073 },
   preview: { host: 'localhost', port: 3073 },
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    alias: { 'cloudflare:workers': workersShim }
+  },
   plugins: [tanstackStart(), stylex.vite({ useCSSLayers: true }), viteReact()]
 }))
