@@ -1,10 +1,12 @@
 import { sql } from 'drizzle-orm'
 import {
+  check,
   index,
   integer,
   primaryKey,
   sqliteTable,
   text,
+  uniqueIndex,
   type AnySQLiteColumn
 } from 'drizzle-orm/sqlite-core'
 
@@ -31,6 +33,9 @@ export const providerKinds = [
   'openai-compatible',
   'cloudflare-email'
 ] as const
+export const merchantMemberRoles = ['owner'] as const
+export const providerStatuses = ['active', 'inactive'] as const
+export const publicPageStatuses = ['published', 'unpublished'] as const
 
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
 // tables store epoch-seconds in integer columns (its plugin contract), starter
@@ -130,6 +135,87 @@ export const verification = sqliteTable(
     ...authTimestamps()
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)]
+)
+
+export const merchants = sqliteTable('merchants', {
+  id: id(),
+  publicName: text('public_name').notNull(),
+  slug: text('slug').unique().notNull(),
+  timezone: text('timezone').notNull(),
+  currency: text('currency').notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const merchantMemberships = sqliteTable(
+  'merchant_memberships',
+  {
+    // A primary key on merchant_id prevents a second Owner. Merchant creation
+    // batches this required row with the Merchant, supplying the "one" side.
+    merchantId: text('merchant_id')
+      .primaryKey()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    // A unique user_id prevents active-Merchant selection from emerging by
+    // accident: one authenticated person can own at most one Merchant.
+    userId: text('user_id')
+      .unique()
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    role: text('role', { enum: merchantMemberRoles }).default('owner').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    check('merchant_memberships_owner_only', sql`${table.role} = 'owner'`),
+    uniqueIndex('merchant_memberships_user_unique').on(table.userId)
+  ]
+)
+
+export const providers = sqliteTable(
+  'providers',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    // Linking a Provider to a person does not grant Merchant authority. The
+    // membership table remains the only authorization source.
+    linkedUserId: text('linked_user_id').references(() => user.id, {
+      onDelete: 'set null'
+    }),
+    displayName: text('display_name').notNull(),
+    status: text('status', { enum: providerStatuses }).default('active').notNull(),
+    isDefault: integer('is_default', { mode: 'boolean' }).default(false).notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('providers_merchant_id_idx').on(table.merchantId),
+    uniqueIndex('providers_one_default_per_merchant_idx')
+      .on(table.merchantId)
+      .where(sql`${table.isDefault} = 1`)
+  ]
+)
+
+export const publicBookingPages = sqliteTable(
+  'public_booking_pages',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .unique()
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: publicPageStatuses })
+      .default('unpublished')
+      .notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    check(
+      'public_booking_pages_valid_status',
+      sql`${table.status} in ('published', 'unpublished')`
+    )
+  ]
 )
 
 export const workspaces = sqliteTable('workspaces', {

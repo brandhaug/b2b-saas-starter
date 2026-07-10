@@ -2,6 +2,9 @@ export * from './errors.ts'
 export * from './workspace-context.ts'
 export * from './workspace-projections.ts'
 
+// merchant-catalog
+export * from './merchant-catalog/merchant-onboarding.ts'
+
 // catalog
 export * from './catalog/adoption-readiness.ts'
 export * from './catalog/catalog-refresh-history.ts'

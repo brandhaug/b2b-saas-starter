@@ -24,6 +24,7 @@ src/
 ├── developer-platform/ – API tokens, webhook endpoints
 ├── governance/         – audit events, workspace membership
 ├── notifications/      – notification feed, integration surfaces
+├── merchant-catalog/   – Merchant onboarding and persisted authorization
 ├── internal/           – shared crypto / id helpers
 ├── errors.ts           – shared typed errors
 ├── workspace-context.ts – per-request workspace resolution
@@ -41,19 +42,20 @@ src/
 
 Each capability gets a leaf intent node alongside its source file. Read it before changing the capability's contract.
 
-| Context            | Capability                                                                  | Reads from D1 tables                                    | Status                                                          |
-| ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------- |
-| catalog            | [`adoption-readiness`](src/catalog/adoption-readiness.AGENTS.md)            | (computed)                                              | live stub — returns empty trend                                 |
-| catalog            | [`catalog-refresh-history`](src/catalog/catalog-refresh-history.AGENTS.md)  | `catalogRefreshRuns`                                    | full read + write                                               |
-| catalog            | [`implementation-reports`](src/catalog/implementation-reports.AGENTS.md)    | `implementationReports`, `workspaces`                   | read-only                                                       |
-| catalog            | [`starter-module-catalog`](src/catalog/starter-module-catalog.AGENTS.md)    | `starterModules`, `workspaceModuleStates`, `workspaces` | read-only                                                       |
-| developer-platform | [`api-token-registry`](src/developer-platform/api-token-registry.AGENTS.md) | `apiTokens`, `workspaces`                               | list, create, revoke, verify bearer (audit-emitting)            |
-| developer-platform | [`webhook-endpoints`](src/developer-platform/webhook-endpoints.AGENTS.md)   | `webhookEndpoints`, `webhookDeliveries`, `workspaces`   | list, create, disable, rotate secret (audit-emitting)           |
-| developer-platform | [`webhook-publisher`](src/developer-platform/webhook-publisher.AGENTS.md)   | `webhookEndpoints`                                      | enqueue-only fan-out to `WEBHOOK_QUEUE` (no-op without binding) |
-| governance         | [`audit-event-log`](src/governance/audit-event-log.AGENTS.md)               | `auditEvents`, `user`, `workspaces`                     | list + `record(input)` for upstream emitters                    |
-| governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`                | read-only (incl. cross-workspace `listWorkspacesForUser`)       |
-| notifications      | [`integration-surfaces`](src/notifications/integration-surfaces.AGENTS.md)  | `integrationConnections`, `workspaces`                  | read-only                                                       |
-| notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                           | read-only                                                       |
+| Context            | Capability                                                                  | Reads from D1 tables                                                             | Status                                                          |
+| ------------------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| catalog            | [`adoption-readiness`](src/catalog/adoption-readiness.AGENTS.md)            | (computed)                                                                       | live stub — returns empty trend                                 |
+| catalog            | [`catalog-refresh-history`](src/catalog/catalog-refresh-history.AGENTS.md)  | `catalogRefreshRuns`                                                             | full read + write                                               |
+| catalog            | [`implementation-reports`](src/catalog/implementation-reports.AGENTS.md)    | `implementationReports`, `workspaces`                                            | read-only                                                       |
+| catalog            | [`starter-module-catalog`](src/catalog/starter-module-catalog.AGENTS.md)    | `starterModules`, `workspaceModuleStates`, `workspaces`                          | read-only                                                       |
+| developer-platform | [`api-token-registry`](src/developer-platform/api-token-registry.AGENTS.md) | `apiTokens`, `workspaces`                                                        | list, create, revoke, verify bearer (audit-emitting)            |
+| developer-platform | [`webhook-endpoints`](src/developer-platform/webhook-endpoints.AGENTS.md)   | `webhookEndpoints`, `webhookDeliveries`, `workspaces`                            | list, create, disable, rotate secret (audit-emitting)           |
+| developer-platform | [`webhook-publisher`](src/developer-platform/webhook-publisher.AGENTS.md)   | `webhookEndpoints`                                                               | enqueue-only fan-out to `WEBHOOK_QUEUE` (no-op without binding) |
+| governance         | [`audit-event-log`](src/governance/audit-event-log.AGENTS.md)               | `auditEvents`, `user`, `workspaces`                                              | list + `record(input)` for upstream emitters                    |
+| governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`                                         | read-only (incl. cross-workspace `listWorkspacesForUser`)       |
+| notifications      | [`integration-surfaces`](src/notifications/integration-surfaces.AGENTS.md)  | `integrationConnections`, `workspaces`                                           | read-only                                                       |
+| notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                                                    | read-only                                                       |
+| merchant-catalog   | [`merchant-onboarding`](src/merchant-catalog/merchant-onboarding.AGENTS.md) | `user`, `merchants`, `merchant_memberships`, `providers`, `public_booking_pages` | onboarding + authorization resolution                           |
 
 Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect), and `AuthorizationDenied` (403 — raised by `verifyBearerToken`). Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
 

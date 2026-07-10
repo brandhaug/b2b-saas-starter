@@ -1,6 +1,7 @@
 import {
   ApiTokenRegistry,
   AuditEventLog,
+  buildSeedBookingScenario,
   CatalogRefreshHistory,
   demoUserIdentity,
   hashApiToken,
@@ -21,7 +22,11 @@ import {
   catalogRefreshRuns,
   implementationReports,
   integrationConnections,
+  merchantMemberships,
+  merchants,
   notifications,
+  providers,
+  publicBookingPages,
   starterModules,
   user,
   webhookEndpoints,
@@ -83,6 +88,7 @@ const insert = <T extends Table>(
 
 const now = '2026-05-16T09:00:00.000Z'
 const workspaceSlug = 'starter-lab'
+const bookingScenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
 
 const collectFixture = Effect.gen(function* () {
   const membership = yield* WorkspaceMembership
@@ -306,6 +312,57 @@ const refreshRunRows = (fixture: Fixture): readonly string[] =>
     })
   )
 
+const bookingScenarioRows = (): readonly string[] => [
+  // Reseeding owns exactly this deterministic Merchant graph. The cascade
+  // removes its dependent membership, Provider and Public Booking Page while
+  // leaving every live/onboarded Merchant untouched.
+  `DELETE FROM ${getTableName(merchants)} WHERE id = ${quote(bookingScenario.merchant.id)};`,
+  insert(user, {
+    id: bookingScenario.owner.id,
+    email: 'merchant@booking.local',
+    name: bookingScenario.owner.name,
+    role: 'user',
+    emailVerified: bookingScenario.owner.emailVerified,
+    createdAt: Math.floor(Date.parse(bookingScenario.anchorTime) / 1000),
+    updatedAt: Math.floor(Date.parse(bookingScenario.anchorTime) / 1000)
+  }),
+  insert(merchants, {
+    id: bookingScenario.merchant.id,
+    publicName: bookingScenario.merchant.publicName,
+    slug: bookingScenario.merchant.slug,
+    timezone: bookingScenario.merchant.timezone,
+    currency: bookingScenario.merchant.currency,
+    createdAt: bookingScenario.anchorTime,
+    updatedAt: bookingScenario.anchorTime
+  }),
+  insert(merchantMemberships, {
+    merchantId: bookingScenario.membership.merchantId,
+    userId: bookingScenario.membership.userId,
+    role: bookingScenario.membership.role,
+    createdAt: bookingScenario.anchorTime
+  }),
+  insert(providers, {
+    id: bookingScenario.provider.id,
+    merchantId: bookingScenario.provider.merchantId,
+    linkedUserId: bookingScenario.provider.linkedUserId,
+    displayName: bookingScenario.provider.displayName,
+    status: bookingScenario.provider.status,
+    isDefault: bookingScenario.provider.isDefault,
+    createdAt: bookingScenario.anchorTime,
+    updatedAt: bookingScenario.anchorTime
+  }),
+  insert(publicBookingPages, {
+    id: bookingScenario.publicBookingPage.id,
+    merchantId: bookingScenario.publicBookingPage.merchantId,
+    status: bookingScenario.publicBookingPage.status,
+    createdAt: bookingScenario.anchorTime,
+    updatedAt: bookingScenario.anchorTime
+  })
+]
+
+// `wrangler d1 execute --file` applies the file as one import and restores the
+// original state if any statement fails. D1 rejects user-managed BEGIN/COMMIT,
+// so the command owns this transaction boundary.
 const buildStatements = (fixture: Fixture, hashes: Hashes): string =>
   `${[
     'PRAGMA foreign_keys = ON;',
@@ -319,7 +376,8 @@ const buildStatements = (fixture: Fixture, hashes: Hashes): string =>
     ...reportRows(fixture),
     ...auditRows(fixture),
     ...notificationRows(fixture),
-    ...refreshRunRows(fixture)
+    ...refreshRunRows(fixture),
+    ...bookingScenarioRows()
   ].join('\n')}\n`
 
 const writeAndExecute = (sql: string) =>

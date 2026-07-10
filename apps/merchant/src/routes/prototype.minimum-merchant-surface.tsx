@@ -2,7 +2,8 @@
 // `?variant=`, on the throwaway `/prototype/minimum-merchant-surface` route.
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { getMerchantOnboardingStatus } from '@/lib/server/merchant-onboarding.ts'
 import { requireMerchantSession } from '@/lib/server/merchant-session.ts'
 import {
   ArrowLeftIcon,
@@ -274,6 +275,11 @@ export const Route = createFileRoute('/prototype/minimum-merchant-surface')({
   validateSearch: decodeSearch,
   beforeLoad: async ({ location }) => {
     await requireMerchantSession(location.href)
+  },
+  loader: async () => {
+    const status = await getMerchantOnboardingStatus()
+    if (status.state !== 'merchant') throw redirect({ to: '/' })
+    return status.merchant
   },
   component: MinimumMerchantSurfacePrototype
 })

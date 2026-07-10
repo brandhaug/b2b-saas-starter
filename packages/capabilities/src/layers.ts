@@ -53,6 +53,16 @@ import {
   WorkspaceMembership
 } from './governance/workspace-membership.ts'
 
+// merchant-catalog
+import {
+  buildSeedBookingScenario,
+  emptySeedMerchantCatalog,
+  LiveMerchantCatalog,
+  MerchantMembership,
+  MerchantOnboarding,
+  SeedMerchantCatalog
+} from './merchant-catalog/merchant-onboarding.ts'
+
 // notifications
 import {
   IntegrationSurfaces,
@@ -86,6 +96,8 @@ export type CapabilityServices =
   | CatalogRefreshHistory
   | ImplementationReports
   | IntegrationSurfaces
+  | MerchantMembership
+  | MerchantOnboarding
   | NotificationFeed
   | StarterModuleCatalog
   | WebhookEndpoints
@@ -94,6 +106,21 @@ export type CapabilityServices =
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
+const seedBookingScenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
+const seedMerchantCatalog = emptySeedMerchantCatalog([seedBookingScenario.owner])
+seedMerchantCatalog.merchants.set(seedBookingScenario.merchant.slug, {
+  ...seedBookingScenario.merchant,
+  defaultProvider: {
+    id: seedBookingScenario.provider.id,
+    displayName: seedBookingScenario.provider.displayName,
+    status: seedBookingScenario.provider.status
+  },
+  publicBookingPage: {
+    id: seedBookingScenario.publicBookingPage.id,
+    status: seedBookingScenario.publicBookingPage.status
+  }
+})
+
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedAdoptionReadiness(seedReadinessTrend),
   SeedApiTokenRegistry(seedApiTokens),
@@ -101,6 +128,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedCatalogRefreshHistory(seedCatalogRefreshHistory),
   SeedImplementationReports(seedImplementationReports),
   SeedIntegrationSurfaces(seedIntegrationSurfaces),
+  SeedMerchantCatalog(seedMerchantCatalog),
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -122,6 +150,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveCatalogRefreshHistory,
     LiveImplementationReports,
     LiveIntegrationSurfaces,
+    LiveMerchantCatalog,
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
