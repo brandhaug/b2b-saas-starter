@@ -8,11 +8,9 @@ export type MerchantEmailBinding = {
   }) => Promise<unknown>
 }
 
-export type MerchantAuthEmail = {
-  readonly user: { readonly email: string }
-  readonly url: string
-  readonly token: string
-}
+import type { MerchantAuthEmail } from '@b2b-saas-starter/auth'
+
+export type { MerchantAuthEmail }
 
 export type MerchantEmailDelivery = {
   readonly isConfigured: boolean
@@ -54,9 +52,10 @@ export const createMerchantEmailDelivery = (
   }
 
   if (!binding || !from) {
-    const unavailable = async (): Promise<void> => {
-      throw new Error('Merchant email delivery is not configured')
-    }
+    // The HTTP boundary rejects every operation that might send email before
+    // Better Auth calls this fallback. It remains a no-op only to keep the
+    // provider callback total if Better Auth introduces another email path.
+    const unavailable = async (): Promise<void> => undefined
     return {
       isConfigured: false,
       sendVerificationEmail: unavailable,

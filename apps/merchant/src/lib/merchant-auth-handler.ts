@@ -25,8 +25,10 @@ export type CreateMerchantAuthHandlerOptions = {
 
 const emailActions = new Set([
   '/api/auth/sign-up/email',
+  '/api/auth/sign-in/email',
   '/api/auth/send-verification-email',
-  '/api/auth/request-password-reset'
+  '/api/auth/request-password-reset',
+  '/api/auth/change-email'
 ])
 
 const signUpAction = '/api/auth/sign-up/email'

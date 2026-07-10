@@ -1,6 +1,7 @@
 import { redirect } from '@tanstack/react-router'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
+import { Schema } from 'effect'
 import { createMerchantServerContext } from '../server-context.ts'
 
 const readSession = createServerOnlyFn(() => {
@@ -21,15 +22,17 @@ export const requireMerchantSession = async (redirectTo: string) => {
   return session
 }
 
-export class MerchantUnauthorizedError extends Error {
-  constructor() {
-    super('Your Merchant App session has expired. Sign in and retry.')
-    this.name = 'MerchantUnauthorizedError'
-  }
-}
+export class MerchantUnauthorizedError extends Schema.TaggedErrorClass<MerchantUnauthorizedError>()(
+  'MerchantUnauthorizedError',
+  { message: Schema.String }
+) {}
 
 export const requireMerchantRequestSession = async () => {
   const session = await readSession()
-  if (!session) throw new MerchantUnauthorizedError()
+  if (!session) {
+    throw new MerchantUnauthorizedError({
+      message: 'Your Merchant App session has expired. Sign in and retry.'
+    })
+  }
   return session
 }

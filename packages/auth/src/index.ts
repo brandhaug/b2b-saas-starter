@@ -69,13 +69,13 @@ export const merchantSessionPolicy = {
   }
 } as const
 
-type MerchantAuthEmail = {
+export type MerchantAuthEmail = {
   readonly user: { readonly email: string }
   readonly url: string
   readonly token: string
 }
 
-type MerchantAuthEmailSender = (
+export type MerchantAuthEmailSender = (
   data: MerchantAuthEmail,
   request?: Request
 ) => Promise<void>
