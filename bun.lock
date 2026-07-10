@@ -76,11 +76,15 @@
     "apps/booking": {
       "name": "booking",
       "dependencies": {
+        "@b2b-saas-starter/capabilities": "workspace:*",
+        "@b2b-saas-starter/db": "workspace:*",
         "@fontsource-variable/geist": "catalog:",
         "@fontsource-variable/geist-mono": "catalog:",
         "@stylexjs/stylex": "catalog:",
+        "@tanstack/react-query": "catalog:",
         "@tanstack/react-router": "catalog:",
         "@tanstack/react-start": "catalog:",
+        "effect": "catalog:",
         "lucide-react": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
@@ -89,6 +93,7 @@
         "@b2b-saas-starter/config": "workspace:*",
         "@cloudflare/workers-types": "catalog:",
         "@stylexjs/unplugin": "catalog:",
+        "@testing-library/react": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "@vitejs/plugin-react": "catalog:",
@@ -101,6 +106,7 @@
       "name": "merchant",
       "dependencies": {
         "@b2b-saas-starter/auth": "workspace:*",
+        "@b2b-saas-starter/capabilities": "workspace:*",
         "@b2b-saas-starter/db": "workspace:*",
         "@b2b-saas-starter/rate-limit": "workspace:*",
         "@fontsource-variable/geist": "catalog:",

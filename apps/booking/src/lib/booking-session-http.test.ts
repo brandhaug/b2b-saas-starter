@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { Effect } from 'effect'
-import { BookingSessionGone } from '@b2b-saas-starter/capabilities'
+import {
+  BookingSelectionRejected,
+  BookingSessionGone,
+  type BookingJourney
+} from '@b2b-saas-starter/capabilities'
 import {
   bookingSessionCookie,
   handleBookingSessionRequest,
@@ -9,6 +13,32 @@ import {
 } from './booking-session-http.ts'
 
 describe('Booking Session HTTP boundary', () => {
+  const journey: BookingJourney = {
+    presentation: 'team',
+    providerPreference: null,
+    selection: { primaryServiceId: null, additionalServiceIds: [] },
+    compatibleAdditionalServiceIds: [],
+    providers: [
+      {
+        id: 'prv_ava',
+        displayName: 'Ava S.',
+        isDefault: true,
+        eligibleServiceIds: ['svc_cut']
+      }
+    ],
+    services: [
+      {
+        id: 'svc_cut',
+        name: 'Signature Cut',
+        category: 'Haircuts',
+        priceMinor: 4500,
+        currency: 'USD',
+        durationMinutes: 45,
+        eligibleProviderIds: ['prv_ava']
+      }
+    ]
+  }
+
   it('sets a session-specific host-only capability cookie on the exact Merchant path', () => {
     const cookie = Effect.runSync(
       bookingSessionCookie({
@@ -54,6 +84,21 @@ describe('Booking Session HTTP boundary', () => {
       }
     )
     expect(validatePrivateMutationRequest(valid, 'https://www.example.test')).toBeNull()
+    const directLocal = new Request(
+      'http://localhost:3073/mara-studio/booking/session/bsn_one/services',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost:3073',
+          'sec-fetch-site': 'same-origin',
+          'content-type': 'application/json'
+        },
+        body: '{}'
+      }
+    )
+    expect(
+      validatePrivateMutationRequest(directLocal, 'http://localhost:3071')
+    ).toBeNull()
 
     for (const headers of [
       { origin: 'https://evil.test', 'content-type': 'application/json' },
@@ -161,6 +206,126 @@ describe('Booking Session HTTP boundary', () => {
       `authorize:bsn_private:${capability}`,
       'write:session:bsn_private'
     ])
+  })
+
+  it('reads and changes persisted journey selection only after Session authorization', async () => {
+    const capability = '9'.repeat(64)
+    const calls: string[] = []
+    const request = new Request(
+      'https://www.example.test/mara-studio/booking/session/bsn_private/provider',
+      {
+        method: 'POST',
+        headers: {
+          cookie: `booking_session_bsn_private=${capability}`,
+          origin: 'https://www.example.test',
+          'sec-fetch-site': 'same-origin',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ kind: 'any' })
+      }
+    )
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(request, {
+        publicSiteOrigin: 'https://www.example.test',
+        enter: () => Effect.die(new Error('not called')),
+        authorize: (input) => {
+          calls.push(`authorize:${input.sessionId}`)
+          return Effect.succeed({
+            id: input.sessionId,
+            merchantSlug: input.merchantSlug,
+            checkoutPath: 'pay_in_person',
+            lifecycle: 'active',
+            createdAt: input.now,
+            lastActivityAt: input.now,
+            idleExpiresAt: input.now,
+            absoluteExpiresAt: input.now
+          })
+        },
+        selection: {
+          load: () => Effect.succeed(journey),
+          chooseProvider: (_session, preference) => {
+            calls.push(`provider:${preference.kind}`)
+            return Effect.succeed({ ...journey, providerPreference: preference })
+          },
+          chooseServices: () =>
+            Effect.fail(
+              new BookingSelectionRejected({
+                message: 'Selection could not be accepted'
+              })
+            )
+        },
+        takeRead: () => Effect.succeed(true),
+        takeWrite: () => Effect.succeed(true),
+        fallback: () => Effect.die(new Error('not called'))
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ providerPreference: { kind: 'any' } })
+    expect(calls).toEqual(['authorize:bsn_private', 'provider:any'])
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+  })
+
+  it('settles malformed and rejected selection mutations as the same non-disclosing response', async () => {
+    const capability = '8'.repeat(64)
+    const baseRequest = {
+      method: 'POST',
+      headers: {
+        cookie: `booking_session_bsn_private=${capability}`,
+        origin: 'https://www.example.test',
+        'sec-fetch-site': 'same-origin',
+        'content-type': 'application/json'
+      }
+    }
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: (
+        input: Parameters<
+          NonNullable<Parameters<typeof handleBookingSessionRequest>[1]['authorize']>
+        >[0]
+      ) =>
+        Effect.succeed({
+          id: input.sessionId,
+          merchantSlug: input.merchantSlug,
+          checkoutPath: 'pay_in_person' as const,
+          lifecycle: 'active' as const,
+          createdAt: input.now,
+          lastActivityAt: input.now,
+          idleExpiresAt: input.now,
+          absoluteExpiresAt: input.now
+        }),
+      selection: {
+        load: () => Effect.succeed(journey),
+        chooseProvider: () =>
+          Effect.fail(
+            new BookingSelectionRejected({ message: 'Selection could not be accepted' })
+          ),
+        chooseServices: () =>
+          Effect.fail(
+            new BookingSelectionRejected({ message: 'Selection could not be accepted' })
+          )
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called'))
+    }
+    for (const body of [
+      '{}',
+      JSON.stringify({ kind: 'specific', providerId: 'private' })
+    ]) {
+      const response = await Effect.runPromise(
+        handleBookingSessionRequest(
+          new Request(
+            'https://www.example.test/mara-studio/booking/session/bsn_private/provider',
+            { ...baseRequest, body }
+          ),
+          dependencies
+        )
+      )
+      expect(response.status).toBe(404)
+      expect(await response.text()).toBe('Not found')
+    }
   })
 
   it('uses generic 404s for missing capabilities and a safe 410 only for a proven expired capability', async () => {

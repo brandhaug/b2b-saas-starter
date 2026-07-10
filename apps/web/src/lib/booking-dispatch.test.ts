@@ -15,6 +15,7 @@ describe('booking ingress dispatch', () => {
     '/demo-shop/booking',
     '/demo-shop/booking/services',
     '/demo-shop/booking/session/bsn_123/checkout',
+    '/demo-shop/booking/session/bsn_123/selection',
     '/_booking/assets/entry.js'
   ])('recognizes public Booking App traffic: %s', (path) => {
     expect(isBookingRequest(new URL(`https://www.example.test${path}`))).toBe(true)

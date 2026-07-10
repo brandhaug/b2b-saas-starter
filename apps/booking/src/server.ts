@@ -1,8 +1,10 @@
 import startServer from '@tanstack/react-start/server-entry'
 import { Effect, Layer } from 'effect'
 import {
+  BookingSelection,
   BookingSessions,
   enterBookingSession,
+  LiveBookingSelection,
   LiveBookingSessions
 } from '@b2b-saas-starter/capabilities'
 import { layerFromD1 } from '@b2b-saas-starter/db'
@@ -57,6 +59,7 @@ export default {
     }
     const env = passedEnv
     const sessionsLayer = LiveBookingSessions.pipe(Layer.provide(layerFromD1(env.DB)))
+    const selectionLayer = LiveBookingSelection.pipe(Layer.provide(layerFromD1(env.DB)))
     return Effect.runPromise(
       handleBookingSessionRequest(request, {
         publicSiteOrigin: env.PUBLIC_SITE_ORIGIN,
@@ -66,6 +69,27 @@ export default {
             Effect.flatMap(BookingSessions, (sessions) => sessions.authorize(input)),
             sessionsLayer
           ),
+        selection: {
+          load: (session) =>
+            Effect.provide(
+              Effect.flatMap(BookingSelection, (selection) => selection.load(session)),
+              selectionLayer
+            ),
+          chooseProvider: (session, preference) =>
+            Effect.provide(
+              Effect.flatMap(BookingSelection, (selection) =>
+                selection.chooseProvider(session, preference)
+              ),
+              selectionLayer
+            ),
+          chooseServices: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingSelection, (selection) =>
+                selection.chooseServices(session, input)
+              ),
+              selectionLayer
+            )
+        },
         takeRead: (key) =>
           Effect.promise(() =>
             takeRate(env.RATE_LIMITER_BOOKING_READ, `read:${key}`, 120)

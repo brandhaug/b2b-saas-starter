@@ -314,6 +314,15 @@ export const bookingSessions = sqliteTable(
     lifecycle: text('lifecycle', { enum: bookingSessionLifecycles })
       .default('active')
       .notNull(),
+    providerPreference: text('provider_preference', {
+      enum: ['specific', 'any']
+    }),
+    providerId: text('provider_id').references(() => providers.id, {
+      onDelete: 'set null'
+    }),
+    primaryServiceId: text('primary_service_id').references(() => services.id, {
+      onDelete: 'set null'
+    }),
     createdAt: isoCreatedAt(),
     lastActivityAt: text('last_activity_at').notNull(),
     idleExpiresAt: text('idle_expires_at').notNull(),
@@ -333,6 +342,30 @@ export const bookingSessions = sqliteTable(
     check(
       'booking_sessions_valid_lifecycle',
       sql`${table.lifecycle} in ('active', 'consumed')`
+    )
+  ]
+)
+
+export const bookingSessionAdditionalServices = sqliteTable(
+  'booking_session_additional_services',
+  {
+    bookingSessionId: text('booking_session_id')
+      .notNull()
+      .references(() => bookingSessions.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull()
+  },
+  (table) => [
+    primaryKey({ columns: [table.bookingSessionId, table.serviceId] }),
+    uniqueIndex('booking_session_additional_services_position_unique').on(
+      table.bookingSessionId,
+      table.position
+    ),
+    check(
+      'booking_session_additional_services_non_negative_position',
+      sql`${table.position} >= 0`
     )
   ]
 )

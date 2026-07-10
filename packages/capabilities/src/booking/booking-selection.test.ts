@@ -1,0 +1,295 @@
+import { Effect } from 'effect'
+import { describe, expect, it } from 'vitest'
+import type { BookingSession } from './booking-sessions.ts'
+import {
+  BookingSelection,
+  emptySeedBookingSelectionStore,
+  SeedBookingSelection,
+  seedBookingSelectionEligibilityKey
+} from './booking-selection.ts'
+
+const session: BookingSession = {
+  id: 'bsn_test',
+  merchantSlug: 'mara-studio',
+  checkoutPath: 'pay_in_person',
+  lifecycle: 'active',
+  createdAt: '2026-07-10T10:00:00.000Z',
+  lastActivityAt: '2026-07-10T10:00:00.000Z',
+  idleExpiresAt: '2026-07-10T10:30:00.000Z',
+  absoluteExpiresAt: '2026-07-10T12:00:00.000Z'
+}
+
+const fixture = (presentation: 'solo' | 'team' = 'team') => {
+  const store = emptySeedBookingSelectionStore({
+    merchants: [{ id: 'mer_mara', slug: 'mara-studio', presentation }],
+    providers: [
+      {
+        id: 'prv_ava',
+        merchantId: 'mer_mara',
+        displayName: 'Ava S.',
+        isDefault: true,
+        status: 'active'
+      },
+      {
+        id: 'prv_noah',
+        merchantId: 'mer_mara',
+        displayName: 'Noah B.',
+        isDefault: false,
+        status: 'active'
+      },
+      {
+        id: 'prv_hidden',
+        merchantId: 'mer_other',
+        displayName: 'Hidden',
+        isDefault: true,
+        status: 'active'
+      }
+    ],
+    services: [
+      {
+        id: 'svc_cut',
+        merchantId: 'mer_mara',
+        name: 'Signature Cut',
+        category: 'Haircuts',
+        priceMinor: 4500,
+        currency: 'USD',
+        durationMinutes: 45,
+        status: 'active'
+      },
+      {
+        id: 'svc_beard',
+        merchantId: 'mer_mara',
+        name: 'Beard Trim',
+        category: 'Grooming',
+        priceMinor: 2800,
+        currency: 'USD',
+        durationMinutes: 30,
+        status: 'active'
+      },
+      {
+        id: 'svc_eur',
+        merchantId: 'mer_mara',
+        name: 'Euro Service',
+        category: null,
+        priceMinor: 2000,
+        currency: 'EUR',
+        durationMinutes: 20,
+        status: 'active'
+      },
+      {
+        id: 'svc_inactive',
+        merchantId: 'mer_mara',
+        name: 'Hidden Service',
+        category: null,
+        priceMinor: 1000,
+        currency: 'USD',
+        durationMinutes: 10,
+        status: 'inactive'
+      },
+      {
+        id: 'svc_other',
+        merchantId: 'mer_other',
+        name: 'Private Service',
+        category: null,
+        priceMinor: 1000,
+        currency: 'USD',
+        durationMinutes: 10,
+        status: 'active'
+      }
+    ],
+    eligibility: [
+      ['mer_mara', 'prv_ava', 'svc_cut'],
+      ['mer_mara', 'prv_ava', 'svc_beard'],
+      ['mer_mara', 'prv_ava', 'svc_eur'],
+      ['mer_mara', 'prv_noah', 'svc_cut']
+    ].map(([merchantId, providerId, serviceId]) =>
+      seedBookingSelectionEligibilityKey({
+        merchantId: merchantId!,
+        providerId: providerId!,
+        serviceId: serviceId!
+      })
+    )
+  })
+  const layer = SeedBookingSelection(store)
+  const run = <A, E>(effect: Effect.Effect<A, E, BookingSelection>) =>
+    Effect.runPromise(Effect.provide(effect, layer))
+  return { store, run }
+}
+
+describe('Booking Selection', () => {
+  it('auto-selects the sole default Provider for Solo and exposes active bookable catalog only', async () => {
+    const { store, run } = fixture('solo')
+    const journey = await run(
+      Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+    )
+
+    expect(journey.presentation).toBe('solo')
+    expect(journey.providerPreference).toEqual({
+      kind: 'specific',
+      providerId: 'prv_ava'
+    })
+    expect(journey.providers.map((provider) => provider.id)).toEqual([
+      'prv_ava',
+      'prv_noah'
+    ])
+    expect(journey.services.map((service) => service.id)).toEqual([
+      'svc_cut',
+      'svc_beard',
+      'svc_eur'
+    ])
+    expect(store.selections.get(session.id)?.providerPreference).toEqual({
+      kind: 'specific',
+      providerId: 'prv_ava'
+    })
+  })
+
+  it('preserves Any Provider as the Team customer choice', async () => {
+    const { run } = fixture()
+    const journey = await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseProvider(session, { kind: 'any' })
+      )
+    )
+    expect(journey.providerPreference).toEqual({ kind: 'any' })
+  })
+
+  it('persists one Primary Service and ordered unique Additional Services', async () => {
+    const { run } = fixture()
+    await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseProvider(session, { kind: 'specific', providerId: 'prv_ava' })
+      )
+    )
+    const journey = await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseServices(session, {
+          primaryServiceId: 'svc_cut',
+          additionalServiceIds: ['svc_beard']
+        })
+      )
+    )
+    expect(journey.selection).toEqual({
+      primaryServiceId: 'svc_cut',
+      additionalServiceIds: ['svc_beard']
+    })
+    expect(journey.compatibleAdditionalServiceIds).toEqual(['svc_beard'])
+    const refreshed = await run(
+      Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+    )
+    expect(refreshed.selection).toEqual(journey.selection)
+
+    const cleared = await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseServices(session, {
+          primaryServiceId: null,
+          additionalServiceIds: []
+        })
+      )
+    )
+    expect(cleared.selection).toEqual({
+      primaryServiceId: null,
+      additionalServiceIds: []
+    })
+  })
+
+  it('clears Services when the customer changes Provider Preference', async () => {
+    const { run } = fixture()
+    await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseProvider(session, {
+          kind: 'specific',
+          providerId: 'prv_ava'
+        })
+      )
+    )
+    await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseServices(session, {
+          primaryServiceId: 'svc_cut',
+          additionalServiceIds: ['svc_beard']
+        })
+      )
+    )
+    const changed = await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseProvider(session, {
+          kind: 'specific',
+          providerId: 'prv_noah'
+        })
+      )
+    )
+    expect(changed.selection).toEqual({
+      primaryServiceId: null,
+      additionalServiceIds: []
+    })
+  })
+
+  it('removes stale catalog selections from the public projection', async () => {
+    const { store, run } = fixture()
+    store.selections.set(session.id, {
+      providerPreference: { kind: 'specific', providerId: 'prv_ava' },
+      primaryServiceId: 'svc_cut',
+      additionalServiceIds: ['svc_beard']
+    })
+    store.providers.set('prv_ava', {
+      ...store.providers.get('prv_ava')!,
+      status: 'inactive'
+    })
+    const refreshed = await run(
+      Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+    )
+    expect(refreshed.providerPreference).toBeNull()
+    expect(refreshed.selection).toEqual({
+      primaryServiceId: null,
+      additionalServiceIds: []
+    })
+  })
+
+  it('rejects invalid, private, duplicate, ineligible, and mixed-currency selections without mutation or disclosure', async () => {
+    const { run } = fixture()
+    await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseProvider(session, { kind: 'specific', providerId: 'prv_noah' })
+      )
+    )
+    const choose = (
+      primaryServiceId: string | null,
+      additionalServiceIds: readonly string[]
+    ) =>
+      run(
+        Effect.result(
+          Effect.flatMap(BookingSelection, (selection) =>
+            selection.chooseServices(session, {
+              primaryServiceId,
+              additionalServiceIds
+            })
+          )
+        )
+      )
+
+    for (const input of [
+      ['missing', []],
+      ['svc_other', []],
+      ['svc_inactive', []],
+      ['svc_cut', ['svc_cut']],
+      ['svc_cut', ['svc_beard']],
+      ['svc_cut', ['svc_eur']],
+      [null, ['svc_beard']]
+    ] as const) {
+      const result = await choose(input[0], input[1])
+      expect(result._tag).toBe('Failure')
+      if (result._tag === 'Failure')
+        expect(result.failure).toMatchObject({
+          _tag: 'BookingSelectionRejected',
+          message: 'Selection could not be accepted'
+        })
+    }
+    const journey = await run(
+      Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+    )
+    expect(journey.selection).toEqual({
+      primaryServiceId: null,
+      additionalServiceIds: []
+    })
+  })
+})

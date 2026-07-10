@@ -1,13 +1,18 @@
 import { Effect, Schema } from 'effect'
 import {
   BookingPageUnavailable,
+  BookingSelectionRejected,
+  ServiceSelection as ServiceSelectionSchema,
   BookingSessionGone,
   BookingSessionNotFound,
   CapabilityUnavailable,
   type AuthorizeBookingSessionInput,
   type BookingSession,
   type BookingSessionEntry,
-  type PresentedBookingSessionCapability
+  type BookingJourney,
+  type ProviderPreference,
+  type PresentedBookingSessionCapability,
+  type ServiceSelection
 } from '@b2b-saas-starter/capabilities'
 
 export class InvalidBookingSessionCookie extends Schema.TaggedErrorClass<InvalidBookingSessionCookie>()(
@@ -26,6 +31,7 @@ type BookingSessionHttpFailure =
   | BookingSessionGone
   | CapabilityUnavailable
   | InvalidBookingSessionCookie
+  | BookingSelectionRejected
 
 type BookingSessionEffect<A, E = never> = Effect.Effect<A, E>
 
@@ -99,7 +105,12 @@ export const validatePrivateMutationRequest = (
   if (request.method === 'GET' || request.method === 'HEAD') {
     return new Response('Method not allowed', { status: 405 })
   }
-  if (request.headers.get('origin') !== publicSiteOrigin) return hiddenNotFound()
+  const requestUrl = new URL(request.url)
+  const origin = request.headers.get('origin')
+  const directLocal =
+    (requestUrl.hostname === 'localhost' || requestUrl.hostname === '127.0.0.1') &&
+    origin === requestUrl.origin
+  if (origin !== publicSiteOrigin && !directLocal) return hiddenNotFound()
   const fetchSite = request.headers.get('sec-fetch-site')
   if (fetchSite !== null && fetchSite !== 'same-origin') return hiddenNotFound()
   const contentType = request.headers.get('content-type')?.split(';', 1)[0]?.trim()
@@ -125,6 +136,28 @@ export type BookingSessionHttpDependencies = {
     BookingSession,
     BookingSessionNotFound | BookingSessionGone | CapabilityUnavailable
   >
+  readonly selection?: {
+    readonly load: (
+      session: BookingSession
+    ) => BookingSessionEffect<
+      BookingJourney,
+      BookingSelectionRejected | CapabilityUnavailable
+    >
+    readonly chooseProvider: (
+      session: BookingSession,
+      preference: ProviderPreference
+    ) => BookingSessionEffect<
+      BookingJourney,
+      BookingSelectionRejected | CapabilityUnavailable
+    >
+    readonly chooseServices: (
+      session: BookingSession,
+      input: ServiceSelection
+    ) => BookingSessionEffect<
+      BookingJourney,
+      BookingSelectionRejected | CapabilityUnavailable
+    >
+  }
   readonly takeRead: (key: string) => BookingSessionEffect<boolean>
   readonly takeWrite: (key: string) => BookingSessionEffect<boolean>
   readonly fallback: (request: Request) => BookingSessionEffect<Response>
@@ -185,6 +218,34 @@ const withPrivateHeaders = (response: Response): Response => {
     statusText: response.statusText,
     headers
   })
+}
+
+const jsonJourney = (value: BookingJourney): Response =>
+  withPrivateHeaders(
+    Response.json(value, {
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    })
+  )
+
+const readJson = (request: Request): BookingSessionEffect<unknown> =>
+  Effect.promise(() => request.json().catch(() => null))
+
+const providerPreferenceFrom = (value: unknown): ProviderPreference | null => {
+  if (typeof value !== 'object' || value === null) return null
+  const input = value as Record<string, unknown>
+  if (input.kind === 'any') return { kind: 'any' }
+  if (input.kind === 'specific' && typeof input.providerId === 'string') {
+    return { kind: 'specific', providerId: input.providerId }
+  }
+  return null
+}
+
+const servicesFrom = (value: unknown): ServiceSelection | null => {
+  try {
+    return Schema.decodeUnknownSync(ServiceSelectionSchema)(value)
+  } catch {
+    return null
+  }
 }
 
 export const handleBookingSessionRequest = (
@@ -277,6 +338,39 @@ export const handleBookingSessionRequest = (
     }
     if (mutation && !(yield* dependencies.takeWrite(`session:${sessionId}`))) {
       return tooManyRequests()
+    }
+
+    const endpoint = segments.length === 5 ? segments[4] : null
+    if (endpoint === 'selection' && request.method === 'GET') {
+      if (!dependencies.selection) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.selection.load(authorization.success)
+      )
+      return result._tag === 'Success'
+        ? jsonJourney(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'provider' && request.method === 'POST') {
+      if (!dependencies.selection) return unavailable()
+      const preference = providerPreferenceFrom(yield* readJson(request))
+      if (!preference) return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.selection.chooseProvider(authorization.success, preference)
+      )
+      return result._tag === 'Success'
+        ? jsonJourney(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'services' && request.method === 'POST') {
+      if (!dependencies.selection) return unavailable()
+      const input = servicesFrom(yield* readJson(request))
+      if (!input) return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.selection.chooseServices(authorization.success, input)
+      )
+      return result._tag === 'Success'
+        ? jsonJourney(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
     }
     return withPrivateHeaders(yield* dependencies.fallback(request))
   })

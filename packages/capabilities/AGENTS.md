@@ -60,6 +60,7 @@ Each capability gets a leaf intent node alongside its source file. Read it befor
 | merchant-catalog   | [`merchant-catalog`](src/merchant-catalog/merchant-catalog.AGENTS.md)       | `merchants`, `providers`, `services`, `provider_service_eligibility`             | catalog lifecycle + explicit eligibility                        |
 | scheduling         | [`scheduling`](src/scheduling/scheduling.AGENTS.md)                         | `schedule_rules`, catalog tables, `public_booking_pages`                         | rules, availability/readiness, publication and public read      |
 | booking            | [`booking-sessions`](src/booking/booking-sessions.AGENTS.md)                | `booking_sessions`, `merchants`, `public_booking_pages`                          | create, resume, authorize, and expire anonymous sessions        |
+| booking            | [`booking-selection`](src/booking/booking-selection.AGENTS.md)              | `booking_sessions`, `booking_session_additional_services`, catalog tables        | public projection + Provider and Service selection              |
 
 Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect), and `AuthorizationDenied` (403 — raised by `verifyBearerToken`). Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
 
