@@ -382,13 +382,15 @@ describe('Booking Session HTTP boundary', () => {
       idleExpiresAt: '2026-07-10T10:00:00.000Z',
       absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
     }
+    let requestedDays: number | undefined
     const dependencies = {
       publicSiteOrigin: 'https://www.example.test',
       enter: () => Effect.die(new Error('not called')),
       authorize: () => Effect.succeed(session),
       scheduling: {
-        availability: () =>
-          Effect.succeed({
+        availability: (_session: unknown, input: { readonly days?: number }) => {
+          requestedDays = input.days
+          return Effect.succeed({
             timezone: 'UTC',
             slots: [
               {
@@ -397,7 +399,8 @@ describe('Booking Session HTTP boundary', () => {
               }
             ],
             hold: null
-          }),
+          })
+        },
         hold: () =>
           Effect.fail(
             new BookingSchedulingRejected({
@@ -420,6 +423,7 @@ describe('Booking Session HTTP boundary', () => {
     )
     expect(availability.status).toBe(200)
     expect(await availability.json()).toMatchObject({ timezone: 'UTC', hold: null })
+    expect(requestedDays).toBeUndefined()
 
     const lost = await Effect.runPromise(
       handleBookingSessionRequest(

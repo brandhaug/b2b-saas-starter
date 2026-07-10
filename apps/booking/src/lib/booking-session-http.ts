@@ -434,7 +434,7 @@ export const handleBookingSessionRequest = (
       if (queryResult._tag === 'Failure') return hiddenNotFound()
       const from = queryResult.success.from ?? now
       const daysInput = queryResult.success.days
-      const days = daysInput === null ? undefined : Number(daysInput)
+      const days = daysInput === undefined ? undefined : Number(daysInput)
       const result = yield* Effect.result(
         dependencies.scheduling.availability(authorization.success, {
           from,
