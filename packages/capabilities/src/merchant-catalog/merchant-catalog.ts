@@ -12,6 +12,7 @@ import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { MerchantContext } from './merchant-context.ts'
+import { isSupportedCurrency } from './currency.ts'
 
 export const CatalogStatus = Schema.Literals(['active', 'inactive'])
 export type CatalogStatus = typeof CatalogStatus.Type
@@ -121,11 +122,19 @@ export type SeedMerchantCatalogConfigurationStore = {
   readonly services: Map<string, StoredService>
   readonly providers: Map<string, StoredProvider>
   /** Normalized keys are merchantId, Provider id, and Service id joined by NUL. */
-  readonly eligibility: Set<string>
+  readonly eligibility: Set<SeedEligibilityKey>
 }
 
-const eligibilityKey = (merchantId: string, providerId: string, serviceId: string) =>
-  `${merchantId}\0${providerId}\0${serviceId}`
+declare const seedEligibilityKeyBrand: unique symbol
+export type SeedEligibilityKey = string & {
+  readonly [seedEligibilityKeyBrand]: true
+}
+export const seedEligibilityKey = (pair: {
+  readonly merchantId: string
+  readonly providerId: string
+  readonly serviceId: string
+}): SeedEligibilityKey =>
+  `${pair.merchantId}\0${pair.providerId}\0${pair.serviceId}` as SeedEligibilityKey
 
 const optionalText = (
   value: string | null | undefined,
@@ -137,15 +146,6 @@ const optionalText = (
     return Effect.fail(new MerchantCatalogInvalid({ reason: invalidReason }))
   }
   return Effect.succeed(value)
-}
-
-const validCurrency = (currency: string): boolean => {
-  if (!/^[A-Z]{3}$/.test(currency)) return false
-  try {
-    return Intl.supportedValuesOf('currency').includes(currency)
-  } catch {
-    return false
-  }
 }
 
 const validateService = (input: ServiceInput) =>
@@ -165,7 +165,7 @@ const validateService = (input: ServiceInput) =>
         new MerchantCatalogInvalid({ reason: 'invalid_duration' })
       )
     }
-    if (!validCurrency(input.currency)) {
+    if (!isSupportedCurrency(input.currency)) {
       return yield* Effect.fail(
         new MerchantCatalogInvalid({ reason: 'invalid_currency' })
       )
@@ -256,7 +256,7 @@ const onlyBookable = (snapshot: MerchantCatalogSnapshot): MerchantCatalogSnapsho
   }
 }
 
-export const SeedMerchantCatalogConfiguration = (
+export const SeedMerchantCatalog = (
   store: SeedMerchantCatalogConfigurationStore
 ): Layer.Layer<MerchantCatalog> =>
   Layer.succeed(MerchantCatalog)({
@@ -323,7 +323,9 @@ export const SeedMerchantCatalogConfiguration = (
           }
         }
         for (const providerId of uniqueProviderIds) {
-          store.eligibility.add(eligibilityKey(merchant.id, providerId, serviceId))
+          store.eligibility.add(
+            seedEligibilityKey({ merchantId: merchant.id, providerId, serviceId })
+          )
         }
       }),
     createProvider: (input) =>
@@ -349,6 +351,11 @@ export const SeedMerchantCatalogConfiguration = (
     updateProvider: (providerId, input) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
+        if (merchant.plan !== 'team') {
+          return yield* Effect.fail(
+            new MerchantCatalogInvalid({ reason: 'team_required' })
+          )
+        }
         const current = store.providers.get(providerId)
         if (current?.merchantId !== merchant.id) {
           return yield* Effect.fail(
@@ -429,234 +436,242 @@ const liveSnapshot = (
 const unavailable = (reason: string) =>
   new CapabilityUnavailable({ capability: 'merchant-catalog', reason })
 
-export const LiveMerchantCatalogConfiguration: Layer.Layer<
-  MerchantCatalog,
-  never,
-  Database
-> = Layer.effect(
-  MerchantCatalog,
-  Effect.gen(function* () {
-    const db = yield* Database
-    return {
-      read: () =>
-        Effect.flatMap(MerchantContext, (merchant) =>
-          liveSnapshot(db, merchant.id, merchant.plan)
-        ),
-      readBookable: () =>
-        Effect.flatMap(MerchantContext, (merchant) =>
-          Effect.map(liveSnapshot(db, merchant.id, merchant.plan), onlyBookable)
-        ),
-      createService: (input) =>
-        Effect.gen(function* () {
-          const merchant = yield* MerchantContext
-          const value = yield* validateService(input)
-          const id = newCapabilityId('svc')
-          const now = new Date().toISOString()
-          yield* orUnavailable('merchant-catalog')(
-            db.insert(services).values({
-              id,
-              merchantId: merchant.id,
-              ...value,
-              createdAt: now,
-              updatedAt: now
-            })
-          )
-          return { id, ...value, eligibleProviderIds: [] }
-        }),
-      updateService: (serviceId, input) =>
-        Effect.gen(function* () {
-          const merchant = yield* MerchantContext
-          const existing = yield* orUnavailable('merchant-catalog')(
-            db
-              .select({ id: services.id })
-              .from(services)
-              .where(
-                and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
-              )
-              .limit(1)
-          )
-          if (!existing[0]) {
-            return yield* Effect.fail(
-              new MerchantCatalogInvalid({ reason: 'item_not_found' })
+export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> =
+  Layer.effect(
+    MerchantCatalog,
+    Effect.gen(function* () {
+      const db = yield* Database
+      return {
+        read: () =>
+          Effect.flatMap(MerchantContext, (merchant) =>
+            liveSnapshot(db, merchant.id, merchant.plan)
+          ),
+        readBookable: () =>
+          Effect.flatMap(MerchantContext, (merchant) =>
+            Effect.map(liveSnapshot(db, merchant.id, merchant.plan), onlyBookable)
+          ),
+        createService: (input) =>
+          Effect.gen(function* () {
+            const merchant = yield* MerchantContext
+            const value = yield* validateService(input)
+            const id = newCapabilityId('svc')
+            const now = new Date().toISOString()
+            yield* orUnavailable('merchant-catalog')(
+              db.insert(services).values({
+                id,
+                merchantId: merchant.id,
+                ...value,
+                createdAt: now,
+                updatedAt: now
+              })
             )
-          }
-          const value = yield* validateService(input)
-          yield* orUnavailable('merchant-catalog')(
-            db
-              .update(services)
-              .set({ ...value, updatedAt: new Date().toISOString() })
-              .where(
-                and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
-              )
-          )
-          const snapshot = yield* liveSnapshot(db, merchant.id, merchant.plan)
-          return snapshot.services.find((service) => service.id === serviceId)!
-        }),
-      setServiceEligibility: (serviceId, providerIds) =>
-        Effect.gen(function* () {
-          const merchant = yield* MerchantContext
-          const serviceRows = yield* orUnavailable('merchant-catalog')(
-            db
-              .select({ id: services.id })
-              .from(services)
-              .where(
-                and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
-              )
-              .limit(1)
-          )
-          if (!serviceRows[0]) {
-            return yield* Effect.fail(
-              new MerchantCatalogInvalid({ reason: 'item_not_found' })
+            return { id, ...value, eligibleProviderIds: [] }
+          }),
+        updateService: (serviceId, input) =>
+          Effect.gen(function* () {
+            const merchant = yield* MerchantContext
+            const existing = yield* orUnavailable('merchant-catalog')(
+              db
+                .select({ id: services.id })
+                .from(services)
+                .where(
+                  and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
+                )
+                .limit(1)
             )
-          }
-          const uniqueProviderIds = [...new Set(providerIds)]
-          const providerRows = uniqueProviderIds.length
-            ? yield* orUnavailable('merchant-catalog')(
+            if (!existing[0]) {
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'item_not_found' })
+              )
+            }
+            const value = yield* validateService(input)
+            yield* orUnavailable('merchant-catalog')(
+              db
+                .update(services)
+                .set({ ...value, updatedAt: new Date().toISOString() })
+                .where(
+                  and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
+                )
+            )
+            const snapshot = yield* liveSnapshot(db, merchant.id, merchant.plan)
+            return snapshot.services.find((service) => service.id === serviceId)!
+          }),
+        setServiceEligibility: (serviceId, providerIds) =>
+          Effect.gen(function* () {
+            const merchant = yield* MerchantContext
+            const serviceRows = yield* orUnavailable('merchant-catalog')(
+              db
+                .select({ id: services.id })
+                .from(services)
+                .where(
+                  and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
+                )
+                .limit(1)
+            )
+            if (!serviceRows[0]) {
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'item_not_found' })
+              )
+            }
+            const uniqueProviderIds = [...new Set(providerIds)]
+            const providerRows = uniqueProviderIds.length
+              ? yield* orUnavailable('merchant-catalog')(
+                  db
+                    .select({ id: providers.id })
+                    .from(providers)
+                    .where(
+                      and(
+                        eq(providers.merchantId, merchant.id),
+                        inArray(providers.id, uniqueProviderIds)
+                      )
+                    )
+                )
+              : []
+            if (providerRows.length !== uniqueProviderIds.length) {
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'item_not_found' })
+              )
+            }
+            if (merchant.plan === 'solo' && uniqueProviderIds.length > 0) {
+              const defaultRows = yield* orUnavailable('merchant-catalog')(
                 db
                   .select({ id: providers.id })
                   .from(providers)
                   .where(
                     and(
                       eq(providers.merchantId, merchant.id),
+                      eq(providers.isDefault, true),
                       inArray(providers.id, uniqueProviderIds)
                     )
                   )
               )
-            : []
-          if (providerRows.length !== uniqueProviderIds.length) {
-            return yield* Effect.fail(
-              new MerchantCatalogInvalid({ reason: 'item_not_found' })
-            )
-          }
-          if (merchant.plan === 'solo' && uniqueProviderIds.length > 0) {
-            const defaultRows = yield* orUnavailable('merchant-catalog')(
+              if (defaultRows.length !== uniqueProviderIds.length) {
+                return yield* Effect.fail(
+                  new MerchantCatalogInvalid({ reason: 'item_not_found' })
+                )
+              }
+            }
+            const now = new Date().toISOString()
+            yield* batch(db, [
               db
-                .select({ id: providers.id })
+                .delete(providerServiceEligibility)
+                .where(
+                  and(
+                    eq(providerServiceEligibility.merchantId, merchant.id),
+                    eq(providerServiceEligibility.serviceId, serviceId)
+                  )
+                ),
+              ...uniqueProviderIds.map((providerId) =>
+                db.insert(providerServiceEligibility).values({
+                  merchantId: merchant.id,
+                  providerId,
+                  serviceId,
+                  createdAt: now
+                })
+              )
+            ]).pipe(Effect.mapError((error) => unavailable(error.reason)))
+          }),
+        createProvider: (input) =>
+          Effect.gen(function* () {
+            const merchant = yield* MerchantContext
+            if (merchant.plan !== 'team') {
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'team_required' })
+              )
+            }
+            const value = yield* validateProvider(input)
+            const id = newCapabilityId('prv')
+            const now = new Date().toISOString()
+            const statements = []
+            if (value.isDefault) {
+              statements.push(
+                db
+                  .update(providers)
+                  .set({ isDefault: false, updatedAt: now })
+                  .where(eq(providers.merchantId, merchant.id))
+              )
+            }
+            statements.push(
+              db.insert(providers).values({
+                id,
+                merchantId: merchant.id,
+                linkedUserId: null,
+                displayName: value.displayName,
+                status: value.status,
+                isDefault: value.isDefault,
+                createdAt: now,
+                updatedAt: now
+              })
+            )
+            yield* batch(db, statements).pipe(
+              Effect.mapError((error) => unavailable(error.reason))
+            )
+            return { id, ...value, eligibleServiceIds: [] }
+          }),
+        updateProvider: (providerId, input) =>
+          Effect.gen(function* () {
+            const merchant = yield* MerchantContext
+            if (merchant.plan !== 'team') {
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'team_required' })
+              )
+            }
+            const rows = yield* orUnavailable('merchant-catalog')(
+              db
+                .select()
                 .from(providers)
                 .where(
                   and(
-                    eq(providers.merchantId, merchant.id),
-                    eq(providers.isDefault, true),
-                    inArray(providers.id, uniqueProviderIds)
+                    eq(providers.id, providerId),
+                    eq(providers.merchantId, merchant.id)
                   )
                 )
+                .limit(1)
             )
-            if (defaultRows.length !== uniqueProviderIds.length) {
+            const current = rows[0]
+            if (!current) {
               return yield* Effect.fail(
                 new MerchantCatalogInvalid({ reason: 'item_not_found' })
               )
             }
-          }
-          const now = new Date().toISOString()
-          yield* batch(db, [
-            db
-              .delete(providerServiceEligibility)
-              .where(
-                and(
-                  eq(providerServiceEligibility.merchantId, merchant.id),
-                  eq(providerServiceEligibility.serviceId, serviceId)
+            const value = yield* validateProvider(input)
+            if (current.isDefault && !value.isDefault) {
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'default_required' })
+              )
+            }
+            const now = new Date().toISOString()
+            const statements = []
+            if (value.isDefault) {
+              statements.push(
+                db
+                  .update(providers)
+                  .set({ isDefault: false, updatedAt: now })
+                  .where(eq(providers.merchantId, merchant.id))
+              )
+            }
+            statements.push(
+              db
+                .update(providers)
+                .set({
+                  displayName: value.displayName,
+                  status: value.status,
+                  isDefault: value.isDefault,
+                  updatedAt: now
+                })
+                .where(
+                  and(
+                    eq(providers.id, providerId),
+                    eq(providers.merchantId, merchant.id)
+                  )
                 )
-              ),
-            ...uniqueProviderIds.map((providerId) =>
-              db.insert(providerServiceEligibility).values({
-                merchantId: merchant.id,
-                providerId,
-                serviceId,
-                createdAt: now
-              })
             )
-          ]).pipe(Effect.mapError((error) => unavailable(error.reason)))
-        }),
-      createProvider: (input) =>
-        Effect.gen(function* () {
-          const merchant = yield* MerchantContext
-          if (merchant.plan !== 'team') {
-            return yield* Effect.fail(
-              new MerchantCatalogInvalid({ reason: 'team_required' })
+            yield* batch(db, statements).pipe(
+              Effect.mapError((error) => unavailable(error.reason))
             )
-          }
-          const value = yield* validateProvider(input)
-          const id = newCapabilityId('prv')
-          const now = new Date().toISOString()
-          const statements = []
-          if (value.isDefault) {
-            statements.push(
-              db
-                .update(providers)
-                .set({ isDefault: false, updatedAt: now })
-                .where(eq(providers.merchantId, merchant.id))
-            )
-          }
-          statements.push(
-            db.insert(providers).values({
-              id,
-              merchantId: merchant.id,
-              linkedUserId: null,
-              displayName: value.displayName,
-              status: value.status,
-              isDefault: value.isDefault,
-              createdAt: now,
-              updatedAt: now
-            })
-          )
-          yield* batch(db, statements).pipe(
-            Effect.mapError((error) => unavailable(error.reason))
-          )
-          return { id, ...value, eligibleServiceIds: [] }
-        }),
-      updateProvider: (providerId, input) =>
-        Effect.gen(function* () {
-          const merchant = yield* MerchantContext
-          const rows = yield* orUnavailable('merchant-catalog')(
-            db
-              .select()
-              .from(providers)
-              .where(
-                and(eq(providers.id, providerId), eq(providers.merchantId, merchant.id))
-              )
-              .limit(1)
-          )
-          const current = rows[0]
-          if (!current) {
-            return yield* Effect.fail(
-              new MerchantCatalogInvalid({ reason: 'item_not_found' })
-            )
-          }
-          const value = yield* validateProvider(input)
-          if (current.isDefault && !value.isDefault) {
-            return yield* Effect.fail(
-              new MerchantCatalogInvalid({ reason: 'default_required' })
-            )
-          }
-          const now = new Date().toISOString()
-          const statements = []
-          if (value.isDefault) {
-            statements.push(
-              db
-                .update(providers)
-                .set({ isDefault: false, updatedAt: now })
-                .where(eq(providers.merchantId, merchant.id))
-            )
-          }
-          statements.push(
-            db
-              .update(providers)
-              .set({
-                displayName: value.displayName,
-                status: value.status,
-                isDefault: value.isDefault,
-                updatedAt: now
-              })
-              .where(
-                and(eq(providers.id, providerId), eq(providers.merchantId, merchant.id))
-              )
-          )
-          yield* batch(db, statements).pipe(
-            Effect.mapError((error) => unavailable(error.reason))
-          )
-          const snapshot = yield* liveSnapshot(db, merchant.id, merchant.plan)
-          return snapshot.providers.find((provider) => provider.id === providerId)!
-        })
-    } satisfies MerchantCatalogShape
-  })
-)
+            const snapshot = yield* liveSnapshot(db, merchant.id, merchant.plan)
+            return snapshot.providers.find((provider) => provider.id === providerId)!
+          })
+      } satisfies MerchantCatalogShape
+    })
+  )

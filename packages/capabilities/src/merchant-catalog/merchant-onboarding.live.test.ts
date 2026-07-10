@@ -12,7 +12,7 @@ import {
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
-  LiveMerchantCatalog,
+  LiveMerchantOnboarding,
   MerchantMembership,
   MerchantOnboarding
 } from './merchant-onboarding.ts'
@@ -74,7 +74,7 @@ const runMerchant = <A, E>(
   Effect.runPromise(
     Effect.provide(
       effect,
-      LiveMerchantCatalog.pipe(Layer.provide(layerFromD1(test.d1)))
+      LiveMerchantOnboarding.pipe(Layer.provide(layerFromD1(test.d1)))
     )
   )
 
@@ -156,7 +156,7 @@ describe('Live Merchant Onboarding', () => {
             Effect.flatMap(MerchantOnboarding, (onboarding) =>
               onboarding.complete('usr_live_rollback', rollbackInput)
             ),
-            LiveMerchantCatalog.pipe(Layer.provide(layerFromD1(test.d1)))
+            LiveMerchantOnboarding.pipe(Layer.provide(layerFromD1(test.d1)))
           )
         )
       )

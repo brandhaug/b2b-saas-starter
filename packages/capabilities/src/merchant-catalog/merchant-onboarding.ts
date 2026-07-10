@@ -14,6 +14,7 @@ import {
 import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { isSupportedCurrency } from './currency.ts'
 
 export const RESERVED_MERCHANT_SLUGS = [
   'admin',
@@ -151,15 +152,6 @@ const validTimezone = (timezone: string): boolean => {
   }
 }
 
-const validCurrency = (currency: string): boolean => {
-  if (!/^[A-Z]{3}$/.test(currency)) return false
-  try {
-    return Intl.supportedValuesOf('currency').includes(currency)
-  } catch {
-    return false
-  }
-}
-
 const validateInput = (
   input: MerchantOnboardingPayload
 ): Effect.Effect<MerchantOnboardingPayload, MerchantOnboardingDenied> => {
@@ -183,7 +175,7 @@ const validateInput = (
   if (!validTimezone(input.timezone)) {
     return Effect.fail(new MerchantOnboardingDenied({ reason: 'invalid_timezone' }))
   }
-  if (!validCurrency(input.currency)) {
+  if (!isSupportedCurrency(input.currency)) {
     return Effect.fail(new MerchantOnboardingDenied({ reason: 'invalid_currency' }))
   }
   return Effect.succeed(input)
@@ -217,7 +209,7 @@ const findSeedForUser = (
 ): MerchantRecord | undefined =>
   [...store.merchants.values()].find((merchant) => merchant.ownerUserId === userId)
 
-export const SeedMerchantCatalog = (
+export const SeedMerchantOnboarding = (
   store: SeedMerchantCatalogStore
 ): Layer.Layer<MerchantOnboarding | MerchantMembership> => {
   const membership = Layer.succeed(MerchantMembership)({
@@ -381,7 +373,7 @@ const LiveMerchantMembership: Layer.Layer<MerchantMembership, never, Database> =
     })
   )
 
-const LiveMerchantOnboarding: Layer.Layer<MerchantOnboarding, never, Database> =
+const LiveMerchantOnboardingService: Layer.Layer<MerchantOnboarding, never, Database> =
   Layer.effect(
     MerchantOnboarding,
     Effect.gen(function* () {
@@ -488,11 +480,11 @@ const LiveMerchantOnboarding: Layer.Layer<MerchantOnboarding, never, Database> =
     })
   )
 
-export const LiveMerchantCatalog: Layer.Layer<
+export const LiveMerchantOnboarding: Layer.Layer<
   MerchantOnboarding | MerchantMembership,
   never,
   Database
-> = Layer.merge(LiveMerchantOnboarding, LiveMerchantMembership)
+> = Layer.merge(LiveMerchantOnboardingService, LiveMerchantMembership)
 
 export type SeedBookingScenario = {
   readonly anchorTime: string

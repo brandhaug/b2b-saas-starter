@@ -57,15 +57,16 @@ import {
 import {
   buildSeedBookingScenario,
   emptySeedMerchantCatalog,
-  LiveMerchantCatalog,
+  LiveMerchantOnboarding,
   MerchantMembership,
   MerchantOnboarding,
-  SeedMerchantCatalog
+  SeedMerchantOnboarding
 } from './merchant-catalog/merchant-onboarding.ts'
 import {
-  LiveMerchantCatalogConfiguration,
+  LiveMerchantCatalog,
   MerchantCatalog,
-  SeedMerchantCatalogConfiguration,
+  SeedMerchantCatalog,
+  seedEligibilityKey,
   type SeedMerchantCatalogConfigurationStore
 } from './merchant-catalog/merchant-catalog.ts'
 
@@ -135,9 +136,7 @@ const seedMerchantCatalogConfiguration: SeedMerchantCatalogConfigurationStore = 
     seedBookingScenario.providers.map((provider) => [provider.id, provider])
   ),
   eligibility: new Set(
-    seedBookingScenario.eligibility.map(
-      (pair) => `${pair.merchantId}\0${pair.providerId}\0${pair.serviceId}`
-    )
+    seedBookingScenario.eligibility.map((pair) => seedEligibilityKey(pair))
   )
 }
 
@@ -148,8 +147,8 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedCatalogRefreshHistory(seedCatalogRefreshHistory),
   SeedImplementationReports(seedImplementationReports),
   SeedIntegrationSurfaces(seedIntegrationSurfaces),
-  SeedMerchantCatalog(seedMerchantCatalog),
-  SeedMerchantCatalogConfiguration(seedMerchantCatalogConfiguration),
+  SeedMerchantOnboarding(seedMerchantCatalog),
+  SeedMerchantCatalog(seedMerchantCatalogConfiguration),
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -171,8 +170,8 @@ export const makeLiveCapabilitiesLayer = (
     LiveCatalogRefreshHistory,
     LiveImplementationReports,
     LiveIntegrationSurfaces,
+    LiveMerchantOnboarding,
     LiveMerchantCatalog,
-    LiveMerchantCatalogConfiguration,
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),

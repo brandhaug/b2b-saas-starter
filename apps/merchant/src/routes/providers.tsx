@@ -35,7 +35,7 @@ function ProvidersPage() {
           to="/services"
           className="mt-6 inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
         >
-          Configure Services
+          Configure services
         </Link>
       </CatalogShell>
     )
@@ -45,16 +45,16 @@ function ProvidersPage() {
     <CatalogShell
       catalog={catalog}
       title="Providers"
-      description="Team Provider editing keeps the reduced Profile, Services, and Schedule vocabulary. Schedule Rules arrive in the next configuration slice."
+      description="Team Provider editing keeps the reduced Profile, Services, and Schedule vocabulary. Schedule rules arrive in the next configuration slice."
     >
-      <div className="mt-8 grid overflow-hidden rounded-lg border bg-card lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div className="mt-8 grid overflow-hidden border bg-card lg:grid-cols-[15rem_minmax(0,1fr)]">
         <aside className="border-b p-3 lg:border-r lg:border-b-0">
           <button
             type="button"
             onClick={() => setSelectedId(null)}
             className="mb-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
           >
-            New Provider
+            New provider
           </button>
           {catalog.providers.map((item) => (
             <button
@@ -67,7 +67,7 @@ function ProvidersPage() {
                 {item.displayName}
               </span>
               <span className="mt-1 block text-xs capitalize text-muted-foreground">
-                {item.isDefault ? 'Default Provider' : item.status}
+                {item.isDefault ? 'Default provider' : item.status}
               </span>
             </button>
           ))}
@@ -116,10 +116,10 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
     setPending(true)
     void saveServiceEligibility({ data: { serviceId, providerIds: ids } })
       .then(() => {
-        setMessage('Provider Services saved.')
+        setMessage('Provider services saved.')
         void router.invalidate()
       })
-      .catch(() => setMessage('Provider Services could not be saved.'))
+      .catch(() => setMessage('Provider services could not be saved.'))
       .finally(() => setPending(false))
   }
 
@@ -127,9 +127,9 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
     <div className="min-w-0">
       <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-semibold">{provider?.displayName ?? 'Create Provider'}</p>
+          <p className="font-semibold">{provider?.displayName ?? 'Create provider'}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {provider?.isDefault ? 'Default Provider' : 'Team Provider'}
+            {provider?.isDefault ? 'Default provider' : 'Team provider'}
           </p>
         </div>
         <div className="flex rounded-md bg-secondary p-1">
@@ -139,7 +139,7 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
               type="button"
               disabled={!provider && item !== 'profile'}
               onClick={() => setTab(item)}
-              className={`h-8 rounded-md px-3 text-xs font-medium capitalize ${tab === item ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
+              className={`h-9 rounded-md px-3 text-xs font-medium capitalize ${tab === item ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
             >
               {item}
             </button>
@@ -156,7 +156,7 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
               minLength={2}
               maxLength={80}
               required
-              className="h-9 rounded-md border bg-background px-3"
+              className="h-9 rounded-md border bg-card px-3"
             />
           </label>
           <label className="grid gap-1.5 text-sm">
@@ -164,7 +164,7 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
             <select
               name="status"
               defaultValue={provider?.status ?? 'active'}
-              className="h-9 rounded-md border bg-background px-3"
+              className="h-9 rounded-md border bg-card px-3"
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -183,13 +183,13 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
             disabled={pending}
             className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
           >
-            {pending ? 'Saving…' : provider ? 'Save Profile' : 'Create Provider'}
+            {pending ? 'Saving…' : provider ? 'Save profile' : 'Create provider'}
           </button>
         </form>
       ) : null}
       {tab === 'services' && provider ? (
         <div className="p-5">
-          <p className="text-sm font-semibold">Eligible Services</p>
+          <p className="text-sm font-semibold">Eligible services</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             These switches update the same explicit associations used by Service
             editing.

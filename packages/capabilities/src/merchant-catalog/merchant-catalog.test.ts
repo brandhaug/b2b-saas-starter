@@ -2,7 +2,7 @@ import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   MerchantCatalog,
-  SeedMerchantCatalogConfiguration,
+  SeedMerchantCatalog,
   type SeedMerchantCatalogConfigurationStore
 } from './merchant-catalog.ts'
 import { MerchantContext, testMerchantContext } from './merchant-context.ts'
@@ -52,10 +52,7 @@ const run = <A, E>(
   Effect.runPromise(
     Effect.provide(
       effect,
-      Layer.merge(
-        SeedMerchantCatalogConfiguration(store),
-        testMerchantContext(merchant)
-      )
+      Layer.merge(SeedMerchantCatalog(store), testMerchantContext(merchant))
     )
   )
 
@@ -235,14 +232,22 @@ describe('Merchant Catalog seed adapter', () => {
               status: 'active'
             })
           )
-          return { snapshot, denied }
+          const updateDenied = yield* Effect.flip(
+            catalog.updateProvider('prv_default', {
+              displayName: 'Hidden update',
+              isDefault: true,
+              status: 'active'
+            })
+          )
+          return { snapshot, denied, updateDenied }
         }),
-        Layer.merge(SeedMerchantCatalogConfiguration(store), testMerchantContext(solo))
+        Layer.merge(SeedMerchantCatalog(store), testMerchantContext(solo))
       )
     )
 
     expect(result.snapshot.presentation).toBe('solo')
     expect(result.snapshot.providers).toHaveLength(1)
     expect(result.denied.reason).toBe('team_required')
+    expect(result.updateDenied.reason).toBe('team_required')
   })
 })

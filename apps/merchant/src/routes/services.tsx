@@ -25,6 +25,9 @@ function ServicesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(
     catalog.services[0]?.id ?? null
   )
+  const [continueToProvidersId, setContinueToProvidersId] = useState<string | null>(
+    null
+  )
   const selected = catalog.services.find((service) => service.id === selectedId) ?? null
 
   return (
@@ -33,16 +36,19 @@ function ServicesPage() {
       title="Services"
       description="Configure customer-facing details first, then choose the Providers who can perform each Service. Inactive Services stay available for history."
     >
-      <div className="mt-8 grid overflow-hidden rounded-lg border bg-card lg:grid-cols-[minmax(18rem,0.8fr)_minmax(22rem,1.2fr)]">
+      <div className="mt-8 grid overflow-hidden border bg-card lg:grid-cols-[minmax(18rem,0.8fr)_minmax(22rem,1.2fr)]">
         <div className="border-b lg:border-r lg:border-b-0">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <p className="text-sm font-semibold">Catalog</p>
             <button
               type="button"
-              onClick={() => setSelectedId(null)}
-              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+              onClick={() => {
+                setContinueToProvidersId(null)
+                setSelectedId(null)
+              }}
+              className="h-9 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"
             >
-              New Service
+              New service
             </button>
           </div>
           {catalog.services.length ? (
@@ -50,7 +56,10 @@ function ServicesPage() {
               <button
                 key={service.id}
                 type="button"
-                onClick={() => setSelectedId(service.id)}
+                onClick={() => {
+                  setContinueToProvidersId(null)
+                  setSelectedId(service.id)
+                }}
                 className={`grid w-full grid-cols-[1fr_auto] gap-3 border-b px-4 py-4 text-left last:border-b-0 ${service.id === selected?.id ? 'bg-accent' : 'hover:bg-muted'}`}
               >
                 <span>
@@ -73,7 +82,11 @@ function ServicesPage() {
           key={selected?.id ?? 'new'}
           catalog={catalog}
           service={selected}
-          onSaved={setSelectedId}
+          initialStep={selected?.id === continueToProvidersId ? 'providers' : 'details'}
+          onSaved={(id) => {
+            setContinueToProvidersId(id)
+            setSelectedId(id)
+          }}
         />
       </div>
     </CatalogShell>
@@ -83,14 +96,16 @@ function ServicesPage() {
 function ServiceEditor({
   catalog,
   service,
+  initialStep,
   onSaved
 }: {
   readonly catalog: MerchantCatalogSnapshot
   readonly service: ServiceRecord | null
+  readonly initialStep: 'details' | 'providers'
   readonly onSaved: (id: string) => void
 }) {
   const router = useRouter()
-  const [step, setStep] = useState<'details' | 'providers'>('details')
+  const [step, setStep] = useState<'details' | 'providers'>(initialStep)
   const choices = service ? serviceProviderChoices(catalog, service.id) : []
   const [providerIds, setProviderIds] = useState(
     () => new Set(choices.flatMap((choice) => (choice.selected ? [choice.id] : [])))
@@ -147,7 +162,7 @@ function ServiceEditor({
           }}
         >
           <p className="text-sm font-semibold">
-            {service ? 'Edit Service details' : 'Create Service'}
+            {service ? 'Edit service details' : 'Create service'}
           </p>
           <Field label="Name" name="name" defaultValue={service?.name} required />
           <label className="grid gap-1.5 text-sm">
@@ -157,7 +172,7 @@ function ServiceEditor({
               name="description"
               defaultValue={service?.description ?? ''}
               maxLength={300}
-              className="min-h-24 rounded-md border bg-background px-3 py-2"
+              className="min-h-24 rounded-md border bg-card px-3 py-2"
             />
           </label>
           <Field
@@ -284,7 +299,7 @@ function Field({
   return (
     <label className="grid gap-1.5 text-sm">
       {label}
-      <input className="h-9 rounded-md border bg-background px-3" {...props} />
+      <input className="h-9 rounded-md border bg-card px-3" {...props} />
     </label>
   )
 }
@@ -296,7 +311,7 @@ function SelectField({
   return (
     <label className="grid gap-1.5 text-sm">
       {label}
-      <select className="h-9 rounded-md border bg-background px-3" {...props}>
+      <select className="h-9 rounded-md border bg-card px-3" {...props}>
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
       </select>
@@ -307,7 +322,7 @@ function SelectField({
 function Lifecycle({ status }: { readonly status: 'active' | 'inactive' }) {
   return (
     <span
-      className={`rounded-full px-2 py-1 text-xs font-medium capitalize ${status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-secondary text-muted-foreground'}`}
+      className={`inline-flex h-[22px] items-center rounded-md px-2 py-1 text-xs font-medium capitalize ${status === 'active' ? 'bg-accent text-accent-foreground' : 'bg-secondary text-muted-foreground'}`}
     >
       {status}
     </span>

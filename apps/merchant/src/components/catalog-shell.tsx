@@ -15,13 +15,16 @@ export function CatalogShell({
   readonly children: ReactNode
 }) {
   return (
-    <main className="min-h-dvh bg-muted">
+    <main className="min-h-dvh bg-background">
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link to="/" className="font-semibold tracking-tight">
+          <Link
+            to="/"
+            className="inline-flex min-h-9 items-center font-semibold tracking-tight"
+          >
             Merchant App
           </Link>
-          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium capitalize text-secondary-foreground">
+          <span className="inline-flex h-[22px] items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium capitalize text-secondary-foreground">
             {catalog.presentation}
           </span>
         </div>
@@ -41,9 +44,7 @@ export function CatalogShell({
           ))}
         </nav>
         <section className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">
-            Merchant Catalog
-          </p>
+          <p className="text-xs font-medium text-primary">Merchant catalog</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             {description}

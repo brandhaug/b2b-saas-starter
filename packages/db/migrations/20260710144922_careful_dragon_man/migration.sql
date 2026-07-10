@@ -63,4 +63,18 @@ BEFORE INSERT ON `providers` WHEN NEW.`status` NOT IN ('active', 'inactive')
 BEGIN SELECT RAISE(ABORT, 'invalid provider status'); END;--> statement-breakpoint
 CREATE TRIGGER `providers_status_update`
 BEFORE UPDATE OF `status` ON `providers` WHEN NEW.`status` NOT IN ('active', 'inactive')
-BEGIN SELECT RAISE(ABORT, 'invalid provider status'); END;
+BEGIN SELECT RAISE(ABORT, 'invalid provider status'); END;--> statement-breakpoint
+CREATE TRIGGER `providers_eligibility_merchant_update`
+BEFORE UPDATE OF `merchant_id` ON `providers`
+WHEN EXISTS (
+  SELECT 1 FROM `provider_service_eligibility`
+  WHERE `provider_id` = NEW.`id` AND `merchant_id` <> NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'provider eligibility merchant cannot drift'); END;--> statement-breakpoint
+CREATE TRIGGER `services_eligibility_merchant_update`
+BEFORE UPDATE OF `merchant_id` ON `services`
+WHEN EXISTS (
+  SELECT 1 FROM `provider_service_eligibility`
+  WHERE `service_id` = NEW.`id` AND `merchant_id` <> NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'service eligibility merchant cannot drift'); END;

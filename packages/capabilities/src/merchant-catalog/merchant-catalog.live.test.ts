@@ -11,11 +11,8 @@ import {
   user
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
-import { LiveMerchantCatalog, MerchantOnboarding } from './merchant-onboarding.ts'
-import {
-  LiveMerchantCatalogConfiguration,
-  MerchantCatalog
-} from './merchant-catalog.ts'
+import { LiveMerchantOnboarding, MerchantOnboarding } from './merchant-onboarding.ts'
+import { LiveMerchantCatalog, MerchantCatalog } from './merchant-catalog.ts'
 import { liveMerchantContext, MerchantContext } from './merchant-context.ts'
 
 let test: TestD1
@@ -30,7 +27,7 @@ const runCatalog = <A, E>(
   Effect.runPromise(
     Effect.provide(
       effect,
-      Layer.merge(LiveMerchantCatalogConfiguration, liveMerchantContext(userId)).pipe(
+      Layer.merge(LiveMerchantCatalog, liveMerchantContext(userId)).pipe(
         Layer.provide(layerFromD1(test.d1))
       )
     )
@@ -57,7 +54,7 @@ beforeAll(async () => {
       ])
     })
   )
-  const onboarding = LiveMerchantCatalog.pipe(Layer.provide(layerFromD1(test.d1)))
+  const onboarding = LiveMerchantOnboarding.pipe(Layer.provide(layerFromD1(test.d1)))
   await Effect.runPromise(
     Effect.provide(
       Effect.gen(function* () {

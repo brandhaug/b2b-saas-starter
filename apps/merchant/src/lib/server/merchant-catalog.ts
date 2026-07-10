@@ -4,8 +4,6 @@ import { Effect, Layer, Schema } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
   liveMerchantContext,
-  MerchantCatalog,
-  MerchantContext,
   ProviderInput,
   selectCapabilitiesLayer,
   ServiceInput,
@@ -13,6 +11,10 @@ import {
   type ProviderRecord,
   type ServiceRecord
 } from '@b2b-saas-starter/capabilities'
+import {
+  makeMerchantCatalogRequestHandler,
+  type MerchantCatalogRunner
+} from './merchant-catalog-handler.ts'
 import { requireMerchantRequestSession } from './merchant-session.ts'
 
 const ServiceMutation = Schema.Struct({
@@ -32,10 +34,7 @@ const decodeService = Schema.decodeUnknownSync(ServiceMutation)
 const decodeEligibility = Schema.decodeUnknownSync(EligibilityMutation)
 const decodeProvider = Schema.decodeUnknownSync(ProviderMutation)
 
-const runCatalog = async <A, E>(
-  userId: string,
-  effect: Effect.Effect<A, E, MerchantCatalog | MerchantContext>
-) => {
+const runCatalog: MerchantCatalogRunner = async (userId, effect) => {
   if (!env.DB) throw new Error('Merchant Catalog requires the Merchant App D1 binding.')
   const context = liveMerchantContext(userId).pipe(Layer.provide(layerFromD1(env.DB)))
   return Effect.runPromise(
@@ -46,50 +45,31 @@ const runCatalog = async <A, E>(
   )
 }
 
+const requests = makeMerchantCatalogRequestHandler({
+  currentUserId: async () => (await requireMerchantRequestSession()).user.id,
+  run: runCatalog
+})
+
 export const getMerchantCatalog = createServerFn({ method: 'GET' }).handler(
   async (): Promise<MerchantCatalogSnapshot> => {
-    const session = await requireMerchantRequestSession()
-    return runCatalog(
-      session.user.id,
-      Effect.flatMap(MerchantCatalog, (catalog) => catalog.read())
-    )
+    return requests.read()
   }
 )
 
 export const saveMerchantService = createServerFn({ method: 'POST' })
   .validator((input: unknown) => decodeService(input))
   .handler(async ({ data }): Promise<ServiceRecord> => {
-    const session = await requireMerchantRequestSession()
-    const { id, ...input } = data
-    return runCatalog(
-      session.user.id,
-      Effect.flatMap(MerchantCatalog, (catalog) =>
-        id ? catalog.updateService(id, input) : catalog.createService(input)
-      )
-    )
+    return requests.saveService(data)
   })
 
 export const saveServiceEligibility = createServerFn({ method: 'POST' })
   .validator((input: unknown) => decodeEligibility(input))
   .handler(async ({ data }): Promise<void> => {
-    const session = await requireMerchantRequestSession()
-    return runCatalog(
-      session.user.id,
-      Effect.flatMap(MerchantCatalog, (catalog) =>
-        catalog.setServiceEligibility(data.serviceId, data.providerIds)
-      )
-    )
+    return requests.saveEligibility(data)
   })
 
 export const saveMerchantProvider = createServerFn({ method: 'POST' })
   .validator((input: unknown) => decodeProvider(input))
   .handler(async ({ data }): Promise<ProviderRecord> => {
-    const session = await requireMerchantRequestSession()
-    const { id, ...input } = data
-    return runCatalog(
-      session.user.id,
-      Effect.flatMap(MerchantCatalog, (catalog) =>
-        id ? catalog.updateProvider(id, input) : catalog.createProvider(input)
-      )
-    )
+    return requests.saveProvider(data)
   })

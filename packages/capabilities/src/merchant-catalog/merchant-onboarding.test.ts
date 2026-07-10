@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MerchantMembership,
   MerchantOnboarding,
-  SeedMerchantCatalog,
+  SeedMerchantOnboarding,
   buildSeedBookingScenario,
   deriveIncompleteSeedBookingScenario,
   deriveSoloSeedBookingScenario,
@@ -29,7 +29,7 @@ const runSeed = <A, E>(
   Effect.runPromise(
     Effect.provide(
       effect,
-      SeedMerchantCatalog(
+      SeedMerchantOnboarding(
         emptySeedMerchantCatalog([
           verifiedOwner,
           { id: 'usr_unverified', name: 'Una Verified', emailVerified: false },
