@@ -1,6 +1,6 @@
 /* v8 ignore file -- contract behavior is covered through the Platform API seam */
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, asc, desc, eq, gt, inArray, lt, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, lt, or } from 'drizzle-orm'
 import {
   Database,
   platformWebhookDeliveries,
@@ -15,7 +15,7 @@ import { validateWebhookUrl } from './webhook-url.ts'
 
 export const APPOINTMENT_WEBHOOK_EVENTS = [
   'appointment.created',
-  'appointment.rescheduled',
+  'appointment.updated',
   'appointment.cancelled',
   'appointment.completed',
   'appointment.no_show'
@@ -30,7 +30,7 @@ export const PlatformWebhookEndpoint = Schema.Struct({
   url: Schema.String,
   description: Schema.NullOr(Schema.String),
   status: PlatformWebhookEndpointStatus,
-  events: Schema.Array(AppointmentWebhookEvent),
+  eventTypes: Schema.Array(AppointmentWebhookEvent),
   createdAt: Schema.String,
   updatedAt: Schema.String,
   disabledAt: Schema.NullOr(Schema.String)
@@ -40,9 +40,20 @@ export const PlatformWebhookDeliveryAttempt = Schema.Struct({
   id: Schema.String,
   eventId: Schema.String,
   eventType: AppointmentWebhookEvent,
-  status: Schema.Literals(['pending', 'delivered', 'failed', 'exhausted']),
+  status: Schema.Literals([
+    'delivered',
+    'failed_retryable',
+    'failed_permanent',
+    'dead_lettered'
+  ]),
   failureCode: Schema.NullOr(
-    Schema.Literals(['network_error', 'timeout', 'http_error', 'unsafe_destination'])
+    Schema.Literals([
+      'network_error',
+      'timeout',
+      'http_status',
+      'invalid_destination',
+      'retries_exhausted'
+    ])
   ),
   attemptNumber: Schema.Number,
   responseStatus: Schema.NullOr(Schema.Number),
@@ -73,7 +84,7 @@ type EndpointInput = {
   readonly merchantId: string
   readonly url: string
   readonly description?: string | null
-  readonly events: readonly AppointmentWebhookEvent[]
+  readonly eventTypes: readonly AppointmentWebhookEvent[]
   readonly actorUserId?: string
   readonly actorTokenId?: string
 }
@@ -87,7 +98,7 @@ type DeliveryListInput = {
   readonly merchantId: string
   readonly endpointId: string
   readonly statuses?: readonly PlatformWebhookDeliveryAttempt['status'][]
-  readonly events?: readonly AppointmentWebhookEvent[]
+  readonly eventIds?: readonly string[]
   readonly attemptedAtFrom?: string
   readonly cursor?: string
   readonly limit?: number
@@ -151,15 +162,15 @@ const normalizeDescription = (value?: string | null) => {
 const validateConfig = (input: {
   url: string
   description?: string | null
-  events: readonly string[]
+  eventTypes: readonly string[]
 }) => {
   const url = validateWebhookUrl(input.url)
   if (input.url.length > 2048) return 'url_too_long'
   if (!url.valid) return url.reason
   if ((normalizeDescription(input.description)?.length ?? 0) > 500)
     return 'description_too_long'
-  const events = new Set(input.events)
-  if (events.size < 1 || events.size > 5 || events.size !== input.events.length)
+  const events = new Set(input.eventTypes)
+  if (events.size < 1 || events.size > 5 || events.size !== input.eventTypes.length)
     return 'invalid_events'
   if (
     [...events].some(
@@ -176,7 +187,7 @@ const endpointDto = (
   url: row.url,
   description: row.description,
   status: row.status,
-  events: [...row.events] as AppointmentWebhookEvent[],
+  eventTypes: [...row.events] as AppointmentWebhookEvent[],
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   disabledAt: row.disabledAt
@@ -239,7 +250,7 @@ export const SeedPlatformWebhookEndpoints =
           url: input.url,
           description: normalizeDescription(input.description),
           status: 'active' as const,
-          events: [...input.events],
+          eventTypes: [...input.eventTypes],
           createdAt: now,
           updatedAt: now,
           disabledAt: null,
@@ -261,7 +272,7 @@ export const SeedPlatformWebhookEndpoints =
           if (
             input.url === undefined &&
             input.description === undefined &&
-            input.events === undefined
+            input.eventTypes === undefined
           )
             return yield* Effect.fail(
               new PlatformWebhookInvalidInput({ reason: 'empty_patch' })
@@ -273,7 +284,7 @@ export const SeedPlatformWebhookEndpoints =
               input.description === undefined
                 ? current.description
                 : normalizeDescription(input.description),
-            events: input.events ? [...input.events] : current.events,
+            eventTypes: input.eventTypes ? [...input.eventTypes] : current.eventTypes,
             updatedAt: new Date().toISOString()
           }
           const invalid = validateConfig(next)
@@ -305,7 +316,8 @@ export const SeedPlatformWebhookEndpoints =
           const found = endpoints.find(
             (e) => e.id === input.endpointId && e.merchantId === input.merchantId
           )
-          if (!found) return yield* Effect.fail(new PlatformWebhookNotFound())
+          if (!found || found.status === 'disabled')
+            return yield* Effect.fail(new PlatformWebhookNotFound())
           const signingSecret = secret()
           found.signingSecret = signingSecret
           return { signingSecret }
@@ -416,7 +428,7 @@ export const LivePlatformWebhookEndpoints: Layer.Layer<
             description: normalizeDescription(input.description),
             signingSecret,
             status: 'active' as const,
-            events: [...input.events],
+            events: [...input.eventTypes],
             createdAt: now,
             updatedAt: now,
             disabledAt: null
@@ -438,7 +450,7 @@ export const LivePlatformWebhookEndpoints: Layer.Layer<
           if (
             input.url === undefined &&
             input.description === undefined &&
-            input.events === undefined
+            input.eventTypes === undefined
           )
             return yield* Effect.fail(
               new PlatformWebhookInvalidInput({ reason: 'empty_patch' })
@@ -449,10 +461,14 @@ export const LivePlatformWebhookEndpoints: Layer.Layer<
               input.description === undefined
                 ? current.description
                 : normalizeDescription(input.description),
-            events: input.events ? [...input.events] : current.events,
+            events: input.eventTypes ? [...input.eventTypes] : current.events,
             updatedAt: new Date().toISOString()
           }
-          const invalid = validateConfig(values)
+          const invalid = validateConfig({
+            url: values.url,
+            description: values.description,
+            eventTypes: values.events
+          })
           if (invalid)
             return yield* Effect.fail(
               new PlatformWebhookInvalidInput({ reason: invalid })
@@ -504,7 +520,8 @@ export const LivePlatformWebhookEndpoints: Layer.Layer<
       rotateSecret: (input) =>
         Effect.gen(function* () {
           const current = yield* find(input.merchantId, input.endpointId)
-          if (!current) return yield* Effect.fail(new PlatformWebhookNotFound())
+          if (!current || current.status === 'disabled')
+            return yield* Effect.fail(new PlatformWebhookNotFound())
           const signingSecret = secret()
           yield* unavailable(
             db
@@ -537,11 +554,11 @@ export const LivePlatformWebhookEndpoints: Layer.Layer<
             ...(input.statuses?.length
               ? [inArray(platformWebhookDeliveries.status, input.statuses)]
               : []),
-            ...(input.events?.length
-              ? [inArray(platformWebhookDeliveries.eventType, input.events)]
+            ...(input.eventIds?.length
+              ? [inArray(platformWebhookDeliveries.eventId, input.eventIds)]
               : []),
             ...(input.attemptedAtFrom
-              ? [gt(platformWebhookDeliveries.attemptedAt, input.attemptedAtFrom)]
+              ? [gte(platformWebhookDeliveries.attemptedAt, input.attemptedAtFrom)]
               : []),
             ...(position
               ? [

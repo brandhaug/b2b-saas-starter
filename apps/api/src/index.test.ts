@@ -218,7 +218,7 @@ describe('Booking Product Platform API v1', () => {
         headers: { ...bearer, 'content-type': 'application/json' },
         body: JSON.stringify({
           url: 'https://hooks.example.com/appointments',
-          events: ['appointment.created']
+          eventTypes: ['appointment.created']
         })
       })
     )
@@ -268,10 +268,16 @@ describe('Booking Product Platform API v1', () => {
   test('rejects unsafe webhook configuration and closed event families', async () => {
     const handler = handlerFor()
     for (const payload of [
-      { url: 'https://user@example.com/hook', events: ['appointment.created'] },
-      { url: 'https://example.com/hook#secret', events: ['appointment.created'] },
-      { url: 'https://example.com/hook', events: ['customer.created'] },
-      { url: 'https://example.com/hook', events: [] }
+      {
+        url: 'https://user@example.com/hook',
+        eventTypes: ['appointment.created']
+      },
+      {
+        url: 'https://example.com/hook#secret',
+        eventTypes: ['appointment.created']
+      },
+      { url: 'https://example.com/hook', eventTypes: ['customer.created'] },
+      { url: 'https://example.com/hook', eventTypes: [] }
     ]) {
       const response = await handler(
         new Request('https://api.test/v1/webhook-endpoints', {

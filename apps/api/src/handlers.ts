@@ -451,7 +451,7 @@ export const platformWebhookGroup = (env: ApiEnv) =>
               api.create({
                 merchantId: caller.merchantId,
                 url: payload.url,
-                events: payload.events,
+                eventTypes: payload.eventTypes,
                 ...(payload.description !== undefined
                   ? { description: payload.description }
                   : {}),
@@ -475,7 +475,9 @@ export const platformWebhookGroup = (env: ApiEnv) =>
                   ...(payload.description !== undefined
                     ? { description: payload.description }
                     : {}),
-                  ...(payload.events !== undefined ? { events: payload.events } : {}),
+                  ...(payload.eventTypes !== undefined
+                    ? { eventTypes: payload.eventTypes }
+                    : {}),
                   actorTokenId: caller.id
                 })
               )
@@ -516,14 +518,14 @@ export const platformWebhookGroup = (env: ApiEnv) =>
             yield* validLimit(query.limit, request)
             const api = yield* PlatformWebhookEndpoints
             const statuses = query.status ? many(query.status) : undefined
-            const events = query.event ? many(query.event) : undefined
+            const eventIds = query.eventId ? many(query.eventId) : undefined
             return yield* mapped(
               request,
               api.deliveries({
                 merchantId: caller.merchantId,
                 endpointId: params.endpointId,
                 ...(statuses ? { statuses } : {}),
-                ...(events ? { events } : {}),
+                ...(eventIds ? { eventIds } : {}),
                 ...(query.attemptedAtFrom
                   ? { attemptedAtFrom: query.attemptedAtFrom }
                   : {}),

@@ -241,23 +241,33 @@ const WebhookQuery = Schema.Struct({
 const WebhookPayload = Schema.Struct({
   url: Schema.String,
   description: Schema.optional(Schema.NullOr(Schema.String)),
-  events: Schema.Array(AppointmentWebhookEvent)
+  eventTypes: Schema.Array(AppointmentWebhookEvent)
 })
 const WebhookPatch = Schema.Struct({
   url: Schema.optional(Schema.String),
   description: Schema.optional(Schema.NullOr(Schema.String)),
-  events: Schema.optional(Schema.Array(AppointmentWebhookEvent))
+  eventTypes: Schema.optional(Schema.Array(AppointmentWebhookEvent))
 })
 const DeliveryQuery = Schema.Struct({
   status: Schema.optional(
     Schema.Union([
-      Schema.Literals(['pending', 'delivered', 'failed', 'exhausted']),
-      Schema.Array(Schema.Literals(['pending', 'delivered', 'failed', 'exhausted']))
+      Schema.Literals([
+        'delivered',
+        'failed_retryable',
+        'failed_permanent',
+        'dead_lettered'
+      ]),
+      Schema.Array(
+        Schema.Literals([
+          'delivered',
+          'failed_retryable',
+          'failed_permanent',
+          'dead_lettered'
+        ])
+      )
     ])
   ),
-  event: Schema.optional(
-    Schema.Union([AppointmentWebhookEvent, Schema.Array(AppointmentWebhookEvent)])
-  ),
+  eventId: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
   attemptedAtFrom: Schema.optional(TimestampQuery),
   cursor: Schema.optional(Schema.String),
   limit: Schema.optional(Schema.NumberFromString)
