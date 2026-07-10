@@ -10,6 +10,7 @@ describe('Booking local ingress paths', () => {
 
     expect(target.pathname).toBe('/virtual:stylex.css')
     expect(target.search).toBe('?t=1783705972517')
+    expect(bookingVitePath('/virtual:stylex.css')).toBe('/virtual:stylex.css')
   })
 
   it('keeps Booking asset paths and prefixes merchant-scoped routes', () => {

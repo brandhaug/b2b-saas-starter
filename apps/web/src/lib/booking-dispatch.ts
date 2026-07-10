@@ -46,7 +46,9 @@ const merchantBookingPath = (pathname: string): boolean => {
  * Booking App after the service-boundary hop.
  */
 export const isBookingRequest = (url: URL): boolean =>
-  url.pathname.startsWith('/_booking/') || merchantBookingPath(url.pathname)
+  url.pathname === '/virtual:stylex.css' ||
+  url.pathname.startsWith('/_booking/') ||
+  merchantBookingPath(url.pathname)
 
 const bookingUnavailable = (traceId: string): Response =>
   new Response(
