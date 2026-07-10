@@ -80,6 +80,8 @@ const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
 const BETTER_AUTH_URL = requiredEnv('BETTER_AUTH_URL')
 const BETTER_AUTH_TRUSTED_ORIGINS =
   process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? BETTER_AUTH_URL
+const MERCHANT_AUTH_SECRET = Redacted.make(requiredEnv('MERCHANT_AUTH_SECRET'))
+const merchantAppOrigin = requiredEnv('MERCHANT_APP_ORIGIN')
 const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
 const merchantAppDomain = requiredHostname('MERCHANT_APP_ORIGIN')
 const platformApiDomain = requiredHostname('PLATFORM_API_ORIGIN')
@@ -180,9 +182,9 @@ export const Stack = Alchemy.Stack(
       },
       env: {
         ...optionalModuleEnv,
-        BETTER_AUTH_SECRET,
-        BETTER_AUTH_URL,
-        BETTER_AUTH_TRUSTED_ORIGINS
+        MERCHANT_AUTH_SECRET,
+        MERCHANT_AUTH_URL: merchantAppOrigin,
+        MERCHANT_AUTH_TRUSTED_ORIGINS: merchantAppOrigin
       },
       compatibility: {
         flags: ['nodejs_compat']

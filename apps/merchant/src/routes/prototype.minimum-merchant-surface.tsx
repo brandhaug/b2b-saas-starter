@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { requireMerchantSession } from '@/lib/server/merchant-session.ts'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -271,6 +272,9 @@ function decodeSearch(search: Record<string, unknown>): PrototypeSearch {
 
 export const Route = createFileRoute('/prototype/minimum-merchant-surface')({
   validateSearch: decodeSearch,
+  beforeLoad: async ({ location }) => {
+    await requireMerchantSession(location.href)
+  },
   component: MinimumMerchantSurfacePrototype
 })
 

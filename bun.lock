@@ -100,10 +100,14 @@
     "apps/merchant": {
       "name": "merchant",
       "dependencies": {
+        "@b2b-saas-starter/auth": "workspace:*",
+        "@b2b-saas-starter/db": "workspace:*",
+        "@b2b-saas-starter/rate-limit": "workspace:*",
         "@fontsource-variable/geist": "catalog:",
         "@fontsource-variable/geist-mono": "catalog:",
         "@tanstack/react-router": "catalog:",
         "@tanstack/react-start": "catalog:",
+        "better-auth": "catalog:",
         "lucide-react": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",

@@ -9,10 +9,10 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Minimum Merchant Surface — prototype' },
+      { title: 'Merchant App' },
       {
         name: 'description',
-        content: 'Throwaway UI prototype for the first booking merchant surface.'
+        content: 'The authenticated Merchant App for the Booking Product.'
       }
     ],
     links: [{ rel: 'stylesheet', href: appCss }]

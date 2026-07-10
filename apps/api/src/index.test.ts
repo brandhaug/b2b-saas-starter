@@ -49,6 +49,16 @@ describe('contract-served routes', () => {
     expect(((await res.json()) as { _tag: string })._tag).toBe('Unauthorized')
   })
 
+  test('Merchant Better Auth cookies never authenticate Platform API requests', async () => {
+    const res = await handlerFor()(
+      get('/workspaces/starter-lab/overview', {
+        cookie: 'merchant.session_token=merchant-session-token'
+      })
+    )
+    expect(res.status).toBe(401)
+    expect(((await res.json()) as { _tag: string })._tag).toBe('Unauthorized')
+  })
+
   test('unknown bearer tokens are authentication failures', async () => {
     const res = await handlerFor()(
       get('/workspaces/starter-lab/overview', {
