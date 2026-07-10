@@ -28,7 +28,7 @@ export const Appointment = Schema.Struct({
   id: Schema.String,
   merchantId: Schema.String,
   providerId: Schema.String,
-  status: Schema.Literal('scheduled'),
+  status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
   startsAt: Schema.String,
   endsAt: Schema.String,
   snapshot: Schema.Unknown,
@@ -62,11 +62,28 @@ export class BookingConfirmationRejected extends Schema.TaggedErrorClass<Booking
 ) {}
 
 type Failure = BookingConfirmationRejected | CapabilityUnavailable
+export type CustomerConfirmation = {
+  readonly routeId: string
+  readonly status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+  readonly startsAt: string
+  readonly endsAt: string
+  readonly snapshot: StoredAppointmentSnapshot
+  readonly merchant: { readonly publicName: string }
+}
+export type ConfirmationReadResult =
+  | { readonly kind: 'found'; readonly confirmation: CustomerConfirmation }
+  | { readonly kind: 'expired' }
+  | { readonly kind: 'not_found' }
 export type BookingConfirmationShape = {
   readonly confirm: (
     session: BookingSession,
     input: { readonly now: string; readonly traceId: string }
   ) => Effect.Effect<BookingConfirmationResult, Failure>
+  readonly read: (input: {
+    readonly routeId: string
+    readonly token: string
+    readonly now: string
+  }) => Effect.Effect<ConfirmationReadResult, CapabilityUnavailable>
 }
 export class BookingConfirmation extends Context.Service<
   BookingConfirmation,
@@ -162,6 +179,36 @@ export const SeedBookingConfirmation = (
   keyring: ConfirmationSigningKeyring
 ): Layer.Layer<BookingConfirmation> =>
   Layer.succeed(BookingConfirmation)({
+    read: (input) =>
+      Effect.gen(function* () {
+        const metadata = store.access.get(input.routeId)
+        const appointment = [...store.appointments.values()].find(
+          (candidate) => `cnf_${candidate.id}` === input.routeId
+        )
+        if (!metadata || !appointment) return { kind: 'not_found' as const }
+        const valid = yield* Effect.promise(() =>
+          verifyConfirmationToken(metadata, input.token, keyring, input.now)
+        )
+        if (!valid) {
+          const expected = yield* Effect.promise(() =>
+            deriveConfirmationToken(metadata, keyring).catch(() => '')
+          )
+          return expected === input.token && metadata.expiresAt <= input.now
+            ? { kind: 'expired' as const }
+            : { kind: 'not_found' as const }
+        }
+        return {
+          kind: 'found' as const,
+          confirmation: {
+            routeId: input.routeId,
+            status: appointment.status,
+            startsAt: appointment.startsAt,
+            endsAt: appointment.endsAt,
+            snapshot: appointment.snapshot as StoredAppointmentSnapshot,
+            merchant: { publicName: 'Merchant' }
+          }
+        }
+      }),
     confirm: (session, input) =>
       Effect.gen(function* () {
         const record = store.sessions.sessions.get(session.id)
@@ -297,6 +344,65 @@ export const LiveBookingConfirmation = (
             .limit(1)
         )
       return {
+        read: (input) =>
+          Effect.gen(function* () {
+            const rows = yield* orUnavailable('booking-confirmation')(
+              db
+                .select({
+                  appointment: appointments,
+                  access: confirmationAccess,
+                  merchantName: merchants.publicName
+                })
+                .from(confirmationAccess)
+                .innerJoin(
+                  appointments,
+                  eq(appointments.id, confirmationAccess.appointmentId)
+                )
+                .innerJoin(merchants, eq(merchants.id, appointments.merchantId))
+                .where(eq(confirmationAccess.routeId, input.routeId))
+                .limit(1)
+            )
+            const row = rows[0]
+            if (!row) return { kind: 'not_found' as const }
+            const metadata = {
+              routeId: row.access.routeId,
+              tokenVersion: row.access.tokenVersion,
+              signingKeyId: row.access.signingKeyId,
+              expiresAt: row.access.expiresAt,
+              revokedAt: row.access.revokedAt
+            }
+            const valid = yield* Effect.promise(() =>
+              verifyConfirmationToken(metadata, input.token, keyring, input.now)
+            )
+            if (!valid) {
+              if (!metadata.revokedAt && metadata.expiresAt <= input.now) {
+                const expected = yield* Effect.promise(() =>
+                  deriveConfirmationToken(
+                    {
+                      routeId: metadata.routeId,
+                      tokenVersion: metadata.tokenVersion,
+                      signingKeyId: metadata.signingKeyId,
+                      expiresAt: metadata.expiresAt
+                    },
+                    keyring
+                  ).catch(() => '')
+                )
+                if (expected === input.token) return { kind: 'expired' as const }
+              }
+              return { kind: 'not_found' as const }
+            }
+            return {
+              kind: 'found' as const,
+              confirmation: {
+                routeId: row.access.routeId,
+                status: row.appointment.status,
+                startsAt: row.appointment.startsAt,
+                endsAt: row.appointment.endsAt,
+                snapshot: row.appointment.snapshot!,
+                merchant: { publicName: row.merchantName }
+              }
+            }
+          }),
         confirm: (session, input) =>
           Effect.gen(function* () {
             const replay = (yield* readCommitted(session.id))[0]

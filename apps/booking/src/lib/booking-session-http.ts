@@ -23,7 +23,8 @@ import {
   type ServiceSelection,
   type CheckoutReview,
   type CustomerDetails,
-  type BookingConfirmationResult
+  type BookingConfirmationResult,
+  type ConfirmationReadResult
 } from '@b2b-saas-starter/capabilities'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 
@@ -53,6 +54,8 @@ type BookingSessionEffect<A, E = never> = Effect.Effect<A, E>
 const COOKIE_PREFIX = 'booking_session_'
 const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/
 const CAPABILITY = /^[a-f0-9]{64}$/
+const CONFIRMATION_ID = /^[A-Za-z0-9_-]{1,128}$/
+const CONFIRMATION_TOKEN = /^[a-f0-9]{64}$/
 
 export const bookingSessionCookie = (input: {
   readonly sessionId: string
@@ -214,6 +217,11 @@ export type BookingSessionHttpDependencies = {
       BookingConfirmationResult,
       BookingConfirmationRejected | CapabilityUnavailable
     >
+    readonly read: (input: {
+      readonly routeId: string
+      readonly token: string
+      readonly now: string
+    }) => BookingSessionEffect<ConfirmationReadResult, CapabilityUnavailable>
   }
   readonly takeRead: (key: string) => BookingSessionEffect<boolean>
   readonly takeWrite: (key: string) => BookingSessionEffect<boolean>
@@ -301,6 +309,29 @@ const withPrivateHeaders = (response: Response): Response => {
   })
 }
 
+const escapeHtml = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
+        character
+      ]!
+  )
+
+const confirmationHtml = (
+  confirmation: Extract<ConfirmationReadResult, { kind: 'found' }>['confirmation']
+) => {
+  const snapshot = confirmation.snapshot
+  const services = snapshot.services
+    .map(
+      (service) =>
+        `<li><strong>${escapeHtml(service.name)}</strong><span>${service.durationMinutes} min · ${(service.priceMinor / 100).toLocaleString('en-US', { style: 'currency', currency: service.currency })}</span></li>`
+    )
+    .join('')
+  const status = confirmation.status === 'no_show' ? 'No show' : confirmation.status
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Appointment Confirmation</title><style>body{margin:0;background:#f7f7f8;color:#292929;font:14px system-ui,sans-serif}.rail{box-sizing:border-box;max-width:375px;min-height:100vh;margin:auto;padding:24px 16px;background:white;border-inline:1px solid #e2e3e7}h1{font-size:22px;margin:0 0 6px}.status{color:#2caf00;text-transform:capitalize}.card{margin-top:24px;padding:16px;border-radius:8px;background:#eff0f3}.provider{display:flex;justify-content:space-between;border-bottom:1px solid #d7d9df;padding-bottom:16px}.muted,li span{display:block;color:#747983;font-size:12px}ul{list-style:none;padding:0;margin:16px 0}li{display:flex;justify-content:space-between;gap:12px;margin-top:14px}.row{display:flex;justify-content:space-between;gap:16px;margin-top:16px}.merchant{margin-top:24px;padding-top:20px;border-top:1px solid #e2e3e7}a{color:inherit}</style></head><body><main class="rail"><h1>Appointment Confirmation</h1><div class="status">${escapeHtml(status)}</div><section class="card" aria-label="Appointment details"><div class="provider"><div><strong>${escapeHtml(snapshot.assignedProvider.displayName)}</strong><span class="muted">Provider</span></div><div><strong>${(snapshot.totalMinor / 100).toLocaleString('en-US', { style: 'currency', currency: snapshot.currency })}</strong><span class="muted">Pay in person</span></div></div><ul>${services}</ul><div class="row"><span class="muted">Time</span><time datetime="${escapeHtml(confirmation.startsAt)}">${escapeHtml(confirmation.startsAt)}</time></div><div class="row"><span class="muted">Duration</span><span>${snapshot.durationMinutes} min</span></div><div class="row"><span class="muted">Timezone</span><span>${escapeHtml(snapshot.merchantTimezone)}</span></div><div class="row"><span>Total price</span><strong>${(snapshot.totalMinor / 100).toLocaleString('en-US', { style: 'currency', currency: snapshot.currency })}</strong></div></section><section class="merchant"><strong>${escapeHtml(confirmation.merchant.publicName)}</strong><span class="muted">Merchant</span></section><section class="merchant"><strong>${escapeHtml(snapshot.customerDetails.name)}</strong><span class="muted">${escapeHtml(snapshot.customerDetails.email)}${snapshot.customerDetails.phone ? ` · ${escapeHtml(snapshot.customerDetails.phone)}` : ''}</span></section></main></body></html>`
+}
+
 const jsonJourney = (value: BookingJourney): Response =>
   withPrivateHeaders(
     Response.json(value, {
@@ -381,6 +412,66 @@ export const handleBookingSessionRequest = (
     if (!merchantSlug) return hiddenNotFound()
     const now = dependencies.now?.() ?? new Date().toISOString()
     const clientKey = request.headers.get('cf-connecting-ip') ?? `path:${url.pathname}`
+
+    if (segments.length === 4 && segments[2] === 'confirmations') {
+      const routeId = segments[3]
+      if (
+        request.method !== 'GET' ||
+        !routeId ||
+        !CONFIRMATION_ID.test(routeId) ||
+        !dependencies.confirmation
+      )
+        return withPrivateHeaders(hiddenNotFound())
+      if (!(yield* dependencies.takeRead(`confirmation:${clientKey}`)))
+        return withPrivateHeaders(tooManyRequests())
+      const cookieName = `confirmation_${routeId}`
+      const cookieToken = request.headers
+        .get('cookie')
+        ?.split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${cookieName}=`))
+        ?.slice(cookieName.length + 1)
+      const queryToken = url.searchParams.get('token')
+      const token = queryToken ?? cookieToken
+      if (!token || !CONFIRMATION_TOKEN.test(token))
+        return withPrivateHeaders(hiddenNotFound())
+      const result = yield* Effect.result(
+        dependencies.confirmation.read({ routeId, token, now })
+      )
+      if (result._tag === 'Failure') return withPrivateHeaders(unavailable())
+      if (result.success.kind === 'not_found')
+        return withPrivateHeaders(hiddenNotFound())
+      if (result.success.kind === 'expired')
+        return withPrivateHeaders(
+          new Response(
+            '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Confirmation expired</title></head><body><main><h1>This Confirmation link has expired</h1><p>Contact the merchant if you still need these Appointment details.</p></main></body></html>',
+            { status: 410, headers: { 'content-type': 'text/html; charset=utf-8' } }
+          )
+        )
+      const canonicalPath = `/${encodeURIComponent(merchantSlug)}/booking/confirmations/${encodeURIComponent(routeId)}`
+      if (queryToken) {
+        const headers = new Headers({ location: canonicalPath })
+        headers.append(
+          'set-cookie',
+          [
+            `${cookieName}=${token}`,
+            `Path=${canonicalPath}`,
+            'Max-Age=86400',
+            'HttpOnly',
+            url.protocol === 'https:' ? 'Secure' : null,
+            'SameSite=Lax'
+          ]
+            .filter((part): part is string => part !== null)
+            .join('; ')
+        )
+        return withPrivateHeaders(new Response(null, { status: 303, headers }))
+      }
+      return withPrivateHeaders(
+        new Response(confirmationHtml(result.success.confirmation), {
+          headers: { 'content-type': 'text/html; charset=utf-8' }
+        })
+      )
+    }
 
     if (segments.length === 2) {
       if (request.method !== 'GET') return hiddenNotFound()
@@ -578,11 +669,7 @@ export const handleBookingSessionRequest = (
       if (result._tag === 'Failure')
         return mapSessionFailure(result.failure, merchantSlug)
       const confirmed = result.success
-      const location = `/${encodeURIComponent(merchantSlug)}/booking/confirmations/${encodeURIComponent(confirmed.access.routeId)}`
-      const maxAge = Math.max(
-        0,
-        Math.floor((Date.parse(confirmed.access.expiresAt) - Date.parse(now)) / 1000)
-      )
+      const location = `/${encodeURIComponent(merchantSlug)}/booking/confirmations/${encodeURIComponent(confirmed.access.routeId)}?token=${encodeURIComponent(confirmed.access.token)}`
       const response = Response.json({
         appointment: confirmed.appointment,
         access: {
@@ -595,19 +682,6 @@ export const handleBookingSessionRequest = (
         replayed: confirmed.replayed,
         location
       })
-      response.headers.append(
-        'set-cookie',
-        [
-          `confirmation_${confirmed.access.routeId}=${confirmed.access.token}`,
-          `Path=${location}`,
-          `Max-Age=${maxAge}`,
-          'HttpOnly',
-          url.protocol === 'https:' ? 'Secure' : null,
-          'SameSite=Lax'
-        ]
-          .filter((part): part is string => part !== null)
-          .join('; ')
-      )
       return withPrivateHeaders(response)
     }
     return withPrivateHeaders(yield* dependencies.fallback(request))

@@ -14,6 +14,7 @@ import {
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
   BookingConfirmation,
+  type ConfirmationSigningKeyring,
   deriveConfirmationToken,
   LiveBookingConfirmation,
   verifyConfirmationToken
@@ -264,5 +265,75 @@ describe('Live Booking Confirmation', () => {
     await expect(
       verifyConfirmationToken({ ...metadata, tokenVersion: 3 }, token, keyring, now)
     ).resolves.toBe(false)
+  })
+
+  it('reads only the matching Appointment snapshot and revalidates expiry, revocation, status, and retained keys', async () => {
+    const confirmed = await confirm('bsn_confirm', 'consumed')
+    const read = (
+      token: string,
+      at = now,
+      keyringOverride: ConfirmationSigningKeyring = keyring
+    ) =>
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(BookingConfirmation, (service) =>
+            service.read({ routeId: confirmed.access.routeId, token, now: at })
+          ),
+          LiveBookingConfirmation(keyringOverride).pipe(
+            Layer.provide(layerFromD1(test.d1))
+          )
+        )
+      )
+
+    await expect(read(confirmed.access.token)).resolves.toMatchObject({
+      kind: 'found',
+      confirmation: {
+        routeId: confirmed.access.routeId,
+        status: 'scheduled',
+        merchant: { publicName: 'Confirm Live' },
+        snapshot: {
+          customerDetails: { email: 'mia@example.com' },
+          checkoutPath: 'pay_in_person'
+        }
+      }
+    })
+    await expect(read('0'.repeat(64))).resolves.toEqual({ kind: 'not_found' })
+
+    await test.d1
+      .prepare("UPDATE appointments SET status = 'cancelled' WHERE id = ?")
+      .bind(confirmed.appointment.id)
+      .run()
+    await expect(read(confirmed.access.token)).resolves.toMatchObject({
+      kind: 'found',
+      confirmation: { status: 'cancelled' }
+    })
+
+    await expect(
+      read(confirmed.access.token, confirmed.access.expiresAt)
+    ).resolves.toEqual({ kind: 'expired' })
+    await test.d1
+      .prepare(
+        'UPDATE confirmation_access SET token_version = token_version + 1 WHERE route_id = ?'
+      )
+      .bind(confirmed.access.routeId)
+      .run()
+    await expect(read(confirmed.access.token)).resolves.toEqual({ kind: 'not_found' })
+
+    await test.d1
+      .prepare('UPDATE confirmation_access SET token_version = 1 WHERE route_id = ?')
+      .bind(confirmed.access.routeId)
+      .run()
+    await expect(
+      read(confirmed.access.token, now, {
+        currentKeyId: 'next',
+        keys: { ...keyring.keys, next: 'test-next-key' }
+      })
+    ).resolves.toMatchObject({ kind: 'found' })
+    await expect(
+      read(confirmed.access.token, now, {
+        currentKeyId: 'next',
+        keys: { next: 'test-next-key' }
+      })
+    ).resolves.toEqual({ kind: 'not_found' })
   })
 })

@@ -501,6 +501,7 @@ describe('Booking Session HTTP boundary', () => {
         review: () => Effect.die(new Error('not called'))
       },
       confirmation: {
+        read: () => Effect.die(new Error('not called')),
         confirm: () =>
           Effect.succeed({
             appointment: {
@@ -586,11 +587,81 @@ describe('Booking Session HTTP boundary', () => {
     )
     expect(acceptedCommand.status).toBe(200)
     expect(await acceptedCommand.json()).toMatchObject({
-      location: '/mara-studio/booking/confirmations/cnf_clean',
+      location:
+        '/mara-studio/booking/confirmations/cnf_clean?token=secret-confirmation-token',
       outboxId: 'obx_confirmed'
     })
-    expect(acceptedCommand.headers.get('set-cookie')).toContain(
-      'confirmation_cnf_clean=secret-confirmation-token'
+    expect(acceptedCommand.headers.get('set-cookie')).toBeNull()
+  })
+
+  it('exchanges a valid Confirmation token for an exact-path 24-hour cookie and serves the clean view', async () => {
+    const token = 'a'.repeat(64)
+    const confirmation = {
+      routeId: 'cnf_clean',
+      status: 'scheduled' as const,
+      startsAt: '2026-07-13T09:00:00.000Z',
+      endsAt: '2026-07-13T10:00:00.000Z',
+      merchant: { publicName: 'Mara Studio' },
+      snapshot: {
+        startsAt: '2026-07-13T09:00:00.000Z',
+        endsAt: '2026-07-13T10:00:00.000Z',
+        providerPreference: { kind: 'any' as const },
+        assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
+        services: [
+          {
+            id: 'svc_cut',
+            role: 'primary' as const,
+            name: 'Cut',
+            durationMinutes: 60,
+            priceMinor: 5000,
+            currency: 'USD'
+          }
+        ],
+        durationMinutes: 60,
+        currency: 'USD',
+        totalMinor: 5000,
+        merchantTimezone: 'America/New_York',
+        customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
+        checkoutPath: 'pay_in_person' as const
+      }
+    }
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () => Effect.die(new Error('not called')),
+      confirmation: {
+        confirm: () => Effect.die(new Error('not called')),
+        read: () => Effect.succeed({ kind: 'found' as const, confirmation })
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called'))
+    }
+    const path = '/mara-studio/booking/confirmations/cnf_clean'
+    const exchange = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`https://www.example.test${path}?token=${token}`),
+        dependencies
+      )
     )
+    expect(exchange.status).toBe(303)
+    expect(exchange.headers.get('location')).toBe(path)
+    expect(exchange.headers.get('set-cookie')).toContain(`Path=${path}`)
+    expect(exchange.headers.get('set-cookie')).toContain('Max-Age=86400')
+    expect(exchange.headers.get('set-cookie')).toContain('HttpOnly')
+    expect(exchange.headers.get('set-cookie')).not.toContain('Domain=')
+
+    const clean = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`https://www.example.test${path}`, {
+          headers: { cookie: `confirmation_cnf_clean=${token}` }
+        }),
+        dependencies
+      )
+    )
+    expect(clean.status).toBe(200)
+    expect(await clean.text()).toContain('Appointment Confirmation')
+    expect(clean.headers.get('cache-control')).toBe('private, no-store')
+    expect(clean.headers.get('referrer-policy')).toBe('no-referrer')
   })
 })

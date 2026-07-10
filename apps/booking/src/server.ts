@@ -166,6 +166,13 @@ export default {
             )
         },
         confirmation: {
+          read: (input) =>
+            Effect.provide(
+              Effect.flatMap(BookingConfirmation, (confirmation) =>
+                confirmation.read(input)
+              ),
+              confirmationLayer
+            ),
           confirm: (session, input) =>
             Effect.flatMap(
               Effect.provide(
