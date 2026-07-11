@@ -11,7 +11,7 @@ Generated from `apps/booking/src/parity/full-parity-manifest.ts`. Do not edit th
 
 | Status      | Entries |
 | ----------- | ------: |
-| planned     |     158 |
-| implemented |      10 |
+| planned     |     157 |
+| implemented |      11 |
 | verified    |       0 |
 | waived      |       0 |

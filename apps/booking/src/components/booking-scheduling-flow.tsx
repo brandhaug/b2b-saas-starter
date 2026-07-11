@@ -1,10 +1,10 @@
 import * as stylex from '@stylexjs/stylex'
-import { CalendarDays, Menu } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type {
   BookingAvailability,
   BookingTimeSlot
 } from '@b2b-saas-starter/capabilities/booking'
+import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 import { styles } from './booking-flow.styles.ts'
 
 export function BookingSchedulingFlow({
@@ -80,7 +80,10 @@ export function BookingSchedulingFlow({
       <div {...stylex.props(styles.widget)}>
         <header {...stylex.props(styles.header)}>
           <span {...stylex.props(styles.iconButton)} aria-hidden="true">
-            <CalendarDays {...stylex.props(styles.icon16)} />
+            <BookingVisualAsset
+              assetRole="calendar-scheduling"
+              {...stylex.props(styles.icon16)}
+            />
           </span>
           <h1 {...stylex.props(styles.title)}>Choose your appointment</h1>
           <button
@@ -88,7 +91,10 @@ export function BookingSchedulingFlow({
             aria-label="Booking menu"
             {...stylex.props(styles.iconButton)}
           >
-            <Menu {...stylex.props(styles.icon16)} />
+            <BookingVisualAsset
+              assetRole="navigation-menu"
+              {...stylex.props(styles.icon16)}
+            />
           </button>
         </header>
         <main {...stylex.props(styles.main)}>
@@ -105,7 +111,10 @@ export function BookingSchedulingFlow({
           {availability.slots.length === 0 && availability.hold ? (
             <div {...stylex.props(styles.empty)}>
               <span {...stylex.props(styles.emptyIcon)}>
-                <CalendarDays {...stylex.props(styles.icon20)} />
+                <BookingVisualAsset
+                  assetRole="calendar-scheduling"
+                  {...stylex.props(styles.icon20)}
+                />
               </span>
               <h2 {...stylex.props(styles.emptyTitle)}>Your time is held</h2>
               <p {...stylex.props(styles.emptyCopy)}>
@@ -121,7 +130,10 @@ export function BookingSchedulingFlow({
           ) : availability.slots.length === 0 ? (
             <div {...stylex.props(styles.empty)}>
               <span {...stylex.props(styles.emptyIcon)}>
-                <CalendarDays {...stylex.props(styles.icon20)} />
+                <BookingVisualAsset
+                  assetRole="calendar-scheduling"
+                  {...stylex.props(styles.icon20)}
+                />
               </span>
               <h2 {...stylex.props(styles.emptyTitle)}>No times in the next 14 days</h2>
               <p {...stylex.props(styles.emptyCopy)}>

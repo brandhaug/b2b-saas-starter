@@ -12,6 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+      - run: bun run assets:check
       - run: bun run typecheck
       - run: bun run lint
       - run: bun run format:check
@@ -22,6 +23,7 @@ jobs:
       # Fail only on high/critical advisories; lower severities still print.
       - run: bun audit --audit-level=high
       - run: bun run build
+      - run: bun apps/booking/scripts/check-visual-assets.ts --dist
 
   e2e:
     runs-on: ubuntu-latest

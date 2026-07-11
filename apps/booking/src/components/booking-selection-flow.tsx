@@ -1,5 +1,4 @@
 import * as stylex from '@stylexjs/stylex'
-import { ArrowLeft, Check, Menu, Scissors, UsersRound, X } from 'lucide-react'
 import { useState } from 'react'
 import type {
   BookingJourney,
@@ -7,6 +6,7 @@ import type {
   PublicBookableService,
   ServiceSelection
 } from '@b2b-saas-starter/capabilities/booking'
+import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 import { styles } from './booking-flow.styles.ts'
 
 export function BookingSelectionFlow({
@@ -52,7 +52,10 @@ export function BookingSelectionFlow({
               showProviders && styles.hidden
             )}
           >
-            <ArrowLeft {...stylex.props(styles.icon16)} />
+            <BookingVisualAsset
+              assetRole="navigation-back"
+              {...stylex.props(styles.icon16)}
+            />
           </button>
           <h1 {...stylex.props(styles.title)}>
             {showProviders ? 'Choose a professional' : 'What can we do for you?'}
@@ -62,7 +65,10 @@ export function BookingSelectionFlow({
             aria-label="Booking menu"
             {...stylex.props(styles.iconButton)}
           >
-            <Menu {...stylex.props(styles.icon16)} />
+            <BookingVisualAsset
+              assetRole="navigation-menu"
+              {...stylex.props(styles.icon16)}
+            />
           </button>
         </header>
 
@@ -125,7 +131,10 @@ function ProviderGrid({
         {...stylex.props(styles.providerCard)}
       >
         <span {...stylex.props(styles.avatar)}>
-          <UsersRound {...stylex.props(styles.icon24)} />
+          <BookingVisualAsset
+            assetRole="booking-party"
+            {...stylex.props(styles.icon24)}
+          />
         </span>
         <span {...stylex.props(styles.providerName)}>Choose a service first</span>
         <span {...stylex.props(styles.mutedSmall)}>Book with any professional</span>
@@ -165,7 +174,10 @@ function ServiceGrid({
     return (
       <div {...stylex.props(styles.empty)}>
         <span {...stylex.props(styles.emptyIcon)}>
-          <Scissors {...stylex.props(styles.icon20)} />
+          <BookingVisualAsset
+            assetRole="service-category"
+            {...stylex.props(styles.icon20)}
+          />
         </span>
         <h2 {...stylex.props(styles.emptyTitle)}>No services are bookable</h2>
         <p {...stylex.props(styles.emptyCopy)}>
@@ -193,7 +205,10 @@ function ServiceGrid({
         >
           <ServiceContents service={selectedPrimary} selected />
           <span {...stylex.props(styles.selectionMark)}>
-            <Check {...stylex.props(styles.icon16)} />
+            <BookingVisualAsset
+              assetRole="selection-check"
+              {...stylex.props(styles.icon16)}
+            />
           </span>
         </button>
         <h2 {...stylex.props(styles.sectionTitle)}>Anything you wish to add?</h2>
@@ -333,7 +348,7 @@ function OrderSummary({
           onClick={onClose}
           {...stylex.props(styles.iconButton, styles.darkIconButton)}
         >
-          <X {...stylex.props(styles.icon16)} />
+          <BookingVisualAsset assetRole="dismiss" {...stylex.props(styles.icon16)} />
         </button>
       </div>
       <div {...stylex.props(styles.orderCard)}>

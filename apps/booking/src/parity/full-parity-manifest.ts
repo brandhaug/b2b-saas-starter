@@ -300,7 +300,7 @@ accept(
 accept(
   'asset-policy',
   'booking-app/assets',
-  'planned',
+  'implemented',
   {
     manifest: 'Every shipped visual binary has provenance and integrity metadata.',
     'prohibited-fonts': 'Legacy SF Pro and password-mask binaries are prohibited.',

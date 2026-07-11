@@ -1,8 +1,9 @@
 import stylex from '@stylexjs/unplugin'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 
 const workersShim = resolve(
   import.meta.dirname,
@@ -10,6 +11,20 @@ const workersShim = resolve(
     ? './src/lib/cloudflare-workers-shim-dev.ts'
     : './src/lib/cloudflare-workers-shim.ts'
 )
+
+const visualAssetNotices = (): Plugin => ({
+  name: 'booking-visual-asset-notices',
+  apply: 'build',
+  buildStart() {
+    for (const fileName of ['THIRD_PARTY_VISUAL_ASSETS.md', 'licenses/OFL-1.1.txt']) {
+      this.emitFile({
+        type: 'asset',
+        fileName,
+        source: readFileSync(resolve(import.meta.dirname, fileName))
+      })
+    }
+  }
+})
 
 export default defineConfig(() => ({
   // Customer URLs stay merchant-scoped. Production's output directory gives
@@ -28,6 +43,7 @@ export default defineConfig(() => ({
   plugins: [
     tanstackStart({ router: { basepath: '/' } }),
     stylex.vite({ useCSSLayers: true }),
-    viteReact()
+    viteReact(),
+    visualAssetNotices()
   ]
 }))

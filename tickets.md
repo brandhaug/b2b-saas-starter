@@ -62,12 +62,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Freeze the Full-Parity Contract Ledger.
 
-- [ ] Every shipping visual binary is described by an asset manifest with source, license or ownership, allowed role, and integrity identity.
-- [ ] Known prohibited legacy hashes are rejected automatically.
-- [ ] Independently licensed or product-owned replacements are accepted by observable role, geometry, crop, color, and timing rather than byte identity.
-- [ ] Tests use local content-addressed assets without undeclared network access.
-- [ ] Official provider marks load only under their approved provider and provenance rules.
-- [ ] Generated notices and CI checks fail on missing or unauthorized assets.
+- [x] Every shipping visual binary is described by an asset manifest with source, license or ownership, allowed role, and integrity identity.
+- [x] Known prohibited legacy hashes are rejected automatically.
+- [x] Independently licensed or product-owned replacements are accepted by observable role, geometry, crop, color, and timing rather than byte identity.
+- [x] Tests use local content-addressed assets without undeclared network access.
+- [x] Official provider marks load only under their approved provider and provenance rules.
+- [x] Generated notices and CI checks fail on missing or unauthorized assets.
 
 ## Deliver the Canonical Booking Shell and Session Boundary
 
