@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
+import { reportOperationalError } from '@b2b-saas-starter/logger'
 import {
   dispatchBookingRequest,
   isBookingRequest,
   type BookingServiceBinding
 } from './booking-dispatch.ts'
+
+vi.mock('@b2b-saas-starter/logger', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@b2b-saas-starter/logger')>()),
+  reportOperationalError: vi.fn(async () => undefined)
+}))
 
 const requestFor = (path: string, traceId = 'trace-from-browser') =>
   new Request(`https://www.example.test${path}`, {
@@ -85,6 +91,13 @@ describe('booking ingress dispatch', () => {
     expect(response.headers.get('retry-after')).toBe('60')
     expect(response.headers.get('x-trace-id')).toBe('trace-booking-unavailable')
     await expect(response.text()).resolves.toContain('Booking temporarily unavailable')
+    expect(reportOperationalError).toHaveBeenCalledWith({
+      service: 'web',
+      event: 'booking.ingress_unavailable',
+      traceId: 'trace-booking-unavailable',
+      pathname: '/demo-shop/booking',
+      failure: 'missing_service_binding'
+    })
   })
 
   it('returns the same safe 503 when the service binding fails', async () => {
@@ -102,5 +115,13 @@ describe('booking ingress dispatch', () => {
 
     expect(response.status).toBe(503)
     expect(response.headers.get('x-trace-id')).toBe('trace-from-browser')
+    expect(reportOperationalError).toHaveBeenCalledWith({
+      service: 'web',
+      event: 'booking.ingress_unavailable',
+      traceId: 'trace-from-browser',
+      pathname: '/_booking/assets/entry.js',
+      failure: 'service_binding_exception',
+      error: 'service binding is unavailable'
+    })
   })
 })

@@ -1,4 +1,8 @@
-import { newTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'
+import {
+  newTraceId,
+  reportOperationalError,
+  TRACE_HEADER
+} from '@b2b-saas-starter/logger'
 
 export type BookingServiceBinding = {
   readonly fetch: (request: Request) => Promise<Response>
@@ -71,7 +75,16 @@ export const dispatchBookingRequest = async (
   if (!isBookingRequest(new URL(request.url))) return fallback()
 
   const traceId = request.headers.get(TRACE_HEADER) ?? newTraceId()
-  if (!env.BOOKING) return bookingUnavailable(traceId)
+  if (!env.BOOKING) {
+    await reportOperationalError({
+      service: 'web',
+      event: 'booking.ingress_unavailable',
+      traceId,
+      pathname: new URL(request.url).pathname,
+      failure: 'missing_service_binding'
+    })
+    return bookingUnavailable(traceId)
+  }
 
   const headers = new Headers(request.headers)
   headers.set(TRACE_HEADER, traceId)
@@ -80,9 +93,17 @@ export const dispatchBookingRequest = async (
     // Constructing from the original request retains its URL, method, and
     // body while adding the ingress-owned trace header for the Booking App.
     return await env.BOOKING.fetch(new Request(request, { headers }))
-  } catch {
+  } catch (error) {
     // A thrown service-binding error means no Booking App response exists to
     // relay. Keep the failure isolated to the booking boundary.
+    await reportOperationalError({
+      service: 'web',
+      event: 'booking.ingress_unavailable',
+      traceId,
+      pathname: new URL(request.url).pathname,
+      failure: 'service_binding_exception',
+      error: error instanceof Error ? error.message : String(error)
+    })
     return bookingUnavailable(traceId)
   }
 }

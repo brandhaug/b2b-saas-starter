@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookingVitePath } from './dev-ingress.ts'
+import { bookingProxyRequest, bookingVitePath } from './dev-ingress.ts'
 
 describe('Booking local ingress paths', () => {
   it('maps the public StyleX stylesheet URL to Vite’s root virtual endpoint', () => {
@@ -13,10 +13,26 @@ describe('Booking local ingress paths', () => {
     expect(bookingVitePath('/virtual:stylex.css')).toBe('/virtual:stylex.css')
   })
 
-  it('keeps Booking asset paths and prefixes merchant-scoped routes', () => {
+  it('keeps Booking asset paths and merchant-scoped routes stable', () => {
     expect(bookingVitePath('/_booking/@id/virtual:stylex:runtime')).toBe(
       '/_booking/@id/virtual:stylex:runtime'
     )
-    expect(bookingVitePath('/adda/booking')).toBe('/_booking/adda/booking')
+    expect(bookingVitePath('/adda/booking')).toBe('/adda/booking')
+  })
+
+  it('buffers mutation bodies before forwarding them to Vite', async () => {
+    const forwarded = await bookingProxyRequest(
+      new Request('http://localhost:3073/adda/booking/session/bsn_one/services', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ primaryServiceId: 'svc_one' })
+      }),
+      new URL('http://localhost:3074/adda/booking/session/bsn_one/services')
+    )
+
+    expect(forwarded.redirect).toBe('manual')
+    await expect(forwarded.json()).resolves.toEqual({
+      primaryServiceId: 'svc_one'
+    })
   })
 })

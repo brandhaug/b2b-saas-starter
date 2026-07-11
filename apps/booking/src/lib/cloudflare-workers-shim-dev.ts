@@ -14,5 +14,9 @@ const localD1 = await provisionLocalD1()
 
 export const env = {
   PUBLIC_SITE_ORIGIN: process.env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071',
+  CONFIRMATION_CURRENT_KEY_ID: process.env.CONFIRMATION_CURRENT_KEY_ID ?? 'local-v1',
+  CONFIRMATION_SIGNING_KEYS:
+    process.env.CONFIRMATION_SIGNING_KEYS ??
+    '{"local-v1":"replace-before-production-confirmation-key"}',
   ...(localD1 ? { DB: localD1 } : {})
 }

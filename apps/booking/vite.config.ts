@@ -25,5 +25,9 @@ export default defineConfig(() => ({
     tsconfigPaths: true,
     alias: { 'cloudflare:workers': workersShim }
   },
-  plugins: [tanstackStart(), stylex.vite({ useCSSLayers: true }), viteReact()]
+  plugins: [
+    tanstackStart({ router: { basepath: '/' } }),
+    stylex.vite({ useCSSLayers: true }),
+    viteReact()
+  ]
 }))

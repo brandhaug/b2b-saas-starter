@@ -8,11 +8,14 @@ vi.mock('@b2b-saas-starter/db/local-development', () => ({
   provisionLocalD1: async () => database
 }))
 
-it('provides the local D1 and Public Site origin to Booking Vite', async () => {
+it('provides the required local Booking Worker environment to Vite', async () => {
   const { env } = await import('./cloudflare-workers-shim-dev.ts')
 
   expect(env).toEqual({
     DB: database,
-    PUBLIC_SITE_ORIGIN: 'http://localhost:3071'
+    PUBLIC_SITE_ORIGIN: 'http://localhost:3071',
+    CONFIRMATION_CURRENT_KEY_ID: 'local-v1',
+    CONFIRMATION_SIGNING_KEYS:
+      '{"local-v1":"replace-before-production-confirmation-key"}'
   })
 })

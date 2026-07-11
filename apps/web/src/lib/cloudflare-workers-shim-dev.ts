@@ -13,6 +13,7 @@
 // on the client this module evaluates to the base shim with `DB` undefined.
 import type { D1Database } from '@cloudflare/workers-types'
 import { env as baseEnv } from './cloudflare-workers-shim.ts'
+import { bufferedDevProxyRequest } from './dev-proxy-request.ts'
 
 const provisionLocalD1 = async (): Promise<D1Database | undefined> => {
   if (!import.meta.env.SSR) return undefined
@@ -42,11 +43,7 @@ const localBookingBinding = {
     const target = new URL(request.url)
     target.protocol = bookingDevOrigin.protocol
     target.host = bookingDevOrigin.host
-    const init: RequestInit = { method: request.method, headers: request.headers }
-    if (request.method !== 'GET' && request.method !== 'HEAD' && request.body) {
-      init.body = request.body
-    }
-    const upstream = await fetch(new Request(target, init))
+    const upstream = await fetch(await bufferedDevProxyRequest(request, target))
     // Node's development server uses hop-by-hop transfer headers that cannot
     // be relayed through another development server unchanged.
     const headers = new Headers(upstream.headers)

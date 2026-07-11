@@ -3,10 +3,15 @@
  *
  * Vite needs the stable `/_booking` base to put its runtime modules behind
  * the Public Site asset dispatcher. This tiny local-only proxy keeps port
- * 3073 usable at the canonical `/:merchantSlug/booking` URL by adding that
- * base only on its private hop to Vite (which runs on 3074).
+ * 3073 usable at the canonical `/:merchantSlug/booking` URL while proxying
+ * assets and pages to Vite on 3074.
  */
-import { bookingVitePath } from './lib/dev-ingress.ts'
+import { bookingProxyRequest, bookingVitePath } from './lib/dev-ingress.ts'
+import {
+  newTraceId,
+  reportOperationalError,
+  TRACE_HEADER
+} from '@b2b-saas-starter/logger'
 
 const vite = Bun.spawn(
   ['/bin/zsh', '-lc', 'BOOKING_VITE_DEV=1 bunx --bun vite dev --port 3074'],
@@ -20,14 +25,6 @@ const vite = Bun.spawn(
 
 const hopByHopHeaders = ['connection', 'keep-alive', 'transfer-encoding'] as const
 
-const proxyRequest = (request: Request, target: URL): Request => {
-  const init: RequestInit = { method: request.method, headers: request.headers }
-  if (request.method !== 'GET' && request.method !== 'HEAD' && request.body) {
-    init.body = request.body
-  }
-  return new Request(target, init)
-}
-
 const server = Bun.serve({
   port: 3073,
   async fetch(request) {
@@ -36,7 +33,7 @@ const server = Bun.serve({
     target.pathname = bookingVitePath(target.pathname)
 
     try {
-      const upstream = await fetch(proxyRequest(request, target))
+      const upstream = await fetch(await bookingProxyRequest(request, target))
       const headers = new Headers(upstream.headers)
       for (const header of hopByHopHeaders) headers.delete(header)
       return new Response(upstream.body, {
@@ -44,7 +41,15 @@ const server = Bun.serve({
         statusText: upstream.statusText,
         headers
       })
-    } catch {
+    } catch (error) {
+      await reportOperationalError({
+        service: 'booking-dev-ingress',
+        event: 'booking.dev_ingress_unavailable',
+        traceId: request.headers.get(TRACE_HEADER) ?? newTraceId(),
+        pathname: new URL(request.url).pathname,
+        failure: 'vite_proxy_exception',
+        error: error instanceof Error ? error.message : String(error)
+      })
       return new Response('Booking App is starting. Please retry shortly.', {
         status: 503,
         headers: { 'retry-after': '1' }

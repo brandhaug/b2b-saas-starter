@@ -15,6 +15,7 @@ import {
   LiveBookingConfirmation
 } from '@b2b-saas-starter/capabilities'
 import { layerFromD1 } from '@b2b-saas-starter/db'
+import { readTraceHeader, reportOperationalError } from '@b2b-saas-starter/logger'
 import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
 
 type RateLimitBinding = {
@@ -76,36 +77,55 @@ const takeRate = async (
 export default {
   async fetch(request: Request, passedEnv?: BookingWorkerEnv): Promise<Response> {
     const env = passedEnv ?? (workerEnv as Partial<BookingWorkerEnv>)
-    if (
-      !env.DB ||
-      !env.PUBLIC_SITE_ORIGIN ||
-      !env.CONFIRMATION_SIGNING_KEYS ||
-      !env.CONFIRMATION_CURRENT_KEY_ID
-    ) {
+    const missingBindings = [
+      ...(!env.DB ? ['DB'] : []),
+      ...(!env.PUBLIC_SITE_ORIGIN ? ['PUBLIC_SITE_ORIGIN'] : []),
+      ...(!env.CONFIRMATION_SIGNING_KEYS ? ['CONFIRMATION_SIGNING_KEYS'] : []),
+      ...(!env.CONFIRMATION_CURRENT_KEY_ID ? ['CONFIRMATION_CURRENT_KEY_ID'] : [])
+    ]
+    if (missingBindings.length > 0) {
+      await reportOperationalError({
+        service: 'booking',
+        event: 'booking.worker_unavailable',
+        traceId: readTraceHeader(request) ?? 'unavailable',
+        pathname: new URL(request.url).pathname,
+        failure: 'missing_worker_bindings',
+        details: { missingBindings }
+      })
       return new Response('Booking temporarily unavailable', {
         status: 503,
         headers: { 'retry-after': '60' }
       })
     }
-    const sessionsLayer = LiveBookingSessions.pipe(Layer.provide(layerFromD1(env.DB)))
-    const selectionLayer = LiveBookingSelection.pipe(Layer.provide(layerFromD1(env.DB)))
-    const schedulingLayer = LiveBookingScheduling.pipe(
-      Layer.provide(layerFromD1(env.DB))
+    const readyEnv = env as BookingWorkerEnv
+    const sessionsLayer = LiveBookingSessions.pipe(
+      Layer.provide(layerFromD1(readyEnv.DB))
     )
-    const checkoutLayer = LiveBookingCheckout.pipe(Layer.provide(layerFromD1(env.DB)))
+    const selectionLayer = LiveBookingSelection.pipe(
+      Layer.provide(layerFromD1(readyEnv.DB))
+    )
+    const schedulingLayer = LiveBookingScheduling.pipe(
+      Layer.provide(layerFromD1(readyEnv.DB))
+    )
+    const checkoutLayer = LiveBookingCheckout.pipe(
+      Layer.provide(layerFromD1(readyEnv.DB))
+    )
     let signingKeys: Readonly<Record<string, string>> = {}
     try {
-      signingKeys = JSON.parse(env.CONFIRMATION_SIGNING_KEYS) as Record<string, string>
+      signingKeys = JSON.parse(readyEnv.CONFIRMATION_SIGNING_KEYS) as Record<
+        string,
+        string
+      >
     } catch {
       /* handled by capability */
     }
     const confirmationLayer = LiveBookingConfirmation({
-      currentKeyId: env.CONFIRMATION_CURRENT_KEY_ID,
+      currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
       keys: signingKeys
-    }).pipe(Layer.provide(layerFromD1(env.DB)))
+    }).pipe(Layer.provide(layerFromD1(readyEnv.DB)))
     return Effect.runPromise(
       handleBookingSessionRequest(request, {
-        publicSiteOrigin: env.PUBLIC_SITE_ORIGIN,
+        publicSiteOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
         enter: (input) => Effect.provide(enterBookingSession(input), sessionsLayer),
         authorize: (input) =>
           Effect.provide(
@@ -183,17 +203,17 @@ export default {
               ),
               (result) =>
                 Effect.promise(() =>
-                  publishBookingWakeUp(env.BOOKING_EVENTS_QUEUE, result)
+                  publishBookingWakeUp(readyEnv.BOOKING_EVENTS_QUEUE, result)
                 )
             )
         },
         takeRead: (key) =>
           Effect.promise(() =>
-            takeRate(env.RATE_LIMITER_BOOKING_READ, `read:${key}`, 120)
+            takeRate(readyEnv.RATE_LIMITER_BOOKING_READ, `read:${key}`, 120)
           ),
         takeWrite: (key) =>
           Effect.promise(() =>
-            takeRate(env.RATE_LIMITER_BOOKING_WRITE, `write:${key}`, 30)
+            takeRate(readyEnv.RATE_LIMITER_BOOKING_WRITE, `write:${key}`, 30)
           ),
         fallback: (nextRequest) =>
           Effect.promise(() => Promise.resolve(startServer.fetch(nextRequest)))

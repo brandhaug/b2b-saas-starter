@@ -57,8 +57,23 @@ function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | 
 
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
+  const bookingDevOrigin = process.env.BOOKING_DEV_ORIGIN ?? 'http://localhost:3073'
+  const bookingProxy =
+    command === 'serve' && mode !== 'test'
+      ? {
+          '^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)': {
+            target: bookingDevOrigin
+          },
+          '^/_booking/': { target: bookingDevOrigin },
+          '^/virtual:stylex\\.css$': { target: bookingDevOrigin }
+        }
+      : undefined
   return {
-    server: { port: 3071, host: 'localhost' },
+    server: {
+      port: 3071,
+      host: 'localhost',
+      ...(bookingProxy ? { proxy: bookingProxy } : {})
+    },
     preview: { port: 3071, host: 'localhost' },
     resolve: {
       tsconfigPaths: true,

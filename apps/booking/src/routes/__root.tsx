@@ -2,7 +2,7 @@ import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
 import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NotFoundPage } from '../components/not-found-page'
 import appCss from '../index.css?url'
 
@@ -32,7 +32,7 @@ function RootComponent() {
         {import.meta.env.DEV ? (
           <>
             <link rel="stylesheet" href="/_booking/virtual:stylex.css" />
-            <script type="module" src="/_booking/@id/virtual:stylex:runtime" />
+            <StylexDevRuntime />
           </>
         ) : null}
       </head>
@@ -44,4 +44,18 @@ function RootComponent() {
       </body>
     </html>
   )
+}
+
+function StylexDevRuntime() {
+  useEffect(() => {
+    const script = document.createElement('script')
+    script.type = 'module'
+    script.src = '/_booking/@id/virtual:stylex:runtime'
+    document.head.appendChild(script)
+    return () => {
+      script.remove()
+    }
+  }, [])
+
+  return null
 }

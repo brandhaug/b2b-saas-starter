@@ -5,6 +5,7 @@ import './index.css'
 export function getRouter() {
   return createRouter({
     routeTree,
+    basepath: '/',
     defaultPreload: 'intent',
     scrollRestoration: true
   })
