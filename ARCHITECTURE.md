@@ -78,9 +78,13 @@ Required deploy environment: `PUBLIC_SITE_ORIGIN`, `MERCHANT_APP_ORIGIN`,
 missing optional bindings degrade delivery or telemetry without blocking booking.
 See [.env.example](./.env.example) and [docs/operations.md](./docs/operations.md).
 
-## Explicitly deferred
+## Vertical-slice boundary and accepted target
 
 Pay Now/payment-provider state, refunds, rescheduling, reminders, analytics,
 customer accounts, Merchant roles beyond Owner, Brands/Shops and multi-location,
 durable Customer identity, persisted Availability, realtime transport, and
-customer-write Platform API operations are outside the first vertical slice.
+customer-write Platform API operations are outside the implemented Booking Vertical
+Slice. Except for persisted Availability, realtime transport, and customer-write
+Platform API operations, the accepted full-parity work is planned in the machine-readable
+ledger at `apps/booking/src/parity/full-parity-manifest.ts`; planned entries do not
+describe current runtime behavior.
