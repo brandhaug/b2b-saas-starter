@@ -48,13 +48,13 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Freeze the Full-Parity Contract Ledger.
 
-- [ ] A dedicated Booking theme defines controlled typography, spacing, color, alpha, motion, responsive, and layer contracts.
-- [ ] Typed primitives cover the proven shell, interaction, feedback, overlay, and form needs without arbitrary styling escape hatches.
-- [ ] Named overlay layers, scroll ownership, presence choreography, focus behavior, and reduced-motion behavior are enforced.
-- [ ] Bundled English, Spanish, French, and Romanian catalogs share complete typed keys and stable error-code translations.
-- [ ] Locale resolution, persistence, and date, time, currency, and phone formatting are deterministic and independent of scheduling and monetary invariants.
-- [ ] Merchant-authored untranslated content uses source-language fallback with an explicit indicator.
-- [ ] Direct-link hydration, long copy, 200% zoom, viewport-height, keyboard, pointer, and focus-visible checks pass.
+- [x] A dedicated Booking theme defines controlled typography, spacing, color, alpha, motion, responsive, and layer contracts.
+- [x] Typed primitives cover the proven shell, interaction, feedback, overlay, and form needs without arbitrary styling escape hatches.
+- [x] Named overlay layers, scroll ownership, presence choreography, focus behavior, and reduced-motion behavior are enforced.
+- [x] Bundled English, Spanish, French, and Romanian catalogs share complete typed keys and stable error-code translations.
+- [x] Locale resolution, persistence, and date, time, currency, and phone formatting are deterministic and independent of scheduling and monetary invariants.
+- [x] Merchant-authored untranslated content uses source-language fallback with an explicit indicator.
+- [x] Direct-link hydration, long copy, 200% zoom, viewport-height, keyboard, pointer, and focus-visible checks pass.
 
 ## Establish Visual Asset Provenance Controls
 

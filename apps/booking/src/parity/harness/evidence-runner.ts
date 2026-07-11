@@ -95,7 +95,12 @@ export const runScenarioTwice = async (input: {
     !first.semanticAssertions.every(({ passed }) => passed) ||
     !second.semanticAssertions.every(({ passed }) => passed)
   ) {
-    throw new Error(`Semantic assertions failed for ${input.scenario.id}`)
+    throw new Error(
+      `Semantic assertions failed for ${input.scenario.id}: ${JSON.stringify({
+        first: first.semanticAssertions.filter(({ passed }) => !passed),
+        second: second.semanticAssertions.filter(({ passed }) => !passed)
+      })}`
+    )
   }
   const errors = [...first.console, ...second.console].filter(
     ({ type, text }) =>

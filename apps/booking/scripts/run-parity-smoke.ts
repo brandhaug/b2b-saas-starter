@@ -64,8 +64,119 @@ const capture = async (
     }
   })
   await page.goto(`${origin}${scenario.route}`)
+  const assertionResults = new Map<string, boolean>()
   if (scenario.journey === 'pay-in-person') {
-    await page.getByRole('button', { name: /Any professional/ }).click()
+    const anyProfessional = page.getByRole('button', { name: /Any professional/ })
+    await anyProfessional.waitFor({ timeout: 5_000 }).catch(async () => {
+      await page.reload()
+      await anyProfessional.waitFor()
+    })
+    assertionResults.set('booking shell is visible', await anyProfessional.isVisible())
+    const directSessionUrl = page.url()
+    await page.reload()
+    await anyProfessional.waitFor()
+    assertionResults.set(
+      'direct Session link hydrates without losing intent',
+      page.url() === directSessionUrl && (await anyProfessional.isVisible())
+    )
+    await page.keyboard.press('Tab')
+    assertionResults.set(
+      'keyboard focus is visible',
+      await page.evaluate(() => {
+        const active = document.activeElement
+        if (!(active instanceof HTMLElement) || active === document.body) return false
+        const style = getComputedStyle(active)
+        return (
+          style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0
+        )
+      })
+    )
+    await anyProfessional.click()
+    const service = page.getByRole('button', { name: 'Signature Cut' })
+    await service.waitFor()
+    assertionResults.set('pointer activation works', await service.isVisible())
+    assertionResults.set(
+      'long copy reflows without horizontal overflow',
+      await service.evaluate((element) => {
+        const clone = element.cloneNode(true) as HTMLElement
+        clone.textContent =
+          'A deliberately long translated service name that must wrap without hiding its complete meaning or blocking the next action'
+        element.after(clone)
+        const bounds = clone.getBoundingClientRect()
+        const passed =
+          document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth &&
+          clone.scrollWidth <= clone.clientWidth &&
+          clone.scrollHeight <= clone.clientHeight &&
+          bounds.left >= 0 &&
+          bounds.right <= document.documentElement.clientWidth &&
+          getComputedStyle(clone).overflow !== 'hidden'
+        clone.remove()
+        return passed
+      })
+    )
+    const zoomEvidence = await page.evaluate(() => {
+      const textElements = [
+        ...document.querySelectorAll<HTMLElement>(
+          'button, input, select, h1, h2, p, label, li, a, span'
+        )
+      ].filter((element) => element.getClientRects().length > 0)
+      for (const element of textElements) {
+        const size = Number.parseFloat(getComputedStyle(element).fontSize)
+        element.style.fontSize = `${size * 2}px`
+        element.style.lineHeight = '1.5'
+      }
+      const controls = [
+        ...document.querySelectorAll<HTMLElement>('button, input, select, a[href]')
+      ].filter(
+        (element) =>
+          element.getClientRects().length > 0 &&
+          getComputedStyle(element).visibility === 'visible' &&
+          !element.hasAttribute('disabled')
+      )
+      const rootFits =
+        document.documentElement.scrollWidth <= document.documentElement.clientWidth
+      const clippedText = textElements
+        .filter(
+          (element) =>
+            element.clientWidth > 0 &&
+            (element.scrollWidth > element.clientWidth + 1 ||
+              element.scrollHeight > element.clientHeight + 1)
+        )
+        .map((element) => element.textContent?.trim().slice(0, 80) ?? element.tagName)
+      const inaccessibleControls = controls
+        .filter((element) => {
+          const bounds = element.getBoundingClientRect()
+          return bounds.width <= 0 || bounds.height < 44
+        })
+        .map((element) => element.textContent?.trim().slice(0, 80) ?? element.tagName)
+      for (const element of textElements) {
+        element.style.fontSize = ''
+        element.style.lineHeight = ''
+      }
+      return {
+        passed:
+          rootFits && clippedText.length === 0 && inaccessibleControls.length === 0,
+        rootFits,
+        clippedText,
+        inaccessibleControls
+      }
+    })
+    assertionResults.set('200 percent zoom remains operable', zoomEvidence.passed)
+    if (!zoomEvidence.passed) {
+      process.stderr.write(`[parity] zoom evidence ${JSON.stringify(zoomEvidence)}\n`)
+    }
+    await page.setViewportSize({ width: 375, height: 320 })
+    await service.scrollIntoViewIfNeeded()
+    const compactBounds = await service.boundingBox()
+    assertionResults.set(
+      'compact viewport content remains reachable',
+      (await service.isVisible()) &&
+        compactBounds !== null &&
+        compactBounds.y >= 0 &&
+        compactBounds.y + compactBounds.height <= 320
+    )
+    await page.setViewportSize(scenario.viewport)
     await page.getByRole('button', { name: 'Signature Cut' }).click()
     await page.getByRole('button', { name: /View order/ }).click()
     await page.getByRole('button', { name: 'Choose time' }).click()
@@ -94,15 +205,14 @@ const capture = async (
   }
   const body = page.locator('body')
   const visibleText = (await body.innerText()).trim()
-  const semanticAssertions = [
-    {
-      assertion: scenario.assertions[0]!,
-      passed:
-        scenario.journey === 'deliberate-blank'
-          ? (await page.locator('main').count()) === 0
-          : visibleText.length > 0
-    }
-  ]
+  const defaultAssertion =
+    scenario.journey === 'deliberate-blank'
+      ? (await page.locator('main').count()) === 0
+      : visibleText.length > 0
+  const semanticAssertions = scenario.assertions.map((assertion, index) => ({
+    assertion,
+    passed: assertionResults.get(assertion) ?? (index === 0 && defaultAssertion)
+  }))
   const screenshot = await page.screenshot({ animations: 'disabled', fullPage: true })
   await writeFile(resolve(tracePath, '../screenshot.png'), screenshot)
   const dom = await page.content()

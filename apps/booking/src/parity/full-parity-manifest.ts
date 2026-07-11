@@ -180,7 +180,7 @@ accept(
 accept(
   'locale',
   'booking-app/localization',
-  'planned',
+  'implemented',
   {
     en: 'English catalog and en-US formatting profile.',
     es: 'Spanish catalog and formatting profile.',

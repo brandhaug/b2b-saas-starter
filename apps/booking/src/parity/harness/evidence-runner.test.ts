@@ -34,7 +34,10 @@ describe('parity evidence runner seam', () => {
     expect(result.first).toMatchObject({
       schemaVersion: 1,
       scenarioId: 'booking/pay-in-person-smoke',
-      semanticAssertions: [{ passed: true }],
+      semanticAssertions: smokeScenarios[0]!.assertions.map((assertion) => ({
+        assertion,
+        passed: true
+      })),
       console: [],
       mutationHistory: [{ sequence: 1, type: 'journey.loaded' }]
     })

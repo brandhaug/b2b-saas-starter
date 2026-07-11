@@ -28,7 +28,15 @@ export const smokeScenarios = await Promise.all([
     id: 'booking/pay-in-person-smoke',
     journey: 'pay-in-person',
     route: '/mara-booking-studio/booking',
-    assertions: ['booking shell is visible']
+    assertions: [
+      'booking shell is visible',
+      'direct Session link hydrates without losing intent',
+      'long copy reflows without horizontal overflow',
+      '200 percent zoom remains operable',
+      'compact viewport content remains reachable',
+      'keyboard focus is visible',
+      'pointer activation works'
+    ]
   }),
   defineScenario({
     ...base,

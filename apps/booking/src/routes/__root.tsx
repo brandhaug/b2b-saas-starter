@@ -4,6 +4,8 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-r
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { NotFoundPage } from '../components/not-found-page'
+import { BookingLocalizationProvider } from '../localization/booking-localization-provider'
+import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme'
 import appCss from '../index.css?url'
 
 export const Route = createRootRoute({
@@ -38,7 +40,11 @@ function RootComponent() {
       </head>
       <body>
         <QueryClientProvider client={queryClient}>
-          <Outlet />
+          <BookingLocalizationProvider>
+            <BookingPremiumThemeBoundary palette={null}>
+              <Outlet />
+            </BookingPremiumThemeBoundary>
+          </BookingLocalizationProvider>
         </QueryClientProvider>
         <Scripts />
       </body>

@@ -36,6 +36,7 @@ export default defineConfig(() => ({
   build: { assetsDir: '_booking/assets' },
   server: { host: 'localhost', port: 3073 },
   preview: { host: 'localhost', port: 3073 },
+  optimizeDeps: { include: ['motion/react'] },
   resolve: {
     tsconfigPaths: true,
     alias: { 'cloudflare:workers': workersShim }

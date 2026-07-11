@@ -46,8 +46,8 @@ export const styles = stylex.create({
   },
   iconButton: {
     display: 'grid',
-    width: 30,
-    height: 30,
+    width: 48,
+    height: 48,
     flexShrink: 0,
     placeItems: 'center',
     padding: 0,
