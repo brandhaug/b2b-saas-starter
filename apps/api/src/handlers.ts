@@ -5,9 +5,11 @@ import {
   PlatformInsufficientScope,
   PlatformInvalidCursor,
   PlatformInvalidRequest,
+  PlatformInvalidWebhookUrl,
   PlatformResourceNotFound,
   PlatformScopeEscalationDenied,
   PlatformUnauthorized,
+  PlatformWebhookEndpointDisabled,
   RateLimited,
   StarterApi
 } from '@b2b-saas-starter/api'
@@ -41,8 +43,10 @@ const errorBody = (
     | 'insufficient_scope'
     | 'invalid_cursor'
     | 'invalid_request'
+    | 'invalid_webhook_url'
     | 'resource_not_found'
-    | 'scope_escalation_denied',
+    | 'scope_escalation_denied'
+    | 'webhook_endpoint_disabled',
   request: HttpServerRequest.HttpServerRequest,
   details: Record<string, unknown> = {}
 ) => ({
@@ -59,7 +63,11 @@ const errorBody = (
               ? 'The resource was not found.'
               : code === 'scope_escalation_denied'
                 ? 'A credential cannot delegate scopes it does not hold.'
-                : 'The request is invalid.',
+                : code === 'invalid_webhook_url'
+                  ? 'The webhook URL is invalid.'
+                  : code === 'webhook_endpoint_disabled'
+                    ? 'The webhook endpoint is disabled.'
+                    : 'The request is invalid.',
     traceId: request.headers[TRACE_HEADER] ?? newTraceId(),
     details
   }
@@ -393,6 +401,8 @@ export const platformWebhookGroup = (env: ApiEnv) =>
       A,
       | PlatformInvalidRequest
       | PlatformInvalidCursor
+      | PlatformInvalidWebhookUrl
+      | PlatformWebhookEndpointDisabled
       | PlatformResourceNotFound
       | CapabilityUnavailable,
       R
@@ -405,6 +415,8 @@ export const platformWebhookGroup = (env: ApiEnv) =>
           never,
           | PlatformInvalidRequest
           | PlatformInvalidCursor
+          | PlatformInvalidWebhookUrl
+          | PlatformWebhookEndpointDisabled
           | PlatformResourceNotFound
           | CapabilityUnavailable
         > => {
@@ -417,6 +429,23 @@ export const platformWebhookGroup = (env: ApiEnv) =>
           if (failure._tag === 'PlatformWebhookInvalidCursor')
             return Effect.fail(
               new PlatformInvalidCursor(errorBody('invalid_cursor', request))
+            )
+          if (failure._tag === 'PlatformWebhookDisabled')
+            return Effect.fail(
+              new PlatformWebhookEndpointDisabled(
+                errorBody('webhook_endpoint_disabled', request)
+              )
+            )
+          if (
+            failure._tag === 'PlatformWebhookInvalidInput' &&
+            !['invalid_events', 'description_too_long', 'empty_patch'].includes(
+              'reason' in failure && typeof failure.reason === 'string'
+                ? failure.reason
+                : ''
+            )
+          )
+            return Effect.fail(
+              new PlatformInvalidWebhookUrl(errorBody('invalid_webhook_url', request))
             )
           return Effect.fail(
             new PlatformInvalidRequest(errorBody('invalid_request', request))
@@ -489,11 +518,14 @@ export const platformWebhookGroup = (env: ApiEnv) =>
         run(request, 'webhooks.disable', (caller) =>
           Effect.gen(function* () {
             const api = yield* PlatformWebhookEndpoints
-            yield* api.disable({
-              merchantId: caller.merchantId,
-              endpointId: params.endpointId,
-              actorTokenId: caller.id
-            })
+            yield* mapped(
+              request,
+              api.disable({
+                merchantId: caller.merchantId,
+                endpointId: params.endpointId,
+                actorTokenId: caller.id
+              })
+            )
           })
         )
       )

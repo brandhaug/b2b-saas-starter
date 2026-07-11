@@ -13,6 +13,7 @@ export type ApiEnv = RateLimitBindings &
     readonly EMAIL?: SendEmailBinding
     readonly WEBHOOK_QUEUE?: WebhookQueueBinding
     readonly PLATFORM_API_CURSOR_SECRET?: string
+    readonly ENVIRONMENT?: string
     readonly CLOUDFLARE_EMAIL_FROM?: string
     /** Back-compat/local alias; deployments forward CLOUDFLARE_EMAIL_FROM. */
     readonly EMAIL_FROM_ADDRESS?: string
@@ -36,5 +37,6 @@ export const starterEnv = (env: ApiEnv): StarterEnv => ({
   DB: env.DB,
   WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
   PLATFORM_API_CURSOR_SECRET: env.PLATFORM_API_CURSOR_SECRET,
+  REQUIRE_PLATFORM_API_CURSOR_SECRET: env.ENVIRONMENT === 'production',
   moduleConfig: makeStarterEnvModuleConfig(env)
 })

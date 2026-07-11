@@ -2,7 +2,7 @@
 
 Type: task
 Category: enhancement
-Status: in-progress
+Status: completed
 Blocked by: 23
 Parent: 10
 
@@ -13,14 +13,14 @@ Let integrations configure where Appointment lifecycle notifications should go a
 ## Acceptance criteria
 
 - [x] The Platform API implements the settled Webhook Endpoint list, create, patch, disable, signing-secret rotation, and Delivery Attempt history routes.
-- [ ] Every route requires `webhooks:manage`, is scoped to the caller's Merchant, and uses the settled success envelopes and status codes. (Auth/scope/Merchant boundary done; disabled and URL-specific error codes remain.)
+- [x] Every route requires `webhooks:manage`, is scoped to the caller's Merchant, and uses the settled success envelopes and status codes.
 - [x] Endpoint creation and rotation return the signing secret exactly once; ordinary reads and storage-facing DTOs never expose plaintext signing material.
 - [x] Endpoint URLs require absolute HTTPS, length and shape validation, no credentials or fragment, and SSRF validation both when configured and immediately before future dispatch.
 - [x] Event subscriptions accept only the five settled Appointment event types, require at least one unique type, and support no wildcard or Booking Session, Customer, catalog, or payment events.
 - [x] Disabled Endpoints cannot be re-enabled, and get-one, hard-delete, test delivery, replay, and inferred health behavior remain absent.
-- [ ] Delivery history exposes only the settled attempt metadata, filters, failure codes, ordering, and cursor behavior; it contains no bodies, Customer Details, secrets, or internal exception text.
-- [ ] Sensitive secret rotation from Merchant settings requires recent password reauthentication, while API-token-authorized operations obey the contract's scope boundary.
-- [ ] Endpoint lifecycle and secret events are audited without secret values, and API contract, SSRF, one-time disclosure, cross-Merchant, disabled-state, and empty-history tests pass.
+- [x] Delivery history exposes only the settled attempt metadata, filters, failure codes, ordering, and cursor behavior; it contains no bodies, Customer Details, secrets, or internal exception text.
+- [x] Sensitive secret rotation from Merchant settings requires recent password reauthentication, while API-token-authorized operations obey the contract's scope boundary.
+- [x] Endpoint lifecycle and secret events are audited without secret values, and API contract, SSRF, one-time disclosure, cross-Merchant, disabled-state, and empty-history tests pass.
 
 ## Comments
 
@@ -31,6 +31,10 @@ Let integrations configure where Appointment lifecycle notifications should go a
 Commit `ef4a6ab` adds the Merchant-scoped storage, capability, Platform API routes, shared URL hardening, one-time secret disclosure, delivery metadata projection, migration, and API tests. Review corrections also aligned the settled `eventTypes`, Appointment event vocabulary, delivery status/failure vocabulary, `eventId` filter, inclusive `attemptedAtFrom`, and terminal secret rotation.
 
 Still open after two-axis review: shared signed/filter-bound cursors and Seed/Live pagination parity; Merchant-settings recent-password rotation; typed `invalid_webhook_url` / `webhook_endpoint_disabled` responses and unknown DELETE semantics; mutation/audit atomicity; and real-D1/cursor/cross-Merchant/audit test coverage. The issue intentionally remains `in-progress` and unchecked ACs document these gaps.
+
+### Completion update — 2026-07-11
+
+Commit `6c400f7` completes the remaining safeguards: HMAC-signed, filter-bound, expiring cursors with stable production key enforcement; Seed/Live delivery parity; typed webhook URL and disabled errors; safe unknown/cross-Merchant DELETE behavior; Merchant password-reauthenticated rotation; settled `wh_` IDs; constant-time cursor MAC comparison; and atomic, affected-row-conditional audit writes. Real-D1 tests cover lifecycle, one-time disclosure, sanitized audits, cross-Merchant access, terminal disable, signed cursors, inclusive delivery filters, ordering, and safe history DTOs. The stale “Still open” paragraph above is retained as review history and is fully superseded by this completion update.
 
 ## Agent Brief
 
@@ -57,17 +61,17 @@ Creation and rotation must disclose a newly generated signing secret exactly onc
 
 **Acceptance criteria:**
 
-- [ ] All settled Platform API v1 Webhook Endpoint and Delivery Attempt routes exist, require `webhooks:manage`, derive exactly one Merchant from the verified bearer token, use the standard success/error envelopes and status codes, and apply the `developer_config` rate limit.
-- [ ] Endpoint list includes active and disabled resources by default, supports repeatable status filters, orders by `(updatedAt ASC, id ASC)`, and uses the shared signed cursor contract without returning a total count.
-- [ ] Creation and patch enforce an absolute HTTPS URL no longer than 2,048 characters with no credentials or fragment; nullable description is normalized and capped at 500 characters; and event subscriptions contain 1–5 unique values from the five settled Appointment event types.
-- [ ] Creation returns `201` with the complete Endpoint and its signing secret exactly once; rotation returns `200` with only the newly persisted `signingSecret`; ordinary reads and all non-disclosure surfaces never expose plaintext signing material.
-- [ ] Patch is last-write-wins, accepts at least one supported field, returns the complete updated Endpoint, and cannot reactivate a disabled Endpoint.
-- [ ] Disable returns `204` for both first and repeated calls, disabled Endpoints cannot be re-enabled, and unknown or cross-Merchant endpoint access uses the same safe `404` behavior without mutation or secret creation.
-- [ ] Delivery history supports the settled repeatable status and event filters, inclusive `attemptedAtFrom`, cursor and limit parameters, and `(attemptedAt DESC, id DESC)` ordering; an Endpoint with no attempts returns a successful empty page.
-- [ ] Delivery Attempt resources use the settled IDs, statuses, failure codes, timestamps, duration, response status, and next-attempt metadata while omitting request/response bodies, Customer Details, secrets, and internal exception text.
-- [ ] The shared URL guard runs at endpoint configuration and remains mandatory immediately before dispatch, including coverage for malformed, private, loopback, link-local, credential-bearing, fragment-bearing, and over-length destinations.
-- [ ] Merchant App signing-secret rotation is gated by recent password reauthentication, while Platform API rotation relies on the authenticated token's `webhooks:manage` scope and Merchant boundary.
-- [ ] Endpoint lifecycle and secret events are audited without secret values, and contract, handler, capability, real-D1, one-time disclosure, cursor, SSRF, cross-Merchant, disabled-state, audit, and empty-history tests pass.
+- [x] All settled Platform API v1 Webhook Endpoint and Delivery Attempt routes exist, require `webhooks:manage`, derive exactly one Merchant from the verified bearer token, use the standard success/error envelopes and status codes, and apply the `developer_config` rate limit.
+- [x] Endpoint list includes active and disabled resources by default, supports repeatable status filters, orders by `(updatedAt ASC, id ASC)`, and uses the shared signed cursor contract without returning a total count.
+- [x] Creation and patch enforce an absolute HTTPS URL no longer than 2,048 characters with no credentials or fragment; nullable description is normalized and capped at 500 characters; and event subscriptions contain 1–5 unique values from the five settled Appointment event types.
+- [x] Creation returns `201` with the complete Endpoint and its signing secret exactly once; rotation returns `200` with only the newly persisted `signingSecret`; ordinary reads and all non-disclosure surfaces never expose plaintext signing material.
+- [x] Patch is last-write-wins, accepts at least one supported field, returns the complete updated Endpoint, and cannot reactivate a disabled Endpoint.
+- [x] Disable returns `204` for both first and repeated calls, disabled Endpoints cannot be re-enabled, and unknown or cross-Merchant endpoint access uses the same safe `404` behavior without mutation or secret creation.
+- [x] Delivery history supports the settled repeatable status and event filters, inclusive `attemptedAtFrom`, cursor and limit parameters, and `(attemptedAt DESC, id DESC)` ordering; an Endpoint with no attempts returns a successful empty page.
+- [x] Delivery Attempt resources use the settled IDs, statuses, failure codes, timestamps, duration, response status, and next-attempt metadata while omitting request/response bodies, Customer Details, secrets, and internal exception text.
+- [x] The shared URL guard runs at endpoint configuration and remains mandatory immediately before dispatch, including coverage for malformed, private, loopback, link-local, credential-bearing, fragment-bearing, and over-length destinations.
+- [x] Merchant App signing-secret rotation is gated by recent password reauthentication, while Platform API rotation relies on the authenticated token's `webhooks:manage` scope and Merchant boundary.
+- [x] Endpoint lifecycle and secret events are audited without secret values, and contract, handler, capability, real-D1, one-time disclosure, cursor, SSRF, cross-Merchant, disabled-state, audit, and empty-history tests pass.
 
 **Out of scope:**
 

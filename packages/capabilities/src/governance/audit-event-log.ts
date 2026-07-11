@@ -1,6 +1,12 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { desc, eq } from 'drizzle-orm'
-import { auditEvents, Database, user, type BatchStatement } from '@b2b-saas-starter/db'
+import {
+  auditEvents,
+  Database,
+  user,
+  type BatchStatement,
+  type CompiledBatchQuery
+} from '@b2b-saas-starter/db'
 import type { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -40,6 +46,9 @@ export type AuditEventLogShape = {
    * their own write via `batch` from `@b2b-saas-starter/db`.
    */
   readonly prepareRecord: (input: RecordAuditEventInput) => BatchStatement
+  readonly prepareRecordWhenPreviousChanged: (
+    input: RecordAuditEventInput
+  ) => CompiledBatchQuery
 }
 
 export class AuditEventLog extends Context.Service<AuditEventLog, AuditEventLogShape>()(
@@ -57,7 +66,8 @@ export const SeedAuditEventLog = (
     list: Effect.succeed(seed),
     listGlobal: Effect.succeed(seed),
     record: () => Effect.void,
-    prepareRecord: () => noopStatement
+    prepareRecord: () => noopStatement,
+    prepareRecordWhenPreviousChanged: () => ({ sql: 'select 1', params: [] })
   })
 
 export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
@@ -113,7 +123,17 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         listGlobal: queryRows(),
         record: (input) =>
           orUnavailable('audit-event-log')(insertFor(input)).pipe(Effect.asVoid),
-        prepareRecord: (input) => insertFor(input)
+        prepareRecord: (input) => insertFor(input),
+        prepareRecordWhenPreviousChanged: (input) => {
+          const query = insertFor(input).toSQL()
+          const marker = ' values ('
+          const markerIndex = query.sql.lastIndexOf(marker)
+          const values = query.sql.slice(markerIndex + marker.length, -1)
+          return {
+            sql: `${query.sql.slice(0, markerIndex)} select ${values} where changes() > 0`,
+            params: query.params
+          }
+        }
       }
     })
   )

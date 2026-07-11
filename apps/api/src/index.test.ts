@@ -262,7 +262,17 @@ describe('Booking Product Platform API v1', () => {
         body: JSON.stringify({ url: 'https://other.example.com/hook' })
       })
     )
-    expect(patch.status).toBe(404)
+    expect(patch.status).toBe(409)
+    expect((await patch.json()) as object).toMatchObject({
+      error: { code: 'webhook_endpoint_disabled' }
+    })
+    const missing = await handler(
+      new Request('https://api.test/v1/webhook-endpoints/whe_missing', {
+        method: 'DELETE',
+        headers: bearer
+      })
+    )
+    expect(missing.status).toBe(404)
   })
 
   test('rejects unsafe webhook configuration and closed event families', async () => {
@@ -287,7 +297,69 @@ describe('Booking Product Platform API v1', () => {
         })
       )
       expect(response.status).toBe(400)
+      const body = (await response.json()) as { error: { code: string } }
+      expect(
+        payload.eventTypes.some((event) => event.startsWith('appointment.'))
+          ? 'invalid_webhook_url'
+          : 'invalid_request'
+      ).toBe(body.error.code)
     }
+  })
+
+  test('binds signed webhook cursors to filters and enforces webhooks scope', async () => {
+    const handler = handlerFor()
+    for (const suffix of ['cursor-one', 'cursor-two']) {
+      expect(
+        (
+          await handler(
+            new Request('https://api.test/v1/webhook-endpoints', {
+              method: 'POST',
+              headers: { ...bearer, 'content-type': 'application/json' },
+              body: JSON.stringify({
+                url: `https://${suffix}.example.com/hook`,
+                eventTypes: ['appointment.created']
+              })
+            })
+          )
+        ).status
+      ).toBe(201)
+    }
+    const first = (await (
+      await handler(get('/v1/webhook-endpoints?limit=1', bearer))
+    ).json()) as { page: { nextCursor: string } }
+    expect(first.page.nextCursor).toContain('.')
+    expect(
+      (
+        await handler(
+          get(
+            `/v1/webhook-endpoints?status=active&cursor=${encodeURIComponent(first.page.nextCursor)}`,
+            bearer
+          )
+        )
+      ).status
+    ).toBe(400)
+
+    const tokenResponse = await handler(
+      new Request('https://api.test/v1/api-tokens', {
+        method: 'POST',
+        headers: { ...bearer, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'No webhooks',
+          scopes: ['merchant:read'],
+          expiresAt: null
+        })
+      })
+    )
+    const restricted = (await tokenResponse.json()) as { token: string }
+    const denied = await handler(
+      get('/v1/webhook-endpoints', {
+        authorization: `Bearer ${restricted.token}`
+      })
+    )
+    expect(denied.status).toBe(403)
+    expect(await denied.json()).toMatchObject({
+      error: { code: 'insufficient_scope' }
+    })
   })
 
   test('does not expose retired or customer booking routes', async () => {

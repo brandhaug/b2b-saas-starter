@@ -24,6 +24,7 @@ export type StarterEnv = {
   readonly DB?: D1Binding | undefined
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding | undefined
   readonly PLATFORM_API_CURSOR_SECRET?: string | undefined
+  readonly REQUIRE_PLATFORM_API_CURSOR_SECRET?: boolean | undefined
   /**
    * Env-derived module configuration, computed by the app from its real
    * worker env via `moduleConfigStatus(readServerEnv(env))` in
@@ -38,7 +39,8 @@ export const selectCapabilitiesLayer = (env: StarterEnv): CapabilitiesLayer => {
   const base = env.DB
     ? makeLiveLayerFromD1(env.DB, {
         webhookQueue: env.WEBHOOK_QUEUE,
-        platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET
+        platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET,
+        requirePlatformApiCursorSecret: env.REQUIRE_PLATFORM_API_CURSOR_SECRET
       })
     : SeedLayer
   return withModuleEnvStatus(base, env.moduleConfig)
@@ -56,7 +58,8 @@ export const selectWorkspaceLayer = (
     ? Layer.mergeAll(
         makeLiveCapabilitiesLayer({
           webhookQueue: env.WEBHOOK_QUEUE,
-          platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET
+          platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET,
+          requirePlatformApiCursorSecret: env.REQUIRE_PLATFORM_API_CURSOR_SECRET
         }),
         liveWorkspaceContext(slug, actor)
       ).pipe(Layer.provide(layerFromD1(env.DB)))

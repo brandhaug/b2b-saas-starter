@@ -359,20 +359,29 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
   readonly platformApiCursorSecret?: string | undefined
+  readonly requirePlatformApiCursorSecret?: boolean | undefined
   readonly confirmationKeyring?:
     | Parameters<typeof LiveBookingConfirmation>[0]
     | undefined
 }
 
+const ephemeralPlatformCursorSecret = crypto.randomUUID()
+
 export const makeLiveCapabilitiesLayer = (
   options: LiveCapabilitiesOptions = {}
-): Layer.Layer<CapabilityServices, never, Database> =>
-  Layer.mergeAll(
+): Layer.Layer<CapabilityServices, never, Database> => {
+  if (
+    options.requirePlatformApiCursorSecret &&
+    !options.platformApiCursorSecret?.trim()
+  )
+    throw new Error('PLATFORM_API_CURSOR_SECRET is required in production.')
+  const cursorSecret = options.platformApiCursorSecret || ephemeralPlatformCursorSecret
+  return Layer.mergeAll(
     LiveAdoptionReadiness,
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LivePlatformApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
-    LivePlatformApiReads(options.platformApiCursorSecret ?? ''),
-    LivePlatformWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
+    LivePlatformApiReads(cursorSecret),
+    LivePlatformWebhookEndpoints(cursorSecret).pipe(Layer.provide(LiveAuditEventLog)),
     LiveAuditEventLog,
     LiveCatalogRefreshHistory,
     LiveImplementationReports,
@@ -395,6 +404,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveWebhookPublisher(options.webhookQueue),
     LiveWorkspaceMembership
   )
+}
 
 /**
  * Exported at module level for `runtime.ts` only — not re-exported from the

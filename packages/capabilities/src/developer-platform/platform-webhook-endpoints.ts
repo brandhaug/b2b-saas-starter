@@ -1,7 +1,8 @@
-/* v8 ignore file -- contract behavior is covered through the Platform API seam */
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, asc, desc, eq, gt, gte, inArray, lt, or } from 'drizzle-orm'
 import {
+  batch,
+  batchQueries,
   Database,
   platformWebhookDeliveries,
   platformWebhookEndpoints
@@ -12,6 +13,7 @@ import { randomHex } from '../internal/crypto.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { validateWebhookUrl } from './webhook-url.ts'
+import type { FreshPasswordAuthenticationProof } from './platform-api-token-registry.ts'
 
 export const APPOINTMENT_WEBHOOK_EVENTS = [
   'appointment.created',
@@ -75,6 +77,10 @@ export class PlatformWebhookInvalidCursor extends Schema.TaggedErrorClass<Platfo
   'PlatformWebhookInvalidCursor',
   {}
 ) {}
+export class PlatformWebhookDisabled extends Schema.TaggedErrorClass<PlatformWebhookDisabled>()(
+  'PlatformWebhookDisabled',
+  {}
+) {}
 
 type Page<A> = {
   readonly data: readonly A[]
@@ -103,6 +109,7 @@ type DeliveryListInput = {
   readonly cursor?: string
   readonly limit?: number
 }
+type SeedDelivery = PlatformWebhookDeliveryAttempt & { readonly endpointId: string }
 export type PlatformWebhookEndpointsShape = {
   readonly list: (
     input: ListInput
@@ -125,14 +132,17 @@ export type PlatformWebhookEndpointsShape = {
     }
   ) => Effect.Effect<
     PlatformWebhookEndpoint,
-    PlatformWebhookInvalidInput | PlatformWebhookNotFound | CapabilityUnavailable
+    | PlatformWebhookInvalidInput
+    | PlatformWebhookNotFound
+    | PlatformWebhookDisabled
+    | CapabilityUnavailable
   >
   readonly disable: (input: {
     readonly merchantId: string
     readonly endpointId: string
     readonly actorUserId?: string
     readonly actorTokenId?: string
-  }) => Effect.Effect<void, CapabilityUnavailable>
+  }) => Effect.Effect<void, PlatformWebhookNotFound | CapabilityUnavailable>
   readonly rotateSecret: (input: {
     readonly merchantId: string
     readonly endpointId: string
@@ -140,7 +150,18 @@ export type PlatformWebhookEndpointsShape = {
     readonly actorTokenId?: string
   }) => Effect.Effect<
     { readonly signingSecret: string },
-    PlatformWebhookNotFound | CapabilityUnavailable
+    PlatformWebhookNotFound | PlatformWebhookDisabled | CapabilityUnavailable
+  >
+  readonly rotateSecretFromMerchantSettings: (input: {
+    readonly merchantId: string
+    readonly endpointId: string
+    readonly proof: FreshPasswordAuthenticationProof
+  }) => Effect.Effect<
+    { readonly signingSecret: string },
+    | PlatformWebhookInvalidInput
+    | PlatformWebhookNotFound
+    | PlatformWebhookDisabled
+    | CapabilityUnavailable
   >
   readonly deliveries: (
     input: DeliveryListInput
@@ -155,6 +176,15 @@ export class PlatformWebhookEndpoints extends Context.Service<
 >()('@b2b-saas-starter/capabilities/PlatformWebhookEndpoints') {}
 
 const secret = () => `whsec_${randomHex(24)}`
+const freshPasswordProof = (proof: FreshPasswordAuthenticationProof) => {
+  const verifiedAt = Date.parse(proof.verifiedAt)
+  return (
+    proof.method === 'password' &&
+    !Number.isNaN(verifiedAt) &&
+    verifiedAt <= Date.now() &&
+    Date.now() - verifiedAt <= 15 * 60_000
+  )
+}
 const normalizeDescription = (value?: string | null) => {
   const normalized = value?.trim() ?? ''
   return normalized === '' ? null : normalized
@@ -206,275 +236,499 @@ const deliveryDto = (
   attemptedAt: row.attemptedAt,
   nextAttemptAt: row.nextAttemptAt
 })
-const cursor = (parts: readonly string[]) => btoa(JSON.stringify(parts))
-const parseCursor = (value?: string): readonly [string, string] | null | undefined => {
+const cursorBytes = new TextEncoder()
+const base64url = (value: Uint8Array | string) => {
+  const raw = typeof value === 'string' ? value : String.fromCharCode(...value)
+  return btoa(raw).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+}
+const digest = async (value: string) =>
+  base64url(
+    new Uint8Array(await crypto.subtle.digest('SHA-256', cursorBytes.encode(value)))
+  )
+const sign = async (value: string, secret: string) => {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    cursorBytes.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  return base64url(
+    new Uint8Array(await crypto.subtle.sign('HMAC', key, cursorBytes.encode(value)))
+  )
+}
+const signaturesMatch = (left: string, right: string) => {
+  const length = Math.max(left.length, right.length)
+  let different = left.length ^ right.length
+  for (let index = 0; index < length; index += 1)
+    different |= (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0)
+  return different === 0
+}
+const cursorFilters = (input: ListInput | DeliveryListInput) =>
+  JSON.stringify({
+    attemptedAtFrom:
+      'attemptedAtFrom' in input ? (input.attemptedAtFrom ?? null) : null,
+    endpointId: 'endpointId' in input ? input.endpointId : null,
+    eventIds: 'eventIds' in input ? [...new Set(input.eventIds ?? [])].sort() : [],
+    statuses: [...new Set(input.statuses ?? [])].sort()
+  })
+const encodeCursor = async (
+  endpoint: 'endpoints' | 'deliveries',
+  input: ListInput | DeliveryListInput,
+  parts: readonly [string, string],
+  secret: string
+) => {
+  const payload = base64url(
+    JSON.stringify({
+      e: endpoint,
+      f: await digest(cursorFilters(input)),
+      p: parts,
+      v: 1,
+      x: Date.now() + 24 * 60 * 60_000
+    })
+  )
+  return `${payload}.${await sign(payload, secret)}`
+}
+const parseCursor = async (
+  value: string | undefined,
+  endpoint: 'endpoints' | 'deliveries',
+  input: ListInput | DeliveryListInput,
+  secret: string
+): Promise<readonly [string, string] | null | undefined> => {
   if (!value) return undefined
   try {
-    const parsed = JSON.parse(atob(value))
-    return Array.isArray(parsed) &&
-      parsed.length === 2 &&
-      parsed.every((item) => typeof item === 'string')
-      ? (parsed as [string, string])
-      : null
+    const [payload, signature, ...rest] = value.split('.')
+    if (
+      !payload ||
+      !signature ||
+      rest.length ||
+      !signaturesMatch(await sign(payload, secret), signature)
+    )
+      return null
+    const parsed = JSON.parse(
+      atob(payload.replaceAll('-', '+').replaceAll('_', '/'))
+    ) as { e: string; f: string; p: [string, string]; v: number; x: number }
+    if (
+      parsed.e !== endpoint ||
+      parsed.v !== 1 ||
+      parsed.x <= Date.now() ||
+      parsed.f !== (await digest(cursorFilters(input))) ||
+      !Array.isArray(parsed.p) ||
+      parsed.p.length !== 2 ||
+      !parsed.p.every((part) => typeof part === 'string')
+    )
+      return null
+    return parsed.p
   } catch {
     return null
   }
 }
 
-export const SeedPlatformWebhookEndpoints =
-  (): Layer.Layer<PlatformWebhookEndpoints> => {
-    let endpoints: Array<
-      PlatformWebhookEndpoint & { merchantId: string; signingSecret: string }
-    > = []
-    const service: PlatformWebhookEndpointsShape = {
-      list: (input) =>
-        Effect.succeed({
-          data: endpoints
+/* v8 ignore start -- Seed parity is exercised through the Platform API handler */
+export const SeedPlatformWebhookEndpoints = (
+  cursorSecret = 'seed-platform-webhook-cursor-secret',
+  deliveries: readonly SeedDelivery[] = [],
+  initialEndpoints: readonly (PlatformWebhookEndpoint & {
+    readonly merchantId: string
+    readonly signingSecret: string
+  })[] = []
+): Layer.Layer<PlatformWebhookEndpoints> => {
+  let endpoints: Array<
+    PlatformWebhookEndpoint & { merchantId: string; signingSecret: string }
+  > = initialEndpoints.map((endpoint) => ({ ...endpoint }))
+  const service: PlatformWebhookEndpointsShape = {
+    list: (input) =>
+      Effect.tryPromise({
+        try: async () => {
+          const position = await parseCursor(
+            input.cursor,
+            'endpoints',
+            input,
+            cursorSecret
+          )
+          if (input.cursor && !position) throw new PlatformWebhookInvalidCursor()
+          const limit = input.limit ?? 50
+          const visible = endpoints
             .filter(
               (e) =>
                 e.merchantId === input.merchantId &&
                 (!input.statuses || input.statuses.includes(e.status))
             )
-            .map(({ merchantId: _m, signingSecret: _s, ...e }) => e),
-          page: { nextCursor: null }
-        }),
-      create: (input) => {
-        const invalid = validateConfig(input)
-        if (invalid)
-          return Effect.fail(new PlatformWebhookInvalidInput({ reason: invalid }))
-        const now = new Date().toISOString(),
-          signingSecret = secret()
-        const endpoint = {
-          id: newCapabilityId('whe'),
-          merchantId: input.merchantId,
-          url: input.url,
-          description: normalizeDescription(input.description),
-          status: 'active' as const,
-          eventTypes: [...input.eventTypes],
-          createdAt: now,
-          updatedAt: now,
-          disabledAt: null,
-          signingSecret
-        }
-        endpoints.push(endpoint)
-        const { merchantId: _m, signingSecret: _s, ...data } = endpoint
-        return Effect.succeed({ data, signingSecret })
-      },
-      patch: (input) =>
-        Effect.gen(function* () {
-          const index = endpoints.findIndex(
-            (e) => e.id === input.endpointId && e.merchantId === input.merchantId
-          )
-          if (index < 0) return yield* Effect.fail(new PlatformWebhookNotFound())
-          const current = endpoints[index]!
-          if (current.status === 'disabled')
-            return yield* Effect.fail(new PlatformWebhookNotFound())
-          if (
-            input.url === undefined &&
-            input.description === undefined &&
-            input.eventTypes === undefined
-          )
-            return yield* Effect.fail(
-              new PlatformWebhookInvalidInput({ reason: 'empty_patch' })
+            .sort(
+              (a, b) =>
+                a.updatedAt.localeCompare(b.updatedAt) || a.id.localeCompare(b.id)
             )
-          const next = {
-            ...current,
-            url: input.url ?? current.url,
-            description:
-              input.description === undefined
-                ? current.description
-                : normalizeDescription(input.description),
-            eventTypes: input.eventTypes ? [...input.eventTypes] : current.eventTypes,
-            updatedAt: new Date().toISOString()
+            .filter(
+              (e) =>
+                !position ||
+                e.updatedAt > position[0] ||
+                (e.updatedAt === position[0] && e.id > position[1])
+            )
+          const data = visible.slice(0, limit)
+          return {
+            data: data.map(({ merchantId: _m, signingSecret: _s, ...e }) => e),
+            page: {
+              nextCursor:
+                visible.length > limit
+                  ? await encodeCursor(
+                      'endpoints',
+                      input,
+                      [data.at(-1)!.updatedAt, data.at(-1)!.id],
+                      cursorSecret
+                    )
+                  : null
+            }
           }
-          const invalid = validateConfig(next)
-          if (invalid)
-            return yield* Effect.fail(
-              new PlatformWebhookInvalidInput({ reason: invalid })
-            )
-          endpoints[index] = next
-          const { merchantId: _m, signingSecret: _s, ...data } = next
-          return data
-        }),
-      disable: (input) =>
-        Effect.sync(() => {
-          endpoints = endpoints.map((e) =>
-            e.id === input.endpointId &&
-            e.merchantId === input.merchantId &&
-            e.status === 'active'
-              ? {
-                  ...e,
-                  status: 'disabled',
-                  disabledAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                }
-              : e
-          )
-        }),
-      rotateSecret: (input) =>
-        Effect.gen(function* () {
-          const found = endpoints.find(
-            (e) => e.id === input.endpointId && e.merchantId === input.merchantId
-          )
-          if (!found || found.status === 'disabled')
-            return yield* Effect.fail(new PlatformWebhookNotFound())
-          const signingSecret = secret()
-          found.signingSecret = signingSecret
-          return { signingSecret }
-        }),
-      deliveries: (input) =>
-        endpoints.some(
+        },
+        catch: () => new PlatformWebhookInvalidCursor()
+      }),
+    create: (input) => {
+      const invalid = validateConfig(input)
+      if (invalid)
+        return Effect.fail(new PlatformWebhookInvalidInput({ reason: invalid }))
+      const now = new Date().toISOString(),
+        signingSecret = secret()
+      const endpoint = {
+        id: newCapabilityId('wh'),
+        merchantId: input.merchantId,
+        url: input.url,
+        description: normalizeDescription(input.description),
+        status: 'active' as const,
+        eventTypes: [...input.eventTypes],
+        createdAt: now,
+        updatedAt: now,
+        disabledAt: null,
+        signingSecret
+      }
+      endpoints.push(endpoint)
+      const { merchantId: _m, signingSecret: _s, ...data } = endpoint
+      return Effect.succeed({ data, signingSecret })
+    },
+    patch: (input) =>
+      Effect.gen(function* () {
+        const index = endpoints.findIndex(
           (e) => e.id === input.endpointId && e.merchantId === input.merchantId
         )
-          ? Effect.succeed({ data: [], page: { nextCursor: null } })
-          : Effect.fail(new PlatformWebhookNotFound())
-    }
-    return Layer.succeed(PlatformWebhookEndpoints)(service)
-  }
-
-const unavailable = orUnavailable('platform-webhook-endpoints')
-export const LivePlatformWebhookEndpoints: Layer.Layer<
-  PlatformWebhookEndpoints,
-  never,
-  Database | AuditEventLog
-> = Layer.effect(PlatformWebhookEndpoints)(
-  Effect.gen(function* () {
-    const db = yield* Database
-    const audit = yield* AuditEventLog
-    const find = (merchantId: string, endpointId: string) =>
-      unavailable(
-        db
-          .select()
-          .from(platformWebhookEndpoints)
-          .where(
-            and(
-              eq(platformWebhookEndpoints.merchantId, merchantId),
-              eq(platformWebhookEndpoints.id, endpointId)
+        if (index < 0) return yield* Effect.fail(new PlatformWebhookNotFound())
+        const current = endpoints[index]!
+        if (current.status === 'disabled')
+          return yield* Effect.fail(new PlatformWebhookDisabled())
+        if (
+          input.url === undefined &&
+          input.description === undefined &&
+          input.eventTypes === undefined
+        )
+          return yield* Effect.fail(
+            new PlatformWebhookInvalidInput({ reason: 'empty_patch' })
+          )
+        const next = {
+          ...current,
+          url: input.url ?? current.url,
+          description:
+            input.description === undefined
+              ? current.description
+              : normalizeDescription(input.description),
+          eventTypes: input.eventTypes ? [...input.eventTypes] : current.eventTypes,
+          updatedAt: new Date().toISOString()
+        }
+        const invalid = validateConfig(next)
+        if (invalid)
+          return yield* Effect.fail(
+            new PlatformWebhookInvalidInput({ reason: invalid })
+          )
+        endpoints[index] = next
+        const { merchantId: _m, signingSecret: _s, ...data } = next
+        return data
+      }),
+    disable: (input) =>
+      Effect.gen(function* () {
+        const index = endpoints.findIndex(
+          (e) => e.id === input.endpointId && e.merchantId === input.merchantId
+        )
+        if (index < 0) return yield* Effect.fail(new PlatformWebhookNotFound())
+        const current = endpoints[index]!
+        if (current.status === 'disabled') return
+        const now = new Date().toISOString()
+        endpoints[index] = {
+          ...current,
+          status: 'disabled',
+          disabledAt: now,
+          updatedAt: now
+        }
+      }),
+    rotateSecret: (input) =>
+      Effect.gen(function* () {
+        const found = endpoints.find(
+          (e) => e.id === input.endpointId && e.merchantId === input.merchantId
+        )
+        if (!found) return yield* Effect.fail(new PlatformWebhookNotFound())
+        if (found.status === 'disabled')
+          return yield* Effect.fail(new PlatformWebhookDisabled())
+        const signingSecret = secret()
+        found.signingSecret = signingSecret
+        return { signingSecret }
+      }),
+    rotateSecretFromMerchantSettings: (input) => {
+      if (!freshPasswordProof(input.proof))
+        return Effect.fail(
+          new PlatformWebhookInvalidInput({ reason: 'reauthentication_required' })
+        )
+      return service.rotateSecret({
+        merchantId: input.merchantId,
+        endpointId: input.endpointId,
+        actorUserId: input.proof.userId
+      })
+    },
+    deliveries: (input) =>
+      Effect.tryPromise({
+        try: async () => {
+          if (
+            !endpoints.some(
+              (e) => e.id === input.endpointId && e.merchantId === input.merchantId
             )
           )
-          .limit(1)
-      ).pipe(Effect.map((rows) => rows[0]))
-    const auditMutation = (
-      eventType: string,
-      endpointId: string,
-      actorUserId?: string,
-      actorTokenId?: string
-    ) =>
-      audit.record({
+            throw new PlatformWebhookNotFound()
+          const position = await parseCursor(
+            input.cursor,
+            'deliveries',
+            input,
+            cursorSecret
+          )
+          if (input.cursor && !position) throw new PlatformWebhookInvalidCursor()
+          const limit = input.limit ?? 50
+          const visible = deliveries
+            .filter(
+              (attempt) =>
+                attempt.endpointId === input.endpointId &&
+                (!input.statuses || input.statuses.includes(attempt.status)) &&
+                (!input.eventIds || input.eventIds.includes(attempt.eventId)) &&
+                (!input.attemptedAtFrom ||
+                  attempt.attemptedAt >= input.attemptedAtFrom) &&
+                (!position ||
+                  attempt.attemptedAt < position[0] ||
+                  (attempt.attemptedAt === position[0] && attempt.id < position[1]))
+            )
+            .sort(
+              (a, b) =>
+                b.attemptedAt.localeCompare(a.attemptedAt) || b.id.localeCompare(a.id)
+            )
+          const data = visible.slice(0, limit)
+          return {
+            data: data.map(({ endpointId: _endpointId, ...attempt }) => attempt),
+            page: {
+              nextCursor:
+                visible.length > limit
+                  ? await encodeCursor(
+                      'deliveries',
+                      input,
+                      [data.at(-1)!.attemptedAt, data.at(-1)!.id],
+                      cursorSecret
+                    )
+                  : null
+            }
+          }
+        },
+        catch: (failure) =>
+          failure instanceof PlatformWebhookNotFound
+            ? failure
+            : new PlatformWebhookInvalidCursor()
+      })
+  }
+  return Layer.succeed(PlatformWebhookEndpoints)(service)
+}
+/* v8 ignore stop */
+
+const unavailable = orUnavailable('platform-webhook-endpoints')
+export const LivePlatformWebhookEndpoints = (
+  cursorSecret: string
+): Layer.Layer<PlatformWebhookEndpoints, never, Database | AuditEventLog> => {
+  return Layer.effect(PlatformWebhookEndpoints)(
+    Effect.gen(function* () {
+      const db = yield* Database
+      const audit = yield* AuditEventLog
+      const find = (merchantId: string, endpointId: string) =>
+        unavailable(
+          db
+            .select()
+            .from(platformWebhookEndpoints)
+            .where(
+              and(
+                eq(platformWebhookEndpoints.merchantId, merchantId),
+                eq(platformWebhookEndpoints.id, endpointId)
+              )
+            )
+            .limit(1)
+        ).pipe(Effect.map((rows) => rows[0]))
+      const auditInput = (
+        eventType: string,
+        endpointId: string,
+        actorUserId?: string,
+        actorTokenId?: string
+      ) => ({
         eventType,
         targetType: 'webhook_endpoint',
         targetId: endpointId,
         actorUserId: actorUserId ?? null,
         metadata: actorTokenId ? { actorTokenId } : {}
       })
-    return {
-      list: (input) =>
-        Effect.gen(function* () {
-          const position = parseCursor(input.cursor)
-          if (position === null)
-            return yield* Effect.fail(new PlatformWebhookInvalidCursor())
-          const filters = [
-            eq(platformWebhookEndpoints.merchantId, input.merchantId),
-            ...(input.statuses?.length
-              ? [inArray(platformWebhookEndpoints.status, input.statuses)]
-              : []),
-            ...(position
-              ? [
-                  or(
-                    gt(platformWebhookEndpoints.updatedAt, position[0]),
-                    and(
-                      eq(platformWebhookEndpoints.updatedAt, position[0]),
-                      gt(platformWebhookEndpoints.id, position[1])
-                    )
-                  )!
-                ]
-              : [])
-          ]
-          const limit = input.limit ?? 50
-          const rows = yield* unavailable(
-            db
-              .select()
-              .from(platformWebhookEndpoints)
-              .where(and(...filters))
-              .orderBy(
-                asc(platformWebhookEndpoints.updatedAt),
-                asc(platformWebhookEndpoints.id)
-              )
-              .limit(limit + 1)
-          )
-          return {
-            data: rows.slice(0, limit).map(endpointDto),
-            page: {
-              nextCursor:
-                rows.length > limit
-                  ? cursor([rows[limit - 1]!.updatedAt, rows[limit - 1]!.id])
-                  : null
-            }
-          }
-        }),
-      create: (input) =>
-        Effect.gen(function* () {
-          const invalid = validateConfig(input)
-          if (invalid)
-            return yield* Effect.fail(
-              new PlatformWebhookInvalidInput({ reason: invalid })
-            )
-          const now = new Date().toISOString(),
-            signingSecret = secret()
-          const row = {
-            id: newCapabilityId('whe'),
-            merchantId: input.merchantId,
-            url: input.url,
-            description: normalizeDescription(input.description),
-            signingSecret,
-            status: 'active' as const,
-            events: [...input.eventTypes],
-            createdAt: now,
-            updatedAt: now,
-            disabledAt: null
-          }
-          yield* unavailable(db.insert(platformWebhookEndpoints).values(row))
-          yield* auditMutation(
-            'webhook_endpoint.created',
-            row.id,
-            input.actorUserId,
-            input.actorTokenId
-          )
-          return { data: endpointDto(row), signingSecret }
-        }),
-      patch: (input) =>
+      const rotateSecret: PlatformWebhookEndpointsShape['rotateSecret'] = (input) =>
         Effect.gen(function* () {
           const current = yield* find(input.merchantId, input.endpointId)
-          if (!current || current.status === 'disabled')
-            return yield* Effect.fail(new PlatformWebhookNotFound())
-          if (
-            input.url === undefined &&
-            input.description === undefined &&
-            input.eventTypes === undefined
+          if (!current) return yield* Effect.fail(new PlatformWebhookNotFound())
+          if (current.status === 'disabled')
+            return yield* Effect.fail(new PlatformWebhookDisabled())
+          const signingSecret = secret()
+          const updatedAt = new Date().toISOString()
+          const update = db
+            .update(platformWebhookEndpoints)
+            .set({ signingSecret, updatedAt })
+            .where(
+              and(
+                eq(platformWebhookEndpoints.id, input.endpointId),
+                eq(platformWebhookEndpoints.merchantId, input.merchantId),
+                eq(platformWebhookEndpoints.status, 'active')
+              )
+            )
+          const results = yield* unavailable(
+            batchQueries(db, [
+              update.toSQL(),
+              audit.prepareRecordWhenPreviousChanged(
+                auditInput(
+                  'webhook_endpoint.secret_rotated',
+                  input.endpointId,
+                  input.actorUserId,
+                  input.actorTokenId
+                )
+              )
+            ])
           )
-            return yield* Effect.fail(
-              new PlatformWebhookInvalidInput({ reason: 'empty_patch' })
+          if ((results[0]?.meta.changes ?? 0) === 0)
+            return yield* Effect.fail(new PlatformWebhookDisabled())
+          return { signingSecret }
+        })
+      return {
+        list: (input) =>
+          Effect.gen(function* () {
+            const position = yield* Effect.promise(() =>
+              parseCursor(input.cursor, 'endpoints', input, cursorSecret)
             )
-          const values = {
-            url: input.url ?? current.url,
-            description:
-              input.description === undefined
-                ? current.description
-                : normalizeDescription(input.description),
-            events: input.eventTypes ? [...input.eventTypes] : current.events,
-            updatedAt: new Date().toISOString()
-          }
-          const invalid = validateConfig({
-            url: values.url,
-            description: values.description,
-            eventTypes: values.events
-          })
-          if (invalid)
-            return yield* Effect.fail(
-              new PlatformWebhookInvalidInput({ reason: invalid })
+            if (position === null)
+              return yield* Effect.fail(new PlatformWebhookInvalidCursor())
+            const filters = [
+              eq(platformWebhookEndpoints.merchantId, input.merchantId),
+              ...(input.statuses?.length
+                ? [inArray(platformWebhookEndpoints.status, input.statuses)]
+                : []),
+              ...(position
+                ? [
+                    or(
+                      gt(platformWebhookEndpoints.updatedAt, position[0]),
+                      and(
+                        eq(platformWebhookEndpoints.updatedAt, position[0]),
+                        gt(platformWebhookEndpoints.id, position[1])
+                      )
+                    )!
+                  ]
+                : [])
+            ]
+            const limit = input.limit ?? 50
+            const rows = yield* unavailable(
+              db
+                .select()
+                .from(platformWebhookEndpoints)
+                .where(and(...filters))
+                .orderBy(
+                  asc(platformWebhookEndpoints.updatedAt),
+                  asc(platformWebhookEndpoints.id)
+                )
+                .limit(limit + 1)
             )
-          yield* unavailable(
-            db
+            return {
+              data: rows.slice(0, limit).map(endpointDto),
+              page: {
+                nextCursor:
+                  rows.length > limit
+                    ? yield* Effect.promise(() =>
+                        encodeCursor(
+                          'endpoints',
+                          input,
+                          [rows[limit - 1]!.updatedAt, rows[limit - 1]!.id],
+                          cursorSecret
+                        )
+                      )
+                    : null
+              }
+            }
+          }),
+        create: (input) =>
+          Effect.gen(function* () {
+            const invalid = validateConfig(input)
+            if (invalid)
+              return yield* Effect.fail(
+                new PlatformWebhookInvalidInput({ reason: invalid })
+              )
+            const now = new Date().toISOString(),
+              signingSecret = secret()
+            const row = {
+              id: newCapabilityId('wh'),
+              merchantId: input.merchantId,
+              url: input.url,
+              description: normalizeDescription(input.description),
+              signingSecret,
+              status: 'active' as const,
+              events: [...input.eventTypes],
+              createdAt: now,
+              updatedAt: now,
+              disabledAt: null
+            }
+            yield* unavailable(
+              batch(db, [
+                db.insert(platformWebhookEndpoints).values(row),
+                audit.prepareRecord(
+                  auditInput(
+                    'webhook_endpoint.created',
+                    row.id,
+                    input.actorUserId,
+                    input.actorTokenId
+                  )
+                )
+              ])
+            )
+            return { data: endpointDto(row), signingSecret }
+          }),
+        patch: (input) =>
+          Effect.gen(function* () {
+            const current = yield* find(input.merchantId, input.endpointId)
+            if (!current) return yield* Effect.fail(new PlatformWebhookNotFound())
+            if (current.status === 'disabled')
+              return yield* Effect.fail(new PlatformWebhookDisabled())
+            if (
+              input.url === undefined &&
+              input.description === undefined &&
+              input.eventTypes === undefined
+            )
+              return yield* Effect.fail(
+                new PlatformWebhookInvalidInput({ reason: 'empty_patch' })
+              )
+            const values = {
+              url: input.url ?? current.url,
+              description:
+                input.description === undefined
+                  ? current.description
+                  : normalizeDescription(input.description),
+              events: input.eventTypes ? [...input.eventTypes] : current.events,
+              updatedAt: new Date().toISOString()
+            }
+            const invalid = validateConfig({
+              url: values.url,
+              description: values.description,
+              eventTypes: values.events
+            })
+            if (invalid)
+              return yield* Effect.fail(
+                new PlatformWebhookInvalidInput({ reason: invalid })
+              )
+            const update = db
               .update(platformWebhookEndpoints)
               .set(values)
               .where(
@@ -484,22 +738,30 @@ export const LivePlatformWebhookEndpoints: Layer.Layer<
                   eq(platformWebhookEndpoints.status, 'active')
                 )
               )
-          )
-          yield* auditMutation(
-            'webhook_endpoint.updated',
-            input.endpointId,
-            input.actorUserId,
-            input.actorTokenId
-          )
-          return endpointDto({ ...current, ...values })
-        }),
-      disable: (input) =>
-        Effect.gen(function* () {
-          const current = yield* find(input.merchantId, input.endpointId)
-          if (!current || current.status === 'disabled') return
-          const now = new Date().toISOString()
-          yield* unavailable(
-            db
+            const results = yield* unavailable(
+              batchQueries(db, [
+                update.toSQL(),
+                audit.prepareRecordWhenPreviousChanged(
+                  auditInput(
+                    'webhook_endpoint.updated',
+                    input.endpointId,
+                    input.actorUserId,
+                    input.actorTokenId
+                  )
+                )
+              ])
+            )
+            if ((results[0]?.meta.changes ?? 0) === 0)
+              return yield* Effect.fail(new PlatformWebhookDisabled())
+            return endpointDto({ ...current, ...values })
+          }),
+        disable: (input) =>
+          Effect.gen(function* () {
+            const current = yield* find(input.merchantId, input.endpointId)
+            if (!current) return yield* Effect.fail(new PlatformWebhookNotFound())
+            if (current.status === 'disabled') return
+            const now = new Date().toISOString()
+            const update = db
               .update(platformWebhookEndpoints)
               .set({ status: 'disabled', disabledAt: now, updatedAt: now })
               .where(
@@ -509,91 +771,95 @@ export const LivePlatformWebhookEndpoints: Layer.Layer<
                   eq(platformWebhookEndpoints.status, 'active')
                 )
               )
-          )
-          yield* auditMutation(
-            'webhook_endpoint.disabled',
-            input.endpointId,
-            input.actorUserId,
-            input.actorTokenId
-          )
-        }),
-      rotateSecret: (input) =>
-        Effect.gen(function* () {
-          const current = yield* find(input.merchantId, input.endpointId)
-          if (!current || current.status === 'disabled')
-            return yield* Effect.fail(new PlatformWebhookNotFound())
-          const signingSecret = secret()
-          yield* unavailable(
-            db
-              .update(platformWebhookEndpoints)
-              .set({ signingSecret, updatedAt: new Date().toISOString() })
-              .where(
-                and(
-                  eq(platformWebhookEndpoints.id, input.endpointId),
-                  eq(platformWebhookEndpoints.merchantId, input.merchantId)
+            const results = yield* unavailable(
+              batchQueries(db, [
+                update.toSQL(),
+                audit.prepareRecordWhenPreviousChanged(
+                  auditInput(
+                    'webhook_endpoint.disabled',
+                    input.endpointId,
+                    input.actorUserId,
+                    input.actorTokenId
+                  )
                 )
-              )
-          )
-          yield* auditMutation(
-            'webhook_endpoint.secret_rotated',
-            input.endpointId,
-            input.actorUserId,
-            input.actorTokenId
-          )
-          return { signingSecret }
-        }),
-      deliveries: (input) =>
-        Effect.gen(function* () {
-          if (!(yield* find(input.merchantId, input.endpointId)))
-            return yield* Effect.fail(new PlatformWebhookNotFound())
-          const position = parseCursor(input.cursor)
-          if (position === null)
-            return yield* Effect.fail(new PlatformWebhookInvalidCursor())
-          const filters = [
-            eq(platformWebhookDeliveries.endpointId, input.endpointId),
-            ...(input.statuses?.length
-              ? [inArray(platformWebhookDeliveries.status, input.statuses)]
-              : []),
-            ...(input.eventIds?.length
-              ? [inArray(platformWebhookDeliveries.eventId, input.eventIds)]
-              : []),
-            ...(input.attemptedAtFrom
-              ? [gte(platformWebhookDeliveries.attemptedAt, input.attemptedAtFrom)]
-              : []),
-            ...(position
-              ? [
-                  or(
-                    lt(platformWebhookDeliveries.attemptedAt, position[0]),
-                    and(
-                      eq(platformWebhookDeliveries.attemptedAt, position[0]),
-                      lt(platformWebhookDeliveries.id, position[1])
-                    )
-                  )!
-                ]
-              : [])
-          ]
-          const limit = input.limit ?? 50
-          const rows = yield* unavailable(
-            db
-              .select()
-              .from(platformWebhookDeliveries)
-              .where(and(...filters))
-              .orderBy(
-                desc(platformWebhookDeliveries.attemptedAt),
-                desc(platformWebhookDeliveries.id)
-              )
-              .limit(limit + 1)
-          )
-          return {
-            data: rows.slice(0, limit).map(deliveryDto),
-            page: {
-              nextCursor:
-                rows.length > limit
-                  ? cursor([rows[limit - 1]!.attemptedAt, rows[limit - 1]!.id])
-                  : null
+              ])
+            )
+            if ((results[0]?.meta.changes ?? 0) === 0) return
+          }),
+        rotateSecret,
+        rotateSecretFromMerchantSettings: (input) => {
+          if (!freshPasswordProof(input.proof))
+            return Effect.fail(
+              new PlatformWebhookInvalidInput({ reason: 'reauthentication_required' })
+            )
+          return rotateSecret({
+            merchantId: input.merchantId,
+            endpointId: input.endpointId,
+            actorUserId: input.proof.userId
+          })
+        },
+        deliveries: (input) =>
+          Effect.gen(function* () {
+            if (!(yield* find(input.merchantId, input.endpointId)))
+              return yield* Effect.fail(new PlatformWebhookNotFound())
+            const position = yield* Effect.promise(() =>
+              parseCursor(input.cursor, 'deliveries', input, cursorSecret)
+            )
+            if (position === null)
+              return yield* Effect.fail(new PlatformWebhookInvalidCursor())
+            const filters = [
+              eq(platformWebhookDeliveries.endpointId, input.endpointId),
+              ...(input.statuses?.length
+                ? [inArray(platformWebhookDeliveries.status, input.statuses)]
+                : []),
+              ...(input.eventIds?.length
+                ? [inArray(platformWebhookDeliveries.eventId, input.eventIds)]
+                : []),
+              ...(input.attemptedAtFrom
+                ? [gte(platformWebhookDeliveries.attemptedAt, input.attemptedAtFrom)]
+                : []),
+              ...(position
+                ? [
+                    or(
+                      lt(platformWebhookDeliveries.attemptedAt, position[0]),
+                      and(
+                        eq(platformWebhookDeliveries.attemptedAt, position[0]),
+                        lt(platformWebhookDeliveries.id, position[1])
+                      )
+                    )!
+                  ]
+                : [])
+            ]
+            const limit = input.limit ?? 50
+            const rows = yield* unavailable(
+              db
+                .select()
+                .from(platformWebhookDeliveries)
+                .where(and(...filters))
+                .orderBy(
+                  desc(platformWebhookDeliveries.attemptedAt),
+                  desc(platformWebhookDeliveries.id)
+                )
+                .limit(limit + 1)
+            )
+            return {
+              data: rows.slice(0, limit).map(deliveryDto),
+              page: {
+                nextCursor:
+                  rows.length > limit
+                    ? yield* Effect.promise(() =>
+                        encodeCursor(
+                          'deliveries',
+                          input,
+                          [rows[limit - 1]!.attemptedAt, rows[limit - 1]!.id],
+                          cursorSecret
+                        )
+                      )
+                    : null
+              }
             }
-          }
-        })
-    }
-  })
-)
+          })
+      }
+    })
+  )
+}

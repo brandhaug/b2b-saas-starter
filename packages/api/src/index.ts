@@ -63,6 +63,16 @@ export class PlatformInvalidCursor extends tagged(
   'invalid_cursor',
   400
 ) {}
+export class PlatformInvalidWebhookUrl extends tagged(
+  'PlatformInvalidWebhookUrl',
+  'invalid_webhook_url',
+  400
+) {}
+export class PlatformWebhookEndpointDisabled extends tagged(
+  'PlatformWebhookEndpointDisabled',
+  'webhook_endpoint_disabled',
+  409
+) {}
 export class PlatformResourceNotFound extends tagged(
   'PlatformResourceNotFound',
   'resource_not_found',
@@ -276,6 +286,8 @@ const WEBHOOK_ERRORS = [
   ...AUTH_ERRORS,
   PlatformInvalidRequest,
   PlatformInvalidCursor,
+  PlatformInvalidWebhookUrl,
+  PlatformWebhookEndpointDisabled,
   PlatformResourceNotFound
 ] as const
 export const PlatformWebhookApi = HttpApiGroup.make('platform-webhooks')
