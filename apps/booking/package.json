@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun src/dev.ts",
     "build": "vite build",
+    "parity:smoke": "bun scripts/run-parity-smoke.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
+    "@playwright/test": "catalog:",
     "@stylexjs/unplugin": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",

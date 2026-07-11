@@ -34,6 +34,15 @@ jobs:
       # sign-in flow test runs instead of skipping.
       - run: bun run db:migrate:local
       - run: bun run db:seed
+      - name: Verify deterministic Booking parity smoke scenarios
+        run: |
+          bun run dev &
+          dev_pid=$!
+          trap 'kill "$dev_pid" 2>/dev/null || true' EXIT
+          bun --cwd apps/booking parity:smoke
+          kill "$dev_pid" 2>/dev/null || true
+          wait "$dev_pid" 2>/dev/null || true
+          trap - EXIT
       # Playwright's webServer config (apps/web/playwright.config.ts) starts
       # `bun run dev` on :3071 itself — no separate server step needed.
       - run: bun run test:e2e

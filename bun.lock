@@ -94,6 +94,7 @@
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
         "@cloudflare/workers-types": "catalog:",
+        "@playwright/test": "catalog:",
         "@stylexjs/unplugin": "catalog:",
         "@testing-library/react": "catalog:",
         "@types/react": "catalog:",

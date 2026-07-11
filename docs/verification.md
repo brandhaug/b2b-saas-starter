@@ -51,3 +51,16 @@ must return its committed result if queue publication fails. Email and each
 Webhook delivery are recorded independently; failed outbox work remains claimable
 by a later queue invocation or scheduled sweep without creating another
 Appointment.
+
+## Booking parity harness
+
+`bun --cwd apps/booking parity:smoke` is the named-scenario browser seam for
+Booking parity work. It enters through the Public Site on port 3071, blocks
+undeclared origins, installs the scenario clock and timezone, and captures the
+DOM, accessibility tree, console, requests, HAR, trace, video, screenshots,
+canonical state, and mutation history. Every initial smoke scenario runs twice;
+the command fails when semantic assertions fail or screenshot/canonical-state
+hashes differ.
+
+Generated evidence is local-only under `apps/booking/parity-evidence/`. Fixture
+and scenario contracts are checked independently by the Booking unit suite.
