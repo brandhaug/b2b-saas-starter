@@ -11,7 +11,7 @@ import {
   PlatformUnauthorized,
   PlatformWebhookEndpointDisabled,
   RateLimited,
-  StarterApi
+  BookingProductApi
 } from '@b2b-saas-starter/api'
 import {
   type CapabilityUnavailable,
@@ -198,13 +198,13 @@ const queryInput = (query: Record<string, unknown>) => ({
 })
 
 export const healthGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
+  HttpApiBuilder.group(BookingProductApi, 'health', (handlers) =>
     handlers.handle('check', ({ request }) =>
       observed(env, request, 'health', Effect.succeed({ status: 'ok' as const }))
     )
   )
 export const merchantGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'merchant', (handlers) =>
+  HttpApiBuilder.group(BookingProductApi, 'merchant', (handlers) =>
     handlers.handle('get', ({ request }) =>
       read(env, request, 'merchant.get', 'merchant:read', (caller) =>
         Effect.gen(function* () {
@@ -215,7 +215,7 @@ export const merchantGroup = (env: ApiEnv) =>
     )
   )
 export const servicesGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'services', (handlers) =>
+  HttpApiBuilder.group(BookingProductApi, 'services', (handlers) =>
     handlers
       .handle('list', ({ query, request }) =>
         read(env, request, 'services.list', 'services:read', (caller) =>
@@ -244,7 +244,7 @@ export const servicesGroup = (env: ApiEnv) =>
       )
   )
 export const providersGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'providers', (handlers) =>
+  HttpApiBuilder.group(BookingProductApi, 'providers', (handlers) =>
     handlers
       .handle('list', ({ query, request }) =>
         read(env, request, 'providers.list', 'providers:read', (caller) =>
@@ -273,7 +273,7 @@ export const providersGroup = (env: ApiEnv) =>
       )
   )
 export const appointmentsGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'appointments', (handlers) =>
+  HttpApiBuilder.group(BookingProductApi, 'appointments', (handlers) =>
     handlers
       .handle('list', ({ query, request }) =>
         read(env, request, 'appointments.list', 'appointments:read', (caller) =>
@@ -303,7 +303,7 @@ export const appointmentsGroup = (env: ApiEnv) =>
   )
 
 export const platformApiTokenGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'platform-api-tokens', (handlers) =>
+  HttpApiBuilder.group(BookingProductApi, 'platform-api-tokens', (handlers) =>
     handlers
       .handle('list', ({ query, request }) =>
         observed(
@@ -378,7 +378,7 @@ export const platformApiTokenGroup = (env: ApiEnv) =>
   )
 
 export const platformWebhookGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'platform-webhooks', (handlers) => {
+  HttpApiBuilder.group(BookingProductApi, 'platform-webhooks', (handlers) => {
     const run = <A, E, R>(
       request: HttpServerRequest.HttpServerRequest,
       event: string,

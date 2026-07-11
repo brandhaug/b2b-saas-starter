@@ -44,34 +44,7 @@ import {
   SeedBookingNotificationOutbox
 } from './booking/booking-notifications.ts'
 
-// catalog
-import {
-  AdoptionReadiness,
-  LiveAdoptionReadiness,
-  SeedAdoptionReadiness
-} from './catalog/adoption-readiness.ts'
-import {
-  CatalogRefreshHistory,
-  LiveCatalogRefreshHistory,
-  SeedCatalogRefreshHistory
-} from './catalog/catalog-refresh-history.ts'
-import {
-  ImplementationReports,
-  LiveImplementationReports,
-  SeedImplementationReports
-} from './catalog/implementation-reports.ts'
-import {
-  LiveStarterModuleCatalog,
-  SeedStarterModuleCatalog,
-  StarterModuleCatalog
-} from './catalog/starter-module-catalog.ts'
-
 // developer-platform
-import {
-  ApiTokenRegistry,
-  LiveApiTokenRegistry,
-  SeedApiTokenRegistry
-} from './developer-platform/api-token-registry.ts'
 import {
   LivePlatformApiTokenRegistry,
   PlatformApiTokenRegistry,
@@ -87,17 +60,6 @@ import {
   PlatformWebhookEndpoints,
   SeedPlatformWebhookEndpoints
 } from './developer-platform/platform-webhook-endpoints.ts'
-import {
-  LiveWebhookEndpoints,
-  SeedWebhookEndpoints,
-  WebhookEndpoints
-} from './developer-platform/webhook-endpoints.ts'
-import {
-  LiveWebhookPublisher,
-  SeedWebhookPublisher,
-  WebhookPublisher,
-  type WebhookQueueBinding
-} from './developer-platform/webhook-publisher.ts'
 
 // governance
 import {
@@ -105,11 +67,6 @@ import {
   LiveAuditEventLog,
   SeedAuditEventLog
 } from './governance/audit-event-log.ts'
-import {
-  LiveWorkspaceMembership,
-  SeedWorkspaceMembership,
-  WorkspaceMembership
-} from './governance/workspace-membership.ts'
 
 // merchant-catalog
 import {
@@ -128,17 +85,6 @@ import {
   type SeedMerchantCatalogConfigurationStore
 } from './merchant-catalog/merchant-catalog.ts'
 
-// notifications
-import {
-  IntegrationSurfaces,
-  LiveIntegrationSurfaces,
-  SeedIntegrationSurfaces
-} from './notifications/integration-surfaces.ts'
-import {
-  LiveNotificationFeed,
-  NotificationFeed,
-  SeedNotificationFeed
-} from './notifications/notification-feed.ts'
 import {
   BookingPublication,
   emptySeedSchedulingStore,
@@ -149,36 +95,16 @@ import {
   SeedScheduling
 } from './scheduling/scheduling.ts'
 
-import {
-  seedApiTokens,
-  seedAuditEvents,
-  seedCatalogRefreshHistory,
-  seedImplementationReports,
-  seedIntegrationSurfaces,
-  makeSeedOperationalAppointments,
-  seedMembers,
-  seedNotifications,
-  seedReadinessTrend,
-  seedStarterModules,
-  seedWebhookEndpoints,
-  seedWorkspaceRecord
-} from './seed-fixture.ts'
+import { makeSeedOperationalAppointments } from './seed-fixture.ts'
 
 export type CapabilityServices =
-  | AdoptionReadiness
-  | ApiTokenRegistry
   | PlatformApiTokenRegistry
   | PlatformApiReads
   | PlatformWebhookEndpoints
   | AuditEventLog
-  | CatalogRefreshHistory
-  | ImplementationReports
-  | IntegrationSurfaces
   | MerchantMembership
   | MerchantCatalog
   | MerchantOnboarding
-  | NotificationFeed
-  | StarterModuleCatalog
   | Scheduling
   | BookingPublication
   | BookingSessions
@@ -188,9 +114,6 @@ export type CapabilityServices =
   | BookingConfirmation
   | AppointmentOperations
   | BookingNotificationOutbox
-  | WebhookEndpoints
-  | WebhookPublisher
-  | WorkspaceMembership
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
@@ -336,15 +259,10 @@ const seedMerchantCatalogConfiguration: SeedMerchantCatalogConfigurationStore = 
 }
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
-  SeedAdoptionReadiness(seedReadinessTrend),
-  SeedApiTokenRegistry(seedApiTokens),
   SeedPlatformApiTokenRegistry(),
   SeedPlatformApiReads(seedPlatformApiReads),
   SeedPlatformWebhookEndpoints(),
-  SeedAuditEventLog(seedAuditEvents),
-  SeedCatalogRefreshHistory(seedCatalogRefreshHistory),
-  SeedImplementationReports(seedImplementationReports),
-  SeedIntegrationSurfaces(seedIntegrationSurfaces),
+  SeedAuditEventLog([]),
   SeedMerchantOnboarding(seedMerchantCatalog),
   SeedMerchantCatalog(seedMerchantCatalogConfiguration),
   SeedScheduling(seedScheduling),
@@ -355,16 +273,10 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedBookingCheckout(seedBookingCheckout),
   SeedBookingConfirmation(seedBookingConfirmation, seedConfirmationKeyring),
   SeedAppointmentOperations(seedOperationalAppointments),
-  SeedBookingNotificationOutbox,
-  SeedNotificationFeed(seedNotifications),
-  SeedStarterModuleCatalog(seedStarterModules),
-  SeedWebhookEndpoints(seedWebhookEndpoints),
-  SeedWebhookPublisher,
-  SeedWorkspaceMembership(seedMembers, seedWorkspaceRecord)
+  SeedBookingNotificationOutbox
 )
 
 export type LiveCapabilitiesOptions = {
-  readonly webhookQueue?: WebhookQueueBinding | undefined
   readonly platformApiCursorSecret?: string | undefined
   readonly requirePlatformApiCursorSecret?: boolean | undefined
   readonly confirmationKeyring?:
@@ -385,15 +297,10 @@ export const makeLiveCapabilitiesLayer = (
   // handler, so create the local-only fallback at that handler-time boundary.
   const cursorSecret = options.platformApiCursorSecret || crypto.randomUUID()
   return Layer.mergeAll(
-    LiveAdoptionReadiness,
-    LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LivePlatformApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LivePlatformApiReads(cursorSecret),
     LivePlatformWebhookEndpoints(cursorSecret).pipe(Layer.provide(LiveAuditEventLog)),
     LiveAuditEventLog,
-    LiveCatalogRefreshHistory,
-    LiveImplementationReports,
-    LiveIntegrationSurfaces,
     LiveMerchantOnboarding,
     LiveMerchantCatalog,
     LiveScheduling,
@@ -406,19 +313,13 @@ export const makeLiveCapabilitiesLayer = (
       options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} }
     ),
     LiveAppointmentOperations,
-    LiveBookingNotificationOutbox,
-    LiveNotificationFeed,
-    LiveStarterModuleCatalog,
-    LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
-    LiveWebhookPublisher(options.webhookQueue),
-    LiveWorkspaceMembership
+    LiveBookingNotificationOutbox
   )
 }
 
 /**
  * Exported at module level for `runtime.ts` only — not re-exported from the
- * package index. Consumers select layers through `selectCapabilitiesLayer` /
- * `selectWorkspaceLayer`.
+ * package index. Consumers select layers through `selectCapabilitiesLayer`.
  */
 export const makeLiveLayerFromD1 = (
   d1: Parameters<typeof layerFromD1>[0],

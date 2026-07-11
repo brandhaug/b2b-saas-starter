@@ -1,31 +1,6 @@
 # apps/api
 
-Cloudflare Worker for the Booking Product Platform API. Dev server on `:8787`. It serves the Effect HTTP API contract (`@b2b-saas-starter/api`) directly via `HttpRouter.toWebHandler`; first-party apps do not consume this server-to-server surface.
-
-## How it's wired
-
-- `src/index.ts` — thin `fetch` that delegates to a per-isolate web handler (`getWebHandler(env)`).
-- `src/env.ts` — Cloudflare bindings + env type, plus `starterEnv(env)` for module-aware capability config.
-- `src/http.ts` — assembles the app layer: `HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' })`, the Scalar UI (`/reference`), Workers-safe platform services, and request-scoped capabilities via `HttpRouter.provideRequest`.
-- `src/handlers.ts` — one `HttpApiBuilder.group(...)` per contract group: health, Merchant, Services, Providers, Appointments, and Platform API Tokens.
-
-## Owned today
-
-- **REST** — merchant-scoped read-only Merchant, Service, Provider, and Appointment routes plus Platform API Token developer configuration. Generic Starter routes are not served.
-- **Per-request `WorkspaceContext`** — workspace handlers provide `selectWorkspaceLayer(starterEnv(env), slug)` inline; `WorkspaceNotFound` flows through as the contract's 404. Capability methods still never receive a slug parameter.
-- **OpenAPI + Scalar** — `/openapi.json` is emitted by `HttpApiBuilder` from the contract; `/reference` is served by `HttpApiScalar.layer`. No `openapi.ts`/`reference.ts` files.
-- **Bearer auth** — `enforceScope(request, scope, expectedWorkspaceSlug?)` in `handlers.ts` reads `Authorization: Bearer ...`, calls `ApiTokenRegistry.verifyBearerToken`, maps unknown tokens to `Unauthorized` (401), insufficient scope to `AuthorizationDenied` (403), and capability outages to `CapabilityUnavailable` (503). Workspace routes pass the URL slug so a workspace-A token cannot unlock workspace B.
-- **Platform API v1 tokens** — `/v1/api-tokens` uses Merchant-scoped credentials, token-derived Merchant context, stable trace-bearing errors, private/no-store responses, uniform bearer failures, and scope-bounded delegation.
-- **Webhook fan-out** — after audit-worthy mutations (token create/revoke, webhook create, invitation send), handlers call `WebhookPublisher.publish`. Publishing is best-effort: queue outage annotates the wide event but never fails the response. The producer binding is `WEBHOOK_QUEUE`; without it the publisher no-ops.
-- **Rate limiting** — the legacy five buckets remain alongside Platform API `data_read`, `developer_config`, and `auth_failure`; authenticated Platform buckets key by token ID and authentication failures key by source IP.
-- **MCP discovery** — `/mcp` returns a discovery response only. Do not advertise tool execution until handlers are wired through the capability layer.
-
-## Conventions
-
-- Behavior lives in `@b2b-saas-starter/capabilities`. Don't reach to Drizzle from this worker.
-- To add or change a route, edit the `StarterApi` contract in `packages/api` first, then add or adjust its handler in `handlers.ts`. The contract is the single source of truth.
-- Each handler wraps its body in `observed(...)` and composes `enforceRateLimit` / `enforceScope` guards. A guard adds only the errors it can raise, so each endpoint's error channel must be a subset of its declared contract errors.
-- Request payload shapes come from the contract. Tighten schemas in `packages/api` or `packages/capabilities`; do not hand-roll local validation.
-- Cross-cutting requirements (capabilities, rate limiter, assistant, email) are request-scoped in HttpApi; provide them with `HttpRouter.provideRequest`, not `Layer.provide`.
-- Both route assembly and workspace routes build capability env through `starterEnv(env)` (`src/env.ts`), which attaches `moduleConfig` from `makeStarterEnvModuleConfig(env)` (`@b2b-saas-starter/env`, ADR 0035). The email sender var is `CLOUDFLARE_EMAIL_FROM` end to end, with `EMAIL_FROM_ADDRESS` accepted only as a local/back-compat alias.
-- Tests (`src/index.test.ts`) drive `buildWebHandler(env)` with web-standard `Request`s — the fastest way to assert routing, auth, status codes, and the served OpenAPI.
+Merchant-scoped Booking Product Platform API. It serves health, generated OpenAPI and
+Scalar reference endpoints plus the authenticated `/v1` Merchant, Service, Provider,
+Appointment, API Token, and Webhook Endpoint contracts. It has no generic Starter,
+Workspace, assistant, invitation, or MCP groups.

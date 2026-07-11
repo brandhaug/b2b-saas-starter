@@ -1,6 +1,6 @@
 # Platform API Token Registry
 
-Merchant-scoped server credentials for Platform API v1, separate from the legacy Workspace registry.
+Merchant-scoped server credentials for Platform API v1.
 
 ## Invariants
 

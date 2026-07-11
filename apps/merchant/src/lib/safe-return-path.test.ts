@@ -4,10 +4,7 @@ import { safeMerchantReturnPath } from './safe-return-path.ts'
 describe('safe Merchant App return paths', () => {
   it.each([
     ['/appointments', '/appointments'],
-    [
-      '/prototype/minimum-merchant-surface?variant=A',
-      '/prototype/minimum-merchant-surface?variant=A'
-    ],
+    ['/appointments?status=scheduled', '/appointments?status=scheduled'],
     ['https://attacker.example', '/'],
     ['//attacker.example', '/'],
     ['/\\attacker.example', '/'],

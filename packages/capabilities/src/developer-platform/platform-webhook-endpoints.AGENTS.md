@@ -1,6 +1,6 @@
 # Platform Webhook Endpoints
 
-Merchant-scoped developer configuration for Platform API v1 webhook endpoints and safe delivery-attempt history. This capability is separate from the Workspace-era `WebhookEndpoints`, which remains the legacy dashboard/background-worker surface.
+Merchant-scoped developer configuration for Platform API v1 webhook endpoints and safe delivery-attempt history.
 
 ## Invariants
 

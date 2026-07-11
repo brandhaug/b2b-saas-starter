@@ -18,53 +18,8 @@
       "database_id": "placeholder"
     }
   ],
-  "ai": {
-    "binding": "AI"
-  },
-  "queues": {
-    "producers": [
-      {
-        "binding": "WEBHOOK_QUEUE",
-        "queue": "b2b-saas-starter-webhooks"
-      }
-    ]
-  },
-  "vars": {
-    "WORKERS_AI_ENABLED": "false",
-    "CLOUDFLARE_EMAIL_FROM": "noreply@example.com"
-  },
   "unsafe": {
     "bindings": [
-      {
-        "name": "RATE_LIMITER_REST",
-        "type": "ratelimit",
-        "namespace_id": "1001",
-        "simple": { "limit": 60, "period": 60 }
-      },
-      {
-        "name": "RATE_LIMITER_REST_WRITE",
-        "type": "ratelimit",
-        "namespace_id": "1002",
-        "simple": { "limit": 20, "period": 60 }
-      },
-      {
-        "name": "RATE_LIMITER_INVITATIONS",
-        "type": "ratelimit",
-        "namespace_id": "1003",
-        "simple": { "limit": 10, "period": 60 }
-      },
-      {
-        "name": "RATE_LIMITER_ASSISTANT",
-        "type": "ratelimit",
-        "namespace_id": "1004",
-        "simple": { "limit": 20, "period": 60 }
-      },
-      {
-        "name": "RATE_LIMITER_MCP",
-        "type": "ratelimit",
-        "namespace_id": "1005",
-        "simple": { "limit": 30, "period": 60 }
-      },
       {
         "name": "RATE_LIMITER_DATA_READ",
         "type": "ratelimit",

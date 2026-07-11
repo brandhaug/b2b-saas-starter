@@ -3,7 +3,8 @@ import { SEED_PLATFORM_API_TOKEN } from '@b2b-saas-starter/capabilities'
 import type { ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 
-const handlerFor = (env: ApiEnv = {}) => buildWebHandler(env).handler
+const handlerFor = (env: ApiEnv = {}) =>
+  buildWebHandler(env, { useSeedLayerForTests: true }).handler
 const bearer = { authorization: `Bearer ${SEED_PLATFORM_API_TOKEN}` }
 const get = (path: string, headers: Record<string, string> = {}) =>
   new Request(`https://api.test${path}`, { headers })

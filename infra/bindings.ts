@@ -13,11 +13,6 @@ export type RateLimitBindingSpec = {
 }
 
 export const apiRateLimits: readonly RateLimitBindingSpec[] = [
-  { name: 'RATE_LIMITER_REST', namespaceId: '1001', limit: 60, period: 60 },
-  { name: 'RATE_LIMITER_REST_WRITE', namespaceId: '1002', limit: 20, period: 60 },
-  { name: 'RATE_LIMITER_INVITATIONS', namespaceId: '1003', limit: 10, period: 60 },
-  { name: 'RATE_LIMITER_ASSISTANT', namespaceId: '1004', limit: 20, period: 60 },
-  { name: 'RATE_LIMITER_MCP', namespaceId: '1005', limit: 30, period: 60 },
   { name: 'RATE_LIMITER_DATA_READ', namespaceId: '1006', limit: 60, period: 60 },
   {
     name: 'RATE_LIMITER_DEVELOPER_CONFIG',
@@ -26,11 +21,6 @@ export const apiRateLimits: readonly RateLimitBindingSpec[] = [
     period: 60
   },
   { name: 'RATE_LIMITER_AUTH_FAILURE', namespaceId: '1008', limit: 30, period: 60 }
-]
-
-export const webRateLimits: readonly RateLimitBindingSpec[] = [
-  { name: 'RATE_LIMITER_AUTH_READ', namespaceId: '2001', limit: 60, period: 60 },
-  { name: 'RATE_LIMITER_AUTH_WRITE', namespaceId: '2002', limit: 20, period: 60 }
 ]
 
 // Merchant authentication is intentionally isolated from the legacy Public
@@ -46,8 +36,6 @@ export const bookingRateLimits: readonly RateLimitBindingSpec[] = [
   { name: 'RATE_LIMITER_BOOKING_WRITE', namespaceId: '4002', limit: 30, period: 60 }
 ]
 
-export const webhookQueueName = 'b2b-saas-starter-webhooks'
-export const webhookDeadLetterQueueName = 'b2b-saas-starter-webhooks-dlq'
 export const bookingEventsQueueName = 'b2b-saas-starter-booking-events'
 
 // Shape matches Alchemy's `QueueConsumer` settings input. Wrangler spells the
@@ -59,23 +47,6 @@ export type QueueConsumerSettings = {
   readonly maxRetries: number
   readonly maxWaitTimeMs: number
   readonly retryDelay?: number
-}
-
-export const webhookConsumerSettings: QueueConsumerSettings = {
-  batchSize: 25,
-  maxConcurrency: 4,
-  maxRetries: 6,
-  maxWaitTimeMs: 5_000,
-  retryDelay: 30
-}
-
-// Dead-letter consumer: records terminal `dead_lettered` delivery rows, so a
-// single low-concurrency attempt is enough.
-export const webhookDlqConsumerSettings: QueueConsumerSettings = {
-  batchSize: 25,
-  maxConcurrency: 1,
-  maxRetries: 1,
-  maxWaitTimeMs: 5_000
 }
 
 // Booking event messages wake the Background Worker after a committed outbox

@@ -52,13 +52,13 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
                     {link.label}
                   </Link>
                 ))}
-                <Link
-                  to="/sign-in"
+                <a
+                  href="http://localhost:3072/sign-in"
                   onClick={() => setMobileNavOpen(false)}
                   className="mt-2 inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                 >
                   Sign in
-                </Link>
+                </a>
               </nav>
             </SheetContent>
           </Sheet>
@@ -81,12 +81,12 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           </nav>
           <SearchButton />
           <ThemeToggle />
-          <Link
-            to="/sign-in"
+          <a
+            href="http://localhost:3072/sign-in"
             className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Sign in
-          </Link>
+          </a>
         </div>
       </header>
       {children}

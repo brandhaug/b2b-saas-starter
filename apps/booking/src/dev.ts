@@ -58,7 +58,7 @@ console.log(`Booking App local ingress: http://localhost:${server.port}`)
 
 const stop = () => {
   vite.kill()
-  server.stop()
+  void server.stop()
 }
 
 process.on('SIGINT', stop)

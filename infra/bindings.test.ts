@@ -8,11 +8,6 @@ import {
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
-  webhookConsumerSettings,
-  webhookDeadLetterQueueName,
-  webhookDlqConsumerSettings,
-  webhookQueueName,
-  webRateLimits,
   type QueueConsumerSettings,
   type RateLimitBindingSpec
 } from './bindings.ts'
@@ -157,10 +152,6 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
     expectRateLimitSync(rateLimitBindings(readWranglerConfig('api')), apiRateLimits)
   })
 
-  it('apps/web rate-limit bindings match webRateLimits', () => {
-    expectRateLimitSync(rateLimitBindings(readWranglerConfig('web')), webRateLimits)
-  })
-
   it('Merchant and Booking rate limits are isolated and match their workers', () => {
     expectRateLimitSync(
       rateLimitBindings(readWranglerConfig('merchant')),
@@ -177,24 +168,13 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
     ).toHaveLength(merchantRateLimits.length + bookingRateLimits.length)
   })
 
-  it('apps/background queue consumers match the webhook consumer settings', () => {
+  it('apps/background consumes only Booking Product events', () => {
     const config = readWranglerConfig('background')
     const queues = config['queues'] as
       | { readonly consumers?: readonly WranglerQueueConsumer[] }
       | undefined
     const consumers = queues?.consumers ?? []
-    expect(consumers).toHaveLength(3)
-    expectConsumerSync(
-      consumers.find((consumer) => consumer.queue === webhookQueueName),
-      webhookQueueName,
-      webhookConsumerSettings,
-      webhookDeadLetterQueueName
-    )
-    expectConsumerSync(
-      consumers.find((consumer) => consumer.queue === webhookDeadLetterQueueName),
-      webhookDeadLetterQueueName,
-      webhookDlqConsumerSettings
-    )
+    expect(consumers).toHaveLength(1)
     expectConsumerSync(
       consumers.find((consumer) => consumer.queue === bookingEventsQueueName),
       bookingEventsQueueName,
@@ -203,19 +183,6 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
   })
 
   it('queue producers point at the settled queues', () => {
-    for (const app of ['api', 'background'] as const) {
-      const config = readWranglerConfig(app)
-      const queues = config['queues'] as
-        | { readonly producers?: readonly { binding: string; queue: string }[] }
-        | undefined
-      const producer = queues?.producers?.find(
-        (candidate) => candidate.binding === 'WEBHOOK_QUEUE'
-      )
-      expect(producer?.queue, `apps/${app} WEBHOOK_QUEUE producer`).toBe(
-        webhookQueueName
-      )
-    }
-
     const booking = readWranglerConfig('booking')
     const bookingQueues = booking['queues'] as
       | { readonly producers?: readonly { binding: string; queue: string }[] }

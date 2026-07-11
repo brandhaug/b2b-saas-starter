@@ -324,6 +324,7 @@ export const LivePlatformApiTokenRegistry: Layer.Layer<
           batch(db, [
             db.insert(platformApiTokens).values(row),
             audit.prepareRecord({
+              merchantId: input.merchantId,
               actorUserId: input.actorUserId ?? null,
               eventType: 'platform_api_token.created',
               targetType: 'platform_api_token',
@@ -426,6 +427,7 @@ export const LivePlatformApiTokenRegistry: Layer.Layer<
             .toSQL()
           const auditInsert = audit
             .prepareRecord({
+              merchantId: input.merchantId,
               actorUserId: input.actorUserId ?? null,
               eventType: 'platform_api_token.revoked',
               targetType: 'platform_api_token',

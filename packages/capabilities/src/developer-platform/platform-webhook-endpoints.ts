@@ -561,11 +561,13 @@ export const LivePlatformWebhookEndpoints = (
         ).pipe(Effect.map((rows) => rows[0]))
       const auditInput = (
         eventType: string,
+        merchantId: string,
         endpointId: string,
         actorUserId?: string,
         actorTokenId?: string
       ) => ({
         eventType,
+        merchantId,
         targetType: 'webhook_endpoint',
         targetId: endpointId,
         actorUserId: actorUserId ?? null,
@@ -595,6 +597,7 @@ export const LivePlatformWebhookEndpoints = (
               audit.prepareRecordWhenPreviousChanged(
                 auditInput(
                   'webhook_endpoint.secret_rotated',
+                  input.merchantId,
                   input.endpointId,
                   input.actorUserId,
                   input.actorTokenId
@@ -687,6 +690,7 @@ export const LivePlatformWebhookEndpoints = (
                 audit.prepareRecord(
                   auditInput(
                     'webhook_endpoint.created',
+                    input.merchantId,
                     row.id,
                     input.actorUserId,
                     input.actorTokenId
@@ -744,6 +748,7 @@ export const LivePlatformWebhookEndpoints = (
                 audit.prepareRecordWhenPreviousChanged(
                   auditInput(
                     'webhook_endpoint.updated',
+                    input.merchantId,
                     input.endpointId,
                     input.actorUserId,
                     input.actorTokenId
@@ -777,6 +782,7 @@ export const LivePlatformWebhookEndpoints = (
                 audit.prepareRecordWhenPreviousChanged(
                   auditInput(
                     'webhook_endpoint.disabled',
+                    input.merchantId,
                     input.endpointId,
                     input.actorUserId,
                     input.actorTokenId

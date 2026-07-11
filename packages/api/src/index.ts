@@ -339,7 +339,7 @@ export const PlatformWebhookApi = HttpApiGroup.make('platform-webhooks')
     })
   )
 
-export const StarterApi = HttpApi.make('booking-product-platform-api')
+export const BookingProductApi = HttpApi.make('booking-product-platform-api')
   .add(HealthApi)
   .add(MerchantApi)
   .add(ServicesApi)

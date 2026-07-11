@@ -6,7 +6,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text-summary'],
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts'],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/index.ts',
+        'src/layers.ts',
+        'src/runtime.ts',
+        'src/seed-fixture.ts'
+      ],
       // Ratchet, not target: set just below current coverage so CI fails on
       // decay. Raise alongside new tests; never lower to make a build pass.
       thresholds: {

@@ -1,12 +1,14 @@
 import { FileSystem, Layer, Path } from 'effect'
 import { Etag, HttpPlatform, HttpRouter } from 'effect/unstable/http'
 import { HttpApiBuilder, HttpApiScalar } from 'effect/unstable/httpapi'
-import { selectAssistantLayer } from '@b2b-saas-starter/ai'
-import { StarterApi } from '@b2b-saas-starter/api'
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities'
-import { selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
+import { BookingProductApi } from '@b2b-saas-starter/api'
+import {
+  SeedLayer,
+  selectCapabilitiesLayer,
+  type CapabilitiesLayer
+} from '@b2b-saas-starter/capabilities'
 import { newTraceId, TRACE_HEADER, WideEventLoggerLive } from '@b2b-saas-starter/logger'
-import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
+import { bookingProductEnv, type ApiEnv } from './env.ts'
 import {
   appointmentsGroup,
   healthGroup,
@@ -30,16 +32,11 @@ const PlatformLive = Layer.mergeAll(
 )
 
 const makeApiLayer = (
-  env: ApiEnv
+  env: ApiEnv,
+  capabilityLayer?: CapabilitiesLayer
 ): Layer.Layer<never, never, HttpRouter.HttpRouter> => {
-  const fromAddress = emailFromAddress(env)
   const capabilities = Layer.mergeAll(
-    selectCapabilitiesLayer(starterEnv(env)),
-    selectAssistantLayer(providerEnv(env)),
-    selectEmailDispatcherLayer({
-      ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
-      ...(fromAddress ? { EMAIL_FROM_ADDRESS: fromAddress } : {})
-    }),
+    capabilityLayer ?? selectCapabilitiesLayer(bookingProductEnv(env)),
     makeRateLimiterLayer(env)
   )
 
@@ -53,13 +50,13 @@ const makeApiLayer = (
     platformWebhookGroup(env)
   )
 
-  const api = HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' }).pipe(
-    Layer.provide(groups)
-  )
+  const api = HttpApiBuilder.layer(BookingProductApi, {
+    openapiPath: '/openapi.json'
+  }).pipe(Layer.provide(groups))
 
   return Layer.mergeAll(
     api,
-    HttpApiScalar.layer(StarterApi, { path: '/reference' })
+    HttpApiScalar.layer(BookingProductApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),
     Layer.provide(PlatformLive),
@@ -68,12 +65,16 @@ const makeApiLayer = (
 }
 
 export const buildWebHandler = (
-  env: ApiEnv
+  env: ApiEnv,
+  options?: { readonly useSeedLayerForTests?: boolean }
 ): {
   readonly handler: (request: Request) => Promise<Response>
   readonly dispose: () => Promise<void>
 } => {
-  const built = HttpRouter.toWebHandler(makeApiLayer(env), { disableLogger: true })
+  const built = HttpRouter.toWebHandler(
+    makeApiLayer(env, options?.useSeedLayerForTests ? SeedLayer : undefined),
+    { disableLogger: true }
+  )
   return {
     dispose: built.dispose,
     handler: async (request: Request) => {

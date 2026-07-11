@@ -10,7 +10,6 @@ import {
 import type { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import { WorkspaceContext } from '../workspace-context.ts'
 
 export const AuditEvent = Schema.Struct({
   id: Schema.String,
@@ -22,7 +21,7 @@ export const AuditEvent = Schema.Struct({
 export type AuditEvent = typeof AuditEvent.Type
 
 export type RecordAuditEventInput = {
-  readonly workspaceId?: string | null
+  readonly merchantId?: string | null
   readonly actorUserId?: string | null
   readonly eventType: string
   readonly targetType: string
@@ -31,11 +30,6 @@ export type RecordAuditEventInput = {
 }
 
 export type AuditEventLogShape = {
-  readonly list: Effect.Effect<
-    readonly AuditEvent[],
-    CapabilityUnavailable,
-    WorkspaceContext
-  >
   readonly listGlobal: Effect.Effect<readonly AuditEvent[], CapabilityUnavailable>
   readonly record: (
     input: RecordAuditEventInput
@@ -63,7 +57,6 @@ export const SeedAuditEventLog = (
   seed: readonly AuditEvent[]
 ): Layer.Layer<AuditEventLog> =>
   Layer.succeed(AuditEventLog)({
-    list: Effect.succeed(seed),
     listGlobal: Effect.succeed(seed),
     record: () => Effect.void,
     prepareRecord: () => noopStatement,
@@ -75,9 +68,9 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
     Effect.gen(function* () {
       const db = yield* Database
 
-      const queryRows = (workspaceId?: string) =>
+      const queryRows = (merchantId?: string) =>
         orUnavailable('audit-event-log')(
-          workspaceId === undefined
+          merchantId === undefined
             ? db
                 .select({ event: auditEvents, actor: user })
                 .from(auditEvents)
@@ -88,7 +81,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
                 .select({ event: auditEvents, actor: user })
                 .from(auditEvents)
                 .leftJoin(user, eq(user.id, auditEvents.actorUserId))
-                .where(eq(auditEvents.workspaceId, workspaceId))
+                .where(eq(auditEvents.merchantId, merchantId))
                 .orderBy(desc(auditEvents.createdAt))
                 .limit(100)
         ).pipe(
@@ -106,7 +99,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
       const insertFor = (input: RecordAuditEventInput) =>
         db.insert(auditEvents).values({
           id: newCapabilityId('aud'),
-          workspaceId: input.workspaceId ?? null,
+          merchantId: input.merchantId ?? null,
           actorUserId: input.actorUserId ?? null,
           eventType: input.eventType,
           targetType: input.targetType,
@@ -116,10 +109,6 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         })
 
       return {
-        list: Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          return yield* queryRows(ctx.workspace.id)
-        }),
         listGlobal: queryRows(),
         record: (input) =>
           orUnavailable('audit-event-log')(insertFor(input)).pipe(Effect.asVoid),

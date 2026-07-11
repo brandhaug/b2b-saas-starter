@@ -21,7 +21,6 @@ import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as AvailabilityRouteImport } from './routes/availability'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PrototypeMinimumMerchantSurfaceRouteImport } from './routes/prototype.minimum-merchant-surface'
 import { Route as AppointmentsAppointmentIdRouteImport } from './routes/appointments.$appointmentId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
@@ -85,12 +84,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PrototypeMinimumMerchantSurfaceRoute =
-  PrototypeMinimumMerchantSurfaceRouteImport.update({
-    id: '/prototype/minimum-merchant-surface',
-    path: '/prototype/minimum-merchant-surface',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const AppointmentsAppointmentIdRoute =
   AppointmentsAppointmentIdRouteImport.update({
     id: '/$appointmentId',
@@ -117,7 +110,6 @@ export interface FileRoutesByFullPath {
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
-  '/prototype/minimum-merchant-surface': typeof PrototypeMinimumMerchantSurfaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -134,7 +126,6 @@ export interface FileRoutesByTo {
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
-  '/prototype/minimum-merchant-surface': typeof PrototypeMinimumMerchantSurfaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -152,7 +143,6 @@ export interface FileRoutesById {
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
-  '/prototype/minimum-merchant-surface': typeof PrototypeMinimumMerchantSurfaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -171,7 +161,6 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/verify-email'
     | '/appointments/$appointmentId'
-    | '/prototype/minimum-merchant-surface'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -188,7 +177,6 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/verify-email'
     | '/appointments/$appointmentId'
-    | '/prototype/minimum-merchant-surface'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -205,7 +193,6 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/verify-email'
     | '/appointments/$appointmentId'
-    | '/prototype/minimum-merchant-surface'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -222,7 +209,6 @@ export interface RootRouteChildren {
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
-  PrototypeMinimumMerchantSurfaceRoute: typeof PrototypeMinimumMerchantSurfaceRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -312,13 +298,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/prototype/minimum-merchant-surface': {
-      id: '/prototype/minimum-merchant-surface'
-      path: '/prototype/minimum-merchant-surface'
-      fullPath: '/prototype/minimum-merchant-surface'
-      preLoaderRoute: typeof PrototypeMinimumMerchantSurfaceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/appointments/$appointmentId': {
       id: '/appointments/$appointmentId'
       path: '/$appointmentId'
@@ -361,7 +340,6 @@ const rootRouteChildren: RootRouteChildren = {
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
   VerifyEmailRoute: VerifyEmailRoute,
-  PrototypeMinimumMerchantSurfaceRoute: PrototypeMinimumMerchantSurfaceRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

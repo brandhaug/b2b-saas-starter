@@ -6,8 +6,7 @@
     "dev": "wrangler dev --port 8788 --inspector-port 9788",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "catalog:refresh": "bun src/catalog-refresh.ts"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@b2b-saas-starter/capabilities": "workspace:*",

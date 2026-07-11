@@ -8,11 +8,6 @@ import {
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
-  webhookConsumerSettings,
-  webhookDeadLetterQueueName,
-  webhookDlqConsumerSettings,
-  webhookQueueName,
-  webRateLimits,
   type RateLimitBindingSpec
 } from './infra/bindings.ts'
 import { bookingProductWorkers } from './infra/topology.ts'
@@ -125,14 +120,6 @@ export const Stack = Alchemy.Stack(
       migrationsDir: './packages/db/migrations'
     })
 
-    const webhookDeadLetterQueue = yield* Cloudflare.Queue('webhook-queue-dlq', {
-      name: webhookDeadLetterQueueName
-    })
-
-    const webhookQueue = yield* Cloudflare.Queue('webhook-queue', {
-      name: webhookQueueName
-    })
-
     const bookingEventsQueue = yield* Cloudflare.Queue('booking-events-queue', {
       name: bookingEventsQueueName
     })
@@ -156,9 +143,6 @@ export const Stack = Alchemy.Stack(
       main: './apps/api/src/index.ts',
       bindings: {
         DB: db,
-        // Producer only — the background worker consumes; the API worker
-        // enqueues webhook events after audit-worthy mutations.
-        WEBHOOK_QUEUE: webhookQueue,
         ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
       env: optionalModuleEnv,
@@ -221,32 +205,16 @@ export const Stack = Alchemy.Stack(
       main: './apps/background/src/index.ts',
       bindings: {
         DB: db,
-        WEBHOOK_QUEUE: webhookQueue,
         BOOKING_EVENTS_QUEUE: bookingEventsQueue,
         CONFIRMATION_SIGNING_KEYS,
         CONFIRMATION_CURRENT_KEY_ID,
         ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
       env: { ...optionalModuleEnv, PUBLIC_SITE_ORIGIN: publicSiteOrigin },
-      crons: ['*/5 * * * *', '0 6 * * *'],
+      crons: ['*/5 * * * *'],
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
-    })
-
-    yield* Cloudflare.QueueConsumer('webhook-consumer', {
-      queueId: webhookQueue.queueId,
-      scriptName: background.workerName,
-      deadLetterQueue: webhookDeadLetterQueue.queueName,
-      settings: webhookConsumerSettings
-    })
-
-    // Dead-letter consumer: the background worker records terminal
-    // `dead_lettered` delivery rows for messages that exhausted maxRetries.
-    yield* Cloudflare.QueueConsumer('webhook-dlq-consumer', {
-      queueId: webhookDeadLetterQueue.queueId,
-      scriptName: background.workerName,
-      settings: webhookDlqConsumerSettings
     })
 
     yield* Cloudflare.QueueConsumer('booking-events-consumer', {
@@ -274,8 +242,6 @@ export const Stack = Alchemy.Stack(
       observability
     })
 
-    yield* attachRateLimits(web, webRateLimits)
-
     return {
       api,
       background,
@@ -284,9 +250,7 @@ export const Stack = Alchemy.Stack(
       db,
       merchant,
       transactionalEmail,
-      web,
-      webhookQueue,
-      webhookDeadLetterQueue
+      web
     }
   })
 )
