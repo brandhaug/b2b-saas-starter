@@ -97,11 +97,20 @@ afterAll(async () => test.dispose())
 
 describe('LiveBookingNotificationOutbox', () => {
   it('atomically claims once, creates one stable PII-free event, and reclaims stale work', async () => {
-    const work = await run(
-      Effect.flatMap(BookingNotificationOutbox, (store) =>
-        store.claim('out_notify', now)
+    const competing = await Promise.all([
+      run(
+        Effect.flatMap(BookingNotificationOutbox, (store) =>
+          store.claim('out_notify', now)
+        )
+      ),
+      run(
+        Effect.flatMap(BookingNotificationOutbox, (store) =>
+          store.claim('out_notify', now)
+        )
       )
-    )
+    ])
+    expect(competing.filter(Boolean)).toHaveLength(1)
+    const work = competing.find(Boolean)!
     expect(work?.snapshot.customerDetails.email).toBe('mia@example.com')
     await expect(
       run(

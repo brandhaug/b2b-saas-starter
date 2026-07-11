@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Effect, Layer, type Scope } from 'effect'
 import {
   HttpClient,
@@ -18,8 +18,43 @@ import {
   processDeadLetterMessage,
   processWebhookMessage,
   signatureHeaderValue,
-  type WebhookMessage
+  type WebhookMessage,
+  default as worker
 } from './index.ts'
+
+describe('booking-event queue and recovery triggers', () => {
+  it('acks a durable no-op and retries when durable processing fails', async () => {
+    const ack = vi.fn()
+    const retry = vi.fn()
+    const message = { body: { outboxId: 'out_missing' }, attempts: 1, ack, retry }
+    await worker.queue(
+      { queue: 'b2b-saas-starter-booking-events', messages: [message] } as never,
+      {} as never
+    )
+    expect(ack).toHaveBeenCalledOnce()
+    expect(retry).not.toHaveBeenCalled()
+
+    ack.mockClear()
+    await worker.queue(
+      { queue: 'b2b-saas-starter-booking-events', messages: [message] } as never,
+      { DB: {} } as never
+    )
+    expect(ack).not.toHaveBeenCalled()
+    expect(retry).toHaveBeenCalledWith({ delaySeconds: 30 })
+  })
+
+  it('runs the scheduled recovery sweep independently of catalog refresh', async () => {
+    await expect(
+      worker.scheduled(
+        {
+          cron: '*/5 * * * *',
+          scheduledTime: Date.parse('2026-07-11T10:00:00.000Z')
+        } as never,
+        {} as never
+      )
+    ).resolves.toBeUndefined()
+  })
+})
 
 describe('backoffSeconds', () => {
   it('backs off linearly at 30s per attempt', () => {

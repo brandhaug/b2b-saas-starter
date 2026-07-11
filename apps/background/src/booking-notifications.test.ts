@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Effect, Layer } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
 import { BookingNotificationOutbox } from '@b2b-saas-starter/capabilities'
-import { EmailDispatcher } from '@b2b-saas-starter/email'
+import { EmailDispatcher, EmailSendError } from '@b2b-saas-starter/email'
 import {
   BOOKING_RETRY_DELAYS,
   classifyBookingResponse,
@@ -147,5 +147,35 @@ describe('processBookingOutbox', () => {
       'skipped',
       'email_not_configured'
     )
+
+    recordEmail.mockClear()
+    await Effect.runPromise(
+      processBookingOutbox({
+        outboxId: work.outboxId,
+        now: work.createdAt,
+        publicOrigin: 'https://example.com',
+        emailConfigured: true,
+        confirmationKeyring: {
+          currentKeyId: 'current',
+          keys: { current: 'confirmation-key' }
+        }
+      }).pipe(
+        Effect.provide(store),
+        Effect.provide(
+          Layer.succeed(EmailDispatcher)({
+            send: () =>
+              Effect.fail(
+                new EmailSendError({
+                  message: 'provider unavailable',
+                  to: 'mia@example.com',
+                  subject: 'Your appointment is confirmed'
+                })
+              )
+          })
+        ),
+        Effect.provide(FetchHttpClient.layer)
+      )
+    )
+    expect(recordEmail).toHaveBeenCalledWith('out_test', 'failed', 'email_send_failed')
   })
 })
