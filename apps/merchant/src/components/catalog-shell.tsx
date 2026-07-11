@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import type { MerchantCatalogSnapshot } from '@b2b-saas-starter/capabilities'
+import type { MerchantCatalogSnapshot } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { catalogDestinations } from '@/lib/catalog-workflow.ts'
 
 export function CatalogShell({

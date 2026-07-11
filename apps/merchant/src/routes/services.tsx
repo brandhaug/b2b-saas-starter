@@ -3,7 +3,7 @@ import { createFileRoute, useRouter } from '@tanstack/react-router'
 import type {
   MerchantCatalogSnapshot,
   ServiceRecord
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { CatalogShell } from '@/components/catalog-shell.tsx'
 import { serviceProviderChoices } from '@/lib/catalog-workflow.ts'
 import { formValue } from '@/lib/form-value.ts'

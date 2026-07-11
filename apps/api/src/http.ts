@@ -6,7 +6,7 @@ import {
   SeedLayer,
   selectCapabilitiesLayer,
   type CapabilitiesLayer
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/runtime'
 import { newTraceId, TRACE_HEADER, WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { bookingProductEnv, type ApiEnv } from './env.ts'
 import {

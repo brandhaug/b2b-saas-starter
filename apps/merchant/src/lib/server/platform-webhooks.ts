@@ -2,11 +2,9 @@ import { env } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { Effect } from 'effect'
-import {
-  MerchantMembership,
-  PlatformWebhookEndpoints,
-  selectCapabilitiesLayer
-} from '@b2b-saas-starter/capabilities'
+import { PlatformWebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform'
+import { MerchantMembership } from '@b2b-saas-starter/capabilities/merchant-catalog'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { createMerchantServerContext } from '../server-context.ts'
 import { requireMerchantRequestSession } from './merchant-session.ts'
 

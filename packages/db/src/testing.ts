@@ -27,8 +27,13 @@ const splitStatements = (sql: string): readonly string[] =>
     .filter((statement) => statement.length > 0)
 
 /** Applies every committed migration, in name order, to the given D1. */
-export const applyMigrations = async (d1: D1Database): Promise<void> => {
-  for (const { sql } of listMigrations()) {
+export const applyMigrations = async (
+  d1: D1Database,
+  options: { readonly through?: string; readonly after?: string } = {}
+): Promise<void> => {
+  for (const { name, sql } of listMigrations()) {
+    if (options.after && name <= options.after) continue
+    if (options.through && name > options.through) continue
     for (const statement of splitStatements(sql)) {
       await d1.prepare(statement).run()
     }
@@ -46,6 +51,17 @@ export const provisionTestD1 = async (): Promise<TestD1> => {
     persist: false
   })
   await applyMigrations(proxy.env.DB)
+  return {
+    d1: proxy.env.DB,
+    dispose: () => proxy.dispose()
+  }
+}
+
+export const provisionUnmigratedTestD1 = async (): Promise<TestD1> => {
+  const proxy = await getPlatformProxy<{ DB: D1Database }>({
+    configPath: join(packageDir, 'wrangler.jsonc'),
+    persist: false
+  })
   return {
     d1: proxy.env.DB,
     dispose: () => proxy.dispose()

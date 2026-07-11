@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { BookingAvailability } from '@b2b-saas-starter/capabilities'
+import type { BookingAvailability } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 
 afterEach(cleanup)

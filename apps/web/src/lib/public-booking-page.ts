@@ -1,9 +1,9 @@
 import { Effect } from 'effect'
 import {
   BookingPublication,
-  type CapabilityUnavailable,
   type PublicBookingPage
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/scheduling'
+import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 
 export type PublicPageResolution =
   | { readonly kind: 'published'; readonly page: PublicBookingPage }

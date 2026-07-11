@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { BookingJourney } from '@b2b-saas-starter/capabilities'
+import type { BookingJourney } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
 
 const teamJourney: BookingJourney = {

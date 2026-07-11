@@ -14,7 +14,7 @@ import {
   type ServiceSelection,
   type CheckoutReview,
   type CustomerDetails
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
 import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'

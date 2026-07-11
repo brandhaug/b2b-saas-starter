@@ -25,7 +25,7 @@ import {
   type CustomerDetails,
   type BookingConfirmationResult,
   type ConfirmationReadResult
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 
 export class InvalidBookingSessionCookie extends Schema.TaggedErrorClass<InvalidBookingSessionCookie>()(

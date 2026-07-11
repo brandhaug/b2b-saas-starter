@@ -1,12 +1,14 @@
 import { Effect } from 'effect'
 import {
-  BookingPublication,
   MerchantCatalog,
-  MerchantContext,
+  MerchantContext
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
+import {
+  BookingPublication,
   Scheduling,
   type ScheduleRule,
   type ScheduleRuleInput
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/scheduling'
 
 type Services = BookingPublication | MerchantCatalog | MerchantContext | Scheduling
 export type SchedulingRunner = <A, E>(

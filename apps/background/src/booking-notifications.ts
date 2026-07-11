@@ -3,11 +3,11 @@ import { HttpBody, HttpClient } from 'effect/unstable/http'
 import {
   BookingNotificationOutbox,
   deriveConfirmationToken,
-  validateWebhookUrl,
   type BookingNotificationWork,
-  type CapabilityUnavailable,
   type ConfirmationSigningKeyring
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
+import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform'
+import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { AppointmentConfirmationEmail, EmailDispatcher } from '@b2b-saas-starter/email'
 
 export const BOOKING_RETRY_DELAYS = [30, 60, 90, 120, 150, 180] as const

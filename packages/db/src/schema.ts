@@ -31,6 +31,51 @@ export const appointmentStatuses = [
   'cancelled',
   'no_show'
 ] as const
+export const bookingPartyLifecycles = [
+  'active',
+  'confirming',
+  'confirmed',
+  'expired',
+  'abandoned'
+] as const
+export const paymentStatuses = [
+  'pending',
+  'authorized',
+  'partially_captured',
+  'captured',
+  'partially_refunded',
+  'refunded',
+  'cancelled'
+] as const
+export const giftCardSaleStatuses = [
+  'pending_payment',
+  'issuing',
+  'issued',
+  'cancelled',
+  'refunded'
+] as const
+export const giftCardStatuses = ['active', 'suspended', 'expired', 'voided'] as const
+export const waitingListStatuses = [
+  'active',
+  'fulfilled',
+  'withdrawn',
+  'expired'
+] as const
+export const availabilityOfferStatuses = [
+  'pending',
+  'accepted',
+  'declined',
+  'expired',
+  'superseded'
+] as const
+export const walkInStatuses = [
+  'waiting',
+  'called',
+  'serving',
+  'served',
+  'removed',
+  'expired'
+] as const
 
 export type StoredBookingQuote = {
   readonly startsAt: string
@@ -631,4 +676,619 @@ export const auditEvents = sqliteTable(
     index('audit_events_merchant_created_at_idx').on(table.merchantId, table.createdAt),
     index('audit_events_actor_user_id_idx').on(table.actorUserId)
   ]
+)
+
+export const brands = sqliteTable('brands', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const shops = sqliteTable(
+  'shops',
+  {
+    id: id(),
+    brandId: text('brand_id')
+      .notNull()
+      .references(() => brands.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    slug: text('slug').unique().notNull(),
+    publicName: text('public_name').notNull(),
+    timezone: text('timezone').notNull(),
+    currency: text('currency').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [index('shops_brand_id_idx').on(table.brandId)]
+)
+
+export const shopAddresses = sqliteTable('shop_addresses', {
+  id: id(),
+  shopId: text('shop_id')
+    .unique()
+    .notNull()
+    .references(() => shops.id, { onDelete: 'cascade' }),
+  addressJson: text('address_json').notNull(),
+  latitude: text('latitude'),
+  longitude: text('longitude'),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const shopProviders = sqliteTable(
+  'shop_providers',
+  {
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => providers.id, { onDelete: 'cascade' }),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [primaryKey({ columns: [table.shopId, table.providerId] })]
+)
+
+export const shopServices = sqliteTable(
+  'shop_services',
+  {
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [primaryKey({ columns: [table.shopId, table.serviceId] })]
+)
+
+export const customerAccounts = sqliteTable(
+  'customer_accounts',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    displayName: text('display_name'),
+    phone: text('phone'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('customer_accounts_merchant_email_unique').on(
+      table.merchantId,
+      table.email
+    )
+  ]
+)
+
+export const marketingConsents = sqliteTable(
+  'marketing_consents',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    customerAccountId: text('customer_account_id').references(
+      () => customerAccounts.id,
+      { onDelete: 'set null' }
+    ),
+    subjectJson: text('subject_json').notNull(),
+    channel: text('channel', { enum: ['email', 'sms'] }).notNull(),
+    granted: integer('granted', { mode: 'boolean' }).notNull(),
+    policyVersion: text('policy_version').notNull(),
+    recordedAt: text('recorded_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('marketing_consents_subject_idx').on(
+      table.merchantId,
+      table.customerAccountId
+    )
+  ]
+)
+
+export const bookingParties = sqliteTable(
+  'booking_parties',
+  {
+    id: id(),
+    bookingSessionId: text('booking_session_id')
+      .unique()
+      .notNull()
+      .references(() => bookingSessions.id, { onDelete: 'cascade' }),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'restrict' }),
+    lifecycle: text('lifecycle', { enum: bookingPartyLifecycles })
+      .default('active')
+      .notNull(),
+    currency: text('currency').notNull(),
+    locale: text('locale').default('en').notNull(),
+    version: integer('version').default(1).notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [index('booking_parties_shop_id_idx').on(table.shopId)]
+)
+
+export const bookingRequests = sqliteTable(
+  'booking_requests',
+  {
+    id: id(),
+    bookingPartyId: text('booking_party_id')
+      .notNull()
+      .references(() => bookingParties.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    providerPreference: text('provider_preference', { enum: ['specific', 'any'] }),
+    providerId: text('provider_id').references(() => providers.id, {
+      onDelete: 'set null'
+    }),
+    primaryServiceId: text('primary_service_id').references(() => services.id, {
+      onDelete: 'set null'
+    }),
+    holdId: text('hold_id'),
+    customerAccountId: text('customer_account_id'),
+    customerDetailsJson: text('customer_details_json'),
+    startsAt: text('starts_at'),
+    endsAt: text('ends_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('booking_requests_party_position_unique').on(
+      table.bookingPartyId,
+      table.position
+    ),
+    index('booking_requests_party_id_idx').on(table.bookingPartyId)
+  ]
+)
+
+export const bookingRequestServices = sqliteTable(
+  'booking_request_services',
+  {
+    bookingRequestId: text('booking_request_id')
+      .notNull()
+      .references(() => bookingRequests.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'restrict' }),
+    role: text('role', { enum: ['primary', 'additional'] }).notNull(),
+    position: integer('position').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    primaryKey({ columns: [table.bookingRequestId, table.serviceId] }),
+    uniqueIndex('booking_request_services_position_unique').on(
+      table.bookingRequestId,
+      table.position
+    )
+  ]
+)
+
+export const pricingQuotes = sqliteTable(
+  'pricing_quotes',
+  {
+    id: id(),
+    bookingPartyId: text('booking_party_id')
+      .notNull()
+      .references(() => bookingParties.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    currency: text('currency').notNull(),
+    subtotalMinor: integer('subtotal_minor').notNull(),
+    adjustmentMinor: integer('adjustment_minor').default(0).notNull(),
+    tipMinor: integer('tip_minor').default(0).notNull(),
+    totalMinor: integer('total_minor').notNull(),
+    factsJson: text('facts_json').notNull(),
+    acceptedAt: text('accepted_at'),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('pricing_quotes_party_version_unique').on(
+      table.bookingPartyId,
+      table.version
+    )
+  ]
+)
+
+export const pricingAdjustments = sqliteTable(
+  'pricing_adjustments',
+  {
+    id: id(),
+    pricingQuoteId: text('pricing_quote_id')
+      .notNull()
+      .references(() => pricingQuotes.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    label: text('label').notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    allocationJson: text('allocation_json').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [index('pricing_adjustments_quote_id_idx').on(table.pricingQuoteId)]
+)
+
+export const settlementAllocations = sqliteTable(
+  'settlement_allocations',
+  {
+    id: id(),
+    bookingPartyId: text('booking_party_id')
+      .notNull()
+      .references(() => bookingParties.id, { onDelete: 'cascade' }),
+    tender: text('tender', {
+      enum: ['gift_card', 'external_payment', 'pay_in_person']
+    }).notNull(),
+    referenceId: text('reference_id'),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text('currency').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [index('settlement_allocations_party_id_idx').on(table.bookingPartyId)]
+)
+
+export const payments = sqliteTable(
+  'payments',
+  {
+    id: id(),
+    bookingPartyId: text('booking_party_id').references(() => bookingParties.id, {
+      onDelete: 'restrict'
+    }),
+    status: text('status', { enum: paymentStatuses }).default('pending').notNull(),
+    currency: text('currency').notNull(),
+    authorizedMinor: integer('authorized_minor').default(0).notNull(),
+    capturedMinor: integer('captured_minor').default(0).notNull(),
+    refundedMinor: integer('refunded_minor').default(0).notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [index('payments_booking_party_id_idx').on(table.bookingPartyId)]
+)
+
+export const paymentAttempts = sqliteTable(
+  'payment_attempts',
+  {
+    id: id(),
+    paymentId: text('payment_id')
+      .notNull()
+      .references(() => payments.id, { onDelete: 'cascade' }),
+    idempotencyKey: text('idempotency_key').unique().notNull(),
+    provider: text('provider').notNull(),
+    outcome: text('outcome', { enum: ['pending', 'succeeded', 'failed'] }).notNull(),
+    providerReference: text('provider_reference'),
+    failureCode: text('failure_code'),
+    createdAt: isoCreatedAt(),
+    completedAt: text('completed_at')
+  },
+  (table) => [index('payment_attempts_payment_id_idx').on(table.paymentId)]
+)
+
+export const paymentTransactions = sqliteTable(
+  'payment_transactions',
+  {
+    id: id(),
+    paymentId: text('payment_id')
+      .notNull()
+      .references(() => payments.id, { onDelete: 'cascade' }),
+    kind: text('kind', {
+      enum: ['authorization', 'capture', 'refund', 'void']
+    }).notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text('currency').notNull(),
+    providerReference: text('provider_reference').notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [index('payment_transactions_payment_id_idx').on(table.paymentId)]
+)
+
+export const giftCardProducts = sqliteTable('gift_card_products', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  currency: text('currency').notNull(),
+  scope: text('scope', { enum: ['brand', 'shop', 'provider'] }).notNull(),
+  scopeId: text('scope_id').notNull(),
+  presetAmountsJson: text('preset_amounts_json').notNull(),
+  allowsCustomAmount: integer('allows_custom_amount', { mode: 'boolean' })
+    .default(false)
+    .notNull(),
+  active: integer('active', { mode: 'boolean' }).default(true).notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const giftCardSales = sqliteTable('gift_card_sales', {
+  id: id(),
+  shopId: text('shop_id')
+    .notNull()
+    .references(() => shops.id, { onDelete: 'restrict' }),
+  giftCardProductId: text('gift_card_product_id').references(
+    () => giftCardProducts.id,
+    { onDelete: 'restrict' }
+  ),
+  status: text('status', { enum: giftCardSaleStatuses })
+    .default('pending_payment')
+    .notNull(),
+  amountMinor: integer('amount_minor').notNull(),
+  currency: text('currency').notNull(),
+  recipientJson: text('recipient_json').notNull(),
+  purchaserJson: text('purchaser_json').notNull(),
+  paymentId: text('payment_id').references(() => payments.id, { onDelete: 'restrict' }),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const giftCards = sqliteTable('gift_cards', {
+  id: id(),
+  giftCardSaleId: text('gift_card_sale_id')
+    .unique()
+    .notNull()
+    .references(() => giftCardSales.id, { onDelete: 'restrict' }),
+  codeHash: text('code_hash').unique().notNull(),
+  status: text('status', { enum: giftCardStatuses }).default('active').notNull(),
+  currency: text('currency').notNull(),
+  scope: text('scope', { enum: ['brand', 'shop', 'provider'] }).notNull(),
+  scopeId: text('scope_id').notNull(),
+  initialValueMinor: integer('initial_value_minor').notNull(),
+  expiresAt: text('expires_at'),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const giftCardLedgerEntries = sqliteTable(
+  'gift_card_ledger_entries',
+  {
+    id: id(),
+    giftCardId: text('gift_card_id')
+      .notNull()
+      .references(() => giftCards.id, { onDelete: 'restrict' }),
+    kind: text('kind', {
+      enum: ['issuance', 'reservation', 'release', 'redemption', 'refund', 'adjustment']
+    }).notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    bookingPartyId: text('booking_party_id').references(() => bookingParties.id, {
+      onDelete: 'restrict'
+    }),
+    idempotencyKey: text('idempotency_key').unique().notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [index('gift_card_ledger_gift_card_id_idx').on(table.giftCardId)]
+)
+
+export const giftCardReservations = sqliteTable(
+  'gift_card_reservations',
+  {
+    id: id(),
+    giftCardId: text('gift_card_id')
+      .notNull()
+      .references(() => giftCards.id, { onDelete: 'restrict' }),
+    bookingPartyId: text('booking_party_id')
+      .notNull()
+      .references(() => bookingParties.id, { onDelete: 'cascade' }),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text('currency').notNull(),
+    status: text('status', { enum: ['active', 'committed', 'released', 'expired'] })
+      .default('active')
+      .notNull(),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('gift_card_reservations_party_card_unique').on(
+      table.bookingPartyId,
+      table.giftCardId
+    ),
+    index('gift_card_reservations_card_status_idx').on(table.giftCardId, table.status)
+  ]
+)
+
+export const waitingListApplications = sqliteTable('waiting_list_applications', {
+  id: id(),
+  shopId: text('shop_id')
+    .notNull()
+    .references(() => shops.id, { onDelete: 'cascade' }),
+  status: text('status', { enum: waitingListStatuses }).default('active').notNull(),
+  requestJson: text('request_json').notNull(),
+  customerSnapshotJson: text('customer_snapshot_json').notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt(),
+  expiresAt: text('expires_at').notNull()
+})
+
+export const availabilityOffers = sqliteTable(
+  'availability_offers',
+  {
+    id: id(),
+    waitingListApplicationId: text('waiting_list_application_id')
+      .notNull()
+      .references(() => waitingListApplications.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: availabilityOfferStatuses })
+      .default('pending')
+      .notNull(),
+    slotJson: text('slot_json').notNull(),
+    bookingSessionId: text('booking_session_id').references(() => bookingSessions.id, {
+      onDelete: 'set null'
+    }),
+    createdAt: isoCreatedAt(),
+    expiresAt: text('expires_at').notNull(),
+    respondedAt: text('responded_at')
+  },
+  (table) => [
+    index('availability_offers_application_id_idx').on(table.waitingListApplicationId),
+    uniqueIndex('availability_offers_one_pending_idx')
+      .on(table.waitingListApplicationId)
+      .where(sql`${table.status} = 'pending'`)
+  ]
+)
+
+export const walkInEntries = sqliteTable(
+  'walk_in_entries',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: walkInStatuses }).default('waiting').notNull(),
+    position: integer('position').notNull(),
+    requestJson: text('request_json').notNull(),
+    customerSnapshotJson: text('customer_snapshot_json').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('walk_in_entries_shop_status_position_idx').on(
+      table.shopId,
+      table.status,
+      table.position
+    )
+  ]
+)
+
+export const checkoutPolicies = sqliteTable(
+  'checkout_policies',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    version: integer('version').notNull(),
+    disclosure: text('disclosure').notNull(),
+    effectiveAt: text('effective_at').notNull(),
+    retiredAt: text('retired_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('checkout_policies_shop_kind_version_unique').on(
+      table.shopId,
+      table.kind,
+      table.version
+    )
+  ]
+)
+
+export const policyAcceptances = sqliteTable(
+  'policy_acceptances',
+  {
+    id: id(),
+    bookingPartyId: text('booking_party_id')
+      .notNull()
+      .references(() => bookingParties.id, { onDelete: 'cascade' }),
+    checkoutPolicyId: text('checkout_policy_id')
+      .notNull()
+      .references(() => checkoutPolicies.id, { onDelete: 'restrict' }),
+    disclosureSnapshot: text('disclosure_snapshot').notNull(),
+    acceptedAt: text('accepted_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('policy_acceptances_party_policy_unique').on(
+      table.bookingPartyId,
+      table.checkoutPolicyId
+    )
+  ]
+)
+
+export const lifecycleHistory = sqliteTable(
+  'lifecycle_history',
+  {
+    id: id(),
+    aggregateType: text('aggregate_type').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
+    fromState: text('from_state'),
+    toState: text('to_state').notNull(),
+    reasonCode: text('reason_code'),
+    factsJson: text('facts_json').notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('lifecycle_history_aggregate_idx').on(
+      table.aggregateType,
+      table.aggregateId,
+      table.occurredAt
+    )
+  ]
+)
+
+export const protectedAccessGrants = sqliteTable(
+  'protected_access_grants',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    purpose: text('purpose').notNull(),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    capabilityHash: text('capability_hash').unique().notNull(),
+    expiresAt: text('expires_at').notNull(),
+    consumedAt: text('consumed_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('protected_access_resource_idx').on(table.resourceType, table.resourceId)
+  ]
+)
+
+export const notificationIntents = sqliteTable(
+  'notification_intents',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    topic: text('topic').notNull(),
+    recipientJson: text('recipient_json').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceId: text('source_id').notNull(),
+    deduplicationKey: text('deduplication_key').unique().notNull(),
+    status: text('status', {
+      enum: ['pending', 'processing', 'delivered', 'failed', 'cancelled']
+    })
+      .default('pending')
+      .notNull(),
+    availableAt: text('available_at').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('notification_intents_status_available_idx').on(
+      table.status,
+      table.availableAt
+    )
+  ]
+)
+
+export const scheduledWork = sqliteTable(
+  'scheduled_work',
+  {
+    id: id(),
+    shopId: text('shop_id').references(() => shops.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    idempotencyKey: text('idempotency_key').unique().notNull(),
+    status: text('status', {
+      enum: ['pending', 'running', 'completed', 'cancelled', 'failed']
+    })
+      .default('pending')
+      .notNull(),
+    runAt: text('run_at').notNull(),
+    attempts: integer('attempts').default(0).notNull(),
+    lastFailureCode: text('last_failure_code'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [index('scheduled_work_status_run_at_idx').on(table.status, table.runAt)]
 )

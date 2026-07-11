@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   BookingAvailability,
   BookingJourney
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
 import { ServerBackedBookingFlow } from './server-backed-booking-flow.tsx'
 
 afterEach(() => {

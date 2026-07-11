@@ -2,12 +2,10 @@ import { env } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Layer, Schema } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
-import {
-  CapabilityUnavailable,
-  liveMerchantContext,
-  ScheduleRuleInput,
-  selectCapabilitiesLayer
-} from '@b2b-saas-starter/capabilities'
+import { liveMerchantContext } from '@b2b-saas-starter/capabilities/merchant-catalog'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { ScheduleRuleInput } from '@b2b-saas-starter/capabilities/scheduling'
 import {
   makeSchedulingRequestHandler,
   type SchedulingRunner

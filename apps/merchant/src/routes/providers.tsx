@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import type { ProviderRecord } from '@b2b-saas-starter/capabilities'
+import type { ProviderRecord } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { CatalogShell } from '@/components/catalog-shell.tsx'
 import { formValue } from '@/lib/form-value.ts'
 import {

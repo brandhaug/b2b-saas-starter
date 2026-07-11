@@ -6,7 +6,7 @@ import type {
   ProviderPreference,
   PublicBookableService,
   ServiceSelection
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
 import { styles } from './booking-flow.styles.ts'
 
 export function BookingSelectionFlow({

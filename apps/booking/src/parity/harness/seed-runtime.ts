@@ -11,7 +11,6 @@ import {
   SeedBookingScheduling,
   SeedBookingSelection,
   SeedBookingSessions,
-  buildSeedBookingScenario,
   emptySeedBookingCheckoutStore,
   emptySeedBookingConfirmationStore,
   emptySeedBookingSchedulingStore,
@@ -19,7 +18,8 @@ import {
   emptySeedBookingSessionStore,
   enterBookingSession,
   seedBookingSelectionEligibilityKey
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
+import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   handleBookingSessionRequest,
   readBookingSessionCapabilities

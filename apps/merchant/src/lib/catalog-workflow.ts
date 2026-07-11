@@ -1,4 +1,4 @@
-import type { MerchantCatalogSnapshot } from '@b2b-saas-starter/capabilities'
+import type { MerchantCatalogSnapshot } from '@b2b-saas-starter/capabilities/merchant-catalog'
 
 export const catalogDestinations = (presentation: 'solo' | 'team') => [
   { label: 'Services', to: '/services' as const },

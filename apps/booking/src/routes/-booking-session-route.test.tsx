@@ -2,7 +2,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { BookingJourney } from '@b2b-saas-starter/capabilities'
+import type { BookingJourney } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSessionRouteView } from './$merchantSlug.booking_.session.$sessionId.tsx'
 
 afterEach(() => {

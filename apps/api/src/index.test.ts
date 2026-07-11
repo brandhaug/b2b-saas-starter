@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { SEED_PLATFORM_API_TOKEN } from '@b2b-saas-starter/capabilities'
+import { SEED_PLATFORM_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform'
 import type { ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 

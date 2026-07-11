@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities'
+import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   account,
   appointments,

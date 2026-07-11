@@ -5,12 +5,12 @@ import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
   liveMerchantContext,
   ProviderInput,
-  selectCapabilitiesLayer,
   ServiceInput,
   type MerchantCatalogSnapshot,
   type ProviderRecord,
   type ServiceRecord
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
   makeMerchantCatalogRequestHandler,
   type MerchantCatalogRunner

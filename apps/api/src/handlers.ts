@@ -14,13 +14,13 @@ import {
   BookingProductApi
 } from '@b2b-saas-starter/api'
 import {
-  type CapabilityUnavailable,
   PlatformApiReads,
   PlatformApiTokenRegistry,
   type PlatformApiTokenScope,
   PlatformWebhookEndpoints,
   type VerifiedPlatformApiToken
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/developer-platform'
+import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
   annotateWide,
   newTraceId,

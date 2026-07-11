@@ -2,10 +2,10 @@ import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import {
-  buildSeedBookingScenario,
   emptySeedSchedulingStore,
   SeedBookingPublication
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/scheduling'
+import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { resolvePublicBookingPage } from './public-booking-page.ts'
 import { isBookingRequest } from './booking-dispatch.ts'
 import {

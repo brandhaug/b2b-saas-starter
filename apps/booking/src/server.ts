@@ -1,20 +1,15 @@
 import startServer from '@tanstack/react-start/server-entry'
 import { env as workerEnv } from 'cloudflare:workers'
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import {
   BookingSelection,
   BookingScheduling,
   BookingCheckout,
   BookingSessions,
   BookingConfirmation,
-  enterBookingSession,
-  LiveBookingSelection,
-  LiveBookingScheduling,
-  LiveBookingCheckout,
-  LiveBookingSessions,
-  LiveBookingConfirmation
-} from '@b2b-saas-starter/capabilities'
-import { layerFromD1 } from '@b2b-saas-starter/db'
+  enterBookingSession
+} from '@b2b-saas-starter/capabilities/booking'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { readTraceHeader, reportOperationalError } from '@b2b-saas-starter/logger'
 import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
 
@@ -98,18 +93,6 @@ export default {
       })
     }
     const readyEnv = env as BookingWorkerEnv
-    const sessionsLayer = LiveBookingSessions.pipe(
-      Layer.provide(layerFromD1(readyEnv.DB))
-    )
-    const selectionLayer = LiveBookingSelection.pipe(
-      Layer.provide(layerFromD1(readyEnv.DB))
-    )
-    const schedulingLayer = LiveBookingScheduling.pipe(
-      Layer.provide(layerFromD1(readyEnv.DB))
-    )
-    const checkoutLayer = LiveBookingCheckout.pipe(
-      Layer.provide(layerFromD1(readyEnv.DB))
-    )
     let signingKeys: Readonly<Record<string, string>> = {}
     try {
       signingKeys = JSON.parse(readyEnv.CONFIRMATION_SIGNING_KEYS) as Record<
@@ -119,38 +102,40 @@ export default {
     } catch {
       /* handled by capability */
     }
-    const confirmationLayer = LiveBookingConfirmation({
-      currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
-      keys: signingKeys
-    }).pipe(Layer.provide(layerFromD1(readyEnv.DB)))
+    const capabilitiesLayer = selectCapabilitiesLayer(readyEnv, {
+      confirmationKeyring: {
+        currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
+        keys: signingKeys
+      }
+    })
     return Effect.runPromise(
       handleBookingSessionRequest(request, {
         publicSiteOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
-        enter: (input) => Effect.provide(enterBookingSession(input), sessionsLayer),
+        enter: (input) => Effect.provide(enterBookingSession(input), capabilitiesLayer),
         authorize: (input) =>
           Effect.provide(
             Effect.flatMap(BookingSessions, (sessions) => sessions.authorize(input)),
-            sessionsLayer
+            capabilitiesLayer
           ),
         selection: {
           load: (session) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) => selection.load(session)),
-              selectionLayer
+              capabilitiesLayer
             ),
           chooseProvider: (session, preference) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) =>
                 selection.chooseProvider(session, preference)
               ),
-              selectionLayer
+              capabilitiesLayer
             ),
           chooseServices: (session, input) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) =>
                 selection.chooseServices(session, input)
               ),
-              selectionLayer
+              capabilitiesLayer
             )
         },
         scheduling: {
@@ -159,14 +144,14 @@ export default {
               Effect.flatMap(BookingScheduling, (scheduling) =>
                 scheduling.availability(session, input)
               ),
-              schedulingLayer
+              capabilitiesLayer
             ),
           hold: (session, input) =>
             Effect.provide(
               Effect.flatMap(BookingScheduling, (scheduling) =>
                 scheduling.hold(session, input)
               ),
-              schedulingLayer
+              capabilitiesLayer
             )
         },
         checkout: {
@@ -175,14 +160,14 @@ export default {
               Effect.flatMap(BookingCheckout, (checkout) =>
                 checkout.saveCustomerDetails(session, details, input)
               ),
-              checkoutLayer
+              capabilitiesLayer
             ),
           review: (session, input) =>
             Effect.provide(
               Effect.flatMap(BookingCheckout, (checkout) =>
                 checkout.review(session, input)
               ),
-              checkoutLayer
+              capabilitiesLayer
             )
         },
         confirmation: {
@@ -191,7 +176,7 @@ export default {
               Effect.flatMap(BookingConfirmation, (confirmation) =>
                 confirmation.read(input)
               ),
-              confirmationLayer
+              capabilitiesLayer
             ),
           confirm: (session, input) =>
             Effect.flatMap(
@@ -199,7 +184,7 @@ export default {
                 Effect.flatMap(BookingConfirmation, (confirmation) =>
                   confirmation.confirm(session, input)
                 ),
-                confirmationLayer
+                capabilitiesLayer
               ),
               (result) =>
                 Effect.promise(() =>

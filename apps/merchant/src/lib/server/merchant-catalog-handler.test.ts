@@ -7,7 +7,7 @@ import {
   testMerchantContext,
   type MerchantIdentity,
   type SeedMerchantCatalogConfigurationStore
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { makeMerchantCatalogRequestHandler } from './merchant-catalog-handler.ts'
 
 const team: MerchantIdentity = {

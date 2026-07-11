@@ -5,7 +5,7 @@ import {
   BookingSelectionRejected,
   BookingSessionGone,
   type BookingJourney
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
 import {
   bookingSessionCookie,
   handleBookingSessionRequest,

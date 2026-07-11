@@ -1,4 +1,4 @@
-import type { BookingProductEnv } from '@b2b-saas-starter/capabilities'
+import type { BookingProductEnv } from '@b2b-saas-starter/capabilities/runtime'
 import type { RateLimitBindings } from './rate-limit.ts'
 
 // The worker's Cloudflare bindings + redacted env. Shared by the handler

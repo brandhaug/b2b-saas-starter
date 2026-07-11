@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { useMemo, type FormEvent } from 'react'
-import type { CheckoutReview } from '@b2b-saas-starter/capabilities'
+import type { CheckoutReview } from '@b2b-saas-starter/capabilities/booking'
 import { styles } from './booking-flow.styles.ts'
 
 export function BookingCheckoutFlow({

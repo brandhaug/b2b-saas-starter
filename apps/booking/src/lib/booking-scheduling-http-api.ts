@@ -11,7 +11,7 @@ import {
   CapabilityUnavailable,
   HoldTimeSlotInput,
   TimeSlotHold
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
 
 export const BookingSchedulingPath = Schema.Struct({
   merchantSlug: Schema.String,

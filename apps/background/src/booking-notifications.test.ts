@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Effect, Layer } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
-import { BookingNotificationOutbox } from '@b2b-saas-starter/capabilities'
+import { BookingNotificationOutbox } from '@b2b-saas-starter/capabilities/booking'
 import { EmailDispatcher, EmailSendError } from '@b2b-saas-starter/email'
 import {
   BOOKING_RETRY_DELAYS,

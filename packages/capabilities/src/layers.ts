@@ -43,6 +43,11 @@ import {
   LiveBookingNotificationOutbox,
   SeedBookingNotificationOutbox
 } from './booking/booking-notifications.ts'
+import {
+  LiveBookingParties,
+  SeedBookingParties
+} from './booking/foundation-adapters.ts'
+import { BookingParties } from './booking/foundations.ts'
 
 // developer-platform
 import {
@@ -84,6 +89,11 @@ import {
   seedEligibilityKey,
   type SeedMerchantCatalogConfigurationStore
 } from './merchant-catalog/merchant-catalog.ts'
+import {
+  LiveShopTopology,
+  SeedShopTopology
+} from './merchant-catalog/foundation-adapters.ts'
+import { ShopTopology } from './merchant-catalog/foundations.ts'
 
 import {
   BookingPublication,
@@ -96,6 +106,34 @@ import {
 } from './scheduling/scheduling.ts'
 
 import { deriveSeedOperationalAppointments } from './seed-fixture.ts'
+import { LivePricingQuotes, SeedPricingQuotes } from './pricing/adapters.ts'
+import { PricingQuotes } from './pricing/index.ts'
+import { LivePaymentLedger, SeedPaymentLedger } from './payments/adapters.ts'
+import { PaymentLedger } from './payments/index.ts'
+import {
+  LiveCustomerEngagement,
+  SeedCustomerEngagement
+} from './customer-engagement/adapters.ts'
+import { CustomerEngagement } from './customer-engagement/index.ts'
+import {
+  LiveNotificationIntents,
+  SeedNotificationIntents
+} from './notifications/adapters.ts'
+import { NotificationIntents } from './notifications/index.ts'
+import {
+  LiveScheduledWorkQueue,
+  SeedScheduledWorkQueue
+} from './scheduled-work/adapters.ts'
+import { ScheduledWorkQueue } from './scheduled-work/index.ts'
+import { LiveGiftCards, SeedGiftCards } from './gift-cards/adapters.ts'
+import { GiftCards } from './gift-cards/index.ts'
+import { LiveWalkIns, SeedWalkIns } from './walk-ins/adapters.ts'
+import { WalkIns } from './walk-ins/index.ts'
+import {
+  LiveCustomerIdentity,
+  SeedCustomerIdentity
+} from './customer-identity/adapters.ts'
+import { CustomerIdentity } from './customer-identity/index.ts'
 
 export type CapabilityServices =
   | PlatformApiTokenRegistry
@@ -105,6 +143,7 @@ export type CapabilityServices =
   | MerchantMembership
   | MerchantCatalog
   | MerchantOnboarding
+  | ShopTopology
   | Scheduling
   | BookingPublication
   | BookingSessions
@@ -114,6 +153,15 @@ export type CapabilityServices =
   | BookingConfirmation
   | AppointmentOperations
   | BookingNotificationOutbox
+  | BookingParties
+  | PricingQuotes
+  | PaymentLedger
+  | CustomerEngagement
+  | NotificationIntents
+  | ScheduledWorkQueue
+  | GiftCards
+  | WalkIns
+  | CustomerIdentity
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
@@ -260,6 +308,26 @@ const seedMerchantCatalogConfiguration: SeedMerchantCatalogConfigurationStore = 
 }
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
+  SeedBookingParties(),
+  SeedPricingQuotes(),
+  SeedPaymentLedger(),
+  SeedCustomerEngagement(),
+  SeedNotificationIntents(),
+  SeedScheduledWorkQueue(),
+  SeedGiftCards(),
+  SeedWalkIns(),
+  SeedCustomerIdentity(),
+  SeedShopTopology([
+    {
+      id: `shp_${seedBookingScenario.merchant.id}`,
+      brandId: `brd_${seedBookingScenario.merchant.id}`,
+      merchantId: seedBookingScenario.merchant.id,
+      slug: seedBookingScenario.merchant.slug,
+      publicName: seedBookingScenario.merchant.publicName,
+      timezone: seedBookingScenario.merchant.timezone,
+      currency: seedBookingScenario.merchant.currency
+    }
+  ]),
   SeedPlatformApiTokenRegistry(),
   SeedPlatformApiReads(seedPlatformApiReads),
   SeedPlatformWebhookEndpoints(),
@@ -298,6 +366,16 @@ export const makeLiveCapabilitiesLayer = (
   // handler, so create the local-only fallback at that handler-time boundary.
   const cursorSecret = options.platformApiCursorSecret || crypto.randomUUID()
   return Layer.mergeAll(
+    LiveBookingParties,
+    LivePricingQuotes,
+    LivePaymentLedger,
+    LiveCustomerEngagement,
+    LiveNotificationIntents,
+    LiveScheduledWorkQueue,
+    LiveGiftCards,
+    LiveWalkIns,
+    LiveCustomerIdentity,
+    LiveShopTopology,
     LivePlatformApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LivePlatformApiReads(cursorSecret),
     LivePlatformWebhookEndpoints(cursorSecret).pipe(Layer.provide(LiveAuditEventLog)),

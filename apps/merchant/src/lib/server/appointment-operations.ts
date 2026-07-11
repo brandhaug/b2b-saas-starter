@@ -4,13 +4,15 @@ import { Effect, Layer, Schema } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
   AppointmentOperations,
-  liveMerchantContext,
-  MerchantContext,
-  selectCapabilitiesLayer,
   type AppointmentDetailResult,
   type CustomerDirectory,
   type ProviderCalendar
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/booking'
+import {
+  liveMerchantContext,
+  MerchantContext
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { requireMerchantRequestSession } from './merchant-session.ts'
 
 const DateInput = Schema.Struct({ date: Schema.optional(Schema.String) })

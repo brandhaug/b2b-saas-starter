@@ -7,7 +7,6 @@ import {
   OpenApi
 } from 'effect/unstable/httpapi'
 import {
-  CapabilityUnavailable,
   PlatformApiToken,
   PlatformApiTokenScope,
   PlatformApiTokenStatus,
@@ -19,7 +18,8 @@ import {
   PlatformWebhookEndpoint,
   PlatformWebhookEndpointStatus,
   AppointmentWebhookEvent
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/developer-platform'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 
 const ErrorBody = (code: string) =>
   Schema.Struct({

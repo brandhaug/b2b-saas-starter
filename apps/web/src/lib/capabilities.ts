@@ -5,7 +5,7 @@ import {
   selectCapabilitiesLayer,
   type CapabilityServices,
   type BookingProductEnv
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/runtime'
 import { CapabilityUnavailableError } from './capability-error'
 
 export type { CapabilityServices }

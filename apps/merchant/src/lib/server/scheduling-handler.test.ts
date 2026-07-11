@@ -2,14 +2,16 @@ import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   buildSeedBookingScenario,
-  emptySeedSchedulingStore,
-  SeedBookingPublication,
   SeedMerchantCatalog,
-  SeedScheduling,
   seedEligibilityKey,
   testMerchantContext,
   type SeedMerchantCatalogConfigurationStore
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
+import {
+  emptySeedSchedulingStore,
+  SeedBookingPublication,
+  SeedScheduling
+} from '@b2b-saas-starter/capabilities/scheduling'
 import {
   makeSchedulingRequestHandler,
   type SchedulingRunner

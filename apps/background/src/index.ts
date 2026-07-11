@@ -3,7 +3,7 @@ import { FetchHttpClient } from 'effect/unstable/http'
 import {
   selectCapabilitiesLayer,
   type BookingProductEnv
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/runtime'
 import {
   selectEmailDispatcherLayer,
   type SendEmailBinding

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { CatalogShell } from '@/components/catalog-shell.tsx'
-import type { ScheduleRule } from '@b2b-saas-starter/capabilities'
+import type { ScheduleRule } from '@b2b-saas-starter/capabilities/scheduling'
 import {
   getSchedulingConfiguration,
   saveScheduleRules,

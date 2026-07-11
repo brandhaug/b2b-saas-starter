@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MerchantCatalogSnapshot } from '@b2b-saas-starter/capabilities'
+import type { MerchantCatalogSnapshot } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { catalogDestinations, serviceProviderChoices } from './catalog-workflow.ts'
 
 const snapshot = (presentation: 'solo' | 'team'): MerchantCatalogSnapshot => ({

@@ -1,8 +1,10 @@
 # packages/db
 
 D1 schema for Better Auth and the Booking Product. Mutable product records are owned
-by Merchant: catalog, schedule rules, booking sessions/holds, appointments,
-confirmation access, notification outbox, Platform API tokens/webhooks, and audit
-events. Do not add Workspace bridges, durable Customers, persisted Availability,
-Brands, Shops, Sale Orders, generic payment ledgers, Checkout Policy, or prototype
-state. `scripts/seed.ts` owns the deterministic local Booking scenario.
+by Merchant. The accepted full-parity model adds Merchant-owned Brand/Shop topology,
+Booking Parties and Requests, quote/settlement facts, payment and gift-card facts,
+waiting lists, walk-ins, policy facts, lifecycle history, protected access,
+Notification Intents, and scheduled work beside the first-slice tables. Do not add
+Workspace bridges, durable Customer identity, Sale Orders, generic Cart/Order/
+Transaction aggregates, persisted Availability projections, or prototype state.
+`scripts/seed.ts` owns the deterministic local Booking scenario.

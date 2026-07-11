@@ -4,10 +4,10 @@ import { Effect, Schema } from 'effect'
 import {
   MerchantOnboarding,
   MerchantOnboardingPayload,
-  selectCapabilitiesLayer,
   type MerchantOnboardingStatus,
   type MerchantRecord
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { requireMerchantRequestSession } from './merchant-session.ts'
 
 const decodeInput = Schema.decodeUnknownSync(MerchantOnboardingPayload)

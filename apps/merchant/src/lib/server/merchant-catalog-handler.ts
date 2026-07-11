@@ -7,7 +7,7 @@ import {
   type ProviderRecord,
   type ServiceInput,
   type ServiceRecord
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
 
 export type MerchantCatalogRunner = <A, E>(
   userId: string,

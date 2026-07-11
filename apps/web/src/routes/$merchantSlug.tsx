@@ -60,7 +60,7 @@ export function GenericNotFoundPage() {
 export function PublishedMerchantPage({
   page
 }: {
-  readonly page: import('@b2b-saas-starter/capabilities').PublicBookingPage
+  readonly page: import('@b2b-saas-starter/capabilities/scheduling').PublicBookingPage
 }) {
   return (
     <main className="min-h-dvh bg-background text-foreground">
