@@ -161,7 +161,7 @@ export const Stack = Alchemy.Stack(
         WEBHOOK_QUEUE: webhookQueue,
         ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
-      env: { ...optionalModuleEnv, PUBLIC_SITE_ORIGIN: publicSiteOrigin },
+      env: optionalModuleEnv,
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
@@ -227,7 +227,8 @@ export const Stack = Alchemy.Stack(
         CONFIRMATION_CURRENT_KEY_ID,
         ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
       },
-      env: optionalModuleEnv,
+      env: { ...optionalModuleEnv, PUBLIC_SITE_ORIGIN: publicSiteOrigin },
+      crons: ['*/5 * * * *', '0 6 * * *'],
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement

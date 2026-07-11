@@ -5,6 +5,7 @@ import { BookingNotificationOutbox } from '@b2b-saas-starter/capabilities'
 import { EmailDispatcher } from '@b2b-saas-starter/email'
 import {
   BOOKING_RETRY_DELAYS,
+  classifyBookingResponse,
   processBookingOutbox,
   signBookingWebhook
 } from './booking-notifications.ts'
@@ -18,6 +19,25 @@ describe('booking webhook contract', () => {
 
   it('defines exactly the six settled retry delays', () => {
     expect(BOOKING_RETRY_DELAYS).toEqual([30, 60, 90, 120, 150, 180])
+  })
+
+  it('classifies redirects as permanent and exhausts the seventh attempt', () => {
+    expect(classifyBookingResponse(302, 1)).toEqual({
+      status: 'failed_permanent',
+      retryDelay: null
+    })
+    expect(classifyBookingResponse(500, 1)).toEqual({
+      status: 'failed_retryable',
+      retryDelay: 30
+    })
+    expect(classifyBookingResponse(429, 6)).toEqual({
+      status: 'failed_retryable',
+      retryDelay: 180
+    })
+    expect(classifyBookingResponse(null, 7)).toEqual({
+      status: 'dead_lettered',
+      retryDelay: null
+    })
   })
 })
 
@@ -105,5 +125,27 @@ describe('processBookingOutbox', () => {
     expect(send).toHaveBeenCalledOnce()
     expect(recordEmail).toHaveBeenCalledWith('out_test', 'delivered', null)
     expect(finish).toHaveBeenCalledWith('out_test', 'completed', work.createdAt)
+
+    send.mockClear()
+    recordEmail.mockClear()
+    await Effect.runPromise(
+      processBookingOutbox({
+        outboxId: work.outboxId,
+        now: work.createdAt,
+        publicOrigin: 'https://example.com',
+        emailConfigured: false,
+        confirmationKeyring: { currentKeyId: 'current', keys: {} }
+      }).pipe(
+        Effect.provide(store),
+        Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
+        Effect.provide(FetchHttpClient.layer)
+      )
+    )
+    expect(send).not.toHaveBeenCalled()
+    expect(recordEmail).toHaveBeenCalledWith(
+      'out_test',
+      'skipped',
+      'email_not_configured'
+    )
   })
 })

@@ -50,7 +50,11 @@ export type DeliveryOutcome = 'ack' | 'retry'
 const DEAD_LETTER_QUEUE = 'b2b-saas-starter-webhooks-dlq'
 const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
 
-const StaticLayer = Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
+const StaticLayer = Layer.mergeAll(
+  FetchHttpClient.layer,
+  Layer.succeed(FetchHttpClient.RequestInit)({ redirect: 'manual' }),
+  WideEventLoggerLive
+)
 const staticRuntime = ManagedRuntime.make(StaticLayer)
 
 const bookingConfig = (env: Env) => {
@@ -71,15 +75,33 @@ const bookingConfig = (env: Env) => {
 }
 
 const runBookingOutbox = (outboxId: string, now: string, env: Env) =>
-  processBookingOutbox({ outboxId, now, ...bookingConfig(env) }).pipe(
-    Effect.provide(selectCapabilitiesLayer(starterEnv(env))),
-    Effect.provide(
-      selectEmailDispatcherLayer({
-        ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
-        ...(env.CLOUDFLARE_EMAIL_FROM
-          ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
-          : {})
-      })
+  withTriggerScope(
+    {
+      service: 'background',
+      event: 'booking_notification',
+      env,
+      metadata: { outboxId }
+    },
+    processBookingOutbox({
+      outboxId,
+      now,
+      ...bookingConfig(env),
+      ...(env.BOOKING_EVENTS_QUEUE
+        ? {
+            scheduleRetry: (id: string, delaySeconds: number) =>
+              env.BOOKING_EVENTS_QUEUE!.send({ outboxId: id }, { delaySeconds })
+          }
+        : {})
+    }).pipe(
+      Effect.provide(selectCapabilitiesLayer(starterEnv(env))),
+      Effect.provide(
+        selectEmailDispatcherLayer({
+          ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+          ...(env.CLOUDFLARE_EMAIL_FROM
+            ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+            : {})
+        })
+      )
     )
   )
 
@@ -401,7 +423,10 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     if (event.cron === '0 6 * * *') await staticRuntime.runPromise(refreshCatalog(env))
     await staticRuntime.runPromise(
-      recoverBookings(new Date(event.scheduledTime).toISOString(), env)
+      withTriggerScope(
+        { service: 'background', event: 'booking_recovery', env },
+        recoverBookings(new Date(event.scheduledTime).toISOString(), env)
+      )
     )
   },
 
@@ -416,10 +441,13 @@ export default {
             message.ack()
             return
           }
-          await staticRuntime.runPromise(
-            runBookingOutbox(body.outboxId, new Date().toISOString(), env)
+          const result = await staticRuntime.runPromise(
+            Effect.result(
+              runBookingOutbox(body.outboxId, new Date().toISOString(), env)
+            )
           )
-          message.ack()
+          if (Result.isSuccess(result)) message.ack()
+          else message.retry({ delaySeconds: 30 })
         })
       )
       return

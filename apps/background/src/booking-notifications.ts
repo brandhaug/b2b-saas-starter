@@ -5,11 +5,31 @@ import {
   deriveConfirmationToken,
   validateWebhookUrl,
   type BookingNotificationWork,
+  type CapabilityUnavailable,
   type ConfirmationSigningKeyring
 } from '@b2b-saas-starter/capabilities'
 import { AppointmentConfirmationEmail, EmailDispatcher } from '@b2b-saas-starter/email'
 
 export const BOOKING_RETRY_DELAYS = [30, 60, 90, 120, 150, 180] as const
+
+export const classifyBookingResponse = (
+  statusCode: number | null,
+  attemptNumber: number
+) => {
+  if (statusCode !== null && statusCode >= 200 && statusCode < 300)
+    return { status: 'delivered' as const, retryDelay: null }
+  const retryable =
+    statusCode === null ||
+    statusCode === 408 ||
+    statusCode === 429 ||
+    (statusCode >= 500 && statusCode < 600)
+  if (!retryable) return { status: 'failed_permanent' as const, retryDelay: null }
+  if (attemptNumber >= 7) return { status: 'dead_lettered' as const, retryDelay: null }
+  return {
+    status: 'failed_retryable' as const,
+    retryDelay: BOOKING_RETRY_DELAYS[attemptNumber - 1]!
+  }
+}
 
 const hex = (value: ArrayBuffer) =>
   Array.from(new Uint8Array(value), (byte) => byte.toString(16).padStart(2, '0')).join(
@@ -55,7 +75,7 @@ const sendEmail = (
     const token = yield* Effect.promise(() =>
       deriveConfirmationToken(work.confirmation, keyring)
     )
-    const url = `${publicOrigin.replace(/\/$/, '')}/${encodeURIComponent(work.merchantSlug)}/confirmation/${encodeURIComponent(work.confirmation.routeId)}?token=${encodeURIComponent(token)}`
+    const url = `${publicOrigin.replace(/\/$/, '')}/${encodeURIComponent(work.merchantSlug)}/booking/confirmations/${encodeURIComponent(work.confirmation.routeId)}?token=${encodeURIComponent(token)}`
     yield* dispatcher.send({
       from: '',
       to: work.snapshot.customerDetails.email,
@@ -79,9 +99,10 @@ export const processBookingOutbox = (input: {
   readonly publicOrigin: string
   readonly emailConfigured: boolean
   readonly confirmationKeyring: ConfirmationSigningKeyring
+  readonly scheduleRetry?: (outboxId: string, delaySeconds: number) => Promise<unknown>
 }): Effect.Effect<
   void,
-  never,
+  CapabilityUnavailable,
   BookingNotificationOutbox | EmailDispatcher | HttpClient.HttpClient
 > =>
   Effect.gen(function* () {
@@ -168,13 +189,8 @@ export const processBookingOutbox = (input: {
       )
       const durationMs = Date.now() - started
       const statusCode = Result.isSuccess(response) ? response.success.status : null
-      const delivered = statusCode !== null && statusCode >= 200 && statusCode < 300
-      const retryable =
-        statusCode === null ||
-        statusCode === 408 ||
-        statusCode === 429 ||
-        (statusCode >= 500 && statusCode < 600)
-      if (delivered) {
+      const decision = classifyBookingResponse(statusCode, attemptNumber)
+      if (decision.status === 'delivered') {
         yield* store.recordAttempt({
           id: deliveryId,
           endpointId: endpoint.id,
@@ -187,9 +203,9 @@ export const processBookingOutbox = (input: {
           attemptedAt,
           nextAttemptAt: null
         })
-      } else if (retryable && attemptNumber < 7) {
+      } else if (decision.status === 'failed_retryable') {
         const nextAttemptAt = new Date(
-          Date.parse(attemptedAt) + BOOKING_RETRY_DELAYS[attemptNumber - 1]! * 1000
+          Date.parse(attemptedAt) + decision.retryDelay * 1000
         ).toISOString()
         yield* store.recordAttempt({
           id: deliveryId,
@@ -208,8 +224,12 @@ export const processBookingOutbox = (input: {
           attemptedAt,
           nextAttemptAt
         })
+        if (input.scheduleRetry)
+          yield* Effect.promise(() =>
+            input.scheduleRetry!(work.outboxId, decision.retryDelay)
+          ).pipe(Effect.catch(() => Effect.void))
         pending = true
-      } else if (retryable) {
+      } else if (decision.status === 'dead_lettered') {
         yield* store.recordAttempt({
           id: deliveryId,
           endpointId: endpoint.id,
@@ -248,7 +268,7 @@ export const processBookingOutbox = (input: {
       outboxId: work.outboxId,
       webhookStatus: pending ? 'pending' : deadLettered ? 'dead_lettered' : 'completed'
     })
-  }).pipe(Effect.catchCause(() => Effect.void))
+  })
 
 export const recoverBookingOutbox = (now: string) =>
   Effect.flatMap(BookingNotificationOutbox, (store) => store.recoverable(now))
