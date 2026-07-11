@@ -372,8 +372,6 @@ export type LiveCapabilitiesOptions = {
     | undefined
 }
 
-const ephemeralPlatformCursorSecret = crypto.randomUUID()
-
 export const makeLiveCapabilitiesLayer = (
   options: LiveCapabilitiesOptions = {}
 ): Layer.Layer<CapabilityServices, never, Database> => {
@@ -382,7 +380,10 @@ export const makeLiveCapabilitiesLayer = (
     !options.platformApiCursorSecret?.trim()
   )
     throw new Error('PLATFORM_API_CURSOR_SECRET is required in production.')
-  const cursorSecret = options.platformApiCursorSecret || ephemeralPlatformCursorSecret
+  // Cloudflare Workers prohibit random generation while evaluating a module.
+  // Callers construct the live layer from inside a request, queue, or scheduled
+  // handler, so create the local-only fallback at that handler-time boundary.
+  const cursorSecret = options.platformApiCursorSecret || crypto.randomUUID()
   return Layer.mergeAll(
     LiveAdoptionReadiness,
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
