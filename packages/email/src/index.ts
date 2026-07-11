@@ -76,7 +76,6 @@ export const LogEmailDispatcherLayer: Layer.Layer<EmailDispatcher> = Layer.succe
       yield* renderMessage(message)
       yield* Effect.log('email.dispatched', {
         mode: 'log',
-        to: message.to,
         subject: message.subject
       })
       return {
@@ -123,7 +122,6 @@ export const makeCloudflareEmailDispatcherLayer = (
         })
         yield* Effect.log('email.dispatched', {
           mode: 'cloudflare-email',
-          to: message.to,
           subject: message.subject
         })
         return {

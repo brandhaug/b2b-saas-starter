@@ -1,0 +1,254 @@
+import { Effect, Result } from 'effect'
+import { HttpBody, HttpClient } from 'effect/unstable/http'
+import {
+  BookingNotificationOutbox,
+  deriveConfirmationToken,
+  validateWebhookUrl,
+  type BookingNotificationWork,
+  type ConfirmationSigningKeyring
+} from '@b2b-saas-starter/capabilities'
+import { AppointmentConfirmationEmail, EmailDispatcher } from '@b2b-saas-starter/email'
+
+export const BOOKING_RETRY_DELAYS = [30, 60, 90, 120, 150, 180] as const
+
+const hex = (value: ArrayBuffer) =>
+  Array.from(new Uint8Array(value), (byte) => byte.toString(16).padStart(2, '0')).join(
+    ''
+  )
+
+export const signBookingWebhook = async (
+  secret: string,
+  timestamp: number,
+  rawBody: string
+) => {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  return hex(
+    await crypto.subtle.sign(
+      'HMAC',
+      key,
+      new TextEncoder().encode(`${timestamp}.${rawBody}`)
+    )
+  )
+}
+
+const id = (prefix: 'dlv') => {
+  const bytes = crypto.getRandomValues(new Uint8Array(12))
+  return `${prefix}_${hex(bytes.buffer)}`
+}
+
+const money = (minor: number, currency: string) =>
+  new Intl.NumberFormat('en', { style: 'currency', currency }).format(minor / 100)
+
+const sendEmail = (
+  work: BookingNotificationWork,
+  publicOrigin: string,
+  keyring: ConfirmationSigningKeyring
+) =>
+  Effect.gen(function* () {
+    const dispatcher = yield* EmailDispatcher
+    const token = yield* Effect.promise(() =>
+      deriveConfirmationToken(work.confirmation, keyring)
+    )
+    const url = `${publicOrigin.replace(/\/$/, '')}/${encodeURIComponent(work.merchantSlug)}/confirmation/${encodeURIComponent(work.confirmation.routeId)}?token=${encodeURIComponent(token)}`
+    yield* dispatcher.send({
+      from: '',
+      to: work.snapshot.customerDetails.email,
+      subject: 'Your appointment is confirmed',
+      element: AppointmentConfirmationEmail({
+        startsAt: work.snapshot.startsAt,
+        timeZone: work.snapshot.merchantTimezone,
+        services: work.snapshot.services.map((service) => ({
+          name: service.name,
+          price: money(service.priceMinor, service.currency)
+        })),
+        total: money(work.snapshot.totalMinor, work.snapshot.currency),
+        confirmationUrl: url
+      })
+    })
+  })
+
+export const processBookingOutbox = (input: {
+  readonly outboxId: string
+  readonly now: string
+  readonly publicOrigin: string
+  readonly emailConfigured: boolean
+  readonly confirmationKeyring: ConfirmationSigningKeyring
+}): Effect.Effect<
+  void,
+  never,
+  BookingNotificationOutbox | EmailDispatcher | HttpClient.HttpClient
+> =>
+  Effect.gen(function* () {
+    const store = yield* BookingNotificationOutbox
+    const work = yield* store.claim(input.outboxId, input.now)
+    if (!work) return
+
+    if (work.emailStatus === 'pending') {
+      if (!input.emailConfigured)
+        yield* store.recordEmail(work.outboxId, 'skipped', 'email_not_configured')
+      else {
+        const outcome = yield* Effect.result(
+          sendEmail(work, input.publicOrigin, input.confirmationKeyring).pipe(
+            Effect.annotateLogs({ traceId: work.traceId, outboxId: work.outboxId })
+          )
+        )
+        yield* store.recordEmail(
+          work.outboxId,
+          Result.isSuccess(outcome) ? 'delivered' : 'failed',
+          Result.isSuccess(outcome) ? null : 'email_send_failed'
+        )
+      }
+    }
+
+    const event = yield* store.ensureEvent(work)
+    const endpoints = yield* store.endpoints(work.merchantId)
+    const client = yield* HttpClient.HttpClient
+    let pending = false
+    let deadLettered = false
+    for (const endpoint of endpoints) {
+      const history = yield* store.attempts(event.id, endpoint.id)
+      const last = history.at(-1)
+      if (
+        last?.status === 'delivered' ||
+        last?.status === 'failed_permanent' ||
+        last?.status === 'dead_lettered'
+      ) {
+        if (last.status === 'dead_lettered') deadLettered = true
+        continue
+      }
+      if (last?.nextAttemptAt && last.nextAttemptAt > input.now) {
+        pending = true
+        continue
+      }
+      const attemptNumber = (last?.attemptNumber ?? 0) + 1
+      const attemptedAt = input.now
+      const deliveryId = id('dlv')
+      const started = Date.now()
+      const destination = validateWebhookUrl(endpoint.url)
+      if (!destination.valid) {
+        yield* store.recordAttempt({
+          id: deliveryId,
+          endpointId: endpoint.id,
+          eventId: event.id,
+          status: 'failed_permanent',
+          failureCode: 'invalid_destination',
+          attemptNumber,
+          responseStatus: null,
+          durationMs: Date.now() - started,
+          attemptedAt,
+          nextAttemptAt: null
+        })
+        continue
+      }
+      const timestamp = Math.floor(Date.parse(attemptedAt) / 1000)
+      const signature = yield* Effect.promise(() =>
+        signBookingWebhook(endpoint.signingSecret, timestamp, event.rawBody)
+      )
+      const response = yield* Effect.result(
+        client
+          .post(endpoint.url, {
+            headers: {
+              'content-type': 'application/json',
+              'Webhook-Event': 'appointment.created',
+              'Webhook-Event-Id': event.id,
+              'Webhook-Delivery-Id': deliveryId,
+              'Webhook-Timestamp': String(timestamp),
+              'Webhook-Signature': `t=${timestamp},v1=${signature}`,
+              'x-trace-id': work.traceId
+            },
+            body: HttpBody.text(event.rawBody, 'application/json')
+          })
+          .pipe(Effect.timeout('10 seconds'))
+      )
+      const durationMs = Date.now() - started
+      const statusCode = Result.isSuccess(response) ? response.success.status : null
+      const delivered = statusCode !== null && statusCode >= 200 && statusCode < 300
+      const retryable =
+        statusCode === null ||
+        statusCode === 408 ||
+        statusCode === 429 ||
+        (statusCode >= 500 && statusCode < 600)
+      if (delivered) {
+        yield* store.recordAttempt({
+          id: deliveryId,
+          endpointId: endpoint.id,
+          eventId: event.id,
+          status: 'delivered',
+          failureCode: null,
+          attemptNumber,
+          responseStatus: statusCode,
+          durationMs,
+          attemptedAt,
+          nextAttemptAt: null
+        })
+      } else if (retryable && attemptNumber < 7) {
+        const nextAttemptAt = new Date(
+          Date.parse(attemptedAt) + BOOKING_RETRY_DELAYS[attemptNumber - 1]! * 1000
+        ).toISOString()
+        yield* store.recordAttempt({
+          id: deliveryId,
+          endpointId: endpoint.id,
+          eventId: event.id,
+          status: 'failed_retryable',
+          failureCode:
+            statusCode === null
+              ? durationMs >= 10_000
+                ? 'timeout'
+                : 'network_error'
+              : 'http_status',
+          attemptNumber,
+          responseStatus: statusCode,
+          durationMs,
+          attemptedAt,
+          nextAttemptAt
+        })
+        pending = true
+      } else if (retryable) {
+        yield* store.recordAttempt({
+          id: deliveryId,
+          endpointId: endpoint.id,
+          eventId: event.id,
+          status: 'dead_lettered',
+          failureCode: 'retries_exhausted',
+          attemptNumber,
+          responseStatus: statusCode,
+          durationMs,
+          attemptedAt,
+          nextAttemptAt: null
+        })
+        deadLettered = true
+      } else {
+        yield* store.recordAttempt({
+          id: deliveryId,
+          endpointId: endpoint.id,
+          eventId: event.id,
+          status: 'failed_permanent',
+          failureCode: 'http_status',
+          attemptNumber,
+          responseStatus: statusCode,
+          durationMs,
+          attemptedAt,
+          nextAttemptAt: null
+        })
+      }
+    }
+    yield* store.finish(
+      work.outboxId,
+      pending ? 'pending' : deadLettered ? 'dead_lettered' : 'completed',
+      pending ? null : input.now
+    )
+    yield* Effect.log('booking.notifications.processed', {
+      traceId: work.traceId,
+      outboxId: work.outboxId,
+      webhookStatus: pending ? 'pending' : deadLettered ? 'dead_lettered' : 'completed'
+    })
+  }).pipe(Effect.catchCause(() => Effect.void))
+
+export const recoverBookingOutbox = (now: string) =>
+  Effect.flatMap(BookingNotificationOutbox, (store) => store.recoverable(now))

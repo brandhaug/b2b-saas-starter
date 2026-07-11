@@ -19,6 +19,42 @@ interface WorkspaceInvitationEmailProps {
   readonly inviteUrl: string
 }
 
+export interface AppointmentConfirmationEmailProps {
+  readonly startsAt: string
+  readonly timeZone: string
+  readonly services: readonly { readonly name: string; readonly price: string }[]
+  readonly total: string
+  readonly confirmationUrl: string
+}
+
+export function AppointmentConfirmationEmail(props: AppointmentConfirmationEmailProps) {
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>Your appointment is confirmed</Preview>
+      <Body>
+        <Container>
+          <Heading>Your appointment is confirmed</Heading>
+          <Text>
+            {props.startsAt} ({props.timeZone})
+          </Text>
+          {props.services.map((service) => (
+            <Text key={service.name}>
+              {service.name} — {service.price}
+            </Text>
+          ))}
+          <Text>Total: {props.total}</Text>
+          <Text>Pay In Person</Text>
+          <Button href={props.confirmationUrl}>View confirmation</Button>
+          <Text>
+            <Link href={props.confirmationUrl}>{props.confirmationUrl}</Link>
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
 export function WorkspaceInvitationEmail({
   workspaceName,
   inviteUrl

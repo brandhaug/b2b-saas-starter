@@ -12,6 +12,7 @@
     "mode": "smart"
   },
   "vars": {
+    "PUBLIC_SITE_ORIGIN": "http://localhost:3071",
     "CONFIRMATION_CURRENT_KEY_ID": "local-v1",
     "CONFIRMATION_SIGNING_KEYS": "{\"local-v1\":\"replace-before-production-confirmation-key\"}"
   },
@@ -63,6 +64,6 @@
     ]
   },
   "triggers": {
-    "crons": ["0 6 * * *"]
+    "crons": ["*/5 * * * *", "0 6 * * *"]
   }
 }

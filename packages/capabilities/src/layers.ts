@@ -38,6 +38,11 @@ import {
   LiveAppointmentOperations,
   SeedAppointmentOperations
 } from './booking/appointment-operations.ts'
+import {
+  BookingNotificationOutbox,
+  LiveBookingNotificationOutbox,
+  SeedBookingNotificationOutbox
+} from './booking/booking-notifications.ts'
 
 // catalog
 import {
@@ -182,6 +187,7 @@ export type CapabilityServices =
   | BookingCheckout
   | BookingConfirmation
   | AppointmentOperations
+  | BookingNotificationOutbox
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceMembership
@@ -349,6 +355,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedBookingCheckout(seedBookingCheckout),
   SeedBookingConfirmation(seedBookingConfirmation, seedConfirmationKeyring),
   SeedAppointmentOperations(seedOperationalAppointments),
+  SeedBookingNotificationOutbox,
   SeedNotificationFeed(seedNotifications),
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
@@ -398,6 +405,7 @@ export const makeLiveCapabilitiesLayer = (
       options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} }
     ),
     LiveAppointmentOperations,
+    LiveBookingNotificationOutbox,
     LiveNotificationFeed,
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),

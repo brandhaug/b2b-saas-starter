@@ -7,6 +7,7 @@ Cloudflare Worker for recurring and queued work.
 - **Catalog refresh** — cron at `0 6 * * *` (daily 06:00 UTC, `wrangler.jsonc`) runs `runCatalogRefresh` (`@b2b-saas-starter/capabilities`), which owns the "no run goes unrecorded" sequence: capture the refresh outcome, write a `catalogRefreshRuns` row (ok or failed, real duration), then re-raise failures. The handler adds only the env-selected layer and the wide-event scope; don't re-implement the capture-record-refail block here.
 - **Webhook delivery** — Queue consumer for `b2b-saas-starter-webhooks`. Decodes each message body against the shared `WebhookQueueMessage` schema, signs payloads (see recipe below), and persists attempt history to `webhookDeliveries` via `WebhookEndpoints`.
 - **Webhook dead letters** — Queue consumer for `b2b-saas-starter-webhooks-dlq` (same worker; the `queue` handler branches on `batch.queue`). Records a terminal `dead_lettered` delivery row and a `webhook_dead_letter` wide event, then acks.
+- **Booking notifications** — Booking-event wake-ups and the five-minute recovery sweep share the durable Booking outbox processor. It sends confirmation email when configured and dispatches thin Merchant-scoped `appointment.created` events with persisted attempts and terminal outcomes.
 
 ## Webhook delivery contract
 
@@ -53,7 +54,7 @@ Pure helpers (`backoffSeconds`, `classifyResponseStatus`, `computeWebhookSignatu
 
 ## Planned, not wired
 
-- Email fan-out and report scheduling are referenced in the starter narrative but have no handlers in `src/index.ts` yet. Wire alongside their capability counterparts (`@b2b-saas-starter/email`, `implementation-reports`).
+- Report scheduling remains referenced in the starter narrative but has no handler in `src/index.ts` yet.
 - Notification emission on `failed_permanent` and `dead_lettered` deliveries (the audit events are wired — see the delivery contract above).
 
 ## Conventions

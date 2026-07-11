@@ -9,6 +9,10 @@ import {
   type CapabilityUnavailable,
   type StarterEnv
 } from '@b2b-saas-starter/capabilities'
+import {
+  selectEmailDispatcherLayer,
+  type SendEmailBinding
+} from '@b2b-saas-starter/email'
 import { makeStarterEnvModuleConfig } from '@b2b-saas-starter/env'
 import {
   annotateWide,
@@ -17,6 +21,7 @@ import {
   WideEventLoggerLive,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
+import { processBookingOutbox, recoverBookingOutbox } from './booking-notifications.ts'
 
 type Env = {
   readonly DB?: D1Database
@@ -24,6 +29,9 @@ type Env = {
   readonly BOOKING_EVENTS_QUEUE?: Queue
   readonly CONFIRMATION_CURRENT_KEY_ID?: string
   readonly CONFIRMATION_SIGNING_KEYS?: string
+  readonly PUBLIC_SITE_ORIGIN?: string
+  readonly EMAIL?: SendEmailBinding
+  readonly CLOUDFLARE_EMAIL_FROM?: string
 }
 
 // Module-aware env validation (ADR 0035).
@@ -44,6 +52,47 @@ const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
 
 const StaticLayer = Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
 const staticRuntime = ManagedRuntime.make(StaticLayer)
+
+const bookingConfig = (env: Env) => {
+  let keys: Record<string, string> = {}
+  try {
+    keys = JSON.parse(env.CONFIRMATION_SIGNING_KEYS ?? '{}') as Record<string, string>
+  } catch {
+    /* unavailable is recorded per channel */
+  }
+  return {
+    publicOrigin: env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071',
+    emailConfigured: Boolean(env.EMAIL && env.CLOUDFLARE_EMAIL_FROM),
+    confirmationKeyring: {
+      currentKeyId: env.CONFIRMATION_CURRENT_KEY_ID ?? 'unconfigured',
+      keys
+    }
+  }
+}
+
+const runBookingOutbox = (outboxId: string, now: string, env: Env) =>
+  processBookingOutbox({ outboxId, now, ...bookingConfig(env) }).pipe(
+    Effect.provide(selectCapabilitiesLayer(starterEnv(env))),
+    Effect.provide(
+      selectEmailDispatcherLayer({
+        ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+        ...(env.CLOUDFLARE_EMAIL_FROM
+          ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+          : {})
+      })
+    )
+  )
+
+const recoverBookings = (now: string, env: Env) =>
+  recoverBookingOutbox(now).pipe(
+    Effect.provide(selectCapabilitiesLayer(starterEnv(env))),
+    Effect.flatMap((ids) =>
+      Effect.forEach(ids, (outboxId) => runBookingOutbox(outboxId, now, env), {
+        concurrency: 4
+      })
+    ),
+    Effect.asVoid
+  )
 
 /**
  * Redelivery backoff. Also used to derive the persisted `nextAttemptAt` so
@@ -349,19 +398,30 @@ const recordDeadLetter = (
 }
 
 export default {
-  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
-    await staticRuntime.runPromise(refreshCatalog(env))
+  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    if (event.cron === '0 6 * * *') await staticRuntime.runPromise(refreshCatalog(env))
+    await staticRuntime.runPromise(
+      recoverBookings(new Date(event.scheduledTime).toISOString(), env)
+    )
   },
 
   // Queue message bodies are untyped at runtime; `processWebhookMessage` and
   // `recordDeadLetter` decode them at their boundary.
   async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     if (batch.queue === BOOKING_EVENTS_QUEUE) {
-      // The queue is wired now so Booking App deployments can publish committed
-      // outbox wake-ups. Processing the durable outbox belongs to ticket 26;
-      // acknowledging this no-op trigger is safe because that outbox is the
-      // source of truth and its recovery sweep will be introduced with it.
-      await Promise.all(batch.messages.map((message) => Promise.resolve(message.ack())))
+      await Promise.all(
+        batch.messages.map(async (message) => {
+          const body = message.body as { outboxId?: unknown }
+          if (typeof body?.outboxId !== 'string') {
+            message.ack()
+            return
+          }
+          await staticRuntime.runPromise(
+            runBookingOutbox(body.outboxId, new Date().toISOString(), env)
+          )
+          message.ack()
+        })
+      )
       return
     }
     if (batch.queue === DEAD_LETTER_QUEUE) {

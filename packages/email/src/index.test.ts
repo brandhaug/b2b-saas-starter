@@ -1,12 +1,14 @@
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  AppointmentConfirmationEmail,
   EmailDispatcher,
   LogEmailDispatcherLayer,
   makeCloudflareEmailDispatcherLayer,
   WorkspaceInvitationEmail,
   type SendEmailBinding
 } from './index.ts'
+import { render } from '@react-email/render'
 
 describe('EmailDispatcher', () => {
   it('logs delivery when no binding is configured', async () => {
@@ -65,5 +67,30 @@ describe('EmailDispatcher', () => {
     expect(sent.html).toContain('https://example.com/accept')
     expect(sent.text?.toLowerCase()).toContain('acme')
     expect(result.mode).toBe('cloudflare-email')
+  })
+})
+
+describe('AppointmentConfirmationEmail', () => {
+  it('contains immutable booking facts and Pay In Person wording without calling itself a receipt', async () => {
+    const text = await render(
+      AppointmentConfirmationEmail({
+        startsAt: '2026-07-20T10:00:00.000Z',
+        timeZone: 'Europe/Bucharest',
+        services: [
+          { name: 'Haircut', price: '$25.00' },
+          { name: 'Beard trim', price: '$10.00' }
+        ],
+        total: '$35.00',
+        confirmationUrl: 'https://example.com/mara/confirmation/cnf_1?token=secret'
+      }),
+      { plainText: true }
+    )
+    expect(text).toContain('2026-07-20T10:00:00.000Z')
+    expect(text).toContain('Haircut')
+    expect(text).toContain('Beard trim')
+    expect(text).toContain('$35.00')
+    expect(text).toContain('Pay In Person')
+    expect(text).toContain('https://example.com/mara/confirmation/cnf_1?token=secret')
+    expect(text.toLowerCase()).not.toContain('receipt')
   })
 })

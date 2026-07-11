@@ -487,10 +487,44 @@ export const bookingOutbox = sqliteTable(
     kind: text('kind', { enum: ['appointment.created'] }).notNull(),
     traceId: text('trace_id').notNull(),
     createdAt: isoCreatedAt(),
+    claimedAt: text('claimed_at'),
+    emailStatus: text('email_status')
+      .$type<'pending' | 'delivered' | 'skipped' | 'failed'>()
+      .default('pending')
+      .notNull(),
+    emailFailureCode: text('email_failure_code'),
+    webhookStatus: text('webhook_status')
+      .$type<'pending' | 'completed' | 'dead_lettered'>()
+      .default('pending')
+      .notNull(),
     processedAt: text('processed_at')
   },
   (table) => [
     index('booking_outbox_pending_idx').on(table.processedAt, table.createdAt)
+  ]
+)
+
+export const platformWebhookEvents = sqliteTable(
+  'platform_webhook_events',
+  {
+    id: text('id').primaryKey(),
+    outboxId: text('outbox_id')
+      .notNull()
+      .unique()
+      .references(() => bookingOutbox.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    eventType: text('event_type').notNull(),
+    rawBody: text('raw_body').notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('platform_webhook_events_merchant_created_idx').on(
+      table.merchantId,
+      table.createdAt
+    )
   ]
 )
 
