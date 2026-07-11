@@ -35,12 +35,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Freeze the Full-Parity Contract Ledger.
 
-- [ ] Explicit capability subpaths expose transport-neutral Effect services, schemas, results, stable IDs, typed errors, and lifecycle contracts.
-- [ ] Additive D1 evolution supports Brand and Shop topology, Booking Parties and Requests, quote and settlement facts, payments, gift cards, waiting lists, walk-ins, policy facts, lifecycle history, protected access, Notification Intents, and scheduled work.
-- [ ] Existing first-slice data and deterministic fixtures are backfilled into the richer model without observable regression.
-- [ ] Migrations succeed from both an empty database and the current schema.
-- [ ] Seed and live implementations satisfy the same public capability contracts.
-- [ ] Architecture checks reject forbidden cross-context dependencies, root-barrel capability imports, application-level table access, and exposed Live adapters.
+- [x] Explicit capability subpaths expose transport-neutral Effect services, schemas, results, stable IDs, typed errors, and lifecycle contracts.
+- [x] Additive D1 evolution supports Brand and Shop topology, Booking Parties and Requests, quote and settlement facts, payments, gift cards, waiting lists, walk-ins, policy facts, lifecycle history, protected access, Notification Intents, and scheduled work.
+- [x] Existing first-slice data and deterministic fixtures are backfilled into the richer model without observable regression.
+- [x] Migrations succeed from both an empty database and the current schema.
+- [x] Seed and live implementations satisfy the same public capability contracts.
+- [x] Architecture checks reject forbidden cross-context dependencies, root-barrel capability imports, application-level table access, and exposed Live adapters.
 
 ## Establish Booking Presentation and Localization Foundations
 
