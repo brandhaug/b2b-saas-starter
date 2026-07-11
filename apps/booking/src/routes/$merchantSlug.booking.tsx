@@ -1,7 +1,36 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { CanonicalBookingShell } from '../components/canonical-booking-shell.tsx'
+import { parseBookingLocale } from '../localization/booking-localization.ts'
+import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
 
-// The Worker intercepts Booking ingress and redirects into a capability-protected
-// Booking Session before TanStack renders. This route exists only for navigation typing.
 export const Route = createFileRoute('/$merchantSlug/booking')({
-  component: () => null
+  validateSearch: (search: Record<string, unknown>) => {
+    const locale = parseBookingLocale(
+      typeof search.locale === 'string' ? search.locale : undefined
+    )
+    const embed =
+      search.embed === 'widget' || search.embed === 'google'
+        ? (search.embed as BookingEmbedding)
+        : null
+    return {
+      ...(typeof search.booking === 'string' ? { booking: search.booking } : {}),
+      ...(locale ? { locale } : {}),
+      ...(embed ? { embed } : {})
+    }
+  },
+  component: CanonicalBookingRoute
 })
+
+function CanonicalBookingRoute() {
+  const { merchantSlug } = Route.useParams()
+  const { booking, locale, embed } = Route.useSearch()
+  if (!booking) return null
+  return (
+    <CanonicalBookingShell
+      merchantSlug={merchantSlug}
+      sessionId={booking}
+      locale={locale ?? 'en'}
+      embedding={embed ?? 'standalone'}
+    />
+  )
+}

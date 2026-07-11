@@ -27,6 +27,15 @@ import {
   type ConfirmationReadResult
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
+import {
+  canonicalizeBookingRequest,
+  matchCanonicalBookingRoute,
+  type BookingEmbedding
+} from './booking-route-contract.ts'
+import {
+  parseBookingLocale,
+  type BookingLocale
+} from '../localization/booking-localization.ts'
 
 export class InvalidBookingSessionCookie extends Schema.TaggedErrorClass<InvalidBookingSessionCookie>()(
   'InvalidBookingSessionCookie',
@@ -154,6 +163,14 @@ export type BookingSessionHttpDependencies = {
     BookingSession,
     BookingSessionNotFound | BookingSessionGone | CapabilityUnavailable
   >
+  readonly captureContext?: (
+    session: BookingSession,
+    context: {
+      readonly locale: BookingLocale | null
+      readonly embedding: BookingEmbedding
+      readonly acquisition: Readonly<Record<string, string>>
+    }
+  ) => BookingSessionEffect<void, CapabilityUnavailable>
   readonly selection?: {
     readonly load: (
       session: BookingSession
@@ -259,6 +276,46 @@ const expired = (merchantSlug: string): Response =>
     }
   )
 
+const recoveryCopy: Record<BookingLocale, { title: string; copy: string }> = {
+  en: {
+    title: 'Booking page not found',
+    copy: 'Check the merchant link or start the booking again.'
+  },
+  es: {
+    title: 'Página de reserva no encontrada',
+    copy: 'Comprueba el enlace del comercio o vuelve a iniciar la reserva.'
+  },
+  fr: {
+    title: 'Page de réservation introuvable',
+    copy: 'Vérifiez le lien du commerce ou recommencez la réservation.'
+  },
+  ro: {
+    title: 'Pagina de rezervare nu a fost găsită',
+    copy: 'Verifică linkul comerciantului sau începe din nou rezervarea.'
+  }
+}
+
+const unmatchedRoute = (
+  merchantSlug: string,
+  locale: BookingLocale,
+  embedding: BookingEmbedding
+): Response => {
+  const copy = recoveryCopy[locale]
+  return withPrivateHeaders(
+    new Response(
+      `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${copy.title}</title></head><body data-embedding="${embedding}"><main><h1>${copy.title}</h1><p>${copy.copy}</p><a href="/${encodeURIComponent(merchantSlug)}/booking">${locale === 'ro' ? 'Începe din nou' : locale === 'fr' ? 'Recommencer' : locale === 'es' ? 'Empezar de nuevo' : 'Start again'}</a></main></body></html>`,
+      {
+        status: 404,
+        headers: {
+          'content-language': locale,
+          'content-type': 'text/html; charset=utf-8',
+          'x-booking-embedding': embedding
+        }
+      }
+    )
+  )
+}
+
 const mapSessionFailure = (
   error: BookingSessionHttpFailure,
   merchantSlug: string
@@ -323,6 +380,32 @@ const escapeHtml = (value: string) =>
 const confirmationHtml = (
   confirmation: Extract<ConfirmationReadResult, { kind: 'found' }>['confirmation']
 ) => {
+  const confirmationCopy = {
+    en: {
+      title: 'Appointment Confirmation',
+      provider: 'Provider',
+      merchant: 'Merchant',
+      pay: 'Pay in person'
+    },
+    es: {
+      title: 'Confirmación de la cita',
+      provider: 'Profesional',
+      merchant: 'Comercio',
+      pay: 'Pagar en persona'
+    },
+    fr: {
+      title: 'Confirmation du rendez-vous',
+      provider: 'Professionnel',
+      merchant: 'Commerce',
+      pay: 'Payer sur place'
+    },
+    ro: {
+      title: 'Confirmarea programării',
+      provider: 'Profesionist',
+      merchant: 'Comerciant',
+      pay: 'Plată la locație'
+    }
+  }[confirmation.locale]
   const snapshot = confirmation.snapshot
   const services = snapshot.services
     .map(
@@ -331,7 +414,7 @@ const confirmationHtml = (
     )
     .join('')
   const status = confirmation.status === 'no_show' ? 'No show' : confirmation.status
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Appointment Confirmation</title><style>body{margin:0;background:#f7f7f8;color:#292929;font:14px system-ui,sans-serif}.rail{box-sizing:border-box;max-width:375px;min-height:100vh;margin:auto;padding:24px 16px;background:white;border-inline:1px solid #e2e3e7}h1{font-size:22px;margin:0 0 6px}.status{color:#2caf00;text-transform:capitalize}.card{margin-top:24px;padding:16px;border-radius:8px;background:#eff0f3}.provider{display:flex;justify-content:space-between;border-bottom:1px solid #d7d9df;padding-bottom:16px}.muted,li span{display:block;color:#747983;font-size:12px}ul{list-style:none;padding:0;margin:16px 0}li{display:flex;justify-content:space-between;gap:12px;margin-top:14px}.row{display:flex;justify-content:space-between;gap:16px;margin-top:16px}.merchant{margin-top:24px;padding-top:20px;border-top:1px solid #e2e3e7}a{color:inherit}</style></head><body><main class="rail"><h1>Appointment Confirmation</h1><div class="status">${escapeHtml(status)}</div><section class="card" aria-label="Appointment details"><div class="provider"><div><strong>${escapeHtml(snapshot.assignedProvider.displayName)}</strong><span class="muted">Provider</span></div><div><strong>${(snapshot.totalMinor / 100).toLocaleString('en-US', { style: 'currency', currency: snapshot.currency })}</strong><span class="muted">Pay in person</span></div></div><ul>${services}</ul><div class="row"><span class="muted">Time</span><time datetime="${escapeHtml(confirmation.startsAt)}">${escapeHtml(confirmation.startsAt)}</time></div><div class="row"><span class="muted">Duration</span><span>${snapshot.durationMinutes} min</span></div><div class="row"><span class="muted">Timezone</span><span>${escapeHtml(snapshot.merchantTimezone)}</span></div><div class="row"><span>Total price</span><strong>${(snapshot.totalMinor / 100).toLocaleString('en-US', { style: 'currency', currency: snapshot.currency })}</strong></div></section><section class="merchant"><strong>${escapeHtml(confirmation.merchant.publicName)}</strong><span class="muted">Merchant</span></section><section class="merchant"><strong>${escapeHtml(snapshot.customerDetails.name)}</strong><span class="muted">${escapeHtml(snapshot.customerDetails.email)}${snapshot.customerDetails.phone ? ` · ${escapeHtml(snapshot.customerDetails.phone)}` : ''}</span></section></main></body></html>`
+  return `<!doctype html><html lang="${confirmation.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${confirmationCopy.title}</title><style>body{margin:0;background:#f7f7f8;color:#292929;font:14px system-ui,sans-serif}.rail{box-sizing:border-box;max-width:375px;min-height:100vh;margin:auto;padding:24px 16px;background:white;border-inline:1px solid #e2e3e7}h1{font-size:22px;margin:0 0 6px}.status{color:#2caf00;text-transform:capitalize}.card{margin-top:24px;padding:16px;border-radius:8px;background:#eff0f3}.provider{display:flex;justify-content:space-between;border-bottom:1px solid #d7d9df;padding-bottom:16px}.muted,li span{display:block;color:#747983;font-size:12px}ul{list-style:none;padding:0;margin:16px 0}li{display:flex;justify-content:space-between;gap:12px;margin-top:14px}.row{display:flex;justify-content:space-between;gap:16px;margin-top:16px}.merchant{margin-top:24px;padding-top:20px;border-top:1px solid #e2e3e7}a{color:inherit}</style></head><body><main class="rail"><h1>${confirmationCopy.title}</h1><div class="status">${escapeHtml(status)}</div><section class="card" aria-label="Appointment details"><div class="provider"><div><strong>${escapeHtml(snapshot.assignedProvider.displayName)}</strong><span class="muted">${confirmationCopy.provider}</span></div><div><strong>${(snapshot.totalMinor / 100).toLocaleString(confirmation.locale, { style: 'currency', currency: snapshot.currency })}</strong><span class="muted">${confirmationCopy.pay}</span></div></div><ul>${services}</ul><div class="row"><span class="muted">Time</span><time datetime="${escapeHtml(confirmation.startsAt)}">${escapeHtml(confirmation.startsAt)}</time></div><div class="row"><span class="muted">Duration</span><span>${snapshot.durationMinutes} min</span></div><div class="row"><span class="muted">Timezone</span><span>${escapeHtml(snapshot.merchantTimezone)}</span></div><div class="row"><span>Total price</span><strong>${(snapshot.totalMinor / 100).toLocaleString(confirmation.locale, { style: 'currency', currency: snapshot.currency })}</strong></div></section><section class="merchant"><strong>${escapeHtml(confirmation.merchant.publicName)}</strong><span class="muted">${confirmationCopy.merchant}</span></section><section class="merchant"><strong>${escapeHtml(snapshot.customerDetails.name)}</strong><span class="muted">${escapeHtml(snapshot.customerDetails.email)}${snapshot.customerDetails.phone ? ` · ${escapeHtml(snapshot.customerDetails.phone)}` : ''}</span></section></main></body></html>`
 }
 
 const jsonJourney = (value: BookingJourney): Response =>
@@ -400,6 +483,23 @@ const customerDetailsFrom = (value: unknown): CustomerDetails | null => {
   }
 }
 
+const sessionContextFrom = (
+  value: unknown
+): { readonly locale: BookingLocale; readonly embedding: BookingEmbedding } | null => {
+  if (typeof value !== 'object' || value === null) return null
+  const input = value as Record<string, unknown>
+  const locale =
+    typeof input.locale === 'string' ? parseBookingLocale(input.locale) : null
+  const embedding = input.embedding
+  if (
+    !locale ||
+    (embedding !== 'standalone' && embedding !== 'widget' && embedding !== 'google')
+  ) {
+    return null
+  }
+  return { locale, embedding }
+}
+
 export const handleBookingSessionRequest = (
   request: Request,
   dependencies: BookingSessionHttpDependencies
@@ -407,7 +507,7 @@ export const handleBookingSessionRequest = (
   Effect.gen(function* () {
     const url = new URL(request.url)
     const segments = safeSegments(url.pathname)
-    if (!segments || segments[1] !== 'booking') {
+    if (!segments || segments[1]?.toLowerCase() !== 'booking') {
       return yield* dependencies.fallback(request)
     }
     const merchantSlug = segments[0]
@@ -481,32 +581,67 @@ export const handleBookingSessionRequest = (
       )
     }
 
-    if (segments.length === 2) {
+    const canonical = canonicalizeBookingRequest(url)
+    const canonicalRoute = canonical
+      ? matchCanonicalBookingRoute(new URL(canonical.canonicalUrl, url).pathname)
+      : null
+    if (canonical && canonicalRoute && !canonicalRoute.transactional) {
       if (request.method !== 'GET') return hiddenNotFound()
       if (!(yield* dependencies.takeRead(`entry:${clientKey}`))) {
         return tooManyRequests()
       }
+      const candidates = readBookingSessionCapabilities(
+        request.headers.get('cookie')
+      ).filter((candidate) => candidate.sessionId === canonical.bookingLocator)
       const entryResult = yield* Effect.result(
         dependencies.enter({
-          merchantSlug,
-          candidates: readBookingSessionCapabilities(request.headers.get('cookie')),
+          merchantSlug: canonicalRoute.merchantSlug,
+          candidates,
           now
         })
       )
       if (entryResult._tag === 'Failure') {
-        return mapSessionFailure(entryResult.failure, merchantSlug)
+        return mapSessionFailure(entryResult.failure, canonicalRoute.merchantSlug)
       }
       const entry = entryResult.success
+      if (dependencies.captureContext) {
+        const captured = yield* Effect.result(
+          dependencies.captureContext(entry.session, {
+            locale: canonical.locale,
+            embedding: canonical.embedding,
+            acquisition: canonical.acquisition
+          })
+        )
+        if (captured._tag === 'Failure')
+          return mapSessionFailure(captured.failure, canonicalRoute.merchantSlug)
+      }
+
+      const continuation = new URLSearchParams({ booking: entry.session.id })
+      if (canonical.locale) continuation.set('locale', canonical.locale)
+      if (canonical.embedding !== 'standalone') {
+        continuation.set('embed', canonical.embedding)
+      }
+      const location = `${canonicalRoute.pathname}?${continuation.toString()}`
+      const hasAcquisition = Object.keys(canonical.acquisition).length > 0
+      const settled =
+        entry.kind === 'resumed' &&
+        canonical.bookingLocator === entry.session.id &&
+        !canonical.changed &&
+        !hasAcquisition
+      if (settled) return yield* dependencies.fallback(request)
+
       const headers = new Headers({
-        location: `/${merchantSlug}/booking/session/${entry.session.id}`,
+        location,
         'cache-control': 'private, no-store',
-        'referrer-policy': 'no-referrer'
+        'referrer-policy': 'no-referrer',
+        'content-language': canonical.locale ?? 'en',
+        'x-booking-embedding': canonical.embedding
       })
       if (entry.kind === 'created') {
         const cookieResult = yield* Effect.result(
           bookingSessionCookie({
             sessionId: entry.session.id,
-            merchantSlug,
+            merchantSlug: canonicalRoute.merchantSlug,
             capability: entry.capability,
             absoluteExpiresAt: entry.session.absoluteExpiresAt,
             now,
@@ -514,11 +649,23 @@ export const handleBookingSessionRequest = (
           })
         )
         if (cookieResult._tag === 'Failure') {
-          return mapSessionFailure(cookieResult.failure, merchantSlug)
+          return mapSessionFailure(cookieResult.failure, canonicalRoute.merchantSlug)
         }
         headers.append('set-cookie', cookieResult.success)
       }
-      return new Response(null, { status: 303, headers })
+      return new Response(null, { status: canonical.changed ? 307 : 303, headers })
+    }
+
+    if (
+      segments.length >= 2 &&
+      segments[1]?.toLowerCase() === 'booking' &&
+      segments[2]?.toLowerCase() !== 'session'
+    ) {
+      const locale = parseBookingLocale(url.searchParams.get('locale')) ?? 'en'
+      const embed = url.searchParams.get('embed')
+      const embedding: BookingEmbedding =
+        embed === 'widget' || embed === 'google' ? embed : 'standalone'
+      return unmatchedRoute(merchantSlug, locale, embedding)
     }
 
     if (segments.length < 4 || segments[2] !== 'session') {
@@ -562,6 +709,21 @@ export const handleBookingSessionRequest = (
 
     if (authorization.success.lifecycle === 'consumed' && endpoint !== 'confirm') {
       return expired(merchantSlug)
+    }
+    if (endpoint === 'context' && request.method === 'POST') {
+      if (!dependencies.captureContext) return unavailable()
+      const context = sessionContextFrom(yield* readJson(request))
+      if (!context)
+        return withPrivateHeaders(new Response('Invalid context', { status: 422 }))
+      const result = yield* Effect.result(
+        dependencies.captureContext(authorization.success, {
+          ...context,
+          acquisition: {}
+        })
+      )
+      return result._tag === 'Success'
+        ? withPrivateHeaders(new Response(null, { status: 204 }))
+        : mapSessionFailure(result.failure, merchantSlug)
     }
     if (endpoint === 'selection' && request.method === 'GET') {
       if (!dependencies.selection) return unavailable()

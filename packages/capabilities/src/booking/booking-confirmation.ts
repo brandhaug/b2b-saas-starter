@@ -68,6 +68,7 @@ export const CustomerConfirmation = Schema.Struct({
   status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
   startsAt: Schema.String,
   endsAt: Schema.String,
+  locale: Schema.Literals(['en', 'es', 'fr', 'ro']),
   snapshot: AppointmentSnapshot,
   merchant: Schema.Struct({ publicName: Schema.String })
 })
@@ -235,6 +236,10 @@ export const SeedBookingConfirmation = (
             status: appointment.status,
             startsAt: appointment.startsAt,
             endsAt: appointment.endsAt,
+            locale:
+              [...store.sessions.sessions.values()].find(
+                (session) => session.confirmedAppointmentId === appointment.id
+              )?.locale ?? 'en',
             snapshot: appointment.snapshot as StoredAppointmentSnapshot,
             merchant: {
               publicName: store.checkout.scheduling.scenario.merchant.publicName
@@ -384,7 +389,8 @@ export const LiveBookingConfirmation = (
                 .select({
                   appointment: appointments,
                   access: confirmationAccess,
-                  merchantName: merchants.publicName
+                  merchantName: merchants.publicName,
+                  locale: bookingSessions.locale
                 })
                 .from(confirmationAccess)
                 .innerJoin(
@@ -392,6 +398,10 @@ export const LiveBookingConfirmation = (
                   eq(appointments.id, confirmationAccess.appointmentId)
                 )
                 .innerJoin(merchants, eq(merchants.id, appointments.merchantId))
+                .innerJoin(
+                  bookingSessions,
+                  eq(bookingSessions.id, appointments.bookingSessionId)
+                )
                 .where(
                   and(
                     eq(confirmationAccess.routeId, input.routeId),
@@ -435,6 +445,7 @@ export const LiveBookingConfirmation = (
                 status: row.appointment.status,
                 startsAt: row.appointment.startsAt,
                 endsAt: row.appointment.endsAt,
+                locale: row.locale as 'en' | 'es' | 'fr' | 'ro',
                 snapshot: row.appointment.snapshot!,
                 merchant: { publicName: row.merchantName }
               }

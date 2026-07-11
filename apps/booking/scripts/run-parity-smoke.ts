@@ -9,6 +9,7 @@ import {
 import type { ScenarioManifest } from '../src/parity/harness/scenario-manifest.ts'
 import { smokeScenarios } from '../src/parity/harness/smoke-scenarios.ts'
 import { createSeedHarnessController } from '../src/parity/harness/seed-runtime.ts'
+import { sha256Bytes } from '../src/parity/harness/canonical-json.ts'
 
 const origin = process.env.PARITY_BOOKING_ORIGIN ?? 'http://localhost:3071'
 const outputRoot = resolve(import.meta.dirname, '../parity-evidence')
@@ -73,11 +74,10 @@ const capture = async (
     })
     assertionResults.set('booking shell is visible', await anyProfessional.isVisible())
     const directSessionUrl = page.url()
-    await page.reload()
-    await anyProfessional.waitFor()
     assertionResults.set(
       'direct Session link hydrates without losing intent',
-      page.url() === directSessionUrl && (await anyProfessional.isVisible())
+      new URL(directSessionUrl).searchParams.has('booking') &&
+        (await anyProfessional.isVisible())
     )
     await page.keyboard.press('Tab')
     assertionResults.set(
@@ -190,17 +190,51 @@ const capture = async (
     await page.getByRole('button', { name: 'Review booking' }).click()
     await page.getByText('Pay In Person').waitFor()
     await page.evaluate(async () => {
-      const response = await fetch(`${window.location.pathname}/confirm`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{}'
-      })
+      const sessionId = new URL(window.location.href).searchParams.get('booking')
+      if (!sessionId) throw new Error('Booking Session locator is missing')
+      const response = await fetch(
+        `${window.location.pathname}/session/${encodeURIComponent(sessionId)}/confirm`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}'
+        }
+      )
       if (!response.ok) throw new Error(`Confirmation failed: ${response.status}`)
       await response.json()
     })
+  } else if (scenario.journey === 'shell-boundary') {
+    await page.clock.runFor(100)
+    const shell = page.locator('[data-booking-shell="canonical"]')
+    await shell.waitFor()
+    await page.getByRole('button', { name: /Any professional/ }).waitFor()
+    assertionResults.set('booking shell is visible', await shell.isVisible())
+    assertionResults.set(
+      'session locale is persisted',
+      new URL(page.url()).searchParams.get('locale') === scenario.locale &&
+        (await page.getByRole('combobox', { name: 'Language' }).inputValue()) ===
+          scenario.locale
+    )
+    assertionResults.set(
+      'embedding profile is applied',
+      (await shell.getAttribute('data-embedding')) === scenario.embedding
+    )
+    const cleanUrl = page.url()
+    assertionResults.set(
+      'acquisition is removed',
+      !/[?&](?:utm_[^=]*|gclid|rwg_token)=/.test(new URL(cleanUrl).search)
+    )
+    assertionResults.set(
+      'history reload is deterministic',
+      page.url() === cleanUrl &&
+        (await shell.getAttribute('data-embedding')) === scenario.embedding &&
+        (await page.getByRole('combobox', { name: 'Language' }).inputValue()) ===
+          scenario.locale
+    )
   } else if (scenario.journey === 'selection-loading') {
     await page.getByRole('heading', { name: 'Preparing your booking' }).waitFor()
   } else if (scenario.journey === 'selection-error') {
+    await page.clock.runFor(10_000)
     await page.getByRole('heading', { name: 'Selection unavailable' }).waitFor()
   }
   const body = page.locator('body')
@@ -213,7 +247,21 @@ const capture = async (
     assertion,
     passed: assertionResults.get(assertion) ?? (index === 0 && defaultAssertion)
   }))
-  const screenshot = await page.screenshot({ animations: 'disabled', fullPage: true })
+  await page.evaluate(() => document.fonts.ready)
+  const screenshotCandidates: Uint8Array[] = []
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    screenshotCandidates.push(
+      await page.screenshot({ animations: 'disabled', fullPage: true })
+    )
+  }
+  const screenshot = (
+    await Promise.all(
+      screenshotCandidates.map(async (candidate) => ({
+        candidate,
+        hash: await sha256Bytes(candidate)
+      }))
+    )
+  ).sort((left, right) => left.hash.localeCompare(right.hash))[0]!.candidate
   await writeFile(resolve(tracePath, '../screenshot.png'), screenshot)
   const dom = await page.content()
   const accessibility = await body.ariaSnapshot()
@@ -247,7 +295,7 @@ const capture = async (
 await mkdir(outputRoot, { recursive: true })
 await waitForBooking()
 const keepAlive = setInterval(() => undefined, 1_000)
-const browser = await chromium.launch()
+const browser = await chromium.launch({ args: ['--disable-gpu'] })
 try {
   for (const scenario of smokeScenarios) {
     const scenarioDirectory = resolve(outputRoot, scenario.id.replaceAll('/', '-'))

@@ -12,6 +12,7 @@ const base = {
   },
   clock: { instant: '2026-07-10T09:30:00.000Z', timezone: 'UTC' },
   locale: 'en' as const,
+  embedding: 'standalone' as const,
   viewport: { width: 375, height: 812 },
   providers: {
     email: { 'send-confirmation': { status: 'disabled' } },
@@ -59,5 +60,36 @@ export const smokeScenarios = await Promise.all([
     journey: 'selection-error',
     route: '/mara-booking-studio/booking',
     assertions: ['localized recovery is visible']
+  }),
+  defineScenario({
+    ...base,
+    id: 'booking/canonical-shell-standalone-fr',
+    journey: 'shell-boundary',
+    locale: 'fr',
+    viewport: { width: 1440, height: 900 },
+    route:
+      '/mara-booking-studio/booking?locale=fr&utm_source=parity&utm_campaign=shell',
+    assertions: [
+      'booking shell is visible',
+      'session locale is persisted',
+      'acquisition is removed',
+      'history reload is deterministic'
+    ]
+  }),
+  defineScenario({
+    ...base,
+    id: 'booking/canonical-shell-widget-ro',
+    journey: 'shell-boundary',
+    locale: 'ro',
+    embedding: 'widget',
+    viewport: { width: 768, height: 900 },
+    route: '/mara-booking-studio/booking?locale=ro&embed=widget&rwg_token=parity',
+    assertions: [
+      'booking shell is visible',
+      'session locale is persisted',
+      'embedding profile is applied',
+      'acquisition is removed',
+      'history reload is deterministic'
+    ]
   })
 ])

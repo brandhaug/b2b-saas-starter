@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   appointments,
+  brands,
   bookingSessions,
   Database,
   layerFromD1,
@@ -12,6 +13,7 @@ import {
   publicBookingPages,
   scheduleRules,
   services,
+  shops,
   timeSlotHolds
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
@@ -47,6 +49,24 @@ beforeAll(async () => {
           id: 'pg_schedule_hold',
           merchantId: 'mer_schedule_hold',
           status: 'published',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(brands).values({
+          id: 'brd_schedule_hold',
+          merchantId: 'mer_schedule_hold',
+          name: 'Schedule Hold',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(shops).values({
+          id: 'shp_schedule_hold',
+          brandId: 'brd_schedule_hold',
+          merchantId: 'mer_schedule_hold',
+          slug: 'schedule-hold',
+          publicName: 'Schedule Hold',
+          timezone: 'UTC',
+          currency: 'USD',
           createdAt: now,
           updatedAt: now
         })

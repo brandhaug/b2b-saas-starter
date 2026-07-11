@@ -17,6 +17,7 @@ export type ScenarioManifestInput = {
   readonly clock: ScenarioClock
   readonly route: string
   readonly locale: 'en' | 'es' | 'fr' | 'ro'
+  readonly embedding: 'standalone' | 'widget' | 'google'
   readonly viewport: { readonly width: number; readonly height: number }
   readonly providers: Readonly<Record<string, unknown>>
   readonly network: { readonly allow: readonly string[] }
@@ -27,6 +28,7 @@ export type ScenarioManifestInput = {
     | 'deliberate-blank'
     | 'selection-loading'
     | 'selection-error'
+    | 'shell-boundary'
 }
 
 export type ScenarioManifest = ScenarioManifestInput & {
@@ -55,6 +57,7 @@ const isValid = (value: unknown): value is ScenarioManifestInput => {
       'assertions',
       'clock',
       'console',
+      'embedding',
       'fixture',
       'id',
       'journey',
@@ -72,7 +75,8 @@ const isValid = (value: unknown): value is ScenarioManifestInput => {
       'pay-in-person',
       'deliberate-blank',
       'selection-loading',
-      'selection-error'
+      'selection-error',
+      'shell-boundary'
     ].includes(String(value.journey)) &&
     isRecord(fixture) &&
     exactKeys(fixture, ['data', 'schemaVersion']) &&
@@ -88,6 +92,7 @@ const isValid = (value: unknown): value is ScenarioManifestInput => {
     value.route.startsWith('/') &&
     !value.route.startsWith('//') &&
     ['en', 'es', 'fr', 'ro'].includes(String(value.locale)) &&
+    ['standalone', 'widget', 'google'].includes(String(value.embedding)) &&
     isRecord(viewport) &&
     exactKeys(viewport, ['height', 'width']) &&
     Number.isInteger(viewport.width) &&

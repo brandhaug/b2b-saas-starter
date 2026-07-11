@@ -1,11 +1,15 @@
 import { Effect, Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
+  brands,
+  bookingParties,
+  bookingRequests,
   bookingSessions,
   Database,
   layerFromD1,
   merchants,
-  publicBookingPages
+  publicBookingPages,
+  shops
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
@@ -36,6 +40,24 @@ beforeAll(async () => {
           id: 'pg_live_booking',
           merchantId: 'mer_live_booking',
           status: 'published',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(brands).values({
+          id: 'brd_live_booking',
+          merchantId: 'mer_live_booking',
+          name: 'Live Booking',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(shops).values({
+          id: 'shp_live_booking',
+          brandId: 'brd_live_booking',
+          merchantId: 'mer_live_booking',
+          slug: 'live-booking',
+          publicName: 'Live Booking',
+          timezone: 'UTC',
+          currency: 'EUR',
           createdAt: now,
           updatedAt: now
         })
@@ -73,6 +95,18 @@ describe('Live Booking Sessions', () => {
     )
 
     expect(authorized.id).toBe(issued.session.id)
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingSessions, (sessions) =>
+          sessions.captureContext(authorized, {
+            locale: 'es',
+            embedding: 'widget',
+            acquisition: { gclid: 'captured-once' }
+          })
+        ),
+        layer
+      )
+    )
     await Effect.runPromise(
       Effect.provide(
         Effect.flatMap(Database, (db) =>
@@ -116,6 +150,34 @@ describe('Live Booking Sessions', () => {
       )
     )
     expect(rows[0]?.capabilityHash).toMatch(/^[a-f0-9]{64}$/)
+    expect(rows[0]).toMatchObject({
+      locale: 'es',
+      embeddingProfile: 'widget',
+      acquisitionJson: JSON.stringify({ gclid: 'captured-once' })
+    })
     expect(JSON.stringify(rows[0])).not.toContain(issued.capability)
+    const parties = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(Database, (db) =>
+          Effect.all([
+            db.select().from(bookingParties),
+            db.select().from(bookingRequests)
+          ])
+        ),
+        layerFromD1(test.d1)
+      )
+    )
+    expect(parties[0]).toHaveLength(1)
+    expect(parties[0][0]).toMatchObject({
+      bookingSessionId: issued.session.id,
+      shopId: 'shp_live_booking',
+      locale: 'es',
+      version: 1
+    })
+    expect(parties[1]).toHaveLength(1)
+    expect(parties[1][0]).toMatchObject({
+      bookingPartyId: parties[0][0]?.id,
+      position: 0
+    })
   })
 })

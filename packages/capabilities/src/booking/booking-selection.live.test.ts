@@ -2,13 +2,15 @@ import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
+  brands,
   Database,
   layerFromD1,
   merchants,
   providers,
   providerServiceEligibility,
   publicBookingPages,
-  services
+  services,
+  shops
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { BookingSessions, LiveBookingSessions } from './booking-sessions.ts'
@@ -37,6 +39,24 @@ beforeAll(async () => {
           id: 'pg_selection',
           merchantId: 'mer_selection',
           status: 'published',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(brands).values({
+          id: 'brd_selection',
+          merchantId: 'mer_selection',
+          name: 'Selection',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(shops).values({
+          id: 'shp_selection',
+          brandId: 'brd_selection',
+          merchantId: 'mer_selection',
+          slug: 'selection',
+          publicName: 'Selection',
+          timezone: 'UTC',
+          currency: 'USD',
           createdAt: now,
           updatedAt: now
         })

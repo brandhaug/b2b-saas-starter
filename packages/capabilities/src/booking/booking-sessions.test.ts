@@ -43,6 +43,10 @@ describe('Booking Session capability', () => {
     expect(persisted?.capabilityHash).toMatch(/^[a-f0-9]{64}$/)
     expect(persisted).not.toHaveProperty('capability')
     expect(JSON.stringify(persisted)).not.toContain(issued.capability)
+    expect(store.parties.get(issued.session.id)).toMatchObject({
+      bookingSessionId: issued.session.id,
+      locale: 'en'
+    })
   })
 
   it('authorizes only the matching route, capability, Merchant, lifecycle, and expiry', async () => {
@@ -237,5 +241,49 @@ describe('Booking Session capability', () => {
       )
     )
     expect(own.id).toBe(first.session.id)
+  })
+
+  it('persists locale and embedding per Session while capturing acquisition only once', async () => {
+    const store = emptySeedBookingSessionStore({
+      merchants: [{ id: 'mer_mara', slug: 'mara-studio', published: true }]
+    })
+    const layer = SeedBookingSessions(store, {
+      newSessionId: () => 'bsn_context',
+      newCapability: () => '3'.repeat(64)
+    })
+    const issued = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingSessions, (sessions) =>
+          sessions.start({ merchantSlug: 'mara-studio', now })
+        ),
+        layer
+      )
+    )
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingSessions, (sessions) =>
+          Effect.gen(function* () {
+            yield* sessions.captureContext(issued.session, {
+              locale: 'fr',
+              embedding: 'widget',
+              acquisition: { utm_source: 'first' }
+            })
+            yield* sessions.captureContext(issued.session, {
+              locale: 'ro',
+              embedding: 'google',
+              acquisition: { utm_source: 'second' }
+            })
+          })
+        ),
+        layer
+      )
+    )
+
+    expect(store.sessions.get('bsn_context')).toMatchObject({
+      locale: 'ro',
+      embeddingProfile: 'google',
+      acquisition: { utm_source: 'first' }
+    })
+    expect(store.parties.get('bsn_context')?.locale).toBe('ro')
   })
 })

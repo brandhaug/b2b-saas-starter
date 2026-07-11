@@ -16,6 +16,7 @@ const validScenario = {
   clock: { instant: '2026-02-16T10:00:00.000Z', timezone: 'UTC' },
   route: '/acme/booking',
   locale: 'en',
+  embedding: 'standalone',
   viewport: { width: 375, height: 812 },
   providers: {},
   network: { allow: ['http://booking.test'] },

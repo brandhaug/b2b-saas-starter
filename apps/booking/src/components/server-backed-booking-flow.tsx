@@ -39,6 +39,7 @@ export function ServerBackedBookingFlow({
   const queryKey = ['booking-selection', merchantSlug, sessionId] as const
   const journey = useQuery({
     queryKey,
+    retry: false,
     queryFn: async () => {
       const response = await fetch(`${base}/selection`, {
         credentials: 'same-origin'

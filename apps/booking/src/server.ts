@@ -117,6 +117,13 @@ export default {
             Effect.flatMap(BookingSessions, (sessions) => sessions.authorize(input)),
             capabilitiesLayer
           ),
+        captureContext: (session, context) =>
+          Effect.provide(
+            Effect.flatMap(BookingSessions, (sessions) =>
+              sessions.captureContext(session, context)
+            ),
+            capabilitiesLayer
+          ),
         selection: {
           load: (session) =>
             Effect.provide(

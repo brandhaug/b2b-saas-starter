@@ -387,6 +387,13 @@ export const bookingSessions = sqliteTable(
     confirmedAppointmentId: text('confirmed_appointment_id'),
     confirmedAt: text('confirmed_at'),
     replayExpiresAt: text('replay_expires_at'),
+    locale: text('locale').default('en').notNull(),
+    embeddingProfile: text('embedding_profile', {
+      enum: ['standalone', 'widget', 'google']
+    })
+      .default('standalone')
+      .notNull(),
+    acquisitionJson: text('acquisition_json'),
     createdAt: isoCreatedAt(),
     lastActivityAt: text('last_activity_at').notNull(),
     idleExpiresAt: text('idle_expires_at').notNull(),

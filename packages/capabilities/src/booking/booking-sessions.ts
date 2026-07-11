@@ -1,10 +1,14 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import {
+  batch,
+  bookingParties,
+  bookingRequests,
   bookingSessions,
   Database,
   merchants,
-  publicBookingPages
+  publicBookingPages,
+  shops
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { hashSha256, randomHex } from '../internal/crypto.ts'
@@ -64,6 +68,16 @@ export type BookingSessionsShape = {
     BookingSession,
     BookingSessionNotFound | BookingSessionGone | CapabilityUnavailable
   >
+  readonly captureContext: (
+    session: BookingSession,
+    context: BookingSessionContextInput
+  ) => Effect.Effect<void, CapabilityUnavailable>
+}
+
+export type BookingSessionContextInput = {
+  readonly locale: 'en' | 'es' | 'fr' | 'ro' | null
+  readonly embedding: 'standalone' | 'widget' | 'google'
+  readonly acquisition: Readonly<Record<string, string>>
 }
 
 export type AuthorizeBookingSessionInput = {
@@ -131,6 +145,9 @@ export type SeedBookingSessionRecord = BookingSession & {
   readonly capabilityHash: string
   readonly replayExpiresAt?: string | null
   readonly confirmedAppointmentId?: string | null
+  locale?: 'en' | 'es' | 'fr' | 'ro'
+  embeddingProfile?: 'standalone' | 'widget' | 'google'
+  acquisition?: Readonly<Record<string, string>> | null
 }
 
 export type SeedBookingSessionStore = {
@@ -139,6 +156,16 @@ export type SeedBookingSessionStore = {
     { readonly id: string; readonly slug: string; published: boolean }
   >
   readonly sessions: Map<string, SeedBookingSessionRecord>
+  readonly parties: Map<
+    string,
+    {
+      readonly id: string
+      readonly bookingSessionId: string
+      readonly requestId: string
+      readonly shopId: string
+      locale: 'en' | 'es' | 'fr' | 'ro'
+    }
+  >
 }
 
 export const emptySeedBookingSessionStore = (
@@ -153,17 +180,22 @@ export const emptySeedBookingSessionStore = (
   merchants: new Map(
     (input.merchants ?? []).map((merchant) => [merchant.slug, merchant])
   ),
-  sessions: new Map()
+  sessions: new Map(),
+  parties: new Map()
 })
 
 type BookingSessionGenerators = {
   readonly newSessionId: () => string
   readonly newCapability: () => string
+  readonly newPartyId?: () => string
+  readonly newRequestId?: () => string
 }
 
 const defaultGenerators: BookingSessionGenerators = {
   newSessionId: () => `bsn_${randomHex(16)}`,
-  newCapability: () => randomHex(32)
+  newCapability: () => randomHex(32),
+  newPartyId: () => `bpt_${randomHex(16)}`,
+  newRequestId: () => `brq_${randomHex(16)}`
 }
 
 const addMilliseconds = (instant: string, milliseconds: number): string =>
@@ -242,6 +274,23 @@ export const SeedBookingSessions = (
   generators: BookingSessionGenerators = defaultGenerators
 ): Layer.Layer<BookingSessions> =>
   Layer.succeed(BookingSessions)({
+    captureContext: (session, context) =>
+      Effect.sync(() => {
+        const record = store.sessions.get(session.id)
+        if (!record) return
+        store.sessions.set(session.id, {
+          ...record,
+          locale: context.locale ?? record.locale ?? 'en',
+          embeddingProfile: context.embedding,
+          acquisition:
+            record.acquisition ??
+            (Object.keys(context.acquisition).length > 0
+              ? { ...context.acquisition }
+              : null)
+        })
+        const party = store.parties.get(session.id)
+        if (party && context.locale) party.locale = context.locale
+      }),
     start: (input) =>
       Effect.gen(function* () {
         const merchant = store.merchants.get(input.merchantSlug)
@@ -262,6 +311,13 @@ export const SeedBookingSessions = (
           ...session,
           merchantId: merchant.id,
           capabilityHash
+        })
+        store.parties.set(session.id, {
+          id: generators.newPartyId?.() ?? defaultGenerators.newPartyId!(),
+          bookingSessionId: session.id,
+          requestId: generators.newRequestId?.() ?? defaultGenerators.newRequestId!(),
+          shopId: `shp_${merchant.id}`,
+          locale: 'en'
         })
         return { session, capability }
       }),
@@ -300,6 +356,30 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
     Effect.gen(function* () {
       const db = yield* Database
       return {
+        captureContext: (session, context) =>
+          orUnavailable('booking-sessions')(
+            batch(db, [
+              db
+                .update(bookingSessions)
+                .set({
+                  ...(context.locale ? { locale: context.locale } : {}),
+                  embeddingProfile: context.embedding,
+                  ...(Object.keys(context.acquisition).length > 0
+                    ? {
+                        acquisitionJson: sql<string>`coalesce(${bookingSessions.acquisitionJson}, ${JSON.stringify(context.acquisition)})`
+                      }
+                    : {})
+                })
+                .where(eq(bookingSessions.id, session.id)),
+              db
+                .update(bookingParties)
+                .set({
+                  ...(context.locale ? { locale: context.locale } : {}),
+                  updatedAt: session.lastActivityAt
+                })
+                .where(eq(bookingParties.bookingSessionId, session.id))
+            ])
+          ),
         start: (input) =>
           Effect.gen(function* () {
             const capability = defaultGenerators.newCapability()
@@ -309,50 +389,65 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
               input.now
             )
             const capabilityHash = yield* Effect.promise(() => hashSha256(capability))
-            const inserted = yield* orUnavailable('booking-sessions')(
+            const [merchant] = yield* orUnavailable('booking-sessions')(
               db
-                .insert(bookingSessions)
-                .select(
-                  db
-                    .select({
-                      id: sql<string>`${session.id}`.as('id'),
-                      merchantId: merchants.id,
-                      capabilityHash: sql<string>`${capabilityHash}`.as(
-                        'capability_hash'
-                      ),
-                      checkoutPath: sql<'pay_in_person'>`'pay_in_person'`.as(
-                        'checkout_path'
-                      ),
-                      lifecycle: sql<'active'>`'active'`.as('lifecycle'),
-                      createdAt: sql<string>`${session.createdAt}`.as('created_at'),
-                      lastActivityAt: sql<string>`${session.lastActivityAt}`.as(
-                        'last_activity_at'
-                      ),
-                      idleExpiresAt: sql<string>`${session.idleExpiresAt}`.as(
-                        'idle_expires_at'
-                      ),
-                      absoluteExpiresAt: sql<string>`${session.absoluteExpiresAt}`.as(
-                        'absolute_expires_at'
-                      )
-                    })
-                    .from(merchants)
-                    .innerJoin(
-                      publicBookingPages,
-                      and(
-                        eq(publicBookingPages.merchantId, merchants.id),
-                        eq(publicBookingPages.status, 'published')
-                      )
-                    )
-                    .where(eq(merchants.slug, input.merchantSlug))
-                    .limit(1)
+                .select({
+                  id: merchants.id,
+                  currency: merchants.currency,
+                  shopId: shops.id
+                })
+                .from(merchants)
+                .innerJoin(
+                  publicBookingPages,
+                  and(
+                    eq(publicBookingPages.merchantId, merchants.id),
+                    eq(publicBookingPages.status, 'published')
+                  )
                 )
-                .returning({ id: bookingSessions.id })
+                .innerJoin(shops, eq(shops.merchantId, merchants.id))
+                .where(eq(merchants.slug, input.merchantSlug))
+                .orderBy(shops.id)
+                .limit(1)
             )
-            if (inserted.length === 0) {
+            if (!merchant) {
               return yield* new BookingPageUnavailable({
                 message: 'Bookings are currently unavailable'
               })
             }
+            const partyId = defaultGenerators.newPartyId!()
+            yield* orUnavailable('booking-sessions')(
+              batch(db, [
+                db.insert(bookingSessions).values({
+                  id: session.id,
+                  merchantId: merchant.id,
+                  capabilityHash,
+                  checkoutPath: 'pay_in_person',
+                  lifecycle: 'active',
+                  createdAt: session.createdAt,
+                  lastActivityAt: session.lastActivityAt,
+                  idleExpiresAt: session.idleExpiresAt,
+                  absoluteExpiresAt: session.absoluteExpiresAt
+                }),
+                db.insert(bookingParties).values({
+                  id: partyId,
+                  bookingSessionId: session.id,
+                  shopId: merchant.shopId,
+                  lifecycle: 'active',
+                  currency: merchant.currency,
+                  locale: 'en',
+                  version: 1,
+                  createdAt: input.now,
+                  updatedAt: input.now
+                }),
+                db.insert(bookingRequests).values({
+                  id: defaultGenerators.newRequestId!(),
+                  bookingPartyId: partyId,
+                  position: 0,
+                  createdAt: input.now,
+                  updatedAt: input.now
+                })
+              ])
+            )
             return { session, capability }
           }),
         authorize: (input) =>

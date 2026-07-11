@@ -75,13 +75,13 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Productionize the Deterministic Parity Harness; Expand Capability and Persistence Foundations; Establish Booking Presentation and Localization Foundations; Establish Visual Asset Provenance Controls.
 
-- [ ] Canonical merchant-first routes cover customer selection, transactional entry points, gift cards, walk-ins, and recovery states.
-- [ ] Query allowlisting, canonicalization, redirects, acquisition capture, embedding profiles, and deterministic history behavior match the accepted contract.
-- [ ] Merchant-scoped HttpOnly capabilities isolate one Booking Session and Booking Party per tab.
-- [ ] Locale selection persists through continuation and confirmation without entering route identity.
-- [ ] Version conflicts, expiry, direct links, back and forward navigation, invalid links, and unmatched routes preserve valid intent and offer localized recovery.
-- [ ] Protected-resource failures are neutral and do not reveal cross-merchant existence.
-- [ ] Representative standalone and embedded scenarios pass across required viewports and locales.
+- [x] Canonical merchant-first routes cover customer selection, transactional entry points, gift cards, walk-ins, and recovery states.
+- [x] Query allowlisting, canonicalization, redirects, acquisition capture, embedding profiles, and deterministic history behavior match the accepted contract.
+- [x] Merchant-scoped HttpOnly capabilities isolate one Booking Session and Booking Party per tab.
+- [x] Locale selection persists through continuation and confirmation without entering route identity.
+- [x] Version conflicts, expiry, direct links, back and forward navigation, invalid links, and unmatched routes preserve valid intent and offer localized recovery.
+- [x] Protected-resource failures are neutral and do not reveal cross-merchant existence.
+- [x] Representative standalone and embedded scenarios pass across required viewports and locales.
 
 ## Deliver Merchant, Brand, Shop, and Catalog Selection
 
