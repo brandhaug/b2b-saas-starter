@@ -7,6 +7,25 @@ import { BookingSelectionFlow } from './booking-selection-flow.tsx'
 const teamJourney: BookingJourney = {
   version: 1,
   presentation: 'team',
+  shopId: 'shp_main',
+  shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
+  resolvedConfiguration: {
+    merchantName: {
+      text: 'Merchant',
+      locale: 'en',
+      isSourceLanguageFallback: false
+    },
+    brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
+    shopName: {
+      text: 'Main Shop',
+      locale: 'en',
+      isSourceLanguageFallback: false
+    },
+    premiumPalette: null,
+    premiumPaletteSource: null
+  },
+  catalogRecovery: null,
+  reconciliation: [],
   providerPreference: null,
   selection: { primaryServiceId: null, additionalServiceIds: [] },
   compatibleAdditionalServiceIds: [],
@@ -15,12 +34,14 @@ const teamJourney: BookingJourney = {
       id: 'prv_ava',
       displayName: 'Ava S.',
       isDefault: true,
+      access: 'public',
       eligibleServiceIds: ['svc_cut', 'svc_beard']
     },
     {
       id: 'prv_noah',
       displayName: 'Noah B.',
       isDefault: false,
+      access: 'public',
       eligibleServiceIds: ['svc_cut']
     }
   ],
@@ -78,6 +99,73 @@ describe('Booking selection flow', () => {
     })
   })
 
+  it('switches Shops, disables restricted Providers, and applies resolved premium color', () => {
+    const chooseShop = vi.fn()
+    const journey: BookingJourney = {
+      ...teamJourney,
+      shops: [
+        ...teamJourney.shops,
+        {
+          id: 'shp_river',
+          slug: 'river',
+          name: 'Riverside',
+          localizedName: {
+            text: 'Riverside',
+            locale: 'en',
+            isSourceLanguageFallback: true
+          }
+        }
+      ],
+      resolvedConfiguration: {
+        ...teamJourney.resolvedConfiguration,
+        premiumPalette: {
+          primaryColor: '#111111',
+          primaryDark: '#121212',
+          primaryDarker: '#131313',
+          primaryLight: '#141414',
+          primaryFontColor: '#ffffff',
+          secondaryColor: '#151515',
+          linkColor: '#161616'
+        },
+        premiumPaletteSource: 'shop'
+      },
+      providers: [
+        ...teamJourney.providers,
+        {
+          id: 'prv_private',
+          displayName: 'Private Pro',
+          isDefault: false,
+          access: 'restricted',
+          eligibleServiceIds: ['svc_cut']
+        }
+      ]
+    }
+    const { container } = render(
+      <BookingSelectionFlow
+        journey={journey}
+        busy={false}
+        onChooseShop={chooseShop}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+    fireEvent.change(screen.getByRole('combobox', { name: 'Shop' }), {
+      target: { value: 'shp_river' }
+    })
+    expect(chooseShop).toHaveBeenCalledWith('shp_river')
+    expect(
+      screen.getByRole('option', { name: /riverside.*original language/i })
+    ).toBeTruthy()
+    expect(
+      screen
+        .getByRole('button', { name: /private pro.*private access/i })
+        .hasAttribute('disabled')
+    ).toBe(true)
+    expect(
+      container.querySelector('[data-premium="true"]')?.getAttribute('style')
+    ).toContain('#111111')
+  })
+
   it('skips Provider choice for Solo, hands off to Additional Services, and opens the full order summary', () => {
     const chooseServices = vi.fn()
     const continueToTime = vi.fn()
@@ -118,7 +206,7 @@ describe('Booking selection flow', () => {
   })
 
   it('renders the no-services path without advancing', () => {
-    render(
+    const { rerender } = render(
       <BookingSelectionFlow
         journey={{ ...teamJourney, providers: [], services: [] }}
         busy={false}
@@ -127,6 +215,56 @@ describe('Booking selection flow', () => {
       />
     )
     expect(screen.getByText('No services are bookable')).toBeTruthy()
+    rerender(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          providers: [],
+          services: [],
+          catalogRecovery: 'invalid_associations'
+        }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+    expect(screen.getByText(/cannot currently be booked together/i)).toBeTruthy()
+  })
+
+  it('does not offer Any Provider services that only restricted Providers can perform', () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          providerPreference: { kind: 'any' },
+          providers: [
+            {
+              id: 'prv_private',
+              displayName: 'Private Pro',
+              isDefault: true,
+              access: 'restricted',
+              eligibleServiceIds: ['svc_private']
+            }
+          ],
+          services: [
+            {
+              id: 'svc_private',
+              name: 'Private Service',
+              category: null,
+              priceMinor: 5000,
+              currency: 'USD',
+              durationMinutes: 30,
+              eligibleProviderIds: ['prv_private']
+            }
+          ]
+        }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+    expect(screen.getByText('No services are bookable')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Private Service' })).toBeNull()
   })
 
   it('filters by category and hides Additional Services incompatible with Any Provider', () => {

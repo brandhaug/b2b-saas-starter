@@ -20,6 +20,7 @@ import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
 import { styles } from './booking-flow.styles.ts'
 import { translateBookingMessage } from '../localization/booking-localization.ts'
+import { useBookingLocalization } from '../localization/booking-localization-provider.tsx'
 
 export function ServerBackedBookingFlow({
   merchantSlug,
@@ -33,6 +34,7 @@ export function ServerBackedBookingFlow({
   readonly sessionId: string
   readonly selectionRefreshedMessage?: string
 }) {
+  const { message } = useBookingLocalization()
   const queryClient = useQueryClient()
   const [scheduling, setScheduling] = useState(false)
   const [slotLost, setSlotLost] = useState(false)
@@ -57,8 +59,8 @@ export function ServerBackedBookingFlow({
   })
   const selectionMutation = useMutation({
     mutationFn: async (mutation: {
-      readonly endpoint: 'provider' | 'services'
-      readonly input: ProviderPreference | ServiceSelection
+      readonly endpoint: 'shop' | 'provider' | 'services'
+      readonly input: string | ProviderPreference | ServiceSelection
       readonly expectedVersion: number
     }) => {
       const response = await fetch(`${base}/${mutation.endpoint}`, {
@@ -67,8 +69,11 @@ export function ServerBackedBookingFlow({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           version: mutation.expectedVersion,
-          [mutation.endpoint === 'provider' ? 'preference' : 'selection']:
-            mutation.input
+          [mutation.endpoint === 'shop'
+            ? 'shopId'
+            : mutation.endpoint === 'provider'
+              ? 'preference'
+              : 'selection']: mutation.input
         })
       })
       if (response.status === 409) {
@@ -214,8 +219,8 @@ export function ServerBackedBookingFlow({
   if (journey.isError || selectionMutation.isError)
     return (
       <Status
-        title="Selection unavailable"
-        copy="Your selection was not changed. Refresh to continue this Booking Session."
+        title={message('selection.unavailable_title')}
+        copy={message('selection.unavailable_copy')}
       />
     )
   if (!journey.data)
@@ -277,7 +282,26 @@ export function ServerBackedBookingFlow({
       {selectionRefreshed ? <output>{selectionRefreshedMessage}</output> : null}
       <BookingSelectionFlow
         journey={journey.data}
+        messages={{
+          chooseProvider: message('selection.choose_provider'),
+          chooseService: message('selection.choose_service'),
+          shop: message('label.shop'),
+          sourceLanguage: message('feedback.source_language'),
+          anyProvider: message('selection.any_provider'),
+          providerRestricted: message('selection.provider_restricted'),
+          noServicesTitle: message('selection.no_services_title'),
+          noServicesCopy: message('selection.no_services_copy'),
+          inactiveEntitiesCopy: message('selection.inactive_entities_copy'),
+          invalidAssociationsCopy: message('selection.invalid_associations_copy')
+        }}
         busy={selectionMutation.isPending}
+        onChooseShop={(shopId) =>
+          selectionMutation.mutate({
+            endpoint: 'shop',
+            input: shopId,
+            expectedVersion: journey.data.version
+          })
+        }
         onChooseProvider={(preference) =>
           selectionMutation.mutate({
             endpoint: 'provider',

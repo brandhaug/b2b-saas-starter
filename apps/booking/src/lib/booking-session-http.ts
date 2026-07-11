@@ -203,6 +203,14 @@ export type BookingSessionHttpDependencies = {
       BookingJourney,
       BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
     >
+    readonly chooseShop?: (
+      session: BookingSession,
+      shopId: string,
+      expectedVersion: number
+    ) => BookingSessionEffect<
+      BookingJourney,
+      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
+    >
     readonly chooseServices: (
       session: BookingSession,
       input: ServiceSelection,
@@ -770,6 +778,37 @@ export const handleBookingSessionRequest = (
           preference,
           version
         )
+      )
+      if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
+        const latest = yield* Effect.result(
+          dependencies.selection.load(authorization.success)
+        )
+        if (latest._tag === 'Success') {
+          return withPrivateHeaders(
+            Response.json(
+              { kind: 'version_conflict', journey: latest.success },
+              { status: 409 }
+            )
+          )
+        }
+      }
+      return result._tag === 'Success'
+        ? jsonJourney(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'shop' && request.method === 'POST') {
+      if (!dependencies.selection?.chooseShop) return unavailable()
+      const body = yield* readJson(request)
+      const shopId =
+        typeof body === 'object' &&
+        body !== null &&
+        typeof (body as Record<string, unknown>).shopId === 'string'
+          ? (body as Record<string, string>).shopId
+          : null
+      const version = versionFrom(body)
+      if (!shopId || !version) return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.selection.chooseShop(authorization.success, shopId, version)
       )
       if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
         const latest = yield* Effect.result(

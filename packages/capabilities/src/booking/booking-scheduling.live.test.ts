@@ -13,6 +13,8 @@ import {
   publicBookingPages,
   scheduleRules,
   services,
+  shopProviders,
+  shopServices,
   shops,
   timeSlotHolds
 } from '@b2b-saas-starter/db'
@@ -123,6 +125,20 @@ beforeAll(async () => {
               createdAt: now
             }))
           )
+        )
+        yield* db.insert(shopProviders).values(
+          ['prv_schedule_one', 'prv_schedule_two'].map((providerId) => ({
+            shopId: 'shp_schedule_hold',
+            providerId,
+            createdAt: now
+          }))
+        )
+        yield* db.insert(shopServices).values(
+          ['svc_schedule_primary', 'svc_schedule_extra'].map((serviceId) => ({
+            shopId: 'shp_schedule_hold',
+            serviceId,
+            createdAt: now
+          }))
         )
         yield* db.insert(scheduleRules).values(
           ['prv_schedule_one', 'prv_schedule_two'].map((providerId) => ({

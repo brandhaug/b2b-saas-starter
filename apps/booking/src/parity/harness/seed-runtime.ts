@@ -179,6 +179,13 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
               ),
               selectionLayer
             ),
+          chooseShop: (session, shopId, expectedVersion) =>
+            Effect.provide(
+              Effect.flatMap(BookingSelection, (service) =>
+                service.chooseShop(session, shopId, expectedVersion)
+              ),
+              selectionLayer
+            ),
           chooseServices: (session, input, expectedVersion) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (service) =>

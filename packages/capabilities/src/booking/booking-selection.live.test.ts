@@ -11,6 +11,8 @@ import {
   providerServiceEligibility,
   publicBookingPages,
   services,
+  shopProviders,
+  shopServices,
   shops
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
@@ -120,6 +122,14 @@ beforeAll(async () => {
             serviceId: 'svc_extra',
             createdAt: now
           }
+        ])
+        yield* db.insert(shopProviders).values([
+          { shopId: 'shp_selection', providerId: 'prv_one', createdAt: now },
+          { shopId: 'shp_selection', providerId: 'prv_two', createdAt: now }
+        ])
+        yield* db.insert(shopServices).values([
+          { shopId: 'shp_selection', serviceId: 'svc_primary', createdAt: now },
+          { shopId: 'shp_selection', serviceId: 'svc_extra', createdAt: now }
         ])
       }),
       layerFromD1(test.d1)

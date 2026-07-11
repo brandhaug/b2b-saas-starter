@@ -18,6 +18,17 @@ describe('Booking Session HTTP boundary', () => {
   const journey: BookingJourney = {
     version: 1,
     presentation: 'team',
+    shopId: 'shp_main',
+    shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
+    resolvedConfiguration: {
+      merchantName: { text: 'Merchant', locale: 'en', isSourceLanguageFallback: false },
+      brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
+      shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
+      premiumPalette: null,
+      premiumPaletteSource: null
+    },
+    catalogRecovery: null,
+    reconciliation: [],
     providerPreference: null,
     selection: { primaryServiceId: null, additionalServiceIds: [] },
     compatibleAdditionalServiceIds: [],
@@ -26,6 +37,7 @@ describe('Booking Session HTTP boundary', () => {
         id: 'prv_ava',
         displayName: 'Ava S.',
         isDefault: true,
+        access: 'public',
         eligibleServiceIds: ['svc_cut']
       }
     ],

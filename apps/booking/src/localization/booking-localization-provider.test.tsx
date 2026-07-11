@@ -2,16 +2,33 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { hydrateRoot } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   BookingLanguagePicker,
   BookingLocalizationProvider,
   useBookingLocalization
 } from './booking-localization-provider.tsx'
 
+beforeEach(() => {
+  const values = new Map<string, string>()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+      key: (index: number) => [...values.keys()][index] ?? null,
+      get length() {
+        return values.size
+      }
+    } satisfies Storage
+  })
+})
+
 afterEach(() => {
   cleanup()
-  localStorage.clear()
+  window.localStorage.clear()
   document.documentElement.lang = 'en'
   vi.restoreAllMocks()
 })
@@ -27,7 +44,7 @@ function CurrentLocale() {
 
 describe('BookingLocalizationProvider', () => {
   it('keeps locale state outside route identity and persists changes at both boundaries', () => {
-    localStorage.setItem('booking.locale', 'ro')
+    window.localStorage.setItem('booking.locale', 'ro')
     const persistSession = vi.fn()
     render(
       <BookingLocalizationProvider sessionLocale="fr" onLocaleChange={persistSession}>
@@ -41,7 +58,7 @@ describe('BookingLocalizationProvider', () => {
       target: { value: 'es' }
     })
     expect(screen.getByText('es:Continuar')).toBeTruthy()
-    expect(localStorage.getItem('booking.locale')).toBe('es')
+    expect(window.localStorage.getItem('booking.locale')).toBe('es')
     expect(document.documentElement.lang).toBe('es')
     expect(persistSession).toHaveBeenCalledWith('es')
     expect(window.location.pathname).toBe('/')
@@ -72,7 +89,7 @@ describe('BookingLocalizationProvider', () => {
   })
 
   it('does not let browser preference replace a normalized English Session locale', () => {
-    localStorage.setItem('booking.locale', 'ro')
+    window.localStorage.setItem('booking.locale', 'ro')
     render(
       <BookingLocalizationProvider sessionLocale="en-US">
         <CurrentLocale />

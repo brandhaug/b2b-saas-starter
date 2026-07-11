@@ -7,20 +7,25 @@ import type {
   ServiceSelection
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
+import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
 import { styles } from './booking-flow.styles.ts'
 
 export function BookingSelectionFlow({
   journey,
   busy,
+  onChooseShop,
   onChooseProvider,
   onChooseServices,
-  onContinue
+  onContinue,
+  messages = defaultMessages
 }: {
   readonly journey: BookingJourney
   readonly busy: boolean
+  readonly onChooseShop?: (shopId: string) => void
   readonly onChooseProvider: (preference: ProviderPreference) => void
   readonly onChooseServices: (selection: ServiceSelection) => void
   readonly onContinue?: () => void
+  readonly messages?: BookingSelectionMessages
 }) {
   const [editingProvider, setEditingProvider] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
@@ -38,95 +43,132 @@ export function BookingSelectionFlow({
   }
 
   return (
-    <div {...stylex.props(styles.app)} aria-busy={busy}>
-      <div {...stylex.props(styles.widget)}>
-        <header {...stylex.props(styles.header)}>
-          <button
-            type="button"
-            aria-label="Back"
-            disabled={showProviders}
-            onClick={() => setEditingProvider(true)}
-            {...stylex.props(
-              styles.iconButton,
-              styles.backButton,
-              showProviders && styles.hidden
+    <BookingPremiumThemeBoundary palette={journey.resolvedConfiguration.premiumPalette}>
+      <div {...stylex.props(styles.app)} aria-busy={busy}>
+        <div {...stylex.props(styles.widget)}>
+          <header {...stylex.props(styles.header)}>
+            <button
+              type="button"
+              aria-label="Back"
+              disabled={showProviders}
+              onClick={() => setEditingProvider(true)}
+              {...stylex.props(
+                styles.iconButton,
+                styles.backButton,
+                showProviders && styles.hidden
+              )}
+            >
+              <BookingVisualAsset
+                assetRole="navigation-back"
+                {...stylex.props(styles.icon16)}
+              />
+            </button>
+            <h1 {...stylex.props(styles.title)}>
+              {showProviders ? messages.chooseProvider : messages.chooseService}
+            </h1>
+            <button
+              type="button"
+              aria-label="Booking menu"
+              {...stylex.props(styles.iconButton)}
+            >
+              <BookingVisualAsset
+                assetRole="navigation-menu"
+                {...stylex.props(styles.icon16)}
+              />
+            </button>
+          </header>
+
+          <main {...stylex.props(styles.main)}>
+            {journey.shops.length > 1 ? (
+              <label>
+                <span>{messages.shop}</span>
+                <select
+                  aria-label={messages.shop}
+                  value={journey.shopId}
+                  disabled={busy || !onChooseShop}
+                  onChange={(event) => onChooseShop?.(event.currentTarget.value)}
+                  {...stylex.props(styles.categoryButton)}
+                >
+                  {journey.shops.map((shop) => (
+                    <option key={shop.id} value={shop.id}>
+                      {shop.name}
+                      {shop.localizedName?.isSourceLanguageFallback
+                        ? ` — ${messages.sourceLanguage}`
+                        : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
+              <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
+            ) : null}
+            {showProviders ? (
+              <ProviderGrid
+                journey={journey}
+                busy={busy}
+                messages={messages}
+                onChoose={chooseProvider}
+              />
+            ) : (
+              <ServiceGrid
+                journey={journey}
+                busy={busy}
+                selectedPrimary={selectedPrimary}
+                onChoose={onChooseServices}
+                messages={messages}
+              />
             )}
-          >
-            <BookingVisualAsset
-              assetRole="navigation-back"
-              {...stylex.props(styles.icon16)}
-            />
-          </button>
-          <h1 {...stylex.props(styles.title)}>
-            {showProviders ? 'Choose a professional' : 'What can we do for you?'}
-          </h1>
+          </main>
+        </div>
+
+        {selectedPrimary && !showProviders ? (
           <button
             type="button"
-            aria-label="Booking menu"
-            {...stylex.props(styles.iconButton)}
+            aria-label={`View order, ${formatPrice(total(journey), selectedPrimary.currency)}`}
+            onClick={() => setOrderOpen(true)}
+            {...stylex.props(styles.orderBar)}
           >
-            <BookingVisualAsset
-              assetRole="navigation-menu"
-              {...stylex.props(styles.icon16)}
-            />
+            <span>View order</span>
+            <span {...stylex.props(styles.mono)}>
+              {formatPrice(total(journey), selectedPrimary.currency)}
+            </span>
           </button>
-        </header>
+        ) : null}
 
-        <main {...stylex.props(styles.main)}>
-          {showProviders ? (
-            <ProviderGrid journey={journey} busy={busy} onChoose={chooseProvider} />
-          ) : (
-            <ServiceGrid
-              journey={journey}
-              busy={busy}
-              selectedPrimary={selectedPrimary}
-              onChoose={onChooseServices}
-            />
-          )}
-        </main>
+        {orderOpen && selectedPrimary ? (
+          <OrderSummary
+            journey={journey}
+            primary={selectedPrimary}
+            onClose={() => setOrderOpen(false)}
+            {...(onContinue ? { onContinue } : {})}
+          />
+        ) : null}
       </div>
-
-      {selectedPrimary && !showProviders ? (
-        <button
-          type="button"
-          aria-label={`View order, ${formatPrice(total(journey), selectedPrimary.currency)}`}
-          onClick={() => setOrderOpen(true)}
-          {...stylex.props(styles.orderBar)}
-        >
-          <span>View order</span>
-          <span {...stylex.props(styles.mono)}>
-            {formatPrice(total(journey), selectedPrimary.currency)}
-          </span>
-        </button>
-      ) : null}
-
-      {orderOpen && selectedPrimary ? (
-        <OrderSummary
-          journey={journey}
-          primary={selectedPrimary}
-          onClose={() => setOrderOpen(false)}
-          {...(onContinue ? { onContinue } : {})}
-        />
-      ) : null}
-    </div>
+    </BookingPremiumThemeBoundary>
   )
 }
 
 function ProviderGrid({
   journey,
   busy,
-  onChoose
+  onChoose,
+  messages
 }: {
   readonly journey: BookingJourney
   readonly busy: boolean
   readonly onChoose: (preference: ProviderPreference) => void
+  readonly messages: BookingSelectionMessages
 }) {
+  const publicProviderAvailable = journey.providers.some(
+    (provider) => provider.access === 'public' && provider.eligibleServiceIds.length > 0
+  )
   return (
     <div {...stylex.props(styles.gridTwo)}>
       <button
         type="button"
-        disabled={busy}
-        aria-label="Any professional — choose a service first"
+        disabled={busy || !publicProviderAvailable}
+        aria-label={messages.anyProvider}
         onClick={() => onChoose({ kind: 'any' })}
         {...stylex.props(styles.providerCard)}
       >
@@ -136,21 +178,31 @@ function ProviderGrid({
             {...stylex.props(styles.icon24)}
           />
         </span>
-        <span {...stylex.props(styles.providerName)}>Choose a service first</span>
-        <span {...stylex.props(styles.mutedSmall)}>Book with any professional</span>
+        <span {...stylex.props(styles.providerName)}>{messages.chooseService}</span>
+        <span {...stylex.props(styles.mutedSmall)}>{messages.anyProvider}</span>
       </button>
       {journey.providers.map((provider) => (
         <button
           key={provider.id}
           type="button"
-          disabled={busy}
-          aria-label={`${provider.displayName} — specific professional`}
+          disabled={busy || provider.access === 'restricted'}
           onClick={() => onChoose({ kind: 'specific', providerId: provider.id })}
           {...stylex.props(styles.providerCard)}
         >
-          <span {...stylex.props(styles.avatar)}>{initials(provider.displayName)}</span>
-          <span {...stylex.props(styles.providerName)}>{provider.displayName}</span>
-          <span {...stylex.props(styles.mutedSmall)}>Choose this professional</span>
+          <span {...stylex.props(styles.avatar)}>
+            {initials(provider.localizedName?.text ?? provider.displayName)}
+          </span>
+          <span {...stylex.props(styles.providerName)}>
+            {provider.localizedName?.text ?? provider.displayName}
+          </span>
+          <span {...stylex.props(styles.mutedSmall)}>
+            {provider.access === 'restricted'
+              ? messages.providerRestricted
+              : messages.chooseProvider}
+          </span>
+          {provider.localizedName?.isSourceLanguageFallback ? (
+            <span {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</span>
+          ) : null}
         </button>
       ))}
     </div>
@@ -161,12 +213,14 @@ function ServiceGrid({
   journey,
   busy,
   selectedPrimary,
-  onChoose
+  onChoose,
+  messages
 }: {
   readonly journey: BookingJourney
   readonly busy: boolean
   readonly selectedPrimary: PublicBookableService | undefined
   readonly onChoose: (selection: ServiceSelection) => void
+  readonly messages: BookingSelectionMessages
 }) {
   const [category, setCategory] = useState<string | null>(null)
   const eligible = eligibleServices(journey)
@@ -179,9 +233,13 @@ function ServiceGrid({
             {...stylex.props(styles.icon20)}
           />
         </span>
-        <h2 {...stylex.props(styles.emptyTitle)}>No services are bookable</h2>
+        <h2 {...stylex.props(styles.emptyTitle)}>{messages.noServicesTitle}</h2>
         <p {...stylex.props(styles.emptyCopy)}>
-          There are no active services available for your professional choice.
+          {journey.catalogRecovery === 'inactive_entities'
+            ? messages.inactiveEntitiesCopy
+            : journey.catalogRecovery === 'invalid_associations'
+              ? messages.invalidAssociationsCopy
+              : messages.noServicesCopy}
         </p>
       </div>
     )
@@ -203,7 +261,7 @@ function ServiceGrid({
           onClick={() => onChoose({ primaryServiceId: null, additionalServiceIds: [] })}
           {...stylex.props(styles.serviceCard, styles.selectedService)}
         >
-          <ServiceContents service={selectedPrimary} selected />
+          <ServiceContents service={selectedPrimary} selected messages={messages} />
           <span {...stylex.props(styles.selectionMark)}>
             <BookingVisualAsset
               assetRole="selection-check"
@@ -233,7 +291,7 @@ function ServiceGrid({
                 }
                 {...stylex.props(styles.serviceCard, selected && styles.selectedAddon)}
               >
-                <ServiceContents service={service} />
+                <ServiceContents service={service} messages={messages} />
               </button>
             )
           })}
@@ -288,7 +346,7 @@ function ServiceGrid({
             }
             {...stylex.props(styles.serviceCard)}
           >
-            <ServiceContents service={service} />
+            <ServiceContents service={service} messages={messages} />
           </button>
         ))}
       </div>
@@ -296,16 +354,50 @@ function ServiceGrid({
   )
 }
 
+export type BookingSelectionMessages = {
+  readonly chooseProvider: string
+  readonly chooseService: string
+  readonly shop: string
+  readonly sourceLanguage: string
+  readonly anyProvider: string
+  readonly providerRestricted: string
+  readonly noServicesTitle: string
+  readonly noServicesCopy: string
+  readonly inactiveEntitiesCopy: string
+  readonly invalidAssociationsCopy: string
+}
+
+const defaultMessages: BookingSelectionMessages = {
+  chooseProvider: 'Choose a professional',
+  chooseService: 'What can we do for you?',
+  shop: 'Shop',
+  sourceLanguage: 'Shown in the merchant’s original language',
+  anyProvider: 'Book with any professional',
+  providerRestricted: 'This professional requires private access',
+  noServicesTitle: 'No services are bookable',
+  noServicesCopy:
+    'There are no active services available for your professional choice.',
+  inactiveEntitiesCopy:
+    'Previously available professionals or services are no longer active. Choose another option.',
+  invalidAssociationsCopy:
+    'The available professionals and services cannot currently be booked together.'
+}
+
 function ServiceContents({
   service,
-  selected = false
+  selected = false,
+  messages
 }: {
   readonly service: PublicBookableService
   readonly selected?: boolean
+  readonly messages: BookingSelectionMessages
 }) {
   return (
     <>
       <span {...stylex.props(styles.serviceName)}>{service.name}</span>
+      {service.localizedName?.isSourceLanguageFallback ? (
+        <span {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</span>
+      ) : null}
       <span
         {...stylex.props(
           styles.serviceDuration,
@@ -395,6 +487,18 @@ function OrderSummary({
 
 const eligibleServices = (journey: BookingJourney) => {
   const preference = journey.providerPreference
+  if (preference?.kind === 'any') {
+    const publicProviderIds = new Set(
+      journey.providers
+        .filter((provider) => provider.access === 'public')
+        .map((provider) => provider.id)
+    )
+    return journey.services.filter((service) =>
+      service.eligibleProviderIds.some((providerId) =>
+        publicProviderIds.has(providerId)
+      )
+    )
+  }
   if (preference?.kind !== 'specific') return journey.services
   return journey.services.filter((service) =>
     service.eligibleProviderIds.includes(preference.providerId)

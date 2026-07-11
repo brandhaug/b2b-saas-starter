@@ -1,6 +1,17 @@
 export { Brand, Shop, ShopNotFound, ShopTopology } from './foundations.ts'
 export type { ShopTopologyShape } from './foundations.ts'
 export {
+  BookingPremiumPalette,
+  BookingConfiguration,
+  CatalogLocale,
+  decodeBookingConfiguration,
+  ResolvedBookingConfiguration,
+  ResolvedCatalogText,
+  resolveBookingConfiguration,
+  resolveCatalogText,
+  validateBookingPalette
+} from './booking-configuration.ts'
+export {
   MerchantMembership,
   MerchantNotFound,
   MerchantOnboarding,

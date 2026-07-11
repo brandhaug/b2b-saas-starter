@@ -9,5 +9,12 @@ an already-authorized Booking Session.
 - `Any Provider` remains a distinct preference and is not assigned here.
 - Solo catalogs auto-select their sole active default Provider on load.
 - Selection validation is deliberately non-disclosing and mutations are atomic.
-- Only active Merchant-scoped catalog records and explicit eligibility enter the
-  public projection.
+- Shop changes are aggregate-versioned, clear dependent Provider and Service state,
+  and never restore stale client selections.
+- Only active Merchant- and Shop-scoped catalog records with explicit eligibility
+  enter the public projection.
+- Restricted Providers remain explicit in the projection but cannot be selected
+  without a future purpose-bound Provider proof.
+- The projection carries resolved Merchant → Brand → Shop presentation facts,
+  localized catalog text, palette provenance, and reconciliation reasons so later
+  Booking facts can snapshot the exact server-authoritative values.

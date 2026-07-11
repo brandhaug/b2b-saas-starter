@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BookingJourney } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSessionRouteView } from './$merchantSlug.booking_.session.$sessionId.tsx'
+import { BookingLocalizationProvider } from '../localization/booking-localization-provider.tsx'
 
 afterEach(() => {
   cleanup()
@@ -15,6 +16,21 @@ describe('protected Booking Session route', () => {
     const journey: BookingJourney = {
       version: 1,
       presentation: 'team',
+      shopId: 'shp_main',
+      shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
+      resolvedConfiguration: {
+        merchantName: {
+          text: 'Merchant',
+          locale: 'en',
+          isSourceLanguageFallback: false
+        },
+        brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
+        shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
+        premiumPalette: null,
+        premiumPaletteSource: null
+      },
+      catalogRecovery: null,
+      reconciliation: [],
       providerPreference: { kind: 'any' },
       selection: { primaryServiceId: null, additionalServiceIds: [] },
       compatibleAdditionalServiceIds: [],
@@ -23,6 +39,7 @@ describe('protected Booking Session route', () => {
           id: 'prv_ava',
           displayName: 'Ava S.',
           isDefault: true,
+          access: 'public',
           eligibleServiceIds: ['svc_cut']
         }
       ],
@@ -44,7 +61,12 @@ describe('protected Booking Session route', () => {
     const renderRoute = () =>
       render(
         <QueryClientProvider client={new QueryClient()}>
-          <BookingSessionRouteView merchantSlug="mara-studio" sessionId="bsn_refresh" />
+          <BookingLocalizationProvider sessionLocale="en">
+            <BookingSessionRouteView
+              merchantSlug="mara-studio"
+              sessionId="bsn_refresh"
+            />
+          </BookingLocalizationProvider>
         </QueryClientProvider>
       )
     const first = renderRoute()

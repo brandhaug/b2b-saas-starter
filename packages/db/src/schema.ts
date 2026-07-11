@@ -21,6 +21,7 @@ export type PlatformApiTokenScopeValue = (typeof platformApiTokenScopes)[number]
 export const merchantMemberRoles = ['owner'] as const
 export const merchantPlans = ['solo', 'team'] as const
 export const providerStatuses = ['active', 'inactive'] as const
+export const providerBookingAccess = ['public', 'restricted'] as const
 export const serviceStatuses = ['active', 'inactive'] as const
 export const publicPageStatuses = ['published', 'unpublished'] as const
 export const bookingSessionCheckoutPaths = ['pay_in_person'] as const
@@ -206,6 +207,9 @@ export const merchants = sqliteTable('merchants', {
   timezone: text('timezone').notNull(),
   currency: text('currency').notNull(),
   plan: text('plan', { enum: merchantPlans }).default('solo').notNull(),
+  bookingConfigJson: text('booking_config_json', { mode: 'json' }).$type<
+    Record<string, unknown>
+  >(),
   createdAt: isoCreatedAt(),
   updatedAt: isoUpdatedAt()
 })
@@ -247,6 +251,12 @@ export const providers = sqliteTable(
     }),
     displayName: text('display_name').notNull(),
     status: text('status', { enum: providerStatuses }).default('active').notNull(),
+    bookingAccess: text('booking_access', { enum: providerBookingAccess })
+      .default('public')
+      .notNull(),
+    bookingConfigJson: text('booking_config_json', { mode: 'json' }).$type<
+      Record<string, unknown>
+    >(),
     isDefault: integer('is_default', { mode: 'boolean' }).default(false).notNull(),
     createdAt: isoCreatedAt(),
     updatedAt: isoUpdatedAt()
@@ -273,6 +283,9 @@ export const services = sqliteTable(
     currency: text('currency').notNull(),
     durationMinutes: integer('duration_minutes').notNull(),
     status: text('status', { enum: serviceStatuses }).default('active').notNull(),
+    bookingConfigJson: text('booking_config_json', { mode: 'json' }).$type<
+      Record<string, unknown>
+    >(),
     createdAt: isoCreatedAt(),
     updatedAt: isoUpdatedAt()
   },
@@ -693,6 +706,9 @@ export const brands = sqliteTable('brands', {
     .notNull()
     .references(() => merchants.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
+  bookingConfigJson: text('booking_config_json', { mode: 'json' }).$type<
+    Record<string, unknown>
+  >(),
   createdAt: isoCreatedAt(),
   updatedAt: isoUpdatedAt()
 })
@@ -711,6 +727,9 @@ export const shops = sqliteTable(
     publicName: text('public_name').notNull(),
     timezone: text('timezone').notNull(),
     currency: text('currency').notNull(),
+    bookingConfigJson: text('booking_config_json', { mode: 'json' }).$type<
+      Record<string, unknown>
+    >(),
     createdAt: isoCreatedAt(),
     updatedAt: isoUpdatedAt()
   },

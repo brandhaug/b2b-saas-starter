@@ -89,12 +89,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver the Canonical Booking Shell and Session Boundary.
 
-- [ ] Merchant configuration resolves explicitly through Brand and Shop precedence and downstream facts can snapshot the resolved values.
-- [ ] Customers can choose a Shop, Provider preference, Primary Service, and Additional Services only when the combination is eligible.
-- [ ] Specific Provider, Any Provider, restricted Provider, inactive entity, and invalid association states are explicit.
-- [ ] Translated catalog content and validated premium palette overrides render through the Booking presentation contract.
-- [ ] Server-authoritative selection reconciliation removes or explains stale combinations without restoring invalid client state.
-- [ ] Empty, unavailable, invalid, and provider-restricted scenarios have localized recovery in all supported locales.
+- [x] Merchant configuration resolves explicitly through Brand and Shop precedence and downstream facts can snapshot the resolved values.
+- [x] Customers can choose a Shop, Provider preference, Primary Service, and Additional Services only when the combination is eligible.
+- [x] Specific Provider, Any Provider, restricted Provider, inactive entity, and invalid association states are explicit.
+- [x] Translated catalog content and validated premium palette overrides render through the Booking presentation contract.
+- [x] Server-authoritative selection reconciliation removes or explains stale combinations without restoring invalid client state.
+- [x] Empty, unavailable, invalid, and provider-restricted scenarios have localized recovery in all supported locales.
 
 ## Deliver Single-Request Availability and Time Slot Holds
 

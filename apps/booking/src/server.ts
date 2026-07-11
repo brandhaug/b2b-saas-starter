@@ -144,6 +144,13 @@ export default {
               ),
               capabilitiesLayer
             ),
+          chooseShop: (session, shopId, expectedVersion) =>
+            Effect.provide(
+              Effect.flatMap(BookingSelection, (selection) =>
+                selection.chooseShop(session, shopId, expectedVersion)
+              ),
+              capabilitiesLayer
+            ),
           chooseServices: (session, input, expectedVersion) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) =>

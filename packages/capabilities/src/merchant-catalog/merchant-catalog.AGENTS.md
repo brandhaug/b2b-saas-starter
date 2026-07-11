@@ -34,3 +34,9 @@ explicit Provider-Service eligibility.
 Reads and writes `merchants`, `providers`, `services`, and
 `provider_service_eligibility`. Real-D1 triggers enforce that an eligibility row's
 Merchant matches both referenced records.
+
+Customer-facing Booking configuration is resolved separately by
+`booking-configuration.ts`. It validates the controlled premium palette, resolves
+Shop over Brand over Merchant, records the winning scope, and localizes authored
+names with an explicit source-language fallback. Provider and Service configuration
+JSON is treated as untrusted persisted input at the Booking projection boundary.

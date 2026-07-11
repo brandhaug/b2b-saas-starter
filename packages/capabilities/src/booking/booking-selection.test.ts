@@ -38,6 +38,14 @@ const fixture = (presentation: 'solo' | 'team' = 'team') => {
         status: 'active'
       },
       {
+        id: 'prv_restricted',
+        merchantId: 'mer_mara',
+        displayName: 'Private Pro',
+        isDefault: false,
+        status: 'active',
+        bookingAccess: 'restricted'
+      },
+      {
         id: 'prv_hidden',
         merchantId: 'mer_other',
         displayName: 'Hidden',
@@ -101,7 +109,8 @@ const fixture = (presentation: 'solo' | 'team' = 'team') => {
       ['mer_mara', 'prv_ava', 'svc_cut'],
       ['mer_mara', 'prv_ava', 'svc_beard'],
       ['mer_mara', 'prv_ava', 'svc_eur'],
-      ['mer_mara', 'prv_noah', 'svc_cut']
+      ['mer_mara', 'prv_noah', 'svc_cut'],
+      ['mer_mara', 'prv_restricted', 'svc_cut']
     ].map(([merchantId, providerId, serviceId]) =>
       seedBookingSelectionEligibilityKey({
         merchantId: merchantId!,
@@ -117,6 +126,122 @@ const fixture = (presentation: 'solo' | 'team' = 'team') => {
 }
 
 describe('Booking Selection', () => {
+  it('distinguishes inactive catalog facts from invalid associations', async () => {
+    const invalid = fixture()
+    invalid.store.eligibility.clear()
+    invalid.store.services.delete('svc_inactive')
+    expect(
+      await invalid.run(
+        Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+      )
+    ).toMatchObject({ catalogRecovery: 'invalid_associations' })
+
+    const inactive = fixture()
+    for (const [id, service] of inactive.store.services) {
+      if (service.merchantId === 'mer_mara') {
+        inactive.store.services.set(id, { ...service, status: 'inactive' })
+      }
+    }
+    expect(
+      await inactive.run(
+        Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+      )
+    ).toMatchObject({ catalogRecovery: 'inactive_entities' })
+  })
+
+  it('switches Shop atomically, resolves localized configuration precedence, and clears dependent choices', async () => {
+    const { store, run } = fixture()
+    store.shops.set('shp_riverside', {
+      id: 'shp_riverside',
+      merchantId: 'mer_mara',
+      brandId: 'brd_mara',
+      slug: 'riverside',
+      publicName: 'Riverside',
+      brandName: 'Mara Studios',
+      bookingConfiguration: {
+        sourceLocale: 'en',
+        nameTranslations: { es: 'Ribera' },
+        premiumPalette: {
+          primaryColor: '#111111',
+          primaryDark: '#121212',
+          primaryDarker: '#131313',
+          primaryLight: '#141414',
+          primaryFontColor: '#ffffff',
+          secondaryColor: '#151515',
+          linkColor: '#161616'
+        }
+      }
+    })
+    store.shopProviders.add('shp_riverside\0prv_noah')
+    store.shopServices.add('shp_riverside\0svc_cut')
+    const localizedSession = { ...session, locale: 'es' as const }
+    await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseProvider(localizedSession, { kind: 'any' }, 1)
+      )
+    )
+    const changed = await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseShop(localizedSession, 'shp_riverside', 2)
+      )
+    )
+
+    expect(changed).toMatchObject({
+      version: 3,
+      shopId: 'shp_riverside',
+      providerPreference: null,
+      selection: { primaryServiceId: null, additionalServiceIds: [] },
+      reconciliation: ['shop_changed'],
+      resolvedConfiguration: {
+        shopName: { text: 'Ribera', locale: 'es' },
+        premiumPalette: { primaryColor: '#111111' }
+      }
+    })
+    expect(changed.providers.map((provider) => provider.id)).toEqual(['prv_noah'])
+    expect(changed.services.map((service) => service.id)).toEqual(['svc_cut'])
+  })
+
+  it('exposes restricted Providers explicitly but rejects selecting them', async () => {
+    const { store, run } = fixture()
+    const loaded = await run(
+      Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+    )
+    expect(
+      loaded.providers.find((provider) => provider.id === 'prv_restricted')
+    ).toMatchObject({
+      access: 'restricted'
+    })
+    const result = await run(
+      Effect.result(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.chooseProvider(
+            session,
+            { kind: 'specific', providerId: 'prv_restricted' },
+            loaded.version
+          )
+        )
+      )
+    )
+    expect(result).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'BookingSelectionRejected' }
+    })
+    store.selections.set(session.id, {
+      providerPreference: { kind: 'specific', providerId: 'prv_restricted' },
+      primaryServiceId: 'svc_cut',
+      additionalServiceIds: []
+    })
+    expect(
+      await run(
+        Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+      )
+    ).toMatchObject({
+      providerPreference: null,
+      selection: { primaryServiceId: null },
+      reconciliation: ['provider_unavailable', 'combination_unavailable']
+    })
+  })
+
   it('auto-selects the sole default Provider for Solo and exposes active bookable catalog only', async () => {
     const { store, run } = fixture('solo')
     const journey = await run(
@@ -130,7 +255,8 @@ describe('Booking Selection', () => {
     })
     expect(journey.providers.map((provider) => provider.id)).toEqual([
       'prv_ava',
-      'prv_noah'
+      'prv_noah',
+      'prv_restricted'
     ])
     expect(journey.services.map((service) => service.id)).toEqual([
       'svc_cut',

@@ -7,6 +7,7 @@ import type {
   BookingJourney
 } from '@b2b-saas-starter/capabilities/booking'
 import { ServerBackedBookingFlow } from './server-backed-booking-flow.tsx'
+import { BookingLocalizationProvider } from '../localization/booking-localization-provider.tsx'
 
 afterEach(() => {
   cleanup()
@@ -18,6 +19,21 @@ describe('server-backed Booking scheduling', () => {
     const journey: BookingJourney = {
       version: 1,
       presentation: 'solo',
+      shopId: 'shp_main',
+      shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
+      resolvedConfiguration: {
+        merchantName: {
+          text: 'Merchant',
+          locale: 'en',
+          isSourceLanguageFallback: false
+        },
+        brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
+        shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
+        premiumPalette: null,
+        premiumPaletteSource: null
+      },
+      catalogRecovery: null,
+      reconciliation: [],
       providerPreference: { kind: 'specific', providerId: 'prv_ava' },
       selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] },
       compatibleAdditionalServiceIds: [],
@@ -26,6 +42,7 @@ describe('server-backed Booking scheduling', () => {
           id: 'prv_ava',
           displayName: 'Ava',
           isDefault: true,
+          access: 'public',
           eligibleServiceIds: ['svc_cut']
         }
       ],
@@ -94,7 +111,9 @@ describe('server-backed Booking scheduling', () => {
     })
     render(
       <QueryClientProvider client={queryClient}>
-        <ServerBackedBookingFlow merchantSlug="mara" sessionId="bsn_one" />
+        <BookingLocalizationProvider sessionLocale="en">
+          <ServerBackedBookingFlow merchantSlug="mara" sessionId="bsn_one" />
+        </BookingLocalizationProvider>
       </QueryClientProvider>
     )
 
@@ -110,6 +129,21 @@ describe('server-backed Booking scheduling', () => {
     const journey: BookingJourney = {
       version: 1,
       presentation: 'solo',
+      shopId: 'shp_main',
+      shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
+      resolvedConfiguration: {
+        merchantName: {
+          text: 'Merchant',
+          locale: 'en',
+          isSourceLanguageFallback: false
+        },
+        brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
+        shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
+        premiumPalette: null,
+        premiumPaletteSource: null
+      },
+      catalogRecovery: null,
+      reconciliation: [],
       providerPreference: { kind: 'specific', providerId: 'prv_ava' },
       selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] },
       compatibleAdditionalServiceIds: [],
@@ -118,6 +152,7 @@ describe('server-backed Booking scheduling', () => {
           id: 'prv_ava',
           displayName: 'Ava',
           isDefault: true,
+          access: 'public',
           eligibleServiceIds: ['svc_cut']
         }
       ],
@@ -183,7 +218,9 @@ describe('server-backed Booking scheduling', () => {
     })
     render(
       <QueryClientProvider client={queryClient}>
-        <ServerBackedBookingFlow merchantSlug="mara" sessionId="bsn_expiring" />
+        <BookingLocalizationProvider sessionLocale="en">
+          <ServerBackedBookingFlow merchantSlug="mara" sessionId="bsn_expiring" />
+        </BookingLocalizationProvider>
       </QueryClientProvider>
     )
     fireEvent.click(await screen.findByRole('button', { name: /view order/i }))

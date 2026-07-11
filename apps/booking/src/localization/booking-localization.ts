@@ -18,6 +18,7 @@ const en = {
   'label.language': 'Language',
   'label.merchant': 'Merchant',
   'label.provider': 'Provider',
+  'label.shop': 'Shop',
   'label.time': 'Time',
   'label.timezone': 'Timezone',
   'label.total_price': 'Total price',
@@ -35,6 +36,20 @@ const en = {
   'status.session_expired': 'This Booking Session has expired',
   'status.slot_lost': 'That time was just booked',
   'status.times_unavailable': 'Times unavailable',
+  'selection.choose_provider': 'Choose a professional',
+  'selection.choose_service': 'What can we do for you?',
+  'selection.any_provider': 'Book with any professional',
+  'selection.provider_restricted': 'This professional requires private access',
+  'selection.no_services_title': 'No services are bookable',
+  'selection.no_services_copy':
+    'There are no active services available for your professional choice.',
+  'selection.inactive_entities_copy':
+    'Previously available professionals or services are no longer active. Choose another option.',
+  'selection.invalid_associations_copy':
+    'The available professionals and services cannot currently be booked together.',
+  'selection.unavailable_title': 'Selection unavailable',
+  'selection.unavailable_copy':
+    'Your selection was not changed. Refresh to continue this Booking Session.',
   'validation.email_invalid': 'Enter a valid email address.',
   'validation.name_required': 'Enter your name.',
   'validation.phone_invalid': 'Enter a valid phone number.',
@@ -58,6 +73,7 @@ const es = {
   'label.language': 'Idioma',
   'label.merchant': 'Comercio',
   'label.provider': 'Profesional',
+  'label.shop': 'Local',
   'label.time': 'Hora',
   'label.timezone': 'Zona horaria',
   'label.total_price': 'Precio total',
@@ -75,6 +91,20 @@ const es = {
   'status.session_expired': 'Esta sesión de reserva ha caducado',
   'status.slot_lost': 'Otra persona acaba de reservar esa hora',
   'status.times_unavailable': 'No hay horarios disponibles',
+  'selection.choose_provider': 'Elige un profesional',
+  'selection.choose_service': '¿Qué podemos hacer por ti?',
+  'selection.any_provider': 'Reservar con cualquier profesional',
+  'selection.provider_restricted': 'Este profesional requiere acceso privado',
+  'selection.no_services_title': 'No hay servicios disponibles',
+  'selection.no_services_copy':
+    'No hay servicios activos disponibles para tu elección de profesional.',
+  'selection.inactive_entities_copy':
+    'Algunos profesionales o servicios ya no están activos. Elige otra opción.',
+  'selection.invalid_associations_copy':
+    'Los profesionales y servicios disponibles no se pueden reservar juntos ahora.',
+  'selection.unavailable_title': 'Selección no disponible',
+  'selection.unavailable_copy':
+    'Tu selección no cambió. Actualiza para continuar esta sesión de reserva.',
   'validation.email_invalid': 'Introduce una dirección de correo válida.',
   'validation.name_required': 'Introduce tu nombre.',
   'validation.phone_invalid': 'Introduce un número de teléfono válido.',
@@ -96,6 +126,7 @@ const fr = {
   'label.language': 'Langue',
   'label.merchant': 'Commerce',
   'label.provider': 'Professionnel',
+  'label.shop': 'Établissement',
   'label.time': 'Heure',
   'label.timezone': 'Fuseau horaire',
   'label.total_price': 'Prix total',
@@ -113,6 +144,20 @@ const fr = {
   'status.session_expired': 'Cette session de réservation a expiré',
   'status.slot_lost': 'Cette heure vient d’être réservée',
   'status.times_unavailable': 'Heures non disponibles',
+  'selection.choose_provider': 'Choisissez un professionnel',
+  'selection.choose_service': 'Que pouvons-nous faire pour vous?',
+  'selection.any_provider': 'Réserver avec n’importe quel professionnel',
+  'selection.provider_restricted': 'Ce professionnel nécessite un accès privé',
+  'selection.no_services_title': 'Aucun service réservable',
+  'selection.no_services_copy':
+    'Aucun service actif n’est disponible pour votre choix de professionnel.',
+  'selection.inactive_entities_copy':
+    'Des professionnels ou services ne sont plus actifs. Choisissez une autre option.',
+  'selection.invalid_associations_copy':
+    'Les professionnels et services disponibles ne peuvent pas être réservés ensemble.',
+  'selection.unavailable_title': 'Sélection non disponible',
+  'selection.unavailable_copy':
+    'Votre sélection n’a pas changé. Actualisez pour poursuivre cette session.',
   'validation.email_invalid': 'Saisissez une adresse courriel valide.',
   'validation.name_required': 'Saisissez votre nom.',
   'validation.phone_invalid': 'Saisissez un numéro de téléphone valide.',
@@ -134,6 +179,7 @@ const ro = {
   'label.language': 'Limbă',
   'label.merchant': 'Comerciant',
   'label.provider': 'Profesionist',
+  'label.shop': 'Locație',
   'label.time': 'Oră',
   'label.timezone': 'Fus orar',
   'label.total_price': 'Preț total',
@@ -151,6 +197,19 @@ const ro = {
   'status.session_expired': 'Această sesiune de rezervare a expirat',
   'status.slot_lost': 'Intervalul tocmai a fost rezervat',
   'status.times_unavailable': 'Orele nu sunt disponibile',
+  'selection.choose_provider': 'Alege un profesionist',
+  'selection.choose_service': 'Cu ce te putem ajuta?',
+  'selection.any_provider': 'Rezervă cu orice profesionist',
+  'selection.provider_restricted': 'Acest profesionist necesită acces privat',
+  'selection.no_services_title': 'Nu există servicii disponibile',
+  'selection.no_services_copy': 'Nu există servicii active pentru profesionistul ales.',
+  'selection.inactive_entities_copy':
+    'Unii profesioniști sau unele servicii nu mai sunt active. Alege altă opțiune.',
+  'selection.invalid_associations_copy':
+    'Profesioniștii și serviciile disponibile nu pot fi rezervate împreună acum.',
+  'selection.unavailable_title': 'Selecția nu este disponibilă',
+  'selection.unavailable_copy':
+    'Selecția nu a fost modificată. Reîncarcă pentru a continua sesiunea.',
   'validation.email_invalid': 'Introdu o adresă de e-mail validă.',
   'validation.name_required': 'Introdu numele.',
   'validation.phone_invalid': 'Introdu un număr de telefon valid.',
