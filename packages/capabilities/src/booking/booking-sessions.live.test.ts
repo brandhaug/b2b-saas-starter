@@ -61,6 +61,22 @@ beforeAll(async () => {
           createdAt: now,
           updatedAt: now
         })
+        yield* db.insert(merchants).values({
+          id: 'mer_live_booking_broken_topology',
+          publicName: 'Broken Booking Topology',
+          slug: 'broken-booking-topology',
+          timezone: 'UTC',
+          currency: 'EUR',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(publicBookingPages).values({
+          id: 'pg_live_booking_broken_topology',
+          merchantId: 'mer_live_booking_broken_topology',
+          status: 'published',
+          createdAt: now,
+          updatedAt: now
+        })
       }),
       layerFromD1(test.d1)
     )
@@ -70,6 +86,29 @@ beforeAll(async () => {
 afterAll(async () => test.dispose())
 
 describe('Live Booking Sessions', () => {
+  it('treats a missing normalized Shop as an infrastructure invariant failure', async () => {
+    const layer = LiveBookingSessions.pipe(Layer.provide(layerFromD1(test.d1)))
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.result(
+          Effect.flatMap(BookingSessions, (sessions) =>
+            sessions.start({ merchantSlug: 'broken-booking-topology', now })
+          )
+        ),
+        layer
+      )
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        _tag: 'CapabilityUnavailable',
+        capability: 'booking-sessions',
+        reason: 'missing_normalized_shop'
+      }
+    })
+  })
+
   it('persists only the capability hash and authorizes the issued session', async () => {
     const layer = LiveBookingSessions.pipe(Layer.provide(layerFromD1(test.d1)))
     const issued = await Effect.runPromise(
@@ -119,6 +158,7 @@ describe('Live Booking Sessions', () => {
       Effect.provide(
         enterBookingSession({
           merchantSlug: 'live-booking',
+          routeLocator: issued.routeId,
           candidates: [{ sessionId: issued.session.id, capability: issued.capability }],
           now: '2026-07-10T10:10:00.000Z'
         }),
@@ -127,7 +167,11 @@ describe('Live Booking Sessions', () => {
     )
     expect(resumed).toMatchObject({
       kind: 'resumed',
-      session: { id: issued.session.id }
+      session: {
+        id: issued.session.id,
+        locale: 'es',
+        embeddingProfile: 'widget'
+      }
     })
     const blocked = await Effect.runPromise(
       Effect.provide(
@@ -149,13 +193,14 @@ describe('Live Booking Sessions', () => {
         layerFromD1(test.d1)
       )
     )
-    expect(rows[0]?.capabilityHash).toMatch(/^[a-f0-9]{64}$/)
-    expect(rows[0]).toMatchObject({
+    const row = rows.find((candidate) => candidate.id === issued.session.id)
+    expect(row?.capabilityHash).toMatch(/^[a-f0-9]{64}$/)
+    expect(row).toMatchObject({
       locale: 'es',
       embeddingProfile: 'widget',
       acquisitionJson: JSON.stringify({ gclid: 'captured-once' })
     })
-    expect(JSON.stringify(rows[0])).not.toContain(issued.capability)
+    expect(JSON.stringify(row)).not.toContain(issued.capability)
     const parties = await Effect.runPromise(
       Effect.provide(
         Effect.flatMap(Database, (db) =>
@@ -167,17 +212,20 @@ describe('Live Booking Sessions', () => {
         layerFromD1(test.d1)
       )
     )
-    expect(parties[0]).toHaveLength(1)
-    expect(parties[0][0]).toMatchObject({
+    const party = parties[0].find(
+      (candidate) => candidate.bookingSessionId === issued.session.id
+    )
+    expect(party).toMatchObject({
       bookingSessionId: issued.session.id,
       shopId: 'shp_live_booking',
       locale: 'es',
       version: 1
     })
-    expect(parties[1]).toHaveLength(1)
-    expect(parties[1][0]).toMatchObject({
-      bookingPartyId: parties[0][0]?.id,
-      position: 0
-    })
+    expect(parties[1]).toContainEqual(
+      expect.objectContaining({
+        bookingPartyId: party?.id,
+        position: 0
+      })
+    )
   })
 })

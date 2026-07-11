@@ -46,15 +46,19 @@ const fixture = async () => {
   for (const bookingSession of [session('bsn_one'), session('bsn_two')]) {
     await select(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseProvider(bookingSession, { kind: 'any' })
+        selection.chooseProvider(bookingSession, { kind: 'any' }, 1)
       )
     )
     await select(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseServices(bookingSession, {
-          primaryServiceId: 'svc_seed_signature_cut',
-          additionalServiceIds: ['svc_seed_beard_detail']
-        })
+        selection.chooseServices(
+          bookingSession,
+          {
+            primaryServiceId: 'svc_seed_signature_cut',
+            additionalServiceIds: ['svc_seed_beard_detail']
+          },
+          2
+        )
       )
     )
   }

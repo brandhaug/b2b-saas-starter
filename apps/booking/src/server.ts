@@ -117,6 +117,13 @@ export default {
             Effect.flatMap(BookingSessions, (sessions) => sessions.authorize(input)),
             capabilitiesLayer
           ),
+        authorizeRoute: (input) =>
+          Effect.provide(
+            Effect.flatMap(BookingSessions, (sessions) =>
+              sessions.authorizeRoute(input)
+            ),
+            capabilitiesLayer
+          ),
         captureContext: (session, context) =>
           Effect.provide(
             Effect.flatMap(BookingSessions, (sessions) =>
@@ -130,17 +137,17 @@ export default {
               Effect.flatMap(BookingSelection, (selection) => selection.load(session)),
               capabilitiesLayer
             ),
-          chooseProvider: (session, preference) =>
+          chooseProvider: (session, preference, expectedVersion) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) =>
-                selection.chooseProvider(session, preference)
+                selection.chooseProvider(session, preference, expectedVersion)
               ),
               capabilitiesLayer
             ),
-          chooseServices: (session, input) =>
+          chooseServices: (session, input, expectedVersion) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) =>
-                selection.chooseServices(session, input)
+                selection.chooseServices(session, input, expectedVersion)
               ),
               capabilitiesLayer
             )

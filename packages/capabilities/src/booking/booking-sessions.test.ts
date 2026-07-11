@@ -38,9 +38,12 @@ describe('Booking Session capability', () => {
     })
     expect(issued.capability).toBe('a'.repeat(64))
     expect(issued.session.id).not.toContain(issued.capability)
+    expect(issued.routeId).toMatch(/^brt_[a-f0-9]{32}$/)
+    expect(issued.routeId).not.toBe(issued.session.id)
 
     const persisted = store.sessions.get(issued.session.id)
     expect(persisted?.capabilityHash).toMatch(/^[a-f0-9]{64}$/)
+    expect(persisted?.routeId).toBe(issued.routeId)
     expect(persisted).not.toHaveProperty('capability')
     expect(JSON.stringify(persisted)).not.toContain(issued.capability)
     expect(store.parties.get(issued.session.id)).toMatchObject({
@@ -123,26 +126,30 @@ describe('Booking Session capability', () => {
     })
     const enter = (
       merchantSlug: string,
+      routeLocator: string | null,
       candidates: readonly {
         readonly sessionId: string
         readonly capability: string
       }[]
     ) =>
       Effect.runPromise(
-        Effect.provide(enterBookingSession({ merchantSlug, candidates, now }), layer)
+        Effect.provide(
+          enterBookingSession({ merchantSlug, routeLocator, candidates, now }),
+          layer
+        )
       )
 
-    const mara = await enter('mara-studio', [])
+    const mara = await enter('mara-studio', null, [])
     expect(mara.kind).toBe('created')
     if (mara.kind !== 'created') throw new Error('expected a new session')
     store.merchants.get('mara-studio')!.published = false
 
-    const resumed = await enter('mara-studio', [
+    const resumed = await enter('mara-studio', mara.routeId, [
       { sessionId: mara.session.id, capability: mara.capability }
     ])
     expect(resumed).toMatchObject({ kind: 'resumed', session: { id: 'bsn_mara' } })
 
-    const other = await enter('other-studio', [
+    const other = await enter('other-studio', mara.routeId, [
       { sessionId: mara.session.id, capability: mara.capability }
     ])
     expect(other).toMatchObject({ kind: 'created', session: { id: 'bsn_other' } })

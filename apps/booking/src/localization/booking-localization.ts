@@ -11,15 +11,34 @@ const en = {
   'action.start_again': 'Start again',
   'feedback.error_generic': 'Something went wrong. Try again.',
   'feedback.loading': 'Preparing your booking…',
+  'feedback.selection_refreshed':
+    'Your booking changed in another tab. We reloaded the latest choices.',
   'feedback.source_language': 'Shown in the merchant’s original language',
+  'label.duration': 'Duration',
+  'label.language': 'Language',
+  'label.merchant': 'Merchant',
+  'label.provider': 'Provider',
+  'label.time': 'Time',
+  'label.timezone': 'Timezone',
+  'label.total_price': 'Total price',
   'overlay.close': 'Close dialog',
+  'recovery.booking_not_found_copy':
+    'Check the merchant link or start the booking again.',
+  'recovery.booking_not_found_title': 'Booking page not found',
+  'recovery.session_expired_copy': 'Start again to choose a new appointment.',
+  'status.appointment_cancelled': 'Cancelled',
+  'status.appointment_completed': 'Completed',
+  'status.appointment_no_show': 'No show',
+  'status.appointment_scheduled': 'Scheduled',
+  'status.pay_in_person': 'Pay in person',
   'status.selection_unavailable': 'Selection unavailable',
   'status.session_expired': 'This Booking Session has expired',
   'status.slot_lost': 'That time was just booked',
   'status.times_unavailable': 'Times unavailable',
   'validation.email_invalid': 'Enter a valid email address.',
   'validation.name_required': 'Enter your name.',
-  'validation.phone_invalid': 'Enter a valid phone number.'
+  'validation.phone_invalid': 'Enter a valid phone number.',
+  'title.appointment_confirmation': 'Appointment Confirmation'
 } as const
 
 export type BookingTranslationKey = keyof typeof en
@@ -32,15 +51,34 @@ const es = {
   'action.start_again': 'Empezar de nuevo',
   'feedback.error_generic': 'Algo salió mal. Inténtalo de nuevo.',
   'feedback.loading': 'Preparando tu reserva…',
+  'feedback.selection_refreshed':
+    'Tu reserva cambió en otra pestaña. Cargamos las opciones más recientes.',
   'feedback.source_language': 'Se muestra en el idioma original del comercio',
+  'label.duration': 'Duración',
+  'label.language': 'Idioma',
+  'label.merchant': 'Comercio',
+  'label.provider': 'Profesional',
+  'label.time': 'Hora',
+  'label.timezone': 'Zona horaria',
+  'label.total_price': 'Precio total',
   'overlay.close': 'Cerrar diálogo',
+  'recovery.booking_not_found_copy':
+    'Comprueba el enlace del comercio o vuelve a iniciar la reserva.',
+  'recovery.booking_not_found_title': 'Página de reserva no encontrada',
+  'recovery.session_expired_copy': 'Empieza de nuevo para elegir otra cita.',
+  'status.appointment_cancelled': 'Cancelada',
+  'status.appointment_completed': 'Completada',
+  'status.appointment_no_show': 'No asistió',
+  'status.appointment_scheduled': 'Programada',
+  'status.pay_in_person': 'Pagar en persona',
   'status.selection_unavailable': 'La selección no está disponible',
   'status.session_expired': 'Esta sesión de reserva ha caducado',
   'status.slot_lost': 'Otra persona acaba de reservar esa hora',
   'status.times_unavailable': 'No hay horarios disponibles',
   'validation.email_invalid': 'Introduce una dirección de correo válida.',
   'validation.name_required': 'Introduce tu nombre.',
-  'validation.phone_invalid': 'Introduce un número de teléfono válido.'
+  'validation.phone_invalid': 'Introduce un número de teléfono válido.',
+  'title.appointment_confirmation': 'Confirmación de la cita'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const fr = {
@@ -51,15 +89,34 @@ const fr = {
   'action.start_again': 'Recommencer',
   'feedback.error_generic': 'Un problème est survenu. Réessayez.',
   'feedback.loading': 'Préparation de votre réservation…',
+  'feedback.selection_refreshed':
+    'Votre réservation a changé dans un autre onglet. Les choix récents ont été rechargés.',
   'feedback.source_language': 'Affiché dans la langue originale du commerce',
+  'label.duration': 'Durée',
+  'label.language': 'Langue',
+  'label.merchant': 'Commerce',
+  'label.provider': 'Professionnel',
+  'label.time': 'Heure',
+  'label.timezone': 'Fuseau horaire',
+  'label.total_price': 'Prix total',
   'overlay.close': 'Fermer la boîte de dialogue',
+  'recovery.booking_not_found_copy':
+    'Vérifiez le lien du commerce ou recommencez la réservation.',
+  'recovery.booking_not_found_title': 'Page de réservation introuvable',
+  'recovery.session_expired_copy': 'Recommencez pour choisir un nouveau rendez-vous.',
+  'status.appointment_cancelled': 'Annulé',
+  'status.appointment_completed': 'Terminé',
+  'status.appointment_no_show': 'Absence',
+  'status.appointment_scheduled': 'Planifié',
+  'status.pay_in_person': 'Payer sur place',
   'status.selection_unavailable': 'Sélection non disponible',
   'status.session_expired': 'Cette session de réservation a expiré',
   'status.slot_lost': 'Cette heure vient d’être réservée',
   'status.times_unavailable': 'Heures non disponibles',
   'validation.email_invalid': 'Saisissez une adresse courriel valide.',
   'validation.name_required': 'Saisissez votre nom.',
-  'validation.phone_invalid': 'Saisissez un numéro de téléphone valide.'
+  'validation.phone_invalid': 'Saisissez un numéro de téléphone valide.',
+  'title.appointment_confirmation': 'Confirmation du rendez-vous'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const ro = {
@@ -70,15 +127,34 @@ const ro = {
   'action.start_again': 'Începe din nou',
   'feedback.error_generic': 'Ceva nu a funcționat. Încearcă din nou.',
   'feedback.loading': 'Pregătim rezervarea…',
+  'feedback.selection_refreshed':
+    'Rezervarea s-a schimbat în altă filă. Am reîncărcat opțiunile recente.',
   'feedback.source_language': 'Afișat în limba originală a comerciantului',
+  'label.duration': 'Durată',
+  'label.language': 'Limbă',
+  'label.merchant': 'Comerciant',
+  'label.provider': 'Profesionist',
+  'label.time': 'Oră',
+  'label.timezone': 'Fus orar',
+  'label.total_price': 'Preț total',
   'overlay.close': 'Închide dialogul',
+  'recovery.booking_not_found_copy':
+    'Verifică linkul comerciantului sau începe din nou rezervarea.',
+  'recovery.booking_not_found_title': 'Pagina de rezervare nu a fost găsită',
+  'recovery.session_expired_copy': 'Începe din nou pentru a alege o programare nouă.',
+  'status.appointment_cancelled': 'Anulată',
+  'status.appointment_completed': 'Finalizată',
+  'status.appointment_no_show': 'Neprezentare',
+  'status.appointment_scheduled': 'Programată',
+  'status.pay_in_person': 'Plată la locație',
   'status.selection_unavailable': 'Selecția nu este disponibilă',
   'status.session_expired': 'Această sesiune de rezervare a expirat',
   'status.slot_lost': 'Intervalul tocmai a fost rezervat',
   'status.times_unavailable': 'Orele nu sunt disponibile',
   'validation.email_invalid': 'Introdu o adresă de e-mail validă.',
   'validation.name_required': 'Introdu numele.',
-  'validation.phone_invalid': 'Introdu un număr de telefon valid.'
+  'validation.phone_invalid': 'Introdu un număr de telefon valid.',
+  'title.appointment_confirmation': 'Confirmarea programării'
 } as const satisfies Record<BookingTranslationKey, string>
 
 export const bookingCatalogs = { en, es, fr, ro } as const satisfies Record<

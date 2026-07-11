@@ -16,6 +16,7 @@ afterEach(() => {
 describe('server-backed Booking scheduling', () => {
   it('invalidates the selected hold at its exact expiry and shows safe recovery', async () => {
     const journey: BookingJourney = {
+      version: 1,
       presentation: 'solo',
       providerPreference: { kind: 'specific', providerId: 'prv_ava' },
       selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] },
@@ -107,6 +108,7 @@ describe('server-backed Booking scheduling', () => {
 
   it('offers a safe restart when the Session expires during checkout', async () => {
     const journey: BookingJourney = {
+      version: 1,
       presentation: 'solo',
       providerPreference: { kind: 'specific', providerId: 'prv_ava' },
       selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] },

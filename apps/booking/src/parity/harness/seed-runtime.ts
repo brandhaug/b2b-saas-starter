@@ -81,6 +81,7 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
     for (const sessionId of sessions.sessions.keys()) {
       canonical = canonical.replaceAll(sessionId, 'bsn_current')
     }
+    canonical = canonical.replaceAll(/brt_[a-f0-9]{32}/g, 'brt_current')
     canonical = canonical.replaceAll(
       /trace_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
       'trace_current'
@@ -98,18 +99,23 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
     if (scenario.journey === 'deliberate-blank' && segments.length === 2) {
       return fallback(request)
     }
-    const sessionId = segments[2] === 'session' ? segments[3] : undefined
-    if (sessionId && !sessions.sessions.has(sessionId)) {
-      const presented = readBookingSessionCapabilities(
-        request.headers.get('cookie')
-      ).find((candidate) => candidate.sessionId === sessionId)
+    const sessionLocator = segments[2] === 'session' ? segments[3] : undefined
+    const routeSession = [...sessions.sessions.values()].find(
+      (session) => session.routeId === sessionLocator
+    )
+    if (sessionLocator && !sessions.sessions.has(sessionLocator) && !routeSession) {
+      const candidates = readBookingSessionCapabilities(request.headers.get('cookie'))
+      const presented =
+        candidates.find((candidate) => candidate.sessionId === sessionLocator) ??
+        candidates[0]
       if (presented) {
         const digest = await crypto.subtle.digest(
           'SHA-256',
           new TextEncoder().encode(presented.capability)
         )
-        sessions.sessions.set(sessionId, {
-          id: sessionId,
+        sessions.sessions.set(presented.sessionId, {
+          id: presented.sessionId,
+          ...(sessionLocator.startsWith('brt_') ? { routeId: sessionLocator } : {}),
           merchantId: graph.merchant.id,
           merchantSlug: graph.merchant.slug,
           checkoutPath: 'pay_in_person',
@@ -145,6 +151,11 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
             Effect.flatMap(BookingSessions, (service) => service.authorize(input)),
             sessionsLayer
           ),
+        authorizeRoute: (input) =>
+          Effect.provide(
+            Effect.flatMap(BookingSessions, (service) => service.authorizeRoute(input)),
+            sessionsLayer
+          ),
         selection: {
           load: (session) => {
             if (scenario.journey === 'selection-loading') return Effect.never
@@ -161,17 +172,17 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
               selectionLayer
             )
           },
-          chooseProvider: (session, preference) =>
+          chooseProvider: (session, preference, expectedVersion) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (service) =>
-                service.chooseProvider(session, preference)
+                service.chooseProvider(session, preference, expectedVersion)
               ),
               selectionLayer
             ),
-          chooseServices: (session, input) =>
+          chooseServices: (session, input, expectedVersion) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (service) =>
-                service.chooseServices(session, input)
+                service.chooseServices(session, input, expectedVersion)
               ),
               selectionLayer
             )

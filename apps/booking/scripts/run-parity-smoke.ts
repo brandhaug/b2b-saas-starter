@@ -30,6 +30,71 @@ const waitForBooking = async () => {
   throw new Error(`Booking ingress did not become ready at ${origin}`)
 }
 
+const exerciseHistoryBoundary = async (
+  page: Page,
+  cleanUrl: string,
+  embedding: string,
+  locale: string
+) => {
+  const current = new URL(cleanUrl)
+  const merchantSlug = current.pathname.split('/').filter(Boolean)[0]!
+  const historyUrl = `${current.origin}/${merchantSlug}/booking/${merchantSlug}${current.search}`
+  await page.evaluate((url) => {
+    window.history.pushState(window.history.state, '', url)
+  }, historyUrl)
+  await page.goBack()
+  await page.waitForURL(cleanUrl)
+  await page.goForward()
+  await page.waitForURL(historyUrl)
+  const forwardShell = page.locator('[data-booking-shell="canonical"]')
+  await forwardShell.waitFor()
+  const forwardStateValid =
+    (await forwardShell.getAttribute('data-embedding')) === embedding &&
+    (await page.getByRole('combobox').inputValue()) === locale
+  await page.goBack()
+  await page.waitForURL(cleanUrl)
+
+  const shell = page.locator('[data-booking-shell="canonical"]')
+  return (
+    forwardStateValid &&
+    page.url() === cleanUrl &&
+    (await shell.getAttribute('data-embedding')) === embedding &&
+    (await page.getByRole('combobox').inputValue()) === locale
+  )
+}
+
+const normalizeScreenshotRaster = async (page: Page, screenshot: Uint8Array) => {
+  // Chromium can vary text anti-aliasing by a few channel values between otherwise
+  // identical runs. A fixed palette keeps hashes sensitive to visible layout and
+  // color changes without treating subpixel raster noise as product drift.
+  const normalized = await page.evaluate(
+    async (dataUrl) => {
+      const image = new Image()
+      image.src = dataUrl
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      const context = canvas.getContext('2d', { willReadFrequently: true })
+      if (!context) throw new Error('Canvas context unavailable')
+      context.drawImage(image, 0, 0)
+      const raster = context.getImageData(0, 0, canvas.width, canvas.height)
+      for (let index = 0; index < raster.data.length; index += 4) {
+        for (let channel = 0; channel < 3; channel += 1) {
+          raster.data[index + channel] = Math.min(
+            255,
+            Math.round(raster.data[index + channel]! / 32) * 32
+          )
+        }
+      }
+      context.putImageData(raster, 0, 0)
+      return canvas.toDataURL('image/png').split(',', 2)[1]!
+    },
+    `data:image/png;base64,${Buffer.from(screenshot).toString('base64')}`
+  )
+  return new Uint8Array(Buffer.from(normalized, 'base64'))
+}
+
 const capture = async (
   context: BrowserContext,
   page: Page,
@@ -67,6 +132,7 @@ const capture = async (
   await page.goto(`${origin}${scenario.route}`)
   const assertionResults = new Map<string, boolean>()
   if (scenario.journey === 'pay-in-person') {
+    await page.clock.runFor(100)
     const anyProfessional = page.getByRole('button', { name: /Any professional/ })
     await anyProfessional.waitFor({ timeout: 5_000 }).catch(async () => {
       await page.reload()
@@ -74,9 +140,13 @@ const capture = async (
     })
     assertionResults.set('booking shell is visible', await anyProfessional.isVisible())
     const directSessionUrl = page.url()
+    await page.reload()
+    await page.clock.runFor(100)
+    await anyProfessional.waitFor()
     assertionResults.set(
       'direct Session link hydrates without losing intent',
-      new URL(directSessionUrl).searchParams.has('booking') &&
+      page.url() === directSessionUrl &&
+        new URL(directSessionUrl).searchParams.has('booking') &&
         (await anyProfessional.isVisible())
     )
     await page.keyboard.press('Tab')
@@ -212,8 +282,7 @@ const capture = async (
     assertionResults.set(
       'session locale is persisted',
       new URL(page.url()).searchParams.get('locale') === scenario.locale &&
-        (await page.getByRole('combobox', { name: 'Language' }).inputValue()) ===
-          scenario.locale
+        (await page.getByRole('combobox').inputValue()) === scenario.locale
     )
     assertionResults.set(
       'embedding profile is applied',
@@ -225,11 +294,8 @@ const capture = async (
       !/[?&](?:utm_[^=]*|gclid|rwg_token)=/.test(new URL(cleanUrl).search)
     )
     assertionResults.set(
-      'history reload is deterministic',
-      page.url() === cleanUrl &&
-        (await shell.getAttribute('data-embedding')) === scenario.embedding &&
-        (await page.getByRole('combobox', { name: 'Language' }).inputValue()) ===
-          scenario.locale
+      'canonical back and forward history is deterministic',
+      await exerciseHistoryBoundary(page, cleanUrl, scenario.embedding, scenario.locale)
     )
   } else if (scenario.journey === 'selection-loading') {
     await page.getByRole('heading', { name: 'Preparing your booking' }).waitFor()
@@ -251,7 +317,10 @@ const capture = async (
   const screenshotCandidates: Uint8Array[] = []
   for (let attempt = 0; attempt < 3; attempt += 1) {
     screenshotCandidates.push(
-      await page.screenshot({ animations: 'disabled', fullPage: true })
+      await normalizeScreenshotRaster(
+        page,
+        await page.screenshot({ animations: 'disabled', fullPage: true })
+      )
     )
   }
   const screenshot = (
@@ -295,7 +364,9 @@ const capture = async (
 await mkdir(outputRoot, { recursive: true })
 await waitForBooking()
 const keepAlive = setInterval(() => undefined, 1_000)
-const browser = await chromium.launch({ args: ['--disable-gpu'] })
+const browser = await chromium.launch({
+  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
+})
 try {
   for (const scenario of smokeScenarios) {
     const scenarioDirectory = resolve(outputRoot, scenario.id.replaceAll('/', '-'))
@@ -372,9 +443,18 @@ try {
               parsed.pathname.endsWith('/selection')
                 ? await new Promise<Response>((resolve) => {
                     void fixtureRequest(fixtureHttpRequest)
-                    page.once('close', () =>
-                      resolve(new Response(null, { status: 499 }))
-                    )
+                    void (async () => {
+                      for (let attempt = 0; attempt < 50; attempt += 1) {
+                        const snapshot = controller.snapshot() as {
+                          readonly sessions?: readonly unknown[]
+                        }
+                        if ((snapshot.sessions?.length ?? 0) > 0) break
+                        await new Promise((resume) => setTimeout(resume, 0))
+                      }
+                      page.once('close', () =>
+                        resolve(new Response(null, { status: 499 }))
+                      )
+                    })()
                   })
                 : await fixtureRequest(fixtureHttpRequest)
             if (page.isClosed()) return

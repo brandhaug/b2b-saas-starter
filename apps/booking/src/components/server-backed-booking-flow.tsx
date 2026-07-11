@@ -19,13 +19,19 @@ import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
 import { styles } from './booking-flow.styles.ts'
+import { translateBookingMessage } from '../localization/booking-localization.ts'
 
 export function ServerBackedBookingFlow({
   merchantSlug,
-  sessionId
+  sessionId,
+  selectionRefreshedMessage = translateBookingMessage(
+    'en',
+    'feedback.selection_refreshed'
+  )
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
+  readonly selectionRefreshedMessage?: string
 }) {
   const queryClient = useQueryClient()
   const [scheduling, setScheduling] = useState(false)
@@ -35,6 +41,7 @@ export function ServerBackedBookingFlow({
   const [review, setReview] = useState<CheckoutReview | null>(null)
   const [invalidDetails, setInvalidDetails] = useState(false)
   const [expiredSession, setExpiredSession] = useState(false)
+  const [selectionRefreshed, setSelectionRefreshed] = useState(false)
   const base = `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(sessionId)}`
   const queryKey = ['booking-selection', merchantSlug, sessionId] as const
   const journey = useQuery({
@@ -52,17 +59,35 @@ export function ServerBackedBookingFlow({
     mutationFn: async (mutation: {
       readonly endpoint: 'provider' | 'services'
       readonly input: ProviderPreference | ServiceSelection
+      readonly expectedVersion: number
     }) => {
       const response = await fetch(`${base}/${mutation.endpoint}`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(mutation.input)
+        body: JSON.stringify({
+          version: mutation.expectedVersion,
+          [mutation.endpoint === 'provider' ? 'preference' : 'selection']:
+            mutation.input
+        })
       })
+      if (response.status === 409) {
+        const conflict = (await response.json()) as {
+          readonly kind: 'version_conflict'
+          readonly journey: BookingJourney
+        }
+        return { journey: conflict.journey, refreshed: true as const }
+      }
       if (!response.ok) throw new Error('selection rejected')
-      return (await response.json()) as BookingJourney
+      return {
+        journey: (await response.json()) as BookingJourney,
+        refreshed: false as const
+      }
     },
-    onSuccess: (value) => queryClient.setQueryData(queryKey, value)
+    onSuccess: (value) => {
+      queryClient.setQueryData(queryKey, value.journey)
+      setSelectionRefreshed(value.refreshed)
+    }
   })
   const availabilityKey = useMemo(
     () => ['booking-availability', merchantSlug, sessionId] as const,
@@ -248,17 +273,28 @@ export function ServerBackedBookingFlow({
     )
   }
   return (
-    <BookingSelectionFlow
-      journey={journey.data}
-      busy={selectionMutation.isPending}
-      onChooseProvider={(preference) =>
-        selectionMutation.mutate({ endpoint: 'provider', input: preference })
-      }
-      onChooseServices={(selection) =>
-        selectionMutation.mutate({ endpoint: 'services', input: selection })
-      }
-      onContinue={() => setScheduling(true)}
-    />
+    <>
+      {selectionRefreshed ? <output>{selectionRefreshedMessage}</output> : null}
+      <BookingSelectionFlow
+        journey={journey.data}
+        busy={selectionMutation.isPending}
+        onChooseProvider={(preference) =>
+          selectionMutation.mutate({
+            endpoint: 'provider',
+            input: preference,
+            expectedVersion: journey.data.version
+          })
+        }
+        onChooseServices={(selection) =>
+          selectionMutation.mutate({
+            endpoint: 'services',
+            input: selection,
+            expectedVersion: journey.data.version
+          })
+        }
+        onContinue={() => setScheduling(true)}
+      />
+    </>
   )
 }
 

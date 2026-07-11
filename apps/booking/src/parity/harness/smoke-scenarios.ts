@@ -73,7 +73,7 @@ export const smokeScenarios = await Promise.all([
       'booking shell is visible',
       'session locale is persisted',
       'acquisition is removed',
-      'history reload is deterministic'
+      'canonical back and forward history is deterministic'
     ]
   }),
   defineScenario({
@@ -89,7 +89,23 @@ export const smokeScenarios = await Promise.all([
       'session locale is persisted',
       'embedding profile is applied',
       'acquisition is removed',
-      'history reload is deterministic'
+      'canonical back and forward history is deterministic'
+    ]
+  }),
+  defineScenario({
+    ...base,
+    id: 'booking/canonical-shell-google-es',
+    journey: 'shell-boundary',
+    locale: 'es',
+    embedding: 'google',
+    viewport: { width: 390, height: 844 },
+    route: '/mara-booking-studio/booking?locale=es&embed=google&gclid=parity',
+    assertions: [
+      'booking shell is visible',
+      'session locale is persisted',
+      'embedding profile is applied',
+      'acquisition is removed',
+      'canonical back and forward history is deterministic'
     ]
   })
 ])

@@ -13,6 +13,7 @@ afterEach(() => {
 describe('protected Booking Session route', () => {
   it('reloads persisted selection from the Merchant-scoped Session URL', async () => {
     const journey: BookingJourney = {
+      version: 1,
       presentation: 'team',
       providerPreference: { kind: 'any' },
       selection: { primaryServiceId: null, additionalServiceIds: [] },

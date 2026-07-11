@@ -189,10 +189,14 @@ const prepareSession = async (
   await Effect.runPromise(
     Effect.provide(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseProvider(session.session, {
-          kind: 'specific',
-          providerId: 'prv_schedule_one'
-        })
+        selection.chooseProvider(
+          session.session,
+          {
+            kind: 'specific',
+            providerId: 'prv_schedule_one'
+          },
+          1
+        )
       ),
       layer
     )
@@ -200,10 +204,14 @@ const prepareSession = async (
   await Effect.runPromise(
     Effect.provide(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseServices(session.session, {
-          primaryServiceId: selectedServices.primaryServiceId,
-          additionalServiceIds: selectedServices.additionalServiceIds
-        })
+        selection.chooseServices(
+          session.session,
+          {
+            primaryServiceId: selectedServices.primaryServiceId,
+            additionalServiceIds: selectedServices.additionalServiceIds
+          },
+          2
+        )
       ),
       layer
     )
@@ -359,7 +367,7 @@ describe('Live Booking Scheduling', () => {
     await Effect.runPromise(
       Effect.provide(
         Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseProvider(anySession, { kind: 'any' })
+          selection.chooseProvider(anySession, { kind: 'any' }, 3)
         ),
         selectionLayer
       )
@@ -367,10 +375,14 @@ describe('Live Booking Scheduling', () => {
     await Effect.runPromise(
       Effect.provide(
         Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseServices(anySession, {
-            primaryServiceId: 'svc_schedule_primary',
-            additionalServiceIds: ['svc_schedule_extra']
-          })
+          selection.chooseServices(
+            anySession,
+            {
+              primaryServiceId: 'svc_schedule_primary',
+              additionalServiceIds: ['svc_schedule_extra']
+            },
+            4
+          )
         ),
         selectionLayer
       )

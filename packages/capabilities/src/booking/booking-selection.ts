@@ -1,7 +1,8 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import {
-  batch,
+  batchQueries,
+  bookingParties,
   bookingSessionAdditionalServices,
   bookingSessions,
   Database,
@@ -13,6 +14,7 @@ import {
 import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import type { BookingSession } from './booking-sessions.ts'
+import { BookingPartyConflict } from './foundations.ts'
 
 export const ProviderPreference = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('any') }),
@@ -46,6 +48,7 @@ export const ServiceSelection = Schema.Struct({
 export type ServiceSelection = typeof ServiceSelection.Type
 
 export const BookingJourney = Schema.Struct({
+  version: Schema.Number,
   presentation: Schema.Literals(['solo', 'team']),
   providerPreference: Schema.NullOr(ProviderPreference),
   selection: ServiceSelection,
@@ -62,18 +65,20 @@ export class BookingSelectionRejected extends Schema.TaggedErrorClass<BookingSel
 
 type SelectionEffect<A> = Effect.Effect<
   A,
-  BookingSelectionRejected | CapabilityUnavailable
+  BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
 >
 
 export type BookingSelectionShape = {
   readonly load: (session: BookingSession) => SelectionEffect<BookingJourney>
   readonly chooseProvider: (
     session: BookingSession,
-    preference: ProviderPreference
+    preference: ProviderPreference,
+    expectedVersion: number
   ) => SelectionEffect<BookingJourney>
   readonly chooseServices: (
     session: BookingSession,
-    input: ServiceSelection
+    input: ServiceSelection,
+    expectedVersion: number
   ) => SelectionEffect<BookingJourney>
 }
 
@@ -100,6 +105,7 @@ type StoredService = {
   readonly status: 'active' | 'inactive'
 }
 type StoredSelection = {
+  version?: number
   providerPreference: ProviderPreference | null
   primaryServiceId: string | null
   additionalServiceIds: string[]
@@ -165,12 +171,14 @@ const rejected = () =>
   new BookingSelectionRejected({ message: 'Selection could not be accepted' })
 
 const emptySelection = (): StoredSelection => ({
+  version: 1,
   providerPreference: null,
   primaryServiceId: null,
   additionalServiceIds: []
 })
 
 const journey = (catalog: Catalog, selection: StoredSelection): BookingJourney => ({
+  version: selection.version ?? 1,
   presentation: catalog.presentation,
   providerPreference: selection.providerPreference,
   selection: {
@@ -365,13 +373,21 @@ export const SeedBookingSelection = (
         store.selections.set(session.id, selected)
         return journey(catalog, selected)
       }),
-    chooseProvider: (session, preference) =>
+    chooseProvider: (session, preference, expectedVersion) =>
       Effect.gen(function* () {
         const catalog = yield* seedCatalog(store, session.merchantSlug)
+        const current = store.selections.get(session.id) ?? emptySelection()
+        if ((current.version ?? 1) !== expectedVersion) {
+          return yield* new BookingPartyConflict({
+            bookingPartyId: `bpt_${session.id}`,
+            expectedVersion
+          })
+        }
         if (!preferenceAccepts(catalog, preference, [])) {
           return yield* rejected()
         }
         const selected: StoredSelection = {
+          version: expectedVersion + 1,
           providerPreference: preference,
           primaryServiceId: null,
           additionalServiceIds: []
@@ -379,20 +395,35 @@ export const SeedBookingSelection = (
         store.selections.set(session.id, selected)
         return journey(catalog, selected)
       }),
-    chooseServices: (session, input) =>
+    chooseServices: (session, input, expectedVersion) =>
       Effect.gen(function* () {
         const catalog = yield* seedCatalog(store, session.merchantSlug)
-        const current = yield* withSoloDefault(
-          catalog,
-          store.selections.get(session.id) ?? emptySelection()
-        )
+        const stored = store.selections.get(session.id) ?? emptySelection()
+        if ((stored.version ?? 1) !== expectedVersion) {
+          return yield* new BookingPartyConflict({
+            bookingPartyId: `bpt_${session.id}`,
+            expectedVersion
+          })
+        }
+        const current = yield* withSoloDefault(catalog, stored)
         const selected = yield* validateServices(catalog, current, input)
-        store.selections.set(session.id, selected)
-        return journey(catalog, selected)
+        const versioned = { ...selected, version: expectedVersion + 1 }
+        store.selections.set(session.id, versioned)
+        return journey(catalog, versioned)
       })
   })
 
-type LiveState = { readonly catalog: Catalog; readonly selection: StoredSelection }
+type LiveState = {
+  readonly partyId: string
+  readonly partyLifecycle:
+    | 'active'
+    | 'confirming'
+    | 'confirmed'
+    | 'expired'
+    | 'abandoned'
+  readonly catalog: Catalog
+  readonly selection: StoredSelection
+}
 
 const readLiveState = (
   db: typeof Database.Service,
@@ -404,12 +435,19 @@ const readLiveState = (
         .select({
           merchantId: merchants.id,
           presentation: merchants.plan,
+          version: bookingParties.version,
+          partyId: bookingParties.id,
+          partyLifecycle: bookingParties.lifecycle,
           providerPreference: bookingSessions.providerPreference,
           providerId: bookingSessions.providerId,
           primaryServiceId: bookingSessions.primaryServiceId
         })
         .from(bookingSessions)
         .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
+        .innerJoin(
+          bookingParties,
+          eq(bookingParties.bookingSessionId, bookingSessions.id)
+        )
         .where(
           and(
             eq(bookingSessions.id, session.id),
@@ -492,8 +530,11 @@ const readLiveState = (
         .filter((service) => service.eligibleProviderIds.length > 0)
     }
     return {
+      partyId: row.partyId,
+      partyLifecycle: row.partyLifecycle,
       catalog,
       selection: {
+        version: row.version,
         providerPreference:
           row.providerPreference === 'any'
             ? { kind: 'any' }
@@ -511,62 +552,146 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
     BookingSelection,
     Effect.gen(function* () {
       const db = yield* Database
-      const persistSelection = (sessionId: string, selection: StoredSelection) => {
+      const persistSelection = (
+        sessionId: string,
+        partyId: string,
+        selection: StoredSelection,
+        expectedVersion: number
+      ) => {
         const preference = selection.providerPreference
-        return orUnavailable('booking-selection')(
-          batch(db, [
-            db
-              .update(bookingSessions)
-              .set({
-                providerPreference: preference?.kind ?? null,
-                providerId:
-                  preference?.kind === 'specific' ? preference.providerId : null,
-                primaryServiceId: selection.primaryServiceId
-              })
-              .where(eq(bookingSessions.id, sessionId)),
-            db
-              .delete(bookingSessionAdditionalServices)
-              .where(eq(bookingSessionAdditionalServices.bookingSessionId, sessionId)),
-            ...selection.additionalServiceIds.map((serviceId, position) =>
+        const nextVersion = expectedVersion + 1
+        const current = sql`exists (
+          select 1 from ${bookingParties}
+          where ${bookingParties.id} = ${partyId}
+            and ${bookingParties.version} = ${expectedVersion}
+            and ${bookingParties.lifecycle} = 'active'
+        )`
+        return Effect.gen(function* () {
+          const results = yield* orUnavailable('booking-selection')(
+            batchQueries(db, [
               db
-                .insert(bookingSessionAdditionalServices)
-                .values({ bookingSessionId: sessionId, serviceId, position })
+                .update(bookingSessions)
+                .set({
+                  providerPreference: preference?.kind ?? null,
+                  providerId:
+                    preference?.kind === 'specific' ? preference.providerId : null,
+                  primaryServiceId: selection.primaryServiceId
+                })
+                .where(and(eq(bookingSessions.id, sessionId), current))
+                .toSQL(),
+              db
+                .delete(bookingSessionAdditionalServices)
+                .where(
+                  and(
+                    eq(bookingSessionAdditionalServices.bookingSessionId, sessionId),
+                    current
+                  )
+                )
+                .toSQL(),
+              ...selection.additionalServiceIds.map((serviceId, position) =>
+                db
+                  .insert(bookingSessionAdditionalServices)
+                  .select(
+                    db
+                      .select({
+                        bookingSessionId: sql<string>`${sessionId}`.as(
+                          'booking_session_id'
+                        ),
+                        serviceId: sql<string>`${serviceId}`.as('service_id'),
+                        position: sql<number>`${position}`.as('position')
+                      })
+                      .from(bookingParties)
+                      .where(
+                        and(
+                          eq(bookingParties.id, partyId),
+                          eq(bookingParties.version, expectedVersion),
+                          eq(bookingParties.lifecycle, 'active')
+                        )
+                      )
+                  )
+                  .toSQL()
+              ),
+              db
+                .update(bookingParties)
+                .set({ version: nextVersion })
+                .where(
+                  and(
+                    eq(bookingParties.id, partyId),
+                    eq(bookingParties.version, expectedVersion),
+                    eq(bookingParties.lifecycle, 'active')
+                  )
+                )
+                .toSQL()
+            ])
+          )
+          if ((results.at(-1)?.meta.changes ?? 0) === 0) {
+            const [party] = yield* orUnavailable('booking-selection')(
+              db
+                .select({ lifecycle: bookingParties.lifecycle })
+                .from(bookingParties)
+                .where(eq(bookingParties.id, partyId))
+                .limit(1)
             )
-          ])
-        )
+            if (party?.lifecycle !== 'active') return yield* rejected()
+            return yield* new BookingPartyConflict({
+              bookingPartyId: partyId,
+              expectedVersion
+            })
+          }
+          return nextVersion
+        })
       }
       const load = (session: BookingSession) =>
         Effect.gen(function* () {
           const state = yield* readLiveState(db, session)
           const selected = yield* normalizeSelection(state.catalog, state.selection)
           if (JSON.stringify(state.selection) !== JSON.stringify(selected)) {
-            yield* persistSelection(session.id, selected)
+            const version = yield* persistSelection(
+              session.id,
+              state.partyId,
+              selected,
+              state.selection.version ?? 1
+            )
+            return journey(state.catalog, { ...selected, version })
           }
           return journey(state.catalog, selected)
         })
       return {
         load,
-        chooseProvider: (session, preference) =>
+        chooseProvider: (session, preference, expectedVersion) =>
           Effect.gen(function* () {
             const state = yield* readLiveState(db, session)
+            if (state.partyLifecycle !== 'active') return yield* rejected()
             if (!preferenceAccepts(state.catalog, preference, [])) {
               return yield* rejected()
             }
             const selected: StoredSelection = {
+              version: expectedVersion,
               providerPreference: preference,
               primaryServiceId: null,
               additionalServiceIds: []
             }
-            yield* persistSelection(session.id, selected)
-            return journey(state.catalog, selected)
+            const version = yield* persistSelection(
+              session.id,
+              state.partyId,
+              selected,
+              expectedVersion
+            )
+            return journey(state.catalog, { ...selected, version })
           }),
-        chooseServices: (session, input) =>
+        chooseServices: (session, input, expectedVersion) =>
           Effect.gen(function* () {
             const state = yield* readLiveState(db, session)
+            if (state.partyLifecycle !== 'active') return yield* rejected()
             const current = yield* withSoloDefault(state.catalog, state.selection)
             const selected = yield* validateServices(state.catalog, current, input)
-            yield* persistSelection(session.id, selected)
-            return journey(state.catalog, selected)
+            const version = yield* persistSelection(
+              session.id,
+              state.partyId,
+              selected,
+              expectedVersion
+            )
+            return journey(state.catalog, { ...selected, version })
           })
       }
     })

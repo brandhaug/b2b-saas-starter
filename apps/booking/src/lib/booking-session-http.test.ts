@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Effect } from 'effect'
 import {
   BookingSchedulingRejected,
+  BookingPartyConflict,
   BookingSelectionRejected,
   BookingSessionGone,
   type BookingJourney
@@ -15,6 +16,7 @@ import {
 
 describe('Booking Session HTTP boundary', () => {
   const journey: BookingJourney = {
+    version: 1,
     presentation: 'team',
     providerPreference: null,
     selection: { primaryServiceId: null, additionalServiceIds: [] },
@@ -130,6 +132,7 @@ describe('Booking Session HTTP boundary', () => {
           enter: () =>
             Effect.succeed({
               kind: 'created',
+              routeId: 'brt_created',
               capability,
               session: {
                 id: 'bsn_created',
@@ -152,19 +155,19 @@ describe('Booking Session HTTP boundary', () => {
 
     expect(response?.status).toBe(303)
     expect(response?.headers.get('location')).toBe(
-      '/mara-studio/booking?booking=bsn_created'
+      '/mara-studio/booking?booking=brt_created'
     )
     expect(response?.headers.get('location')).not.toContain(capability)
     expect(response?.headers.get('set-cookie')).toContain(capability)
   })
 
   it('isolates each tab by entering only the Session named by its non-secret locator', async () => {
-    const calls: string[][] = []
+    const calls: { locator: string | null; candidates: string[] }[] = []
     const capability = 'b'.repeat(64)
     const response = await Effect.runPromise(
       handleBookingSessionRequest(
         new Request(
-          'https://www.example.test/mara-studio/booking?booking=bsn_tab_two',
+          'https://www.example.test/mara-studio/booking?booking=brt_tab_two',
           {
             headers: {
               cookie: `booking_session_bsn_tab_one=${'a'.repeat(64)}; booking_session_bsn_tab_two=${capability}`
@@ -174,9 +177,13 @@ describe('Booking Session HTTP boundary', () => {
         {
           publicSiteOrigin: 'https://www.example.test',
           enter: (input) => {
-            calls.push(input.candidates.map((candidate) => candidate.sessionId))
+            calls.push({
+              locator: input.routeLocator,
+              candidates: input.candidates.map((candidate) => candidate.sessionId)
+            })
             return Effect.succeed({
               kind: 'resumed',
+              routeId: 'brt_tab_two',
               session: {
                 id: 'bsn_tab_two',
                 merchantSlug: 'mara-studio',
@@ -197,9 +204,66 @@ describe('Booking Session HTTP boundary', () => {
       )
     )
 
-    expect(calls).toEqual([['bsn_tab_two']])
+    expect(calls).toEqual([
+      {
+        locator: 'brt_tab_two',
+        candidates: ['bsn_tab_one', 'bsn_tab_two']
+      }
+    ])
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('canonical shell')
+  })
+
+  it('restores persisted locale and embedding when a continuation omits context', async () => {
+    const capability = 'c'.repeat(64)
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () =>
+        Effect.succeed({
+          kind: 'resumed' as const,
+          routeId: 'brt_persisted',
+          session: {
+            id: 'bsn_persisted',
+            merchantSlug: 'mara-studio',
+            checkoutPath: 'pay_in_person' as const,
+            lifecycle: 'active' as const,
+            createdAt: '2026-07-10T10:00:00.000Z',
+            lastActivityAt: '2026-07-10T10:00:00.000Z',
+            idleExpiresAt: '2026-07-10T10:30:00.000Z',
+            absoluteExpiresAt: '2026-07-10T12:00:00.000Z',
+            locale: 'fr' as const,
+            embeddingProfile: 'widget' as const
+          }
+        }),
+      authorize: () => Effect.die(new Error('not called')),
+      captureContext: () => Effect.succeed(undefined),
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called'))
+    }
+
+    for (const suffix of ['', '&embed=garbage']) {
+      const response = await Effect.runPromise(
+        handleBookingSessionRequest(
+          new Request(
+            `https://www.example.test/mara-studio/booking?booking=brt_persisted${suffix}`,
+            {
+              headers: {
+                cookie: `booking_session_bsn_persisted=${capability}`
+              }
+            }
+          ),
+          dependencies
+        )
+      )
+
+      expect(response.status).toBe(suffix ? 307 : 303)
+      expect(response.headers.get('location')).toBe(
+        '/mara-studio/booking?booking=brt_persisted&locale=fr&embed=widget'
+      )
+      expect(response.headers.get('content-language')).toBe('fr')
+      expect(response.headers.get('x-booking-embedding')).toBe('widget')
+    }
   })
 
   it('captures acquisition once and redirects to a clean localized embedded URL', async () => {
@@ -214,6 +278,7 @@ describe('Booking Session HTTP boundary', () => {
           enter: () =>
             Effect.succeed({
               kind: 'created',
+              routeId: 'brt_captured',
               capability: 'c'.repeat(64),
               session: {
                 id: 'bsn_captured',
@@ -240,7 +305,7 @@ describe('Booking Session HTTP boundary', () => {
 
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toBe(
-      '/mara-studio/booking?booking=bsn_captured&locale=fr&embed=widget'
+      '/mara-studio/booking?booking=brt_captured&locale=fr&embed=widget'
     )
     expect(captured).toEqual([
       {
@@ -340,7 +405,7 @@ describe('Booking Session HTTP boundary', () => {
           'sec-fetch-site': 'same-origin',
           'content-type': 'application/json'
         },
-        body: JSON.stringify({ kind: 'any' })
+        body: JSON.stringify({ version: 1, preference: { kind: 'any' } })
       }
     )
     const response = await Effect.runPromise(
@@ -383,6 +448,67 @@ describe('Booking Session HTTP boundary', () => {
     expect(await response.json()).toMatchObject({ providerPreference: { kind: 'any' } })
     expect(calls).toEqual(['authorize:bsn_private', 'provider:any'])
     expect(response.headers.get('cache-control')).toBe('private, no-store')
+  })
+
+  it('returns the latest canonical journey for a stale aggregate version', async () => {
+    const capability = '8'.repeat(64)
+    const latest = {
+      ...journey,
+      version: 3,
+      providerPreference: { kind: 'any' as const }
+    }
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(
+          'https://www.example.test/mara-studio/booking/session/bsn_private/provider',
+          {
+            method: 'POST',
+            headers: {
+              cookie: `booking_session_bsn_private=${capability}`,
+              origin: 'https://www.example.test',
+              'sec-fetch-site': 'same-origin',
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify({ version: 1, preference: { kind: 'any' } })
+          }
+        ),
+        {
+          publicSiteOrigin: 'https://www.example.test',
+          enter: () => Effect.die(new Error('not called')),
+          authorize: (input) =>
+            Effect.succeed({
+              id: input.sessionId,
+              merchantSlug: input.merchantSlug,
+              checkoutPath: 'pay_in_person',
+              lifecycle: 'active',
+              createdAt: input.now,
+              lastActivityAt: input.now,
+              idleExpiresAt: input.now,
+              absoluteExpiresAt: input.now
+            }),
+          selection: {
+            load: () => Effect.succeed(latest),
+            chooseProvider: () =>
+              Effect.fail(
+                new BookingPartyConflict({
+                  bookingPartyId: 'bpt_private',
+                  expectedVersion: 1
+                })
+              ),
+            chooseServices: () => Effect.succeed(latest)
+          },
+          takeRead: () => Effect.succeed(true),
+          takeWrite: () => Effect.succeed(true),
+          fallback: () => Effect.die(new Error('not called'))
+        }
+      )
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      kind: 'version_conflict',
+      journey: latest
+    })
   })
 
   it('persists a locale change through the authorized Session boundary', async () => {
@@ -524,14 +650,19 @@ describe('Booking Session HTTP boundary', () => {
           authorize: () =>
             Effect.fail(
               new BookingSessionGone({
-                message: 'This Booking Session has expired'
+                message: 'This Booking Session has expired',
+                locale: 'fr',
+                embeddingProfile: 'widget'
               })
             )
         }
       )
     )
     expect(proven.status).toBe(410)
-    expect(await proven.text()).toContain('/mara-studio/booking')
+    const recovery = await proven.text()
+    expect(recovery).toContain('/mara-studio/booking')
+    expect(recovery).toContain('Cette session de réservation a expiré')
+    expect(recovery).toContain('data-embedding="widget"')
   })
 
   it('serves authorized Availability and returns a safe slot-lost recovery state', async () => {

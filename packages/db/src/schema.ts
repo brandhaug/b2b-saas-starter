@@ -362,6 +362,7 @@ export const bookingSessions = sqliteTable(
   'booking_sessions',
   {
     id: id(),
+    routeId: text('route_id'),
     merchantId: text('merchant_id')
       .notNull()
       .references(() => merchants.id, { onDelete: 'cascade' }),
@@ -400,6 +401,7 @@ export const bookingSessions = sqliteTable(
     absoluteExpiresAt: text('absolute_expires_at').notNull()
   },
   (table) => [
+    uniqueIndex('booking_sessions_route_id_unique').on(table.routeId),
     index('booking_sessions_merchant_id_idx').on(table.merchantId),
     index('booking_sessions_expiry_idx').on(
       table.lifecycle,

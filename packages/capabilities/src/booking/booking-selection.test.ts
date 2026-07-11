@@ -147,25 +147,64 @@ describe('Booking Selection', () => {
     const { run } = fixture()
     const journey = await run(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseProvider(session, { kind: 'any' })
+        selection.chooseProvider(session, { kind: 'any' }, 1)
       )
     )
     expect(journey.providerPreference).toEqual({ kind: 'any' })
+  })
+
+  it('rejects stale aggregate versions without overwriting current intent', async () => {
+    const { run } = fixture()
+    const changed = await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseProvider(session, { kind: 'any' }, 1)
+      )
+    )
+    const stale = await run(
+      Effect.result(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.chooseProvider(
+            session,
+            { kind: 'specific', providerId: 'prv_noah' },
+            1
+          )
+        )
+      )
+    )
+
+    expect(changed.version).toBe(2)
+    expect(stale).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'BookingPartyConflict', expectedVersion: 1 }
+    })
+    expect(
+      await run(
+        Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+      )
+    ).toMatchObject({ version: 2, providerPreference: { kind: 'any' } })
   })
 
   it('persists one Primary Service and ordered unique Additional Services', async () => {
     const { run } = fixture()
     await run(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseProvider(session, { kind: 'specific', providerId: 'prv_ava' })
+        selection.chooseProvider(
+          session,
+          { kind: 'specific', providerId: 'prv_ava' },
+          1
+        )
       )
     )
     const journey = await run(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseServices(session, {
-          primaryServiceId: 'svc_cut',
-          additionalServiceIds: ['svc_beard']
-        })
+        selection.chooseServices(
+          session,
+          {
+            primaryServiceId: 'svc_cut',
+            additionalServiceIds: ['svc_beard']
+          },
+          2
+        )
       )
     )
     expect(journey.selection).toEqual({
@@ -180,10 +219,14 @@ describe('Booking Selection', () => {
 
     const cleared = await run(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseServices(session, {
-          primaryServiceId: null,
-          additionalServiceIds: []
-        })
+        selection.chooseServices(
+          session,
+          {
+            primaryServiceId: null,
+            additionalServiceIds: []
+          },
+          3
+        )
       )
     )
     expect(cleared.selection).toEqual({
@@ -196,26 +239,38 @@ describe('Booking Selection', () => {
     const { run } = fixture()
     await run(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseProvider(session, {
-          kind: 'specific',
-          providerId: 'prv_ava'
-        })
+        selection.chooseProvider(
+          session,
+          {
+            kind: 'specific',
+            providerId: 'prv_ava'
+          },
+          1
+        )
       )
     )
     await run(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseServices(session, {
-          primaryServiceId: 'svc_cut',
-          additionalServiceIds: ['svc_beard']
-        })
+        selection.chooseServices(
+          session,
+          {
+            primaryServiceId: 'svc_cut',
+            additionalServiceIds: ['svc_beard']
+          },
+          2
+        )
       )
     )
     const changed = await run(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseProvider(session, {
-          kind: 'specific',
-          providerId: 'prv_noah'
-        })
+        selection.chooseProvider(
+          session,
+          {
+            kind: 'specific',
+            providerId: 'prv_noah'
+          },
+          3
+        )
       )
     )
     expect(changed.selection).toEqual({
@@ -249,7 +304,11 @@ describe('Booking Selection', () => {
     const { run } = fixture()
     await run(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseProvider(session, { kind: 'specific', providerId: 'prv_noah' })
+        selection.chooseProvider(
+          session,
+          { kind: 'specific', providerId: 'prv_noah' },
+          1
+        )
       )
     )
     const choose = (
@@ -259,10 +318,14 @@ describe('Booking Selection', () => {
       run(
         Effect.result(
           Effect.flatMap(BookingSelection, (selection) =>
-            selection.chooseServices(session, {
-              primaryServiceId,
-              additionalServiceIds
-            })
+            selection.chooseServices(
+              session,
+              {
+                primaryServiceId,
+                additionalServiceIds
+              },
+              2
+            )
           )
         )
       )

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   brands,
+  bookingParties,
   Database,
   layerFromD1,
   merchants,
@@ -141,25 +142,48 @@ describe('Live Booking Selection', () => {
       )
     )
     const selectionLayer = LiveBookingSelection.pipe(Layer.provide(dbLayer))
-    await Effect.runPromise(
+    const providerJourney = await Effect.runPromise(
       Effect.provide(
         Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseProvider(issued.session, { kind: 'any' })
+          selection.chooseProvider(issued.session, { kind: 'any' }, 1)
         ),
         selectionLayer
       )
     )
-    await Effect.runPromise(
+    const serviceJourney = await Effect.runPromise(
       Effect.provide(
         Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseServices(issued.session, {
-            primaryServiceId: 'svc_primary',
-            additionalServiceIds: ['svc_extra']
-          })
+          selection.chooseServices(
+            issued.session,
+            {
+              primaryServiceId: 'svc_primary',
+              additionalServiceIds: ['svc_extra']
+            },
+            providerJourney.version
+          )
         ),
         selectionLayer
       )
     )
+    const stale = await Effect.runPromise(
+      Effect.provide(
+        Effect.result(
+          Effect.flatMap(BookingSelection, (selection) =>
+            selection.chooseProvider(issued.session, { kind: 'any' }, 2)
+          )
+        ),
+        selectionLayer
+      )
+    )
+    expect(serviceJourney.version).toBe(3)
+    expect(stale).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        _tag: 'BookingPartyConflict',
+        bookingPartyId: expect.stringMatching(/^bpt_/),
+        expectedVersion: 2
+      }
+    })
 
     const refreshedLayer = LiveBookingSelection.pipe(
       Layer.provide(layerFromD1(test.d1))
@@ -171,6 +195,7 @@ describe('Live Booking Selection', () => {
       )
     )
     expect(refreshed.providerPreference).toEqual({ kind: 'any' })
+    expect(refreshed.version).toBe(3)
     expect(refreshed.selection).toEqual({
       primaryServiceId: 'svc_primary',
       additionalServiceIds: ['svc_extra']
@@ -197,6 +222,35 @@ describe('Live Booking Selection', () => {
     expect(normalized.selection).toEqual({
       primaryServiceId: null,
       additionalServiceIds: []
+    })
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(Database, (db) =>
+          db
+            .update(bookingParties)
+            .set({ lifecycle: 'confirming' })
+            .where(eq(bookingParties.bookingSessionId, issued.session.id))
+        ),
+        layerFromD1(test.d1)
+      )
+    )
+    const terminal = await Effect.runPromise(
+      Effect.provide(
+        Effect.result(
+          Effect.flatMap(BookingSelection, (selection) =>
+            selection.chooseProvider(
+              issued.session,
+              { kind: 'specific', providerId: 'prv_two' },
+              normalized.version
+            )
+          )
+        ),
+        refreshedLayer
+      )
+    )
+    expect(terminal).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'BookingSelectionRejected' }
     })
   })
 })

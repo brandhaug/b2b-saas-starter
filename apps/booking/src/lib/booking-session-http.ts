@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect'
 import {
   BookingPageUnavailable,
+  BookingPartyConflict,
   HoldTimeSlotInput as HoldTimeSlotInputSchema,
   BookingSchedulingRejected,
   CheckoutUnavailable,
@@ -33,7 +34,11 @@ import {
   type BookingEmbedding
 } from './booking-route-contract.ts'
 import {
+  formatBookingCurrency,
+  formatBookingDate,
+  formatBookingTime,
   parseBookingLocale,
+  translateBookingMessage,
   type BookingLocale
 } from '../localization/booking-localization.ts'
 
@@ -54,6 +59,7 @@ type BookingSessionHttpFailure =
   | CapabilityUnavailable
   | InvalidBookingSessionCookie
   | BookingSelectionRejected
+  | BookingPartyConflict
   | BookingSchedulingRejected
   | CheckoutUnavailable
   | BookingConfirmationRejected
@@ -151,6 +157,7 @@ export type BookingSessionHttpDependencies = {
   readonly publicSiteOrigin: string
   readonly enter: (input: {
     readonly merchantSlug: string
+    readonly routeLocator: string | null
     readonly candidates: readonly PresentedBookingSessionCapability[]
     readonly now: string
   }) => BookingSessionEffect<
@@ -160,6 +167,16 @@ export type BookingSessionHttpDependencies = {
   readonly authorize: (
     input: AuthorizeBookingSessionInput
   ) => BookingSessionEffect<
+    BookingSession,
+    BookingSessionNotFound | BookingSessionGone | CapabilityUnavailable
+  >
+  readonly authorizeRoute?: (input: {
+    readonly merchantSlug: string
+    readonly routeId: string
+    readonly candidates: readonly PresentedBookingSessionCapability[]
+    readonly now: string
+    readonly allowConfirmedReplay?: boolean
+  }) => BookingSessionEffect<
     BookingSession,
     BookingSessionNotFound | BookingSessionGone | CapabilityUnavailable
   >
@@ -176,21 +193,23 @@ export type BookingSessionHttpDependencies = {
       session: BookingSession
     ) => BookingSessionEffect<
       BookingJourney,
-      BookingSelectionRejected | CapabilityUnavailable
+      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
     >
     readonly chooseProvider: (
       session: BookingSession,
-      preference: ProviderPreference
+      preference: ProviderPreference,
+      expectedVersion: number
     ) => BookingSessionEffect<
       BookingJourney,
-      BookingSelectionRejected | CapabilityUnavailable
+      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
     >
     readonly chooseServices: (
       session: BookingSession,
-      input: ServiceSelection
+      input: ServiceSelection,
+      expectedVersion: number
     ) => BookingSessionEffect<
       BookingJourney,
-      BookingSelectionRejected | CapabilityUnavailable
+      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
     >
   }
   readonly scheduling?: {
@@ -263,9 +282,16 @@ const unavailable = (): Response =>
     headers: { 'cache-control': 'private, no-store', 'retry-after': '60' }
   })
 
-const expired = (merchantSlug: string): Response =>
-  new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Booking Session expired</title></head><body><main><h1>This Booking Session has expired</h1><a href="/${merchantSlug}/booking">Start again</a></main></body></html>`,
+const expired = (
+  merchantSlug: string,
+  locale: BookingLocale = 'en',
+  embedding: BookingEmbedding = 'standalone'
+): Response => {
+  const title = translateBookingMessage(locale, 'status.session_expired')
+  const copy = translateBookingMessage(locale, 'recovery.session_expired_copy')
+  const restart = translateBookingMessage(locale, 'action.start_again')
+  return new Response(
+    `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>${title}</title></head><body data-embedding="${embedding}"><main><h1>${title}</h1><p>${copy}</p><a href="/${encodeURIComponent(merchantSlug)}/booking">${restart}</a></main></body></html>`,
     {
       status: 410,
       headers: {
@@ -275,24 +301,6 @@ const expired = (merchantSlug: string): Response =>
       }
     }
   )
-
-const recoveryCopy: Record<BookingLocale, { title: string; copy: string }> = {
-  en: {
-    title: 'Booking page not found',
-    copy: 'Check the merchant link or start the booking again.'
-  },
-  es: {
-    title: 'Página de reserva no encontrada',
-    copy: 'Comprueba el enlace del comercio o vuelve a iniciar la reserva.'
-  },
-  fr: {
-    title: 'Page de réservation introuvable',
-    copy: 'Vérifiez le lien du commerce ou recommencez la réservation.'
-  },
-  ro: {
-    title: 'Pagina de rezervare nu a fost găsită',
-    copy: 'Verifică linkul comerciantului sau începe din nou rezervarea.'
-  }
 }
 
 const unmatchedRoute = (
@@ -300,10 +308,12 @@ const unmatchedRoute = (
   locale: BookingLocale,
   embedding: BookingEmbedding
 ): Response => {
-  const copy = recoveryCopy[locale]
+  const title = translateBookingMessage(locale, 'recovery.booking_not_found_title')
+  const copy = translateBookingMessage(locale, 'recovery.booking_not_found_copy')
+  const restart = translateBookingMessage(locale, 'action.start_again')
   return withPrivateHeaders(
     new Response(
-      `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${copy.title}</title></head><body data-embedding="${embedding}"><main><h1>${copy.title}</h1><p>${copy.copy}</p><a href="/${encodeURIComponent(merchantSlug)}/booking">${locale === 'ro' ? 'Începe din nou' : locale === 'fr' ? 'Recommencer' : locale === 'es' ? 'Empezar de nuevo' : 'Start again'}</a></main></body></html>`,
+      `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${title}</title></head><body data-embedding="${embedding}"><main><h1>${title}</h1><p>${copy}</p><a href="/${encodeURIComponent(merchantSlug)}/booking">${restart}</a></main></body></html>`,
       {
         status: 404,
         headers: {
@@ -320,7 +330,13 @@ const mapSessionFailure = (
   error: BookingSessionHttpFailure,
   merchantSlug: string
 ): Response => {
-  if (error instanceof BookingSessionGone) return expired(merchantSlug)
+  if (error instanceof BookingSessionGone) {
+    return expired(
+      merchantSlug,
+      error.locale ?? 'en',
+      error.embeddingProfile ?? 'standalone'
+    )
+  }
   if (error instanceof CapabilityUnavailable) return unavailable()
   if (error instanceof BookingSchedulingRejected) {
     return withPrivateHeaders(
@@ -380,41 +396,18 @@ const escapeHtml = (value: string) =>
 const confirmationHtml = (
   confirmation: Extract<ConfirmationReadResult, { kind: 'found' }>['confirmation']
 ) => {
-  const confirmationCopy = {
-    en: {
-      title: 'Appointment Confirmation',
-      provider: 'Provider',
-      merchant: 'Merchant',
-      pay: 'Pay in person'
-    },
-    es: {
-      title: 'Confirmación de la cita',
-      provider: 'Profesional',
-      merchant: 'Comercio',
-      pay: 'Pagar en persona'
-    },
-    fr: {
-      title: 'Confirmation du rendez-vous',
-      provider: 'Professionnel',
-      merchant: 'Commerce',
-      pay: 'Payer sur place'
-    },
-    ro: {
-      title: 'Confirmarea programării',
-      provider: 'Profesionist',
-      merchant: 'Comerciant',
-      pay: 'Plată la locație'
-    }
-  }[confirmation.locale]
+  const message = (key: string) => translateBookingMessage(confirmation.locale, key)
+  const title = message('title.appointment_confirmation')
   const snapshot = confirmation.snapshot
   const services = snapshot.services
     .map(
       (service) =>
-        `<li><strong>${escapeHtml(service.name)}</strong><span>${service.durationMinutes} min · ${(service.priceMinor / 100).toLocaleString('en-US', { style: 'currency', currency: service.currency })}</span></li>`
+        `<li><strong>${escapeHtml(service.name)}</strong><span>${service.durationMinutes} min · ${formatBookingCurrency(confirmation.locale, service.priceMinor, service.currency)}</span></li>`
     )
     .join('')
-  const status = confirmation.status === 'no_show' ? 'No show' : confirmation.status
-  return `<!doctype html><html lang="${confirmation.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${confirmationCopy.title}</title><style>body{margin:0;background:#f7f7f8;color:#292929;font:14px system-ui,sans-serif}.rail{box-sizing:border-box;max-width:375px;min-height:100vh;margin:auto;padding:24px 16px;background:white;border-inline:1px solid #e2e3e7}h1{font-size:22px;margin:0 0 6px}.status{color:#2caf00;text-transform:capitalize}.card{margin-top:24px;padding:16px;border-radius:8px;background:#eff0f3}.provider{display:flex;justify-content:space-between;border-bottom:1px solid #d7d9df;padding-bottom:16px}.muted,li span{display:block;color:#747983;font-size:12px}ul{list-style:none;padding:0;margin:16px 0}li{display:flex;justify-content:space-between;gap:12px;margin-top:14px}.row{display:flex;justify-content:space-between;gap:16px;margin-top:16px}.merchant{margin-top:24px;padding-top:20px;border-top:1px solid #e2e3e7}a{color:inherit}</style></head><body><main class="rail"><h1>${confirmationCopy.title}</h1><div class="status">${escapeHtml(status)}</div><section class="card" aria-label="Appointment details"><div class="provider"><div><strong>${escapeHtml(snapshot.assignedProvider.displayName)}</strong><span class="muted">${confirmationCopy.provider}</span></div><div><strong>${(snapshot.totalMinor / 100).toLocaleString(confirmation.locale, { style: 'currency', currency: snapshot.currency })}</strong><span class="muted">${confirmationCopy.pay}</span></div></div><ul>${services}</ul><div class="row"><span class="muted">Time</span><time datetime="${escapeHtml(confirmation.startsAt)}">${escapeHtml(confirmation.startsAt)}</time></div><div class="row"><span class="muted">Duration</span><span>${snapshot.durationMinutes} min</span></div><div class="row"><span class="muted">Timezone</span><span>${escapeHtml(snapshot.merchantTimezone)}</span></div><div class="row"><span>Total price</span><strong>${(snapshot.totalMinor / 100).toLocaleString(confirmation.locale, { style: 'currency', currency: snapshot.currency })}</strong></div></section><section class="merchant"><strong>${escapeHtml(confirmation.merchant.publicName)}</strong><span class="muted">${confirmationCopy.merchant}</span></section><section class="merchant"><strong>${escapeHtml(snapshot.customerDetails.name)}</strong><span class="muted">${escapeHtml(snapshot.customerDetails.email)}${snapshot.customerDetails.phone ? ` · ${escapeHtml(snapshot.customerDetails.phone)}` : ''}</span></section></main></body></html>`
+  const status = message(`status.appointment_${confirmation.status}`)
+  const dateTime = `${formatBookingDate(confirmation.locale, confirmation.startsAt, snapshot.merchantTimezone)} · ${formatBookingTime(confirmation.locale, confirmation.startsAt, snapshot.merchantTimezone)}`
+  return `<!doctype html><html lang="${confirmation.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${title}</title><style>body{margin:0;background:#f7f7f8;color:#292929;font:14px system-ui,sans-serif}.rail{box-sizing:border-box;max-width:375px;min-height:100vh;margin:auto;padding:24px 16px;background:white;border-inline:1px solid #e2e3e7}h1{font-size:22px;margin:0 0 6px}.status{color:#2caf00;text-transform:capitalize}.card{margin-top:24px;padding:16px;border-radius:8px;background:#eff0f3}.provider{display:flex;justify-content:space-between;border-bottom:1px solid #d7d9df;padding-bottom:16px}.muted,li span{display:block;color:#747983;font-size:12px}ul{list-style:none;padding:0;margin:16px 0}li{display:flex;justify-content:space-between;gap:12px;margin-top:14px}.row{display:flex;justify-content:space-between;gap:16px;margin-top:16px}.merchant{margin-top:24px;padding-top:20px;border-top:1px solid #e2e3e7}a{color:inherit}</style></head><body><main class="rail"><h1>${title}</h1><div class="status">${escapeHtml(status)}</div><section class="card" aria-label="${title}"><div class="provider"><div><strong>${escapeHtml(snapshot.assignedProvider.displayName)}</strong><span class="muted">${message('label.provider')}</span></div><div><strong>${formatBookingCurrency(confirmation.locale, snapshot.totalMinor, snapshot.currency)}</strong><span class="muted">${message('status.pay_in_person')}</span></div></div><ul>${services}</ul><div class="row"><span class="muted">${message('label.time')}</span><time datetime="${escapeHtml(confirmation.startsAt)}">${dateTime}</time></div><div class="row"><span class="muted">${message('label.duration')}</span><span>${snapshot.durationMinutes} min</span></div><div class="row"><span class="muted">${message('label.timezone')}</span><span>${escapeHtml(snapshot.merchantTimezone)}</span></div><div class="row"><span>${message('label.total_price')}</span><strong>${formatBookingCurrency(confirmation.locale, snapshot.totalMinor, snapshot.currency)}</strong></div></section><section class="merchant"><strong>${escapeHtml(confirmation.merchant.publicName)}</strong><span class="muted">${message('label.merchant')}</span></section><section class="merchant"><strong>${escapeHtml(snapshot.customerDetails.name)}</strong><span class="muted">${escapeHtml(snapshot.customerDetails.email)}${snapshot.customerDetails.phone ? ` · ${escapeHtml(snapshot.customerDetails.phone)}` : ''}</span></section></main></body></html>`
 }
 
 const jsonJourney = (value: BookingJourney): Response =>
@@ -444,6 +437,14 @@ const providerPreferenceFrom = (value: unknown): ProviderPreference | null => {
     return { kind: 'specific', providerId: input.providerId }
   }
   return null
+}
+
+const versionFrom = (value: unknown): number | null => {
+  if (typeof value !== 'object' || value === null) return null
+  const version = (value as Record<string, unknown>).version
+  return typeof version === 'number' && Number.isSafeInteger(version) && version > 0
+    ? version
+    : null
 }
 
 const servicesFrom = (value: unknown): ServiceSelection | null => {
@@ -590,12 +591,11 @@ export const handleBookingSessionRequest = (
       if (!(yield* dependencies.takeRead(`entry:${clientKey}`))) {
         return tooManyRequests()
       }
-      const candidates = readBookingSessionCapabilities(
-        request.headers.get('cookie')
-      ).filter((candidate) => candidate.sessionId === canonical.bookingLocator)
+      const candidates = readBookingSessionCapabilities(request.headers.get('cookie'))
       const entryResult = yield* Effect.result(
         dependencies.enter({
           merchantSlug: canonicalRoute.merchantSlug,
+          routeLocator: canonical.bookingLocator,
           candidates,
           now
         })
@@ -604,11 +604,17 @@ export const handleBookingSessionRequest = (
         return mapSessionFailure(entryResult.failure, canonicalRoute.merchantSlug)
       }
       const entry = entryResult.success
+      const resolvedLocale = canonical.locale ?? entry.session.locale ?? 'en'
+      const requestedEmbedding = url.searchParams.get('embed')
+      const resolvedEmbedding =
+        requestedEmbedding === 'widget' || requestedEmbedding === 'google'
+          ? canonical.embedding
+          : (entry.session.embeddingProfile ?? 'standalone')
       if (dependencies.captureContext) {
         const captured = yield* Effect.result(
           dependencies.captureContext(entry.session, {
-            locale: canonical.locale,
-            embedding: canonical.embedding,
+            locale: resolvedLocale,
+            embedding: resolvedEmbedding,
             acquisition: canonical.acquisition
           })
         )
@@ -616,26 +622,29 @@ export const handleBookingSessionRequest = (
           return mapSessionFailure(captured.failure, canonicalRoute.merchantSlug)
       }
 
-      const continuation = new URLSearchParams({ booking: entry.session.id })
-      if (canonical.locale) continuation.set('locale', canonical.locale)
-      if (canonical.embedding !== 'standalone') {
-        continuation.set('embed', canonical.embedding)
+      const continuation = new URLSearchParams({ booking: entry.routeId })
+      if (resolvedLocale !== 'en' || canonical.locale) {
+        continuation.set('locale', resolvedLocale)
+      }
+      if (resolvedEmbedding !== 'standalone') {
+        continuation.set('embed', resolvedEmbedding)
       }
       const location = `${canonicalRoute.pathname}?${continuation.toString()}`
       const hasAcquisition = Object.keys(canonical.acquisition).length > 0
       const settled =
         entry.kind === 'resumed' &&
-        canonical.bookingLocator === entry.session.id &&
+        canonical.bookingLocator === entry.routeId &&
         !canonical.changed &&
-        !hasAcquisition
+        !hasAcquisition &&
+        `${url.pathname}${url.search}` === location
       if (settled) return yield* dependencies.fallback(request)
 
       const headers = new Headers({
         location,
         'cache-control': 'private, no-store',
         'referrer-policy': 'no-referrer',
-        'content-language': canonical.locale ?? 'en',
-        'x-booking-embedding': canonical.embedding
+        'content-language': resolvedLocale,
+        'x-booking-embedding': resolvedEmbedding
       })
       if (entry.kind === 'created') {
         const cookieResult = yield* Effect.result(
@@ -671,8 +680,8 @@ export const handleBookingSessionRequest = (
     if (segments.length < 4 || segments[2] !== 'session') {
       return yield* dependencies.fallback(request)
     }
-    const sessionId = segments[3]
-    if (!sessionId || !SESSION_ID.test(sessionId)) return hiddenNotFound()
+    const sessionLocator = segments[3]
+    if (!sessionLocator || !SESSION_ID.test(sessionLocator)) return hiddenNotFound()
     if (!(yield* dependencies.takeRead(`private:${clientKey}`))) {
       return tooManyRequests()
     }
@@ -685,24 +694,36 @@ export const handleBookingSessionRequest = (
       )
       if (invalid) return invalid
     }
-    const presented = readBookingSessionCapabilities(
-      request.headers.get('cookie')
-    ).find((candidate) => candidate.sessionId === sessionId)
-    if (!presented) return hiddenNotFound()
-
     const endpoint = segments.length === 5 ? segments[4] : null
+    const candidates = readBookingSessionCapabilities(request.headers.get('cookie'))
+    const publicRoute = sessionLocator.startsWith('brt_')
+    const presented = candidates.find(
+      (candidate) => candidate.sessionId === sessionLocator
+    )
+    if ((!publicRoute && !presented) || (publicRoute && !dependencies.authorizeRoute)) {
+      return hiddenNotFound()
+    }
     const authorization = yield* Effect.result(
-      dependencies.authorize({
-        merchantSlug,
-        sessionId,
-        capability: presented.capability,
-        now,
-        allowConfirmedReplay: endpoint === 'confirm'
-      })
+      publicRoute
+        ? dependencies.authorizeRoute!({
+            merchantSlug,
+            routeId: sessionLocator,
+            candidates,
+            now,
+            allowConfirmedReplay: endpoint === 'confirm'
+          })
+        : dependencies.authorize({
+            merchantSlug,
+            sessionId: sessionLocator,
+            capability: presented!.capability,
+            now,
+            allowConfirmedReplay: endpoint === 'confirm'
+          })
     )
     if (authorization._tag === 'Failure') {
       return mapSessionFailure(authorization.failure, merchantSlug)
     }
+    const sessionId = authorization.success.id
     if (mutation && !(yield* dependencies.takeWrite(`session:${sessionId}`))) {
       return tooManyRequests()
     }
@@ -736,22 +757,62 @@ export const handleBookingSessionRequest = (
     }
     if (endpoint === 'provider' && request.method === 'POST') {
       if (!dependencies.selection) return unavailable()
-      const preference = providerPreferenceFrom(yield* readJson(request))
-      if (!preference) return hiddenNotFound()
+      const body = yield* readJson(request)
+      const preference =
+        typeof body === 'object' && body !== null
+          ? providerPreferenceFrom((body as Record<string, unknown>).preference)
+          : null
+      const version = versionFrom(body)
+      if (!preference || !version) return hiddenNotFound()
       const result = yield* Effect.result(
-        dependencies.selection.chooseProvider(authorization.success, preference)
+        dependencies.selection.chooseProvider(
+          authorization.success,
+          preference,
+          version
+        )
       )
+      if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
+        const latest = yield* Effect.result(
+          dependencies.selection.load(authorization.success)
+        )
+        if (latest._tag === 'Success') {
+          return withPrivateHeaders(
+            Response.json(
+              { kind: 'version_conflict', journey: latest.success },
+              { status: 409 }
+            )
+          )
+        }
+      }
       return result._tag === 'Success'
         ? jsonJourney(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
     }
     if (endpoint === 'services' && request.method === 'POST') {
       if (!dependencies.selection) return unavailable()
-      const input = servicesFrom(yield* readJson(request))
-      if (!input) return hiddenNotFound()
+      const body = yield* readJson(request)
+      const input =
+        typeof body === 'object' && body !== null
+          ? servicesFrom((body as Record<string, unknown>).selection)
+          : null
+      const version = versionFrom(body)
+      if (!input || !version) return hiddenNotFound()
       const result = yield* Effect.result(
-        dependencies.selection.chooseServices(authorization.success, input)
+        dependencies.selection.chooseServices(authorization.success, input, version)
       )
+      if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
+        const latest = yield* Effect.result(
+          dependencies.selection.load(authorization.success)
+        )
+        if (latest._tag === 'Success') {
+          return withPrivateHeaders(
+            Response.json(
+              { kind: 'version_conflict', journey: latest.success },
+              { status: 409 }
+            )
+          )
+        }
+      }
       return result._tag === 'Success'
         ? jsonJourney(result.success)
         : mapSessionFailure(result.failure, merchantSlug)

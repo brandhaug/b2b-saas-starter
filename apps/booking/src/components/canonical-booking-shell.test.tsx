@@ -23,7 +23,11 @@ describe('Canonical Booking Shell', () => {
         setItem: (key: string, value: string) => localeStorage.set(key, value)
       }
     })
-    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    let resolvePersistence!: (response: Response) => void
+    const persistence = new Promise<Response>((resolve) => {
+      resolvePersistence = resolve
+    })
+    const fetchMock = vi.fn(() => persistence)
     vi.stubGlobal('fetch', fetchMock)
     window.history.replaceState(
       null,
@@ -48,13 +52,18 @@ describe('Canonical Booking Shell', () => {
     expect(
       (
         screen.getByRole('combobox', {
-          name: 'Language'
+          name: 'Langue'
         }) as unknown as HTMLSelectElement
       ).value
     ).toBe('fr')
-    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), {
+    fireEvent.change(screen.getByRole('combobox', { name: 'Langue' }), {
       target: { value: 'ro' }
     })
+
+    expect(new URLSearchParams(window.location.search).get('locale')).toBe('fr')
+    expect(screen.getByRole('status').textContent).toBe('Pregătim rezervarea…')
+    expect(screen.queryByText('Booking journey')).toBeNull()
+    resolvePersistence(new Response(null, { status: 204 }))
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(

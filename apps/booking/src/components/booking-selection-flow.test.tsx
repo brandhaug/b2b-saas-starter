@@ -5,6 +5,7 @@ import type { BookingJourney } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
 
 const teamJourney: BookingJourney = {
+  version: 1,
   presentation: 'team',
   providerPreference: null,
   selection: { primaryServiceId: null, additionalServiceIds: [] },

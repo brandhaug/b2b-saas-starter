@@ -25,7 +25,9 @@ export const BookingSession = Schema.Struct({
   createdAt: Schema.String,
   lastActivityAt: Schema.String,
   idleExpiresAt: Schema.String,
-  absoluteExpiresAt: Schema.String
+  absoluteExpiresAt: Schema.String,
+  locale: Schema.optional(Schema.Literals(['en', 'es', 'fr', 'ro'])),
+  embeddingProfile: Schema.optional(Schema.Literals(['standalone', 'widget', 'google']))
 })
 export type BookingSession = typeof BookingSession.Type
 
@@ -41,7 +43,13 @@ export class BookingSessionNotFound extends Schema.TaggedErrorClass<BookingSessi
 
 export class BookingSessionGone extends Schema.TaggedErrorClass<BookingSessionGone>()(
   'BookingSessionGone',
-  { message: Schema.String }
+  {
+    message: Schema.String,
+    locale: Schema.optional(Schema.Literals(['en', 'es', 'fr', 'ro'])),
+    embeddingProfile: Schema.optional(
+      Schema.Literals(['standalone', 'widget', 'google'])
+    )
+  }
 ) {}
 
 export type StartBookingSessionInput = {
@@ -51,6 +59,7 @@ export type StartBookingSessionInput = {
 
 export type IssuedBookingSession = {
   readonly session: BookingSession
+  readonly routeId: string
   /** Server boundary only: send solely in the session-specific HttpOnly cookie. */
   readonly capability: string
 }
@@ -65,6 +74,16 @@ export type BookingSessionsShape = {
   readonly authorize: (
     input: AuthorizeBookingSessionInput
   ) => Effect.Effect<
+    BookingSession,
+    BookingSessionNotFound | BookingSessionGone | CapabilityUnavailable
+  >
+  readonly authorizeRoute: (input: {
+    readonly merchantSlug: string
+    readonly routeId: string
+    readonly candidates: readonly PresentedBookingSessionCapability[]
+    readonly now: string
+    readonly allowConfirmedReplay?: boolean
+  }) => Effect.Effect<
     BookingSession,
     BookingSessionNotFound | BookingSessionGone | CapabilityUnavailable
   >
@@ -97,9 +116,14 @@ export type BookingSessionEntry =
   | {
       readonly kind: 'created'
       readonly session: BookingSession
+      readonly routeId: string
       readonly capability: string
     }
-  | { readonly kind: 'resumed'; readonly session: BookingSession }
+  | {
+      readonly kind: 'resumed'
+      readonly session: BookingSession
+      readonly routeId: string
+    }
 
 export class BookingSessions extends Context.Service<
   BookingSessions,
@@ -108,6 +132,7 @@ export class BookingSessions extends Context.Service<
 
 export const enterBookingSession = (input: {
   readonly merchantSlug: string
+  readonly routeLocator: string | null
   readonly candidates: readonly PresentedBookingSessionCapability[]
   readonly now: string
 }): Effect.Effect<
@@ -117,21 +142,23 @@ export const enterBookingSession = (input: {
 > =>
   Effect.gen(function* () {
     const sessions = yield* BookingSessions
-    for (const candidate of input.candidates) {
+    if (input.routeLocator) {
       const result = yield* Effect.result(
-        sessions.authorize({
+        sessions.authorizeRoute({
           merchantSlug: input.merchantSlug,
-          sessionId: candidate.sessionId,
-          capability: candidate.capability,
+          routeId: input.routeLocator,
+          candidates: input.candidates,
           now: input.now
         })
       )
       if (result._tag === 'Success') {
-        return { kind: 'resumed' as const, session: result.success }
+        return {
+          kind: 'resumed' as const,
+          session: result.success,
+          routeId: input.routeLocator
+        }
       }
-      if (result.failure instanceof CapabilityUnavailable) {
-        return yield* result.failure
-      }
+      if (result.failure instanceof CapabilityUnavailable) return yield* result.failure
     }
     const issued = yield* sessions.start({
       merchantSlug: input.merchantSlug,
@@ -145,9 +172,10 @@ export type SeedBookingSessionRecord = BookingSession & {
   readonly capabilityHash: string
   readonly replayExpiresAt?: string | null
   readonly confirmedAppointmentId?: string | null
-  locale?: 'en' | 'es' | 'fr' | 'ro'
-  embeddingProfile?: 'standalone' | 'widget' | 'google'
+  locale?: 'en' | 'es' | 'fr' | 'ro' | undefined
+  embeddingProfile?: 'standalone' | 'widget' | 'google' | undefined
   acquisition?: Readonly<Record<string, string>> | null
+  routeId?: string
 }
 
 export type SeedBookingSessionStore = {
@@ -189,13 +217,15 @@ type BookingSessionGenerators = {
   readonly newCapability: () => string
   readonly newPartyId?: () => string
   readonly newRequestId?: () => string
+  readonly newRouteId?: () => string
 }
 
 const defaultGenerators: BookingSessionGenerators = {
   newSessionId: () => `bsn_${randomHex(16)}`,
   newCapability: () => randomHex(32),
   newPartyId: () => `bpt_${randomHex(16)}`,
-  newRequestId: () => `brq_${randomHex(16)}`
+  newRequestId: () => `brq_${randomHex(16)}`,
+  newRouteId: () => `brt_${randomHex(16)}`
 }
 
 const addMilliseconds = (instant: string, milliseconds: number): string =>
@@ -209,7 +239,9 @@ const newSession = (id: string, merchantSlug: string, now: string): BookingSessi
   createdAt: now,
   lastActivityAt: now,
   idleExpiresAt: addMilliseconds(now, 30 * 60_000),
-  absoluteExpiresAt: addMilliseconds(now, 2 * 60 * 60_000)
+  absoluteExpiresAt: addMilliseconds(now, 2 * 60 * 60_000),
+  locale: 'en',
+  embeddingProfile: 'standalone'
 })
 
 const constantTimeEqual = (left: string, right: string): boolean => {
@@ -224,8 +256,12 @@ const constantTimeEqual = (left: string, right: string): boolean => {
 const notFound = () =>
   new BookingSessionNotFound({ message: 'Booking Session not found' })
 
-const gone = () =>
-  new BookingSessionGone({ message: 'This Booking Session has expired' })
+const gone = (record?: BookingSession) =>
+  new BookingSessionGone({
+    message: 'This Booking Session has expired',
+    ...(record?.locale ? { locale: record.locale } : {}),
+    ...(record?.embeddingProfile ? { embeddingProfile: record.embeddingProfile } : {})
+  })
 
 type StoredBookingSession = BookingSession & {
   readonly capabilityHash: string
@@ -257,7 +293,7 @@ const authorizeStoredSession = (
         nowMs >= new Date(record.idleExpiresAt).getTime() ||
         nowMs >= new Date(record.absoluteExpiresAt).getTime())
     ) {
-      return yield* gone()
+      return yield* gone(record)
     }
     if (confirmedReplay) return record
     return {
@@ -274,6 +310,34 @@ export const SeedBookingSessions = (
   generators: BookingSessionGenerators = defaultGenerators
 ): Layer.Layer<BookingSessions> =>
   Layer.succeed(BookingSessions)({
+    authorizeRoute: (input) =>
+      Effect.gen(function* () {
+        const record = [...store.sessions.values()].find(
+          (candidate) => candidate.routeId === input.routeId
+        )
+        const presented = input.candidates.find(
+          (candidate) => candidate.sessionId === record?.id
+        )
+        if (!record || !presented) return yield* notFound()
+        const candidateHash = yield* Effect.promise(() =>
+          hashSha256(presented.capability)
+        )
+        const authorized = yield* authorizeStoredSession(
+          record,
+          {
+            merchantSlug: input.merchantSlug,
+            sessionId: record.id,
+            capability: presented.capability,
+            now: input.now,
+            ...(input.allowConfirmedReplay === undefined
+              ? {}
+              : { allowConfirmedReplay: input.allowConfirmedReplay })
+          },
+          candidateHash
+        )
+        store.sessions.set(record.id, { ...record, ...authorized })
+        return authorized
+      }),
     captureContext: (session, context) =>
       Effect.sync(() => {
         const record = store.sessions.get(session.id)
@@ -301,6 +365,7 @@ export const SeedBookingSessions = (
         }
 
         const capability = generators.newCapability()
+        const routeId = generators.newRouteId?.() ?? defaultGenerators.newRouteId!()
         const session = newSession(
           generators.newSessionId(),
           input.merchantSlug,
@@ -310,7 +375,8 @@ export const SeedBookingSessions = (
         store.sessions.set(session.id, {
           ...session,
           merchantId: merchant.id,
-          capabilityHash
+          capabilityHash,
+          routeId
         })
         store.parties.set(session.id, {
           id: generators.newPartyId?.() ?? defaultGenerators.newPartyId!(),
@@ -319,7 +385,7 @@ export const SeedBookingSessions = (
           shopId: `shp_${merchant.id}`,
           locale: 'en'
         })
-        return { session, capability }
+        return { session, routeId, capability }
       }),
     authorize: (input) =>
       Effect.gen(function* () {
@@ -347,7 +413,12 @@ const toBookingSession = (
   createdAt: row.createdAt,
   lastActivityAt: row.lastActivityAt,
   idleExpiresAt: row.idleExpiresAt,
-  absoluteExpiresAt: row.absoluteExpiresAt
+  absoluteExpiresAt: row.absoluteExpiresAt,
+  locale:
+    row.locale === 'es' || row.locale === 'fr' || row.locale === 'ro'
+      ? row.locale
+      : 'en',
+  embeddingProfile: row.embeddingProfile
 })
 
 export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> =
@@ -356,6 +427,69 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
     Effect.gen(function* () {
       const db = yield* Database
       return {
+        authorizeRoute: (input) =>
+          Effect.gen(function* () {
+            const [row] = yield* orUnavailable('booking-sessions')(
+              db
+                .select({ sessionId: bookingSessions.id })
+                .from(bookingSessions)
+                .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
+                .where(
+                  and(
+                    eq(bookingSessions.routeId, input.routeId),
+                    eq(merchants.slug, input.merchantSlug)
+                  )
+                )
+                .limit(1)
+            )
+            const presented = input.candidates.find(
+              (candidate) => candidate.sessionId === row?.sessionId
+            )
+            if (!row || !presented) return yield* notFound()
+            const rows = yield* orUnavailable('booking-sessions')(
+              db
+                .select({ session: bookingSessions, merchantSlug: merchants.slug })
+                .from(bookingSessions)
+                .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
+                .where(eq(bookingSessions.id, row.sessionId))
+                .limit(1)
+            )
+            const stored = rows[0]
+            const candidateHash = yield* Effect.promise(() =>
+              hashSha256(presented.capability)
+            )
+            const authorized = yield* authorizeStoredSession(
+              stored
+                ? {
+                    ...toBookingSession(stored.session, stored.merchantSlug),
+                    capabilityHash: stored.session.capabilityHash,
+                    replayExpiresAt: stored.session.replayExpiresAt
+                  }
+                : undefined,
+              {
+                merchantSlug: input.merchantSlug,
+                sessionId: row.sessionId,
+                capability: presented.capability,
+                now: input.now,
+                ...(input.allowConfirmedReplay === undefined
+                  ? {}
+                  : { allowConfirmedReplay: input.allowConfirmedReplay })
+              },
+              candidateHash
+            )
+            const [updated] = yield* orUnavailable('booking-sessions')(
+              db
+                .update(bookingSessions)
+                .set({
+                  lastActivityAt: authorized.lastActivityAt,
+                  idleExpiresAt: authorized.idleExpiresAt
+                })
+                .where(eq(bookingSessions.id, row.sessionId))
+                .returning()
+            )
+            if (!updated) return yield* gone(authorized)
+            return toBookingSession(updated, input.merchantSlug)
+          }),
         captureContext: (session, context) =>
           orUnavailable('booking-sessions')(
             batch(db, [
@@ -383,6 +517,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
         start: (input) =>
           Effect.gen(function* () {
             const capability = defaultGenerators.newCapability()
+            const routeId = defaultGenerators.newRouteId!()
             const session = newSession(
               defaultGenerators.newSessionId(),
               input.merchantSlug,
@@ -393,8 +528,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
               db
                 .select({
                   id: merchants.id,
-                  currency: merchants.currency,
-                  shopId: shops.id
+                  currency: merchants.currency
                 })
                 .from(merchants)
                 .innerJoin(
@@ -404,9 +538,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
                     eq(publicBookingPages.status, 'published')
                   )
                 )
-                .innerJoin(shops, eq(shops.merchantId, merchants.id))
                 .where(eq(merchants.slug, input.merchantSlug))
-                .orderBy(shops.id)
                 .limit(1)
             )
             if (!merchant) {
@@ -414,11 +546,26 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
                 message: 'Bookings are currently unavailable'
               })
             }
+            const [shop] = yield* orUnavailable('booking-sessions')(
+              db
+                .select({ id: shops.id })
+                .from(shops)
+                .where(eq(shops.merchantId, merchant.id))
+                .orderBy(shops.id)
+                .limit(1)
+            )
+            if (!shop) {
+              return yield* new CapabilityUnavailable({
+                capability: 'booking-sessions',
+                reason: 'missing_normalized_shop'
+              })
+            }
             const partyId = defaultGenerators.newPartyId!()
             yield* orUnavailable('booking-sessions')(
               batch(db, [
                 db.insert(bookingSessions).values({
                   id: session.id,
+                  routeId,
                   merchantId: merchant.id,
                   capabilityHash,
                   checkoutPath: 'pay_in_person',
@@ -431,7 +578,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
                 db.insert(bookingParties).values({
                   id: partyId,
                   bookingSessionId: session.id,
-                  shopId: merchant.shopId,
+                  shopId: shop.id,
                   lifecycle: 'active',
                   currency: merchant.currency,
                   locale: 'en',
@@ -448,7 +595,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
                 })
               ])
             )
-            return { session, capability }
+            return { session, routeId, capability }
           }),
         authorize: (input) =>
           Effect.gen(function* () {
@@ -496,7 +643,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
                 .returning()
             )
             const updated = refreshed[0]
-            if (!updated) return yield* gone()
+            if (!updated) return yield* gone(authorized)
             return toBookingSession(updated, row.merchantSlug)
           })
       }

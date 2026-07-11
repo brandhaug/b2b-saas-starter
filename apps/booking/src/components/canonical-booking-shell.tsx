@@ -1,8 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { ServerBackedBookingFlow } from './server-backed-booking-flow.tsx'
 import {
   BookingLanguagePicker,
-  BookingLocalizationProvider
+  BookingLocalizationProvider,
+  useBookingLocalization
 } from '../localization/booking-localization-provider.tsx'
 import type { BookingLocale } from '../localization/booking-localization.ts'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
@@ -18,20 +19,32 @@ export function CanonicalBookingShell({
   readonly locale: BookingLocale
   readonly embedding: BookingEmbedding
 }) {
+  const [persistingLocale, setPersistingLocale] = useState(false)
   const persistLocale = useCallback(
     (nextLocale: BookingLocale) => {
-      void fetch(
-        `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(sessionId)}/context`,
-        {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ locale: nextLocale, embedding })
+      setPersistingLocale(true)
+      void (async () => {
+        try {
+          const response = await fetch(
+            `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(sessionId)}/context`,
+            {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ locale: nextLocale, embedding })
+            }
+          )
+          if (!response.ok)
+            throw new Error('Could not persist the Booking Session locale')
+
+          const url = new URL(window.location.href)
+          url.searchParams.set('locale', nextLocale)
+          window.history.replaceState(window.history.state, '', url)
+          setPersistingLocale(false)
+        } catch {
+          window.location.reload()
         }
-      )
-      const url = new URL(window.location.href)
-      url.searchParams.set('locale', nextLocale)
-      window.history.replaceState(window.history.state, '', url)
+      })()
     },
     [embedding, merchantSlug, sessionId]
   )
@@ -42,9 +55,43 @@ export function CanonicalBookingShell({
         sessionLocale={locale}
         onLocaleChange={persistLocale}
       >
-        <BookingLanguagePicker label="Language" />
-        <ServerBackedBookingFlow merchantSlug={merchantSlug} sessionId={sessionId} />
+        <LocalizedLanguagePicker />
+        {persistingLocale ? (
+          <LocalePersistenceStatus />
+        ) : (
+          <LocalizedServerBackedBookingFlow
+            merchantSlug={merchantSlug}
+            sessionId={sessionId}
+          />
+        )}
       </BookingLocalizationProvider>
     </div>
+  )
+}
+
+function LocalizedLanguagePicker() {
+  const { message } = useBookingLocalization()
+  return <BookingLanguagePicker label={message('label.language')} />
+}
+
+function LocalePersistenceStatus() {
+  const { message } = useBookingLocalization()
+  return <output>{message('feedback.loading')}</output>
+}
+
+function LocalizedServerBackedBookingFlow({
+  merchantSlug,
+  sessionId
+}: {
+  readonly merchantSlug: string
+  readonly sessionId: string
+}) {
+  const { message } = useBookingLocalization()
+  return (
+    <ServerBackedBookingFlow
+      merchantSlug={merchantSlug}
+      sessionId={sessionId}
+      selectionRefreshedMessage={message('feedback.selection_refreshed')}
+    />
   )
 }
