@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities'
 import {
   account,
@@ -12,7 +13,6 @@ import {
   services,
   user
 } from '@b2b-saas-starter/db'
-import { hashPassword } from 'better-auth/crypto'
 import { getTableColumns, getTableName, type Table } from 'drizzle-orm'
 
 const scenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
@@ -37,7 +37,10 @@ const insert = <T extends Table>(
   return `INSERT OR REPLACE INTO ${getTableName(table)} (${entries.map(([name]) => name).join(', ')}) VALUES (${entries.map(([, value]) => value).join(', ')});`
 }
 
-const password = await hashPassword('merchant-booking-password')
+// Fixed Better Auth scrypt result for the documented local-only password. A
+// generated salt would make otherwise identical seed runs produce different SQL.
+const password =
+  'ca9b62ad5583afec995d8ef2dc0b69ba:61c0b23c9c68f0e99269cdc4c50c2283e88913ef09fc3228b53eadaf846a4cb6c55d12caf3b08ab379faffaceb27632575fcff8828126a5c9c785e1c6bae4ec1'
 const epoch = Math.floor(Date.parse(scenario.anchorTime) / 1000)
 const statements = [
   'PRAGMA foreign_keys = ON;',
@@ -101,7 +104,9 @@ const statements = [
       updatedAt: scenario.anchorTime
     })
   ),
-  ...scenario.appointments.map((appointment) => insert(appointments, appointment)),
+  ...scenario.appointments.map(({ customerDetails: _, ...appointment }) =>
+    insert(appointments, appointment)
+  ),
   ...scenario.confirmationAccess.map((access) => insert(confirmationAccess, access)),
   insert(publicBookingPages, {
     ...scenario.publicBookingPage,
@@ -109,22 +114,26 @@ const statements = [
     updatedAt: scenario.anchorTime
   })
 ]
-const sql = `${statements.join('\n')}\n`
-if (process.argv.includes('--print')) process.stdout.write(sql)
-else {
-  await Bun.write('.context/seed-booking-product.sql', sql)
-  const proc = Bun.spawn(
-    [
-      'bunx',
-      'wrangler',
-      'd1',
-      'execute',
-      'b2b-saas-starter',
-      '--local',
-      '--config=packages/db/wrangler.jsonc',
-      '--file=.context/seed-booking-product.sql'
-    ],
-    { stdout: 'inherit', stderr: 'inherit' }
-  )
-  process.exit(await proc.exited)
+export const buildSeedSql = (): string => `${statements.join('\n')}\n`
+
+if (import.meta.main) {
+  const sql = buildSeedSql()
+  if (process.argv.includes('--print')) process.stdout.write(sql)
+  else {
+    await Bun.write('.context/seed-booking-product.sql', sql)
+    const proc = Bun.spawn(
+      [
+        'bunx',
+        'wrangler',
+        'd1',
+        'execute',
+        'b2b-saas-starter',
+        '--local',
+        '--config=packages/db/wrangler.jsonc',
+        '--file=.context/seed-booking-product.sql'
+      ],
+      { stdout: 'inherit', stderr: 'inherit' }
+    )
+    process.exit(await proc.exited)
+  }
 }

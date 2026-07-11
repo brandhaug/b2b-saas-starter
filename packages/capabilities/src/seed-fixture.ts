@@ -1,6 +1,7 @@
 import type { OperationalAppointment } from './booking/appointment-operations.ts'
 
-export const makeSeedOperationalAppointments = (input: {
+/** Projects the canonical scenario into the richer Merchant operations view. */
+export const deriveSeedOperationalAppointments = (input: {
   readonly merchant: {
     readonly id: string
     readonly timezone: string
@@ -14,22 +15,28 @@ export const makeSeedOperationalAppointments = (input: {
     readonly priceMinor: number
     readonly currency: string
   }
+  readonly appointments: ReadonlyArray<{
+    readonly id: string
+    readonly merchantId: string
+    readonly providerId: string
+    readonly status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+    readonly startsAt: string
+    readonly endsAt: string
+    readonly createdAt: string
+    readonly customerDetails: {
+      readonly name: string
+      readonly email: string
+      readonly phone: string | null
+    }
+  }>
 }): ReadonlyArray<OperationalAppointment> =>
-  (['past', 'future'] as const).map((position) => {
-    const startsAt =
-      position === 'past' ? '2026-07-09T09:00:00.000Z' : '2026-07-11T09:00:00.000Z'
-    const endsAt =
-      position === 'past' ? '2026-07-09T09:30:00.000Z' : '2026-07-11T09:30:00.000Z'
+  input.appointments.map((appointment) => {
+    const { customerDetails, ...record } = appointment
     return {
-      id: `apt_seed_${position}`,
-      merchantId: input.merchant.id,
-      providerId: input.provider.id,
-      status: position === 'past' ? 'completed' : 'scheduled',
-      startsAt,
-      endsAt,
+      ...record,
       snapshot: {
-        startsAt,
-        endsAt,
+        startsAt: appointment.startsAt,
+        endsAt: appointment.endsAt,
         providerPreference: { kind: 'any' },
         assignedProvider: input.provider,
         services: [{ ...input.service, role: 'primary' }],
@@ -37,13 +44,8 @@ export const makeSeedOperationalAppointments = (input: {
         currency: input.merchant.currency,
         totalMinor: input.service.priceMinor,
         merchantTimezone: input.merchant.timezone,
-        customerDetails: {
-          name: position === 'past' ? 'Past Customer' : 'Future Customer',
-          email: `${position}@example.com`,
-          phone: null
-        },
+        customerDetails,
         checkoutPath: 'pay_in_person'
-      },
-      createdAt: '2026-07-08T09:00:00.000Z'
+      }
     }
   })

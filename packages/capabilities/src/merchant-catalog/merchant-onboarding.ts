@@ -540,6 +540,11 @@ export type SeedBookingScenario = {
     readonly startsAt: string
     readonly endsAt: string
     readonly createdAt: string
+    readonly customerDetails: {
+      readonly name: string
+      readonly email: string
+      readonly phone: string | null
+    }
   }>
   readonly confirmationAccess: ReadonlyArray<{
     readonly routeId: string
@@ -678,7 +683,12 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
         status: 'completed',
         startsAt: instant(-24 * 60),
         endsAt: instant(-23 * 60),
-        createdAt: anchorTime
+        createdAt: anchorTime,
+        customerDetails: {
+          name: 'Past Customer',
+          email: 'past@example.com',
+          phone: null
+        }
       },
       {
         id: 'apt_seed_future',
@@ -687,7 +697,12 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
         status: 'scheduled',
         startsAt: instant(3 * 24 * 60),
         endsAt: instant(3 * 24 * 60 + 60),
-        createdAt: anchorTime
+        createdAt: anchorTime,
+        customerDetails: {
+          name: 'Future Customer',
+          email: 'future@example.com',
+          phone: null
+        }
       }
     ],
     confirmationAccess: [

@@ -77,6 +77,7 @@ const CONFIRMATION_SIGNING_KEYS = Redacted.make(
 )
 const CONFIRMATION_CURRENT_KEY_ID = requiredEnv('CONFIRMATION_CURRENT_KEY_ID')
 const merchantAppOrigin = requiredEnv('MERCHANT_APP_ORIGIN')
+const publicSiteOrigin = requiredEnv('PUBLIC_SITE_ORIGIN')
 const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
 const merchantAppDomain = requiredHostname('MERCHANT_APP_ORIGIN')
 const platformApiDomain = requiredHostname('PLATFORM_API_ORIGIN')

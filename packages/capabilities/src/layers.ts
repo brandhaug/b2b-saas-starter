@@ -95,7 +95,7 @@ import {
   SeedScheduling
 } from './scheduling/scheduling.ts'
 
-import { makeSeedOperationalAppointments } from './seed-fixture.ts'
+import { deriveSeedOperationalAppointments } from './seed-fixture.ts'
 
 export type CapabilityServices =
   | PlatformApiTokenRegistry
@@ -152,10 +152,11 @@ const seedBookingConfirmation = emptySeedBookingConfirmationStore(
   seedBookingSessions,
   seedBookingCheckout
 )
-const seedOperationalAppointments = makeSeedOperationalAppointments({
+const seedOperationalAppointments = deriveSeedOperationalAppointments({
   merchant: seedBookingScenario.merchant,
   provider: seedBookingScenario.provider,
-  service: seedBookingScenario.services[0]!
+  service: seedBookingScenario.services[0]!,
+  appointments: seedBookingScenario.appointments
 })
 const seedPlatformTimestamp = '2026-07-10T09:30:00.000Z'
 const seedPlatformApiReads = new Map([
