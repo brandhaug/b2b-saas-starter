@@ -53,21 +53,30 @@ export const smokeScenarios = await Promise.all([
       'provider-free checkout emits no undeclared network requests'
     ]
   }),
-  defineScenario({
-    ...base,
-    id: 'booking/pay-in-person-smoke',
-    journey: 'pay-in-person',
-    route: '/mara-booking-studio/booking',
-    assertions: [
-      'booking shell is visible',
-      'direct Session link hydrates without losing intent',
-      'long copy reflows without horizontal overflow',
-      '200 percent zoom remains operable',
-      'compact viewport content remains reachable',
-      'keyboard focus is visible',
-      'pointer activation works'
-    ]
-  }),
+  ...(['en', 'es', 'fr', 'ro'] as const).map((locale) =>
+    defineScenario({
+      ...base,
+      id:
+        locale === 'en'
+          ? 'booking/pay-in-person-smoke'
+          : `booking/pay-in-person-smoke-${locale}`,
+      journey: 'pay-in-person',
+      locale,
+      route: '/mara-booking-studio/booking',
+      assertions: [
+        'booking shell is visible',
+        'provider-free Pay In Person confirms without optional providers',
+        'confirmation token exchanges into protected token-free access',
+        'confirmation and recovery copy use the selected locale',
+        'direct Session link hydrates without losing intent',
+        'long copy reflows without horizontal overflow',
+        '200 percent zoom remains operable',
+        'compact viewport content remains reachable',
+        'keyboard focus is visible',
+        'pointer activation works'
+      ]
+    })
+  ),
   defineScenario({
     ...base,
     id: 'booking/group-assigned-and-any-mobile',

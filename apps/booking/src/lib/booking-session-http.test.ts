@@ -5,6 +5,8 @@ import {
   BookingPartyConflict,
   BookingSelectionRejected,
   BookingSessionGone,
+  BookingConfirmationProcessing,
+  CapabilityUnavailable,
   CheckoutReviewUnavailable,
   type BookingJourney
 } from '@b2b-saas-starter/capabilities/booking'
@@ -1153,6 +1155,54 @@ describe('Booking Session HTTP boundary', () => {
       outboxId: 'obx_confirmed'
     })
     expect(acceptedCommand.headers.get('set-cookie')).toBeNull()
+
+    const uncertain = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/confirm`, {
+          method: 'POST',
+          headers,
+          body: '{}'
+        }),
+        {
+          ...dependencies,
+          confirmation: {
+            ...dependencies.confirmation,
+            confirm: () =>
+              Effect.fail(
+                new BookingConfirmationProcessing({
+                  reason: 'commitment_unknown'
+                })
+              )
+          }
+        }
+      )
+    )
+    expect(uncertain.status).toBe(202)
+    expect(await uncertain.json()).toEqual({ kind: 'processing' })
+
+    const unavailableConfirmation = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/confirm`, {
+          method: 'POST',
+          headers,
+          body: '{}'
+        }),
+        {
+          ...dependencies,
+          confirmation: {
+            ...dependencies.confirmation,
+            confirm: () =>
+              Effect.fail(
+                new CapabilityUnavailable({
+                  capability: 'booking-confirmation',
+                  reason: 'Signing key unavailable'
+                })
+              )
+          }
+        }
+      )
+    )
+    expect(unavailableConfirmation.status).toBe(503)
   })
 
   it('exchanges a valid Confirmation token for an exact-path 24-hour cookie and serves the clean view', async () => {

@@ -10,6 +10,7 @@ import {
   CheckoutUnavailable,
   CheckoutCommandRejected,
   CheckoutReviewUnavailable,
+  BookingConfirmationProcessing,
   BookingConfirmationRejected,
   BookingSelectionRejected,
   ServiceSelection as ServiceSelectionSchema,
@@ -83,6 +84,7 @@ type BookingSessionHttpFailure =
   | BookingSchedulingRejected
   | CheckoutUnavailable
   | BookingCheckoutFailure
+  | BookingConfirmationProcessing
   | BookingConfirmationRejected
 
 type BookingSessionEffect<A, E = never> = Effect.Effect<A, E>
@@ -372,7 +374,9 @@ export type BookingSessionHttpDependencies = {
       input: { readonly now: string; readonly traceId: string }
     ) => BookingSessionEffect<
       BookingConfirmationResult,
-      BookingConfirmationRejected | CapabilityUnavailable
+      | BookingConfirmationRejected
+      | BookingConfirmationProcessing
+      | CapabilityUnavailable
     >
     readonly read: (input: {
       readonly routeId: string
@@ -1289,7 +1293,10 @@ export const handleBookingSessionRequest = (
       const result = yield* Effect.result(
         dependencies.confirmation.confirm(authorization.success, { now, traceId })
       )
-      if (result._tag === 'Failure' && result.failure instanceof CapabilityUnavailable)
+      if (
+        result._tag === 'Failure' &&
+        result.failure instanceof BookingConfirmationProcessing
+      )
         return withPrivateHeaders(
           Response.json({ kind: 'processing' }, { status: 202 })
         )

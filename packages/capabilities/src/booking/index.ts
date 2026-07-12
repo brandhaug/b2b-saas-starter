@@ -101,6 +101,7 @@ export type {
 export {
   Appointment,
   BookingConfirmation,
+  BookingConfirmationProcessing,
   BookingConfirmationRejected,
   BookingConfirmationResult,
   ConfirmationAccess,

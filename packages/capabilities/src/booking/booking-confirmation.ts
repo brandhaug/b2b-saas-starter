@@ -76,7 +76,15 @@ export class BookingConfirmationRejected extends Schema.TaggedErrorClass<Booking
   }
 ) {}
 
-type Failure = BookingConfirmationRejected | CapabilityUnavailable
+export class BookingConfirmationProcessing extends Schema.TaggedErrorClass<BookingConfirmationProcessing>()(
+  'BookingConfirmationProcessing',
+  { reason: Schema.Literal('commitment_unknown') }
+) {}
+
+type Failure =
+  | BookingConfirmationRejected
+  | BookingConfirmationProcessing
+  | CapabilityUnavailable
 const AppointmentSnapshot = Schema.Unknown as Schema.Schema<StoredAppointmentSnapshot>
 const CustomerConfirmationAppointment = Schema.Struct({
   id: Schema.String,
@@ -890,9 +898,17 @@ export const LiveBookingConfirmation = (
               )
               const committed = yield* Effect.result(batch(db, statements))
               if (committed._tag === 'Failure') {
-                const raced = yield* readCommitted(session.id)
-                if (raced.length > 0)
-                  return yield* Effect.promise(() => resultsFrom(raced, keyring, true))
+                const replayAfterFailure = yield* Effect.result(
+                  readCommitted(session.id)
+                )
+                if (replayAfterFailure._tag === 'Failure')
+                  return yield* new BookingConfirmationProcessing({
+                    reason: 'commitment_unknown'
+                  })
+                if (replayAfterFailure.success.length > 0)
+                  return yield* Effect.promise(() =>
+                    resultsFrom(replayAfterFailure.success, keyring, true)
+                  )
                 return yield* new CapabilityUnavailable({
                   capability: 'booking-confirmation',
                   reason: committed.failure.reason
@@ -1049,7 +1065,12 @@ export const LiveBookingConfirmation = (
             ]
             const committed = yield* Effect.result(batch(db, statements))
             if (committed._tag === 'Failure') {
-              const raced = (yield* readCommitted(session.id))[0]
+              const replayAfterFailure = yield* Effect.result(readCommitted(session.id))
+              if (replayAfterFailure._tag === 'Failure')
+                return yield* new BookingConfirmationProcessing({
+                  reason: 'commitment_unknown'
+                })
+              const raced = replayAfterFailure.success[0]
               if (raced)
                 return yield* Effect.promise(() => resultFrom(raced, keyring, true))
               return yield* new CapabilityUnavailable({
