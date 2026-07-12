@@ -10,6 +10,22 @@ export type ScenarioClock = {
   readonly timezone: string
 }
 
+export const scenarioJourneys = [
+  'pay-in-person',
+  'deliberate-blank',
+  'selection-loading',
+  'selection-error',
+  'scheduling-available',
+  'scheduling-empty',
+  'scheduling-loading',
+  'scheduling-unavailable',
+  'scheduling-conflict',
+  'scheduling-expiry-recovery',
+  'shell-boundary'
+] as const
+
+export type ScenarioJourney = (typeof scenarioJourneys)[number]
+
 export type ScenarioManifestInput = {
   readonly schemaVersion: 1
   readonly id: string
@@ -23,18 +39,7 @@ export type ScenarioManifestInput = {
   readonly network: { readonly allow: readonly string[] }
   readonly assertions: readonly string[]
   readonly console: { readonly allow: readonly string[] }
-  readonly journey:
-    | 'pay-in-person'
-    | 'deliberate-blank'
-    | 'selection-loading'
-    | 'selection-error'
-    | 'scheduling-available'
-    | 'scheduling-empty'
-    | 'scheduling-loading'
-    | 'scheduling-unavailable'
-    | 'scheduling-conflict'
-    | 'scheduling-expiry-recovery'
-    | 'shell-boundary'
+  readonly journey: ScenarioJourney
 }
 
 export type ScenarioManifest = ScenarioManifestInput & {
@@ -77,19 +82,7 @@ const isValid = (value: unknown): value is ScenarioManifestInput => {
     value.schemaVersion === 1 &&
     typeof value.id === 'string' &&
     value.id.length > 0 &&
-    [
-      'pay-in-person',
-      'deliberate-blank',
-      'selection-loading',
-      'selection-error',
-      'scheduling-available',
-      'scheduling-empty',
-      'scheduling-loading',
-      'scheduling-unavailable',
-      'scheduling-conflict',
-      'scheduling-expiry-recovery',
-      'shell-boundary'
-    ].includes(String(value.journey)) &&
+    scenarioJourneys.includes(value.journey as ScenarioJourney) &&
     isRecord(fixture) &&
     exactKeys(fixture, ['data', 'schemaVersion']) &&
     fixture.schemaVersion === 1 &&

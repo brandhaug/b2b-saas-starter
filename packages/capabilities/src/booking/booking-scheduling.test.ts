@@ -149,6 +149,28 @@ describe('Booking Scheduling', () => {
     expect(store.holds.size).toBe(0)
   })
 
+  it('interprets Schedule Rules in the selected Shop timezone', async () => {
+    const { store, run } = await fixture()
+    const selectedShop = [...store.selections.shops.values()][0]!
+    ;(selectedShop as { timezone?: string }).timezone = 'America/New_York'
+
+    const availability = await run(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.availability(session('bsn_one'), {
+          from: '2026-07-13T04:00:00.000Z',
+          days: 1,
+          now
+        })
+      )
+    )
+
+    expect(availability.timezone).toBe('America/New_York')
+    expect(availability.slots).toContainEqual({
+      startsAt: '2026-07-13T13:00:00.000Z',
+      endsAt: '2026-07-13T14:30:00.000Z'
+    })
+  })
+
   it('atomically assigns Any Provider and freezes an exact ten-minute quote', async () => {
     const { scenario, store, run } = await fixture()
     const held = await run(
@@ -251,6 +273,42 @@ describe('Booking Scheduling', () => {
       )
     )
     expect(afterExpiry.bookingSessionId).toBe('bsn_two')
+  })
+
+  it('rejects elapsed slots and providers outside the selected Shop', async () => {
+    const { store, run } = await fixture()
+    const bookingSession = session('bsn_one')
+    const elapsed = await run(
+      Effect.result(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.hold(bookingSession, {
+            startsAt: '2026-07-06T06:00:00.000Z',
+            now
+          })
+        )
+      )
+    )
+    expect(elapsed).toMatchObject({
+      _tag: 'Failure',
+      failure: { reason: 'slot_lost' }
+    })
+
+    store.selections.shopProviders.clear()
+    const unscoped = await run(
+      Effect.result(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.availability(bookingSession, {
+            from: '2026-07-13T00:00:00.000Z',
+            days: 1,
+            now
+          })
+        )
+      )
+    )
+    expect(unscoped).toMatchObject({
+      _tag: 'Failure',
+      failure: { reason: 'not_ready' }
+    })
   })
 
   it('releases a hold idempotently and invalidates it after a material selection change', async () => {

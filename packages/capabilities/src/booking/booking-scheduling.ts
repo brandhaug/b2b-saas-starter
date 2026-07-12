@@ -1,8 +1,9 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, asc, eq, gt } from 'drizzle-orm'
+import { and, asc, eq, gt, type SQL } from 'drizzle-orm'
 import {
   appointments,
   batchQueries,
+  bookingParties,
   bookingSessionAdditionalServices,
   bookingSessions,
   Database,
@@ -11,6 +12,9 @@ import {
   providerServiceEligibility,
   scheduleRules,
   services,
+  shopProviders,
+  shopServices,
+  shops,
   timeSlotHolds,
   type CompiledBatchQuery,
   type StoredBookingQuote
@@ -135,6 +139,7 @@ type Conflict = {
 }
 type SchedulingInputs = {
   readonly merchantId: string
+  readonly shopId: string
   readonly timezone: string
   readonly preference: ProviderPreference
   readonly primaryServiceId: string
@@ -159,16 +164,28 @@ export type SeedBookingSchedulingStore = {
   readonly holds: Map<string, StoredHold>
 }
 
+const releaseSeedHolds = (store: SeedBookingSchedulingStore, sessionId: string) => {
+  for (const [holdId, hold] of store.holds) {
+    if (hold.bookingSessionId === sessionId) store.holds.delete(holdId)
+  }
+}
+
+export const deleteTimeSlotHoldsForSelectionChange = (
+  db: typeof Database.Service,
+  sessionId: string,
+  selectionGuard: SQL
+): CompiledBatchQuery =>
+  db
+    .delete(timeSlotHolds)
+    .where(and(eq(timeSlotHolds.bookingSessionId, sessionId), selectionGuard))
+    .toSQL()
+
 export const emptySeedBookingSchedulingStore = (
   scenario: SeedBookingScenario,
   selections: SeedBookingSelectionStore
 ): SeedBookingSchedulingStore => {
   const store = { scenario, selections, holds: new Map<string, StoredHold>() }
-  selections.invalidateDependents = (sessionId) => {
-    for (const [holdId, hold] of store.holds) {
-      if (hold.bookingSessionId === sessionId) store.holds.delete(holdId)
-    }
-  }
+  selections.invalidateTimeSlotHolds = (sessionId) => releaseSeedHolds(store, sessionId)
   return store
 }
 
@@ -251,7 +268,11 @@ const providerSlots = (
     durationMinutes,
     from,
     days
-  ).slots.filter((slot) => !conflicts.some((conflict) => overlap(slot, conflict)))
+  ).slots.filter(
+    (slot) =>
+      Date.parse(slot.startsAt) > Date.parse(now) &&
+      !conflicts.some((conflict) => overlap(slot, conflict))
+  )
 }
 
 const candidates = (
@@ -361,18 +382,26 @@ const seedInputs = (
   if (
     scenario.merchant.slug !== session.merchantSlug ||
     !selection?.providerPreference ||
+    !selection.shopId ||
     !selection.primaryServiceId
   ) {
     return Effect.fail(failure('not_ready'))
   }
   return Effect.succeed({
     merchantId: scenario.merchant.id,
-    timezone: scenario.merchant.timezone,
+    shopId: selection.shopId,
+    timezone:
+      store.selections.shops.get(selection.shopId)?.timezone ??
+      scenario.merchant.timezone,
     preference: selection.providerPreference,
     primaryServiceId: selection.primaryServiceId,
     additionalServiceIds: selection.additionalServiceIds,
-    providers: scenario.providers,
-    services: scenario.services,
+    providers: scenario.providers.filter((provider) =>
+      store.selections.shopProviders.has(`${selection.shopId}\0${provider.id}`)
+    ),
+    services: scenario.services.filter((service) =>
+      store.selections.shopServices.has(`${selection.shopId}\0${service.id}`)
+    ),
     eligibility: new Set(
       scenario.eligibility.map((pair) =>
         eligibilityKey(pair.providerId, pair.serviceId)
@@ -390,12 +419,7 @@ export const SeedBookingScheduling = (
   store: SeedBookingSchedulingStore
 ): Layer.Layer<BookingScheduling> =>
   Layer.succeed(BookingScheduling)({
-    release: (session) =>
-      Effect.sync(() => {
-        for (const [holdId, hold] of store.holds) {
-          if (hold.bookingSessionId === session.id) store.holds.delete(holdId)
-        }
-      }),
+    release: (session) => Effect.sync(() => releaseSeedHolds(store, session.id)),
     currentHold: (session, input) =>
       Effect.succeed(
         [...store.holds.values()].find(
@@ -413,7 +437,10 @@ export const SeedBookingScheduling = (
         if (inputResult._tag === 'Failure') {
           if (hold)
             return {
-              timezone: store.scenario.merchant.timezone,
+              timezone:
+                store.selections.shops.get(
+                  store.selections.selections.get(session.id)?.shopId ?? ''
+                )?.timezone ?? store.scenario.merchant.timezone,
               slots: [],
               hold: toPublicHold(hold)
             }
@@ -488,13 +515,19 @@ const liveInputs = (
       db
         .select({
           merchantId: merchants.id,
-          timezone: merchants.timezone,
+          shopId: bookingParties.shopId,
+          timezone: shops.timezone,
           preference: bookingSessions.providerPreference,
           providerId: bookingSessions.providerId,
           primaryServiceId: bookingSessions.primaryServiceId
         })
         .from(bookingSessions)
         .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
+        .innerJoin(
+          bookingParties,
+          eq(bookingParties.bookingSessionId, bookingSessions.id)
+        )
+        .innerJoin(shops, eq(shops.id, bookingParties.shopId))
         .where(
           and(
             eq(bookingSessions.id, session.id),
@@ -515,10 +548,39 @@ const liveInputs = (
       holdRows
     ] = yield* Effect.all([
       orUnavailable('booking-scheduling')(
-        db.select().from(providers).where(eq(providers.merchantId, row.merchantId))
+        db
+          .select({
+            id: providers.id,
+            displayName: providers.displayName,
+            status: providers.status
+          })
+          .from(providers)
+          .innerJoin(shopProviders, eq(shopProviders.providerId, providers.id))
+          .where(
+            and(
+              eq(providers.merchantId, row.merchantId),
+              eq(shopProviders.shopId, row.shopId)
+            )
+          )
       ),
       orUnavailable('booking-scheduling')(
-        db.select().from(services).where(eq(services.merchantId, row.merchantId))
+        db
+          .select({
+            id: services.id,
+            name: services.name,
+            priceMinor: services.priceMinor,
+            currency: services.currency,
+            durationMinutes: services.durationMinutes,
+            status: services.status
+          })
+          .from(services)
+          .innerJoin(shopServices, eq(shopServices.serviceId, services.id))
+          .where(
+            and(
+              eq(services.merchantId, row.merchantId),
+              eq(shopServices.shopId, row.shopId)
+            )
+          )
       ),
       orUnavailable('booking-scheduling')(
         db
@@ -563,6 +625,7 @@ const liveInputs = (
     ])
     return {
       merchantId: row.merchantId,
+      shopId: row.shopId,
       timezone: row.timezone,
       preference:
         row.preference === 'any'
@@ -592,9 +655,14 @@ const livePublicHold = (row: typeof timeSlotHolds.$inferSelect): TimeSlotHold =>
 const liveTimezone = (db: typeof Database.Service, session: BookingSession) =>
   orUnavailable('booking-scheduling')(
     db
-      .select({ timezone: merchants.timezone })
+      .select({ timezone: shops.timezone })
       .from(bookingSessions)
       .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
+      .innerJoin(
+        bookingParties,
+        eq(bookingParties.bookingSessionId, bookingSessions.id)
+      )
+      .innerJoin(shops, eq(shops.id, bookingParties.shopId))
       .where(
         and(
           eq(bookingSessions.id, session.id),
@@ -716,15 +784,21 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
               const catalogChecks = [
                 `EXISTS (
                   SELECT 1 FROM booking_sessions
-                  WHERE id = ? AND merchant_id = ? AND lifecycle = 'active'
-                    AND idle_expires_at > ? AND absolute_expires_at > ?
-                    AND provider_preference = ?
+                  INNER JOIN booking_parties
+                    ON booking_parties.booking_session_id = booking_sessions.id
+                  WHERE booking_sessions.id = ?
+                    AND booking_sessions.merchant_id = ?
+                    AND booking_sessions.lifecycle = 'active'
+                    AND booking_sessions.idle_expires_at > ?
+                    AND booking_sessions.absolute_expires_at > ?
+                    AND booking_parties.shop_id = ?
+                    AND booking_sessions.provider_preference = ?
                     AND ${
                       input.preference.kind === 'any'
-                        ? 'provider_id IS NULL'
-                        : 'provider_id = ?'
+                        ? 'booking_sessions.provider_id IS NULL'
+                        : 'booking_sessions.provider_id = ?'
                     }
-                    AND primary_service_id = ?
+                    AND booking_sessions.primary_service_id = ?
                 )`,
                 `(SELECT COUNT(*) FROM booking_session_additional_services
                   WHERE booking_session_id = ?) = ?`,
@@ -736,8 +810,12 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 ),
                 `EXISTS (
                   SELECT 1 FROM providers
-                  WHERE id = ? AND merchant_id = ? AND status = 'active'
-                    AND display_name = ?
+                  INNER JOIN shop_providers
+                    ON shop_providers.provider_id = providers.id
+                  WHERE providers.id = ? AND providers.merchant_id = ?
+                    AND providers.status = 'active'
+                    AND shop_providers.shop_id = ?
+                    AND providers.display_name = ?
                 )`,
                 `EXISTS (
                   SELECT 1 FROM schedule_rules
@@ -751,7 +829,10 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                       ON eligibility.service_id = services.id
                      AND eligibility.provider_id = ?
                      AND eligibility.merchant_id = services.merchant_id
+                    INNER JOIN shop_services
+                      ON shop_services.service_id = services.id
                     WHERE services.id = ? AND services.merchant_id = ?
+                      AND shop_services.shop_id = ?
                       AND services.status = 'active' AND services.name = ?
                       AND services.duration_minutes = ?
                       AND services.price_minor = ? AND services.currency = ?
@@ -763,6 +844,7 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 input.merchantId,
                 command.now,
                 command.now,
+                input.shopId,
                 input.preference.kind,
                 ...(input.preference.kind === 'specific'
                   ? [input.preference.providerId]
@@ -777,6 +859,7 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 ]),
                 provider.id,
                 input.merchantId,
+                input.shopId,
                 provider.displayName,
                 matchingRule.id,
                 input.merchantId,
@@ -788,6 +871,7 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                   provider.id,
                   service.id,
                   input.merchantId,
+                  input.shopId,
                   service.name,
                   service.durationMinutes,
                   service.priceMinor,

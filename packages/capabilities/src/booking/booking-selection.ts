@@ -13,13 +13,13 @@ import {
   services,
   shopProviders,
   shops,
-  shopServices,
-  timeSlotHolds
+  shopServices
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import type { BookingSession } from './booking-sessions.ts'
 import { BookingPartyConflict } from './foundations.ts'
+import { deleteTimeSlotHoldsForSelectionChange } from './booking-scheduling.ts'
 import {
   resolveBookingConfiguration,
   resolveCatalogText,
@@ -184,6 +184,7 @@ export type SeedBookingSelectionStore = {
       readonly slug: string
       readonly publicName: string
       readonly brandName: string
+      readonly timezone?: string
       readonly bookingConfiguration?: BookingConfiguration | null
       readonly brandBookingConfiguration?: BookingConfiguration | null
     }
@@ -194,7 +195,7 @@ export type SeedBookingSelectionStore = {
   readonly services: Map<string, StoredService>
   readonly eligibility: Set<SeedBookingSelectionEligibilityKey>
   readonly selections: Map<string, StoredSelection>
-  invalidateDependents?: (sessionId: string) => void
+  invalidateTimeSlotHolds?: (sessionId: string) => void
 }
 
 declare const eligibilityBrand: unique symbol
@@ -224,6 +225,7 @@ export const emptySeedBookingSelectionStore = (
       readonly slug: string
       readonly publicName: string
       readonly brandName: string
+      readonly timezone?: string
       readonly bookingConfiguration?: BookingConfiguration | null
       readonly brandBookingConfiguration?: BookingConfiguration | null
     }[]
@@ -624,7 +626,7 @@ export const SeedBookingSelection = (
         })
         store.selections.set(session.id, selected)
         if (JSON.stringify(current) !== JSON.stringify(selected)) {
-          store.invalidateDependents?.(session.id)
+          store.invalidateTimeSlotHolds?.(session.id)
         }
         return journey(catalog, selected, reconciliationFor(current, selected))
       }),
@@ -648,7 +650,7 @@ export const SeedBookingSelection = (
           additionalServiceIds: []
         }
         store.selections.set(session.id, selected)
-        store.invalidateDependents?.(session.id)
+        store.invalidateTimeSlotHolds?.(session.id)
         const catalog = yield* seedCatalog(
           store,
           session.merchantSlug,
@@ -690,7 +692,7 @@ export const SeedBookingSelection = (
           additionalServiceIds: []
         }
         store.selections.set(session.id, selected)
-        store.invalidateDependents?.(session.id)
+        store.invalidateTimeSlotHolds?.(session.id)
         return journey(catalog, selected)
       }),
     chooseServices: (session, input, expectedVersion) =>
@@ -712,7 +714,7 @@ export const SeedBookingSelection = (
         const selected = yield* validateServices(catalog, current, input)
         const versioned = { ...selected, version: expectedVersion + 1 }
         store.selections.set(session.id, versioned)
-        store.invalidateDependents?.(session.id)
+        store.invalidateTimeSlotHolds?.(session.id)
         return journey(catalog, versioned)
       })
   })
@@ -1020,10 +1022,7 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
                   )
                   .toSQL()
               ),
-              db
-                .delete(timeSlotHolds)
-                .where(and(eq(timeSlotHolds.bookingSessionId, sessionId), current))
-                .toSQL(),
+              deleteTimeSlotHoldsForSelectionChange(db, sessionId, current),
               db
                 .update(bookingParties)
                 .set({

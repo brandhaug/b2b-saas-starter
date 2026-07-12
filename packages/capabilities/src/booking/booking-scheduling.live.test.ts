@@ -41,7 +41,7 @@ beforeAll(async () => {
           id: 'mer_schedule_hold',
           publicName: 'Schedule Hold',
           slug: 'schedule-hold',
-          timezone: 'UTC',
+          timezone: 'Europe/Bucharest',
           currency: 'USD',
           plan: 'team',
           createdAt: now,
@@ -73,6 +73,15 @@ beforeAll(async () => {
           updatedAt: now
         })
         yield* db.insert(providers).values([
+          {
+            id: 'prv_schedule_aaa_foreign',
+            merchantId: 'mer_schedule_hold',
+            displayName: 'Foreign Shop Provider',
+            status: 'active',
+            isDefault: false,
+            createdAt: now,
+            updatedAt: now
+          },
           {
             id: 'prv_schedule_one',
             merchantId: 'mer_schedule_hold',
@@ -117,13 +126,14 @@ beforeAll(async () => {
           }
         ])
         yield* db.insert(providerServiceEligibility).values(
-          ['prv_schedule_one', 'prv_schedule_two'].flatMap((providerId) =>
-            ['svc_schedule_primary', 'svc_schedule_extra'].map((serviceId) => ({
-              merchantId: 'mer_schedule_hold',
-              providerId,
-              serviceId,
-              createdAt: now
-            }))
+          ['prv_schedule_aaa_foreign', 'prv_schedule_one', 'prv_schedule_two'].flatMap(
+            (providerId) =>
+              ['svc_schedule_primary', 'svc_schedule_extra'].map((serviceId) => ({
+                merchantId: 'mer_schedule_hold',
+                providerId,
+                serviceId,
+                createdAt: now
+              }))
           )
         )
         yield* db.insert(shopProviders).values(
@@ -141,16 +151,18 @@ beforeAll(async () => {
           }))
         )
         yield* db.insert(scheduleRules).values(
-          ['prv_schedule_one', 'prv_schedule_two'].map((providerId) => ({
-            id: `sch_${providerId}`,
-            merchantId: 'mer_schedule_hold',
-            providerId,
-            weekday: 1,
-            startTime: '09:00',
-            endTime: '14:00',
-            createdAt: now,
-            updatedAt: now
-          }))
+          ['prv_schedule_aaa_foreign', 'prv_schedule_one', 'prv_schedule_two'].map(
+            (providerId) => ({
+              id: `sch_${providerId}`,
+              merchantId: 'mer_schedule_hold',
+              providerId,
+              weekday: 1,
+              startTime: '09:00',
+              endTime: '14:00',
+              createdAt: now,
+              updatedAt: now
+            })
+          )
         )
         yield* db.insert(appointments).values([
           {
@@ -416,6 +428,7 @@ describe('Live Booking Scheduling', () => {
     )
     expect(held.quote).toMatchObject({
       providerPreference: { kind: 'any' },
+      assignedProvider: { id: 'prv_schedule_one' },
       totalMinor: 5000,
       durationMinutes: 60
     })

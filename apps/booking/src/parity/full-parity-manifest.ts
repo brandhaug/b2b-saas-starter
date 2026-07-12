@@ -332,10 +332,6 @@ accept(
 const deliveredSchedulingEntries: Readonly<
   Record<string, { readonly status: ParityStatus; readonly scenario: string }>
 > = {
-  'route:/book/:shopIdOrRoute/barber/:barberIdOrRoute/schedule': {
-    status: 'verified',
-    scenario: 'booking/scheduling-available'
-  },
   'state:shop-any-provider': {
     status: 'verified',
     scenario: 'booking/scheduling-available'
