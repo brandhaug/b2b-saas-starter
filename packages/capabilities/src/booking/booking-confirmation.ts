@@ -140,33 +140,6 @@ export class BookingConfirmation extends Context.Service<
 const addMillisecondsToIso = (instant: string, milliseconds: number) =>
   new Date(Date.parse(instant) + milliseconds).toISOString()
 
-const confirmationNotificationIntent = (input: {
-  readonly id: string
-  readonly shopId: string
-  readonly appointmentId: string
-  readonly customerEmail: string
-  readonly snapshot: StoredAppointmentSnapshot
-  readonly confirmationRouteId: string
-  readonly now: string
-}) => ({
-  id: input.id,
-  shopId: input.shopId,
-  topic: 'appointment.confirmed',
-  recipientJson: JSON.stringify({ email: input.customerEmail }),
-  payloadJson: JSON.stringify({
-    appointmentId: input.appointmentId,
-    snapshot: input.snapshot,
-    confirmationRouteId: input.confirmationRouteId
-  }),
-  sourceType: 'appointment',
-  sourceId: input.appointmentId,
-  deduplicationKey: `appointment.confirmed:${input.appointmentId}`,
-  status: 'pending' as const,
-  availableAt: input.now,
-  createdAt: input.now,
-  updatedAt: input.now
-})
-
 const hmac = async (key: string, value: string): Promise<string> => {
   const imported = await crypto.subtle.importKey(
     'raw',
@@ -878,17 +851,26 @@ export const LiveBookingConfirmation = (
                   revokedAt: null,
                   createdAt: input.now
                 }),
-                db.insert(notificationIntents).values(
-                  confirmationNotificationIntent({
-                    id: item.notificationIntentId,
-                    shopId: item.row.shopId,
+                db.insert(notificationIntents).values({
+                  id: item.notificationIntentId,
+                  shopId: item.row.shopId,
+                  topic: 'appointment.confirmed',
+                  recipientJson: JSON.stringify({
+                    email: item.snapshot.customerDetails.email
+                  }),
+                  payloadJson: JSON.stringify({
                     appointmentId: item.appointmentId,
-                    customerEmail: item.snapshot.customerDetails.email,
                     snapshot: item.snapshot,
-                    confirmationRouteId: item.routeId,
-                    now: input.now
-                  })
-                ),
+                    confirmationRouteId: item.routeId
+                  }),
+                  sourceType: 'appointment',
+                  sourceId: item.appointmentId,
+                  deduplicationKey: `appointment.confirmed:${item.appointmentId}`,
+                  status: 'pending',
+                  availableAt: input.now,
+                  createdAt: input.now,
+                  updatedAt: input.now
+                }),
                 db.insert(bookingOutbox).values({
                   id: item.outboxId,
                   appointmentId: item.appointmentId,
@@ -991,11 +973,10 @@ export const LiveBookingConfirmation = (
                     eq(bookingSessions.lifecycle, 'active')
                   )
                 )
-                .limit(2)
+                .limit(1)
             )
             const row = rows[0]
             if (!row) return yield* rejected('hold_expired')
-            if (rows.length !== 1) return yield* rejected('conflict')
             if (!row.session.customerName || !row.session.customerEmail)
               return yield* rejected('details_missing')
 
@@ -1069,17 +1050,24 @@ export const LiveBookingConfirmation = (
                   )
               ),
               db.insert(confirmationAccess).values(accessMetadata),
-              db.insert(notificationIntents).values(
-                confirmationNotificationIntent({
-                  id: notificationIntentId,
-                  shopId: row.shopId,
+              db.insert(notificationIntents).values({
+                id: notificationIntentId,
+                shopId: row.shopId,
+                topic: 'appointment.confirmed',
+                recipientJson: JSON.stringify({ email: row.session.customerEmail }),
+                payloadJson: JSON.stringify({
                   appointmentId,
-                  customerEmail: row.session.customerEmail,
                   snapshot,
-                  confirmationRouteId: routeId,
-                  now: input.now
-                })
-              ),
+                  confirmationRouteId: routeId
+                }),
+                sourceType: 'appointment',
+                sourceId: appointmentId,
+                deduplicationKey: `appointment.confirmed:${appointmentId}`,
+                status: 'pending',
+                availableAt: input.now,
+                createdAt: input.now,
+                updatedAt: input.now
+              }),
               db.insert(bookingOutbox).values({
                 id: outboxId,
                 appointmentId,

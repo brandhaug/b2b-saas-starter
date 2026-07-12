@@ -81,7 +81,6 @@ const sendEmail = (
     )
     const url = `${publicOrigin.replace(/\/$/, '')}/${encodeURIComponent(work.merchantSlug)}/booking/confirmations/${encodeURIComponent(work.confirmation.routeId)}?token=${encodeURIComponent(token)}`
     yield* dispatcher.send({
-      idempotencyKey: work.notificationIntentId,
       from: '',
       to: work.snapshot.customerDetails.email,
       subject: 'Your appointment is confirmed',
@@ -116,18 +115,14 @@ export const processBookingOutbox = (input: {
     if (!work) return
     let emailRetryPending = false
 
-    if (
-      work.emailStatus === 'pending' ||
-      work.emailStatus === 'needs_configuration' ||
-      work.emailStatus === 'failed_retryable'
-    ) {
+    if (work.emailStatus === 'pending' || work.emailStatus === 'failed_retryable') {
       const emailDue = !work.emailNextAttemptAt || work.emailNextAttemptAt <= input.now
       if (!emailDue) {
         // A queue wake-up may arrive before the durable retry deadline.
         emailRetryPending = true
       } else if (input.emailProviderState === 'disabled')
         yield* store.recordEmail(work.outboxId, 'disabled', null, 0, null)
-      else if (input.emailProviderState === 'needs_configuration') {
+      else if (input.emailProviderState === 'needs_configuration')
         yield* store.recordEmail(
           work.outboxId,
           'needs_configuration',
@@ -135,8 +130,7 @@ export const processBookingOutbox = (input: {
           0,
           null
         )
-        emailRetryPending = true
-      } else {
+      else {
         const attemptNumber = work.emailAttemptCount + 1
         const outcome = yield* Effect.result(
           sendEmail(work, input.publicOrigin, input.confirmationKeyring).pipe(
@@ -311,21 +305,19 @@ export const processBookingOutbox = (input: {
         })
       }
     }
-    const notificationStatus =
+    yield* store.finish(
+      work.outboxId,
       pending || emailRetryPending
         ? 'pending'
         : deadLettered
           ? 'dead_lettered'
-          : 'completed'
-    yield* store.finish(
-      work.outboxId,
-      notificationStatus,
+          : 'completed',
       pending || emailRetryPending ? null : input.now
     )
     yield* Effect.log('booking.notifications.processed', {
       traceId: work.traceId,
       outboxId: work.outboxId,
-      notificationStatus
+      webhookStatus: pending ? 'pending' : deadLettered ? 'dead_lettered' : 'completed'
     })
   })
 

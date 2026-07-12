@@ -1,5 +1,5 @@
 import { Effect, Layer } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import {
   batch,
   Database,
@@ -231,21 +231,6 @@ export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Databa
             )
             if (!attempt)
               return yield* new PaymentAttemptNotFound({ attemptId: input.attemptId })
-            if (attempt.outcome !== 'pending') {
-              if (
-                attempt.outcome === input.outcome &&
-                attempt.providerReference === input.providerReference &&
-                attempt.failureCode === (input.failureCode ?? null)
-              )
-                return yield* read(attempt.paymentId, attempt.id)
-              return yield* new PaymentSettlementConflict({
-                code: 'attempt_already_completed'
-              })
-            }
-            if (input.outcome === 'failed' && input.facts.length > 0)
-              return yield* new PaymentSettlementConflict({
-                code: 'failed_attempt_has_facts'
-              })
             const [payment] = yield* orUnavailable('payment-settlement')(
               db
                 .select()
@@ -299,22 +284,6 @@ export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Databa
           }),
         reconcile: (input) =>
           Effect.gen(function* () {
-            const [replay] = yield* orUnavailable('payment-settlement')(
-              db
-                .select()
-                .from(paymentReconciliationEvents)
-                .where(
-                  and(
-                    eq(paymentReconciliationEvents.provider, input.provider),
-                    eq(
-                      paymentReconciliationEvents.providerEventId,
-                      input.providerEventId
-                    )
-                  )
-                )
-                .limit(1)
-            )
-            if (replay) return yield* read(replay.paymentId)
             yield* orUnavailable('payment-settlement')(
               batch(db, [
                 db

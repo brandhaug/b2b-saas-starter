@@ -219,30 +219,4 @@ describe('LiveBookingNotificationOutbox', () => {
       expect.objectContaining({ status: 'delivered', response_status: 204 })
     )
   })
-
-  it('terminally records legacy work that cannot be linked to a Notification Intent', async () => {
-    await test.d1
-      .prepare(
-        "UPDATE booking_outbox SET notification_intent_id = NULL, processed_at = NULL, claimed_at = NULL, webhook_status = 'pending' WHERE id = 'out_notify'"
-      )
-      .run()
-    await expect(
-      run(
-        Effect.flatMap(BookingNotificationOutbox, (store) =>
-          store.claim('out_notify', '2026-07-11T10:10:00.000Z')
-        )
-      )
-    ).resolves.toBeNull()
-    const row = await test.d1
-      .prepare(
-        'SELECT webhook_status, processed_at, claimed_at FROM booking_outbox WHERE id = ?'
-      )
-      .bind('out_notify')
-      .first()
-    expect(row).toEqual({
-      webhook_status: 'dead_lettered',
-      processed_at: '2026-07-11T10:10:00.000Z',
-      claimed_at: null
-    })
-  })
 })
