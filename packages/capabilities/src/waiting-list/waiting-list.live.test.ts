@@ -53,10 +53,19 @@ describe('Live Waiting List', () => {
         })
         const first = yield* waitingList.deliverAvailable(now, {
           currentKeyId: 'v1',
+          legacyKeyId: 'v1',
           keys: { v1: 'delivery-key' }
         })
+        yield* Effect.promise(() =>
+          test.d1
+            .prepare(
+              "UPDATE availability_offers SET slot_json = json_remove(slot_json, '$.deliveryKeyId') WHERE waiting_list_application_id = 'wla_delivery'"
+            )
+            .run()
+        )
         const retry = yield* waitingList.deliverAvailable(now, {
           currentKeyId: 'v2',
+          legacyKeyId: 'v1',
           keys: { v1: 'delivery-key', v2: 'rotated-key' }
         })
         expect(first).toHaveLength(1)
@@ -65,6 +74,57 @@ describe('Live Waiting List', () => {
         expect(retry[0]?.capability).toBe(first[0]?.capability)
       })
     )
+  })
+
+  it('does not cancel an offer notification after a worker claims it', async () => {
+    await run(
+      Effect.gen(function* () {
+        const waitingList = yield* WaitingList
+        yield* waitingList.apply({
+          id: 'wla_claimed_expiry',
+          merchantSlug: 'wait-shop',
+          shopId: 'shp_wait',
+          capability: 'claimed-expiry-application',
+          request: {
+            serviceIds: ['svc_wait'],
+            providerPreference: { kind: 'specific', providerId: 'prv_wait' },
+            from: '2026-07-13T00:00:00.000Z',
+            until: '2026-07-14T00:00:00.000Z'
+          },
+          customer: { name: 'Lin', email: 'lin@example.com' },
+          now,
+          expiresAt: '2026-07-15T00:00:00.000Z'
+        })
+        yield* waitingList.offer({
+          id: 'avo_claimed_expiry',
+          applicationId: 'wla_claimed_expiry',
+          slot: {
+            shopId: 'shp_wait',
+            serviceIds: ['svc_wait'],
+            providerId: 'prv_wait',
+            startsAt: '2026-07-13T09:00:00.000Z',
+            endsAt: '2026-07-13T09:30:00.000Z'
+          },
+          capability: 'claimed-expiry-offer',
+          now,
+          expiresAt: '2026-07-12T12:01:00.000Z'
+        })
+        yield* Effect.promise(() =>
+          test.d1
+            .prepare(
+              "UPDATE notification_intents SET status = 'processing' WHERE source_type = 'availability-offer' AND source_id = 'avo_claimed_expiry'"
+            )
+            .run()
+        )
+        yield* waitingList.expire('2026-07-12T12:02:00.000Z')
+      })
+    )
+    const intent = await test.d1
+      .prepare(
+        "SELECT status FROM notification_intents WHERE source_type = 'availability-offer' AND source_id = 'avo_claimed_expiry'"
+      )
+      .first<{ status: string }>()
+    expect(intent?.status).toBe('processing')
   })
 
   it('stores only a capability hash and atomically accepts exactly once', async () => {

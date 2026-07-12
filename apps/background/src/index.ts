@@ -26,6 +26,7 @@ type Env = {
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly OPERATIONAL_EMAIL_ENABLED?: string
   readonly WAITING_LIST_DELIVERY_CURRENT_KEY_ID?: string
+  readonly WAITING_LIST_DELIVERY_LEGACY_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_KEYS?: string
 }
 
@@ -138,15 +139,16 @@ export default {
                   const offers = yield* waitingList.deliverAvailable(now, {
                     currentKeyId:
                       env.WAITING_LIST_DELIVERY_CURRENT_KEY_ID ?? 'unconfigured',
+                    legacyKeyId: env.WAITING_LIST_DELIVERY_LEGACY_KEY_ID ?? 'legacy',
                     keys
                   })
                   yield* Effect.forEach(offers, (delivery) =>
                     Effect.gen(function* () {
                       const claimed = yield* Effect.promise(() =>
                         env.DB.prepare(
-                          "UPDATE notification_intents SET status = 'processing', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status IN ('pending', 'failed')"
+                          "UPDATE notification_intents SET status = 'processing', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status IN ('pending', 'failed') AND EXISTS (SELECT 1 FROM availability_offers WHERE availability_offers.id = notification_intents.source_id AND availability_offers.status = 'pending' AND availability_offers.expires_at > ?)"
                         )
-                          .bind(now, delivery.offer.id)
+                          .bind(now, delivery.offer.id, now)
                           .run()
                       )
                       if ((claimed.meta.changes ?? 0) !== 1) return

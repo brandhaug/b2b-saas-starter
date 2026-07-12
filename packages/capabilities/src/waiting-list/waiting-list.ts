@@ -232,6 +232,7 @@ export type WaitingListShape = {
     now: string,
     deliveryKeyring: {
       currentKeyId: string
+      legacyKeyId: string
       keys: Readonly<Record<string, string>>
     }
   ) => Effect.Effect<readonly DeliveredAvailabilityOffer[], WaitingListError>

@@ -737,11 +737,7 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                       and(
                         eq(notificationIntents.sourceType, 'availability-offer'),
                         inArray(notificationIntents.sourceId, terminalOfferIds),
-                        inArray(notificationIntents.status, [
-                          'pending',
-                          'processing',
-                          'failed'
-                        ])
+                        inArray(notificationIntents.status, ['pending', 'failed'])
                       )
                     )
                 ]
@@ -789,7 +785,7 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
               const pendingOffer = offerFromRow(pending)
               const pendingKey =
                 deliveryKeyring.keys[
-                  pendingOffer.slot.deliveryKeyId ?? deliveryKeyring.currentKeyId
+                  pendingOffer.slot.deliveryKeyId ?? deliveryKeyring.legacyKeyId
                 ] ?? ''
               if (!pendingKey)
                 return yield* new CapabilityUnavailable({
