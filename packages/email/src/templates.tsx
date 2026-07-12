@@ -28,6 +28,28 @@ export interface AppointmentConfirmationEmailProps {
   readonly confirmationUrl: string
 }
 
+export function AvailabilityOfferEmail(props: {
+  readonly startsAt: string
+  readonly offerUrl: string
+}) {
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>A requested time is available</Preview>
+      <Body>
+        <Container>
+          <Heading>A time is available</Heading>
+          <Text>{props.startsAt}</Text>
+          <Button href={props.offerUrl}>Review this private offer</Button>
+          <Text>
+            <Link href={props.offerUrl}>{props.offerUrl}</Link>
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
 export function AppointmentConfirmationEmail(props: AppointmentConfirmationEmailProps) {
   return (
     <Html lang="en">

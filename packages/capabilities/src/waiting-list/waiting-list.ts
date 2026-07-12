@@ -24,7 +24,8 @@ export const WaitingListRequest = Schema.Struct({
   providerPreference: WaitingListProviderPreference,
   from: Schema.String,
   until: Schema.String,
-  replacementAppointmentId: Schema.optional(Schema.String)
+  replacementAppointmentId: Schema.optional(Schema.String),
+  replacementConfirmationRouteId: Schema.optional(Schema.String)
 })
 export const WaitingListCustomer = Schema.Struct({
   name: Schema.String,
@@ -120,6 +121,7 @@ export type DeliveredAvailabilityOffer = {
   readonly offer: AvailabilityOffer
   readonly capability: string
   readonly customer: WaitingListCustomer
+  readonly merchantSlug: string
 }
 export class OfferBooking extends Context.Service<
   OfferBooking,

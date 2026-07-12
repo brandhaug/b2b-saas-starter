@@ -1,9 +1,10 @@
 import { Effect, Layer, Schema } from 'effect'
-import { and, eq, gt, inArray, lte } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, isNull, lte } from 'drizzle-orm'
 import {
   availabilityOffers,
   appointments,
   batch,
+  confirmationAccess,
   Database,
   merchants,
   notificationIntents,
@@ -161,10 +162,18 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
         if (
           !shop ||
           !provider ||
-          selectedServices.length !== application.request.serviceIds.length
+          provider.merchantId !== shop.merchantId ||
+          provider.status !== 'active' ||
+          selectedServices.length !== application.request.serviceIds.length ||
+          selectedServices.some(
+            (service) =>
+              service.merchantId !== shop.merchantId || service.status !== 'active'
+          )
         )
           return yield* unavailable()
         if (application.request.replacementAppointmentId) {
+          if (!application.request.replacementConfirmationRouteId)
+            return yield* unavailable()
           const [replacement] = yield* orUnavailable('waiting-list')(
             db
               .select()
@@ -172,7 +181,29 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
               .where(eq(appointments.id, application.request.replacementAppointmentId))
               .limit(1)
           )
+          const [access] = yield* orUnavailable('waiting-list')(
+            db
+              .select()
+              .from(confirmationAccess)
+              .where(
+                and(
+                  eq(
+                    confirmationAccess.routeId,
+                    application.request.replacementConfirmationRouteId
+                  ),
+                  eq(
+                    confirmationAccess.appointmentId,
+                    application.request.replacementAppointmentId
+                  ),
+                  isNotNull(confirmationAccess.exchangedAt),
+                  isNull(confirmationAccess.revokedAt),
+                  gt(confirmationAccess.expiresAt, now)
+                )
+              )
+              .limit(1)
+          )
           if (
+            !access ||
             !replacement ||
             replacement.merchantId !== shop.merchantId ||
             replacement.status !== 'scheduled'
@@ -711,11 +742,25 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
               db.select().from(shops).where(eq(shops.id, row.shopId)).limit(1)
             )
             if (!shop) continue
+            const [merchant] = yield* orUnavailable('waiting-list')(
+              db
+                .select()
+                .from(merchants)
+                .where(eq(merchants.id, shop.merchantId))
+                .limit(1)
+            )
+            if (!merchant) continue
             const serviceRows = yield* orUnavailable('waiting-list')(
               db
                 .select()
                 .from(services)
-                .where(inArray(services.id, [...application.request.serviceIds]))
+                .where(
+                  and(
+                    inArray(services.id, [...application.request.serviceIds]),
+                    eq(services.merchantId, shop.merchantId),
+                    eq(services.status, 'active')
+                  )
+                )
             )
             if (serviceRows.length !== application.request.serviceIds.length) continue
             const eligibility = yield* orUnavailable('waiting-list')(
@@ -723,9 +768,12 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                 .select()
                 .from(providerServiceEligibility)
                 .where(
-                  inArray(providerServiceEligibility.serviceId, [
-                    ...application.request.serviceIds
-                  ])
+                  and(
+                    inArray(providerServiceEligibility.serviceId, [
+                      ...application.request.serviceIds
+                    ]),
+                    eq(providerServiceEligibility.merchantId, shop.merchantId)
+                  )
                 )
             )
             const providerIds = [
@@ -745,6 +793,19 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                 )
               )
               .sort()
+            const activeProviders = yield* orUnavailable('waiting-list')(
+              db
+                .select({ id: providers.id })
+                .from(providers)
+                .where(
+                  and(
+                    inArray(providers.id, providerIds),
+                    eq(providers.merchantId, shop.merchantId),
+                    eq(providers.status, 'active')
+                  )
+                )
+            )
+            const activeProviderIds = new Set(activeProviders.map(({ id }) => id))
             const duration = serviceRows.reduce(
               (sum, service) => sum + service.durationMinutes,
               0
@@ -752,7 +813,9 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
             let candidate:
               | { providerId: string; startsAt: string; endsAt: string }
               | undefined
-            for (const providerId of providerIds) {
+            for (const providerId of providerIds.filter((id) =>
+              activeProviderIds.has(id)
+            )) {
               const rules = yield* orUnavailable('waiting-list')(
                 db
                   .select()
@@ -800,19 +863,35 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
             }
             if (!candidate) continue
             const capability = randomHex(32)
-            const offer = yield* service.offer({
-              id: newCapabilityId('avo'),
-              applicationId: application.id,
-              slot: {
-                shopId: application.shopId,
-                serviceIds: [...application.request.serviceIds],
-                ...candidate
-              },
+            const issued = yield* Effect.result(
+              service.offer({
+                id: newCapabilityId('avo'),
+                applicationId: application.id,
+                slot: {
+                  shopId: application.shopId,
+                  serviceIds: [...application.request.serviceIds],
+                  ...candidate
+                },
+                capability,
+                now,
+                expiresAt: addMinutes(now, 15)
+              })
+            )
+            if (issued._tag === 'Failure') {
+              if (
+                issued.failure instanceof PendingOfferExists ||
+                (issued.failure instanceof CapabilityUnavailable &&
+                  issued.failure.reason.toLowerCase().includes('unique'))
+              )
+                continue
+              return yield* issued.failure
+            }
+            delivered.push({
+              offer: issued.success,
               capability,
-              now,
-              expiresAt: addMinutes(now, 15)
+              customer: application.customer,
+              merchantSlug: merchant.slug
             })
-            delivered.push({ offer, capability, customer: application.customer })
           }
           return delivered
         })

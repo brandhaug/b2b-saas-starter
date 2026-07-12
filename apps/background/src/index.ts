@@ -5,6 +5,8 @@ import {
   type BookingProductEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
+  AvailabilityOfferEmail,
+  EmailDispatcher,
   selectEmailDispatcherLayer,
   type SendEmailBinding
 } from '@b2b-saas-starter/email'
@@ -112,9 +114,33 @@ export default {
             Effect.flatMap(WaitingList, (waitingList) => waitingList.expire(now)).pipe(
               Effect.provide(capabilityLayer)
             ),
-            Effect.flatMap(WaitingList, (waitingList) =>
-              waitingList.deliverAvailable(now)
-            ).pipe(Effect.provide(capabilityLayer)),
+            Effect.gen(function* () {
+              const waitingList = yield* WaitingList
+              const email = yield* EmailDispatcher
+              const offers = yield* waitingList.deliverAvailable(now)
+              yield* Effect.forEach(offers, (delivery) =>
+                email.send({
+                  idempotencyKey: `availability-offer:${delivery.offer.id}`,
+                  from: env.CLOUDFLARE_EMAIL_FROM ?? '',
+                  to: delivery.customer.email,
+                  subject: 'A requested time is available',
+                  element: AvailabilityOfferEmail({
+                    startsAt: delivery.offer.slot.startsAt,
+                    offerUrl: `${env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071'}/${delivery.merchantSlug}/booking/waiting-list/${delivery.offer.applicationId}/offers/${delivery.offer.id}?capability=${encodeURIComponent(delivery.capability)}`
+                  })
+                })
+              )
+            }).pipe(
+              Effect.provide(capabilityLayer),
+              Effect.provide(
+                selectEmailDispatcherLayer({
+                  ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+                  ...(env.CLOUDFLARE_EMAIL_FROM
+                    ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+                    : {})
+                })
+              )
+            ),
             Effect.gen(function* () {
               const topology = yield* ShopTopology
               const walkIns = yield* WalkIns
