@@ -76,6 +76,24 @@ export const smokeScenarios = await Promise.all([
       ]
     })
   ),
+  defineScenario({
+    ...base,
+    id: 'booking/online-payment-retryable-failure',
+    journey: 'online-payment',
+    locale: 'en',
+    route: '/mara-booking-studio/booking?locale=en',
+    providers: {
+      ...base.providers,
+      payment: {
+        'create-payment': { status: 'retryable-failure', code: 'provider_timeout' }
+      }
+    },
+    assertions: [
+      'retryable provider failure is localized',
+      'retry creates a fresh attempt without duplicate collection',
+      'no undeclared network request is made'
+    ]
+  }),
   ...(['en', 'es', 'fr', 'ro'] as const).map((locale) =>
     defineScenario({
       ...base,

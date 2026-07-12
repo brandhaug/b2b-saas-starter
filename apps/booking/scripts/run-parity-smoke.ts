@@ -314,28 +314,52 @@ const capture = async (
         body: `<!doctype html><html lang="${scenario.locale}"><body>${translateBookingMessage(scenario.locale, 'status.online_payment')}</body></html>`
       })
     })
-    await page
-      .getByRole('button', {
-        name: translateBookingMessage(scenario.locale, 'checkout.book')
-      })
-      .click()
-    await page.waitForURL(/\/booking\/confirmations\/cnf_/)
-    assertionResults.set(
-      'accepted quote amount and currency are provider inputs',
-      requests.some(
-        ({ url, method }) => url.includes('/payment-settle') && method === 'POST'
+    const book = page.getByRole('button', {
+      name: translateBookingMessage(scenario.locale, 'checkout.book')
+    })
+    await book.click()
+    if (scenario.id.endsWith('retryable-failure')) {
+      const failure = page.getByText(
+        translateBookingMessage(scenario.locale, 'payment.failed')
       )
-    )
-    assertionResults.set(
-      'successful capture confirms with an external Payment allocation',
-      await page
-        .getByText(translateBookingMessage(scenario.locale, 'status.online_payment'))
-        .isVisible()
-    )
-    assertionResults.set(
-      'processing failure retry and success copy use the selected locale',
-      (await page.locator('html').getAttribute('lang')) === scenario.locale
-    )
+      await failure.waitFor()
+      assertionResults.set('retryable provider failure is localized', true)
+      const retried = page.waitForResponse(
+        (response) =>
+          response.url().includes('/payment-settle') &&
+          response.request().method() === 'POST'
+      )
+      await book.click()
+      await retried
+      assertionResults.set(
+        'retry creates a fresh attempt without duplicate collection',
+        requests.filter(
+          ({ url, method }) => url.includes('/payment-settle') && method === 'POST'
+        ).length === 2
+      )
+      assertionResults.set(
+        'no undeclared network request is made',
+        requests.every(({ url }) => url.startsWith(canonicalOrigin))
+      )
+    } else {
+      await page.waitForURL(/\/booking\/confirmations\/cnf_/)
+      assertionResults.set(
+        'accepted quote amount and currency are provider inputs',
+        requests.some(
+          ({ url, method }) => url.includes('/payment-settle') && method === 'POST'
+        )
+      )
+      assertionResults.set(
+        'successful capture confirms with an external Payment allocation',
+        await page
+          .getByText(translateBookingMessage(scenario.locale, 'status.online_payment'))
+          .isVisible()
+      )
+      assertionResults.set(
+        'processing failure retry and success copy use the selected locale',
+        (await page.locator('html').getAttribute('lang')) === scenario.locale
+      )
+    }
     assertionResults.set(
       'no undeclared network request is made',
       requests.every(({ url }) => url.startsWith(canonicalOrigin))

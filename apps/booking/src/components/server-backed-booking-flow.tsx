@@ -469,6 +469,11 @@ export function ServerBackedBookingFlow({
           readonly view: PaymentView
           readonly nextActionUrl: string | null
         }
+        if (settled.view.attempt.outcome === 'failed') {
+          paymentIdempotencyKey.current = `payment-${crypto.randomUUID()}`
+          setPaymentStatus('failed')
+          return
+        }
         if (settled.nextActionUrl) {
           window.location.assign(settled.nextActionUrl)
           return

@@ -241,7 +241,6 @@ export const settleAcceptedPricingQuote = (input: {
     if (
       provider.configuration.state !== 'configured' ||
       !provider.configuration.methods.includes(input.method) ||
-      input.method === 'saved_card' ||
       !methodMeetsQuoteEligibility(input.method, input.currency, input.amountMinor)
     )
       return yield* new PaymentSettlementConflict({

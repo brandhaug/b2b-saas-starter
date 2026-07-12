@@ -40,6 +40,41 @@ const verifySignature = async (
   return expected.length === values.v1?.length && expected === values.v1
 }
 
+const eventFacts = {
+  'payment_intent.succeeded': {
+    kind: 'capture',
+    amount: (object: Record<string, unknown>, _previous?: Record<string, unknown>) =>
+      object.amount_received
+  },
+  'payment_intent.amount_capturable_updated': {
+    kind: 'authorization',
+    amount: (object: Record<string, unknown>, _previous?: Record<string, unknown>) =>
+      object.amount_capturable
+  },
+  'payment_intent.canceled': {
+    kind: 'void',
+    amount: (object: Record<string, unknown>, _previous?: Record<string, unknown>) =>
+      object.amount
+  },
+  'charge.refunded': {
+    kind: 'refund',
+    amount: (object: Record<string, unknown>, previous: Record<string, unknown> = {}) =>
+      typeof object.amount_refunded === 'number'
+        ? object.amount_refunded -
+          (typeof previous.amount_refunded === 'number' ? previous.amount_refunded : 0)
+        : null
+  }
+} as const
+
+const stripeMethod = {
+  card: 'card',
+  saved_card: 'card',
+  apple_pay: 'card',
+  google_pay: 'card',
+  cash_app_pay: 'cashapp',
+  klarna: 'klarna'
+} as const
+
 const normalizeEvent = (event: {
   readonly id: string
   readonly type: string
@@ -59,43 +94,19 @@ const normalizeEvent = (event: {
   const reference = typeof object.id === 'string' ? object.id : event.id
   const currency =
     typeof object.currency === 'string' ? object.currency.toUpperCase() : null
-  const cumulativeRefund = object.amount_refunded
-  const previousRefund = event.data.previous_attributes?.amount_refunded
-  const refundDelta =
-    typeof cumulativeRefund === 'number'
-      ? cumulativeRefund - (typeof previousRefund === 'number' ? previousRefund : 0)
-      : null
-  const amount =
-    event.type === 'payment_intent.succeeded'
-      ? object.amount_received
-      : event.type === 'payment_intent.amount_capturable_updated'
-        ? object.amount_capturable
-        : event.type === 'charge.refunded'
-          ? refundDelta
-          : event.type === 'payment_intent.canceled'
-            ? object.amount
-            : null
-  const kind =
-    event.type === 'payment_intent.succeeded'
-      ? 'capture'
-      : event.type === 'payment_intent.amount_capturable_updated'
-        ? 'authorization'
-        : event.type === 'charge.refunded'
-          ? 'refund'
-          : event.type === 'payment_intent.canceled'
-            ? 'void'
-            : null
-  if (!paymentId || !currency || !kind || typeof amount !== 'number' || amount <= 0)
+  const fact = eventFacts[event.type as keyof typeof eventFacts]
+  const amount = fact?.amount(object, event.data.previous_attributes)
+  if (!paymentId || !currency || !fact || typeof amount !== 'number' || amount <= 0)
     throw new Error('unsupported_stripe_event')
   return {
     paymentId,
     providerEventId: event.id,
     facts: [
       {
-        kind,
+        kind: fact.kind,
         amountMinor: amount,
         currency,
-        providerReference: `${reference}:${kind}:${amount}`,
+        providerReference: `${reference}:${fact.kind}:${amount}`,
         occurredAt: new Date(event.created * 1000).toISOString()
       }
     ]
@@ -130,12 +141,8 @@ export const makeStripePaymentProvider = (
     const input = (await request.json()) as Record<string, unknown>
     if (input.paymentMethodReference !== 'hosted_checkout')
       return new Response('Invalid payment method reference', { status: 422 })
-    const method =
-      input.method === 'cash_app_pay'
-        ? 'cashapp'
-        : input.method === 'klarna'
-          ? 'klarna'
-          : 'card'
+    const method = stripeMethod[input.method as keyof typeof stripeMethod]
+    if (!method) return new Response('Unsupported payment method', { status: 422 })
     const form = new URLSearchParams({
       mode: 'payment',
       success_url: String(input.returnUrl),
