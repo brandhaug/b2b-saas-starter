@@ -89,7 +89,7 @@ describe('WalkInRouteFlow', () => {
         acknowledgment
       />
     )
-    expect(await screen.findByText('serving')).toBeTruthy()
+    expect(await screen.findByText('Serving')).toBeTruthy()
     expect(screen.getByText('Position: 1')).toBeTruthy()
   })
 

@@ -32,7 +32,15 @@ const copy = {
     position: 'Position',
     wait: 'Estimated wait',
     minutes: 'minutes',
-    queue: 'People currently waiting'
+    queue: 'People currently waiting',
+    status: {
+      waiting: 'Waiting',
+      called: 'Called',
+      serving: 'Serving',
+      served: 'Served',
+      removed: 'Removed',
+      expired: 'Expired'
+    }
   },
   es: {
     title: 'Atención sin cita',
@@ -54,7 +62,15 @@ const copy = {
     position: 'Posición',
     wait: 'Espera estimada',
     minutes: 'minutos',
-    queue: 'Personas esperando'
+    queue: 'Personas esperando',
+    status: {
+      waiting: 'En espera',
+      called: 'Llamado',
+      serving: 'En servicio',
+      served: 'Atendido',
+      removed: 'Retirado',
+      expired: 'Caducado'
+    }
   },
   fr: {
     title: 'Venir sans rendez-vous',
@@ -76,7 +92,15 @@ const copy = {
     position: 'Position',
     wait: 'Attente estimée',
     minutes: 'minutes',
-    queue: 'Personnes en attente'
+    queue: 'Personnes en attente',
+    status: {
+      waiting: 'En attente',
+      called: 'Appelé',
+      serving: 'En service',
+      served: 'Terminé',
+      removed: 'Retiré',
+      expired: 'Expiré'
+    }
   },
   ro: {
     title: 'Programări fără rezervare',
@@ -98,7 +122,15 @@ const copy = {
     position: 'Poziție',
     wait: 'Timp estimat',
     minutes: 'minute',
-    queue: 'Persoane care așteaptă'
+    queue: 'Persoane care așteaptă',
+    status: {
+      waiting: 'În așteptare',
+      called: 'Chemat',
+      serving: 'În desfășurare',
+      served: 'Finalizat',
+      removed: 'Eliminat',
+      expired: 'Expirat'
+    }
   }
 } as const
 
@@ -184,7 +216,7 @@ export function WalkInRouteFlow({
           {acknowledgment ? (
             current ? (
               <div aria-live="polite">
-                <p>{current.status}</p>
+                <p>{message.status[current.status]}</p>
                 <p>
                   {message.position}: {current.position}
                 </p>

@@ -482,9 +482,9 @@ export default {
             Effect.provide(capabilitiesLayer)
           )
         ),
-      queue: (shopId) =>
+      overview: (shopId) =>
         Effect.runPromise(
-          Effect.flatMap(WalkIns, (walkIns) => walkIns.queue(shopId)).pipe(
+          Effect.flatMap(WalkIns, (walkIns) => walkIns.overview(shopId)).pipe(
             Effect.provide(capabilitiesLayer)
           )
         ),
