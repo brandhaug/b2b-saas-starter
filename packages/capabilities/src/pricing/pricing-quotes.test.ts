@@ -58,7 +58,8 @@ describe('Pricing Quotes', () => {
           taxBasisPoints: 1000,
           feeMinor: 90,
           taxLabel: 'VAT',
-          feeLabel: 'Booking fee'
+          feeLabel: 'Booking fee',
+          version: 2
         })
       )
     )
@@ -173,6 +174,25 @@ describe('Pricing Quotes', () => {
     )
     expect(results.filter((result) => result._tag === 'Success')).toHaveLength(1)
     expect(results.filter((result) => result._tag === 'Failure')).toHaveLength(1)
+  })
+
+  it('releases an uncommitted promotion reservation for another party', async () => {
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const pricing = yield* PricingQuotes
+          const first = yield* pricing.quote(
+            material({ bookingPartyId: 'bpt_one', promotionCode: 'SUMMER' })
+          )
+          yield* pricing.releasePromotionReservations(first.id)
+          return yield* pricing.quote(
+            material({ bookingPartyId: 'bpt_two', promotionCode: 'SUMMER' })
+          )
+        }),
+        SeedPricingQuotes([], [limited])
+      )
+    )
+    expect(result.facts.promotionReservationIds).toHaveLength(1)
   })
 
   it('allocates indivisible minor units deterministically and preserves the total', () => {

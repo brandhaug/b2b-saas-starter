@@ -945,6 +945,31 @@ export const pricingAdjustments = sqliteTable(
   (table) => [index('pricing_adjustments_quote_id_idx').on(table.pricingQuoteId)]
 )
 
+export const pricingQuoteAcceptances = sqliteTable('pricing_quote_acceptances', {
+  pricingQuoteId: text('pricing_quote_id')
+    .primaryKey()
+    .references(() => pricingQuotes.id, { onDelete: 'cascade' }),
+  bookingPartyId: text('booking_party_id')
+    .notNull()
+    .references(() => bookingParties.id, { onDelete: 'cascade' }),
+  partyVersion: integer('party_version').notNull(),
+  acceptedAt: text('accepted_at').notNull(),
+  createdAt: isoCreatedAt()
+})
+
+export const pricingPolicies = sqliteTable('pricing_policies', {
+  shopId: text('shop_id')
+    .primaryKey()
+    .references(() => shops.id, { onDelete: 'cascade' }),
+  taxBasisPoints: integer('tax_basis_points').default(0).notNull(),
+  taxLabel: text('tax_label').default('Tax').notNull(),
+  feeMinor: integer('fee_minor').default(0).notNull(),
+  feeLabel: text('fee_label').default('Fee').notNull(),
+  version: integer('version').default(1).notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
 export const promotions = sqliteTable(
   'promotions',
   {

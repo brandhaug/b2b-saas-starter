@@ -20,6 +20,7 @@ export const QuoteLine = Schema.Struct({
 })
 export const PricingQuoteFacts = Schema.Struct({
   partyVersion: Schema.Number,
+  pricingPolicyVersion: Schema.Number,
   lines: Schema.Array(QuoteLine),
   policyVersions: Schema.Array(Schema.String),
   promotionReservationIds: Schema.Array(Schema.String),
@@ -119,6 +120,12 @@ export type PricingQuotesShape = {
     partyVersion: number,
     now: string
   ) => Effect.Effect<PricingQuote, PricingError>
+  readonly commitPromotionReservations: (
+    quoteId: string
+  ) => Effect.Effect<void, PricingError>
+  readonly releasePromotionReservations: (
+    quoteId: string
+  ) => Effect.Effect<void, PricingError>
   readonly findLatest: (
     bookingPartyId: string
   ) => Effect.Effect<PricingQuote, PricingQuoteNotFound | CapabilityUnavailable>

@@ -59,6 +59,7 @@ const quote = {
   totalMinor: 5000,
   facts: {
     partyVersion: 1,
+    pricingPolicyVersion: 0,
     lines: [],
     policyVersions: [],
     promotionReservationIds: [],
@@ -382,5 +383,29 @@ describe('foundation Seed and Live contracts', () => {
       )
     ])
     expect(results.every((result) => result._tag === 'Failure')).toBe(true)
+  })
+
+  it('records quote acceptance as a separate immutable fact', async () => {
+    const accepted = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(PricingQuotes, (service) =>
+          service.accept(quote.id, party.version, now)
+        ),
+        live(LivePricingQuotes)
+      )
+    )
+    expect(accepted.acceptedAt).toBe(now)
+    const persistedQuote = await test.d1
+      .prepare('SELECT accepted_at FROM pricing_quotes WHERE id = ?')
+      .bind(quote.id)
+      .first<{ accepted_at: string | null }>()
+    const acceptance = await test.d1
+      .prepare(
+        'SELECT party_version, accepted_at FROM pricing_quote_acceptances WHERE pricing_quote_id = ?'
+      )
+      .bind(quote.id)
+      .first<{ party_version: number; accepted_at: string }>()
+    expect(persistedQuote?.accepted_at).toBeNull()
+    expect(acceptance).toEqual({ party_version: 1, accepted_at: now })
   })
 })

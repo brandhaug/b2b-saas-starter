@@ -7,8 +7,12 @@ import {
   bookingRequests,
   bookingRequestServices,
   bookingSessions,
+  checkoutPolicies,
   Database,
+  giftCardReservations,
   pricingAdjustments,
+  pricingPolicies,
+  pricingQuoteAcceptances,
   pricingQuotes,
   promotionReservations,
   promotions,
@@ -17,6 +21,7 @@ import {
 } from '@b2b-saas-starter/db'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { CapabilityUnavailable } from '../errors.ts'
 import {
   allocateMinor,
   InvalidQuoteMaterial,
@@ -35,18 +40,21 @@ type PromotionReservation = {
   promotionId: string
   quoteId: string
   expiresAt: string
+  status: 'active' | 'committed' | 'released' | 'expired'
 }
 export type PricingRules = {
   readonly taxBasisPoints: number
   readonly feeMinor: number
   readonly taxLabel: string
   readonly feeLabel: string
+  readonly version: number
 }
 const noPricingRules: PricingRules = {
   taxBasisPoints: 0,
   feeMinor: 0,
   taxLabel: 'Tax',
-  feeLabel: 'Fee'
+  feeLabel: 'Fee',
+  version: 0
 }
 
 const validateMaterial = (material: QuoteMaterial) => {
@@ -140,6 +148,7 @@ const buildQuote = (input: {
     totalMinor: subtotalMinor + adjustmentMinor,
     facts: {
       partyVersion: material.partyVersion,
+      pricingPolicyVersion: input.rules.version,
       lines: [...material.lines],
       policyVersions: [...material.policyVersions],
       promotionReservationIds: input.promotionReservationId
@@ -170,6 +179,11 @@ export const SeedPricingQuotes = (
     Effect.gen(function* () {
       const semaphore = yield* Semaphore.make(1)
       const quotes = new Map(initial.map((quote) => [quote.id, structuredClone(quote)]))
+      const acceptances = new Map(
+        initial.flatMap((quote) =>
+          quote.acceptedAt ? ([[quote.id, quote.acceptedAt]] as const) : []
+        )
+      )
       const reservations: PromotionReservation[] = []
       const exclusive = <A, E>(effect: Effect.Effect<A, E>) =>
         semaphore.withPermits(1)(effect)
@@ -181,7 +195,10 @@ export const SeedPricingQuotes = (
             .filter((item) => item.bookingPartyId === bookingPartyId)
             .sort((a, b) => b.version - a.version)[0]
           return quote
-            ? Effect.succeed(structuredClone(quote))
+            ? Effect.succeed({
+                ...structuredClone(quote),
+                acceptedAt: acceptances.get(quote.id) ?? null
+              })
             : Effect.fail(new PricingQuoteNotFound({ bookingPartyId }))
         },
         quote: (material) =>
@@ -219,6 +236,7 @@ export const SeedPricingQuotes = (
                   reservations.filter(
                     (item) =>
                       item.promotionId === promotion!.id &&
+                      (item.status === 'active' || item.status === 'committed') &&
                       item.expiresAt > material.now
                   ).length >= promotion.maximumUses
                 )
@@ -250,7 +268,8 @@ export const SeedPricingQuotes = (
                   id: reservationId,
                   promotionId: promotion.id,
                   quoteId: id,
-                  expiresAt: material.expiresAt
+                  expiresAt: material.expiresAt,
+                  status: 'active'
                 })
               return structuredClone(quote)
             })
@@ -270,9 +289,9 @@ export const SeedPricingQuotes = (
                 .sort((a, b) => b.version - a.version)[0]
               if (latest?.id !== quoteId)
                 return yield* new QuoteUnconfirmable({ quoteId, reason: 'superseded' })
-              const accepted = quote.acceptedAt ? quote : { ...quote, acceptedAt: now }
-              quotes.set(quoteId, accepted)
-              return structuredClone(accepted)
+              const acceptedAt = acceptances.get(quoteId) ?? now
+              acceptances.set(quoteId, acceptedAt)
+              return { ...structuredClone(quote), acceptedAt }
             })
           ),
         requireAccepted: (quoteId, partyVersion, now) =>
@@ -281,7 +300,8 @@ export const SeedPricingQuotes = (
             if (!quote)
               return yield* new PricingQuoteNotFound({ bookingPartyId: 'bpt_unknown' })
             const reason = recovery(quote, partyVersion, now)
-            if (reason || !quote.acceptedAt)
+            const acceptedAt = acceptances.get(quoteId)
+            if (reason || !acceptedAt)
               return yield* new QuoteUnconfirmable({
                 quoteId,
                 reason: reason ?? 'stale'
@@ -291,8 +311,24 @@ export const SeedPricingQuotes = (
               .sort((a, b) => b.version - a.version)[0]
             if (latest?.id !== quoteId)
               return yield* new QuoteUnconfirmable({ quoteId, reason: 'superseded' })
-            return structuredClone(quote)
-          })
+            return { ...structuredClone(quote), acceptedAt }
+          }),
+        commitPromotionReservations: (quoteId) =>
+          exclusive(
+            Effect.sync(() => {
+              for (const reservation of reservations)
+                if (reservation.quoteId === quoteId && reservation.status === 'active')
+                  reservation.status = 'committed'
+            })
+          ),
+        releasePromotionReservations: (quoteId) =>
+          exclusive(
+            Effect.sync(() => {
+              for (const reservation of reservations)
+                if (reservation.quoteId === quoteId && reservation.status === 'active')
+                  reservation.status = 'released'
+            })
+          )
       }
     })
   )
@@ -310,6 +346,13 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
               .from(pricingAdjustments)
               .where(eq(pricingAdjustments.pricingQuoteId, quote.id))
           )
+          const [acceptance] = yield* orUnavailable('pricing-quotes')(
+            db
+              .select()
+              .from(pricingQuoteAcceptances)
+              .where(eq(pricingQuoteAcceptances.pricingQuoteId, quote.id))
+              .limit(1)
+          )
           return {
             id: quote.id,
             bookingPartyId: quote.bookingPartyId,
@@ -320,7 +363,7 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
             tipMinor: quote.tipMinor,
             totalMinor: quote.totalMinor,
             facts: JSON.parse(quote.factsJson),
-            acceptedAt: quote.acceptedAt,
+            acceptedAt: acceptance?.acceptedAt ?? null,
             expiresAt: quote.expiresAt,
             adjustments: adjustments.map((item) => ({
               id: item.id,
@@ -355,6 +398,7 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
                 .select({
                   version: bookingParties.version,
                   currency: bookingParties.currency,
+                  shopId: bookingParties.shopId,
                   merchantId: bookingSessions.merchantId
                 })
                 .from(bookingParties)
@@ -372,6 +416,22 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
             if (party.currency !== material.currency)
               return yield* new InvalidQuoteMaterial({
                 reason: 'currency does not match Booking Party'
+              })
+            const partyRequests = yield* orUnavailable('pricing-quotes')(
+              db
+                .select({ id: bookingRequests.id })
+                .from(bookingRequests)
+                .where(eq(bookingRequests.bookingPartyId, material.bookingPartyId))
+            )
+            const suppliedRequestIds = new Set(
+              material.lines.map((line) => line.requestId)
+            )
+            if (
+              partyRequests.length !== suppliedRequestIds.size ||
+              partyRequests.some((request) => !suppliedRequestIds.has(request.id))
+            )
+              return yield* new InvalidQuoteMaterial({
+                reason: 'quote must include every Booking Request exactly once'
               })
             yield* Effect.forEach(
               material.lines,
@@ -431,6 +491,70 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
                 }),
               { discard: true }
             )
+            const policyRows = yield* orUnavailable('pricing-quotes')(
+              db
+                .select()
+                .from(checkoutPolicies)
+                .where(
+                  and(
+                    eq(checkoutPolicies.shopId, party.shopId),
+                    sql`${checkoutPolicies.effectiveAt} <= ${material.now}`,
+                    sql`(${checkoutPolicies.retiredAt} IS NULL OR ${checkoutPolicies.retiredAt} > ${material.now})`
+                  )
+                )
+            )
+            const activePolicyVersions = policyRows
+              .map((policy) => `${policy.kind}:${policy.version}`)
+              .sort()
+            if (
+              activePolicyVersions.length !== material.policyVersions.length ||
+              activePolicyVersions.some(
+                (version, index) =>
+                  version !== [...material.policyVersions].sort()[index]
+              )
+            )
+              return yield* new InvalidQuoteMaterial({
+                reason: 'policy versions no longer match server state'
+              })
+            if (material.giftCardReservationIds.length > 0) {
+              const reservations = yield* orUnavailable('pricing-quotes')(
+                db
+                  .select({ id: giftCardReservations.id })
+                  .from(giftCardReservations)
+                  .where(
+                    and(
+                      eq(giftCardReservations.bookingPartyId, material.bookingPartyId),
+                      eq(giftCardReservations.currency, material.currency),
+                      eq(giftCardReservations.status, 'active'),
+                      sql`${giftCardReservations.expiresAt} > ${material.now}`
+                    )
+                  )
+              )
+              const activeIds = new Set(reservations.map((item) => item.id))
+              if (
+                activeIds.size !== material.giftCardReservationIds.length ||
+                material.giftCardReservationIds.some((id) => !activeIds.has(id))
+              )
+                return yield* new InvalidQuoteMaterial({
+                  reason: 'gift-card reservations no longer match server state'
+                })
+            }
+            const [policy] = yield* orUnavailable('pricing-quotes')(
+              db
+                .select()
+                .from(pricingPolicies)
+                .where(eq(pricingPolicies.shopId, party.shopId))
+                .limit(1)
+            )
+            const pricingRules: PricingRules = policy
+              ? {
+                  taxBasisPoints: policy.taxBasisPoints,
+                  taxLabel: policy.taxLabel,
+                  feeMinor: policy.feeMinor,
+                  feeLabel: policy.feeLabel,
+                  version: policy.version
+                }
+              : noPricingRules
             let promotion: Promotion | undefined
             if (material.promotionCode) {
               const [row] = yield* orUnavailable('pricing-quotes')(
@@ -496,7 +620,7 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
               version,
               promotion,
               promotionReservationId: reservationId,
-              rules: noPricingRules
+              rules: pricingRules
             })
             const statements: BatchStatement[] = [
               db
@@ -546,11 +670,20 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
                 })
               )
             yield* batch(db, statements).pipe(
-              Effect.mapError(
-                () =>
-                  new InvalidQuoteMaterial({
-                    reason: 'quote version or promotion reservation conflict'
-                  })
+              Effect.mapError((error) =>
+                /promotion uses exhausted/i.test(error.reason)
+                  ? new PromotionUnavailable({
+                      code: material.promotionCode ?? '',
+                      reason: 'uses_exhausted'
+                    })
+                  : /unique|constraint/i.test(error.reason)
+                    ? new InvalidQuoteMaterial({
+                        reason: 'quote version or reservation conflict'
+                      })
+                    : new CapabilityUnavailable({
+                        capability: 'pricing-quotes',
+                        reason: error.reason
+                      })
               )
             )
             return quote
@@ -572,12 +705,16 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
             const latest = yield* findLatest(quote.bookingPartyId)
             if (latest.id !== quoteId)
               return yield* new QuoteUnconfirmable({ quoteId, reason: 'superseded' })
-            yield* orUnavailable('pricing-quotes')(
-              db
-                .update(pricingQuotes)
-                .set({ acceptedAt: quote.acceptedAt ?? now })
-                .where(eq(pricingQuotes.id, quoteId))
-            )
+            if (!quote.acceptedAt)
+              yield* orUnavailable('pricing-quotes')(
+                db.insert(pricingQuoteAcceptances).values({
+                  pricingQuoteId: quoteId,
+                  bookingPartyId: quote.bookingPartyId,
+                  partyVersion,
+                  acceptedAt: now,
+                  createdAt: now
+                })
+              )
             return { ...quote, acceptedAt: quote.acceptedAt ?? now }
           }),
         requireAccepted: (quoteId, partyVersion, now) =>
@@ -601,8 +738,106 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
             const latest = yield* findLatest(quote.bookingPartyId)
             if (latest.id !== quoteId)
               return yield* new QuoteUnconfirmable({ quoteId, reason: 'superseded' })
+            const [party] = yield* orUnavailable('pricing-quotes')(
+              db
+                .select({ shopId: bookingParties.shopId })
+                .from(bookingParties)
+                .where(eq(bookingParties.id, quote.bookingPartyId))
+                .limit(1)
+            )
+            const activeHolds = yield* orUnavailable('pricing-quotes')(
+              db
+                .select({ id: timeSlotHolds.id })
+                .from(timeSlotHolds)
+                .where(sql`${timeSlotHolds.expiresAt} > ${now}`)
+            )
+            const activeHoldIds = new Set(activeHolds.map((item) => item.id))
+            if (quote.facts.lines.some((line) => !activeHoldIds.has(line.holdId)))
+              return yield* new QuoteUnconfirmable({ quoteId, reason: 'stale' })
+            if (quote.facts.giftCardReservationIds.length > 0) {
+              const activeGiftCards = yield* orUnavailable('pricing-quotes')(
+                db
+                  .select({ id: giftCardReservations.id })
+                  .from(giftCardReservations)
+                  .where(
+                    and(
+                      eq(giftCardReservations.bookingPartyId, quote.bookingPartyId),
+                      eq(giftCardReservations.status, 'active'),
+                      sql`${giftCardReservations.expiresAt} > ${now}`
+                    )
+                  )
+              )
+              const activeGiftCardIds = new Set(activeGiftCards.map((item) => item.id))
+              if (
+                quote.facts.giftCardReservationIds.some(
+                  (id) => !activeGiftCardIds.has(id)
+                )
+              )
+                return yield* new QuoteUnconfirmable({ quoteId, reason: 'stale' })
+            }
+            if (party) {
+              const [pricingPolicy] = yield* orUnavailable('pricing-quotes')(
+                db
+                  .select({ version: pricingPolicies.version })
+                  .from(pricingPolicies)
+                  .where(eq(pricingPolicies.shopId, party.shopId))
+                  .limit(1)
+              )
+              if ((pricingPolicy?.version ?? 0) !== quote.facts.pricingPolicyVersion)
+                return yield* new QuoteUnconfirmable({ quoteId, reason: 'stale' })
+              const policies = yield* orUnavailable('pricing-quotes')(
+                db
+                  .select({
+                    kind: checkoutPolicies.kind,
+                    version: checkoutPolicies.version
+                  })
+                  .from(checkoutPolicies)
+                  .where(
+                    and(
+                      eq(checkoutPolicies.shopId, party.shopId),
+                      sql`${checkoutPolicies.effectiveAt} <= ${now}`,
+                      sql`(${checkoutPolicies.retiredAt} IS NULL OR ${checkoutPolicies.retiredAt} > ${now})`
+                    )
+                  )
+              )
+              const versions = policies
+                .map((item) => `${item.kind}:${item.version}`)
+                .sort()
+              if (
+                versions.length !== quote.facts.policyVersions.length ||
+                versions.some(
+                  (version, index) =>
+                    version !== [...quote.facts.policyVersions].sort()[index]
+                )
+              )
+                return yield* new QuoteUnconfirmable({ quoteId, reason: 'stale' })
+            }
             return quote
-          })
+          }),
+        commitPromotionReservations: (quoteId) =>
+          orUnavailable('pricing-quotes')(
+            db
+              .update(promotionReservations)
+              .set({ status: 'committed' })
+              .where(
+                and(
+                  eq(promotionReservations.pricingQuoteId, quoteId),
+                  eq(promotionReservations.status, 'active')
+                )
+              )
+          ).pipe(Effect.asVoid),
+        releasePromotionReservations: (quoteId) =>
+          orUnavailable('pricing-quotes')(
+            db
+              .update(promotionReservations)
+              .set({ status: 'released' })
+              .where(
+                and(
+                  eq(promotionReservations.pricingQuoteId, quoteId),
+                  eq(promotionReservations.status, 'active')
+                )
+              )
+          ).pipe(Effect.asVoid)
       }
     })
   )
