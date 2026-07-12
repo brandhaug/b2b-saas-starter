@@ -25,12 +25,35 @@ ALTER TABLE `__new_booking_outbox` RENAME TO `booking_outbox`;--> statement-brea
 PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `booking_outbox_pending_idx` ON `booking_outbox` (`processed_at`,`created_at`);
 --> statement-breakpoint
+UPDATE `booking_outbox`
+SET `email_status` = CASE
+      WHEN `email_status` = 'skipped' THEN 'needs_configuration'
+      WHEN `email_status` = 'failed' THEN 'failed_retryable'
+      ELSE `email_status`
+    END,
+    `processed_at` = CASE
+      WHEN `email_status` IN ('skipped', 'failed') THEN NULL
+      ELSE `processed_at`
+    END;
+--> statement-breakpoint
 INSERT INTO `notification_intents` (`id`, `shop_id`, `topic`, `recipient_json`, `payload_json`, `source_type`, `source_id`, `deduplication_key`, `status`, `available_at`, `created_at`, `updated_at`)
 SELECT 'nti_' || substr(o.`id`, 5),
        COALESCE(p.`shop_id`, (SELECT s.`id` FROM `shops` s WHERE s.`merchant_id` = a.`merchant_id` ORDER BY s.`created_at` LIMIT 1)),
-       'appointment.confirmed', '{}', json_object('appointmentId', a.`id`),
+       'appointment.confirmed',
+       json_object('email', json_extract(a.`snapshot`, '$.customerDetails.email')),
+       json_object(
+         'appointmentId', a.`id`,
+         'snapshot', json(a.`snapshot`),
+         'confirmationRouteId', (SELECT c.`route_id` FROM `confirmation_access` c WHERE c.`appointment_id` = a.`id` LIMIT 1)
+       ),
        'appointment', a.`id`, 'appointment.confirmed:' || a.`id`,
-       CASE WHEN o.`processed_at` IS NULL THEN 'pending' ELSE 'delivered' END,
+       CASE
+         WHEN o.`processed_at` IS NULL THEN 'pending'
+         WHEN o.`webhook_status` = 'dead_lettered' OR o.`email_status` = 'failed_terminal' THEN 'failed'
+         WHEN o.`email_status` = 'disabled' THEN 'cancelled'
+         WHEN o.`email_status` = 'delivered' AND o.`webhook_status` = 'completed' THEN 'delivered'
+         ELSE 'pending'
+       END,
        o.`created_at`, o.`created_at`, COALESCE(o.`processed_at`, o.`created_at`)
 FROM `booking_outbox` o
 JOIN `appointments` a ON a.`id` = o.`appointment_id`

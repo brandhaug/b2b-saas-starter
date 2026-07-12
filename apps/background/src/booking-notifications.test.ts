@@ -126,6 +126,9 @@ describe('processBookingOutbox', () => {
       )
     )
     expect(send).toHaveBeenCalledOnce()
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'nti_test' })
+    )
     expect(recordEmail).toHaveBeenCalledWith('out_test', 'delivered', null, 1, null)
     expect(finish).toHaveBeenCalledWith('out_test', 'completed', work.createdAt)
 

@@ -8,6 +8,7 @@ export const EmailDeliveryMode = Schema.Literals(['cloudflare-email', 'log'])
 export type EmailDeliveryMode = typeof EmailDeliveryMode.Type
 
 export type EmailMessage = {
+  readonly idempotencyKey?: string
   readonly from: string
   readonly to: string
   readonly subject: string
@@ -22,6 +23,7 @@ export const EmailDeliveryResult = Schema.Struct({
 export type EmailDeliveryResult = typeof EmailDeliveryResult.Type
 
 export type SendEmailBuilderArgs = {
+  readonly idempotencyKey?: string
   readonly from: string
   readonly to: string | readonly string[]
   readonly subject: string
@@ -107,6 +109,9 @@ export const makeCloudflareEmailDispatcherLayer = (
         yield* Effect.tryPromise({
           try: () =>
             binding.send({
+              ...(message.idempotencyKey
+                ? { idempotencyKey: message.idempotencyKey }
+                : {}),
               from,
               to: message.to,
               subject: message.subject,

@@ -182,12 +182,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Customer Details, Policies, Consent, and Checkout Review.
 
-- [x] Payment owns idempotent attempts and immutable authorization, capture, refund, and reconciliation facts.
-- [x] Payment status derives only from successful monetary facts; failed provider operations remain Payment Attempt facts.
-- [x] Configured cards, saved methods, Apple Pay, Google Pay, Cash App Pay, and BNPL variants expose only eligible methods.
-- [x] Pay In Person remains available and creates no Payment.
-- [x] Duplicate callbacks, provider success followed by local failure, retries, reconciliation, cancellation, and no-credential states cannot duplicate collection.
-- [x] Customer-visible processing, failure, retry, and success states are localized and selected by deterministic scenarios.
+- [ ] Payment owns idempotent attempts and immutable authorization, capture, refund, and reconciliation facts.
+- [ ] Payment status derives only from successful monetary facts; failed provider operations remain Payment Attempt facts.
+- [ ] Configured cards, saved methods, Apple Pay, Google Pay, Cash App Pay, and BNPL variants expose only eligible methods.
+- [ ] Pay In Person remains available and creates no Payment.
+- [ ] Duplicate callbacks, provider success followed by local failure, retries, reconciliation, cancellation, and no-credential states cannot duplicate collection.
+- [ ] Customer-visible processing, failure, retry, and success states are localized and selected by deterministic scenarios.
 
 ## Deliver Gift Card Purchase and Issuance
 

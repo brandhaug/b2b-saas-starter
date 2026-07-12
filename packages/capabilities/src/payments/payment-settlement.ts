@@ -252,6 +252,22 @@ export const SeedPaymentSettlement = (
       const attempt = store.attempts.get(input.attemptId)
       if (!attempt)
         return Effect.fail(new PaymentAttemptNotFound({ attemptId: input.attemptId }))
+      if (attempt.outcome !== 'pending') {
+        return attempt.outcome === input.outcome &&
+          attempt.providerReference === input.providerReference &&
+          attempt.failureCode === (input.failureCode ?? null)
+          ? Effect.succeed({
+              payment: store.payments.get(attempt.paymentId)!,
+              attempt
+            })
+          : Effect.fail(
+              new PaymentSettlementConflict({ code: 'attempt_already_completed' })
+            )
+      }
+      if (input.outcome === 'failed' && input.facts.length > 0)
+        return Effect.fail(
+          new PaymentSettlementConflict({ code: 'failed_attempt_has_facts' })
+        )
       for (const fact of input.facts) {
         if (fact.currency !== store.payments.get(attempt.paymentId)!.currency) {
           return Effect.fail(

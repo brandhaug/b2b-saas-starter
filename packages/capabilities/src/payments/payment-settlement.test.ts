@@ -87,6 +87,19 @@ describe('online Payment settlement', () => {
     )
     expect(failed.payment.status).toBe('pending')
     expect(failed.attempt.outcome).toBe('failed')
+    await expect(
+      run(
+        Effect.flatMap(PaymentSettlement, (payments) =>
+          payments.recordAttemptOutcome({
+            attemptId: first.attempt.id,
+            outcome: 'succeeded',
+            providerReference: 'pi_changed',
+            facts: [],
+            now: '2026-07-12T12:00:02.000Z'
+          })
+        )
+      )
+    ).rejects.toMatchObject({ code: 'attempt_already_completed' })
 
     const retry = await run(
       Effect.flatMap(PaymentSettlement, (payments) =>

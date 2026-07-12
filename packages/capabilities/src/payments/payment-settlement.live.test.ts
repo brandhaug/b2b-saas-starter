@@ -89,6 +89,26 @@ describe('live online Payment settlement', () => {
       )
     )
     expect(reconciled.payment.capturedMinor).toBe(12500)
+    const replay = await run(
+      Effect.flatMap(PaymentSettlement, (service) =>
+        service.reconcile({
+          paymentId: captured.payment.id,
+          provider: 'stripe',
+          providerEventId: 'evt_live',
+          facts: [
+            {
+              kind: 'capture',
+              amountMinor: 12500,
+              currency: 'USD',
+              providerReference: 'ch_should_be_ignored',
+              occurredAt: now
+            }
+          ],
+          now
+        })
+      )
+    )
+    expect(replay.payment.capturedMinor).toBe(12500)
     const counts = await test.d1
       .prepare(
         'SELECT (SELECT count(*) FROM payment_transactions) facts, (SELECT count(*) FROM payment_reconciliation_events) events'
