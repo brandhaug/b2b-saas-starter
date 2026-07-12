@@ -60,6 +60,7 @@ export function ServerBackedBookingFlow({
     readonly CustomerDetailsIssue[]
   >([])
   const [expiredSession, setExpiredSession] = useState(false)
+  const [confirmationProcessing, setConfirmationProcessing] = useState(false)
   const [selectionRefreshed, setSelectionRefreshed] = useState(false)
   const [partyNow, setPartyNow] = useState('9999-12-31T23:59:59.999Z')
   useEffect(() => {
@@ -385,6 +386,10 @@ export function ServerBackedBookingFlow({
         setExpiredSession(true)
         return
       }
+      if (response.status === 202) {
+        setConfirmationProcessing(true)
+        return
+      }
       if (!response.ok) throw new Error('confirmation unavailable')
       return (await response.json()) as { readonly location: string }
     },
@@ -450,6 +455,13 @@ export function ServerBackedBookingFlow({
       )
     }
     if (checkout) {
+      if (confirmationProcessing)
+        return (
+          <Status
+            title={message('confirmation.processing_title')}
+            copy={message('confirmation.processing_copy')}
+          />
+        )
       return (
         <BookingCheckoutFlow
           review={review}

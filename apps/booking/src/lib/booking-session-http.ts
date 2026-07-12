@@ -725,7 +725,7 @@ export const handleBookingSessionRequest = (
       if (result.success.kind === 'expired')
         return withPrivateHeaders(
           new Response(
-            '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Confirmation expired</title></head><body><main><h1>This Confirmation link has expired</h1><p>Contact the merchant if you still need these Appointment details.</p></main></body></html>',
+            `<!doctype html><html lang="${result.success.locale}"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>${escapeHtml(translateBookingMessage(result.success.locale, 'confirmation.expired_title'))}</title></head><body><main><h1>${escapeHtml(translateBookingMessage(result.success.locale, 'confirmation.expired_title'))}</h1><p>${escapeHtml(translateBookingMessage(result.success.locale, 'confirmation.expired_copy'))}</p></main></body></html>`,
             { status: 410, headers: { 'content-type': 'text/html; charset=utf-8' } }
           )
         )
@@ -1279,19 +1279,26 @@ export const handleBookingSessionRequest = (
       const result = yield* Effect.result(
         dependencies.confirmation.confirm(authorization.success, { now, traceId })
       )
+      if (result._tag === 'Failure' && result.failure instanceof CapabilityUnavailable)
+        return withPrivateHeaders(
+          Response.json({ kind: 'processing' }, { status: 202 })
+        )
       if (result._tag === 'Failure')
         return mapSessionFailure(result.failure, merchantSlug)
       const confirmed = result.success
       const location = `/${encodeURIComponent(merchantSlug)}/booking/confirmations/${encodeURIComponent(confirmed.access.routeId)}?token=${encodeURIComponent(confirmed.access.token)}`
       const response = Response.json({
         appointment: confirmed.appointment,
+        appointments: confirmed.appointments,
         access: {
           routeId: confirmed.access.routeId,
           tokenVersion: confirmed.access.tokenVersion,
           signingKeyId: confirmed.access.signingKeyId,
           expiresAt: confirmed.access.expiresAt
         },
+        accesses: confirmed.accesses.map(({ token: _token, ...access }) => access),
         outboxId: confirmed.outboxId,
+        outboxIds: confirmed.outboxIds,
         replayed: confirmed.replayed,
         location
       })

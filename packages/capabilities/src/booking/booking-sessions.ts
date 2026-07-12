@@ -172,6 +172,7 @@ export type SeedBookingSessionRecord = BookingSession & {
   readonly capabilityHash: string
   readonly replayExpiresAt?: string | null
   readonly confirmedAppointmentId?: string | null
+  readonly confirmedAppointmentIds?: readonly string[] | null
   locale?: 'en' | 'es' | 'fr' | 'ro' | undefined
   embeddingProfile?: 'standalone' | 'widget' | 'google' | undefined
   acquisition?: Readonly<Record<string, string>> | null

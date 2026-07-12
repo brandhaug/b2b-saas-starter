@@ -17,6 +17,7 @@ import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
   BookingConfirmation,
   type ConfirmationSigningKeyring,
+  deriveConfirmationCookieCredential,
   deriveConfirmationToken,
   LiveBookingConfirmation,
   verifyConfirmationToken
@@ -353,7 +354,8 @@ describe('Live Booking Confirmation', () => {
     const read = (
       token: string,
       at = now,
-      keyringOverride: ConfirmationSigningKeyring = keyring
+      keyringOverride: ConfirmationSigningKeyring = keyring,
+      credentialKind: 'bearer' | 'cookie' = 'bearer'
     ) =>
       Effect.runPromise(
         Effect.provide(
@@ -362,7 +364,7 @@ describe('Live Booking Confirmation', () => {
               routeId: confirmed.access.routeId,
               merchantSlug: 'confirm-live',
               credential: token,
-              credentialKind: 'bearer',
+              credentialKind,
               now: at
             })
           ),
@@ -384,6 +386,16 @@ describe('Live Booking Confirmation', () => {
         }
       }
     })
+    await expect(read(confirmed.access.token)).resolves.toEqual({ kind: 'not_found' })
+    const cookieCredential = await deriveConfirmationCookieCredential(
+      {
+        routeId: confirmed.access.routeId,
+        tokenVersion: confirmed.access.tokenVersion,
+        signingKeyId: confirmed.access.signingKeyId,
+        expiresAt: confirmed.access.expiresAt
+      },
+      keyring
+    )
     await expect(read('0'.repeat(64))).resolves.toEqual({ kind: 'not_found' })
     await expect(
       Effect.runPromise(
@@ -406,37 +418,51 @@ describe('Live Booking Confirmation', () => {
       .prepare("UPDATE appointments SET status = 'cancelled' WHERE id = ?")
       .bind(confirmed.appointment.id)
       .run()
-    await expect(read(confirmed.access.token)).resolves.toMatchObject({
-      kind: 'found',
-      confirmation: { status: 'cancelled' }
-    })
+    await expect(read(cookieCredential, now, keyring, 'cookie')).resolves.toMatchObject(
+      {
+        kind: 'found',
+        confirmation: { status: 'cancelled' }
+      }
+    )
 
     await expect(
-      read(confirmed.access.token, confirmed.access.expiresAt)
-    ).resolves.toEqual({ kind: 'expired' })
+      read(cookieCredential, confirmed.access.expiresAt, keyring, 'cookie')
+    ).resolves.toEqual({ kind: 'expired', locale: 'en' })
     await test.d1
       .prepare(
         'UPDATE confirmation_access SET token_version = token_version + 1 WHERE route_id = ?'
       )
       .bind(confirmed.access.routeId)
       .run()
-    await expect(read(confirmed.access.token)).resolves.toEqual({ kind: 'not_found' })
+    await expect(read(cookieCredential, now, keyring, 'cookie')).resolves.toEqual({
+      kind: 'not_found'
+    })
 
     await test.d1
       .prepare('UPDATE confirmation_access SET token_version = 1 WHERE route_id = ?')
       .bind(confirmed.access.routeId)
       .run()
     await expect(
-      read(confirmed.access.token, now, {
-        currentKeyId: 'next',
-        keys: { ...keyring.keys, next: 'test-next-key' }
-      })
+      read(
+        cookieCredential,
+        now,
+        {
+          currentKeyId: 'next',
+          keys: { ...keyring.keys, next: 'test-next-key' }
+        },
+        'cookie'
+      )
     ).resolves.toMatchObject({ kind: 'found' })
     await expect(
-      read(confirmed.access.token, now, {
-        currentKeyId: 'next',
-        keys: { next: 'test-next-key' }
-      })
+      read(
+        cookieCredential,
+        now,
+        {
+          currentKeyId: 'next',
+          keys: { next: 'test-next-key' }
+        },
+        'cookie'
+      )
     ).resolves.toEqual({ kind: 'not_found' })
   })
 })

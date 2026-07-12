@@ -109,6 +109,17 @@ export type StoredAppointmentSnapshot = StoredBookingQuote & {
     readonly phone: string | null
   }
   readonly checkoutPath: 'pay_in_person'
+  readonly acceptedQuote?: {
+    readonly id: string
+    readonly version: number
+    readonly totalMinor: number
+    readonly acceptedAt: string
+  }
+  readonly policyAcceptance?: {
+    readonly policyId: string
+    readonly disclosure: string
+    readonly acceptedAt: string
+  } | null
 }
 
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
@@ -466,7 +477,9 @@ export const appointments = sqliteTable(
     providerId: text('provider_id')
       .notNull()
       .references(() => providers.id, { onDelete: 'restrict' }),
-    bookingSessionId: text('booking_session_id').unique(),
+    bookingSessionId: text('booking_session_id'),
+    bookingPartyId: text('booking_party_id'),
+    bookingRequestId: text('booking_request_id').unique(),
     status: text('status', { enum: appointmentStatuses })
       .default('scheduled')
       .notNull(),
@@ -478,6 +491,8 @@ export const appointments = sqliteTable(
   },
   (table) => [
     index('appointments_merchant_id_idx').on(table.merchantId),
+    index('appointments_booking_session_id_idx').on(table.bookingSessionId),
+    index('appointments_booking_party_id_idx').on(table.bookingPartyId),
     index('appointments_provider_interval_idx').on(
       table.providerId,
       table.startsAt,
@@ -502,6 +517,7 @@ export const confirmationAccess = sqliteTable(
     tokenVersion: integer('token_version').default(1).notNull(),
     signingKeyId: text('signing_key_id').notNull(),
     expiresAt: text('expires_at').notNull(),
+    exchangedAt: text('exchanged_at'),
     revokedAt: text('revoked_at'),
     createdAt: isoCreatedAt()
   },

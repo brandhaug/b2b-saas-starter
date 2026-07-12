@@ -84,6 +84,12 @@ const en = {
   'validation.name_too_long': 'Enter a name with 120 characters or fewer.',
   'validation.phone_invalid': 'Enter a valid phone number.',
   'title.appointment_confirmation': 'Appointment Confirmation',
+  'confirmation.processing_title': 'Booking processing',
+  'confirmation.processing_copy':
+    'We are checking your confirmation. No partial appointment has been shown.',
+  'confirmation.expired_title': 'This confirmation link has expired',
+  'confirmation.expired_copy':
+    'Contact the merchant if you still need these appointment details.',
   'checkout.title': 'Confirm booking',
   'checkout.guests': 'Guests',
   'checkout.edit': 'Edit',
@@ -185,6 +191,12 @@ const es = {
   'validation.name_too_long': 'Introduce un nombre de 120 caracteres o menos.',
   'validation.phone_invalid': 'Introduce un número de teléfono válido.',
   'title.appointment_confirmation': 'Confirmación de la cita',
+  'confirmation.processing_title': 'Reserva en proceso',
+  'confirmation.processing_copy':
+    'Estamos comprobando la confirmación. No se muestra ninguna cita parcial.',
+  'confirmation.expired_title': 'Este enlace de confirmación ha caducado',
+  'confirmation.expired_copy':
+    'Contacta con el comercio si aún necesitas los detalles de la cita.',
   'checkout.title': 'Confirmar reserva',
   'checkout.guests': 'Personas',
   'checkout.edit': 'Editar',
@@ -285,6 +297,12 @@ const fr = {
   'validation.name_too_long': 'Saisissez un nom de 120 caractères maximum.',
   'validation.phone_invalid': 'Saisissez un numéro de téléphone valide.',
   'title.appointment_confirmation': 'Confirmation du rendez-vous',
+  'confirmation.processing_title': 'Réservation en cours',
+  'confirmation.processing_copy':
+    'Nous vérifions la confirmation. Aucun rendez-vous partiel n’est affiché.',
+  'confirmation.expired_title': 'Ce lien de confirmation a expiré',
+  'confirmation.expired_copy':
+    'Communiquez avec le commerce si vous avez encore besoin des détails.',
   'checkout.title': 'Confirmer la réservation',
   'checkout.guests': 'Personnes',
   'checkout.edit': 'Modifier',
@@ -384,6 +402,12 @@ const ro = {
   'validation.name_too_long': 'Introdu un nume de cel mult 120 de caractere.',
   'validation.phone_invalid': 'Introdu un număr de telefon valid.',
   'title.appointment_confirmation': 'Confirmarea programării',
+  'confirmation.processing_title': 'Rezervare în curs',
+  'confirmation.processing_copy':
+    'Verificăm confirmarea. Nu este afișată nicio programare parțială.',
+  'confirmation.expired_title': 'Acest link de confirmare a expirat',
+  'confirmation.expired_copy':
+    'Contactează comerciantul dacă mai ai nevoie de detaliile programării.',
   'checkout.title': 'Confirmă rezervarea',
   'checkout.guests': 'Persoane',
   'checkout.edit': 'Editează',

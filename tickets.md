@@ -155,13 +155,13 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Customer Details, Policies, Consent, and Checkout Review.
 
-- [ ] Confirmation consumes every valid request, hold, reservation, accepted quote, and policy fact in one local commit or creates no Appointments.
-- [ ] One Appointment is created per Booking Request with immutable customer-visible snapshots and independent lifecycle identity.
-- [ ] Identical retries return the committed result; conflicting or expired retries cannot duplicate Appointments.
-- [ ] Unresolved settlement or commitment is shown as Processing rather than a partial confirmation.
-- [ ] Confirmation links exchange one-time tokens for exact-purpose HttpOnly access and redirect to token-free URLs.
-- [ ] Replay, expiry, invalid purpose, and cross-merchant access use neutral localized recovery.
-- [ ] Pay In Person works with all optional providers absent in every supported locale.
+- [x] Confirmation consumes every valid request, hold, reservation, accepted quote, and policy fact in one local commit or creates no Appointments.
+- [x] One Appointment is created per Booking Request with immutable customer-visible snapshots and independent lifecycle identity.
+- [x] Identical retries return the committed result; conflicting or expired retries cannot duplicate Appointments.
+- [x] Unresolved settlement or commitment is shown as Processing rather than a partial confirmation.
+- [x] Confirmation links exchange one-time tokens for exact-purpose HttpOnly access and redirect to token-free URLs.
+- [x] Replay, expiry, invalid purpose, and cross-merchant access use neutral localized recovery.
+- [x] Pay In Person works with all optional providers absent in every supported locale.
 
 ## Deliver Durable Operational Notifications
 

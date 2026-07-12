@@ -4,12 +4,20 @@ import {
   appointments,
   batch,
   bookingOutbox,
+  bookingParties,
+  bookingRequests,
   bookingSessionAdditionalServices,
   bookingSessions,
   confirmationAccess,
   Database,
   merchants,
+  pricingQuoteAcceptances,
+  pricingQuotes,
+  policyAcceptances,
+  promotionReservations,
+  settlementAllocations,
   timeSlotHolds,
+  type BatchStatement,
   type StoredAppointmentSnapshot
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
@@ -47,8 +55,11 @@ export type ConfirmationAccess = typeof ConfirmationAccess.Type
 
 export const BookingConfirmationResult = Schema.Struct({
   appointment: Appointment,
+  appointments: Schema.Array(Appointment),
   access: ConfirmationAccess,
+  accesses: Schema.Array(ConfirmationAccess),
   outboxId: Schema.String,
+  outboxIds: Schema.Array(Schema.String),
   replayed: Schema.Boolean
 })
 export type BookingConfirmationResult = typeof BookingConfirmationResult.Type
@@ -79,7 +90,10 @@ export const ConfirmationReadResult = Schema.Union([
     confirmation: CustomerConfirmation,
     cookieCredential: Schema.String
   }),
-  Schema.Struct({ kind: Schema.Literal('expired') }),
+  Schema.Struct({
+    kind: Schema.Literal('expired'),
+    locale: Schema.Literals(['en', 'es', 'fr', 'ro'])
+  }),
   Schema.Struct({ kind: Schema.Literal('not_found') })
 ])
 export type ConfirmationReadResult = typeof ConfirmationReadResult.Type
@@ -180,6 +194,7 @@ export type SeedBookingConfirmationStore = {
   readonly checkout: SeedBookingCheckoutStore
   readonly appointments: Map<string, Appointment>
   readonly access: Map<string, Omit<ConfirmationAccess, 'token'>>
+  readonly exchangedAccess: Set<string>
   readonly outbox: Map<
     string,
     { readonly appointmentId: string; readonly traceId: string }
@@ -194,6 +209,7 @@ export const emptySeedBookingConfirmationStore = (
   checkout,
   appointments: new Map(),
   access: new Map(),
+  exchangedAccess: new Set(),
   outbox: new Map()
 })
 
@@ -221,11 +237,24 @@ export const SeedBookingConfirmation = (
           ).catch(() => '')
         )
         const valid = metadata.expiresAt > input.now && expected === input.credential
+        if (
+          valid &&
+          input.credentialKind === 'bearer' &&
+          store.exchangedAccess.has(input.routeId)
+        )
+          return { kind: 'not_found' as const }
         if (!valid) {
           return expected === input.credential && metadata.expiresAt <= input.now
-            ? { kind: 'expired' as const }
+            ? {
+                kind: 'expired' as const,
+                locale:
+                  [...store.sessions.sessions.values()].find(
+                    (session) => session.confirmedAppointmentId === appointment.id
+                  )?.locale ?? 'en'
+              }
             : { kind: 'not_found' as const }
         }
+        if (input.credentialKind === 'bearer') store.exchangedAccess.add(input.routeId)
         return {
           kind: 'found' as const,
           cookieCredential: yield* Effect.promise(() =>
@@ -250,81 +279,115 @@ export const SeedBookingConfirmation = (
     confirm: (session, input) =>
       Effect.gen(function* () {
         const record = store.sessions.sessions.get(session.id)
-        if (record?.confirmedAppointmentId && record.replayExpiresAt! > input.now) {
-          const appointment = store.appointments.get(record.confirmedAppointmentId)!
-          const access = [...store.access.values()].find(
-            (candidate) => candidate.routeId === `cnf_${appointment.id}`
-          )!
-          const outboxId = [...store.outbox.entries()].find(
-            ([, value]) => value.appointmentId === appointment.id
-          )![0]
-          return {
-            appointment,
-            access: {
+        const committedIds =
+          record?.confirmedAppointmentIds ??
+          (record?.confirmedAppointmentId ? [record.confirmedAppointmentId] : [])
+        if (
+          committedIds.length > 0 &&
+          record?.replayExpiresAt &&
+          record.replayExpiresAt > input.now
+        ) {
+          const appointments = committedIds.map((id) => store.appointments.get(id)!)
+          const accesses = yield* Effect.forEach(appointments, (appointment) => {
+            const access = [...store.access.values()].find(
+              (candidate) => candidate.routeId === `cnf_${appointment.id}`
+            )!
+            return Effect.promise(async () => ({
               ...access,
-              token: yield* Effect.promise(() =>
-                deriveConfirmationToken(access, keyring)
-              )
-            },
-            outboxId,
+              token: await deriveConfirmationToken(access, keyring)
+            }))
+          })
+          const outboxIds = appointments.map(
+            (appointment) =>
+              [...store.outbox.entries()].find(
+                ([, value]) => value.appointmentId === appointment.id
+              )![0]
+          )
+          return {
+            appointment: appointments[0]!,
+            appointments,
+            access: accesses[0]!,
+            accesses,
+            outboxId: outboxIds[0]!,
+            outboxIds,
             replayed: true
           }
         }
-        const activeRequestId = store.checkout.scheduling.activeRequests?.get(
-          session.id
+        const partyRequestIds = store.checkout.scheduling.partyRequests.get(session.id)
+        const requestIds = partyRequestIds?.size
+          ? [...partyRequestIds]
+          : [store.checkout.scheduling.activeRequests.get(session.id) ?? session.id]
+        const holds = requestIds.map((requestId) =>
+          [...store.checkout.scheduling.holds.values()].find(
+            (candidate) =>
+              candidate.bookingSessionId === session.id &&
+              candidate.expiresAt > input.now &&
+              (candidate.bookingRequestId === requestId ||
+                (requestIds.length === 1 && !candidate.bookingRequestId))
+          )
         )
-        const hold = [...store.checkout.scheduling.holds.values()].find(
-          (candidate) =>
-            candidate.bookingSessionId === session.id &&
-            candidate.expiresAt > input.now &&
-            (!activeRequestId || candidate.bookingRequestId === activeRequestId)
+        if (holds.some((hold) => !hold)) return yield* rejected('hold_expired')
+        const details = requestIds.map((requestId) =>
+          store.checkout.details.get(requestId)
         )
-        if (!hold) return yield* rejected('hold_expired')
-        const details = store.checkout.details.get(activeRequestId ?? session.id)
-        if (!details) return yield* rejected('details_missing')
+        if (details.some((value) => !value)) return yield* rejected('details_missing')
         if (!record || record.lifecycle !== 'active') return yield* rejected('conflict')
-        const appointmentId = `apt_${session.id}`
-        const routeId = `cnf_${appointmentId}`
-        const outboxId = `obx_${appointmentId}`
-        const appointment: Appointment = {
-          id: appointmentId,
-          merchantId: record.merchantId,
-          providerId: hold.providerId,
-          status: 'scheduled',
-          startsAt: hold.startsAt,
-          endsAt: hold.endsAt,
-          snapshot: {
-            ...hold.quote,
-            merchantTimezone: store.checkout.scheduling.scenario.merchant.timezone,
-            customerDetails: details,
-            checkoutPath: 'pay_in_person'
-          },
-          createdAt: input.now
+        const appointments: Appointment[] = []
+        const accesses: ConfirmationAccess[] = []
+        const outboxIds: string[] = []
+        for (let index = 0; index < requestIds.length; index += 1) {
+          const requestId = requestIds[index]!
+          const hold = holds[index]!
+          const appointmentId = `apt_${requestId}`
+          const routeId = `cnf_${appointmentId}`
+          const outboxId = `obx_${appointmentId}`
+          const appointment: Appointment = {
+            id: appointmentId,
+            merchantId: record.merchantId,
+            providerId: hold.providerId,
+            status: 'scheduled',
+            startsAt: hold.startsAt,
+            endsAt: hold.endsAt,
+            snapshot: {
+              ...hold.quote,
+              merchantTimezone: store.checkout.scheduling.scenario.merchant.timezone,
+              customerDetails: details[index]!,
+              checkoutPath: 'pay_in_person'
+            },
+            createdAt: input.now
+          }
+          const access = {
+            routeId,
+            tokenVersion: 1,
+            signingKeyId: keyring.currentKeyId,
+            expiresAt: addMillisecondsToIso(hold.endsAt, 30 * 24 * 60 * 60_000)
+          }
+          store.appointments.set(appointmentId, appointment)
+          store.access.set(routeId, access)
+          store.outbox.set(outboxId, { appointmentId, traceId: input.traceId })
+          store.checkout.scheduling.holds.delete(hold.id)
+          store.checkout.details.delete(requestId)
+          appointments.push(appointment)
+          accesses.push({
+            ...access,
+            token: yield* Effect.promise(() => deriveConfirmationToken(access, keyring))
+          })
+          outboxIds.push(outboxId)
         }
-        const access = {
-          routeId,
-          tokenVersion: 1,
-          signingKeyId: keyring.currentKeyId,
-          expiresAt: addMillisecondsToIso(hold.endsAt, 30 * 24 * 60 * 60_000)
-        }
-        store.appointments.set(appointmentId, appointment)
-        store.access.set(routeId, access)
-        store.outbox.set(outboxId, { appointmentId, traceId: input.traceId })
-        store.checkout.scheduling.holds.delete(hold.id)
-        store.checkout.details.delete(activeRequestId ?? session.id)
         store.sessions.sessions.set(session.id, {
           ...record,
           lifecycle: 'consumed',
-          confirmedAppointmentId: appointmentId,
+          confirmedAppointmentId: appointments[0]!.id,
+          confirmedAppointmentIds: appointments.map((appointment) => appointment.id),
           replayExpiresAt: addMillisecondsToIso(input.now, 24 * 60 * 60_000)
         })
         return {
-          appointment,
-          access: {
-            ...access,
-            token: yield* Effect.promise(() => deriveConfirmationToken(access, keyring))
-          },
-          outboxId,
+          appointment: appointments[0]!,
+          appointments,
+          access: accesses[0]!,
+          accesses,
+          outboxId: outboxIds[0]!,
+          outboxIds,
           replayed: false
         }
       })
@@ -356,8 +419,48 @@ const resultFrom = async (
       snapshot: row.appointment.snapshot!,
       createdAt: row.appointment.createdAt
     },
+    appointments: [
+      {
+        id: row.appointment.id,
+        merchantId: row.appointment.merchantId,
+        providerId: row.appointment.providerId,
+        status: 'scheduled',
+        startsAt: row.appointment.startsAt,
+        endsAt: row.appointment.endsAt,
+        snapshot: row.appointment.snapshot!,
+        createdAt: row.appointment.createdAt
+      }
+    ],
     access: { ...metadata, token: await deriveConfirmationToken(metadata, keyring) },
+    accesses: [
+      { ...metadata, token: await deriveConfirmationToken(metadata, keyring) }
+    ],
     outboxId: row.outboxId,
+    outboxIds: [row.outboxId],
+    replayed
+  }
+}
+
+const resultsFrom = async (
+  rows: readonly {
+    appointment: typeof appointments.$inferSelect
+    access: typeof confirmationAccess.$inferSelect
+    outboxId: string
+  }[],
+  keyring: ConfirmationSigningKeyring,
+  replayed: boolean
+): Promise<BookingConfirmationResult> => {
+  const results = await Promise.all(
+    rows.map((row) => resultFrom(row, keyring, replayed))
+  )
+  const first = results[0]!
+  return {
+    appointment: first.appointment,
+    appointments: results.map((result) => result.appointment),
+    access: first.access,
+    accesses: results.map((result) => result.access),
+    outboxId: first.outboxId,
+    outboxIds: results.map((result) => result.outboxId),
     replayed
   }
 }
@@ -433,12 +536,32 @@ export const LiveBookingConfirmation = (
             const valid =
               !metadata.revokedAt &&
               metadata.expiresAt > input.now &&
-              expected === input.credential
+              expected === input.credential &&
+              (input.credentialKind === 'cookie' || !row.access.exchangedAt)
             if (!valid) {
               if (!metadata.revokedAt && metadata.expiresAt <= input.now) {
-                if (expected === input.credential) return { kind: 'expired' as const }
+                if (expected === input.credential)
+                  return {
+                    kind: 'expired' as const,
+                    locale: row.locale as 'en' | 'es' | 'fr' | 'ro'
+                  }
               }
               return { kind: 'not_found' as const }
+            }
+            if (input.credentialKind === 'bearer') {
+              const exchanged = yield* orUnavailable('booking-confirmation')(
+                db
+                  .update(confirmationAccess)
+                  .set({ exchangedAt: input.now })
+                  .where(
+                    and(
+                      eq(confirmationAccess.routeId, input.routeId),
+                      sql`${confirmationAccess.exchangedAt} is null`
+                    )
+                  )
+                  .returning({ routeId: confirmationAccess.routeId })
+              )
+              if (exchanged.length !== 1) return { kind: 'not_found' as const }
             }
             return {
               kind: 'found' as const,
@@ -458,7 +581,8 @@ export const LiveBookingConfirmation = (
           }),
         confirm: (session, input) =>
           Effect.gen(function* () {
-            const replay = (yield* readCommitted(session.id))[0]
+            const replayRows = yield* readCommitted(session.id)
+            const replay = replayRows[0]
             if (replay) {
               const sessionRows = yield* orUnavailable('booking-confirmation')(
                 db
@@ -473,7 +597,240 @@ export const LiveBookingConfirmation = (
               ) {
                 return yield* rejected('conflict')
               }
-              return yield* Effect.promise(() => resultFrom(replay, keyring, true))
+              return yield* Effect.promise(() => resultsFrom(replayRows, keyring, true))
+            }
+
+            const partyRows = yield* orUnavailable('booking-confirmation')(
+              db
+                .select({
+                  party: bookingParties,
+                  request: bookingRequests,
+                  hold: timeSlotHolds,
+                  timezone: merchants.timezone
+                })
+                .from(bookingParties)
+                .innerJoin(
+                  bookingSessions,
+                  and(
+                    eq(bookingSessions.id, bookingParties.bookingSessionId),
+                    eq(bookingSessions.lifecycle, 'active')
+                  )
+                )
+                .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
+                .innerJoin(
+                  bookingRequests,
+                  eq(bookingRequests.bookingPartyId, bookingParties.id)
+                )
+                .innerJoin(
+                  timeSlotHolds,
+                  and(
+                    eq(timeSlotHolds.bookingSessionId, bookingSessions.id),
+                    eq(timeSlotHolds.bookingRequestId, bookingRequests.id),
+                    gt(timeSlotHolds.expiresAt, input.now)
+                  )
+                )
+                .where(
+                  and(
+                    eq(bookingParties.bookingSessionId, session.id),
+                    eq(bookingParties.lifecycle, 'active')
+                  )
+                )
+            )
+            if (partyRows.length > 0) {
+              const party = partyRows[0]!.party
+              const requestCount = yield* orUnavailable('booking-confirmation')(
+                db
+                  .select({ count: sql<number>`count(*)` })
+                  .from(bookingRequests)
+                  .where(eq(bookingRequests.bookingPartyId, party.id))
+              )
+              if (partyRows.length !== requestCount[0]?.count)
+                return yield* rejected('hold_expired')
+              if (partyRows.some((row) => !row.request.customerDetailsJson))
+                return yield* rejected('details_missing')
+              const accepted = yield* orUnavailable('booking-confirmation')(
+                db
+                  .select({
+                    quoteId: pricingQuotes.id,
+                    version: pricingQuotes.version,
+                    totalMinor: pricingQuotes.totalMinor,
+                    acceptedAt: pricingQuoteAcceptances.acceptedAt
+                  })
+                  .from(pricingQuotes)
+                  .innerJoin(
+                    pricingQuoteAcceptances,
+                    and(
+                      eq(pricingQuoteAcceptances.pricingQuoteId, pricingQuotes.id),
+                      eq(pricingQuoteAcceptances.partyVersion, party.version)
+                    )
+                  )
+                  .where(
+                    and(
+                      eq(pricingQuotes.bookingPartyId, party.id),
+                      gt(pricingQuotes.expiresAt, input.now)
+                    )
+                  )
+                  .limit(1)
+              )
+              if (!accepted[0]) return yield* rejected('conflict')
+              const acceptedQuote = accepted[0]
+              const acceptedPolicy = (yield* orUnavailable('booking-confirmation')(
+                db
+                  .select({ acceptance: policyAcceptances })
+                  .from(policyAcceptances)
+                  .where(eq(policyAcceptances.bookingPartyId, party.id))
+                  .limit(1)
+              ))[0]?.acceptance
+              if (!keyring.keys[keyring.currentKeyId])
+                return yield* new CapabilityUnavailable({
+                  capability: 'booking-confirmation',
+                  reason: 'Current signing key is unavailable'
+                })
+              const replayExpiresAt = addMillisecondsToIso(input.now, 24 * 60 * 60_000)
+              const generated = partyRows.map((row) => {
+                const appointmentId = `apt_${randomHex(16)}`
+                const routeId = `cnf_${randomHex(16)}`
+                const outboxId = `obx_${randomHex(16)}`
+                const snapshot: StoredAppointmentSnapshot = {
+                  ...row.hold.quote,
+                  merchantTimezone: row.timezone,
+                  customerDetails: JSON.parse(row.request.customerDetailsJson!),
+                  checkoutPath: 'pay_in_person',
+                  acceptedQuote: {
+                    id: acceptedQuote.quoteId,
+                    version: acceptedQuote.version,
+                    totalMinor: acceptedQuote.totalMinor,
+                    acceptedAt: acceptedQuote.acceptedAt
+                  },
+                  policyAcceptance: acceptedPolicy
+                    ? {
+                        policyId: acceptedPolicy.checkoutPolicyId,
+                        disclosure: acceptedPolicy.disclosureSnapshot,
+                        acceptedAt: acceptedPolicy.acceptedAt
+                      }
+                    : null
+                }
+                return {
+                  row,
+                  appointmentId,
+                  routeId,
+                  outboxId,
+                  snapshot,
+                  expiresAt: addMillisecondsToIso(
+                    row.hold.endsAt,
+                    30 * 24 * 60 * 60_000
+                  )
+                }
+              })
+              const statements: BatchStatement[] = generated.flatMap((item) => [
+                db.insert(appointments).select(
+                  db
+                    .select({
+                      id: sql<string>`${item.appointmentId}`.as('id'),
+                      merchantId: timeSlotHolds.merchantId,
+                      providerId: timeSlotHolds.providerId,
+                      bookingSessionId: timeSlotHolds.bookingSessionId,
+                      bookingPartyId: sql<string>`${party.id}`.as('booking_party_id'),
+                      bookingRequestId: timeSlotHolds.bookingRequestId,
+                      status: sql<'scheduled'>`'scheduled'`.as('status'),
+                      startsAt: timeSlotHolds.startsAt,
+                      endsAt: timeSlotHolds.endsAt,
+                      snapshot:
+                        sql<StoredAppointmentSnapshot>`${JSON.stringify(item.snapshot)}`.as(
+                          'snapshot'
+                        ),
+                      createdAt: sql<string>`${input.now}`.as('created_at'),
+                      updatedAt: sql<string>`${input.now}`.as('updated_at')
+                    })
+                    .from(timeSlotHolds)
+                    .innerJoin(
+                      bookingParties,
+                      and(
+                        eq(bookingParties.id, party.id),
+                        eq(bookingParties.lifecycle, 'active')
+                      )
+                    )
+                    .where(
+                      and(
+                        eq(timeSlotHolds.id, item.row.hold.id),
+                        gt(timeSlotHolds.expiresAt, input.now)
+                      )
+                    )
+                ),
+                db.insert(confirmationAccess).values({
+                  routeId: item.routeId,
+                  appointmentId: item.appointmentId,
+                  tokenVersion: 1,
+                  signingKeyId: keyring.currentKeyId,
+                  expiresAt: item.expiresAt,
+                  exchangedAt: null,
+                  revokedAt: null,
+                  createdAt: input.now
+                }),
+                db.insert(bookingOutbox).values({
+                  id: item.outboxId,
+                  appointmentId: item.appointmentId,
+                  kind: 'appointment.created',
+                  traceId: input.traceId,
+                  createdAt: input.now
+                })
+              ])
+              statements.push(
+                db
+                  .delete(timeSlotHolds)
+                  .where(eq(timeSlotHolds.bookingSessionId, session.id)),
+                db
+                  .update(promotionReservations)
+                  .set({ status: 'committed' })
+                  .where(
+                    eq(promotionReservations.pricingQuoteId, acceptedQuote.quoteId)
+                  ),
+                db.insert(settlementAllocations).values({
+                  id: `sta_${randomHex(16)}`,
+                  bookingPartyId: party.id,
+                  tender: 'pay_in_person',
+                  amountMinor: acceptedQuote.totalMinor,
+                  currency: party.currency,
+                  createdAt: input.now
+                }),
+                db
+                  .update(bookingParties)
+                  .set({ lifecycle: 'confirmed', updatedAt: input.now })
+                  .where(
+                    and(
+                      eq(bookingParties.id, party.id),
+                      eq(bookingParties.lifecycle, 'active')
+                    )
+                  ),
+                db
+                  .update(bookingSessions)
+                  .set({
+                    lifecycle: 'consumed',
+                    confirmedAppointmentId: generated[0]!.appointmentId,
+                    confirmedAt: input.now,
+                    replayExpiresAt
+                  })
+                  .where(
+                    and(
+                      eq(bookingSessions.id, session.id),
+                      eq(bookingSessions.lifecycle, 'active')
+                    )
+                  )
+              )
+              const committed = yield* Effect.result(batch(db, statements))
+              if (committed._tag === 'Failure') {
+                const raced = yield* readCommitted(session.id)
+                if (raced.length > 0)
+                  return yield* Effect.promise(() => resultsFrom(raced, keyring, true))
+                return yield* rejected('conflict')
+              }
+              const stored = yield* readCommitted(session.id)
+              if (stored.length !== generated.length)
+                return yield* new CapabilityUnavailable({
+                  capability: 'booking-confirmation',
+                  reason: 'Committed Booking Party could not be read'
+                })
+              return yield* Effect.promise(() => resultsFrom(stored, keyring, false))
             }
 
             const rows = yield* orUnavailable('booking-confirmation')(
@@ -529,6 +886,7 @@ export const LiveBookingConfirmation = (
               tokenVersion: 1,
               signingKeyId: keyring.currentKeyId,
               expiresAt,
+              exchangedAt: null,
               revokedAt: null,
               createdAt: input.now
             }

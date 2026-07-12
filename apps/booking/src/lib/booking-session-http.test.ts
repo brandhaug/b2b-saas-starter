@@ -982,6 +982,18 @@ describe('Booking Session HTTP boundary', () => {
               snapshot: quote,
               createdAt: '2026-07-10T09:30:00.000Z'
             },
+            appointments: [
+              {
+                id: 'apt_confirmed',
+                merchantId: 'mer_mara',
+                providerId: 'prv_ava',
+                status: 'scheduled' as const,
+                startsAt: quote.startsAt,
+                endsAt: quote.endsAt,
+                snapshot: quote,
+                createdAt: '2026-07-10T09:30:00.000Z'
+              }
+            ],
             access: {
               routeId: 'cnf_clean',
               tokenVersion: 1,
@@ -989,7 +1001,17 @@ describe('Booking Session HTTP boundary', () => {
               expiresAt: '2026-08-12T10:00:00.000Z',
               token: 'secret-confirmation-token'
             },
+            accesses: [
+              {
+                routeId: 'cnf_clean',
+                tokenVersion: 1,
+                signingKeyId: 'current',
+                expiresAt: '2026-08-12T10:00:00.000Z',
+                token: 'secret-confirmation-token'
+              }
+            ],
             outboxId: 'obx_confirmed',
+            outboxIds: ['obx_confirmed'],
             replayed: false
           })
       },
@@ -1226,7 +1248,7 @@ describe('Booking Session HTTP boundary', () => {
     const url = `https://www.example.test/mara-studio/booking/confirmations/cnf_private?token=${token}`
     for (const result of [
       { kind: 'not_found' as const },
-      { kind: 'expired' as const }
+      { kind: 'expired' as const, locale: 'ro' as const }
     ]) {
       const response = await Effect.runPromise(
         handleBookingSessionRequest(new Request(url), {
@@ -1241,7 +1263,7 @@ describe('Booking Session HTTP boundary', () => {
       expect(response.headers.get('cache-control')).toBe('private, no-store')
       expect(response.headers.get('referrer-policy')).toBe('no-referrer')
       if (result.kind === 'expired')
-        expect(await response.text()).toContain('Confirmation link has expired')
+        expect(await response.text()).toContain('link de confirmare a expirat')
       else expect(await response.text()).toBe('Not found')
     }
   })
