@@ -74,6 +74,13 @@ export class BookingConfirmationRejected extends Schema.TaggedErrorClass<Booking
 
 type Failure = BookingConfirmationRejected | CapabilityUnavailable
 const AppointmentSnapshot = Schema.Unknown as Schema.Schema<StoredAppointmentSnapshot>
+const CustomerConfirmationAppointment = Schema.Struct({
+  id: Schema.String,
+  status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
+  startsAt: Schema.String,
+  endsAt: Schema.String,
+  snapshot: AppointmentSnapshot
+})
 export const CustomerConfirmation = Schema.Struct({
   routeId: Schema.String,
   status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
@@ -81,6 +88,7 @@ export const CustomerConfirmation = Schema.Struct({
   endsAt: Schema.String,
   locale: Schema.Literals(['en', 'es', 'fr', 'ro']),
   snapshot: AppointmentSnapshot,
+  appointments: Schema.Array(CustomerConfirmationAppointment),
   merchant: Schema.Struct({ publicName: Schema.String })
 })
 export type CustomerConfirmation = typeof CustomerConfirmation.Type
@@ -213,6 +221,17 @@ export const emptySeedBookingConfirmationStore = (
   outbox: new Map()
 })
 
+const recordForAppointmentParty = (
+  store: SeedBookingConfirmationStore,
+  appointmentId: string
+) =>
+  [...store.sessions.sessions.values()].find((session) =>
+    (
+      session.confirmedAppointmentIds ??
+      (session.confirmedAppointmentId ? [session.confirmedAppointmentId] : [])
+    ).includes(appointmentId)
+  )
+
 export const SeedBookingConfirmation = (
   store: SeedBookingConfirmationStore,
   keyring: ConfirmationSigningKeyring
@@ -270,6 +289,19 @@ export const SeedBookingConfirmation = (
                 (session) => session.confirmedAppointmentId === appointment.id
               )?.locale ?? 'en',
             snapshot: appointment.snapshot as StoredAppointmentSnapshot,
+            appointments: (
+              recordForAppointmentParty(store, appointment.id)
+                ?.confirmedAppointmentIds ?? [appointment.id]
+            ).map((id) => {
+              const sibling = store.appointments.get(id)!
+              return {
+                id: sibling.id,
+                status: sibling.status,
+                startsAt: sibling.startsAt,
+                endsAt: sibling.endsAt,
+                snapshot: sibling.snapshot as StoredAppointmentSnapshot
+              }
+            }),
             merchant: {
               publicName: store.checkout.scheduling.scenario.merchant.publicName
             }
@@ -487,7 +519,6 @@ export const LiveBookingConfirmation = (
             )
             .innerJoin(bookingOutbox, eq(bookingOutbox.appointmentId, appointments.id))
             .where(eq(appointments.bookingSessionId, sessionId))
-            .limit(1)
         )
       return {
         read: (input) =>
@@ -563,6 +594,16 @@ export const LiveBookingConfirmation = (
               )
               if (exchanged.length !== 1) return { kind: 'not_found' as const }
             }
+            const partyAppointments = row.appointment.bookingPartyId
+              ? yield* orUnavailable('booking-confirmation')(
+                  db
+                    .select({ appointment: appointments })
+                    .from(appointments)
+                    .where(
+                      eq(appointments.bookingPartyId, row.appointment.bookingPartyId)
+                    )
+                )
+              : [{ appointment: row.appointment }]
             return {
               kind: 'found' as const,
               cookieCredential: yield* Effect.promise(() =>
@@ -575,6 +616,13 @@ export const LiveBookingConfirmation = (
                 endsAt: row.appointment.endsAt,
                 locale: row.locale as 'en' | 'es' | 'fr' | 'ro',
                 snapshot: row.appointment.snapshot!,
+                appointments: partyAppointments.map(({ appointment }) => ({
+                  id: appointment.id,
+                  status: appointment.status,
+                  startsAt: appointment.startsAt,
+                  endsAt: appointment.endsAt,
+                  snapshot: appointment.snapshot!
+                })),
                 merchant: { publicName: row.merchantName }
               }
             }
@@ -822,7 +870,10 @@ export const LiveBookingConfirmation = (
                 const raced = yield* readCommitted(session.id)
                 if (raced.length > 0)
                   return yield* Effect.promise(() => resultsFrom(raced, keyring, true))
-                return yield* rejected('conflict')
+                return yield* new CapabilityUnavailable({
+                  capability: 'booking-confirmation',
+                  reason: committed.failure.reason
+                })
               }
               const stored = yield* readCommitted(session.id)
               if (stored.length !== generated.length)
@@ -976,7 +1027,10 @@ export const LiveBookingConfirmation = (
               const raced = (yield* readCommitted(session.id))[0]
               if (raced)
                 return yield* Effect.promise(() => resultFrom(raced, keyring, true))
-              return yield* rejected('conflict')
+              return yield* new CapabilityUnavailable({
+                capability: 'booking-confirmation',
+                reason: committed.failure.reason
+              })
             }
             const stored = (yield* readCommitted(session.id))[0]
             if (!stored)

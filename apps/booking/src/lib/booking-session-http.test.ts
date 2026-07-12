@@ -1164,6 +1164,7 @@ describe('Booking Session HTTP boundary', () => {
       startsAt: '2026-07-13T09:00:00.000Z',
       endsAt: '2026-07-13T10:00:00.000Z',
       locale: 'ro' as const,
+      appointments: [],
       merchant: { publicName: 'Mara Studio' },
       snapshot: {
         startsAt: '2026-07-13T09:00:00.000Z',

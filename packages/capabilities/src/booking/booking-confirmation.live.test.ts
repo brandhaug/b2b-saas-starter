@@ -1,16 +1,24 @@
 import { Effect, Layer } from 'effect'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   appointments,
+  bookingParties,
+  bookingRequests,
   bookingOutbox,
   bookingSessions,
+  brands,
   confirmationAccess,
   Database,
   layerFromD1,
   merchants,
   providers,
+  pricingQuoteAcceptances,
+  pricingQuotes,
   publicBookingPages,
   services,
+  settlementAllocations,
+  shops,
   timeSlotHolds
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
@@ -300,11 +308,14 @@ describe('Live Booking Confirmation', () => {
         "CREATE TRIGGER reject_confirmation BEFORE INSERT ON confirmation_access BEGIN SELECT RAISE(ABORT, 'forced rollback'); END"
       )
       .run()
-    await expect(confirm('bsn_rollback')).rejects.toMatchObject({
-      _tag: 'BookingConfirmationRejected',
-      reason: 'conflict'
-    })
-    await test.d1.prepare('DROP TRIGGER reject_confirmation').run()
+    try {
+      await expect(confirm('bsn_rollback')).rejects.toMatchObject({
+        _tag: 'CapabilityUnavailable',
+        capability: 'booking-confirmation'
+      })
+    } finally {
+      await test.d1.prepare('DROP TRIGGER reject_confirmation').run()
+    }
     const counts = await test.d1
       .prepare(
         "SELECT (SELECT count(*) FROM appointments WHERE booking_session_id = 'bsn_rollback') appointments, (SELECT count(*) FROM booking_outbox) outbox, (SELECT count(*) FROM time_slot_holds WHERE booking_session_id = 'bsn_rollback') holds"
@@ -325,6 +336,167 @@ describe('Live Booking Confirmation', () => {
       )
       .first<{ count: number }>()
     expect(rows?.count).toBe(1)
+  })
+
+  it('atomically confirms and replays every request in a live Booking Party', async () => {
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db.insert(brands).values({
+            id: 'brd_group',
+            merchantId: 'mer_confirm',
+            name: 'Group Brand',
+            createdAt: now,
+            updatedAt: now
+          })
+          yield* db.insert(shops).values({
+            id: 'shp_group',
+            brandId: 'brd_group',
+            merchantId: 'mer_confirm',
+            slug: 'group',
+            publicName: 'Group Shop',
+            timezone: 'America/New_York',
+            currency: 'USD',
+            createdAt: now,
+            updatedAt: now
+          })
+          yield* db.insert(bookingSessions).values({
+            id: 'bsn_group',
+            merchantId: 'mer_confirm',
+            capabilityHash: 'bsn_group'.padEnd(64, '0'),
+            lifecycle: 'active',
+            locale: 'ro',
+            createdAt: now,
+            lastActivityAt: now,
+            idleExpiresAt: '2026-07-10T10:00:00.000Z',
+            absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
+          })
+          yield* db.insert(bookingParties).values({
+            id: 'bpt_group',
+            bookingSessionId: 'bsn_group',
+            shopId: 'shp_group',
+            activeRequestId: 'brq_group_one',
+            lifecycle: 'active',
+            currency: 'USD',
+            locale: 'ro',
+            version: 2,
+            createdAt: now,
+            updatedAt: now
+          })
+          yield* db.insert(bookingRequests).values([
+            {
+              id: 'brq_group_one',
+              bookingPartyId: 'bpt_group',
+              position: 0,
+              customerDetailsJson: JSON.stringify({
+                name: 'Mia',
+                email: 'mia@example.com',
+                phone: null
+              }),
+              createdAt: now,
+              updatedAt: now
+            },
+            {
+              id: 'brq_group_two',
+              bookingPartyId: 'bpt_group',
+              position: 1,
+              customerDetailsJson: JSON.stringify({
+                name: 'Noah',
+                email: 'noah@example.com',
+                phone: null
+              }),
+              createdAt: now,
+              updatedAt: now
+            }
+          ])
+          yield* db.insert(pricingQuotes).values({
+            id: 'pqt_group',
+            bookingPartyId: 'bpt_group',
+            version: 1,
+            currency: 'USD',
+            subtotalMinor: 15000,
+            totalMinor: 15000,
+            factsJson: '{}',
+            acceptedAt: now,
+            expiresAt: '2026-07-10T09:40:00.000Z',
+            createdAt: now
+          })
+          yield* db.insert(pricingQuoteAcceptances).values({
+            pricingQuoteId: 'pqt_group',
+            bookingPartyId: 'bpt_group',
+            partyVersion: 2,
+            acceptedAt: now,
+            createdAt: now
+          })
+          yield* db.insert(timeSlotHolds).values([
+            {
+              id: 'hld_group_one',
+              merchantId: 'mer_confirm',
+              bookingSessionId: 'bsn_group',
+              bookingRequestId: 'brq_group_one',
+              providerId: 'prv_confirm',
+              startsAt: quote.startsAt,
+              endsAt: quote.endsAt,
+              createdAt: now,
+              expiresAt: '2026-07-10T09:40:00.000Z',
+              quote
+            },
+            {
+              id: 'hld_group_two',
+              merchantId: 'mer_confirm',
+              bookingSessionId: 'bsn_group',
+              bookingRequestId: 'brq_group_two',
+              providerId: 'prv_confirm',
+              startsAt: '2026-07-13T11:00:00.000Z',
+              endsAt: '2026-07-13T12:30:00.000Z',
+              createdAt: now,
+              expiresAt: '2026-07-10T09:40:00.000Z',
+              quote: {
+                ...quote,
+                startsAt: '2026-07-13T11:00:00.000Z',
+                endsAt: '2026-07-13T12:30:00.000Z'
+              }
+            }
+          ])
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+
+    const first = await confirm('bsn_group')
+    const replay = await confirm('bsn_group', 'consumed')
+    expect(first.appointments).toHaveLength(2)
+    expect(first.accesses).toHaveLength(2)
+    expect(replay).toEqual({ ...first, replayed: true })
+
+    const stored = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          return {
+            appointments: yield* db
+              .select()
+              .from(appointments)
+              .where(eq(appointments.bookingPartyId, 'bpt_group')),
+            holds: yield* db
+              .select()
+              .from(timeSlotHolds)
+              .where(eq(timeSlotHolds.bookingSessionId, 'bsn_group')),
+            settlement: yield* db
+              .select()
+              .from(settlementAllocations)
+              .where(eq(settlementAllocations.bookingPartyId, 'bpt_group'))
+          }
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+    expect(stored.appointments).toHaveLength(2)
+    expect(stored.holds).toHaveLength(0)
+    expect(stored.settlement).toEqual([
+      expect.objectContaining({ tender: 'pay_in_person', amountMinor: 15000 })
+    ])
   })
 
   it('verifies retained keys and rejects expired, revoked, and wrong-version access', async () => {

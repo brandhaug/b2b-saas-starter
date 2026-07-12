@@ -129,5 +129,24 @@ describe('Booking Confirmation', () => {
     expect(replay).toEqual({ ...first, replayed: true })
     expect(store.appointments).toHaveLength(2)
     expect(scheduling.holds).toHaveLength(0)
+
+    const protectedParty = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingConfirmation, (service) =>
+          service.read({
+            routeId: first.access.routeId,
+            merchantSlug: 'party',
+            credential: first.access.token,
+            credentialKind: 'bearer',
+            now
+          })
+        ),
+        layer
+      )
+    )
+    expect(protectedParty).toMatchObject({
+      kind: 'found',
+      confirmation: { appointments: [{}, {}] }
+    })
   })
 })
