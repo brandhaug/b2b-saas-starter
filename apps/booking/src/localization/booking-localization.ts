@@ -137,6 +137,8 @@ const en = {
   'gift_card.recipient_email': 'Recipient email',
   'gift_card.message': 'Message',
   'gift_card.continue_payment': 'Continue to payment',
+  'gift_card.scope_merchant': 'Valid across this merchant.',
+  'gift_card.needs_configuration': 'Online Gift Card payment needs configuration.',
   'gift_card.scope_brand': 'Valid across this brand.',
   'gift_card.scope_shop': 'Valid at this shop.',
   'gift_card.scope_provider': 'Valid with this specific professional.'
@@ -279,6 +281,9 @@ const es = {
   'gift_card.recipient_email': 'Correo de la persona destinataria',
   'gift_card.message': 'Mensaje',
   'gift_card.continue_payment': 'Continuar al pago',
+  'gift_card.scope_merchant': 'Válida en todo este comercio.',
+  'gift_card.needs_configuration':
+    'El pago en línea de tarjetas regalo requiere configuración.',
   'gift_card.scope_brand': 'Válida en toda esta marca.',
   'gift_card.scope_shop': 'Válida en este local.',
   'gift_card.scope_provider': 'Válida con este profesional específico.'
@@ -420,6 +425,9 @@ const fr = {
   'gift_card.recipient_email': 'E-mail du destinataire',
   'gift_card.message': 'Message',
   'gift_card.continue_payment': 'Continuer vers le paiement',
+  'gift_card.scope_merchant': 'Valable auprès de ce commerçant.',
+  'gift_card.needs_configuration':
+    'Le paiement en ligne des cartes cadeaux doit être configuré.',
   'gift_card.scope_brand': 'Valable dans toute cette marque.',
   'gift_card.scope_shop': 'Valable dans cet établissement.',
   'gift_card.scope_provider': 'Valable avec ce professionnel précis.'
@@ -559,6 +567,9 @@ const ro = {
   'gift_card.recipient_email': 'E-mailul destinatarului',
   'gift_card.message': 'Mesaj',
   'gift_card.continue_payment': 'Continuă la plată',
+  'gift_card.scope_merchant': 'Valabil la acest comerciant.',
+  'gift_card.needs_configuration':
+    'Plata online pentru carduri cadou necesită configurare.',
   'gift_card.scope_brand': 'Valabil în cadrul acestui brand.',
   'gift_card.scope_shop': 'Valabil în această locație.',
   'gift_card.scope_provider': 'Valabil cu acest profesionist.'

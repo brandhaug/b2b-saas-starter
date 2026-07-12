@@ -26,7 +26,7 @@ export const GiftCardSale = Schema.Struct({
   amountMinor: Schema.Number,
   currency: Schema.String,
   purchaser: GiftCardPerson,
-  recipient: GiftCardPerson,
+  recipient: Schema.NullOr(GiftCardPerson),
   paymentId: Schema.NullOr(Schema.String)
 })
 
@@ -34,7 +34,7 @@ export const IssuedGiftCard = Schema.Struct({
   id: Schema.String,
   status: Schema.Literals(['active', 'suspended', 'expired', 'voided']),
   currency: Schema.String,
-  scope: Schema.Literals(['brand', 'shop', 'provider']),
+  scope: Schema.Literals(['merchant', 'brand', 'shop', 'provider']),
   scopeId: Schema.String,
   initialValueMinor: Schema.Number,
   balanceMinor: Schema.Number
@@ -68,7 +68,7 @@ type CreateSaleInput = {
   readonly amountMinor: number
   readonly currency: string
   readonly purchaser: typeof GiftCardPerson.Type
-  readonly recipient: typeof GiftCardPerson.Type
+  readonly recipient: typeof GiftCardPerson.Type | null
   readonly idempotencyKey: string
   readonly now: string
 }
@@ -296,7 +296,7 @@ export type GiftCardProductOffer = {
   readonly merchantId: string
   readonly name: string
   readonly currency: string
-  readonly scope: 'brand' | 'shop' | 'provider'
+  readonly scope: 'merchant' | 'brand' | 'shop' | 'provider'
   readonly scopeId: string
   readonly presetAmountsMinor: readonly number[]
   readonly allowsCustomAmount: boolean
@@ -314,7 +314,7 @@ const suffix = (value: string) => {
   return (hash >>> 0).toString(36)
 }
 
-const scopePriority = { provider: 0, shop: 1, brand: 2 } as const
+const scopePriority = { provider: 0, shop: 1, brand: 2, merchant: 3 } as const
 export const sortGiftCardProducts = <
   A extends { readonly scope: keyof typeof scopePriority }
 >(
@@ -494,7 +494,8 @@ export const SeedGiftCardSales = (
             (product) =>
               product.active &&
               product.merchantId === merchantId &&
-              ((product.scope === 'brand' && product.scopeId === brandId) ||
+              ((product.scope === 'merchant' && product.scopeId === merchantId) ||
+                (product.scope === 'brand' && product.scopeId === brandId) ||
                 (product.scope === 'shop' && product.scopeId === shopId) ||
                 (product.scope === 'provider' && product.scopeId === providerId))
           )
@@ -524,6 +525,7 @@ export const SeedGiftCardSales = (
         if (!product)
           return yield* new GiftCardSaleConflict({ code: 'product_unavailable' })
         if (
+          (product.scope === 'merchant' && product.scopeId !== product.merchantId) ||
           (product.scope === 'brand' && product.scopeId !== input.brandId) ||
           (product.scope === 'shop' && product.scopeId !== input.shopId) ||
           (product.scope === 'provider' && product.scopeId !== input.providerId)

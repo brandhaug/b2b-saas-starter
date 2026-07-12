@@ -183,6 +183,7 @@ export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
                     eq(giftCardProducts.merchantId, merchantId),
                     eq(giftCardProducts.active, true),
                     inArray(giftCardProducts.scopeId, [
+                      merchantId,
                       brandId,
                       shopId,
                       ...(providerId ? [providerId] : [])
@@ -247,6 +248,8 @@ export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
             if (!product || !shop || shop.merchantId !== product.merchantId)
               return yield* new GiftCardSaleConflict({ code: 'product_unavailable' })
             if (
+              (product.scope === 'merchant' &&
+                product.scopeId !== product.merchantId) ||
               (product.scope === 'brand' && product.scopeId !== input.brandId) ||
               (product.scope === 'shop' && product.scopeId !== input.shopId) ||
               (product.scope === 'provider' && product.scopeId !== input.providerId)

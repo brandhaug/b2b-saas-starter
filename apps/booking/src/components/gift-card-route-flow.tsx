@@ -50,9 +50,9 @@ function LocalizedGiftCardRoute({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<GiftCardReceipt | null>(null)
   const [receiptRefresh, setReceiptRefresh] = useState(0)
-  const [status, setStatus] = useState<'idle' | 'processing' | 'failed' | 'issued'>(
-    'idle'
-  )
+  const [status, setStatus] = useState<
+    'idle' | 'processing' | 'failed' | 'needsConfiguration' | 'issued'
+  >('idle')
   const idempotencyKey = useRef(crypto.randomUUID())
   useEffect(() => {
     let active = true
@@ -112,7 +112,15 @@ function LocalizedGiftCardRoute({
         receiptUrl?: string
       }
       if (result.nextActionUrl) return window.location.assign(result.nextActionUrl)
-      if (!response.ok || !result.receiptUrl) return setStatus('failed')
+      if (!response.ok) {
+        const error = (result as { error?: string }).error
+        return setStatus(
+          error === 'gift_card_payment_needs_configuration'
+            ? 'needsConfiguration'
+            : 'failed'
+        )
+      }
+      if (!result.receiptUrl) return setStatus('failed')
       window.location.assign(result.receiptUrl)
     } catch {
       setStatus('failed')
@@ -129,7 +137,9 @@ function LocalizedGiftCardRoute({
               currency: receipt.card.currency
             }).format(receipt.card.balanceMinor / 100)}
           </BookingText>
-          <BookingText>{receipt.sale.recipient.name}</BookingText>
+          <BookingText>
+            {receipt.sale.recipient?.name ?? receipt.sale.purchaser.name}
+          </BookingText>
           <BookingText tone="muted">
             {message(`gift_card.scope_${receipt.card.scope}`)}
           </BookingText>
@@ -148,6 +158,7 @@ function LocalizedGiftCardRoute({
     unavailable: message('gift_card.unavailable'),
     processing: message('gift_card.processing'),
     failed: message('gift_card.failed'),
+    needsConfiguration: message('gift_card.needs_configuration'),
     issued: message('gift_card.issued'),
     amount: message('gift_card.amount'),
     customAmount: message('gift_card.custom_amount'),
@@ -160,6 +171,7 @@ function LocalizedGiftCardRoute({
     message: message('gift_card.message'),
     continueToPayment: message('gift_card.continue_payment'),
     scope: {
+      merchant: message('gift_card.scope_merchant'),
       brand: message('gift_card.scope_brand'),
       shop: message('gift_card.scope_shop'),
       provider: message('gift_card.scope_provider')

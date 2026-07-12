@@ -6,7 +6,7 @@ export const GiftCardProduct = Schema.Struct({
   id: GiftCardProductId,
   name: Schema.String,
   currency: Schema.String,
-  scope: Schema.Literals(['brand', 'shop', 'provider']),
+  scope: Schema.Literals(['merchant', 'brand', 'shop', 'provider']),
   scopeId: Schema.String,
   active: Schema.Boolean
 })
@@ -14,7 +14,7 @@ export const GiftCard = Schema.Struct({
   id: GiftCardId,
   status: Schema.Literals(['active', 'suspended', 'expired', 'voided']),
   currency: Schema.String,
-  scope: Schema.Literals(['brand', 'shop', 'provider']),
+  scope: Schema.Literals(['merchant', 'brand', 'shop', 'provider']),
   scopeId: Schema.String,
   initialValueMinor: Schema.Number
 })

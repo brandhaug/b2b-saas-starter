@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GiftCardPurchaseFlow } from './gift-card-purchase-flow.tsx'
 
 const copy = {
   unavailable: 'Gift Cards are not available.',
   processing: 'Payment processing.',
   failed: 'Please try again.',
+  needsConfiguration: 'Online payment needs configuration.',
   issued: 'Gift Card ready.',
   amount: 'Choose an amount',
   customAmount: 'Custom amount',
@@ -19,11 +20,14 @@ const copy = {
   message: 'Message',
   continueToPayment: 'Continue to payment',
   scope: {
+    merchant: 'Across this merchant.',
     brand: 'Across this brand.',
     shop: 'At this shop.',
     provider: 'With this specific professional.'
   }
 } as const
+
+afterEach(cleanup)
 
 describe('Gift Card purchase journey', () => {
   it('captures a permitted amount and purchaser and recipient details', () => {
@@ -92,5 +96,30 @@ describe('Gift Card purchase journey', () => {
       )
       expect(screen.getByRole('status').textContent).toMatch(expected)
     }
+  })
+
+  it('submits an unassigned card when recipient details are left blank', () => {
+    const purchase = vi.fn()
+    render(
+      <GiftCardPurchaseFlow
+        product={{
+          name: 'Flexible gift',
+          currency: 'USD',
+          presetAmountsMinor: [2500],
+          allowsCustomAmount: false,
+          scope: 'merchant'
+        }}
+        status="idle"
+        onPurchase={purchase}
+        copy={{ ...copy, scope: { ...copy.scope, merchant: 'At this merchant.' } }}
+        locale="en"
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Alex' } })
+    fireEvent.change(screen.getByLabelText('Your email'), {
+      target: { value: 'alex@example.com' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }))
+    expect(purchase).toHaveBeenCalledWith(expect.objectContaining({ recipient: null }))
   })
 })

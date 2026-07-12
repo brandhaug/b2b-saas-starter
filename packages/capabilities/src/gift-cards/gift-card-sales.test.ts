@@ -145,6 +145,43 @@ describe('Gift Card purchase and issuance', () => {
     expect(products.map(({ id }) => id)).toEqual(['gcp_provider', 'gcp_shop'])
   })
 
+  it('offers Merchant-wide value and permits an unassigned purchase', async () => {
+    const merchantProduct = {
+      ...product,
+      id: 'gcp_merchant',
+      scope: 'merchant' as const,
+      scopeId: 'mer_demo'
+    }
+    const store = emptySeedGiftCardSalesStore({ products: [merchantProduct] })
+    const layer = SeedGiftCardSales(store)
+    const products = await Effect.runPromise(
+      Effect.flatMap(GiftCardSales, (cards) =>
+        cards.listProducts({
+          merchantId: 'mer_demo',
+          brandId: 'brd_demo',
+          shopId: 'shp_demo'
+        })
+      ).pipe(Effect.provide(layer))
+    )
+    expect(products.map(({ id }) => id)).toEqual(['gcp_merchant'])
+    const sale = await Effect.runPromise(
+      Effect.flatMap(GiftCardSales, (cards) =>
+        cards.createSale({
+          brandId: 'brd_demo',
+          shopId: 'shp_demo',
+          giftCardProductId: merchantProduct.id,
+          amountMinor: 2_500,
+          currency: 'USD',
+          idempotencyKey: 'unassigned',
+          purchaser: people.purchaser,
+          recipient: null,
+          now: '2026-07-12T12:00:00.000Z'
+        })
+      ).pipe(Effect.provide(layer))
+    )
+    expect(sale.recipient).toBeNull()
+  })
+
   it('settles online payment, issues once, and protects the receipt token', async () => {
     const store = emptySeedGiftCardSalesStore({ products: [product] })
     const provider = Layer.succeed(PaymentProvider)({

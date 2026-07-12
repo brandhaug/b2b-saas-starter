@@ -10,11 +10,13 @@ const Purchase = Schema.Struct({
   amountMinor: Schema.Number,
   currency: Schema.String,
   purchaser: Schema.Struct({ name: Schema.String, email: Schema.String }),
-  recipient: Schema.Struct({
-    name: Schema.String,
-    email: Schema.String,
-    message: Schema.optional(Schema.String)
-  }),
+  recipient: Schema.NullOr(
+    Schema.Struct({
+      name: Schema.String,
+      email: Schema.String,
+      message: Schema.optional(Schema.String)
+    })
+  ),
   method: Schema.Literals([
     'card',
     'saved_card',

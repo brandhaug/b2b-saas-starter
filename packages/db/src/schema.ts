@@ -1171,7 +1171,7 @@ export const giftCardProducts = sqliteTable('gift_card_products', {
     .references(() => merchants.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   currency: text('currency').notNull(),
-  scope: text('scope', { enum: ['brand', 'shop', 'provider'] }).notNull(),
+  scope: text('scope', { enum: ['merchant', 'brand', 'shop', 'provider'] }).notNull(),
   scopeId: text('scope_id').notNull(),
   presetAmountsJson: text('preset_amounts_json').notNull(),
   allowsCustomAmount: integer('allows_custom_amount', { mode: 'boolean' })
@@ -1220,7 +1220,7 @@ export const giftCards = sqliteTable('gift_cards', {
   codeHash: text('code_hash').unique().notNull(),
   status: text('status', { enum: giftCardStatuses }).default('active').notNull(),
   currency: text('currency').notNull(),
-  scope: text('scope', { enum: ['brand', 'shop', 'provider'] }).notNull(),
+  scope: text('scope', { enum: ['merchant', 'brand', 'shop', 'provider'] }).notNull(),
   scopeId: text('scope_id').notNull(),
   initialValueMinor: integer('initial_value_minor').notNull(),
   expiresAt: text('expires_at'),

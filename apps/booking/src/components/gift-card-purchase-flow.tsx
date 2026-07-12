@@ -19,20 +19,21 @@ export type GiftCardPurchaseProduct = {
   readonly allowsCustomAmount: boolean
   readonly customAmountMinMinor?: number | null
   readonly customAmountMaxMinor?: number | null
-  readonly scope: 'brand' | 'shop' | 'provider'
+  readonly scope: 'merchant' | 'brand' | 'shop' | 'provider'
 }
 
 type Person = { readonly name: string; readonly email: string }
 export type GiftCardPurchaseSubmission = {
   readonly amountMinor: number
   readonly purchaser: Person
-  readonly recipient: Person & { readonly message: string }
+  readonly recipient: (Person & { readonly message: string }) | null
 }
 
 export type GiftCardPurchaseCopy = {
   readonly unavailable: string
   readonly processing: string
   readonly failed: string
+  readonly needsConfiguration: string
   readonly issued: string
   readonly amount: string
   readonly customAmount: string
@@ -55,7 +56,7 @@ export function GiftCardPurchaseFlow({
   locale
 }: {
   readonly product: GiftCardPurchaseProduct | null
-  readonly status: 'idle' | 'processing' | 'failed' | 'issued'
+  readonly status: 'idle' | 'processing' | 'failed' | 'needsConfiguration' | 'issued'
   readonly onPurchase: (submission: GiftCardPurchaseSubmission) => void
   readonly copy: GiftCardPurchaseCopy
   readonly locale: BookingLocale
@@ -63,11 +64,22 @@ export function GiftCardPurchaseFlow({
   const [amountMinor, setAmountMinor] = useState(product?.presetAmountsMinor[0] ?? 0)
   const [purchaser, setPurchaser] = useState({ name: '', email: '' })
   const [recipient, setRecipient] = useState({ name: '', email: '', message: '' })
-  if (status !== 'idle') return <output>{copy[status]}</output>
+  if (status !== 'idle')
+    return (
+      <output>
+        {status === 'needsConfiguration' ? copy.needsConfiguration : copy[status]}
+      </output>
+    )
   if (!product) return <output>{copy.unavailable}</output>
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (amountMinor > 0) onPurchase({ amountMinor, purchaser, recipient })
+    if (amountMinor > 0)
+      onPurchase({
+        amountMinor,
+        purchaser,
+        recipient:
+          recipient.name || recipient.email || recipient.message ? recipient : null
+      })
   }
   return (
     <form onSubmit={submit} aria-label={product.name}>
@@ -133,7 +145,6 @@ export function GiftCardPurchaseFlow({
             <BookingText variant="headline">{copy.recipient}</BookingText>
             <BookingField
               label={copy.recipientName}
-              required
               value={recipient.name}
               onChange={(event) =>
                 setRecipient({ ...recipient, name: event.target.value })
@@ -141,7 +152,6 @@ export function GiftCardPurchaseFlow({
             />
             <BookingField
               label={copy.recipientEmail}
-              required
               type="email"
               value={recipient.email}
               onChange={(event) =>
