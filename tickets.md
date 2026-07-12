@@ -247,11 +247,11 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Single-Request Availability and Time Slot Holds; Deliver Customer Details, Policies, Consent, and Checkout Review; Deliver Provider-Free Confirmation and Protected Access.
 
-- [ ] Customers can create, inspect, and withdraw Waiting List Applications with Shop, service, Provider, and time preferences.
-- [ ] Candidate derivation respects current eligibility and allows at most one Pending Availability Offer per application.
-- [ ] Offers are delivered sequentially and support accept, decline, expiry, and supersession without leaking candidate identity.
-- [ ] Acceptance atomically consumes the offer and creates a purpose-bound Booking Session plus Time Slot Hold, not an Appointment.
-- [ ] Declined and expired offers can leave the application Active; fulfilled, withdrawn, and expired lifecycles are explicit.
+- [x] Customers can create, inspect, and withdraw Waiting List Applications with Shop, service, Provider, and time preferences.
+- [x] Candidate derivation respects current eligibility and allows at most one Pending Availability Offer per application.
+- [x] Offers are delivered sequentially and support accept, decline, expiry, and supersession without leaking candidate identity.
+- [x] Acceptance atomically consumes the offer and creates a purpose-bound Booking Session plus Time Slot Hold, not an Appointment.
+- [x] Declined and expired offers can leave the application Active; fulfilled, withdrawn, and expired lifecycles are explicit.
 - [ ] Deterministic worker, concurrency, stale-link, empty, invalid, fulfilled, and offer-driven rescheduling scenarios pass.
 
 ## Deliver Walk-in Enrollment and Queue Lifecycle
