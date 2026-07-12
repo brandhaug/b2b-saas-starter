@@ -46,3 +46,39 @@ export const createCheckoutTelemetry = (
 
 export type CheckoutTelemetry = ReturnType<typeof createCheckoutTelemetry>
 export const noOpCheckoutTelemetry = createCheckoutTelemetry()
+
+type CheckoutBrowser = Window & {
+  readonly bookingConsentCategories?: () => readonly string[]
+  readonly posthog?: { readonly capture?: (name: string) => void }
+  readonly Sentry?: { readonly captureException?: (error: unknown) => void }
+}
+
+export const createBrowserCheckoutTelemetry = (): CheckoutTelemetry => {
+  if (typeof window === 'undefined') return noOpCheckoutTelemetry
+  const browser = window as CheckoutBrowser
+  const consent = () =>
+    resolveBookingConsentPolicy(browser.bookingConsentCategories?.() ?? [])
+  if (browser.posthog?.capture && browser.Sentry?.captureException)
+    return createCheckoutTelemetry({
+      consent,
+      analytics: { send: async ({ name }) => browser.posthog?.capture?.(name) },
+      errors: {
+        report: async (error) => browser.Sentry?.captureException?.(error)
+      }
+    })
+  if (browser.posthog?.capture)
+    return createCheckoutTelemetry({
+      consent,
+      analytics: { send: async ({ name }) => browser.posthog?.capture?.(name) }
+    })
+  if (browser.Sentry?.captureException)
+    return createCheckoutTelemetry({
+      consent,
+      errors: {
+        report: async (error) => browser.Sentry?.captureException?.(error)
+      }
+    })
+  return createCheckoutTelemetry({
+    consent
+  })
+}

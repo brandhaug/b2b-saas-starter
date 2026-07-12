@@ -29,6 +29,32 @@ const base = {
 export const smokeScenarios = await Promise.all([
   defineScenario({
     ...base,
+    id: 'booking/checkout-review-party-consent',
+    journey: 'checkout-review',
+    route: '/mara-booking-studio/booking',
+    fixture: {
+      schemaVersion: 1,
+      data: {
+        merchantSlug: 'mara-booking-studio',
+        bookingRequests: [
+          { guest: 'Coordinator', providerPreference: 'specific' },
+          { guest: 'Guest 2', providerPreference: 'any' }
+        ],
+        checkoutReview: true,
+        marketingConsent: false
+      }
+    },
+    assertions: [
+      'each guest service provider time and accepted quote are visible',
+      'the exact effective checkout and marketing disclosures are visible',
+      'editing a guest preserves unrelated valid checkout state',
+      'denied marketing consent does not block operational confirmation',
+      'locale changes preserve validation codes and server-owned facts',
+      'provider-free checkout emits no undeclared network requests'
+    ]
+  }),
+  defineScenario({
+    ...base,
     id: 'booking/pay-in-person-smoke',
     journey: 'pay-in-person',
     route: '/mara-booking-studio/booking',

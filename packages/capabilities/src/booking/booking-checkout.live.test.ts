@@ -124,6 +124,20 @@ beforeAll(async () => {
           retiredAt: null,
           createdAt: now
         })
+        yield* db.insert(checkoutPolicies).values({
+          id: 'pol_marketing_live',
+          shopId: 'shp_checkout_live',
+          merchantId: null,
+          brandId: null,
+          scope: 'shop',
+          scopeId: 'shp_checkout_live',
+          kind: 'marketing',
+          version: 1,
+          disclosure: 'Marketing emails are optional.',
+          effectiveAt: '2026-01-01T00:00:00.000Z',
+          retiredAt: null,
+          createdAt: now
+        })
         for (const id of ['bsn_live_one', 'bsn_live_two']) {
           yield* db.insert(bookingSessions).values({
             id,
@@ -259,10 +273,9 @@ describe('Live Booking Checkout', () => {
             now
           })
           yield* checkout.recordMarketingConsent(session('bsn_live_one'), {
-            personId: 'brq_live_one',
+            bookingRequestId: 'brq_live_one',
             channel: 'email',
             granted: false,
-            policyVersion: 'marketing:v1',
             now
           })
           return yield* checkout.reviewParty(session('bsn_live_one'), { now })
@@ -277,7 +290,7 @@ describe('Live Booking Checkout', () => {
         policyId: 'pol_checkout_live',
         disclosure: 'Cancel up to 24 hours before the appointment.'
       },
-      marketingConsents: [{ personId: 'brq_live_one', granted: false }]
+      marketingConsents: [{ bookingRequestId: 'brq_live_one', granted: false }]
     })
   })
 })

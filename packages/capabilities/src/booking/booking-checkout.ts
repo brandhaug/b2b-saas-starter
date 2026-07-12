@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js'
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import {
   batch,
   brands,
@@ -70,14 +70,14 @@ export class CustomerDetailsInvalid extends Schema.TaggedErrorClass<CustomerDeta
   { issues: Schema.Array(CustomerDetailsIssue) }
 ) {}
 
-const normalizeCustomerDetailsSync = (
+export const normalizeCustomerDetails = (
   input: {
     readonly name: string
     readonly email: string
     readonly phone: string | null
   },
   defaultCountry?: CountryCode
-): CustomerDetails => {
+): Effect.Effect<CustomerDetails, CustomerDetailsInvalid> => {
   const name = input.name.trim().replace(/\s+/g, ' ')
   const email = input.email.trim().toLowerCase()
   const rawPhone = input.phone?.trim() || null
@@ -91,21 +91,10 @@ const normalizeCustomerDetailsSync = (
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
     issues.push({ field: 'email', code: 'email_invalid' })
   if (rawPhone && !phone) issues.push({ field: 'phone', code: 'phone_invalid' })
-  if (issues.length > 0) throw new CustomerDetailsInvalid({ issues })
-  return { name, email, phone }
+  return issues.length > 0
+    ? Effect.fail(new CustomerDetailsInvalid({ issues }))
+    : Effect.succeed({ name, email, phone })
 }
-
-export const normalizeCustomerDetails = (
-  input: Parameters<typeof normalizeCustomerDetailsSync>[0],
-  defaultCountry?: CountryCode
-): Effect.Effect<CustomerDetails, CustomerDetailsInvalid> =>
-  Effect.try({
-    try: () => normalizeCustomerDetailsSync(input, defaultCountry),
-    catch: (error) =>
-      error instanceof CustomerDetailsInvalid
-        ? error
-        : new CustomerDetailsInvalid({ issues: [] })
-  })
 
 export const CheckoutPolicy = Schema.Struct({
   id: Schema.String,
@@ -173,10 +162,11 @@ export const acceptCheckoutPolicy = (
         acceptedAt
       }
 export const MarketingConsent = Schema.Struct({
-  personId: Schema.String,
+  bookingRequestId: Schema.String,
   channel: Schema.Literals(['email', 'sms']),
   granted: Schema.Boolean,
   policyVersion: Schema.String,
+  disclosure: Schema.String,
   recordedAt: Schema.String
 })
 export type MarketingConsent = typeof MarketingConsent.Type
@@ -193,8 +183,12 @@ export type PartyCheckoutReview = typeof PartyCheckoutReview.Type
 
 export const CheckoutPreparation = Schema.Struct({
   party: BookingParty,
+  requestReviews: Schema.Array(
+    Schema.Struct({ requestId: Schema.String, quote: BookingQuote })
+  ),
   quote: Schema.NullOr(PricingQuote),
   policy: Schema.NullOr(CheckoutPolicy),
+  marketingPolicy: Schema.NullOr(CheckoutPolicy),
   policyAcceptance: Schema.NullOr(CheckoutPolicyAcceptance),
   marketingConsents: Schema.Array(MarketingConsent)
 })
@@ -299,10 +293,9 @@ export type BookingCheckoutShape = {
   readonly recordMarketingConsent: (
     session: BookingSession,
     input: {
-      readonly personId: string
+      readonly bookingRequestId: string
       readonly channel: 'email' | 'sms'
       readonly granted: boolean
-      readonly policyVersion: string
       readonly now: string
     }
   ) => Effect.Effect<typeof MarketingConsent.Type, PartyFailure>
@@ -327,6 +320,12 @@ const unavailable = (reason: CheckoutUnavailable['reason']) =>
   })
 
 type CheckoutFactsRepository = {
+  readonly requestReviews: (
+    party: typeof BookingParty.Type
+  ) => Effect.Effect<
+    readonly { readonly requestId: string; readonly quote: typeof BookingQuote.Type }[],
+    CapabilityUnavailable
+  >
   readonly topology: (
     party: typeof BookingParty.Type
   ) => Effect.Effect<
@@ -364,22 +363,32 @@ const partyCheckoutWorkflow = (
   pricing: PricingQuotesShape,
   repository: CheckoutFactsRepository
 ) => {
-  const currentPolicy = (party: typeof BookingParty.Type, now: string) =>
+  const currentPolicy = (
+    party: typeof BookingParty.Type,
+    now: string,
+    kind: 'checkout' | 'marketing' = 'checkout'
+  ) =>
     Effect.gen(function* () {
       const [topology, policies] = yield* Effect.all([
         repository.topology(party),
         repository.policies()
       ])
-      return resolveCheckoutPolicy(policies, {
-        ...topology,
-        shopId: party.shopId,
-        now
-      })
+      return resolveCheckoutPolicy(
+        policies.filter((policy) => policy.kind === kind),
+        {
+          ...topology,
+          shopId: party.shopId,
+          now
+        }
+      )
     })
   const prepare = (session: BookingSession, now: string) =>
     Effect.gen(function* () {
       const party = yield* parties.findForSession(session.id)
-      const policy = yield* currentPolicy(party, now)
+      const [policy, marketingPolicy] = yield* Effect.all([
+        currentPolicy(party, now),
+        currentPolicy(party, now, 'marketing')
+      ])
       let quote = yield* pricing
         .findLatest(party.id)
         .pipe(Effect.catchTag('PricingQuoteNotFound', () => Effect.succeed(null)))
@@ -394,14 +403,17 @@ const partyCheckoutWorkflow = (
         const material = yield* repository.quoteMaterial(party, policy, now)
         quote = material ? yield* pricing.quote(material) : null
       }
-      const [policyAcceptance, marketingConsents] = yield* Effect.all([
+      const [policyAcceptance, marketingConsents, requestReviews] = yield* Effect.all([
         repository.acceptance(party.id),
-        repository.consents(party.id)
+        repository.consents(party.id),
+        repository.requestReviews(party)
       ])
       return {
         party,
+        requestReviews: [...requestReviews],
         quote,
         policy,
+        marketingPolicy,
         policyAcceptance,
         marketingConsents: [...marketingConsents]
       }
@@ -434,22 +446,25 @@ const partyCheckoutWorkflow = (
     recordMarketingConsent: (
       session: BookingSession,
       input: {
-        readonly personId: string
+        readonly bookingRequestId: string
         readonly channel: 'email' | 'sms'
         readonly granted: boolean
-        readonly policyVersion: string
         readonly now: string
       }
     ) =>
       Effect.gen(function* () {
         const party = yield* parties.findForSession(session.id)
-        if (!party.requests.some((request) => request.id === input.personId))
+        if (!party.requests.some((request) => request.id === input.bookingRequestId))
           return yield* new CheckoutCommandRejected({ reason: 'person_not_found' })
+        const policy = yield* currentPolicy(party, input.now, 'marketing')
+        if (!policy)
+          return yield* new CheckoutCommandRejected({ reason: 'policy_changed' })
         return yield* repository.saveConsent(party, {
-          personId: input.personId,
+          bookingRequestId: input.bookingRequestId,
           channel: input.channel,
           granted: input.granted,
-          policyVersion: input.policyVersion,
+          policyVersion: `${policy.kind}:${policy.version}`,
+          disclosure: policy.disclosure,
           recordedAt: input.now
         })
       }),
@@ -534,6 +549,15 @@ export const SeedBookingCheckout = (
       const parties = yield* BookingParties
       const pricing = yield* PricingQuotes
       const workflow = partyCheckoutWorkflow(parties, pricing, {
+        requestReviews: (party) =>
+          Effect.succeed(
+            party.requests.flatMap((request) => {
+              const hold = request.holdId
+                ? store.scheduling.holds.get(request.holdId)
+                : undefined
+              return hold ? [{ requestId: request.id, quote: hold.quote }] : []
+            })
+          ),
         topology: () =>
           Effect.succeed({ merchantId: store.merchantId, brandId: store.brandId }),
         policies: () => Effect.succeed(store.policies),
@@ -552,17 +576,20 @@ export const SeedBookingCheckout = (
         consents: (partyId) =>
           Effect.succeed(
             [...store.marketingConsents.values()]
-              .filter((consent) => consent.personId.startsWith(`${partyId}:`))
+              .filter((consent) => consent.bookingRequestId.startsWith(`${partyId}:`))
               .map((consent) => ({
                 ...consent,
-                personId: consent.personId.slice(partyId.length + 1)
+                bookingRequestId: consent.bookingRequestId.slice(partyId.length + 1)
               }))
           ),
         saveConsent: (party, consent) =>
           Effect.sync(() => {
             store.marketingConsents.set(
-              `${party.id}:${consent.personId}:${consent.channel}`,
-              { ...consent, personId: `${party.id}:${consent.personId}` }
+              `${party.id}:${consent.bookingRequestId}:${consent.channel}`,
+              {
+                ...consent,
+                bookingRequestId: `${party.id}:${consent.bookingRequestId}`
+              }
             )
             return consent
           }),
@@ -700,6 +727,21 @@ export const LiveBookingCheckout: Layer.Layer<
         }
       })
     const workflow = partyCheckoutWorkflow(parties, pricing, {
+      requestReviews: (party) =>
+        orUnavailable('booking-checkout')(
+          db
+            .select({ id: timeSlotHolds.id, quote: timeSlotHolds.quote })
+            .from(timeSlotHolds)
+            .where(eq(timeSlotHolds.bookingSessionId, party.bookingSessionId))
+        ).pipe(
+          Effect.map((holds) => {
+            const byId = new Map(holds.map((hold) => [hold.id, hold.quote]))
+            return party.requests.flatMap((request) => {
+              const quote = request.holdId ? byId.get(request.holdId) : undefined
+              return quote ? [{ requestId: request.id, quote }] : []
+            })
+          })
+        ),
       topology: (party) =>
         orUnavailable('booking-checkout')(
           db
@@ -709,8 +751,15 @@ export const LiveBookingCheckout: Layer.Layer<
             .where(eq(shops.id, party.shopId))
             .limit(1)
         ).pipe(
-          Effect.map(
-            ([row]) => row ?? { merchantId: 'mer_missing', brandId: 'brd_missing' }
+          Effect.flatMap(([row]) =>
+            row
+              ? Effect.succeed(row)
+              : Effect.fail(
+                  new CapabilityUnavailable({
+                    capability: 'booking-checkout',
+                    reason: 'shop_topology_missing'
+                  })
+                )
           )
         ),
       policies: () =>
@@ -795,20 +844,26 @@ export const LiveBookingCheckout: Layer.Layer<
                 sql`(select merchant_id from shops where id = (select shop_id from booking_parties where id = ${partyId}))`
               )
             )
+            .orderBy(desc(marketingConsents.recordedAt), desc(marketingConsents.id))
         ).pipe(
           Effect.map((rows) => {
             const latest = new Map<string, typeof MarketingConsent.Type>()
             for (const row of rows) {
               const subject = JSON.parse(row.subjectJson) as {
                 bookingPartyId?: string
-                personId?: string
+                bookingRequestId?: string
+                disclosure?: string
               }
-              if (subject.bookingPartyId !== partyId || !subject.personId) continue
-              latest.set(`${subject.personId}:${row.channel}`, {
-                personId: subject.personId,
+              if (subject.bookingPartyId !== partyId || !subject.bookingRequestId)
+                continue
+              const key = `${subject.bookingRequestId}:${row.channel}`
+              if (latest.has(key)) continue
+              latest.set(key, {
+                bookingRequestId: subject.bookingRequestId,
                 channel: row.channel,
                 granted: row.granted,
                 policyVersion: row.policyVersion,
+                disclosure: subject.disclosure ?? '',
                 recordedAt: row.recordedAt
               })
             }
@@ -837,7 +892,8 @@ export const LiveBookingCheckout: Layer.Layer<
               customerAccountId: null,
               subjectJson: JSON.stringify({
                 bookingPartyId: party.id,
-                personId: consent.personId
+                bookingRequestId: consent.bookingRequestId,
+                disclosure: consent.disclosure
               }),
               channel: consent.channel,
               granted: consent.granted,

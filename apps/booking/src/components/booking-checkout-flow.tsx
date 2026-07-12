@@ -18,6 +18,12 @@ type CheckoutCopy = {
   readonly payInPerson: string
   readonly book: string
   readonly privacy: string
+  readonly privacyLink: string
+  readonly name: string
+  readonly email: string
+  readonly phoneOptional: string
+  readonly reviewBooking: string
+  readonly total: string
 }
 const defaultCopy: CheckoutCopy = {
   title: 'Confirm booking',
@@ -30,7 +36,13 @@ const defaultCopy: CheckoutCopy = {
   priceProposal: (version) => `Price proposal ${version}`,
   payInPerson: 'Pay In Person',
   book: 'Book',
-  privacy: 'Customer Details are used for this booking.'
+  privacy: 'Customer Details are used for this booking.',
+  privacyLink: 'See the Privacy Policy',
+  name: 'Name',
+  email: 'Email',
+  phoneOptional: 'Phone (optional)',
+  reviewBooking: 'Review booking',
+  total: 'Total'
 }
 
 export function BookingCheckoutFlow({
@@ -58,10 +70,9 @@ export function BookingCheckoutFlow({
     readonly acceptQuote: boolean
     readonly acceptPolicy: boolean
     readonly marketingConsents: readonly {
-      readonly personId: string
+      readonly bookingRequestId: string
       readonly channel: 'email'
       readonly granted: boolean
-      readonly policyVersion: string
     }[]
   }) => void
   readonly onEdit: (requestId: string) => void
@@ -92,7 +103,7 @@ export function BookingCheckoutFlow({
             <form onSubmit={submit} noValidate>
               <div {...stylex.props(styles.fieldGrid)}>
                 <Field
-                  label="Name"
+                  label={copy.name}
                   name="name"
                   type="text"
                   required
@@ -100,7 +111,7 @@ export function BookingCheckoutFlow({
                   messages={validationMessages}
                 />
                 <Field
-                  label="Email"
+                  label={copy.email}
                   name="email"
                   type="email"
                   required
@@ -108,7 +119,7 @@ export function BookingCheckoutFlow({
                   messages={validationMessages}
                 />
                 <Field
-                  label="Phone (optional)"
+                  label={copy.phoneOptional}
                   name="phone"
                   type="tel"
                   issues={validationIssues}
@@ -122,7 +133,7 @@ export function BookingCheckoutFlow({
                   disabled={busy}
                   {...stylex.props(styles.primaryButton)}
                 >
-                  Review booking
+                  {copy.reviewBooking}
                 </button>
               </div>
             </form>
@@ -191,6 +202,12 @@ function Review({
 }) {
   const [policyAccepted, setPolicyAccepted] = useState(false)
   const [marketing, setMarketing] = useState<Record<string, boolean>>({})
+  const policyAlreadyAccepted = Boolean(
+    preparation?.policy &&
+    preparation.policyAcceptance?.policyId === preparation.policy.id &&
+    preparation.policyAcceptance.version === preparation.policy.version &&
+    preparation.policyAcceptance.disclosure === preparation.policy.disclosure
+  )
   const currency = useMemo(
     () =>
       new Intl.NumberFormat('en-US', {
@@ -220,7 +237,8 @@ function Review({
         ))}
       </ul>
       <p>
-        Total: {currency.format(review.quote.totalMinor / 100)} {review.quote.currency}
+        {copy.total}: {currency.format(review.quote.totalMinor / 100)}{' '}
+        {review.quote.currency}
       </p>
       <p>{copy.payInPerson}</p>
       {preparation ? (
@@ -229,25 +247,60 @@ function Review({
           <ul>
             {preparation.party.requests.map((request) => (
               <li key={request.id}>
+                {(() => {
+                  const requestReview = preparation.requestReviews.find(
+                    (candidate) => candidate.requestId === request.id
+                  )
+                  if (!requestReview) return null
+                  return (
+                    <div>
+                      <span>{requestReview.quote.assignedProvider.displayName}</span>
+                      <ul>
+                        {requestReview.quote.services.map((service) => (
+                          <li key={service.id}>{service.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })()}
                 <span>
                   {request.customerDetails?.name ?? `Guest ${request.position + 1}`}
+                </span>{' '}
+                <span>
+                  {request.startsAt
+                    ? new Intl.DateTimeFormat(preparation.party.locale, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short'
+                      }).format(new Date(request.startsAt))
+                    : null}
                 </span>{' '}
                 <button type="button" onClick={() => onEdit(request.id)}>
                   {copy.edit}
                 </button>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={marketing[request.id] ?? false}
-                    onChange={(event) =>
-                      setMarketing((current) => ({
-                        ...current,
-                        [request.id]: event.currentTarget.checked
-                      }))
-                    }
-                  />
-                  {copy.emailOffers(request.customerDetails?.name ?? 'this guest')}
-                </label>
+                {preparation.marketingPolicy ? (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={
+                        marketing[request.id] ??
+                        preparation.marketingConsents.find(
+                          (consent) =>
+                            consent.bookingRequestId === request.id &&
+                            consent.channel === 'email'
+                        )?.granted ??
+                        false
+                      }
+                      onChange={(event) =>
+                        setMarketing((current) => ({
+                          ...current,
+                          [request.id]: event.currentTarget.checked
+                        }))
+                      }
+                    />
+                    {copy.emailOffers(request.customerDetails?.name ?? 'this guest')}
+                    <span>{preparation.marketingPolicy.disclosure}</span>
+                  </label>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -258,8 +311,8 @@ function Review({
               <label>
                 <input
                   type="checkbox"
-                  checked={policyAccepted || Boolean(preparation.policyAcceptance)}
-                  disabled={Boolean(preparation.policyAcceptance)}
+                  checked={policyAccepted || policyAlreadyAccepted}
+                  disabled={policyAlreadyAccepted}
                   onChange={(event) => setPolicyAccepted(event.currentTarget.checked)}
                 />
                 {copy.acceptPolicy(preparation.policy.version)}
@@ -267,7 +320,7 @@ function Review({
             </section>
           ) : null}
           {preparation.quote ? (
-            <section aria-label="Accepted price proposal">
+            <section aria-label="Price proposal">
               <p>
                 {copy.priceProposal(preparation.quote.version)}:{' '}
                 {currency.format(preparation.quote.totalMinor / 100)}
@@ -286,21 +339,27 @@ function Review({
         disabled={
           busy ||
           !preparation?.quote ||
-          Boolean(
-            preparation.policy && !preparation.policyAcceptance && !policyAccepted
-          )
+          Boolean(preparation.policy && !policyAlreadyAccepted && !policyAccepted)
         }
         onClick={() =>
           preparation &&
           onFinalize({
             acceptQuote: !preparation.quote?.acceptedAt,
-            acceptPolicy: Boolean(preparation.policy && !preparation.policyAcceptance),
-            marketingConsents: preparation.party.requests.map((request) => ({
-              personId: request.id,
-              channel: 'email' as const,
-              granted: marketing[request.id] ?? false,
-              policyVersion: 'marketing:v1'
-            }))
+            acceptPolicy: Boolean(preparation.policy && !policyAlreadyAccepted),
+            marketingConsents: preparation.marketingPolicy
+              ? preparation.party.requests.map((request) => ({
+                  bookingRequestId: request.id,
+                  channel: 'email' as const,
+                  granted:
+                    marketing[request.id] ??
+                    preparation.marketingConsents.find(
+                      (consent) =>
+                        consent.bookingRequestId === request.id &&
+                        consent.channel === 'email'
+                    )?.granted ??
+                    false
+                }))
+              : []
           })
         }
         {...stylex.props(styles.primaryButton)}
@@ -308,7 +367,7 @@ function Review({
         {copy.book}
       </button>
       <p {...stylex.props(styles.privacy)}>
-        {copy.privacy} See the <a href="/privacy">Privacy Policy</a>.
+        {copy.privacy} <a href="/privacy">{copy.privacyLink}</a>.
       </p>
     </section>
   )

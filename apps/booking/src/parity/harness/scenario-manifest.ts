@@ -24,6 +24,7 @@ export const scenarioJourneys = [
   'group-booking',
   'pricing-quote',
   'quote-expired',
+  'checkout-review',
   'shell-boundary'
 ] as const
 

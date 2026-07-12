@@ -30,14 +30,14 @@ import { styles } from './booking-flow.styles.ts'
 import { translateBookingMessage } from '../localization/booking-localization.ts'
 import { useBookingLocalization } from '../localization/booking-localization-provider.tsx'
 import {
-  noOpCheckoutTelemetry,
+  createBrowserCheckoutTelemetry,
   type CheckoutTelemetry
 } from '../lib/checkout-telemetry.ts'
 
 export function ServerBackedBookingFlow({
   merchantSlug,
   sessionId,
-  telemetry = noOpCheckoutTelemetry,
+  telemetry = createBrowserCheckoutTelemetry(),
   selectionRefreshedMessage = translateBookingMessage(
     'en',
     'feedback.selection_refreshed'
@@ -333,10 +333,9 @@ export function ServerBackedBookingFlow({
       readonly acceptQuote: boolean
       readonly acceptPolicy: boolean
       readonly marketingConsents: readonly {
-        readonly personId: string
+        readonly bookingRequestId: string
         readonly channel: 'email'
         readonly granted: boolean
-        readonly policyVersion: string
       }[]
     }) => {
       if (!preparation?.quote) throw new Error('quote unavailable')
@@ -475,7 +474,13 @@ export function ServerBackedBookingFlow({
               `${message('checkout.price_proposal')} ${version}`,
             payInPerson: message('status.pay_in_person'),
             book: message('checkout.book'),
-            privacy: message('checkout.privacy')
+            privacy: message('checkout.privacy'),
+            privacyLink: message('checkout.privacy_link'),
+            name: message('checkout.name'),
+            email: message('checkout.email'),
+            phoneOptional: message('checkout.phone_optional'),
+            reviewBooking: message('checkout.review_booking'),
+            total: message('checkout.total')
           }}
           onSubmit={(details) => detailsMutation.mutate(details)}
           onFinalize={(input) => finalizeMutation.mutate(input)}

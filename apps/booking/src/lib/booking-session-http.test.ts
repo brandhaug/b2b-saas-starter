@@ -1038,10 +1038,9 @@ describe('Booking Session HTTP boundary', () => {
       [
         'marketing-consent',
         {
-          personId: 'brq_one',
+          bookingRequestId: 'brq_one',
           channel: 'email',
-          granted: false,
-          policyVersion: 'marketing:v1'
+          granted: false
         }
       ],
       ['checkout-review', null]

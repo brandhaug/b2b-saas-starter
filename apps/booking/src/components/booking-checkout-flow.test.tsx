@@ -90,6 +90,7 @@ describe('Booking checkout', () => {
         onFinalize={finalize}
         onEdit={edit}
         preparation={{
+          requestReviews: [],
           party: {
             id: 'bpt_one',
             bookingSessionId: 'bsn_one',
@@ -155,6 +156,16 @@ describe('Booking checkout', () => {
             effectiveAt: '2026-01-01T00:00:00.000Z',
             retiredAt: null
           },
+          marketingPolicy: {
+            id: 'pol_marketing',
+            scope: 'shop',
+            scopeId: 'shp_one',
+            kind: 'marketing',
+            version: 1,
+            disclosure: 'Marketing emails are optional.',
+            effectiveAt: '2026-01-01T00:00:00.000Z',
+            retiredAt: null
+          },
           policyAcceptance: null,
           marketingConsents: []
         }}
@@ -201,15 +212,14 @@ describe('Booking checkout', () => {
       acceptPolicy: true,
       marketingConsents: [
         {
-          personId: 'brq_one',
+          bookingRequestId: 'brq_one',
           channel: 'email',
-          granted: true,
-          policyVersion: 'marketing:v1'
+          granted: true
         }
       ]
     })
     expect(
-      screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')
+      screen.getByRole('link', { name: 'See the Privacy Policy' }).getAttribute('href')
     ).toBe('/privacy')
     expect(screen.queryByText(/pay now|tax|tip|deposit/i)).toBeNull()
   })

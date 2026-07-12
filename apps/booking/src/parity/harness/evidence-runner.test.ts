@@ -4,6 +4,9 @@ import { smokeScenarios } from './smoke-scenarios.ts'
 
 describe('parity evidence runner seam', () => {
   it('captures complete evidence and proves clean-run hash stability', async () => {
+    const scenario = smokeScenarios.find(
+      (candidate) => candidate.id === 'booking/pay-in-person-smoke'
+    )!
     const driver: ScenarioDriver = {
       run: async ({ scenario }) => {
         return {
@@ -26,7 +29,7 @@ describe('parity evidence runner seam', () => {
     }
 
     const result = await runScenarioTwice({
-      scenario: smokeScenarios[0]!,
+      scenario,
       driver
     })
 
@@ -34,7 +37,7 @@ describe('parity evidence runner seam', () => {
     expect(result.first).toMatchObject({
       schemaVersion: 1,
       scenarioId: 'booking/pay-in-person-smoke',
-      semanticAssertions: smokeScenarios[0]!.assertions.map((assertion) => ({
+      semanticAssertions: scenario.assertions.map((assertion) => ({
         assertion,
         passed: true
       })),

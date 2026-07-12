@@ -93,7 +93,13 @@ const en = {
   'checkout.accept_policy': 'Accept Checkout Policy version',
   'checkout.price_proposal': 'Price proposal',
   'checkout.book': 'Book',
-  'checkout.privacy': 'Customer Details are used for this booking.'
+  'checkout.privacy': 'Customer Details are used for this booking.',
+  'checkout.privacy_link': 'See the Privacy Policy',
+  'checkout.name': 'Name',
+  'checkout.email': 'Email',
+  'checkout.phone_optional': 'Phone (optional)',
+  'checkout.review_booking': 'Review booking',
+  'checkout.total': 'Total'
 } as const
 
 export type BookingTranslationKey = keyof typeof en
@@ -188,7 +194,13 @@ const es = {
   'checkout.accept_policy': 'Aceptar la versión de la política de reserva',
   'checkout.price_proposal': 'Propuesta de precio',
   'checkout.book': 'Reservar',
-  'checkout.privacy': 'Los datos del cliente se usan para esta reserva.'
+  'checkout.privacy': 'Los datos del cliente se usan para esta reserva.',
+  'checkout.privacy_link': 'Ver la Política de privacidad',
+  'checkout.name': 'Nombre',
+  'checkout.email': 'Correo electrónico',
+  'checkout.phone_optional': 'Teléfono (opcional)',
+  'checkout.review_booking': 'Revisar reserva',
+  'checkout.total': 'Total'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const fr = {
@@ -282,7 +294,13 @@ const fr = {
   'checkout.accept_policy': 'Accepter la version de la politique de réservation',
   'checkout.price_proposal': 'Proposition de prix',
   'checkout.book': 'Réserver',
-  'checkout.privacy': 'Les coordonnées client servent à cette réservation.'
+  'checkout.privacy': 'Les coordonnées client servent à cette réservation.',
+  'checkout.privacy_link': 'Voir la politique de confidentialité',
+  'checkout.name': 'Nom',
+  'checkout.email': 'E-mail',
+  'checkout.phone_optional': 'Téléphone (facultatif)',
+  'checkout.review_booking': 'Vérifier la réservation',
+  'checkout.total': 'Total'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const ro = {
@@ -375,7 +393,13 @@ const ro = {
   'checkout.accept_policy': 'Acceptă versiunea politicii de rezervare',
   'checkout.price_proposal': 'Propunere de preț',
   'checkout.book': 'Rezervă',
-  'checkout.privacy': 'Datele clientului sunt folosite pentru această rezervare.'
+  'checkout.privacy': 'Datele clientului sunt folosite pentru această rezervare.',
+  'checkout.privacy_link': 'Vezi Politica de confidențialitate',
+  'checkout.name': 'Nume',
+  'checkout.email': 'E-mail',
+  'checkout.phone_optional': 'Telefon (opțional)',
+  'checkout.review_booking': 'Verifică rezervarea',
+  'checkout.total': 'Total'
 } as const satisfies Record<BookingTranslationKey, string>
 
 export const bookingCatalogs = { en, es, fr, ro } as const satisfies Record<

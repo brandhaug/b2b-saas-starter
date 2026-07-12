@@ -83,6 +83,16 @@ describe('Booking Checkout', () => {
       effectiveAt: '2026-01-01T00:00:00.000Z',
       retiredAt: null
     })
+    store.policies.push({
+      id: 'pol_marketing_shop',
+      scope: 'shop',
+      scopeId: 'shp_one',
+      kind: 'marketing',
+      version: 1,
+      disclosure: 'Marketing emails are optional.',
+      effectiveAt: '2026-01-01T00:00:00.000Z',
+      retiredAt: null
+    })
     const party = {
       id: 'bpt_one',
       bookingSessionId: 'bsn_one',
@@ -142,10 +152,9 @@ describe('Booking Checkout', () => {
             now
           })
           yield* checkout.recordMarketingConsent(session('bsn_one'), {
-            personId: 'brq_one',
+            bookingRequestId: 'brq_one',
             channel: 'email',
             granted: false,
-            policyVersion: 'marketing:v1',
             now
           })
           const review = yield* checkout.reviewParty(session('bsn_one'), { now })
@@ -165,7 +174,7 @@ describe('Booking Checkout', () => {
     expect(result.review).toMatchObject({
       readyToConfirm: true,
       policyAcceptance: { policyId: 'pol_shop', version: 3 },
-      marketingConsents: [{ personId: 'brq_one', granted: false }]
+      marketingConsents: [{ bookingRequestId: 'brq_one', granted: false }]
     })
     expect(result.rebuilt).toMatchObject({
       quote: { version: 2, acceptedAt: null },
@@ -310,10 +319,11 @@ describe('Booking Checkout', () => {
           },
           marketingConsents: [
             {
-              personId: 'brq_one',
+              bookingRequestId: 'brq_one',
               channel: 'email',
               granted: false,
               policyVersion: 'marketing:v1',
+              disclosure: 'Marketing emails are optional.',
               recordedAt: now
             }
           ]

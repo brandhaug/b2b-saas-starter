@@ -372,7 +372,8 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
                     )
                   ),
                   sql`${checkoutPolicies.effectiveAt} <= ${now}`,
-                  sql`(${checkoutPolicies.retiredAt} IS NULL OR ${checkoutPolicies.retiredAt} > ${now})`
+                  sql`(${checkoutPolicies.retiredAt} IS NULL OR ${checkoutPolicies.retiredAt} > ${now})`,
+                  eq(checkoutPolicies.kind, 'checkout')
                 )
               )
           )
