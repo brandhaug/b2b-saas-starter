@@ -44,6 +44,66 @@ export const smokeScenarios = await Promise.all([
   }),
   defineScenario({
     ...base,
+    id: 'booking/group-assigned-and-any-mobile',
+    journey: 'group-booking',
+    viewport: { width: 320, height: 568 },
+    route: '/mara-booking-studio/booking',
+    fixture: {
+      schemaVersion: 1,
+      data: {
+        merchantSlug: 'mara-booking-studio',
+        bookingRequests: [
+          { guest: 'Coordinator', providerPreference: 'specific' },
+          { guest: 'Guest 2', providerPreference: 'any' }
+        ],
+        reducedMotion: true
+      }
+    },
+    assertions: [
+      'requests can be added reordered and switched by keyboard',
+      'assigned and Any Provider requests retain independent selections',
+      'the complete hold set is acquired atomically',
+      'reduced motion and narrow viewport remain operable'
+    ]
+  }),
+  defineScenario({
+    ...base,
+    id: 'booking/group-conflict-expiry-recovery-desktop',
+    journey: 'group-booking',
+    console: {
+      allow: ['409 (Conflict)', "WebSocket connection to 'ws://localhost"]
+    },
+    viewport: { width: 1440, height: 900 },
+    route: '/mara-booking-studio/booking',
+    fixture: {
+      schemaVersion: 1,
+      data: {
+        merchantSlug: 'mara-booking-studio',
+        groupConflict: true
+      }
+    },
+    assertions: [
+      'a conflicting group acquires no holds',
+      'desktop motion preserves focus and request order'
+    ]
+  }),
+  defineScenario({
+    ...base,
+    id: 'booking/group-expiry-earliest-incomplete',
+    journey: 'group-booking',
+    viewport: { width: 390, height: 844 },
+    route: '/mara-booking-studio/booking',
+    fixture: {
+      schemaVersion: 1,
+      data: { merchantSlug: 'mara-booking-studio', expireAfterSeconds: 600 }
+    },
+    assertions: [
+      'expiry returns to the earliest incomplete request',
+      'stale holds and selections are not restored'
+    ]
+  }),
+  defineScenario({
+    ...base,
     id: 'booking/deliberate-blank',
     journey: 'deliberate-blank',
     route: '/mara-booking-studio/booking',

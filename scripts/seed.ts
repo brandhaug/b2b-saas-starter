@@ -3,6 +3,8 @@ import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities/merchan
 import {
   account,
   appointments,
+  brands,
+  bookingSessions,
   confirmationAccess,
   merchantMemberships,
   merchants,
@@ -11,6 +13,9 @@ import {
   publicBookingPages,
   scheduleRules,
   services,
+  shopProviders,
+  shops,
+  shopServices,
   user
 } from '@b2b-saas-starter/db'
 import { getTableColumns, getTableName, type Table } from 'drizzle-orm'
@@ -42,8 +47,13 @@ const insert = <T extends Table>(
 const password =
   'ca9b62ad5583afec995d8ef2dc0b69ba:61c0b23c9c68f0e99269cdc4c50c2283e88913ef09fc3228b53eadaf846a4cb6c55d12caf3b08ab379faffaceb27632575fcff8828126a5c9c785e1c6bae4ec1'
 const epoch = Math.floor(Date.parse(scenario.anchorTime) / 1000)
+const brandId = `brd_${scenario.merchant.id}`
+const shopId = `shp_${scenario.merchant.id}`
 const statements = [
   'PRAGMA foreign_keys = ON;',
+  // Booking parties restrict deletion of their shop. Clear transient booking
+  // sessions first so reseeding remains idempotent after local booking flows.
+  `DELETE FROM ${getTableName(bookingSessions)} WHERE merchant_id = ${quote(scenario.merchant.id)};`,
   `DELETE FROM ${getTableName(merchants)} WHERE id = ${quote(scenario.merchant.id)};`,
   insert(user, {
     id: scenario.owner.id,
@@ -73,6 +83,24 @@ const statements = [
     createdAt: scenario.anchorTime,
     updatedAt: scenario.anchorTime
   }),
+  insert(brands, {
+    id: brandId,
+    merchantId: scenario.merchant.id,
+    name: scenario.merchant.publicName,
+    createdAt: scenario.anchorTime,
+    updatedAt: scenario.anchorTime
+  }),
+  insert(shops, {
+    id: shopId,
+    brandId,
+    merchantId: scenario.merchant.id,
+    slug: scenario.merchant.slug,
+    publicName: scenario.merchant.publicName,
+    timezone: scenario.merchant.timezone,
+    currency: scenario.merchant.currency,
+    createdAt: scenario.anchorTime,
+    updatedAt: scenario.anchorTime
+  }),
   insert(merchantMemberships, {
     ...scenario.membership,
     createdAt: scenario.anchorTime
@@ -89,6 +117,20 @@ const statements = [
       ...service,
       createdAt: scenario.anchorTime,
       updatedAt: scenario.anchorTime
+    })
+  ),
+  ...scenario.providers.map((provider) =>
+    insert(shopProviders, {
+      shopId,
+      providerId: provider.id,
+      createdAt: scenario.anchorTime
+    })
+  ),
+  ...scenario.services.map((service) =>
+    insert(shopServices, {
+      shopId,
+      serviceId: service.id,
+      createdAt: scenario.anchorTime
     })
   ),
   ...scenario.eligibility.map((pair) =>

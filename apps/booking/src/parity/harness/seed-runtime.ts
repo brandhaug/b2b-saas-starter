@@ -6,12 +6,14 @@ import {
   BookingSchedulingRejected,
   BookingSelection,
   BookingSessions,
+  BookingParties,
   CapabilityUnavailable,
   SeedBookingCheckout,
   SeedBookingConfirmation,
   SeedBookingScheduling,
   SeedBookingSelection,
   SeedBookingSessions,
+  SeedBookingParties,
   emptySeedBookingCheckoutStore,
   emptySeedBookingConfirmationStore,
   emptySeedBookingSchedulingStore,
@@ -61,6 +63,24 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
   })
   const selectionLayer = SeedBookingSelection(selection)
   const schedulingLayer = SeedBookingScheduling(scheduling)
+  const partiesLayer = SeedBookingParties(
+    [],
+    scheduling.requestSelections,
+    scheduling.activeRequests,
+    scheduling.partyRequests,
+    scheduling.holds,
+    sessions.parties,
+    (sessionId, request) => {
+      const current = selection.selections.get(sessionId)
+      selection.selections.set(sessionId, {
+        version: current?.version ?? 1,
+        ...(current?.shopId ? { shopId: current.shopId } : {}),
+        providerPreference: request?.providerPreference ?? null,
+        primaryServiceId: request?.primaryServiceId ?? null,
+        additionalServiceIds: [...(request?.additionalServiceIds ?? [])]
+      })
+    }
+  )
   const checkoutLayer = SeedBookingCheckout(checkout)
   const confirmationLayer = SeedBookingConfirmation(confirmation, {
     currentKeyId: 'parity',
@@ -82,6 +102,14 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
     for (const sessionId of sessions.sessions.keys()) {
       canonical = canonical.replaceAll(sessionId, 'bsn_current')
     }
+    const requestIds = new Map<string, string>()
+    canonical = canonical.replace(/brq_[a-z0-9_]+/g, (requestId) => {
+      const existing = requestIds.get(requestId)
+      if (existing) return existing
+      const normalized = `brq_${requestIds.size + 1}`
+      requestIds.set(requestId, normalized)
+      return normalized
+    })
     canonical = canonical.replaceAll(/brt_[a-f0-9]{32}/g, 'brt_current')
     canonical = canonical.replaceAll(/hld_[a-z0-9_]+/g, 'hld_current')
     canonical = canonical.replaceAll(
@@ -134,6 +162,13 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
             byte.toString(16).padStart(2, '0')
           ).join('')
         })
+        sessions.parties.set(presented.sessionId, {
+          id: `bpt_${presented.sessionId}`,
+          bookingSessionId: presented.sessionId,
+          requestId: `brq_${presented.sessionId}`,
+          shopId: `shp_${graph.merchant.id}`,
+          locale: scenario.locale
+        })
       }
     }
     if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -175,12 +210,41 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
             )
           },
           chooseProvider: (session, preference, expectedVersion) =>
-            Effect.provide(
-              Effect.flatMap(BookingSelection, (service) =>
-                service.chooseProvider(session, preference, expectedVersion)
-              ),
-              selectionLayer
-            ),
+            Effect.gen(function* () {
+              const journey = yield* Effect.provide(
+                Effect.flatMap(BookingSelection, (service) =>
+                  service.chooseProvider(session, preference, expectedVersion)
+                ),
+                selectionLayer
+              )
+              const party = yield* Effect.orDie(
+                Effect.provide(
+                  Effect.flatMap(BookingParties, (service) =>
+                    service.findForSession(session.id)
+                  ),
+                  partiesLayer
+                )
+              )
+              yield* Effect.orDie(
+                Effect.provide(
+                  Effect.flatMap(BookingParties, (service) =>
+                    service.updateRequest(
+                      party.id,
+                      party.activeRequestId!,
+                      {
+                        providerPreference: preference.kind,
+                        providerId:
+                          preference.kind === 'specific' ? preference.providerId : null
+                      },
+                      party.version,
+                      scenario.clock.instant
+                    )
+                  ),
+                  partiesLayer
+                )
+              )
+              return journey
+            }),
           chooseShop: (session, shopId, expectedVersion) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (service) =>
@@ -189,11 +253,86 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
               selectionLayer
             ),
           chooseServices: (session, input, expectedVersion) =>
+            Effect.gen(function* () {
+              const journey = yield* Effect.provide(
+                Effect.flatMap(BookingSelection, (service) =>
+                  service.chooseServices(session, input, expectedVersion)
+                ),
+                selectionLayer
+              )
+              const party = yield* Effect.orDie(
+                Effect.provide(
+                  Effect.flatMap(BookingParties, (service) =>
+                    service.findForSession(session.id)
+                  ),
+                  partiesLayer
+                )
+              )
+              yield* Effect.orDie(
+                Effect.provide(
+                  Effect.flatMap(BookingParties, (service) =>
+                    service.updateRequest(
+                      party.id,
+                      party.activeRequestId!,
+                      {
+                        primaryServiceId: input.primaryServiceId,
+                        serviceIds: [
+                          input.primaryServiceId,
+                          ...input.additionalServiceIds
+                        ].filter((id): id is string => id !== null)
+                      },
+                      party.version,
+                      scenario.clock.instant
+                    )
+                  ),
+                  partiesLayer
+                )
+              )
+              return journey
+            })
+        },
+        parties: {
+          load: (session) =>
             Effect.provide(
-              Effect.flatMap(BookingSelection, (service) =>
-                service.chooseServices(session, input, expectedVersion)
+              Effect.flatMap(BookingParties, (service) =>
+                service.findForSession(session.id)
               ),
-              selectionLayer
+              partiesLayer
+            ),
+          add: (partyId, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (service) =>
+                service.addRequest(partyId, version, now)
+              ),
+              partiesLayer
+            ),
+          remove: (partyId, requestId, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (service) =>
+                service.removeRequest(partyId, requestId, version, now)
+              ),
+              partiesLayer
+            ),
+          reorder: (partyId, requestIds, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (service) =>
+                service.reorderRequests(partyId, requestIds, version, now)
+              ),
+              partiesLayer
+            ),
+          update: (partyId, requestId, material, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (service) =>
+                service.updateRequest(partyId, requestId, material, version, now)
+              ),
+              partiesLayer
+            ),
+          activate: (partyId, requestId, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (service) =>
+                service.activateRequest(partyId, requestId, version, now)
+              ),
+              partiesLayer
             )
         },
         scheduling: {
@@ -232,6 +371,21 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
             return Effect.provide(
               Effect.flatMap(BookingScheduling, (service) =>
                 service.hold(session, input)
+              ),
+              schedulingLayer
+            )
+          },
+          holdParty: (session, input) => {
+            if (scenario.fixture.data.groupConflict === true)
+              return Effect.fail(
+                new BookingSchedulingRejected({
+                  reason: 'slot_lost',
+                  message: 'That time was just booked'
+                })
+              )
+            return Effect.provide(
+              Effect.flatMap(BookingScheduling, (service) =>
+                service.holdParty(session, input)
               ),
               schedulingLayer
             )

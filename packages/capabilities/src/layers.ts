@@ -308,7 +308,24 @@ const seedMerchantCatalogConfiguration: SeedMerchantCatalogConfigurationStore = 
 }
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
-  SeedBookingParties(),
+  SeedBookingParties(
+    [],
+    seedBookingScheduling.requestSelections,
+    seedBookingScheduling.activeRequests,
+    seedBookingScheduling.partyRequests,
+    seedBookingScheduling.holds,
+    seedBookingSessions.parties,
+    (sessionId, request) => {
+      const current = seedBookingSelection.selections.get(sessionId)
+      seedBookingSelection.selections.set(sessionId, {
+        version: current?.version ?? 1,
+        ...(current?.shopId ? { shopId: current.shopId } : {}),
+        providerPreference: request?.providerPreference ?? null,
+        primaryServiceId: request?.primaryServiceId ?? null,
+        additionalServiceIds: [...(request?.additionalServiceIds ?? [])]
+      })
+    }
+  ),
   SeedPricingQuotes(),
   SeedPaymentLedger(),
   SeedCustomerEngagement(),

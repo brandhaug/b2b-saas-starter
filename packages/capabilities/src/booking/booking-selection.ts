@@ -4,6 +4,8 @@ import {
   batchQueries,
   brands,
   bookingParties,
+  bookingRequests,
+  bookingRequestServices,
   bookingSessionAdditionalServices,
   bookingSessions,
   Database,
@@ -991,10 +993,43 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
                 .where(and(eq(bookingSessions.id, sessionId), current))
                 .toSQL(),
               db
+                .update(bookingRequests)
+                .set({
+                  providerPreference: preference?.kind ?? null,
+                  providerId:
+                    preference?.kind === 'specific' ? preference.providerId : null,
+                  primaryServiceId: selection.primaryServiceId,
+                  holdId: null,
+                  startsAt: null,
+                  endsAt: null
+                })
+                .where(
+                  and(
+                    eq(
+                      bookingRequests.id,
+                      sql`(select active_request_id from booking_parties where id = ${partyId})`
+                    ),
+                    current
+                  )
+                )
+                .toSQL(),
+              db
                 .delete(bookingSessionAdditionalServices)
                 .where(
                   and(
                     eq(bookingSessionAdditionalServices.bookingSessionId, sessionId),
+                    current
+                  )
+                )
+                .toSQL(),
+              db
+                .delete(bookingRequestServices)
+                .where(
+                  and(
+                    eq(
+                      bookingRequestServices.bookingRequestId,
+                      sql`(select active_request_id from booking_parties where id = ${partyId})`
+                    ),
                     current
                   )
                 )
@@ -1022,6 +1057,34 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
                   )
                   .toSQL()
               ),
+              ...[selection.primaryServiceId, ...selection.additionalServiceIds]
+                .filter((serviceId): serviceId is string => serviceId !== null)
+                .map((serviceId, position) =>
+                  db
+                    .insert(bookingRequestServices)
+                    .select(
+                      db
+                        .select({
+                          bookingRequestId: bookingParties.activeRequestId,
+                          serviceId: sql<string>`${serviceId}`.as('service_id'),
+                          role: sql<
+                            'primary' | 'additional'
+                          >`${position === 0 ? 'primary' : 'additional'}`.as('role'),
+                          position: sql<number>`${position}`.as('position'),
+                          createdAt: sql<string>`CURRENT_TIMESTAMP`.as('created_at')
+                        })
+                        .from(bookingParties)
+                        .where(
+                          and(
+                            eq(bookingParties.id, partyId),
+                            eq(bookingParties.version, expectedVersion),
+                            eq(bookingParties.lifecycle, 'active'),
+                            sql`${bookingParties.activeRequestId} is not null`
+                          )
+                        )
+                    )
+                    .toSQL()
+                ),
               deleteTimeSlotHoldsForSelectionChange(db, sessionId, current),
               db
                 .update(bookingParties)

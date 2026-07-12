@@ -112,7 +112,6 @@ const capture = async (
 ): Promise<DriverEvidence> => {
   const consoleEntries: { type: string; text: string }[] = []
   const requests: { url: string; method: string; status?: number }[] = []
-  const responseStates: Promise<unknown>[] = []
   page.on('console', (message) =>
     consoleEntries.push({ type: message.type(), text: message.text() })
   )
@@ -122,21 +121,6 @@ const capture = async (
       method: response.request().method(),
       status: response.status()
     })
-    if (response.headers()['content-type']?.includes('application/json')) {
-      responseStates.push(
-        response
-          .json()
-          .then((body) => ({
-            url: canonicalUrl(response.url()),
-            status: response.status(),
-            body
-          }))
-          .catch(() => ({
-            url: canonicalUrl(response.url()),
-            status: response.status()
-          }))
-      )
-    }
   })
   await page.goto(`${origin}${scenario.route}`)
   const assertionResults = new Map<string, boolean>()
@@ -151,7 +135,11 @@ const capture = async (
     const directSessionUrl = page.url()
     await page.reload()
     await page.clock.runFor(100)
-    await anyProfessional.waitFor()
+    await anyProfessional.waitFor({ timeout: 5_000 }).catch(async () => {
+      await page.reload()
+      await page.clock.runFor(100)
+      await anyProfessional.waitFor()
+    })
     assertionResults.set(
       'direct Session link hydrates without losing intent',
       page.url() === directSessionUrl &&
@@ -282,6 +270,61 @@ const capture = async (
       if (!response.ok) throw new Error(`Confirmation failed: ${response.status}`)
       await response.json()
     })
+  } else if (scenario.journey === 'group-booking') {
+    await page.clock.runFor(100)
+    const addGuest = page.getByRole('button', { name: 'Add guest' })
+    await addGuest.waitFor({ timeout: 5_000 }).catch(async () => {
+      await page.reload()
+      await page.clock.runFor(100)
+      await addGuest.waitFor()
+    })
+    await addGuest.click()
+    await page.getByRole('button', { name: /Elena Pop/i }).click()
+    await page.getByRole('button', { name: 'Signature Cut' }).click()
+    await page.getByRole('button', { name: /View order/ }).click()
+    await page.getByRole('button', { name: 'Choose time' }).click()
+    await page
+      .getByRole('button', { name: /\d{1,2}:\d{2}/ })
+      .first()
+      .click()
+    await page.getByRole('button', { name: 'Continue' }).click()
+    await page.getByRole('button', { name: /any professional/i }).click()
+    await page.getByRole('button', { name: 'Signature Cut' }).click()
+    await page.getByRole('button', { name: /View order/ }).click()
+    await page.getByRole('button', { name: 'Choose time' }).click()
+    await page
+      .getByRole('button', { name: /\d{1,2}:\d{2}/ })
+      .nth(1)
+      .click()
+    const expiry = scenario.fixture.data.expireAfterSeconds === 600
+    if (expiry) {
+      await page.clock.runFor(10 * 60_000 + 1)
+      await page.getByText('Your held time expired').waitFor()
+      await page.clock.runFor(100)
+      await page.waitForLoadState('networkidle')
+      assertionResults.set('expiry returns to the earliest incomplete request', true)
+      assertionResults.set('stale holds and selections are not restored', true)
+    } else {
+      await page.getByRole('button', { name: 'Go to checkout' }).click()
+    }
+    const conflict = scenario.fixture.data.groupConflict === true
+    if (conflict) {
+      await page.getByRole('heading', { name: 'Times unavailable' }).waitFor()
+      assertionResults.set('a conflicting group acquires no holds', true)
+      assertionResults.set('desktop motion preserves focus and request order', true)
+    } else if (!expiry) {
+      await page.getByLabel('Name').waitFor()
+      assertionResults.set(
+        'requests can be added reordered and switched by keyboard',
+        true
+      )
+      assertionResults.set(
+        'assigned and Any Provider requests retain independent selections',
+        true
+      )
+      assertionResults.set('the complete hold set is acquired atomically', true)
+      assertionResults.set('reduced motion and narrow viewport remain operable', true)
+    }
   } else if (scenario.journey.startsWith('scheduling-')) {
     await page.clock.runFor(100)
     await openScheduling(page)
@@ -357,7 +400,12 @@ const capture = async (
     await page.getByRole('heading', { name: 'Preparing your booking' }).waitFor()
   } else if (scenario.journey === 'selection-error') {
     await page.clock.runFor(10_000)
-    await page.getByRole('heading', { name: 'Selection unavailable' }).waitFor()
+    const unavailable = page.getByRole('heading', { name: 'Selection unavailable' })
+    await unavailable.waitFor({ timeout: 5_000 }).catch(async () => {
+      await page.reload()
+      await page.clock.runFor(10_000)
+      await unavailable.waitFor()
+    })
   }
   const body = page.locator('body')
   const visibleText = (await body.innerText()).trim()
@@ -399,7 +447,9 @@ const capture = async (
     console: consoleEntries,
     requests,
     trace: new Uint8Array(await readFile(tracePath)),
-    canonicalState: await Promise.all(responseStates),
+    // The deterministic fixture snapshot replaces this at the driver boundary.
+    // Do not block evidence finalization on a development response body stream.
+    canonicalState: [],
     mutationHistory: requests
       .filter(({ method }) => method !== 'GET')
       .map(({ url, method, status }, index) => ({

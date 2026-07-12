@@ -426,13 +426,16 @@ export const styles = stylex.create({
     borderTopColor: '#e2e3e7'
   },
   textButton: {
-    height: 40,
+    minHeight: 44,
+    height: 'auto',
+    paddingBlock: 8,
     paddingInline: 12,
     borderWidth: 0,
     backgroundColor: 'transparent',
     color: '#292929',
     fontSize: 14,
-    fontWeight: 600
+    fontWeight: 600,
+    overflowWrap: 'anywhere'
   },
   primaryButton: {
     display: 'inline-flex',

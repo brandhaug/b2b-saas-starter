@@ -4,6 +4,8 @@ import { Schema } from 'effect'
 import { useEffect, useMemo, useState } from 'react'
 import {
   BookingAvailability as BookingAvailabilitySchema,
+  BookingJourney as BookingJourneySchema,
+  BookingParty as BookingPartySchema,
   CheckoutReview as CheckoutReviewSchema,
   BookingSchedulingRecovery as BookingSchedulingRecoverySchema,
   TimeSlotHold as TimeSlotHoldSchema,
@@ -13,11 +15,13 @@ import {
   type ProviderPreference,
   type ServiceSelection,
   type CheckoutReview,
-  type CustomerDetails
+  type CustomerDetails,
+  bookingPartyContinuation
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
+import { BookingPartyFlow } from './booking-party-flow.tsx'
 import { styles } from './booking-flow.styles.ts'
 import { translateBookingMessage } from '../localization/booking-localization.ts'
 import { useBookingLocalization } from '../localization/booking-localization-provider.tsx'
@@ -44,6 +48,13 @@ export function ServerBackedBookingFlow({
   const [invalidDetails, setInvalidDetails] = useState(false)
   const [expiredSession, setExpiredSession] = useState(false)
   const [selectionRefreshed, setSelectionRefreshed] = useState(false)
+  const [partyNow, setPartyNow] = useState('9999-12-31T23:59:59.999Z')
+  useEffect(() => {
+    const update = () => setPartyNow(new Date().toISOString())
+    const timer = window.setInterval(update, 30_000)
+    update()
+    return () => window.clearInterval(timer)
+  }, [])
   const base = `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(sessionId)}`
   const queryKey = ['booking-selection', merchantSlug, sessionId] as const
   const journey = useQuery({
@@ -54,7 +65,47 @@ export function ServerBackedBookingFlow({
         credentials: 'same-origin'
       })
       if (!response.ok) throw new Error('selection unavailable')
-      return (await response.json()) as BookingJourney
+      return Schema.decodeUnknownSync(BookingJourneySchema)(await response.json())
+    }
+  })
+  const partyKey = ['booking-party', merchantSlug, sessionId] as const
+  const party = useQuery({
+    queryKey: partyKey,
+    enabled: Boolean(journey.data),
+    retry: false,
+    queryFn: async () => {
+      const response = await fetch(`${base}/party`, { credentials: 'same-origin' })
+      if (!response.ok) throw new Error('party unavailable')
+      return Schema.decodeUnknownSync(BookingPartySchema)(await response.json())
+    }
+  })
+  const partyMutation = useMutation({
+    mutationFn: async ({
+      endpoint,
+      body
+    }: {
+      readonly endpoint: 'add' | 'remove' | 'reorder' | 'activate'
+      readonly body: Record<string, unknown>
+      readonly preserveScheduling?: boolean
+    }) => {
+      const response = await fetch(`${base}/party-${endpoint}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      if (!response.ok) throw new Error('party mutation rejected')
+      return Schema.decodeUnknownSync(BookingPartySchema)(await response.json())
+    },
+    onSuccess: (value, mutation) => {
+      queryClient.setQueryData(partyKey, value)
+      if (mutation.endpoint === 'activate')
+        void queryClient.invalidateQueries({ queryKey })
+      if (mutation.endpoint === 'activate' && !mutation.preserveScheduling) {
+        setScheduling(false)
+        void queryClient.cancelQueries({ queryKey: availabilityKey })
+        queryClient.removeQueries({ queryKey: availabilityKey })
+      }
     }
   })
   const selectionMutation = useMutation({
@@ -85,13 +136,14 @@ export function ServerBackedBookingFlow({
       }
       if (!response.ok) throw new Error('selection rejected')
       return {
-        journey: (await response.json()) as BookingJourney,
+        journey: Schema.decodeUnknownSync(BookingJourneySchema)(await response.json()),
         refreshed: false as const
       }
     },
     onSuccess: (value) => {
       queryClient.setQueryData(queryKey, value.journey)
       setSelectionRefreshed(value.refreshed)
+      void queryClient.invalidateQueries({ queryKey: partyKey })
     }
   })
   const availabilityKey = useMemo(
@@ -138,6 +190,7 @@ export function ServerBackedBookingFlow({
       queryClient.setQueryData<BookingAvailability>(availabilityKey, (current) =>
         current ? { ...current, hold } : current
       )
+      void queryClient.invalidateQueries({ queryKey: partyKey })
     }
   })
   const releaseMutation = useMutation({
@@ -157,6 +210,34 @@ export function ServerBackedBookingFlow({
         current ? { ...current, hold: null } : current
       )
       void queryClient.invalidateQueries({ queryKey: availabilityKey })
+      void queryClient.invalidateQueries({ queryKey: partyKey })
+    }
+  })
+  const groupHoldMutation = useMutation({
+    mutationFn: async () => {
+      const requests = party.data?.requests ?? []
+      if (requests.length <= 1) return
+      if (requests.some((request) => !request.startsAt))
+        throw new Error('party incomplete')
+      const response = await fetch(`${base}/holds`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          now: partyNow,
+          requests: requests.map((request) => ({
+            bookingRequestId: request.id,
+            startsAt: request.startsAt
+          }))
+        })
+      })
+      const body: unknown = await response.json()
+      if (!response.ok) throw new Error('group holds unavailable')
+      return Schema.decodeUnknownSync(Schema.Array(TimeSlotHoldSchema))(body)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: partyKey })
+      setCheckout(true)
     }
   })
   const detailsMutation = useMutation({
@@ -176,7 +257,7 @@ export function ServerBackedBookingFlow({
         review: Schema.decodeUnknownSync(CheckoutReviewSchema)(await response.json())
       }
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result.kind === 'invalid') {
         setInvalidDetails(true)
         return
@@ -193,6 +274,30 @@ export function ServerBackedBookingFlow({
         return
       }
       setInvalidDetails(false)
+      const currentParty = party.data
+      const nextGuest = currentParty?.requests.find(
+        (request) =>
+          request.id !== currentParty.activeRequestId && !request.customerDetails
+      )
+      if (currentParty && nextGuest) {
+        const activated = await fetch(`${base}/party-activate`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            version: currentParty.version,
+            requestId: nextGuest.id
+          })
+        })
+        if (activated.ok) {
+          queryClient.setQueryData(
+            partyKey,
+            Schema.decodeUnknownSync(BookingPartySchema)(await activated.json())
+          )
+          setReview(null)
+          return
+        }
+      }
       setReview(result.review)
     }
   })
@@ -216,6 +321,17 @@ export function ServerBackedBookingFlow({
     }
   })
   const heldUntil = availability.data?.hold?.expiresAt
+  useEffect(() => {
+    if (!holdExpired || !party.data || partyMutation.isPending) return
+    const continuation = bookingPartyContinuation(party.data, new Date().toISOString())
+    if (continuation && party.data.activeRequestId !== continuation.requestId) {
+      partyMutation.mutate({
+        endpoint: 'activate',
+        body: { version: party.data.version, requestId: continuation.requestId },
+        preserveScheduling: true
+      })
+    }
+  }, [holdExpired, party.data, partyMutation])
   useEffect(() => {
     if (!heldUntil) return
     const expire = () => {
@@ -271,7 +387,7 @@ export function ServerBackedBookingFlow({
         />
       )
     }
-    if (availability.isError || holdMutation.isError)
+    if (availability.isError || holdMutation.isError || groupHoldMutation.isError)
       return (
         <Status
           title={message('status.times_unavailable')}
@@ -288,19 +404,88 @@ export function ServerBackedBookingFlow({
     return (
       <BookingSchedulingFlow
         availability={availability.data}
-        busy={holdMutation.isPending || releaseMutation.isPending}
+        busy={
+          holdMutation.isPending ||
+          releaseMutation.isPending ||
+          groupHoldMutation.isPending
+        }
         slotLost={slotLost}
         holdExpired={holdExpired}
         locale={locale}
         onSelect={(startsAt) => holdMutation.mutate(startsAt)}
         onRelease={() => releaseMutation.mutate()}
-        onCheckout={() => setCheckout(true)}
+        {...(party.data?.requests.some(
+          (request) => request.id !== party.data.activeRequestId && !request.startsAt
+        )
+          ? { checkoutLabel: message('action.continue') }
+          : {})}
+        onCheckout={() => {
+          const next = party.data?.requests.find(
+            (request) => request.id !== party.data.activeRequestId && !request.startsAt
+          )
+          if (party.data && next) {
+            partyMutation.mutate({
+              endpoint: 'activate',
+              body: { version: party.data.version, requestId: next.id }
+            })
+          } else if (party.data && party.data.requests.length > 1)
+            groupHoldMutation.mutate()
+          else setCheckout(true)
+        }}
       />
     )
   }
   return (
     <>
       {selectionRefreshed ? <output>{selectionRefreshedMessage}</output> : null}
+      {party.data?.requests?.length ? (
+        <BookingPartyFlow
+          party={party.data}
+          activeRequestId={party.data.activeRequestId ?? party.data.requests[0]!.id}
+          busy={partyMutation.isPending}
+          now={partyNow}
+          messages={{
+            title: message('party.title'),
+            addGuest: message('party.add_guest'),
+            removeGuest: message('party.remove_guest'),
+            moveEarlier: message('party.move_earlier'),
+            moveLater: message('party.move_later'),
+            guest: (position) => `${message('party.guest')} ${position}`,
+            incomplete: message('party.incomplete'),
+            complete: message('party.complete')
+          }}
+          onAdd={() =>
+            partyMutation.mutate({
+              endpoint: 'add',
+              body: { version: party.data.version }
+            })
+          }
+          onRemove={(requestId) =>
+            partyMutation.mutate({
+              endpoint: 'remove',
+              body: { version: party.data.version, requestId }
+            })
+          }
+          onMove={(requestId, direction) => {
+            const ids = [...party.data.requests]
+              .sort((a, b) => a.position - b.position)
+              .map((request) => request.id)
+            const index = ids.indexOf(requestId)
+            const target = direction === 'earlier' ? index - 1 : index + 1
+            ;[ids[index], ids[target]] = [ids[target]!, ids[index]!]
+            partyMutation.mutate({
+              endpoint: 'reorder',
+              body: { version: party.data.version, requestIds: ids }
+            })
+          }}
+          onSwitch={(requestId) =>
+            partyMutation.mutate({
+              endpoint: 'activate',
+              body: { version: party.data.version, requestId }
+            })
+          }
+        />
+      ) : null}
       <BookingSelectionFlow
         journey={journey.data}
         messages={{

@@ -71,13 +71,13 @@ describe('protected Booking Session route', () => {
       )
     const first = renderRoute()
     await screen.findByText('Signature Cut')
-    expect(fetchMock).toHaveBeenLastCalledWith(
+    expect(fetchMock).toHaveBeenCalledWith(
       '/mara-studio/booking/session/bsn_refresh/selection',
       { credentials: 'same-origin' }
     )
 
     first.unmount()
     renderRoute()
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
   })
 })

@@ -7,6 +7,7 @@ import {
   BookingCheckout,
   BookingSessions,
   BookingConfirmation,
+  BookingParties,
   enterBookingSession
 } from '@b2b-saas-starter/capabilities/booking'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
@@ -131,6 +132,50 @@ export default {
             ),
             capabilitiesLayer
           ),
+        parties: {
+          load: (session) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (parties) =>
+                parties.findForSession(session.id)
+              ),
+              capabilitiesLayer
+            ),
+          add: (partyId, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (parties) =>
+                parties.addRequest(partyId, version, now)
+              ),
+              capabilitiesLayer
+            ),
+          remove: (partyId, requestId, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (parties) =>
+                parties.removeRequest(partyId, requestId, version, now)
+              ),
+              capabilitiesLayer
+            ),
+          reorder: (partyId, requestIds, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (parties) =>
+                parties.reorderRequests(partyId, requestIds, version, now)
+              ),
+              capabilitiesLayer
+            ),
+          update: (partyId, requestId, material, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (parties) =>
+                parties.updateRequest(partyId, requestId, material, version, now)
+              ),
+              capabilitiesLayer
+            ),
+          activate: (partyId, requestId, version, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingParties, (parties) =>
+                parties.activateRequest(partyId, requestId, version, now)
+              ),
+              capabilitiesLayer
+            )
+        },
         selection: {
           load: (session) =>
             Effect.provide(
@@ -171,6 +216,13 @@ export default {
             Effect.provide(
               Effect.flatMap(BookingScheduling, (scheduling) =>
                 scheduling.hold(session, input)
+              ),
+              capabilitiesLayer
+            ),
+          holdParty: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingScheduling, (scheduling) =>
+                scheduling.holdParty(session, input)
               ),
               capabilitiesLayer
             ),

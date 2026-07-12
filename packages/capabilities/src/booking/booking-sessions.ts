@@ -561,6 +561,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
               })
             }
             const partyId = defaultGenerators.newPartyId!()
+            const requestId = defaultGenerators.newRequestId!()
             yield* orUnavailable('booking-sessions')(
               batch(db, [
                 db.insert(bookingSessions).values({
@@ -579,6 +580,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
                   id: partyId,
                   bookingSessionId: session.id,
                   shopId: shop.id,
+                  activeRequestId: requestId,
                   lifecycle: 'active',
                   currency: merchant.currency,
                   locale: 'en',
@@ -587,7 +589,7 @@ export const LiveBookingSessions: Layer.Layer<BookingSessions, never, Database> 
                   updatedAt: input.now
                 }),
                 db.insert(bookingRequests).values({
-                  id: defaultGenerators.newRequestId!(),
+                  id: requestId,
                   bookingPartyId: partyId,
                   position: 0,
                   createdAt: input.now,

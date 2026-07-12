@@ -20,6 +20,8 @@ import {
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { BookingSelection, LiveBookingSelection } from './booking-selection.ts'
+import { BookingParties } from './foundations.ts'
+import { LiveBookingParties } from './foundation-adapters.ts'
 import { BookingScheduling, LiveBookingScheduling } from './booking-scheduling.ts'
 import {
   BookingSessions,
@@ -248,6 +250,201 @@ const prepareSession = async (
 }
 
 describe('Live Booking Scheduling', () => {
+  it('acquires and links every request hold in one live D1 batch', async () => {
+    const session = await prepareSession()
+    const schedulingLayer = LiveBookingScheduling.pipe(
+      Layer.provide(layerFromD1(test.d1))
+    )
+    const runScheduling = <A, E>(effect: Effect.Effect<A, E, BookingScheduling>) =>
+      Effect.runPromise(Effect.provide(effect, schedulingLayer))
+    const first = await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.hold(session, { startsAt: '2026-07-13T09:00:00.000Z', now })
+      )
+    )
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) => service.release(session))
+    )
+    const second = await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.hold(session, { startsAt: '2026-07-13T10:00:00.000Z', now })
+      )
+    )
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) => service.release(session))
+    )
+
+    const partyLayer = LiveBookingParties.pipe(Layer.provide(layerFromD1(test.d1)))
+    const runParty = <A, E>(effect: Effect.Effect<A, E, BookingParties>) =>
+      Effect.runPromise(Effect.provide(effect, partyLayer))
+    let party = await runParty(
+      Effect.flatMap(BookingParties, (service) => service.findForSession(session.id))
+    )
+    const firstRequestId = party.requests[0]!.id
+    party = await runParty(
+      Effect.flatMap(BookingParties, (service) =>
+        service.updateRequest(
+          party.id,
+          firstRequestId,
+          { providerPreference: 'any', providerId: null },
+          party.version,
+          now
+        )
+      )
+    )
+    party = await runParty(
+      Effect.flatMap(BookingParties, (service) =>
+        service.updateRequest(
+          party.id,
+          firstRequestId,
+          {
+            primaryServiceId: 'svc_schedule_primary',
+            serviceIds: ['svc_schedule_primary', 'svc_schedule_extra']
+          },
+          party.version,
+          now
+        )
+      )
+    )
+    party = await runParty(
+      Effect.flatMap(BookingParties, (service) =>
+        service.addRequest(party.id, party.version, now)
+      )
+    )
+    const secondRequestId = party.requests[1]!.id
+    party = await runParty(
+      Effect.flatMap(BookingParties, (service) =>
+        service.updateRequest(
+          party.id,
+          secondRequestId,
+          { providerPreference: 'any', providerId: null },
+          party.version,
+          now
+        )
+      )
+    )
+    party = await runParty(
+      Effect.flatMap(BookingParties, (service) =>
+        service.updateRequest(
+          party.id,
+          secondRequestId,
+          {
+            primaryServiceId: 'svc_schedule_primary',
+            serviceIds: ['svc_schedule_primary', 'svc_schedule_extra']
+          },
+          party.version,
+          now
+        )
+      )
+    )
+
+    const competitor = await prepareSession()
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.hold(competitor, { startsAt: first.quote.startsAt, now })
+      )
+    )
+    const secondCompetitor = await prepareSession()
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(Database, (db) =>
+          db
+            .update(bookingSessions)
+            .set({ providerPreference: 'specific', providerId: 'prv_schedule_two' })
+            .where(eq(bookingSessions.id, secondCompetitor.id))
+        ),
+        layerFromD1(test.d1)
+      )
+    )
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.hold(secondCompetitor, { startsAt: first.quote.startsAt, now })
+      )
+    )
+    const conflict = await runScheduling(
+      Effect.result(
+        Effect.flatMap(BookingScheduling, (service) =>
+          service.holdParty(session, {
+            now,
+            requests: [
+              { bookingRequestId: firstRequestId, startsAt: first.quote.startsAt },
+              { bookingRequestId: secondRequestId, startsAt: second.quote.startsAt }
+            ]
+          })
+        )
+      )
+    )
+    expect(conflict).toMatchObject({
+      _tag: 'Failure',
+      failure: { reason: 'slot_lost' }
+    })
+    const afterConflict = await runParty(
+      Effect.flatMap(BookingParties, (service) => service.findForSession(session.id))
+    )
+    expect(afterConflict.requests.every((request) => request.holdId === null)).toBe(
+      true
+    )
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) => service.release(competitor))
+    )
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) => service.release(secondCompetitor))
+    )
+
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.hold(session, { startsAt: first.quote.startsAt, now })
+      )
+    )
+    party = await runParty(
+      Effect.flatMap(BookingParties, (service) => service.findForSession(session.id))
+    )
+    party = await runParty(
+      Effect.flatMap(BookingParties, (service) =>
+        service.activateRequest(party.id, secondRequestId, party.version, now)
+      )
+    )
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.hold(session, { startsAt: second.quote.startsAt, now })
+      )
+    )
+    const held = await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.holdParty(session, {
+          now,
+          requests: [
+            {
+              bookingRequestId: firstRequestId,
+              startsAt: first.quote.startsAt
+            },
+            {
+              bookingRequestId: secondRequestId,
+              startsAt: second.quote.startsAt
+            }
+          ]
+        })
+      )
+    )
+    expect(held).toHaveLength(2)
+    const persisted = await runParty(
+      Effect.flatMap(BookingParties, (service) => service.findForSession(session.id))
+    )
+    expect(
+      persisted.requests.every((request) => request.holdId && request.holdExpiresAt)
+    ).toBe(true)
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) => service.release(session))
+    )
+    await runParty(
+      Effect.flatMap(BookingParties, (service) =>
+        service.activateRequest(persisted.id, firstRequestId, persisted.version, now)
+      )
+    )
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (service) => service.release(session))
+    )
+  }, 15_000)
   it('excludes Appointment conflicts and allows at most one concurrent hold per Provider interval', async () => {
     const [first, second] = await Promise.all([prepareSession(), prepareSession()])
     const schedulingLayer = LiveBookingScheduling.pipe(

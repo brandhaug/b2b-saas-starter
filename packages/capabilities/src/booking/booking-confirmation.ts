@@ -270,12 +270,17 @@ export const SeedBookingConfirmation = (
             replayed: true
           }
         }
+        const activeRequestId = store.checkout.scheduling.activeRequests?.get(
+          session.id
+        )
         const hold = [...store.checkout.scheduling.holds.values()].find(
           (candidate) =>
-            candidate.bookingSessionId === session.id && candidate.expiresAt > input.now
+            candidate.bookingSessionId === session.id &&
+            candidate.expiresAt > input.now &&
+            (!activeRequestId || candidate.bookingRequestId === activeRequestId)
         )
         if (!hold) return yield* rejected('hold_expired')
-        const details = store.checkout.details.get(session.id)
+        const details = store.checkout.details.get(activeRequestId ?? session.id)
         if (!details) return yield* rejected('details_missing')
         if (!record || record.lifecycle !== 'active') return yield* rejected('conflict')
         const appointmentId = `apt_${session.id}`
@@ -306,7 +311,7 @@ export const SeedBookingConfirmation = (
         store.access.set(routeId, access)
         store.outbox.set(outboxId, { appointmentId, traceId: input.traceId })
         store.checkout.scheduling.holds.delete(hold.id)
-        store.checkout.details.delete(session.id)
+        store.checkout.details.delete(activeRequestId ?? session.id)
         store.sessions.sessions.set(session.id, {
           ...record,
           lifecycle: 'consumed',

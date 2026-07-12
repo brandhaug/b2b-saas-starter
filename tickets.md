@@ -115,12 +115,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Single-Request Availability and Time Slot Holds.
 
-- [ ] A Booking Party supports one or more ordered Booking Requests without changing the existing single-request behavior.
-- [ ] Each request owns its guest details, selected services, resolved Provider, and held interval.
-- [ ] Coordinated hold acquisition succeeds for the complete conflict-free set or acquires none.
-- [ ] The customer can add, remove, reorder, and switch requests while material changes reconcile dependent state.
-- [ ] Continuation returns to the earliest incomplete request and never restores stale selections or holds.
-- [ ] Group scenarios cover assigned and Any Provider resolution, conflicts, expiry, responsive presentation, and motion.
+- [x] A Booking Party supports one or more ordered Booking Requests without changing the existing single-request behavior.
+- [x] Each request owns its guest details, selected services, resolved Provider, and held interval.
+- [x] Coordinated hold acquisition succeeds for the complete conflict-free set or acquires none.
+- [x] The customer can add, remove, reorder, and switch requests while material changes reconcile dependent state.
+- [x] Continuation returns to the earliest incomplete request and never restores stale selections or holds.
+- [x] Group scenarios cover assigned and Any Provider resolution, conflicts, expiry, responsive presentation, and motion.
 
 ## Deliver Pricing, Promotions, and Quote Acceptance
 

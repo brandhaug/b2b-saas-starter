@@ -570,6 +570,7 @@ export const timeSlotHolds = sqliteTable(
     bookingSessionId: text('booking_session_id')
       .notNull()
       .references(() => bookingSessions.id, { onDelete: 'cascade' }),
+    bookingRequestId: text('booking_request_id'),
     providerId: text('provider_id')
       .notNull()
       .references(() => providers.id, { onDelete: 'restrict' }),
@@ -835,6 +836,7 @@ export const bookingParties = sqliteTable(
     shopId: text('shop_id')
       .notNull()
       .references(() => shops.id, { onDelete: 'restrict' }),
+    activeRequestId: text('active_request_id'),
     lifecycle: text('lifecycle', { enum: bookingPartyLifecycles })
       .default('active')
       .notNull(),

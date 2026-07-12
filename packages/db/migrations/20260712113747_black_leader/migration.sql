@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS `time_slot_holds_booking_request_unique`;

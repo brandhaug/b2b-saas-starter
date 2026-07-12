@@ -2,7 +2,10 @@ import { Effect, Schema } from 'effect'
 import {
   BookingPageUnavailable,
   BookingPartyConflict,
+  BookingPartyNotFound,
+  BookingRequestMaterial as BookingRequestMaterialSchema,
   HoldTimeSlotInput as HoldTimeSlotInputSchema,
+  CoordinatedHoldInput as CoordinatedHoldInputSchema,
   BookingSchedulingRejected,
   CheckoutUnavailable,
   BookingConfirmationRejected,
@@ -14,11 +17,14 @@ import {
   CapabilityUnavailable,
   type AuthorizeBookingSessionInput,
   type BookingSession,
+  type BookingParty,
+  type BookingRequestMaterial,
   type BookingSessionEntry,
   type BookingJourney,
   type BookingAvailability,
   type TimeSlotHold,
   type HoldTimeSlotInput,
+  type CoordinatedHoldInput,
   type ProviderPreference,
   type PresentedBookingSessionCapability,
   type ServiceSelection,
@@ -60,6 +66,7 @@ type BookingSessionHttpFailure =
   | InvalidBookingSessionCookie
   | BookingSelectionRejected
   | BookingPartyConflict
+  | BookingPartyNotFound
   | BookingSchedulingRejected
   | CheckoutUnavailable
   | BookingConfirmationRejected
@@ -188,6 +195,59 @@ export type BookingSessionHttpDependencies = {
       readonly acquisition: Readonly<Record<string, string>>
     }
   ) => BookingSessionEffect<void, CapabilityUnavailable>
+  readonly parties?: {
+    readonly load: (
+      session: BookingSession
+    ) => BookingSessionEffect<
+      BookingParty,
+      BookingPartyNotFound | CapabilityUnavailable
+    >
+    readonly add: (
+      partyId: string,
+      version: number,
+      now: string
+    ) => BookingSessionEffect<
+      BookingParty,
+      BookingPartyNotFound | BookingPartyConflict | CapabilityUnavailable
+    >
+    readonly remove: (
+      partyId: string,
+      requestId: string,
+      version: number,
+      now: string
+    ) => BookingSessionEffect<
+      BookingParty,
+      BookingPartyNotFound | BookingPartyConflict | CapabilityUnavailable
+    >
+    readonly reorder: (
+      partyId: string,
+      requestIds: readonly string[],
+      version: number,
+      now: string
+    ) => BookingSessionEffect<
+      BookingParty,
+      BookingPartyNotFound | BookingPartyConflict | CapabilityUnavailable
+    >
+    readonly update: (
+      partyId: string,
+      requestId: string,
+      material: BookingRequestMaterial,
+      version: number,
+      now: string
+    ) => BookingSessionEffect<
+      BookingParty,
+      BookingPartyNotFound | BookingPartyConflict | CapabilityUnavailable
+    >
+    readonly activate: (
+      partyId: string,
+      requestId: string,
+      version: number,
+      now: string
+    ) => BookingSessionEffect<
+      BookingParty,
+      BookingPartyNotFound | BookingPartyConflict | CapabilityUnavailable
+    >
+  }
   readonly selection?: {
     readonly load: (
       session: BookingSession
@@ -233,6 +293,13 @@ export type BookingSessionHttpDependencies = {
       input: { readonly startsAt: string; readonly now: string }
     ) => BookingSessionEffect<
       TimeSlotHold,
+      BookingSchedulingRejected | CapabilityUnavailable
+    >
+    readonly holdParty?: (
+      session: BookingSession,
+      input: CoordinatedHoldInput
+    ) => BookingSessionEffect<
+      readonly TimeSlotHold[],
       BookingSchedulingRejected | CapabilityUnavailable
     >
     readonly release: (
@@ -429,7 +496,12 @@ const jsonJourney = (value: BookingJourney): Response =>
   )
 
 const jsonPrivate = (
-  value: BookingAvailability | TimeSlotHold | CheckoutReview
+  value:
+    | BookingAvailability
+    | TimeSlotHold
+    | readonly TimeSlotHold[]
+    | CheckoutReview
+    | BookingParty
 ): Response =>
   withPrivateHeaders(
     Response.json(value, {
@@ -456,6 +528,14 @@ const versionFrom = (value: unknown): number | null => {
   return typeof version === 'number' && Number.isSafeInteger(version) && version > 0
     ? version
     : null
+}
+
+const bookingRequestMaterialFrom = (value: unknown): BookingRequestMaterial | null => {
+  try {
+    return Schema.decodeUnknownSync(BookingRequestMaterialSchema)(value)
+  } catch {
+    return null
+  }
 }
 
 const servicesFrom = (value: unknown): ServiceSelection | null => {
@@ -757,6 +837,73 @@ export const handleBookingSessionRequest = (
         ? withPrivateHeaders(new Response(null, { status: 204 }))
         : mapSessionFailure(result.failure, merchantSlug)
     }
+    if (endpoint === 'party' && request.method === 'GET') {
+      if (!dependencies.parties) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.parties.load(authorization.success)
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint?.startsWith('party-') && request.method === 'POST') {
+      if (!dependencies.parties) return unavailable()
+      const current = yield* Effect.result(
+        dependencies.parties.load(authorization.success)
+      )
+      if (current._tag === 'Failure')
+        return mapSessionFailure(current.failure, merchantSlug)
+      const body = yield* readJson(request)
+      const record =
+        typeof body === 'object' && body !== null
+          ? (body as Record<string, unknown>)
+          : {}
+      const version = versionFrom(body)
+      const material = bookingRequestMaterialFrom(record.material)
+      if (!version) return hiddenNotFound()
+      const operation =
+        endpoint === 'party-add'
+          ? dependencies.parties.add(current.success.id, version, now)
+          : endpoint === 'party-remove' && typeof record.requestId === 'string'
+            ? dependencies.parties.remove(
+                current.success.id,
+                record.requestId,
+                version,
+                now
+              )
+            : endpoint === 'party-reorder' &&
+                Array.isArray(record.requestIds) &&
+                record.requestIds.every((id) => typeof id === 'string')
+              ? dependencies.parties.reorder(
+                  current.success.id,
+                  record.requestIds as string[],
+                  version,
+                  now
+                )
+              : endpoint === 'party-update' &&
+                  typeof record.requestId === 'string' &&
+                  material
+                ? dependencies.parties.update(
+                    current.success.id,
+                    record.requestId,
+                    material,
+                    version,
+                    now
+                  )
+                : endpoint === 'party-activate' && typeof record.requestId === 'string'
+                  ? dependencies.parties.activate(
+                      current.success.id,
+                      record.requestId,
+                      version,
+                      now
+                    )
+                  : null
+      if (!operation) return hiddenNotFound()
+      const result = yield* Effect.result(operation)
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
     if (endpoint === 'selection' && request.method === 'GET') {
       if (!dependencies.selection) return unavailable()
       const result = yield* Effect.result(
@@ -888,6 +1035,22 @@ export const handleBookingSessionRequest = (
       const result = yield* Effect.result(
         dependencies.scheduling.hold(authorization.success, {
           startsAt: input.startsAt,
+          now
+        })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'holds' && request.method === 'POST') {
+      if (!dependencies.scheduling?.holdParty) return unavailable()
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(CoordinatedHoldInputSchema)(yield* readJson(request))
+      )
+      if (decoded._tag === 'Failure') return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.scheduling.holdParty(authorization.success, {
+          ...decoded.success,
           now
         })
       )

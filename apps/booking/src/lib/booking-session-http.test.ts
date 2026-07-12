@@ -54,6 +54,121 @@ describe('Booking Session HTTP boundary', () => {
     ]
   }
 
+  it('routes authorized party switching and coordinated holds through the real private contract', async () => {
+    const capability = '9'.repeat(64)
+    const session = {
+      id: 'bsn_group',
+      merchantSlug: 'mara-studio',
+      checkoutPath: 'pay_in_person' as const,
+      lifecycle: 'active' as const,
+      createdAt: '2026-07-10T09:30:00.000Z',
+      lastActivityAt: '2026-07-10T09:30:00.000Z',
+      idleExpiresAt: '2026-07-10T10:00:00.000Z',
+      absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
+    }
+    const requests = ['brq_one', 'brq_two'].map((id, position) => ({
+      id,
+      bookingPartyId: 'bpt_group',
+      position,
+      providerPreference: position ? ('any' as const) : ('specific' as const),
+      providerId: position ? null : 'prv_one',
+      primaryServiceId: 'svc_one',
+      serviceIds: ['svc_one'],
+      holdId: null,
+      customerAccountId: null,
+      customerDetails: null,
+      startsAt: '2026-07-13T09:00:00.000Z',
+      endsAt: '2026-07-13T10:00:00.000Z'
+    }))
+    const party = {
+      id: 'bpt_group',
+      bookingSessionId: session.id,
+      shopId: 'shp_one',
+      activeRequestId: 'brq_one',
+      lifecycle: 'active' as const,
+      currency: 'RON',
+      locale: 'en',
+      version: 2,
+      requests
+    }
+    let activated = ''
+    let heldRequests: readonly string[] = []
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () => Effect.succeed(session),
+      parties: {
+        load: () => Effect.succeed(party),
+        add: () => Effect.succeed(party),
+        remove: () => Effect.succeed(party),
+        reorder: () => Effect.succeed(party),
+        update: () => Effect.succeed(party),
+        activate: (_partyId: string, requestId: string) => {
+          activated = requestId
+          return Effect.succeed({ ...party, activeRequestId: requestId, version: 3 })
+        }
+      },
+      scheduling: {
+        availability: () => Effect.die(new Error('not called')),
+        hold: () => Effect.die(new Error('not called')),
+        release: () => Effect.void,
+        holdParty: (
+          _session: unknown,
+          input: { readonly requests: readonly { readonly bookingRequestId: string }[] }
+        ) => {
+          heldRequests = input.requests.map((request) => request.bookingRequestId)
+          return Effect.succeed([])
+        }
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called')),
+      now: () => '2026-07-10T09:30:00.000Z'
+    }
+    const headers = {
+      cookie: `booking_session_bsn_group=${capability}`,
+      origin: 'https://www.example.test',
+      'sec-fetch-site': 'same-origin',
+      'content-type': 'application/json'
+    }
+    const activatedResponse = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(
+          'https://www.example.test/mara-studio/booking/session/bsn_group/party-activate',
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ version: 2, requestId: 'brq_two' })
+          }
+        ),
+        dependencies
+      )
+    )
+    expect(activatedResponse.status).toBe(200)
+    expect(activated).toBe('brq_two')
+    const heldResponse = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(
+          'https://www.example.test/mara-studio/booking/session/bsn_group/holds',
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              now: 'ignored',
+              requests: requests.map((request) => ({
+                bookingRequestId: request.id,
+                startsAt: request.startsAt
+              }))
+            })
+          }
+        ),
+        dependencies
+      )
+    )
+    expect(heldResponse.status).toBe(200)
+    expect(heldRequests).toEqual(['brq_one', 'brq_two'])
+  })
+
   it('sets a session-specific host-only capability cookie on the exact Merchant path', () => {
     const cookie = Effect.runSync(
       bookingSessionCookie({

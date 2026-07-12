@@ -1,6 +1,13 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, eq, gt } from 'drizzle-orm'
-import { bookingSessions, Database, timeSlotHolds } from '@b2b-saas-starter/db'
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
+import {
+  batch,
+  bookingParties,
+  bookingRequests,
+  bookingSessions,
+  Database,
+  timeSlotHolds
+} from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import type { SeedBookingSchedulingStore } from './booking-scheduling.ts'
@@ -82,14 +89,20 @@ export const emptySeedBookingCheckoutStore = (
 export const SeedBookingCheckout = (
   store: SeedBookingCheckoutStore
 ): Layer.Layer<BookingCheckout> => {
+  const requestKey = (session: BookingSession) =>
+    store.scheduling.activeRequests?.get(session.id) ?? session.id
   const activeHold = (session: BookingSession, now: string) =>
     [...store.scheduling.holds.values()].find(
       (candidate) =>
-        candidate.bookingSessionId === session.id && candidate.expiresAt > now
+        candidate.bookingSessionId === session.id &&
+        candidate.expiresAt > now &&
+        (!store.scheduling.activeRequests?.get(session.id) ||
+          candidate.bookingRequestId ===
+            store.scheduling.activeRequests?.get(session.id))
     )
   const review = (session: BookingSession, now: string) =>
     Effect.gen(function* () {
-      const details = store.details.get(session.id)
+      const details = store.details.get(requestKey(session))
       if (!details) return yield* unavailable('details_missing')
       const hold = activeHold(session, now)
       if (!hold) return yield* unavailable('hold_expired')
@@ -106,7 +119,7 @@ export const SeedBookingCheckout = (
       Effect.gen(function* () {
         const hold = activeHold(session, input.now)
         if (!hold) return yield* unavailable('hold_expired')
-        store.details.set(session.id, details)
+        store.details.set(requestKey(session), details)
         return yield* review(session, input.now)
       })
   })
@@ -121,12 +134,28 @@ export const LiveBookingCheckout: Layer.Layer<BookingCheckout, never, Database> 
         Effect.gen(function* () {
           const rows = yield* orUnavailable('booking-checkout')(
             db
-              .select({ session: bookingSessions, hold: timeSlotHolds })
+              .select({
+                session: bookingSessions,
+                hold: timeSlotHolds,
+                request: bookingRequests
+              })
               .from(bookingSessions)
+              .leftJoin(
+                bookingParties,
+                eq(bookingParties.bookingSessionId, bookingSessions.id)
+              )
+              .leftJoin(
+                bookingRequests,
+                eq(bookingRequests.id, bookingParties.activeRequestId)
+              )
               .innerJoin(
                 timeSlotHolds,
                 and(
                   eq(timeSlotHolds.bookingSessionId, bookingSessions.id),
+                  or(
+                    eq(timeSlotHolds.bookingRequestId, bookingRequests.id),
+                    isNull(timeSlotHolds.bookingRequestId)
+                  ),
                   gt(timeSlotHolds.expiresAt, now)
                 )
               )
@@ -135,13 +164,33 @@ export const LiveBookingCheckout: Layer.Layer<BookingCheckout, never, Database> 
           )
           const row = rows[0]
           if (!row) return yield* unavailable('hold_expired')
-          if (!row.session.customerName || !row.session.customerEmail) {
+          const requestDetails = row.request?.customerDetailsJson
+            ? yield* Effect.try({
+                try: () => JSON.parse(row.request!.customerDetailsJson!),
+                catch: () => null
+              }).pipe(
+                Effect.flatMap((value) =>
+                  Schema.decodeUnknownEffect(CustomerDetails)(value)
+                ),
+                Effect.mapError(
+                  () =>
+                    new CapabilityUnavailable({
+                      capability: 'booking-checkout',
+                      reason: 'invalid_customer_details'
+                    })
+                )
+              )
+            : null
+          if (
+            !requestDetails &&
+            (!row.session.customerName || !row.session.customerEmail)
+          ) {
             return yield* unavailable('details_missing')
           }
           return {
-            customerDetails: {
-              name: row.session.customerName,
-              email: row.session.customerEmail,
+            customerDetails: requestDetails ?? {
+              name: row.session.customerName!,
+              email: row.session.customerEmail!,
               phone: row.session.customerPhone
             },
             checkoutPath: 'pay_in_person' as const,
@@ -160,6 +209,13 @@ export const LiveBookingCheckout: Layer.Layer<BookingCheckout, never, Database> 
                 .where(
                   and(
                     eq(timeSlotHolds.bookingSessionId, session.id),
+                    or(
+                      eq(
+                        timeSlotHolds.bookingRequestId,
+                        sql`(select active_request_id from booking_parties where booking_session_id = ${session.id})`
+                      ),
+                      isNull(timeSlotHolds.bookingRequestId)
+                    ),
                     gt(timeSlotHolds.expiresAt, input.now)
                   )
                 )
@@ -167,14 +223,25 @@ export const LiveBookingCheckout: Layer.Layer<BookingCheckout, never, Database> 
             )
             if (!activeHold[0]) return yield* unavailable('hold_expired')
             yield* orUnavailable('booking-checkout')(
-              db
-                .update(bookingSessions)
-                .set({
-                  customerName: details.name,
-                  customerEmail: details.email,
-                  customerPhone: details.phone
-                })
-                .where(eq(bookingSessions.id, session.id))
+              batch(db, [
+                db
+                  .update(bookingSessions)
+                  .set({
+                    customerName: details.name,
+                    customerEmail: details.email,
+                    customerPhone: details.phone
+                  })
+                  .where(eq(bookingSessions.id, session.id)),
+                db
+                  .update(bookingRequests)
+                  .set({ customerDetailsJson: JSON.stringify(details) })
+                  .where(
+                    eq(
+                      bookingRequests.id,
+                      sql`(select active_request_id from booking_parties where booking_session_id = ${session.id})`
+                    )
+                  )
+              ])
             )
             return yield* read(session, input.now)
           })

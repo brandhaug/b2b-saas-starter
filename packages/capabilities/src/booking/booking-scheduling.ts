@@ -1,9 +1,12 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, asc, eq, gt, type SQL } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm'
 import {
   appointments,
+  batch,
   batchQueries,
   bookingParties,
+  bookingRequests,
+  bookingRequestServices,
   bookingSessionAdditionalServices,
   bookingSessions,
   Database,
@@ -63,6 +66,7 @@ export type BookingQuote = typeof BookingQuote.Type
 export const TimeSlotHold = Schema.Struct({
   id: Schema.String,
   bookingSessionId: Schema.String,
+  bookingRequestId: Schema.optional(Schema.String),
   createdAt: Schema.String,
   expiresAt: Schema.String,
   quote: BookingQuote
@@ -78,6 +82,17 @@ export type BookingAvailability = typeof BookingAvailability.Type
 
 export const HoldTimeSlotInput = Schema.Struct({ startsAt: Schema.String })
 export type HoldTimeSlotInput = typeof HoldTimeSlotInput.Type
+
+export const CoordinatedHoldInput = Schema.Struct({
+  requests: Schema.NonEmptyArray(
+    Schema.Struct({
+      bookingRequestId: Schema.String,
+      startsAt: Schema.String
+    })
+  ),
+  now: Schema.String
+})
+export type CoordinatedHoldInput = typeof CoordinatedHoldInput.Type
 
 export const BookingSchedulingRecovery = Schema.Struct({
   kind: Schema.Literals(['slot_lost', 'not_ready']),
@@ -103,6 +118,10 @@ export type BookingSchedulingShape = {
     session: BookingSession,
     input: { readonly startsAt: string; readonly now: string }
   ) => Effect.Effect<TimeSlotHold, Failure>
+  readonly holdParty: (
+    session: BookingSession,
+    input: CoordinatedHoldInput
+  ) => Effect.Effect<readonly TimeSlotHold[], Failure>
   readonly currentHold: (
     session: BookingSession,
     input: { readonly now: string }
@@ -158,15 +177,75 @@ type StoredHold = TimeSlotHold & {
   readonly startsAt: string
   readonly endsAt: string
 }
+export type CoordinatedHoldCandidate = StoredHold & {
+  readonly bookingRequestId: string
+}
+
+/**
+ * Commits a complete prevalidated group hold set to the seed repository. The
+ * validation pass is deliberately side-effect free, so a conflict cannot leave
+ * a partly held Booking Party behind.
+ */
+export const acquireCoordinatedSeedHolds = (
+  holds: Map<string, StoredHold>,
+  candidates: readonly CoordinatedHoldCandidate[],
+  now: string
+): readonly TimeSlotHold[] | null => {
+  if (
+    candidates.length === 0 ||
+    new Set(candidates.map((candidate) => candidate.bookingRequestId)).size !==
+      candidates.length
+  )
+    return null
+  const active = [...holds.values()].filter((hold) => hold.expiresAt > now)
+  const conflicts = (left: StoredHold, right: StoredHold) =>
+    left.providerId === right.providerId &&
+    overlap(left, right) &&
+    left.bookingSessionId !== right.bookingSessionId
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index]!
+    if (active.some((hold) => conflicts(candidate, hold))) return null
+    if (
+      candidates
+        .slice(0, index)
+        .some(
+          (hold) => hold.providerId === candidate.providerId && overlap(candidate, hold)
+        )
+    )
+      return null
+  }
+  const requestIds = new Set(candidates.map((candidate) => candidate.bookingRequestId))
+  for (const [id, hold] of holds) {
+    if (hold.bookingRequestId && requestIds.has(hold.bookingRequestId)) holds.delete(id)
+  }
+  for (const candidate of candidates) holds.set(candidate.id, candidate)
+  return candidates.map(toPublicHold)
+}
 export type SeedBookingSchedulingStore = {
   readonly scenario: SeedBookingScenario
   readonly selections: SeedBookingSelectionStore
   readonly holds: Map<string, StoredHold>
+  readonly requestSelections: Map<
+    string,
+    {
+      readonly providerPreference: ProviderPreference
+      readonly bookingSessionId: string
+      readonly primaryServiceId: string
+      readonly additionalServiceIds: readonly string[]
+    }
+  >
+  readonly activeRequests: Map<string, string>
+  readonly partyRequests: Map<string, ReadonlySet<string>>
 }
 
 const releaseSeedHolds = (store: SeedBookingSchedulingStore, sessionId: string) => {
+  const activeRequestId = store.activeRequests.get(sessionId)
   for (const [holdId, hold] of store.holds) {
-    if (hold.bookingSessionId === sessionId) store.holds.delete(holdId)
+    if (
+      hold.bookingSessionId === sessionId &&
+      (!activeRequestId || hold.bookingRequestId === activeRequestId)
+    )
+      store.holds.delete(holdId)
   }
 }
 
@@ -177,14 +256,30 @@ export const deleteTimeSlotHoldsForSelectionChange = (
 ): CompiledBatchQuery =>
   db
     .delete(timeSlotHolds)
-    .where(and(eq(timeSlotHolds.bookingSessionId, sessionId), selectionGuard))
+    .where(
+      and(
+        eq(timeSlotHolds.bookingSessionId, sessionId),
+        eq(
+          timeSlotHolds.bookingRequestId,
+          sql`(select active_request_id from booking_parties where booking_session_id = ${sessionId})`
+        ),
+        selectionGuard
+      )
+    )
     .toSQL()
 
 export const emptySeedBookingSchedulingStore = (
   scenario: SeedBookingScenario,
   selections: SeedBookingSelectionStore
 ): SeedBookingSchedulingStore => {
-  const store = { scenario, selections, holds: new Map<string, StoredHold>() }
+  const store = {
+    scenario,
+    selections,
+    holds: new Map<string, StoredHold>(),
+    requestSelections: new Map(),
+    activeRequests: new Map(),
+    partyRequests: new Map()
+  }
   selections.invalidateTimeSlotHolds = (sessionId) => releaseSeedHolds(store, sessionId)
   return store
 }
@@ -206,6 +301,7 @@ const validRange = (from: string, days: number) =>
 const toPublicHold = (hold: StoredHold): TimeSlotHold => ({
   id: hold.id,
   bookingSessionId: hold.bookingSessionId,
+  ...(hold.bookingRequestId ? { bookingRequestId: hold.bookingRequestId } : {}),
   createdAt: hold.createdAt,
   expiresAt: hold.expiresAt,
   quote: hold.quote
@@ -373,12 +469,37 @@ const makeStoredHold = (input: {
   quote: quoteFor(input.scheduling, input.selected, input.provider, input.slot)
 })
 
+const candidateForRequest = (
+  input: SchedulingInputs,
+  startsAt: string,
+  now: string,
+  sessionId: string
+): StoredHold | null => {
+  const generated = candidates(input, { from: startsAt, days: 1, now }, sessionId)
+  const slot = generated.slots.find((item) => item.startsAt === startsAt)
+  const provider = slot
+    ? providersAvailableForSlot(input, generated, slot, now, sessionId)[0]
+    : undefined
+  if (!slot || !provider) return null
+  return makeStoredHold({
+    scheduling: input,
+    selected: generated.selected,
+    provider,
+    slot,
+    sessionId,
+    now
+  })
+}
+
 const seedInputs = (
   store: SeedBookingSchedulingStore,
   session: BookingSession
 ): Effect.Effect<SchedulingInputs, BookingSchedulingRejected> => {
   const scenario = store.scenario
   const selection = store.selections.selections.get(session.id)
+  const activeRequestSelection = store.activeRequests.get(session.id)
+    ? store.requestSelections.get(store.activeRequests.get(session.id)!)
+    : undefined
   if (
     scenario.merchant.slug !== session.merchantSlug ||
     !selection?.providerPreference ||
@@ -393,9 +514,12 @@ const seedInputs = (
     timezone:
       store.selections.shops.get(selection.shopId)?.timezone ??
       scenario.merchant.timezone,
-    preference: selection.providerPreference,
-    primaryServiceId: selection.primaryServiceId,
-    additionalServiceIds: selection.additionalServiceIds,
+    preference:
+      activeRequestSelection?.providerPreference ?? selection.providerPreference,
+    primaryServiceId:
+      activeRequestSelection?.primaryServiceId ?? selection.primaryServiceId,
+    additionalServiceIds:
+      activeRequestSelection?.additionalServiceIds ?? selection.additionalServiceIds,
     providers: scenario.providers.filter((provider) =>
       store.selections.shopProviders.has(`${selection.shopId}\0${provider.id}`)
     ),
@@ -419,19 +543,73 @@ export const SeedBookingScheduling = (
   store: SeedBookingSchedulingStore
 ): Layer.Layer<BookingScheduling> =>
   Layer.succeed(BookingScheduling)({
-    release: (session) => Effect.sync(() => releaseSeedHolds(store, session.id)),
+    release: (session) =>
+      Effect.sync(() => {
+        const activeRequestId = store.activeRequests.get(session.id)
+        for (const [id, hold] of store.holds) {
+          if (
+            hold.bookingSessionId === session.id &&
+            (!activeRequestId || hold.bookingRequestId === activeRequestId)
+          )
+            store.holds.delete(id)
+        }
+      }),
     currentHold: (session, input) =>
       Effect.succeed(
         [...store.holds.values()].find(
-          (hold) => hold.bookingSessionId === session.id && hold.expiresAt > input.now
+          (hold) =>
+            hold.bookingSessionId === session.id &&
+            hold.expiresAt > input.now &&
+            (!store.activeRequests.get(session.id) ||
+              hold.bookingRequestId === store.activeRequests.get(session.id))
         ) ?? null
       ).pipe(Effect.map((hold) => (hold ? toPublicHold(hold) : null))),
+    holdParty: (session, command) =>
+      Effect.gen(function* () {
+        const input = yield* seedInputs(store, session)
+        const submittedIds = new Set(
+          command.requests.map((request) => request.bookingRequestId)
+        )
+        const partySelectionIds = [...(store.partyRequests.get(session.id) ?? [])]
+        if (
+          partySelectionIds.length > 0 &&
+          (submittedIds.size !== partySelectionIds.length ||
+            partySelectionIds.some((id) => !submittedIds.has(id)))
+        )
+          return yield* failure('not_ready')
+        const candidates: CoordinatedHoldCandidate[] = []
+        for (const request of command.requests) {
+          const requestSelection = store.requestSelections.get(request.bookingRequestId)
+          const requestInput = requestSelection
+            ? {
+                ...input,
+                preference: requestSelection.providerPreference,
+                primaryServiceId: requestSelection.primaryServiceId,
+                additionalServiceIds: requestSelection.additionalServiceIds
+              }
+            : input
+          const generated = candidateForRequest(
+            requestInput,
+            request.startsAt,
+            command.now,
+            session.id
+          )
+          if (!generated) return yield* failure('slot_lost')
+          candidates.push({ ...generated, bookingRequestId: request.bookingRequestId })
+        }
+        const held = acquireCoordinatedSeedHolds(store.holds, candidates, command.now)
+        return held ? held : yield* failure('slot_lost')
+      }),
     availability: (session, range) =>
       Effect.gen(function* () {
         const days = range.days ?? 14
         if (!validRange(range.from, days)) return yield* failure('invalid_range')
         const hold = [...store.holds.values()].find(
-          (item) => item.bookingSessionId === session.id && item.expiresAt > range.now
+          (item) =>
+            item.bookingSessionId === session.id &&
+            item.expiresAt > range.now &&
+            (!store.activeRequests.get(session.id) ||
+              item.bookingRequestId === store.activeRequests.get(session.id))
         )
         const inputResult = yield* Effect.result(seedInputs(store, session))
         if (inputResult._tag === 'Failure') {
@@ -498,11 +676,19 @@ export const SeedBookingScheduling = (
           sessionId: session.id,
           now: command.now
         })
+        const activeRequestId = store.activeRequests.get(session.id)
+        const requestStored = activeRequestId
+          ? { ...stored, bookingRequestId: activeRequestId }
+          : stored
         for (const [existingId, existing] of store.holds) {
-          if (existing.bookingSessionId === session.id) store.holds.delete(existingId)
+          if (
+            existing.bookingSessionId === session.id &&
+            (!activeRequestId || existing.bookingRequestId === activeRequestId)
+          )
+            store.holds.delete(existingId)
         }
-        store.holds.set(stored.id, stored)
-        return toPublicHold(stored)
+        store.holds.set(requestStored.id, requestStored)
+        return toPublicHold(requestStored)
       })
   })
 
@@ -647,10 +833,154 @@ const liveInputs = (
 const livePublicHold = (row: typeof timeSlotHolds.$inferSelect): TimeSlotHold => ({
   id: row.id,
   bookingSessionId: row.bookingSessionId,
+  ...(row.bookingRequestId ? { bookingRequestId: row.bookingRequestId } : {}),
   createdAt: row.createdAt,
   expiresAt: row.expiresAt,
   quote: row.quote
 })
+
+const liveHoldParty = (
+  db: typeof Database.Service,
+  session: BookingSession,
+  command: CoordinatedHoldInput
+): Effect.Effect<readonly TimeSlotHold[], Failure> =>
+  Effect.gen(function* () {
+    const base = yield* liveInputs(db, session)
+    const partyRequestRows = yield* orUnavailable('booking-scheduling')(
+      db
+        .select({ id: bookingRequests.id })
+        .from(bookingRequests)
+        .innerJoin(
+          bookingParties,
+          eq(bookingParties.id, bookingRequests.bookingPartyId)
+        )
+        .where(
+          and(
+            eq(bookingParties.bookingSessionId, session.id),
+            eq(bookingParties.lifecycle, 'active')
+          )
+        )
+    )
+    const submittedIds = new Set(
+      command.requests.map((request) => request.bookingRequestId)
+    )
+    if (
+      submittedIds.size !== partyRequestRows.length ||
+      partyRequestRows.some((request) => !submittedIds.has(request.id))
+    )
+      return yield* failure('not_ready')
+    const candidateRows: CoordinatedHoldCandidate[] = []
+    for (const requested of command.requests) {
+      const [requestRows, serviceRows] = yield* Effect.all([
+        orUnavailable('booking-scheduling')(
+          db
+            .select()
+            .from(bookingRequests)
+            .innerJoin(
+              bookingParties,
+              eq(bookingParties.id, bookingRequests.bookingPartyId)
+            )
+            .where(
+              and(
+                eq(bookingRequests.id, requested.bookingRequestId),
+                eq(bookingParties.bookingSessionId, session.id)
+              )
+            )
+            .limit(1)
+        ),
+        orUnavailable('booking-scheduling')(
+          db
+            .select()
+            .from(bookingRequestServices)
+            .where(
+              eq(bookingRequestServices.bookingRequestId, requested.bookingRequestId)
+            )
+            .orderBy(asc(bookingRequestServices.position))
+        )
+      ])
+      const request = requestRows[0]?.booking_requests
+      if (!request?.providerPreference || !request.primaryServiceId)
+        return yield* failure('not_ready')
+      const input: SchedulingInputs = {
+        ...base,
+        preference:
+          request.providerPreference === 'any'
+            ? { kind: 'any' }
+            : { kind: 'specific', providerId: request.providerId ?? '' },
+        primaryServiceId: request.primaryServiceId,
+        additionalServiceIds: serviceRows
+          .filter((item) => item.role === 'additional')
+          .map((item) => item.serviceId)
+      }
+      const candidate = candidateForRequest(
+        input,
+        requested.startsAt,
+        command.now,
+        session.id
+      )
+      if (!candidate) return yield* failure('slot_lost')
+      candidateRows.push({ ...candidate, bookingRequestId: requested.bookingRequestId })
+    }
+    if (
+      new Set(candidateRows.map((item) => item.bookingRequestId)).size !==
+      candidateRows.length
+    )
+      return yield* failure('slot_lost')
+    const valueSql = candidateRows
+      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .join(', ')
+    const params = candidateRows.flatMap((item) => [
+      item.id,
+      item.merchantId,
+      item.bookingSessionId,
+      item.bookingRequestId,
+      item.providerId,
+      item.startsAt,
+      item.endsAt,
+      item.createdAt,
+      item.expiresAt,
+      JSON.stringify(item.quote)
+    ])
+    const insert: CompiledBatchQuery = {
+      sql: `WITH candidates(id, merchant_id, booking_session_id, booking_request_id, provider_id, starts_at, ends_at, created_at, expires_at, quote) AS (VALUES ${valueSql})
+        INSERT INTO time_slot_holds (id, merchant_id, booking_session_id, booking_request_id, provider_id, starts_at, ends_at, created_at, expires_at, quote)
+        SELECT * FROM candidates c
+        WHERE (SELECT COUNT(*) FROM candidates) = ?
+          AND NOT EXISTS (SELECT 1 FROM candidates a JOIN candidates b ON a.id < b.id AND a.provider_id = b.provider_id AND a.starts_at < b.ends_at AND a.ends_at > b.starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN time_slot_holds h ON h.provider_id = c2.provider_id AND h.expires_at > ? AND h.booking_session_id <> c2.booking_session_id AND h.starts_at < c2.ends_at AND h.ends_at > c2.starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN appointments a ON a.provider_id = c2.provider_id AND a.status = 'scheduled' AND a.starts_at < c2.ends_at AND a.ends_at > c2.starts_at)
+          AND EXISTS (SELECT 1 FROM booking_requests r JOIN booking_parties p ON p.id = r.booking_party_id WHERE r.id = c.booking_request_id AND p.booking_session_id = c.booking_session_id AND p.lifecycle = 'active')`,
+      params: [...params, candidateRows.length, command.now]
+    }
+    const requestPlaceholders = candidateRows.map(() => '?').join(', ')
+    const requestIds = candidateRows.map((item) => item.bookingRequestId)
+    const clearExistingHolds: CompiledBatchQuery = {
+      sql: `DELETE FROM time_slot_holds WHERE booking_session_id = ? AND booking_request_id IN (${requestPlaceholders})`,
+      params: [session.id, ...requestIds]
+    }
+    const clearExistingLinks: CompiledBatchQuery = {
+      sql: `UPDATE booking_requests SET hold_id = NULL, starts_at = NULL, ends_at = NULL WHERE id IN (${requestPlaceholders})`,
+      params: requestIds
+    }
+    const updates = candidateRows.map((item) =>
+      db
+        .update(bookingRequests)
+        .set({ holdId: item.id, startsAt: item.startsAt, endsAt: item.endsAt })
+        .where(
+          and(
+            eq(bookingRequests.id, item.bookingRequestId),
+            sql`exists (select 1 from ${timeSlotHolds} where ${timeSlotHolds.id} = ${item.id})`
+          )
+        )
+        .toSQL()
+    )
+    const results = yield* orUnavailable('booking-scheduling')(
+      batchQueries(db, [clearExistingHolds, clearExistingLinks, insert, ...updates])
+    )
+    if ((results[2]?.meta.changes ?? 0) !== candidateRows.length)
+      return yield* failure('slot_lost')
+    return candidateRows.map(toPublicHold)
+  })
 
 const liveTimezone = (db: typeof Database.Service, session: BookingSession) =>
   orUnavailable('booking-scheduling')(
@@ -689,7 +1019,14 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
             .where(
               and(
                 eq(timeSlotHolds.bookingSessionId, session.id),
-                gt(timeSlotHolds.expiresAt, now)
+                gt(timeSlotHolds.expiresAt, now),
+                or(
+                  eq(
+                    timeSlotHolds.bookingRequestId,
+                    sql`(select active_request_id from booking_parties where booking_session_id = ${session.id})`
+                  ),
+                  isNull(timeSlotHolds.bookingRequestId)
+                )
               )
             )
             .orderBy(asc(timeSlotHolds.createdAt))
@@ -699,11 +1036,34 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
       return {
         release: (session) =>
           orUnavailable('booking-scheduling')(
-            db
-              .delete(timeSlotHolds)
-              .where(eq(timeSlotHolds.bookingSessionId, session.id))
+            batch(db, [
+              db
+                .delete(timeSlotHolds)
+                .where(
+                  and(
+                    eq(timeSlotHolds.bookingSessionId, session.id),
+                    or(
+                      eq(
+                        timeSlotHolds.bookingRequestId,
+                        sql`(select active_request_id from booking_parties where booking_session_id = ${session.id})`
+                      ),
+                      isNull(timeSlotHolds.bookingRequestId)
+                    )
+                  )
+                ),
+              db
+                .update(bookingRequests)
+                .set({ holdId: null, startsAt: null, endsAt: null })
+                .where(
+                  eq(
+                    bookingRequests.id,
+                    sql`(select active_request_id from booking_parties where booking_session_id = ${session.id})`
+                  )
+                )
+            ])
           ).pipe(Effect.asVoid),
         currentHold: (session, input) => currentHold(session, input.now),
+        holdParty: (session, command) => liveHoldParty(db, session, command),
         availability: (session, range) =>
           Effect.gen(function* () {
             const days = range.days ?? 14
@@ -879,8 +1239,8 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 ])
               ]
               const insertQuery = {
-                sql: `INSERT INTO time_slot_holds (id, merchant_id, booking_session_id, provider_id, starts_at, ends_at, created_at, expires_at, quote)
-                         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+                sql: `INSERT INTO time_slot_holds (id, merchant_id, booking_session_id, booking_request_id, provider_id, starts_at, ends_at, created_at, expires_at, quote)
+                         SELECT ?, ?, ?, (SELECT active_request_id FROM booking_parties WHERE booking_session_id = ?), ?, ?, ?, ?, ?, ?
                          WHERE ${catalogChecks.join(' AND ')}
                          AND NOT EXISTS (
                            SELECT 1 FROM appointments
@@ -895,6 +1255,7 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 params: [
                   id,
                   input.merchantId,
+                  session.id,
                   session.id,
                   provider.id,
                   slot.startsAt,
@@ -915,17 +1276,40 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
               } satisfies CompiledBatchQuery
               const removePreviousQuery = {
                 sql: `DELETE FROM time_slot_holds
-                         WHERE booking_session_id = ? AND id <> ?
+                         WHERE booking_request_id = (SELECT active_request_id FROM booking_parties WHERE booking_session_id = ?) AND id <> ?
                            AND EXISTS (SELECT 1 FROM time_slot_holds WHERE id = ?)`,
                 params: [session.id, id, id]
               } satisfies CompiledBatchQuery
+              const linkRequestQuery = db
+                .update(bookingRequests)
+                .set({ holdId: id, startsAt: slot.startsAt, endsAt: slot.endsAt })
+                .where(
+                  and(
+                    eq(
+                      bookingRequests.id,
+                      sql`(select active_request_id from booking_parties where booking_session_id = ${session.id})`
+                    ),
+                    sql`exists (select 1 from ${timeSlotHolds} where ${timeSlotHolds.id} = ${id})`
+                  )
+                )
+                .toSQL()
               const result = yield* orUnavailable('booking-scheduling')(
-                batchQueries(db, [insertQuery, removePreviousQuery])
+                batchQueries(db, [insertQuery, removePreviousQuery, linkRequestQuery])
               )
               if ((result[0]?.meta.changes ?? 0) > 0) {
+                const [party] = yield* orUnavailable('booking-scheduling')(
+                  db
+                    .select({ activeRequestId: bookingParties.activeRequestId })
+                    .from(bookingParties)
+                    .where(eq(bookingParties.bookingSessionId, session.id))
+                    .limit(1)
+                )
                 return {
                   id,
                   bookingSessionId: session.id,
+                  ...(party?.activeRequestId
+                    ? { bookingRequestId: party.activeRequestId }
+                    : {}),
                   createdAt,
                   expiresAt,
                   quote

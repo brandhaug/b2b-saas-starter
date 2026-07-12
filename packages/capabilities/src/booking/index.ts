@@ -1,12 +1,17 @@
 export {
   BookingParties,
   BookingParty,
+  BookingPartyContinuation,
   BookingPartyConflict,
   BookingPartyLifecycle,
   BookingPartyNotFound,
-  BookingRequest
+  BookingRequest,
+  BookingRequestMaterial,
+  bookingPartyContinuation,
+  bookingRequestIsComplete
 } from './foundations.ts'
 export type { BookingPartiesShape } from './foundations.ts'
+export { SeedBookingParties } from './foundation-adapters.ts'
 export {
   BookingPageUnavailable,
   BookingSession,
@@ -53,13 +58,16 @@ export {
   BookingSchedulingRecovery,
   BookingSchedulingRejected,
   BookingTimeSlot,
+  CoordinatedHoldInput,
   HoldTimeSlotInput,
   SeedBookingScheduling,
   TimeSlotHold,
+  acquireCoordinatedSeedHolds,
   emptySeedBookingSchedulingStore
 } from './booking-scheduling.ts'
 export type {
   BookingSchedulingShape,
+  CoordinatedHoldCandidate,
   SeedBookingSchedulingStore
 } from './booking-scheduling.ts'
 export {

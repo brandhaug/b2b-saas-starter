@@ -10,6 +10,7 @@ import {
 import type { BookingSession } from './booking-sessions.ts'
 import {
   BookingScheduling,
+  acquireCoordinatedSeedHolds,
   emptySeedBookingSchedulingStore,
   SeedBookingScheduling
 } from './booking-scheduling.ts'
@@ -70,6 +71,134 @@ const fixture = async () => {
 }
 
 describe('Booking Scheduling', () => {
+  it('acquires every group interval or leaves the complete set untouched', () => {
+    const base = {
+      merchantId: 'mer_one',
+      bookingSessionId: 'bsn_group',
+      createdAt: now,
+      expiresAt: '2026-07-10T09:40:00.000Z',
+      quote: {
+        startsAt: '2026-07-13T06:00:00.000Z',
+        endsAt: '2026-07-13T06:30:00.000Z',
+        providerPreference: { kind: 'any' as const },
+        assignedProvider: { id: 'prv_one', displayName: 'One' },
+        services: [
+          {
+            id: 'svc_one',
+            role: 'primary' as const,
+            name: 'Cut',
+            durationMinutes: 30,
+            priceMinor: 5000,
+            currency: 'RON'
+          }
+        ],
+        durationMinutes: 30,
+        currency: 'RON',
+        totalMinor: 5000
+      }
+    }
+    const candidates = [
+      {
+        ...base,
+        id: 'hld_one',
+        bookingRequestId: 'brq_one',
+        providerId: 'prv_one',
+        startsAt: '2026-07-13T06:00:00.000Z',
+        endsAt: '2026-07-13T06:30:00.000Z'
+      },
+      {
+        ...base,
+        id: 'hld_two',
+        bookingRequestId: 'brq_two',
+        providerId: 'prv_two',
+        startsAt: '2026-07-13T06:00:00.000Z',
+        endsAt: '2026-07-13T06:30:00.000Z'
+      }
+    ]
+    const holds = new Map()
+    expect(acquireCoordinatedSeedHolds(holds, candidates, now)).toHaveLength(2)
+    expect([...holds.keys()]).toEqual(['hld_one', 'hld_two'])
+
+    const conflicted = new Map(holds)
+    const replacement = candidates.map((candidate) => ({
+      ...candidate,
+      id: `${candidate.id}_next`,
+      startsAt: '2026-07-13T06:15:00.000Z',
+      endsAt: '2026-07-13T06:45:00.000Z',
+      quote: {
+        ...candidate.quote,
+        startsAt: '2026-07-13T06:15:00.000Z',
+        endsAt: '2026-07-13T06:45:00.000Z'
+      }
+    }))
+    conflicted.set('hld_competing', {
+      ...replacement[0]!,
+      id: 'hld_competing',
+      bookingSessionId: 'bsn_other',
+      bookingRequestId: 'brq_other'
+    })
+    expect(acquireCoordinatedSeedHolds(conflicted, replacement, now)).toBeNull()
+    expect(conflicted.has('hld_one')).toBe(true)
+    expect(conflicted.has('hld_one_next')).toBe(false)
+  })
+
+  it('resolves assigned and Any Provider requests in one complete party', async () => {
+    const { run, store } = await fixture()
+    store.requestSelections.set('brq_one', {
+      bookingSessionId: 'bsn_one',
+      providerPreference: { kind: 'specific', providerId: 'prv_seed_default' },
+      primaryServiceId: 'svc_seed_signature_cut',
+      additionalServiceIds: ['svc_seed_beard_detail']
+    })
+    store.requestSelections.set('brq_two', {
+      bookingSessionId: 'bsn_one',
+      providerPreference: { kind: 'any' },
+      primaryServiceId: 'svc_seed_signature_cut',
+      additionalServiceIds: ['svc_seed_beard_detail']
+    })
+    const first = await run(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.hold(session('bsn_one'), { startsAt: '2026-07-13T06:00:00.000Z', now })
+      )
+    )
+    await run(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.release(session('bsn_one'))
+      )
+    )
+    const second = await run(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.hold(session('bsn_one'), { startsAt: '2026-07-13T07:30:00.000Z', now })
+      )
+    )
+    await run(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.release(session('bsn_one'))
+      )
+    )
+    const held = await run(
+      Effect.flatMap(BookingScheduling, (service) =>
+        service.holdParty(session('bsn_one'), {
+          now,
+          requests: [
+            {
+              bookingRequestId: 'brq_one',
+              startsAt: first.quote.startsAt
+            },
+            {
+              bookingRequestId: 'brq_two',
+              startsAt: second.quote.startsAt
+            }
+          ]
+        })
+      )
+    )
+    expect(held.map((item) => item.bookingRequestId)).toEqual(['brq_one', 'brq_two'])
+    expect(held.map((item) => item.quote.providerPreference.kind)).toEqual([
+      'specific',
+      'any'
+    ])
+  })
   it('property: every offered interval has the selected duration and excludes commitments', async () => {
     for (const [primaryMinutes, additionalMinutes] of [
       [15, 15],

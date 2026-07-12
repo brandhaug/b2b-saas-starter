@@ -1,0 +1,7104 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "23c307d3-e6dd-4742-9ff2-8d23fe069d33",
+  "prevIds": ["f5668108-fc7b-42f9-bc5d-1904ee582437"],
+  "ddl": [
+    {
+      "name": "account",
+      "entityType": "tables"
+    },
+    {
+      "name": "appointments",
+      "entityType": "tables"
+    },
+    {
+      "name": "audit_events",
+      "entityType": "tables"
+    },
+    {
+      "name": "availability_offers",
+      "entityType": "tables"
+    },
+    {
+      "name": "booking_outbox",
+      "entityType": "tables"
+    },
+    {
+      "name": "booking_parties",
+      "entityType": "tables"
+    },
+    {
+      "name": "booking_request_services",
+      "entityType": "tables"
+    },
+    {
+      "name": "booking_requests",
+      "entityType": "tables"
+    },
+    {
+      "name": "booking_session_additional_services",
+      "entityType": "tables"
+    },
+    {
+      "name": "booking_sessions",
+      "entityType": "tables"
+    },
+    {
+      "name": "brands",
+      "entityType": "tables"
+    },
+    {
+      "name": "checkout_policies",
+      "entityType": "tables"
+    },
+    {
+      "name": "confirmation_access",
+      "entityType": "tables"
+    },
+    {
+      "name": "customer_accounts",
+      "entityType": "tables"
+    },
+    {
+      "name": "gift_card_ledger_entries",
+      "entityType": "tables"
+    },
+    {
+      "name": "gift_card_products",
+      "entityType": "tables"
+    },
+    {
+      "name": "gift_card_reservations",
+      "entityType": "tables"
+    },
+    {
+      "name": "gift_card_sales",
+      "entityType": "tables"
+    },
+    {
+      "name": "gift_cards",
+      "entityType": "tables"
+    },
+    {
+      "name": "lifecycle_history",
+      "entityType": "tables"
+    },
+    {
+      "name": "marketing_consents",
+      "entityType": "tables"
+    },
+    {
+      "name": "merchant_memberships",
+      "entityType": "tables"
+    },
+    {
+      "name": "merchants",
+      "entityType": "tables"
+    },
+    {
+      "name": "notification_intents",
+      "entityType": "tables"
+    },
+    {
+      "name": "payment_attempts",
+      "entityType": "tables"
+    },
+    {
+      "name": "payment_transactions",
+      "entityType": "tables"
+    },
+    {
+      "name": "payments",
+      "entityType": "tables"
+    },
+    {
+      "name": "platform_api_tokens",
+      "entityType": "tables"
+    },
+    {
+      "name": "platform_webhook_deliveries",
+      "entityType": "tables"
+    },
+    {
+      "name": "platform_webhook_endpoints",
+      "entityType": "tables"
+    },
+    {
+      "name": "platform_webhook_events",
+      "entityType": "tables"
+    },
+    {
+      "name": "policy_acceptances",
+      "entityType": "tables"
+    },
+    {
+      "name": "pricing_adjustments",
+      "entityType": "tables"
+    },
+    {
+      "name": "pricing_quotes",
+      "entityType": "tables"
+    },
+    {
+      "name": "protected_access_grants",
+      "entityType": "tables"
+    },
+    {
+      "name": "provider_service_eligibility",
+      "entityType": "tables"
+    },
+    {
+      "name": "providers",
+      "entityType": "tables"
+    },
+    {
+      "name": "public_booking_pages",
+      "entityType": "tables"
+    },
+    {
+      "name": "schedule_rules",
+      "entityType": "tables"
+    },
+    {
+      "name": "scheduled_work",
+      "entityType": "tables"
+    },
+    {
+      "name": "services",
+      "entityType": "tables"
+    },
+    {
+      "name": "session",
+      "entityType": "tables"
+    },
+    {
+      "name": "settlement_allocations",
+      "entityType": "tables"
+    },
+    {
+      "name": "shop_addresses",
+      "entityType": "tables"
+    },
+    {
+      "name": "shop_providers",
+      "entityType": "tables"
+    },
+    {
+      "name": "shop_services",
+      "entityType": "tables"
+    },
+    {
+      "name": "shops",
+      "entityType": "tables"
+    },
+    {
+      "name": "time_slot_holds",
+      "entityType": "tables"
+    },
+    {
+      "name": "user",
+      "entityType": "tables"
+    },
+    {
+      "name": "verification",
+      "entityType": "tables"
+    },
+    {
+      "name": "waiting_list_applications",
+      "entityType": "tables"
+    },
+    {
+      "name": "walk_in_entries",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "accountId",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "providerId",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "accessToken",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "refreshToken",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "idToken",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "accessTokenExpiresAt",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "refreshTokenExpiresAt",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scope",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "password",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_session_id",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'scheduled'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "starts_at",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "ends_at",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "snapshot",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "appointments"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "audit_events"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "audit_events"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "actor_user_id",
+      "entityType": "columns",
+      "table": "audit_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "event_type",
+      "entityType": "columns",
+      "table": "audit_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "target_type",
+      "entityType": "columns",
+      "table": "audit_events"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "target_id",
+      "entityType": "columns",
+      "table": "audit_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'{}'",
+      "generated": null,
+      "name": "metadata",
+      "entityType": "columns",
+      "table": "audit_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "audit_events"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "availability_offers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "waiting_list_application_id",
+      "entityType": "columns",
+      "table": "availability_offers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'pending'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "availability_offers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "slot_json",
+      "entityType": "columns",
+      "table": "availability_offers"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_session_id",
+      "entityType": "columns",
+      "table": "availability_offers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "availability_offers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "availability_offers"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "responded_at",
+      "entityType": "columns",
+      "table": "availability_offers"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "appointment_id",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "trace_id",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "claimed_at",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'pending'",
+      "generated": null,
+      "name": "email_status",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "email_failure_code",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'pending'",
+      "generated": null,
+      "name": "webhook_status",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "processed_at",
+      "entityType": "columns",
+      "table": "booking_outbox"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_session_id",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'active'",
+      "generated": null,
+      "name": "lifecycle",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'en'",
+      "generated": null,
+      "name": "locale",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "1",
+      "generated": null,
+      "name": "version",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "booking_parties"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_request_id",
+      "entityType": "columns",
+      "table": "booking_request_services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "service_id",
+      "entityType": "columns",
+      "table": "booking_request_services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "role",
+      "entityType": "columns",
+      "table": "booking_request_services"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "position",
+      "entityType": "columns",
+      "table": "booking_request_services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "booking_request_services"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_party_id",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "position",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_preference",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "primary_service_id",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "hold_id",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "customer_account_id",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "customer_details_json",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "starts_at",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "ends_at",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "booking_requests"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_session_id",
+      "entityType": "columns",
+      "table": "booking_session_additional_services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "service_id",
+      "entityType": "columns",
+      "table": "booking_session_additional_services"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "position",
+      "entityType": "columns",
+      "table": "booking_session_additional_services"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "route_id",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "capability_hash",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": "'pay_in_person'",
+      "generated": null,
+      "name": "checkout_path",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'active'",
+      "generated": null,
+      "name": "lifecycle",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_preference",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "primary_service_id",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "customer_name",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "customer_email",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "customer_phone",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "confirmed_appointment_id",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "confirmed_at",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "replay_expires_at",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'en'",
+      "generated": null,
+      "name": "locale",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'standalone'",
+      "generated": null,
+      "name": "embedding_profile",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "acquisition_json",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_activity_at",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "idle_expires_at",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "absolute_expires_at",
+      "entityType": "columns",
+      "table": "booking_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_config_json",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "checkout_policies"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "checkout_policies"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "checkout_policies"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "version",
+      "entityType": "columns",
+      "table": "checkout_policies"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "disclosure",
+      "entityType": "columns",
+      "table": "checkout_policies"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "effective_at",
+      "entityType": "columns",
+      "table": "checkout_policies"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "retired_at",
+      "entityType": "columns",
+      "table": "checkout_policies"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "checkout_policies"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "route_id",
+      "entityType": "columns",
+      "table": "confirmation_access"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "appointment_id",
+      "entityType": "columns",
+      "table": "confirmation_access"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "1",
+      "generated": null,
+      "name": "token_version",
+      "entityType": "columns",
+      "table": "confirmation_access"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "signing_key_id",
+      "entityType": "columns",
+      "table": "confirmation_access"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "confirmation_access"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "revoked_at",
+      "entityType": "columns",
+      "table": "confirmation_access"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "confirmation_access"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "customer_accounts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "customer_accounts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "email",
+      "entityType": "columns",
+      "table": "customer_accounts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "display_name",
+      "entityType": "columns",
+      "table": "customer_accounts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "phone",
+      "entityType": "columns",
+      "table": "customer_accounts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "customer_accounts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "customer_accounts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "gift_card_id",
+      "entityType": "columns",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "amount_minor",
+      "entityType": "columns",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_party_id",
+      "entityType": "columns",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "idempotency_key",
+      "entityType": "columns",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "occurred_at",
+      "entityType": "columns",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scope",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scope_id",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "preset_amounts_json",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "false",
+      "generated": null,
+      "name": "allows_custom_amount",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "true",
+      "generated": null,
+      "name": "active",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "gift_card_products"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "gift_card_id",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_party_id",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "amount_minor",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'active'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "gift_card_reservations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "gift_card_product_id",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'pending_payment'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "amount_minor",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "recipient_json",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "purchaser_json",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "payment_id",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "gift_card_sales"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "gift_card_sale_id",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "code_hash",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'active'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scope",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scope_id",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "initial_value_minor",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "gift_cards"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "aggregate_type",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "aggregate_id",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "from_state",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "to_state",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reason_code",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "facts_json",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "occurred_at",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "lifecycle_history"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "customer_account_id",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "subject_json",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "channel",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "granted",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "policy_version",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "recorded_at",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "marketing_consents"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "merchant_memberships"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "merchant_memberships"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'owner'",
+      "generated": null,
+      "name": "role",
+      "entityType": "columns",
+      "table": "merchant_memberships"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "merchant_memberships"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "public_name",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "slug",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "timezone",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'solo'",
+      "generated": null,
+      "name": "plan",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_config_json",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "merchants"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "topic",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "recipient_json",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "payload_json",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source_type",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source_id",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "deduplication_key",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'pending'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "available_at",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "notification_intents"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "payment_id",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "idempotency_key",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "outcome",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_reference",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "failure_code",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "completed_at",
+      "entityType": "columns",
+      "table": "payment_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "payment_transactions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "payment_id",
+      "entityType": "columns",
+      "table": "payment_transactions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "payment_transactions"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "amount_minor",
+      "entityType": "columns",
+      "table": "payment_transactions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "payment_transactions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_reference",
+      "entityType": "columns",
+      "table": "payment_transactions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "occurred_at",
+      "entityType": "columns",
+      "table": "payment_transactions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "payment_transactions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_party_id",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'pending'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "authorized_minor",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "captured_minor",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "refunded_minor",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "payments"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "token_prefix",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "token_hash",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scopes",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_used_at",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "revoked_at",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_by_user_id",
+      "entityType": "columns",
+      "table": "platform_api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "endpoint_id",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "event_id",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "event_type",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "failure_code",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "attempt_number",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "response_status",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "duration_ms",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "attempted_at",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "next_attempt_at",
+      "entityType": "columns",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "url",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "description",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "signing_secret",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "events",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "disabled_at",
+      "entityType": "columns",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "platform_webhook_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "outbox_id",
+      "entityType": "columns",
+      "table": "platform_webhook_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "platform_webhook_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "event_type",
+      "entityType": "columns",
+      "table": "platform_webhook_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "raw_body",
+      "entityType": "columns",
+      "table": "platform_webhook_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "occurred_at",
+      "entityType": "columns",
+      "table": "platform_webhook_events"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "platform_webhook_events"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "policy_acceptances"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_party_id",
+      "entityType": "columns",
+      "table": "policy_acceptances"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "checkout_policy_id",
+      "entityType": "columns",
+      "table": "policy_acceptances"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "disclosure_snapshot",
+      "entityType": "columns",
+      "table": "policy_acceptances"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "accepted_at",
+      "entityType": "columns",
+      "table": "policy_acceptances"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "pricing_adjustments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "pricing_quote_id",
+      "entityType": "columns",
+      "table": "pricing_adjustments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "pricing_adjustments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "label",
+      "entityType": "columns",
+      "table": "pricing_adjustments"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "amount_minor",
+      "entityType": "columns",
+      "table": "pricing_adjustments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "allocation_json",
+      "entityType": "columns",
+      "table": "pricing_adjustments"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "pricing_adjustments"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_party_id",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "version",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "subtotal_minor",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "adjustment_minor",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "tip_minor",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "total_minor",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "facts_json",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "accepted_at",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "pricing_quotes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "purpose",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "resource_type",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "resource_id",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "capability_hash",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "consumed_at",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "protected_access_grants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "service_id",
+      "entityType": "columns",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "linked_user_id",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "display_name",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'active'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'public'",
+      "generated": null,
+      "name": "booking_access",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_config_json",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "false",
+      "generated": null,
+      "name": "is_default",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "providers"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "public_booking_pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "public_booking_pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'unpublished'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "public_booking_pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "public_booking_pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "public_booking_pages"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "schedule_rules"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "schedule_rules"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "schedule_rules"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "weekday",
+      "entityType": "columns",
+      "table": "schedule_rules"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "start_time",
+      "entityType": "columns",
+      "table": "schedule_rules"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "end_time",
+      "entityType": "columns",
+      "table": "schedule_rules"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "schedule_rules"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "schedule_rules"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "payload_json",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "idempotency_key",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'pending'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "run_at",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "attempts",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_failure_code",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "scheduled_work"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "description",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "category",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "price_minor",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "duration_minutes",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'active'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_config_json",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "services"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expiresAt",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "token",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "ipAddress",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "userAgent",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "impersonatedBy",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "settlement_allocations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_party_id",
+      "entityType": "columns",
+      "table": "settlement_allocations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "tender",
+      "entityType": "columns",
+      "table": "settlement_allocations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reference_id",
+      "entityType": "columns",
+      "table": "settlement_allocations"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "amount_minor",
+      "entityType": "columns",
+      "table": "settlement_allocations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "settlement_allocations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "settlement_allocations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "shop_addresses"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "shop_addresses"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "address_json",
+      "entityType": "columns",
+      "table": "shop_addresses"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "latitude",
+      "entityType": "columns",
+      "table": "shop_addresses"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "longitude",
+      "entityType": "columns",
+      "table": "shop_addresses"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "shop_addresses"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "shop_addresses"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "shop_providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "shop_providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "shop_providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "shop_services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "service_id",
+      "entityType": "columns",
+      "table": "shop_services"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "shop_services"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "brand_id",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "slug",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "public_name",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "timezone",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "currency",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_config_json",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "shops"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "merchant_id",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_session_id",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_request_id",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "starts_at",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "ends_at",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "quote",
+      "entityType": "columns",
+      "table": "time_slot_holds"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "email",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "image",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "username",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "displayUsername",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "false",
+      "generated": null,
+      "name": "emailVerified",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": "'user'",
+      "generated": null,
+      "name": "role",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": "false",
+      "generated": null,
+      "name": "banned",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "banReason",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "banExpires",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "verification"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "identifier",
+      "entityType": "columns",
+      "table": "verification"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "value",
+      "entityType": "columns",
+      "table": "verification"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expiresAt",
+      "entityType": "columns",
+      "table": "verification"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "verification"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "verification"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "waiting_list_applications"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "waiting_list_applications"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'active'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "waiting_list_applications"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "request_json",
+      "entityType": "columns",
+      "table": "waiting_list_applications"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "customer_snapshot_json",
+      "entityType": "columns",
+      "table": "waiting_list_applications"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "waiting_list_applications"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "waiting_list_applications"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "waiting_list_applications"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "walk_in_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "shop_id",
+      "entityType": "columns",
+      "table": "walk_in_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'waiting'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "walk_in_entries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "position",
+      "entityType": "columns",
+      "table": "walk_in_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "request_json",
+      "entityType": "columns",
+      "table": "walk_in_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "customer_snapshot_json",
+      "entityType": "columns",
+      "table": "walk_in_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "walk_in_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "walk_in_entries"
+    },
+    {
+      "columns": ["userId"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_account_userId_user_id_fk",
+      "entityType": "fks",
+      "table": "account"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_appointments_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "appointments"
+    },
+    {
+      "columns": ["provider_id"],
+      "tableTo": "providers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_appointments_provider_id_providers_id_fk",
+      "entityType": "fks",
+      "table": "appointments"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_audit_events_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "audit_events"
+    },
+    {
+      "columns": ["actor_user_id"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_audit_events_actor_user_id_user_id_fk",
+      "entityType": "fks",
+      "table": "audit_events"
+    },
+    {
+      "columns": ["waiting_list_application_id"],
+      "tableTo": "waiting_list_applications",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_availability_offers_waiting_list_application_id_waiting_list_applications_id_fk",
+      "entityType": "fks",
+      "table": "availability_offers"
+    },
+    {
+      "columns": ["booking_session_id"],
+      "tableTo": "booking_sessions",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_availability_offers_booking_session_id_booking_sessions_id_fk",
+      "entityType": "fks",
+      "table": "availability_offers"
+    },
+    {
+      "columns": ["appointment_id"],
+      "tableTo": "appointments",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_booking_outbox_appointment_id_appointments_id_fk",
+      "entityType": "fks",
+      "table": "booking_outbox"
+    },
+    {
+      "columns": ["booking_session_id"],
+      "tableTo": "booking_sessions",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_booking_parties_booking_session_id_booking_sessions_id_fk",
+      "entityType": "fks",
+      "table": "booking_parties"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_booking_parties_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "booking_parties"
+    },
+    {
+      "columns": ["booking_request_id"],
+      "tableTo": "booking_requests",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_booking_request_services_booking_request_id_booking_requests_id_fk",
+      "entityType": "fks",
+      "table": "booking_request_services"
+    },
+    {
+      "columns": ["service_id"],
+      "tableTo": "services",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_booking_request_services_service_id_services_id_fk",
+      "entityType": "fks",
+      "table": "booking_request_services"
+    },
+    {
+      "columns": ["booking_party_id"],
+      "tableTo": "booking_parties",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_booking_requests_booking_party_id_booking_parties_id_fk",
+      "entityType": "fks",
+      "table": "booking_requests"
+    },
+    {
+      "columns": ["provider_id"],
+      "tableTo": "providers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_booking_requests_provider_id_providers_id_fk",
+      "entityType": "fks",
+      "table": "booking_requests"
+    },
+    {
+      "columns": ["primary_service_id"],
+      "tableTo": "services",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_booking_requests_primary_service_id_services_id_fk",
+      "entityType": "fks",
+      "table": "booking_requests"
+    },
+    {
+      "columns": ["booking_session_id"],
+      "tableTo": "booking_sessions",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_booking_session_additional_services_booking_session_id_booking_sessions_id_fk",
+      "entityType": "fks",
+      "table": "booking_session_additional_services"
+    },
+    {
+      "columns": ["service_id"],
+      "tableTo": "services",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_booking_session_additional_services_service_id_services_id_fk",
+      "entityType": "fks",
+      "table": "booking_session_additional_services"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_booking_sessions_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "booking_sessions"
+    },
+    {
+      "columns": ["provider_id"],
+      "tableTo": "providers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_booking_sessions_provider_id_providers_id_fk",
+      "entityType": "fks",
+      "table": "booking_sessions"
+    },
+    {
+      "columns": ["primary_service_id"],
+      "tableTo": "services",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_booking_sessions_primary_service_id_services_id_fk",
+      "entityType": "fks",
+      "table": "booking_sessions"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_brands_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "brands"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_checkout_policies_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "checkout_policies"
+    },
+    {
+      "columns": ["appointment_id"],
+      "tableTo": "appointments",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_confirmation_access_appointment_id_appointments_id_fk",
+      "entityType": "fks",
+      "table": "confirmation_access"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_customer_accounts_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "customer_accounts"
+    },
+    {
+      "columns": ["gift_card_id"],
+      "tableTo": "gift_cards",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_gift_card_ledger_entries_gift_card_id_gift_cards_id_fk",
+      "entityType": "fks",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "columns": ["booking_party_id"],
+      "tableTo": "booking_parties",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_gift_card_ledger_entries_booking_party_id_booking_parties_id_fk",
+      "entityType": "fks",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_gift_card_products_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "gift_card_products"
+    },
+    {
+      "columns": ["gift_card_id"],
+      "tableTo": "gift_cards",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_gift_card_reservations_gift_card_id_gift_cards_id_fk",
+      "entityType": "fks",
+      "table": "gift_card_reservations"
+    },
+    {
+      "columns": ["booking_party_id"],
+      "tableTo": "booking_parties",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_gift_card_reservations_booking_party_id_booking_parties_id_fk",
+      "entityType": "fks",
+      "table": "gift_card_reservations"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_gift_card_sales_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "gift_card_sales"
+    },
+    {
+      "columns": ["gift_card_product_id"],
+      "tableTo": "gift_card_products",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_gift_card_sales_gift_card_product_id_gift_card_products_id_fk",
+      "entityType": "fks",
+      "table": "gift_card_sales"
+    },
+    {
+      "columns": ["payment_id"],
+      "tableTo": "payments",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_gift_card_sales_payment_id_payments_id_fk",
+      "entityType": "fks",
+      "table": "gift_card_sales"
+    },
+    {
+      "columns": ["gift_card_sale_id"],
+      "tableTo": "gift_card_sales",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_gift_cards_gift_card_sale_id_gift_card_sales_id_fk",
+      "entityType": "fks",
+      "table": "gift_cards"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_marketing_consents_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "marketing_consents"
+    },
+    {
+      "columns": ["customer_account_id"],
+      "tableTo": "customer_accounts",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_marketing_consents_customer_account_id_customer_accounts_id_fk",
+      "entityType": "fks",
+      "table": "marketing_consents"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_merchant_memberships_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "merchant_memberships"
+    },
+    {
+      "columns": ["user_id"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_merchant_memberships_user_id_user_id_fk",
+      "entityType": "fks",
+      "table": "merchant_memberships"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_notification_intents_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "notification_intents"
+    },
+    {
+      "columns": ["payment_id"],
+      "tableTo": "payments",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_payment_attempts_payment_id_payments_id_fk",
+      "entityType": "fks",
+      "table": "payment_attempts"
+    },
+    {
+      "columns": ["payment_id"],
+      "tableTo": "payments",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_payment_transactions_payment_id_payments_id_fk",
+      "entityType": "fks",
+      "table": "payment_transactions"
+    },
+    {
+      "columns": ["booking_party_id"],
+      "tableTo": "booking_parties",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_payments_booking_party_id_booking_parties_id_fk",
+      "entityType": "fks",
+      "table": "payments"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_platform_api_tokens_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "platform_api_tokens"
+    },
+    {
+      "columns": ["created_by_user_id"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_platform_api_tokens_created_by_user_id_user_id_fk",
+      "entityType": "fks",
+      "table": "platform_api_tokens"
+    },
+    {
+      "columns": ["endpoint_id"],
+      "tableTo": "platform_webhook_endpoints",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_platform_webhook_deliveries_endpoint_id_platform_webhook_endpoints_id_fk",
+      "entityType": "fks",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_platform_webhook_endpoints_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "columns": ["outbox_id"],
+      "tableTo": "booking_outbox",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_platform_webhook_events_outbox_id_booking_outbox_id_fk",
+      "entityType": "fks",
+      "table": "platform_webhook_events"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_platform_webhook_events_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "platform_webhook_events"
+    },
+    {
+      "columns": ["booking_party_id"],
+      "tableTo": "booking_parties",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_policy_acceptances_booking_party_id_booking_parties_id_fk",
+      "entityType": "fks",
+      "table": "policy_acceptances"
+    },
+    {
+      "columns": ["checkout_policy_id"],
+      "tableTo": "checkout_policies",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_policy_acceptances_checkout_policy_id_checkout_policies_id_fk",
+      "entityType": "fks",
+      "table": "policy_acceptances"
+    },
+    {
+      "columns": ["pricing_quote_id"],
+      "tableTo": "pricing_quotes",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_pricing_adjustments_pricing_quote_id_pricing_quotes_id_fk",
+      "entityType": "fks",
+      "table": "pricing_adjustments"
+    },
+    {
+      "columns": ["booking_party_id"],
+      "tableTo": "booking_parties",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_pricing_quotes_booking_party_id_booking_parties_id_fk",
+      "entityType": "fks",
+      "table": "pricing_quotes"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_protected_access_grants_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "protected_access_grants"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_provider_service_eligibility_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "columns": ["provider_id"],
+      "tableTo": "providers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_provider_service_eligibility_provider_id_providers_id_fk",
+      "entityType": "fks",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "columns": ["service_id"],
+      "tableTo": "services",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_provider_service_eligibility_service_id_services_id_fk",
+      "entityType": "fks",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_providers_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "providers"
+    },
+    {
+      "columns": ["linked_user_id"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_providers_linked_user_id_user_id_fk",
+      "entityType": "fks",
+      "table": "providers"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_public_booking_pages_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "public_booking_pages"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_schedule_rules_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "schedule_rules"
+    },
+    {
+      "columns": ["provider_id"],
+      "tableTo": "providers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_schedule_rules_provider_id_providers_id_fk",
+      "entityType": "fks",
+      "table": "schedule_rules"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_scheduled_work_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "scheduled_work"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_services_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "services"
+    },
+    {
+      "columns": ["userId"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_session_userId_user_id_fk",
+      "entityType": "fks",
+      "table": "session"
+    },
+    {
+      "columns": ["booking_party_id"],
+      "tableTo": "booking_parties",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_settlement_allocations_booking_party_id_booking_parties_id_fk",
+      "entityType": "fks",
+      "table": "settlement_allocations"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_shop_addresses_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "shop_addresses"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_shop_providers_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "shop_providers"
+    },
+    {
+      "columns": ["provider_id"],
+      "tableTo": "providers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_shop_providers_provider_id_providers_id_fk",
+      "entityType": "fks",
+      "table": "shop_providers"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_shop_services_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "shop_services"
+    },
+    {
+      "columns": ["service_id"],
+      "tableTo": "services",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_shop_services_service_id_services_id_fk",
+      "entityType": "fks",
+      "table": "shop_services"
+    },
+    {
+      "columns": ["brand_id"],
+      "tableTo": "brands",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_shops_brand_id_brands_id_fk",
+      "entityType": "fks",
+      "table": "shops"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_shops_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "shops"
+    },
+    {
+      "columns": ["merchant_id"],
+      "tableTo": "merchants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_time_slot_holds_merchant_id_merchants_id_fk",
+      "entityType": "fks",
+      "table": "time_slot_holds"
+    },
+    {
+      "columns": ["booking_session_id"],
+      "tableTo": "booking_sessions",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_time_slot_holds_booking_session_id_booking_sessions_id_fk",
+      "entityType": "fks",
+      "table": "time_slot_holds"
+    },
+    {
+      "columns": ["provider_id"],
+      "tableTo": "providers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "name": "fk_time_slot_holds_provider_id_providers_id_fk",
+      "entityType": "fks",
+      "table": "time_slot_holds"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_waiting_list_applications_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "waiting_list_applications"
+    },
+    {
+      "columns": ["shop_id"],
+      "tableTo": "shops",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_walk_in_entries_shop_id_shops_id_fk",
+      "entityType": "fks",
+      "table": "walk_in_entries"
+    },
+    {
+      "columns": ["booking_request_id", "service_id"],
+      "nameExplicit": false,
+      "name": "booking_request_services_pk",
+      "entityType": "pks",
+      "table": "booking_request_services"
+    },
+    {
+      "columns": ["booking_session_id", "service_id"],
+      "nameExplicit": false,
+      "name": "booking_session_additional_services_pk",
+      "entityType": "pks",
+      "table": "booking_session_additional_services"
+    },
+    {
+      "columns": ["provider_id", "service_id"],
+      "nameExplicit": false,
+      "name": "provider_service_eligibility_pk",
+      "entityType": "pks",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "columns": ["shop_id", "provider_id"],
+      "nameExplicit": false,
+      "name": "shop_providers_pk",
+      "entityType": "pks",
+      "table": "shop_providers"
+    },
+    {
+      "columns": ["shop_id", "service_id"],
+      "nameExplicit": false,
+      "name": "shop_services_pk",
+      "entityType": "pks",
+      "table": "shop_services"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "account_pk",
+      "table": "account",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "appointments_pk",
+      "table": "appointments",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "audit_events_pk",
+      "table": "audit_events",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "availability_offers_pk",
+      "table": "availability_offers",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "booking_outbox_pk",
+      "table": "booking_outbox",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "booking_parties_pk",
+      "table": "booking_parties",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "booking_requests_pk",
+      "table": "booking_requests",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "booking_sessions_pk",
+      "table": "booking_sessions",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "brands_pk",
+      "table": "brands",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "checkout_policies_pk",
+      "table": "checkout_policies",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["route_id"],
+      "nameExplicit": false,
+      "name": "confirmation_access_pk",
+      "table": "confirmation_access",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "customer_accounts_pk",
+      "table": "customer_accounts",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "gift_card_ledger_entries_pk",
+      "table": "gift_card_ledger_entries",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "gift_card_products_pk",
+      "table": "gift_card_products",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "gift_card_reservations_pk",
+      "table": "gift_card_reservations",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "gift_card_sales_pk",
+      "table": "gift_card_sales",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "gift_cards_pk",
+      "table": "gift_cards",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "lifecycle_history_pk",
+      "table": "lifecycle_history",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "marketing_consents_pk",
+      "table": "marketing_consents",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["merchant_id"],
+      "nameExplicit": false,
+      "name": "merchant_memberships_pk",
+      "table": "merchant_memberships",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "merchants_pk",
+      "table": "merchants",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "notification_intents_pk",
+      "table": "notification_intents",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "payment_attempts_pk",
+      "table": "payment_attempts",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "payment_transactions_pk",
+      "table": "payment_transactions",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "payments_pk",
+      "table": "payments",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "platform_api_tokens_pk",
+      "table": "platform_api_tokens",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "platform_webhook_deliveries_pk",
+      "table": "platform_webhook_deliveries",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "platform_webhook_endpoints_pk",
+      "table": "platform_webhook_endpoints",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "platform_webhook_events_pk",
+      "table": "platform_webhook_events",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "policy_acceptances_pk",
+      "table": "policy_acceptances",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "pricing_adjustments_pk",
+      "table": "pricing_adjustments",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "pricing_quotes_pk",
+      "table": "pricing_quotes",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "protected_access_grants_pk",
+      "table": "protected_access_grants",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "providers_pk",
+      "table": "providers",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "public_booking_pages_pk",
+      "table": "public_booking_pages",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "schedule_rules_pk",
+      "table": "schedule_rules",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "scheduled_work_pk",
+      "table": "scheduled_work",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "services_pk",
+      "table": "services",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "session_pk",
+      "table": "session",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "settlement_allocations_pk",
+      "table": "settlement_allocations",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "shop_addresses_pk",
+      "table": "shop_addresses",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "shops_pk",
+      "table": "shops",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "time_slot_holds_pk",
+      "table": "time_slot_holds",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "user_pk",
+      "table": "user",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "verification_pk",
+      "table": "verification",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "waiting_list_applications_pk",
+      "table": "waiting_list_applications",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "walk_in_entries_pk",
+      "table": "walk_in_entries",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "account_user_id_idx",
+      "entityType": "indexes",
+      "table": "account"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "appointments_merchant_id_idx",
+      "entityType": "indexes",
+      "table": "appointments"
+    },
+    {
+      "columns": [
+        {
+          "value": "provider_id",
+          "isExpression": false
+        },
+        {
+          "value": "starts_at",
+          "isExpression": false
+        },
+        {
+          "value": "ends_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "appointments_provider_interval_idx",
+      "entityType": "indexes",
+      "table": "appointments"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "audit_events_merchant_created_at_idx",
+      "entityType": "indexes",
+      "table": "audit_events"
+    },
+    {
+      "columns": [
+        {
+          "value": "actor_user_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "audit_events_actor_user_id_idx",
+      "entityType": "indexes",
+      "table": "audit_events"
+    },
+    {
+      "columns": [
+        {
+          "value": "waiting_list_application_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "availability_offers_application_id_idx",
+      "entityType": "indexes",
+      "table": "availability_offers"
+    },
+    {
+      "columns": [
+        {
+          "value": "waiting_list_application_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": "\"availability_offers\".\"status\" = 'pending'",
+      "origin": "manual",
+      "name": "availability_offers_one_pending_idx",
+      "entityType": "indexes",
+      "table": "availability_offers"
+    },
+    {
+      "columns": [
+        {
+          "value": "processed_at",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_outbox_pending_idx",
+      "entityType": "indexes",
+      "table": "booking_outbox"
+    },
+    {
+      "columns": [
+        {
+          "value": "shop_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_parties_shop_id_idx",
+      "entityType": "indexes",
+      "table": "booking_parties"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_request_id",
+          "isExpression": false
+        },
+        {
+          "value": "position",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_request_services_position_unique",
+      "entityType": "indexes",
+      "table": "booking_request_services"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_party_id",
+          "isExpression": false
+        },
+        {
+          "value": "position",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_requests_party_position_unique",
+      "entityType": "indexes",
+      "table": "booking_requests"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_party_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_requests_party_id_idx",
+      "entityType": "indexes",
+      "table": "booking_requests"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_session_id",
+          "isExpression": false
+        },
+        {
+          "value": "position",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_session_additional_services_position_unique",
+      "entityType": "indexes",
+      "table": "booking_session_additional_services"
+    },
+    {
+      "columns": [
+        {
+          "value": "route_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_sessions_route_id_unique",
+      "entityType": "indexes",
+      "table": "booking_sessions"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_sessions_merchant_id_idx",
+      "entityType": "indexes",
+      "table": "booking_sessions"
+    },
+    {
+      "columns": [
+        {
+          "value": "lifecycle",
+          "isExpression": false
+        },
+        {
+          "value": "idle_expires_at",
+          "isExpression": false
+        },
+        {
+          "value": "absolute_expires_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "booking_sessions_expiry_idx",
+      "entityType": "indexes",
+      "table": "booking_sessions"
+    },
+    {
+      "columns": [
+        {
+          "value": "shop_id",
+          "isExpression": false
+        },
+        {
+          "value": "kind",
+          "isExpression": false
+        },
+        {
+          "value": "version",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "checkout_policies_shop_kind_version_unique",
+      "entityType": "indexes",
+      "table": "checkout_policies"
+    },
+    {
+      "columns": [
+        {
+          "value": "expires_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "confirmation_access_expiry_idx",
+      "entityType": "indexes",
+      "table": "confirmation_access"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        },
+        {
+          "value": "email",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "customer_accounts_merchant_email_unique",
+      "entityType": "indexes",
+      "table": "customer_accounts"
+    },
+    {
+      "columns": [
+        {
+          "value": "gift_card_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "gift_card_ledger_gift_card_id_idx",
+      "entityType": "indexes",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_party_id",
+          "isExpression": false
+        },
+        {
+          "value": "gift_card_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "gift_card_reservations_party_card_unique",
+      "entityType": "indexes",
+      "table": "gift_card_reservations"
+    },
+    {
+      "columns": [
+        {
+          "value": "gift_card_id",
+          "isExpression": false
+        },
+        {
+          "value": "status",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "gift_card_reservations_card_status_idx",
+      "entityType": "indexes",
+      "table": "gift_card_reservations"
+    },
+    {
+      "columns": [
+        {
+          "value": "aggregate_type",
+          "isExpression": false
+        },
+        {
+          "value": "aggregate_id",
+          "isExpression": false
+        },
+        {
+          "value": "occurred_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "lifecycle_history_aggregate_idx",
+      "entityType": "indexes",
+      "table": "lifecycle_history"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        },
+        {
+          "value": "customer_account_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "marketing_consents_subject_idx",
+      "entityType": "indexes",
+      "table": "marketing_consents"
+    },
+    {
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "merchant_memberships_user_unique",
+      "entityType": "indexes",
+      "table": "merchant_memberships"
+    },
+    {
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "available_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "notification_intents_status_available_idx",
+      "entityType": "indexes",
+      "table": "notification_intents"
+    },
+    {
+      "columns": [
+        {
+          "value": "payment_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "payment_attempts_payment_id_idx",
+      "entityType": "indexes",
+      "table": "payment_attempts"
+    },
+    {
+      "columns": [
+        {
+          "value": "payment_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "payment_transactions_payment_id_idx",
+      "entityType": "indexes",
+      "table": "payment_transactions"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_party_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "payments_booking_party_id_idx",
+      "entityType": "indexes",
+      "table": "payments"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "platform_api_tokens_merchant_created_idx",
+      "entityType": "indexes",
+      "table": "platform_api_tokens"
+    },
+    {
+      "columns": [
+        {
+          "value": "created_by_user_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "platform_api_tokens_created_by_user_id_idx",
+      "entityType": "indexes",
+      "table": "platform_api_tokens"
+    },
+    {
+      "columns": [
+        {
+          "value": "endpoint_id",
+          "isExpression": false
+        },
+        {
+          "value": "attempted_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "platform_webhook_deliveries_endpoint_attempted_idx",
+      "entityType": "indexes",
+      "table": "platform_webhook_deliveries"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        },
+        {
+          "value": "updated_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "platform_webhook_endpoints_merchant_updated_idx",
+      "entityType": "indexes",
+      "table": "platform_webhook_endpoints"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "platform_webhook_events_merchant_created_idx",
+      "entityType": "indexes",
+      "table": "platform_webhook_events"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_party_id",
+          "isExpression": false
+        },
+        {
+          "value": "checkout_policy_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "policy_acceptances_party_policy_unique",
+      "entityType": "indexes",
+      "table": "policy_acceptances"
+    },
+    {
+      "columns": [
+        {
+          "value": "pricing_quote_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "pricing_adjustments_quote_id_idx",
+      "entityType": "indexes",
+      "table": "pricing_adjustments"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_party_id",
+          "isExpression": false
+        },
+        {
+          "value": "version",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "pricing_quotes_party_version_unique",
+      "entityType": "indexes",
+      "table": "pricing_quotes"
+    },
+    {
+      "columns": [
+        {
+          "value": "resource_type",
+          "isExpression": false
+        },
+        {
+          "value": "resource_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "protected_access_resource_idx",
+      "entityType": "indexes",
+      "table": "protected_access_grants"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "provider_service_eligibility_merchant_id_idx",
+      "entityType": "indexes",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "columns": [
+        {
+          "value": "service_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "provider_service_eligibility_service_id_idx",
+      "entityType": "indexes",
+      "table": "provider_service_eligibility"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "providers_merchant_id_idx",
+      "entityType": "indexes",
+      "table": "providers"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": "\"providers\".\"is_default\" = 1",
+      "origin": "manual",
+      "name": "providers_one_default_per_merchant_idx",
+      "entityType": "indexes",
+      "table": "providers"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "schedule_rules_merchant_id_idx",
+      "entityType": "indexes",
+      "table": "schedule_rules"
+    },
+    {
+      "columns": [
+        {
+          "value": "provider_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "schedule_rules_provider_id_idx",
+      "entityType": "indexes",
+      "table": "schedule_rules"
+    },
+    {
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "run_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "scheduled_work_status_run_at_idx",
+      "entityType": "indexes",
+      "table": "scheduled_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "services_merchant_id_idx",
+      "entityType": "indexes",
+      "table": "services"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "session_user_id_idx",
+      "entityType": "indexes",
+      "table": "session"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_party_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "settlement_allocations_party_id_idx",
+      "entityType": "indexes",
+      "table": "settlement_allocations"
+    },
+    {
+      "columns": [
+        {
+          "value": "brand_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "shops_brand_id_idx",
+      "entityType": "indexes",
+      "table": "shops"
+    },
+    {
+      "columns": [
+        {
+          "value": "merchant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "time_slot_holds_merchant_id_idx",
+      "entityType": "indexes",
+      "table": "time_slot_holds"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_session_id",
+          "isExpression": false
+        },
+        {
+          "value": "expires_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "time_slot_holds_session_expiry_idx",
+      "entityType": "indexes",
+      "table": "time_slot_holds"
+    },
+    {
+      "columns": [
+        {
+          "value": "booking_request_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "time_slot_holds_booking_request_unique",
+      "entityType": "indexes",
+      "table": "time_slot_holds"
+    },
+    {
+      "columns": [
+        {
+          "value": "provider_id",
+          "isExpression": false
+        },
+        {
+          "value": "starts_at",
+          "isExpression": false
+        },
+        {
+          "value": "ends_at",
+          "isExpression": false
+        },
+        {
+          "value": "expires_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "time_slot_holds_provider_interval_idx",
+      "entityType": "indexes",
+      "table": "time_slot_holds"
+    },
+    {
+      "columns": [
+        {
+          "value": "identifier",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "verification_identifier_idx",
+      "entityType": "indexes",
+      "table": "verification"
+    },
+    {
+      "columns": [
+        {
+          "value": "shop_id",
+          "isExpression": false
+        },
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "position",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "walk_in_entries_shop_status_position_idx",
+      "entityType": "indexes",
+      "table": "walk_in_entries"
+    },
+    {
+      "columns": ["booking_session_id"],
+      "nameExplicit": false,
+      "name": "appointments_booking_session_id_unique",
+      "entityType": "uniques",
+      "table": "appointments"
+    },
+    {
+      "columns": ["appointment_id"],
+      "nameExplicit": false,
+      "name": "booking_outbox_appointment_id_unique",
+      "entityType": "uniques",
+      "table": "booking_outbox"
+    },
+    {
+      "columns": ["booking_session_id"],
+      "nameExplicit": false,
+      "name": "booking_parties_booking_session_id_unique",
+      "entityType": "uniques",
+      "table": "booking_parties"
+    },
+    {
+      "columns": ["capability_hash"],
+      "nameExplicit": false,
+      "name": "booking_sessions_capability_hash_unique",
+      "entityType": "uniques",
+      "table": "booking_sessions"
+    },
+    {
+      "columns": ["appointment_id"],
+      "nameExplicit": false,
+      "name": "confirmation_access_appointment_id_unique",
+      "entityType": "uniques",
+      "table": "confirmation_access"
+    },
+    {
+      "columns": ["idempotency_key"],
+      "nameExplicit": false,
+      "name": "gift_card_ledger_entries_idempotency_key_unique",
+      "entityType": "uniques",
+      "table": "gift_card_ledger_entries"
+    },
+    {
+      "columns": ["gift_card_sale_id"],
+      "nameExplicit": false,
+      "name": "gift_cards_gift_card_sale_id_unique",
+      "entityType": "uniques",
+      "table": "gift_cards"
+    },
+    {
+      "columns": ["code_hash"],
+      "nameExplicit": false,
+      "name": "gift_cards_code_hash_unique",
+      "entityType": "uniques",
+      "table": "gift_cards"
+    },
+    {
+      "columns": ["slug"],
+      "nameExplicit": false,
+      "name": "merchants_slug_unique",
+      "entityType": "uniques",
+      "table": "merchants"
+    },
+    {
+      "columns": ["deduplication_key"],
+      "nameExplicit": false,
+      "name": "notification_intents_deduplication_key_unique",
+      "entityType": "uniques",
+      "table": "notification_intents"
+    },
+    {
+      "columns": ["idempotency_key"],
+      "nameExplicit": false,
+      "name": "payment_attempts_idempotency_key_unique",
+      "entityType": "uniques",
+      "table": "payment_attempts"
+    },
+    {
+      "columns": ["token_hash"],
+      "nameExplicit": false,
+      "name": "platform_api_tokens_token_hash_unique",
+      "entityType": "uniques",
+      "table": "platform_api_tokens"
+    },
+    {
+      "columns": ["outbox_id"],
+      "nameExplicit": false,
+      "name": "platform_webhook_events_outbox_id_unique",
+      "entityType": "uniques",
+      "table": "platform_webhook_events"
+    },
+    {
+      "columns": ["capability_hash"],
+      "nameExplicit": false,
+      "name": "protected_access_grants_capability_hash_unique",
+      "entityType": "uniques",
+      "table": "protected_access_grants"
+    },
+    {
+      "columns": ["merchant_id"],
+      "nameExplicit": false,
+      "name": "public_booking_pages_merchant_id_unique",
+      "entityType": "uniques",
+      "table": "public_booking_pages"
+    },
+    {
+      "columns": ["idempotency_key"],
+      "nameExplicit": false,
+      "name": "scheduled_work_idempotency_key_unique",
+      "entityType": "uniques",
+      "table": "scheduled_work"
+    },
+    {
+      "columns": ["token"],
+      "nameExplicit": false,
+      "name": "session_token_unique",
+      "entityType": "uniques",
+      "table": "session"
+    },
+    {
+      "columns": ["shop_id"],
+      "nameExplicit": false,
+      "name": "shop_addresses_shop_id_unique",
+      "entityType": "uniques",
+      "table": "shop_addresses"
+    },
+    {
+      "columns": ["slug"],
+      "nameExplicit": false,
+      "name": "shops_slug_unique",
+      "entityType": "uniques",
+      "table": "shops"
+    },
+    {
+      "columns": ["email"],
+      "nameExplicit": false,
+      "name": "user_email_unique",
+      "entityType": "uniques",
+      "table": "user"
+    },
+    {
+      "columns": ["username"],
+      "nameExplicit": false,
+      "name": "user_username_unique",
+      "entityType": "uniques",
+      "table": "user"
+    },
+    {
+      "value": "\"status\" in ('scheduled', 'completed', 'cancelled', 'no_show')",
+      "name": "appointments_valid_status",
+      "entityType": "checks",
+      "table": "appointments"
+    },
+    {
+      "value": "\"starts_at\" < \"ends_at\"",
+      "name": "appointments_valid_interval",
+      "entityType": "checks",
+      "table": "appointments"
+    },
+    {
+      "value": "\"position\" >= 0",
+      "name": "booking_session_additional_services_non_negative_position",
+      "entityType": "checks",
+      "table": "booking_session_additional_services"
+    },
+    {
+      "value": "\"checkout_path\" = 'pay_in_person'",
+      "name": "booking_sessions_pay_in_person_only",
+      "entityType": "checks",
+      "table": "booking_sessions"
+    },
+    {
+      "value": "\"lifecycle\" in ('active', 'consumed')",
+      "name": "booking_sessions_valid_lifecycle",
+      "entityType": "checks",
+      "table": "booking_sessions"
+    },
+    {
+      "value": "\"role\" = 'owner'",
+      "name": "merchant_memberships_owner_only",
+      "entityType": "checks",
+      "table": "merchant_memberships"
+    },
+    {
+      "value": "\"status\" in ('published', 'unpublished')",
+      "name": "public_booking_pages_valid_status",
+      "entityType": "checks",
+      "table": "public_booking_pages"
+    },
+    {
+      "value": "\"weekday\" between 0 and 6",
+      "name": "schedule_rules_valid_weekday",
+      "entityType": "checks",
+      "table": "schedule_rules"
+    },
+    {
+      "value": "\"start_time\" glob '[0-2][0-9]:[0-5][0-9]' AND \"end_time\" glob '[0-2][0-9]:[0-5][0-9]' AND \"start_time\" < \"end_time\"",
+      "name": "schedule_rules_valid_interval",
+      "entityType": "checks",
+      "table": "schedule_rules"
+    },
+    {
+      "value": "length(trim(\"name\")) > 0",
+      "name": "services_name_not_blank",
+      "entityType": "checks",
+      "table": "services"
+    },
+    {
+      "value": "\"price_minor\" > 0",
+      "name": "services_positive_price",
+      "entityType": "checks",
+      "table": "services"
+    },
+    {
+      "value": "\"duration_minutes\" > 0",
+      "name": "services_positive_duration",
+      "entityType": "checks",
+      "table": "services"
+    },
+    {
+      "value": "length(\"currency\") = 3 AND \"currency\" = upper(\"currency\")",
+      "name": "services_currency_format",
+      "entityType": "checks",
+      "table": "services"
+    },
+    {
+      "value": "\"starts_at\" < \"ends_at\"",
+      "name": "time_slot_holds_valid_interval",
+      "entityType": "checks",
+      "table": "time_slot_holds"
+    },
+    {
+      "value": "\"created_at\" < \"expires_at\"",
+      "name": "time_slot_holds_valid_expiry",
+      "entityType": "checks",
+      "table": "time_slot_holds"
+    }
+  ],
+  "renames": []
+}

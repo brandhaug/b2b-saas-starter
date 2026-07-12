@@ -20,7 +20,8 @@ export function BookingSchedulingFlow({
   locale = 'en',
   onSelect,
   onRelease,
-  onCheckout
+  onCheckout,
+  checkoutLabel
 }: {
   readonly availability: BookingAvailability
   readonly busy: boolean
@@ -30,6 +31,7 @@ export function BookingSchedulingFlow({
   readonly onSelect: (startsAt: string) => void
   readonly onRelease?: () => void
   readonly onCheckout?: () => void
+  readonly checkoutLabel?: string
 }) {
   const message = (key: BookingTranslationKey) => translateBookingMessage(locale, key)
   const formatters = useMemo(
@@ -261,7 +263,7 @@ export function BookingSchedulingFlow({
                 onClick={onCheckout}
                 {...stylex.props(styles.primaryButton)}
               >
-                {message('action.checkout')}
+                {checkoutLabel ?? message('action.checkout')}
               </button>
             </div>
           ) : null}
