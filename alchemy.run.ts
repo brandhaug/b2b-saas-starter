@@ -78,6 +78,9 @@ const CONFIRMATION_SIGNING_KEYS = Redacted.make(
 const CONFIRMATION_CURRENT_KEY_ID = requiredEnv('CONFIRMATION_CURRENT_KEY_ID')
 const STRIPE_SECRET_KEY = optionalSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = optionalSecret('STRIPE_WEBHOOK_SECRET')
+const CUSTOMER_AUTH_SECRET = optionalSecret('CUSTOMER_AUTH_SECRET')
+const CUSTOMER_GOOGLE_CLIENT_SECRET = optionalSecret('CUSTOMER_GOOGLE_CLIENT_SECRET')
+const CUSTOMER_APPLE_CLIENT_SECRET = optionalSecret('CUSTOMER_APPLE_CLIENT_SECRET')
 const merchantAppOrigin = requiredEnv('MERCHANT_APP_ORIGIN')
 const publicSiteOrigin = requiredEnv('PUBLIC_SITE_ORIGIN')
 const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
@@ -193,13 +196,20 @@ export const Stack = Alchemy.Stack(
         CONFIRMATION_SIGNING_KEYS,
         CONFIRMATION_CURRENT_KEY_ID,
         ...(STRIPE_SECRET_KEY ? { STRIPE_SECRET_KEY } : {}),
-        ...(STRIPE_WEBHOOK_SECRET ? { STRIPE_WEBHOOK_SECRET } : {})
+        ...(STRIPE_WEBHOOK_SECRET ? { STRIPE_WEBHOOK_SECRET } : {}),
+        ...(CUSTOMER_AUTH_SECRET ? { CUSTOMER_AUTH_SECRET } : {}),
+        ...(CUSTOMER_GOOGLE_CLIENT_SECRET ? { CUSTOMER_GOOGLE_CLIENT_SECRET } : {}),
+        ...(CUSTOMER_APPLE_CLIENT_SECRET ? { CUSTOMER_APPLE_CLIENT_SECRET } : {})
       },
       env: {
         ...optionalModuleEnv,
         PUBLIC_SITE_ORIGIN: publicSiteOrigin,
         PAYMENT_PROVIDER_NAME: 'stripe',
-        PAYMENT_PROVIDER_METHODS: process.env.PAYMENT_PROVIDER_METHODS ?? 'card'
+        PAYMENT_PROVIDER_METHODS: process.env.PAYMENT_PROVIDER_METHODS ?? 'card',
+        CUSTOMER_GOOGLE_ENABLED: process.env.CUSTOMER_GOOGLE_ENABLED ?? 'false',
+        CUSTOMER_GOOGLE_CLIENT_ID: process.env.CUSTOMER_GOOGLE_CLIENT_ID ?? '',
+        CUSTOMER_APPLE_ENABLED: process.env.CUSTOMER_APPLE_ENABLED ?? 'false',
+        CUSTOMER_APPLE_CLIENT_ID: process.env.CUSTOMER_APPLE_CLIENT_ID ?? ''
       },
       compatibility: {
         flags: ['nodejs_compat']

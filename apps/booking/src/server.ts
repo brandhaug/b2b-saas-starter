@@ -10,6 +10,10 @@ import {
   BookingParties,
   enterBookingSession
 } from '@b2b-saas-starter/capabilities/booking'
+import {
+  CustomerDetailsSnapshot,
+  CustomerIdentity
+} from '@b2b-saas-starter/capabilities/customer-identity'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
   GiftCardSales,
@@ -31,6 +35,13 @@ import { readTraceHeader, reportOperationalError } from '@b2b-saas-starter/logge
 import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
 import { makeStripePaymentProvider } from './lib/stripe-payment-provider.ts'
 import { handleGiftCardRequest } from './lib/gift-card-http.ts'
+import {
+  customerAuthProviderState,
+  makeCustomerAuthEdge
+} from './lib/customer-auth-edge.ts'
+import { recoverVerifiedContinuation } from './lib/customer-continuation-http.ts'
+import { WaitingList } from '@b2b-saas-starter/capabilities/waiting-list'
+import { handleWaitingListRequest } from './lib/waiting-list-http.ts'
 import { handleWalkInRequest } from './lib/walk-in-http.ts'
 
 type RateLimitBinding = {
@@ -53,6 +64,13 @@ export type BookingWorkerEnv = {
   readonly PAYMENT_PROVIDER_METHODS?: string
   readonly STRIPE_SECRET_KEY?: string
   readonly STRIPE_WEBHOOK_SECRET?: string
+  readonly CUSTOMER_AUTH_SECRET?: string
+  readonly CUSTOMER_GOOGLE_ENABLED?: string
+  readonly CUSTOMER_GOOGLE_CLIENT_ID?: string
+  readonly CUSTOMER_GOOGLE_CLIENT_SECRET?: string
+  readonly CUSTOMER_APPLE_ENABLED?: string
+  readonly CUSTOMER_APPLE_CLIENT_ID?: string
+  readonly CUSTOMER_APPLE_CLIENT_SECRET?: string
   readonly PAYMENT_PROVIDER?: {
     readonly fetch: (request: Request) => Promise<Response>
   }
@@ -71,6 +89,9 @@ const PaymentProviderCallback = Schema.Struct({
   paymentId: Schema.String.check(Schema.isMinLength(1)),
   providerEventId: Schema.String.check(Schema.isMinLength(1)),
   facts: PaymentProviderResult.fields.facts
+})
+const AppointmentCustomerDetails = Schema.Struct({
+  customerDetails: CustomerDetailsSnapshot
 })
 
 const configuredPaymentMethods = (env: BookingWorkerEnv) => {
@@ -188,6 +209,71 @@ export default {
       })
     }
     const readyEnv = env as BookingWorkerEnv
+    const requestUrl = new URL(request.url)
+    const customerAuth = readyEnv.CUSTOMER_AUTH_SECRET
+      ? makeCustomerAuthEdge({
+          db: readyEnv.DB,
+          secret: readyEnv.CUSTOMER_AUTH_SECRET,
+          baseURL: `${readyEnv.PUBLIC_SITE_ORIGIN.replace(/\/$/, '')}/api/customer-auth`,
+          trustedOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
+          production: requestUrl.protocol === 'https:',
+          googleEnabled: readyEnv.CUSTOMER_GOOGLE_ENABLED === 'true',
+          appleEnabled: readyEnv.CUSTOMER_APPLE_ENABLED === 'true',
+          ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_ID
+            ? { googleClientId: readyEnv.CUSTOMER_GOOGLE_CLIENT_ID }
+            : {}),
+          ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET
+            ? { googleClientSecret: readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET }
+            : {}),
+          ...(readyEnv.CUSTOMER_APPLE_CLIENT_ID
+            ? { appleClientId: readyEnv.CUSTOMER_APPLE_CLIENT_ID }
+            : {}),
+          ...(readyEnv.CUSTOMER_APPLE_CLIENT_SECRET
+            ? { appleClientSecret: readyEnv.CUSTOMER_APPLE_CLIENT_SECRET }
+            : {})
+        })
+      : null
+    if (requestUrl.pathname === '/customer-identity/providers') {
+      return Response.json(
+        {
+          anonymousBooking: 'available',
+          providers: customerAuthProviderState({
+            db: readyEnv.DB,
+            secret: readyEnv.CUSTOMER_AUTH_SECRET ?? '',
+            baseURL: '',
+            trustedOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
+            production: requestUrl.protocol === 'https:',
+            googleEnabled: readyEnv.CUSTOMER_GOOGLE_ENABLED === 'true',
+            appleEnabled: readyEnv.CUSTOMER_APPLE_ENABLED === 'true',
+            ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_ID
+              ? { googleClientId: readyEnv.CUSTOMER_GOOGLE_CLIENT_ID }
+              : {}),
+            ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET
+              ? { googleClientSecret: readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET }
+              : {}),
+            ...(readyEnv.CUSTOMER_APPLE_CLIENT_ID
+              ? { appleClientId: readyEnv.CUSTOMER_APPLE_CLIENT_ID }
+              : {}),
+            ...(readyEnv.CUSTOMER_APPLE_CLIENT_SECRET
+              ? { appleClientSecret: readyEnv.CUSTOMER_APPLE_CLIENT_SECRET }
+              : {})
+          })
+        },
+        { headers: { 'cache-control': 'private, no-store' } }
+      )
+    }
+    if (requestUrl.pathname.startsWith('/api/customer-auth/')) {
+      if (!customerAuth) {
+        return new Response('Customer sign-in needs configuration', {
+          status: 503,
+          headers: { 'retry-after': '60' }
+        })
+      }
+      return (
+        (await customerAuth.handle(request)) ??
+        new Response('Not found', { status: 404 })
+      )
+    }
     let signingKeys: Readonly<Record<string, string>> = {}
     try {
       signingKeys = JSON.parse(readyEnv.CONFIRMATION_SIGNING_KEYS) as Record<
@@ -203,6 +289,51 @@ export default {
         keys: signingKeys
       }
     })
+    const continuationMatch = requestUrl.pathname.match(
+      /^\/([^/]+)\/booking\/customer\/continuation\/([^/]+)$/
+    )
+    if (continuationMatch && customerAuth) {
+      const merchantSlug = decodeURIComponent(continuationMatch[1]!)
+      const routeId = decodeURIComponent(continuationMatch[2]!)
+      const merchant = await readyEnv.DB.prepare(
+        'SELECT id FROM merchants WHERE slug = ? LIMIT 1'
+      )
+        .bind(merchantSlug)
+        .first<{ id: string }>()
+      if (!merchant) return new Response('Not found', { status: 404 })
+      return recoverVerifiedContinuation(
+        request,
+        { merchantId: merchant.id, merchantSlug, routeId },
+        {
+          principal: customerAuth.principal,
+          establishSession: (input) =>
+            Effect.provide(
+              Effect.flatMap(CustomerIdentity, (identity) =>
+                identity.establishSession(input)
+              ),
+              capabilitiesLayer
+            ),
+          recover: (input) =>
+            Effect.provide(
+              Effect.flatMap(CustomerIdentity, (identity) =>
+                identity.recoverContinuation(input)
+              ),
+              capabilitiesLayer
+            ),
+          reissue: (input) =>
+            Effect.provide(
+              Effect.flatMap(BookingConfirmation, (confirmation) =>
+                confirmation.recoverAccess({
+                  bookingPartyId: input.bookingPartyId,
+                  confirmationRouteId: input.confirmationRouteId,
+                  now: input.now
+                })
+              ),
+              capabilitiesLayer
+            )
+        }
+      )
+    }
     const paymentProvider =
       readyEnv.PAYMENT_PROVIDER ??
       (readyEnv.STRIPE_SECRET_KEY
@@ -260,6 +391,55 @@ export default {
         })
     })
     const runtimeLayer = Layer.merge(capabilitiesLayer, paymentProviderLayer)
+    const waitingListResponse = await handleWaitingListRequest(request, {
+      apply: (input) =>
+        Effect.runPromise(
+          Effect.flatMap(WaitingList, (waitingList) => waitingList.apply(input)).pipe(
+            Effect.provide(capabilitiesLayer)
+          )
+        ),
+      withdraw: (applicationId, capability, now) =>
+        Effect.runPromise(
+          Effect.flatMap(WaitingList, (waitingList) =>
+            waitingList.withdraw(applicationId, capability, now)
+          ).pipe(Effect.provide(capabilitiesLayer))
+        ),
+      inspectApplication: (applicationId, capability, now) =>
+        Effect.runPromise(
+          Effect.flatMap(WaitingList, (waitingList) =>
+            waitingList.inspectApplication(applicationId, capability, now)
+          ).pipe(Effect.provide(capabilitiesLayer))
+        ),
+      inspect: (offerId, capability, now) =>
+        Effect.runPromise(
+          Effect.flatMap(WaitingList, (waitingList) =>
+            waitingList.inspectOffer(offerId, capability, now)
+          ).pipe(Effect.provide(capabilitiesLayer))
+        ),
+      exchangeOfferAccess: (input) =>
+        Effect.runPromise(
+          Effect.flatMap(WaitingList, (waitingList) =>
+            waitingList.exchangeOfferAccess(input)
+          ).pipe(Effect.provide(capabilitiesLayer))
+        ),
+      decline: (offerId, capability, now) =>
+        Effect.runPromise(
+          Effect.flatMap(WaitingList, (waitingList) =>
+            waitingList.declineOffer(offerId, capability, now)
+          ).pipe(Effect.provide(capabilitiesLayer))
+        ),
+      accept: (offerId, capability, now) =>
+        Effect.runPromise(
+          Effect.flatMap(WaitingList, (waitingList) =>
+            waitingList.acceptOffer(offerId, capability, now)
+          ).pipe(Effect.provide(capabilitiesLayer))
+        ),
+      now: () => new Date().toISOString(),
+      newApplicationId: () => `wla_${crypto.randomUUID().replaceAll('-', '')}`,
+      newApplicationCapability: () => crypto.randomUUID().replaceAll('-', ''),
+      newOfferCookieCapability: () => crypto.randomUUID().replaceAll('-', '')
+    })
+    if (waitingListResponse) return waitingListResponse
     const giftCardResponse = await handleGiftCardRequest(request, {
       resolveSelection: ({ merchantSlug, shopSlug, providerSlug }) =>
         Effect.flatMap(GiftCardSales, (sales) =>
@@ -430,10 +610,22 @@ export default {
               Effect.flatMap(BookingSelection, (selection) => selection.load(session)),
               capabilitiesLayer
             ),
-          chooseProvider: (session, preference, expectedVersion) =>
+          chooseProvider: (session, preference, expectedVersion, providerProof) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) =>
-                selection.chooseProvider(session, preference, expectedVersion)
+                selection.chooseProvider(
+                  session,
+                  preference,
+                  expectedVersion,
+                  providerProof
+                )
+              ),
+              capabilitiesLayer
+            ),
+          verifyProviderAccess: (session, providerId, passcode, now) =>
+            Effect.provide(
+              Effect.flatMap(BookingSelection, (selection) =>
+                selection.verifyProviderAccess(session, providerId, passcode, now)
               ),
               capabilitiesLayer
             ),
@@ -602,9 +794,44 @@ export default {
                 capabilitiesLayer
               ),
               (result) =>
-                Effect.promise(() =>
-                  publishBookingWakeUp(readyEnv.BOOKING_EVENTS_QUEUE, result)
-                )
+                Effect.promise(async () => {
+                  const principal = await customerAuth?.principal(request.headers)
+                  const bookingPartyId = result.access.bookingPartyId
+                  let customerDetails: typeof CustomerDetailsSnapshot.Type | null = null
+                  try {
+                    customerDetails = Schema.decodeUnknownSync(
+                      AppointmentCustomerDetails
+                    )(result.appointment.snapshot).customerDetails
+                  } catch {
+                    // A malformed historical snapshot must not roll back confirmation.
+                  }
+                  if (principal && bookingPartyId && customerDetails) {
+                    await Effect.runPromise(
+                      Effect.gen(function* () {
+                        const identity = yield* CustomerIdentity
+                        const accountSession = yield* identity.establishSession({
+                          principal,
+                          now: input.now,
+                          expiresAt: new Date(
+                            Date.parse(input.now) + 30 * 24 * 60 * 60_000
+                          ).toISOString()
+                        })
+                        yield* identity.associateBooking({
+                          session: accountSession,
+                          merchantId: result.appointment.merchantId,
+                          bookingPartyId,
+                          confirmationRouteId: result.access.routeId,
+                          customerDetails,
+                          now: input.now
+                        })
+                      }).pipe(
+                        Effect.provide(capabilitiesLayer),
+                        Effect.catch(() => Effect.void)
+                      )
+                    )
+                  }
+                  return publishBookingWakeUp(readyEnv.BOOKING_EVENTS_QUEUE, result)
+                })
             )
         },
         takeRead: (key) =>

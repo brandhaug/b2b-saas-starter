@@ -14,7 +14,12 @@ const entry = {
 } as const
 const dependencies = {
   resolveShop: async () => ({ id: 'shp_one' }),
-  queue: async () => [entry],
+  overview: async () => ({
+    state: 'open' as const,
+    services: [{ id: 'svc_cut', name: 'Signature cut' }],
+    providers: [{ id: 'prv_ana', name: 'Ana' }],
+    queue: [entry]
+  }),
   enroll: async () => ({
     entry,
     acknowledgment: {
@@ -31,6 +36,18 @@ const dependencies = {
 }
 
 describe('walk-in HTTP', () => {
+  it('returns merchant-backed enrollment options and queue state', async () => {
+    const response = await handleWalkInRequest(
+      new Request('https://booking.test/mara/booking/downtown/walk-ins'),
+      dependencies
+    )
+    expect(await response?.json()).toMatchObject({
+      state: 'open',
+      services: [{ id: 'svc_cut', name: 'Signature cut' }],
+      providers: [{ id: 'prv_ana', name: 'Ana' }]
+    })
+  })
+
   it('enrolls and moves the private capability into an HttpOnly cookie', async () => {
     const response = await handleWalkInRequest(
       new Request('https://booking.test/mara/booking/downtown/walk-ins', {
@@ -60,5 +77,35 @@ describe('walk-in HTTP', () => {
       dependencies
     )
     expect(response?.status).toBe(404)
+  })
+
+  it('maps closed and provider failures without exposing internals', async () => {
+    const closed = await handleWalkInRequest(
+      new Request('https://booking.test/mara/booking/downtown/walk-ins', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          serviceId: 'svc_cut',
+          providerPreference: { kind: 'any' },
+          customerDetails: {
+            name: 'Mara',
+            email: 'mara@example.test',
+            phone: '+40711111111'
+          },
+          locale: 'en'
+        })
+      }),
+      { ...dependencies, enroll: async () => Promise.reject({ _tag: 'WalkInsClosed' }) }
+    )
+    const unavailable = await handleWalkInRequest(
+      new Request('https://booking.test/mara/booking/downtown/walk-ins'),
+      {
+        ...dependencies,
+        overview: async () => Promise.reject({ _tag: 'CapabilityUnavailable' })
+      }
+    )
+    expect(closed?.status).toBe(409)
+    expect(unavailable?.status).toBe(503)
+    expect(await unavailable?.json()).toEqual({ error: 'walk_ins_unavailable' })
   })
 })

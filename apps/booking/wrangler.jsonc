@@ -14,7 +14,11 @@
     "CONFIRMATION_CURRENT_KEY_ID": "local-v1",
     "CONFIRMATION_SIGNING_KEYS": "{\"local-v1\":\"replace-before-production-confirmation-key\"}",
     "PAYMENT_PROVIDER_NAME": "stripe",
-    "PAYMENT_PROVIDER_METHODS": ""
+    "PAYMENT_PROVIDER_METHODS": "",
+    "CUSTOMER_GOOGLE_ENABLED": "false",
+    "CUSTOMER_GOOGLE_CLIENT_ID": "",
+    "CUSTOMER_APPLE_ENABLED": "false",
+    "CUSTOMER_APPLE_CLIENT_ID": ""
   },
   "d1_databases": [
     {

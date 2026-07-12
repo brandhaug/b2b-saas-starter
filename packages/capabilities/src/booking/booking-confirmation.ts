@@ -133,6 +133,14 @@ export type BookingConfirmationShape = {
     readonly credentialKind: 'bearer' | 'cookie'
     readonly now: string
   }) => Effect.Effect<ConfirmationReadResult, CapabilityUnavailable>
+  readonly recoverAccess: (input: {
+    readonly bookingPartyId: string
+    readonly confirmationRouteId: string
+    readonly now: string
+  }) => Effect.Effect<
+    { readonly routeId: string; readonly cookieCredential: string },
+    CapabilityUnavailable
+  >
 }
 export class BookingConfirmation extends Context.Service<
   BookingConfirmation,
@@ -287,6 +295,25 @@ export const SeedBookingConfirmation = (
   Layer.effect(
     BookingConfirmation,
     Effect.map(PaymentSettlement, (paymentSettlements) => ({
+      recoverAccess: (input) =>
+        Effect.gen(function* () {
+          const metadata = store.access.get(input.confirmationRouteId)
+          if (
+            !metadata ||
+            metadata.bookingPartyId !== input.bookingPartyId ||
+            metadata.expiresAt <= input.now
+          )
+            return yield* new CapabilityUnavailable({
+              capability: 'booking-confirmation',
+              reason: 'continuation_not_found'
+            })
+          return {
+            routeId: metadata.routeId,
+            cookieCredential: yield* Effect.promise(() =>
+              deriveConfirmationCookieCredential(metadata, keyring)
+            )
+          }
+        }),
       read: (input) =>
         Effect.gen(function* () {
           const metadata = store.access.get(input.routeId)
@@ -597,6 +624,32 @@ export const LiveBookingConfirmation = (
             .where(eq(appointments.bookingSessionId, sessionId))
         )
       return {
+        recoverAccess: (input) =>
+          Effect.gen(function* () {
+            const [access] = yield* orUnavailable('booking-confirmation')(
+              db
+                .select()
+                .from(confirmationAccess)
+                .where(
+                  and(
+                    eq(confirmationAccess.routeId, input.confirmationRouteId),
+                    eq(confirmationAccess.bookingPartyId, input.bookingPartyId)
+                  )
+                )
+                .limit(1)
+            )
+            if (!access || access.revokedAt || access.expiresAt <= input.now)
+              return yield* new CapabilityUnavailable({
+                capability: 'booking-confirmation',
+                reason: 'continuation_not_found'
+              })
+            return {
+              routeId: access.routeId,
+              cookieCredential: yield* Effect.promise(() =>
+                deriveConfirmationCookieCredential(access, keyring)
+              )
+            }
+          }),
         read: (input) =>
           Effect.gen(function* () {
             const rows = yield* orUnavailable('booking-confirmation')(

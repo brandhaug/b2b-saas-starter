@@ -155,6 +155,13 @@ import {
   SeedCustomerIdentity
 } from './customer-identity/adapters.ts'
 import { CustomerIdentity } from './customer-identity/index.ts'
+import {
+  emptySeedWaitingListStore,
+  SeedOfferBooking,
+  SeedWaitingList,
+  WaitingList
+} from './waiting-list/index.ts'
+import { LiveWaitingList } from './waiting-list/adapters.ts'
 
 export type CapabilityServices =
   | PlatformApiTokenRegistry
@@ -186,6 +193,7 @@ export type CapabilityServices =
   | GiftCardPayment
   | WalkIns
   | CustomerIdentity
+  | WaitingList
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
@@ -350,6 +358,9 @@ const seedBookingPartiesLayer = SeedBookingParties(
 )
 const seedPricingQuotesLayer = SeedPricingQuotes()
 const seedGiftCardSalesStore = emptySeedGiftCardSalesStore()
+const seedWaitingListLayer = SeedWaitingList(emptySeedWaitingListStore()).pipe(
+  Layer.provide(SeedOfferBooking)
+)
 const seedBookingCheckoutLayer = SeedBookingCheckout(seedBookingCheckout).pipe(
   Layer.provide(Layer.merge(seedBookingPartiesLayer, seedPricingQuotesLayer))
 )
@@ -367,6 +378,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedGiftCardPayment(seedGiftCardSalesStore),
   SeedWalkIns(),
   SeedCustomerIdentity(),
+  seedWaitingListLayer,
   SeedShopTopology([
     {
       id: `shp_${seedBookingScenario.merchant.id}`,
@@ -435,6 +447,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveGiftCardPayment,
     LiveWalkIns,
     LiveCustomerIdentity,
+    LiveWaitingList,
     LiveShopTopology,
     LivePlatformApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LivePlatformApiReads(cursorSecret),

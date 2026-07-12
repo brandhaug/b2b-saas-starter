@@ -18,6 +18,7 @@ import {
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { BookingSessions, LiveBookingSessions } from './booking-sessions.ts'
 import { BookingSelection, LiveBookingSelection } from './booking-selection.ts'
+import { hashSha256 } from '../internal/crypto.ts'
 
 let test: TestD1
 const now = '2026-07-10T10:00:00.000Z'
@@ -209,6 +210,52 @@ describe('Live Booking Selection', () => {
     expect(refreshed.selection).toEqual({
       primaryServiceId: 'svc_primary',
       additionalServiceIds: ['svc_extra']
+    })
+
+    const verifierHash = await hashSha256('2468')
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(Database, (db) =>
+          db
+            .update(providers)
+            .set({
+              bookingAccess: 'restricted',
+              bookingAccessVerifierHash: verifierHash
+            })
+            .where(eq(providers.id, 'prv_one'))
+        ),
+        layerFromD1(test.d1)
+      )
+    )
+    const proof = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.verifyProviderAccess(
+            issued.session,
+            'prv_one',
+            '2468',
+            new Date().toISOString()
+          )
+        ),
+        refreshedLayer
+      )
+    )
+    const restricted = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.chooseProvider(
+            issued.session,
+            { kind: 'specific', providerId: 'prv_one' },
+            refreshed.version,
+            proof.proof
+          )
+        ),
+        refreshedLayer
+      )
+    )
+    expect(restricted.providerPreference).toEqual({
+      kind: 'specific',
+      providerId: 'prv_one'
     })
 
     await Effect.runPromise(

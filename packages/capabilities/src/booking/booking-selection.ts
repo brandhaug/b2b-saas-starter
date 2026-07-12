@@ -11,6 +11,7 @@ import {
   Database,
   merchants,
   providers,
+  providerAccessProofs,
   providerServiceEligibility,
   services,
   shopProviders,
@@ -19,6 +20,7 @@ import {
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { hashSha256, randomHex } from '../internal/crypto.ts'
 import type { BookingSession } from './booking-sessions.ts'
 import { BookingPartyConflict } from './foundations.ts'
 import { deleteTimeSlotHoldsForSelectionChange } from './booking-scheduling.ts'
@@ -119,8 +121,15 @@ export type BookingSelectionShape = {
   readonly chooseProvider: (
     session: BookingSession,
     preference: ProviderPreference,
-    expectedVersion: number
+    expectedVersion: number,
+    providerProof?: string
   ) => SelectionEffect<BookingJourney>
+  readonly verifyProviderAccess: (
+    session: BookingSession,
+    providerId: string,
+    passcode: string,
+    now: string
+  ) => SelectionEffect<{ readonly proof: string; readonly expiresAt: string }>
   readonly chooseShop: (
     session: BookingSession,
     shopId: string,
@@ -145,6 +154,7 @@ type StoredProvider = {
   readonly isDefault: boolean
   readonly status: 'active' | 'inactive'
   readonly bookingAccess?: 'public' | 'restricted'
+  readonly bookingAccessVerifierHash?: string | null
   readonly bookingConfiguration?: BookingConfiguration | null
 }
 type StoredService = {
@@ -197,6 +207,14 @@ export type SeedBookingSelectionStore = {
   readonly services: Map<string, StoredService>
   readonly eligibility: Set<SeedBookingSelectionEligibilityKey>
   readonly selections: Map<string, StoredSelection>
+  readonly providerProofs: Map<
+    string,
+    {
+      readonly bookingSessionId: string
+      readonly providerId: string
+      readonly expiresAt: string
+    }
+  >
   invalidateTimeSlotHolds?: (sessionId: string) => void
 }
 
@@ -284,7 +302,8 @@ export const emptySeedBookingSelectionStore = (
   ),
   services: new Map((input.services ?? []).map((service) => [service.id, service])),
   eligibility: new Set(input.eligibility ?? []),
-  selections: new Map()
+  selections: new Map(),
+  providerProofs: new Map()
 })
 
 type Catalog = {
@@ -338,12 +357,13 @@ const journey = (
 const preferenceAccepts = (
   catalog: Catalog,
   preference: ProviderPreference,
-  serviceIds: readonly string[]
+  serviceIds: readonly string[],
+  allowRestricted = false
 ): boolean => {
   if (preference.kind === 'specific') {
     const provider = catalog.providers.find((item) => item.id === preference.providerId)
     if (!provider) return false
-    if (provider.access !== 'public') return false
+    if (provider.access === 'restricted' && !allowRestricted) return false
     if (catalog.presentation === 'solo' && !provider.isDefault) return false
     return serviceIds.every((serviceId) =>
       provider.eligibleServiceIds.includes(serviceId)
@@ -374,11 +394,12 @@ function compatibleAdditionalServices(
       const otherAdditionalIds = selection.additionalServiceIds.filter(
         (serviceId) => serviceId !== service.id
       )
-      return preferenceAccepts(catalog, preference, [
-        primary.id,
-        ...otherAdditionalIds,
-        service.id
-      ])
+      return preferenceAccepts(
+        catalog,
+        preference,
+        [primary.id, ...otherAdditionalIds, service.id],
+        true
+      )
     })
     .map((service) => service.id)
 }
@@ -408,7 +429,7 @@ const validateServices = (
     unique.size !== ids.length ||
     selected.some((service) => service === undefined) ||
     new Set(selected.map((service) => service?.currency)).size !== 1 ||
-    !preferenceAccepts(catalog, preference, ids)
+    !preferenceAccepts(catalog, preference, ids, true)
   ) {
     return Effect.fail(rejected())
   }
@@ -566,12 +587,13 @@ const withSoloDefault = (
 
 const normalizeSelection = (
   catalog: Catalog,
-  selection: StoredSelection
+  selection: StoredSelection,
+  allowRestricted = false
 ): Effect.Effect<StoredSelection> =>
   Effect.gen(function* () {
     const validPreference =
       selection.providerPreference &&
-      preferenceAccepts(catalog, selection.providerPreference, [])
+      preferenceAccepts(catalog, selection.providerPreference, [], allowRestricted)
         ? selection.providerPreference
         : null
     const preferred = yield* withSoloDefault(catalog, {
@@ -613,6 +635,27 @@ export const SeedBookingSelection = (
   store: SeedBookingSelectionStore
 ): Layer.Layer<BookingSelection> =>
   Layer.succeed(BookingSelection)({
+    verifyProviderAccess: (session, providerId, passcode, now) =>
+      Effect.gen(function* () {
+        const provider = store.providers.get(providerId)
+        if (
+          !provider ||
+          provider.merchantId !== store.merchants.get(session.merchantSlug)?.id ||
+          provider.bookingAccess !== 'restricted' ||
+          !provider.bookingAccessVerifierHash ||
+          (yield* Effect.promise(() => hashSha256(passcode))) !==
+            provider.bookingAccessVerifierHash
+        )
+          return yield* rejected()
+        const proof = randomHex(32)
+        const expiresAt = new Date(Date.parse(now) + 5 * 60_000).toISOString()
+        store.providerProofs.set(proof, {
+          bookingSessionId: session.id,
+          providerId,
+          expiresAt
+        })
+        return { proof, expiresAt }
+      }),
     load: (session) =>
       Effect.gen(function* () {
         const current = store.selections.get(session.id) ?? emptySelection()
@@ -622,10 +665,23 @@ export const SeedBookingSelection = (
           current.shopId,
           session.locale ?? 'en'
         )
-        const selected = yield* normalizeSelection(catalog, {
-          ...current,
-          shopId: catalog.shopId
-        })
+        const providerId =
+          current.providerPreference?.kind === 'specific'
+            ? current.providerPreference.providerId
+            : null
+        const allowRestricted = providerId
+          ? [...store.providerProofs.values()].some(
+              (proof) =>
+                proof.bookingSessionId === session.id &&
+                proof.providerId === providerId &&
+                proof.expiresAt > new Date().toISOString()
+            )
+          : false
+        const selected = yield* normalizeSelection(
+          catalog,
+          { ...current, shopId: catalog.shopId },
+          allowRestricted
+        )
         store.selections.set(session.id, selected)
         if (JSON.stringify(current) !== JSON.stringify(selected)) {
           store.invalidateTimeSlotHolds?.(session.id)
@@ -661,7 +717,7 @@ export const SeedBookingSelection = (
         )
         return journey(catalog, selected, ['shop_changed'])
       }),
-    chooseProvider: (session, preference, expectedVersion) =>
+    chooseProvider: (session, preference, expectedVersion, providerProof) =>
       Effect.gen(function* () {
         const current = store.selections.get(session.id) ?? emptySelection()
         const catalog = yield* seedCatalog(
@@ -676,7 +732,7 @@ export const SeedBookingSelection = (
             expectedVersion
           })
         }
-        if (!preferenceAccepts(catalog, preference, [])) {
+        if (!preferenceAccepts(catalog, preference, [], true)) {
           return yield* rejected()
         }
         if (
@@ -684,7 +740,16 @@ export const SeedBookingSelection = (
           catalog.providers.find((provider) => provider.id === preference.providerId)
             ?.access === 'restricted'
         ) {
-          return yield* rejected()
+          const proof = providerProof
+            ? store.providerProofs.get(providerProof)
+            : undefined
+          if (
+            !proof ||
+            proof.bookingSessionId !== session.id ||
+            proof.providerId !== preference.providerId ||
+            proof.expiresAt <= new Date().toISOString()
+          )
+            return yield* rejected()
         }
         const selected: StoredSelection = {
           version: expectedVersion + 1,
@@ -1122,10 +1187,30 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
       const load = (session: BookingSession) =>
         Effect.gen(function* () {
           const state = yield* readLiveState(db, session)
-          const selected = yield* normalizeSelection(state.catalog, {
-            ...state.selection,
-            shopId: state.catalog.shopId
-          })
+          const providerId =
+            state.selection.providerPreference?.kind === 'specific'
+              ? state.selection.providerPreference.providerId
+              : null
+          const [activeProof] = providerId
+            ? yield* orUnavailable('booking-selection')(
+                db
+                  .select({ id: providerAccessProofs.id })
+                  .from(providerAccessProofs)
+                  .where(
+                    and(
+                      eq(providerAccessProofs.bookingSessionId, session.id),
+                      eq(providerAccessProofs.providerId, providerId),
+                      sql`${providerAccessProofs.expiresAt} > CURRENT_TIMESTAMP`
+                    )
+                  )
+                  .limit(1)
+              )
+            : []
+          const selected = yield* normalizeSelection(
+            state.catalog,
+            { ...state.selection, shopId: state.catalog.shopId },
+            Boolean(activeProof)
+          )
           if (JSON.stringify(state.selection) !== JSON.stringify(selected)) {
             const version = yield* persistSelection(
               session.id,
@@ -1146,6 +1231,46 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
           )
         })
       return {
+        verifyProviderAccess: (session, providerId, passcode, now) =>
+          Effect.gen(function* () {
+            const [provider] = yield* orUnavailable('booking-selection')(
+              db
+                .select({
+                  bookingAccess: providers.bookingAccess,
+                  verifierHash: providers.bookingAccessVerifierHash
+                })
+                .from(providers)
+                .innerJoin(
+                  bookingSessions,
+                  eq(bookingSessions.merchantId, providers.merchantId)
+                )
+                .where(
+                  and(eq(bookingSessions.id, session.id), eq(providers.id, providerId))
+                )
+                .limit(1)
+            )
+            if (
+              !provider ||
+              provider.bookingAccess !== 'restricted' ||
+              !provider.verifierHash ||
+              (yield* Effect.promise(() => hashSha256(passcode))) !==
+                provider.verifierHash
+            )
+              return yield* rejected()
+            const proof = randomHex(32)
+            const expiresAt = new Date(Date.parse(now) + 5 * 60_000).toISOString()
+            yield* orUnavailable('booking-selection')(
+              db.insert(providerAccessProofs).values({
+                id: `pap_${randomHex(16)}`,
+                bookingSessionId: session.id,
+                providerId,
+                proofHash: yield* Effect.promise(() => hashSha256(proof)),
+                expiresAt,
+                createdAt: now
+              })
+            )
+            return { proof, expiresAt }
+          }),
         load,
         chooseShop: (session, shopId, expectedVersion) =>
           Effect.gen(function* () {
@@ -1166,11 +1291,11 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
             )
             return journey(state.catalog, { ...selected, version }, ['shop_changed'])
           }),
-        chooseProvider: (session, preference, expectedVersion) =>
+        chooseProvider: (session, preference, expectedVersion, providerProof) =>
           Effect.gen(function* () {
             const state = yield* readLiveState(db, session)
             if (state.partyLifecycle !== 'active') return yield* rejected()
-            if (!preferenceAccepts(state.catalog, preference, [])) {
+            if (!preferenceAccepts(state.catalog, preference, [], true)) {
               return yield* rejected()
             }
             if (
@@ -1179,7 +1304,25 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
                 (provider) => provider.id === preference.providerId
               )?.access === 'restricted'
             ) {
-              return yield* rejected()
+              if (!providerProof) return yield* rejected()
+              const [proof] = yield* orUnavailable('booking-selection')(
+                db
+                  .select({ id: providerAccessProofs.id })
+                  .from(providerAccessProofs)
+                  .where(
+                    and(
+                      eq(providerAccessProofs.bookingSessionId, session.id),
+                      eq(providerAccessProofs.providerId, preference.providerId),
+                      eq(
+                        providerAccessProofs.proofHash,
+                        yield* Effect.promise(() => hashSha256(providerProof))
+                      ),
+                      sql`${providerAccessProofs.expiresAt} > CURRENT_TIMESTAMP`
+                    )
+                  )
+                  .limit(1)
+              )
+              if (!proof) return yield* rejected()
             }
             const selected: StoredSelection = {
               version: expectedVersion,

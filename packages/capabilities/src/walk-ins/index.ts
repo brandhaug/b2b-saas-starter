@@ -21,6 +21,14 @@ export const WalkInConfiguration = Schema.Struct({
   acknowledgmentTtlMinutes: Schema.Number.check(Schema.isGreaterThan(0))
 })
 export type WalkInConfiguration = typeof WalkInConfiguration.Type
+export const WalkInOption = Schema.Struct({ id: Schema.String, name: Schema.String })
+export const WalkInOverview = Schema.Struct({
+  state: Schema.Literals(['open', 'closed']),
+  services: Schema.Array(WalkInOption),
+  providers: Schema.Array(WalkInOption),
+  queue: Schema.Array(Schema.suspend(() => WalkInQueueEntry))
+})
+export type WalkInOverview = typeof WalkInOverview.Type
 
 export const WalkInHistoryEvent = Schema.Struct({
   from: Schema.NullOr(WalkInStatus),
@@ -79,6 +87,13 @@ export const WalkInEnrollment = Schema.Struct({
   locale: Schema.String
 })
 export type WalkInEnrollment = typeof WalkInEnrollment.Type
+export const StoredWalkInRequest = Schema.Struct({
+  serviceId: Schema.String,
+  providerPreference: WalkInQueueEntry.fields.providerPreference,
+  locale: Schema.String,
+  contactKey: Schema.String
+})
+export type StoredWalkInRequest = typeof StoredWalkInRequest.Type
 export type WalkInError =
   | WalkInEntryNotFound
   | WalkInsClosed
@@ -96,9 +111,10 @@ export type WalkInAcknowledgment = {
   }
 }
 export type WalkInsShape = {
-  readonly findById: (
-    entryId: string
-  ) => Effect.Effect<
+  readonly findById: (input: {
+    readonly shopId: string
+    readonly entryId: string
+  }) => Effect.Effect<
     typeof WalkInEntry.Type,
     WalkInEntryNotFound | CapabilityUnavailable
   >
@@ -110,6 +126,7 @@ export type WalkInsShape = {
   readonly queue: (
     shopId: string
   ) => Effect.Effect<readonly (typeof WalkInQueueEntry.Type)[], WalkInError>
+  readonly overview: (shopId: string) => Effect.Effect<WalkInOverview, WalkInError>
   readonly enroll: (
     input: WalkInEnrollment
   ) => Effect.Effect<WalkInAcknowledgment, WalkInError>
@@ -128,6 +145,9 @@ export type WalkInsShape = {
     },
     WalkInError
   >
+  readonly expireAcknowledgments: (
+    now: string
+  ) => Effect.Effect<readonly (typeof WalkInQueueEntry.Type)[], WalkInError>
 }
 export class WalkIns extends Context.Service<WalkIns, WalkInsShape>()(
   '@b2b-saas-starter/capabilities/WalkIns'

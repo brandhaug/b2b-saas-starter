@@ -20,6 +20,8 @@ const request = {
 }
 const customer = { name: 'Ada Lovelace', email: 'ada@example.com' }
 const slot = {
+  shopId: 'shop_1',
+  serviceIds: ['svc_cut'],
   providerId: 'pro_1',
   startsAt: '2026-07-14T09:00:00.000Z',
   endsAt: '2026-07-14T09:30:00.000Z'
@@ -46,7 +48,9 @@ const setup = () => {
 const apply = (waitingList: WaitingListShape) =>
   waitingList.apply({
     id: 'wla_1',
+    merchantSlug: 'shop',
     shopId: 'shop_1',
+    capability: 'application-secret',
     request,
     customer,
     now,

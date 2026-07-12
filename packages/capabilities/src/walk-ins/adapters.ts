@@ -1,11 +1,15 @@
-import { Effect, Layer } from 'effect'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { Effect, Layer, Schema } from 'effect'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import {
   batch,
   Database,
   lifecycleHistory,
   notificationIntents,
   protectedAccessGrants,
+  providers,
+  services,
+  shopProviders,
+  shopServices,
   shops,
   walkInEntries
 } from '@b2b-saas-starter/db'
@@ -16,12 +20,16 @@ import { orUnavailable } from '../internal/unavailable.ts'
 import {
   WalkInDuplicate,
   WalkInEntryNotFound,
+  WalkInHistoryEvent,
+  WalkInConfiguration,
   WalkIns,
   WalkInsClosed,
   WalkInTransitionRejected,
   WalkInUnavailable,
-  type WalkInConfiguration,
+  StoredWalkInRequest,
+  type WalkInConfiguration as WalkInConfigurationType,
   type WalkInEnrollment,
+  type StoredWalkInRequest as StoredRequest,
   type WalkInStatus,
   type WalkInsShape
 } from './index.ts'
@@ -30,7 +38,7 @@ type Entry = typeof import('./index.ts').WalkInQueueEntry.Type
 type LegacyEntry = typeof import('./index.ts').WalkInEntry.Type
 type SeedOptions = {
   readonly records?: readonly (Entry | LegacyEntry)[]
-  readonly configurations?: readonly WalkInConfiguration[]
+  readonly configurations?: readonly WalkInConfigurationType[]
   readonly now?: () => string
 }
 type Stored = {
@@ -118,14 +126,28 @@ export const SeedWalkIns = (
       : Effect.fail(new WalkInEntryNotFound({ entryId }))
   }
   return Layer.succeed(WalkIns)({
-    findById: (entryId) =>
-      Effect.map(find(entryId), ({ entry }) => ({
+    findById: ({ shopId, entryId }) =>
+      Effect.map(find(entryId, shopId), ({ entry }) => ({
         id: entry.id,
         shopId: entry.shopId,
         status: entry.status,
         position: entry.position
       })),
     queue,
+    overview: (shopId) => {
+      const configuration = configurationFor(shopId)
+      return configuration
+        ? Effect.map(queue(shopId), (entries) => ({
+            state: configuration.open ? ('open' as const) : ('closed' as const),
+            services: configuration.eligibleServiceIds.map((id) => ({ id, name: id })),
+            providers: configuration.eligibleProviderIds.map((id) => ({
+              id,
+              name: id
+            })),
+            queue: entries
+          }))
+        : Effect.fail(new WalkInUnavailable({ shopId, reason: 'not-configured' }))
+    },
     inspect: ({ shopId, entryId, capability }) =>
       Effect.flatMap(find(entryId, shopId), (stored) =>
         stored.capability === capability &&
@@ -235,64 +257,54 @@ export const SeedWalkIns = (
             sourceId: entryId
           }
         })
-      })
+      }),
+    expireAcknowledgments: (at) => {
+      const expired = records.filter(
+        (record) => active.has(record.entry.status) && record.expiresAt <= at
+      )
+      for (const stored of expired) {
+        const from = stored.entry.status
+        stored.entry = {
+          ...stored.entry,
+          status: 'expired',
+          history: [...stored.entry.history, { from, to: 'expired', occurredAt: at }]
+        }
+      }
+      return Effect.succeed(expired.map(({ entry }) => entry))
+    }
   })
 }
 
 const decodeConfiguration = (
   shopId: string,
   value: unknown
-): WalkInConfiguration | null => {
+): WalkInConfigurationType | null => {
   if (!value || typeof value !== 'object') return null
   const walkIns = (value as { walkIns?: unknown }).walkIns
-  if (!walkIns || typeof walkIns !== 'object') return null
-  const config = walkIns as Record<string, unknown>
-  return {
-    shopId,
-    open: config.open === true,
-    eligibleServiceIds: Array.isArray(config.eligibleServiceIds)
-      ? config.eligibleServiceIds.filter((id): id is string => typeof id === 'string')
-      : [],
-    eligibleProviderIds: Array.isArray(config.eligibleProviderIds)
-      ? config.eligibleProviderIds.filter((id): id is string => typeof id === 'string')
-      : [],
-    averageServiceMinutes:
-      typeof config.averageServiceMinutes === 'number' &&
-      config.averageServiceMinutes > 0
-        ? config.averageServiceMinutes
-        : 15,
-    acknowledgmentTtlMinutes:
-      typeof config.acknowledgmentTtlMinutes === 'number' &&
-      config.acknowledgmentTtlMinutes > 0
-        ? config.acknowledgmentTtlMinutes
-        : 60
+  if (walkIns === undefined) return null
+  try {
+    return Schema.decodeUnknownSync(WalkInConfiguration)({
+      ...(typeof walkIns === 'object' && walkIns !== null ? walkIns : {}),
+      shopId
+    })
+  } catch (cause) {
+    throw new CapabilityUnavailable({
+      capability: 'walk-ins',
+      reason: `invalid-shop-configuration:${cause instanceof Error ? cause.message : String(cause)}`
+    })
   }
 }
 
-type StoredRequest = {
-  readonly serviceId: string
-  readonly providerPreference: WalkInEnrollment['providerPreference']
-  readonly locale: string
-  readonly contactKey: string
-}
-const parseRequest = (value: string): StoredRequest => {
-  try {
-    const parsed = JSON.parse(value) as Partial<StoredRequest>
-    return {
-      serviceId: parsed.serviceId ?? '',
-      providerPreference: parsed.providerPreference ?? { kind: 'any' },
-      locale: parsed.locale ?? 'en',
-      contactKey: parsed.contactKey ?? ''
-    }
-  } catch {
-    return {
-      serviceId: '',
-      providerPreference: { kind: 'any' },
-      locale: 'en',
-      contactKey: ''
-    }
-  }
-}
+const parseRequest = (value: string) =>
+  Effect.try({
+    try: (): StoredRequest =>
+      Schema.decodeUnknownSync(StoredWalkInRequest)(JSON.parse(value)),
+    catch: () =>
+      new CapabilityUnavailable({
+        capability: 'walk-ins',
+        reason: 'invalid-persisted-request'
+      })
+  })
 
 export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
   WalkIns,
@@ -307,16 +319,38 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
             .where(eq(shops.id, shopId))
             .limit(1)
         ),
-        ([shop]) => {
-          const configuration = decodeConfiguration(shopId, shop?.bookingConfigJson)
-          return configuration
-            ? Effect.succeed(configuration)
-            : Effect.fail(new WalkInUnavailable({ shopId, reason: 'not-configured' }))
-        }
+        ([shop]) =>
+          Effect.flatMap(
+            Effect.try({
+              try: () => decodeConfiguration(shopId, shop?.bookingConfigJson),
+              catch: (cause) =>
+                new CapabilityUnavailable({
+                  capability: 'walk-ins',
+                  reason:
+                    cause instanceof CapabilityUnavailable
+                      ? cause.reason
+                      : 'invalid-shop-configuration'
+                })
+            }),
+            (configuration) =>
+              configuration
+                ? Effect.succeed(configuration)
+                : Effect.fail(
+                    new WalkInUnavailable({ shopId, reason: 'not-configured' })
+                  )
+          )
       )
-    const histories = (entryId: string) =>
-      Effect.map(
-        orUnavailable('walk-ins')(
+    const histories = (shopId: string, entryId: string) =>
+      Effect.gen(function* () {
+        const [owned] = yield* orUnavailable('walk-ins')(
+          db
+            .select({ id: walkInEntries.id })
+            .from(walkInEntries)
+            .where(and(eq(walkInEntries.shopId, shopId), eq(walkInEntries.id, entryId)))
+            .limit(1)
+        )
+        if (!owned) return yield* Effect.fail(new WalkInEntryNotFound({ entryId }))
+        const events = yield* orUnavailable('walk-ins')(
           db
             .select()
             .from(lifecycleHistory)
@@ -327,14 +361,23 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
               )
             )
             .orderBy(asc(lifecycleHistory.occurredAt))
-        ),
-        (events) =>
-          events.map((event) => ({
-            from: event.fromState as WalkInStatus | null,
-            to: event.toState as WalkInStatus,
+        )
+        return yield* Effect.forEach(events, (event) =>
+          Schema.decodeUnknownEffect(WalkInHistoryEvent)({
+            from: event.fromState,
+            to: event.toState,
             occurredAt: event.occurredAt
-          }))
-      )
+          }).pipe(
+            Effect.mapError(
+              () =>
+                new CapabilityUnavailable({
+                  capability: 'walk-ins',
+                  reason: 'invalid-lifecycle-history'
+                })
+            )
+          )
+        )
+      })
     const queue = (shopId: string) =>
       Effect.gen(function* () {
         const configuration = yield* configurationFor(shopId)
@@ -351,8 +394,9 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
             .orderBy(asc(walkInEntries.position), asc(walkInEntries.createdAt))
         )
         return yield* Effect.forEach(rows, (row, index) =>
-          Effect.map(histories(row.id), (history): Entry => {
-            const request = parseRequest(row.requestJson)
+          Effect.gen(function* () {
+            const request = yield* parseRequest(row.requestJson)
+            const history = yield* histories(shopId, row.id)
             return {
               id: row.id,
               shopId: row.shopId,
@@ -363,17 +407,21 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
               providerPreference: request.providerPreference,
               locale: request.locale,
               history
-            }
+            } satisfies Entry
           })
         )
       })
-    const findQueueEntry = (entryId: string) =>
+    const findQueueEntry = (shopId: string, entryId: string) =>
       Effect.gen(function* () {
         const [row] = yield* orUnavailable('walk-ins')(
-          db.select().from(walkInEntries).where(eq(walkInEntries.id, entryId)).limit(1)
+          db
+            .select()
+            .from(walkInEntries)
+            .where(and(eq(walkInEntries.shopId, shopId), eq(walkInEntries.id, entryId)))
+            .limit(1)
         )
         if (!row) return yield* Effect.fail(new WalkInEntryNotFound({ entryId }))
-        const request = parseRequest(row.requestJson)
+        const request = yield* parseRequest(row.requestJson)
         return {
           id: row.id,
           shopId: row.shopId,
@@ -383,11 +431,11 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
           serviceId: request.serviceId,
           providerPreference: request.providerPreference,
           locale: request.locale,
-          history: yield* histories(row.id)
+          history: yield* histories(shopId, row.id)
         } satisfies Entry
       })
-    const findById: WalkInsShape['findById'] = (entryId) =>
-      Effect.map(findQueueEntry(entryId), (entry) => ({
+    const findById: WalkInsShape['findById'] = ({ shopId, entryId }) =>
+      Effect.map(findQueueEntry(shopId, entryId), (entry) => ({
         id: entry.id,
         shopId: entry.shopId,
         status: entry.status,
@@ -396,6 +444,50 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
     const service: WalkInsShape = {
       findById,
       queue,
+      overview: (shopId) =>
+        Effect.gen(function* () {
+          const configuration = yield* configurationFor(shopId)
+          const eligibleServices =
+            configuration.eligibleServiceIds.length === 0
+              ? []
+              : yield* orUnavailable('walk-ins')(
+                  db
+                    .select({ id: services.id, name: services.name })
+                    .from(shopServices)
+                    .innerJoin(services, eq(shopServices.serviceId, services.id))
+                    .where(
+                      and(
+                        eq(shopServices.shopId, shopId),
+                        eq(services.status, 'active'),
+                        inArray(services.id, configuration.eligibleServiceIds)
+                      )
+                    )
+                    .orderBy(asc(services.name), asc(services.id))
+                )
+          const eligibleProviders =
+            configuration.eligibleProviderIds.length === 0
+              ? []
+              : yield* orUnavailable('walk-ins')(
+                  db
+                    .select({ id: providers.id, name: providers.displayName })
+                    .from(shopProviders)
+                    .innerJoin(providers, eq(shopProviders.providerId, providers.id))
+                    .where(
+                      and(
+                        eq(shopProviders.shopId, shopId),
+                        eq(providers.status, 'active'),
+                        inArray(providers.id, configuration.eligibleProviderIds)
+                      )
+                    )
+                    .orderBy(asc(providers.displayName), asc(providers.id))
+                )
+          return {
+            state: configuration.open ? ('open' as const) : ('closed' as const),
+            services: eligibleServices,
+            providers: eligibleProviders,
+            queue: yield* queue(shopId)
+          }
+        }),
       inspect: ({ shopId, entryId, capability }) =>
         Effect.gen(function* () {
           const candidateHash = yield* Effect.promise(() => hashSha256(capability))
@@ -417,7 +509,7 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
             return yield* Effect.fail(new WalkInEntryNotFound({ entryId }))
           const entries = yield* queue(shopId)
           const queued = entries.find((candidate) => candidate.id === entryId)
-          const entry = queued ?? (yield* findQueueEntry(entryId))
+          const entry = queued ?? (yield* findQueueEntry(shopId, entryId))
           if (entry.shopId !== shopId)
             return yield* Effect.fail(new WalkInEntryNotFound({ entryId }))
           return entry
@@ -425,27 +517,26 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
       enroll: (enrollment) =>
         Effect.gen(function* () {
           const configuration = yield* configurationFor(enrollment.shopId)
-          if (!configuration.open)
+          const enrollmentOptions = yield* service.overview(enrollment.shopId)
+          if (enrollmentOptions.state === 'closed')
             return yield* Effect.fail(new WalkInsClosed({ shopId: enrollment.shopId }))
-          if (!configuration.eligibleServiceIds.includes(enrollment.serviceId))
+          if (!enrollmentOptions.services.some(({ id }) => id === enrollment.serviceId))
             return yield* Effect.fail(
               new WalkInUnavailable({
                 shopId: enrollment.shopId,
                 reason: 'service-ineligible'
               })
             )
-          if (
-            enrollment.providerPreference.kind === 'specific' &&
-            !configuration.eligibleProviderIds.includes(
-              enrollment.providerPreference.providerId
-            )
-          )
-            return yield* Effect.fail(
-              new WalkInUnavailable({
-                shopId: enrollment.shopId,
-                reason: 'provider-ineligible'
-              })
-            )
+          if (enrollment.providerPreference.kind === 'specific') {
+            const providerId = enrollment.providerPreference.providerId
+            if (!enrollmentOptions.providers.some(({ id }) => id === providerId))
+              return yield* Effect.fail(
+                new WalkInUnavailable({
+                  shopId: enrollment.shopId,
+                  reason: 'provider-ineligible'
+                })
+              )
+          }
           const current = yield* queue(enrollment.shopId)
           const key = contactKey(enrollment)
           const rows = yield* orUnavailable('walk-ins')(
@@ -463,10 +554,15 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
                 )
               )
           )
-          const duplicate = rows.find(
-            (row) =>
-              (row.contactKey ?? parseRequest(row.requestJson).contactKey) === key
+          const contacts = yield* Effect.forEach(rows, (row) =>
+            row.contactKey
+              ? Effect.succeed({ id: row.id, contactKey: row.contactKey })
+              : Effect.map(parseRequest(row.requestJson), (request) => ({
+                  id: row.id,
+                  contactKey: request.contactKey
+                }))
           )
+          const duplicate = contacts.find((row) => row.contactKey === key)
           if (duplicate)
             return yield* Effect.fail(
               new WalkInDuplicate({ shopId: enrollment.shopId, entryId: duplicate.id })
@@ -564,7 +660,7 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
             )
           }
           return {
-            entry: yield* findQueueEntry(id),
+            entry: yield* findQueueEntry(enrollment.shopId, id),
             acknowledgment: { capability, expiresAt },
             notificationIntent: {
               id: intentId,
@@ -575,7 +671,7 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
         }),
       transition: ({ shopId, entryId, to }) =>
         Effect.gen(function* () {
-          const entry = yield* findQueueEntry(entryId)
+          const entry = yield* findQueueEntry(shopId, entryId)
           if (entry.shopId !== shopId)
             return yield* Effect.fail(new WalkInEntryNotFound({ entryId }))
           if (!transitions[entry.status].includes(to))
@@ -639,13 +735,43 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
               new WalkInTransitionRejected({ entryId, from: entry.status, to })
             )
           return {
-            entry: yield* findQueueEntry(entryId),
+            entry: yield* findQueueEntry(shopId, entryId),
             notificationIntent: {
               id: intentId,
               topic: `walk-in.${to}`,
               sourceId: entryId
             }
           }
+        }),
+      expireAcknowledgments: (at) =>
+        Effect.gen(function* () {
+          const due = yield* orUnavailable('walk-ins')(
+            db
+              .select({ shopId: walkInEntries.shopId, entryId: walkInEntries.id })
+              .from(walkInEntries)
+              .innerJoin(
+                protectedAccessGrants,
+                and(
+                  eq(protectedAccessGrants.resourceType, 'walk-in-entry'),
+                  eq(protectedAccessGrants.resourceId, walkInEntries.id),
+                  eq(protectedAccessGrants.shopId, walkInEntries.shopId)
+                )
+              )
+              .where(
+                and(
+                  inArray(walkInEntries.status, ['waiting', 'called']),
+                  eq(protectedAccessGrants.purpose, 'walk-in-acknowledgment'),
+                  sql`${protectedAccessGrants.expiresAt} <= ${at}`
+                )
+              )
+          )
+          const expired = yield* Effect.forEach(
+            due,
+            ({ shopId, entryId }) =>
+              service.transition({ shopId, entryId, to: 'expired' }),
+            { concurrency: 1 }
+          )
+          return expired.map((result) => result.entry)
         })
     }
     return service

@@ -265,6 +265,7 @@ export const providers = sqliteTable(
     bookingAccess: text('booking_access', { enum: providerBookingAccess })
       .default('public')
       .notNull(),
+    bookingAccessVerifierHash: text('booking_access_verifier_hash'),
     bookingConfigJson: text('booking_config_json', { mode: 'json' }).$type<
       Record<string, unknown>
     >(),
@@ -1490,4 +1491,93 @@ export const scheduledWork = sqliteTable(
     updatedAt: isoUpdatedAt()
   },
   (table) => [index('scheduled_work_status_run_at_idx').on(table.status, table.runAt)]
+)
+
+/** Platform-wide verified customer identities; separate from Merchant authority. */
+export const customerIdentities = sqliteTable(
+  'customer_identities',
+  {
+    id: id(),
+    provider: text('provider', { enum: ['google', 'apple'] }).notNull(),
+    providerSubject: text('provider_subject').notNull(),
+    email: text('email').notNull(),
+    displayName: text('display_name'),
+    verifiedAt: text('verified_at').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('customer_identities_provider_subject_unique').on(
+      table.provider,
+      table.providerSubject
+    )
+  ]
+)
+
+export const customerAccountSessions = sqliteTable(
+  'customer_account_sessions',
+  {
+    id: id(),
+    customerAccountId: text('customer_account_id')
+      .notNull()
+      .references(() => customerIdentities.id, { onDelete: 'cascade' }),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('customer_account_sessions_account_idx').on(table.customerAccountId)
+  ]
+)
+
+export const customerBookingAssociations = sqliteTable(
+  'customer_booking_associations',
+  {
+    bookingPartyId: text('booking_party_id')
+      .primaryKey()
+      .references(() => bookingParties.id, { onDelete: 'cascade' }),
+    customerAccountId: text('customer_account_id')
+      .notNull()
+      .references(() => customerIdentities.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    confirmationRouteId: text('confirmation_route_id').notNull(),
+    customerDetailsJson: text('customer_details_json', { mode: 'json' })
+      .$type<{
+        readonly name: string
+        readonly email: string
+        readonly phone: string | null
+      }>()
+      .notNull(),
+    associatedAt: text('associated_at').notNull()
+  },
+  (table) => [
+    index('customer_booking_associations_owner_idx').on(
+      table.customerAccountId,
+      table.merchantId
+    )
+  ]
+)
+
+export const providerAccessProofs = sqliteTable(
+  'provider_access_proofs',
+  {
+    id: id(),
+    bookingSessionId: text('booking_session_id')
+      .notNull()
+      .references(() => bookingSessions.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => providers.id, { onDelete: 'cascade' }),
+    proofHash: text('proof_hash').unique().notNull(),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('provider_access_proofs_scope_idx').on(
+      table.bookingSessionId,
+      table.providerId,
+      table.expiresAt
+    )
+  ]
 )

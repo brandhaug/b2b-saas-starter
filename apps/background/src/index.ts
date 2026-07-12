@@ -10,6 +10,8 @@ import {
 } from '@b2b-saas-starter/email'
 import { WideEventLoggerLive, withTriggerScope } from '@b2b-saas-starter/logger'
 import { processBookingOutbox, recoverBookingOutbox } from './booking-notifications.ts'
+import { WaitingList } from '@b2b-saas-starter/capabilities/waiting-list'
+import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
 
 type Env = {
   readonly DB: D1Database
@@ -98,13 +100,23 @@ const recoverBookingNotificationOutbox = (now: string, env: Env) =>
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    const now = new Date(event.scheduledTime).toISOString()
+    const capabilityLayer = selectCapabilitiesLayer(capabilitiesEnv(env))
     await runtime.runPromise(
       withTriggerScope(
         { service: 'background', event: 'booking_recovery', env },
-        recoverBookingNotificationOutbox(
-          new Date(event.scheduledTime).toISOString(),
-          env
-        )
+        Effect.all(
+          [
+            recoverBookingNotificationOutbox(now, env),
+            Effect.flatMap(WaitingList, (waitingList) => waitingList.expire(now)).pipe(
+              Effect.provide(capabilityLayer)
+            ),
+            Effect.flatMap(WalkIns, (walkIns) =>
+              walkIns.expireAcknowledgments(now)
+            ).pipe(Effect.provide(capabilityLayer))
+          ],
+          { concurrency: 3 }
+        ).pipe(Effect.asVoid)
       )
     )
   },

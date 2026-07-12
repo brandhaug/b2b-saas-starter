@@ -286,9 +286,19 @@ export type BookingSessionHttpDependencies = {
     readonly chooseProvider: (
       session: BookingSession,
       preference: ProviderPreference,
-      expectedVersion: number
+      expectedVersion: number,
+      providerProof?: string
     ) => BookingSessionEffect<
       BookingJourney,
+      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
+    >
+    readonly verifyProviderAccess?: (
+      session: BookingSession,
+      providerId: string,
+      passcode: string,
+      now: string
+    ) => BookingSessionEffect<
+      { readonly proof: string; readonly expiresAt: string },
       BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
     >
     readonly chooseShop?: (
@@ -1065,12 +1075,19 @@ export const handleBookingSessionRequest = (
           ? providerPreferenceFrom((body as Record<string, unknown>).preference)
           : null
       const version = versionFrom(body)
+      const providerProof =
+        typeof body === 'object' &&
+        body !== null &&
+        typeof (body as Record<string, unknown>).providerProof === 'string'
+          ? String((body as Record<string, unknown>).providerProof)
+          : undefined
       if (!preference || !version) return hiddenNotFound()
       const result = yield* Effect.result(
         dependencies.selection.chooseProvider(
           authorization.success,
           preference,
-          version
+          version,
+          providerProof
         )
       )
       if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
@@ -1088,6 +1105,25 @@ export const handleBookingSessionRequest = (
       }
       return result._tag === 'Success'
         ? jsonJourney(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'provider-access' && request.method === 'POST') {
+      if (!dependencies.selection?.verifyProviderAccess) return unavailable()
+      const body = yield* readJson(request)
+      if (typeof body !== 'object' || body === null) return hiddenNotFound()
+      const record = body as Record<string, unknown>
+      if (typeof record.providerId !== 'string' || typeof record.passcode !== 'string')
+        return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.selection.verifyProviderAccess(
+          authorization.success,
+          record.providerId,
+          record.passcode,
+          now
+        )
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
     }
     if (endpoint === 'shop' && request.method === 'POST') {

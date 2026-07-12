@@ -1,5 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { WalkInQueueEntry } from '@b2b-saas-starter/capabilities/walk-ins'
+import type {
+  WalkInOverview,
+  WalkInQueueEntry
+} from '@b2b-saas-starter/capabilities/walk-ins'
 import type { BookingLocale } from '../localization/booking-localization.ts'
 import {
   BookingStack,
@@ -7,6 +10,97 @@ import {
   BookingText,
   BookingViewport
 } from '../presentation/booking-primitives.tsx'
+
+const copy = {
+  en: {
+    title: 'Walk in today',
+    statusTitle: 'Your walk-in status',
+    closed: 'Walk-ins are closed right now.',
+    empty: 'No one is waiting right now.',
+    any: 'Any professional',
+    service: 'Service',
+    provider: 'Professional',
+    name: 'Name',
+    email: 'Email',
+    phone: 'Phone',
+    join: 'Join the queue',
+    joining: 'Joining…',
+    unavailable: 'Walk-ins are unavailable right now.',
+    duplicate: 'You are already in this queue.',
+    failed: 'We could not add you to the queue.',
+    loading: 'Loading your private queue status…',
+    position: 'Position',
+    wait: 'Estimated wait',
+    minutes: 'minutes',
+    queue: 'People currently waiting'
+  },
+  es: {
+    title: 'Atención sin cita',
+    statusTitle: 'Tu estado en la cola',
+    closed: 'La atención sin cita está cerrada ahora.',
+    empty: 'No hay nadie esperando ahora.',
+    any: 'Cualquier profesional',
+    service: 'Servicio',
+    provider: 'Profesional',
+    name: 'Nombre',
+    email: 'Correo',
+    phone: 'Teléfono',
+    join: 'Unirme a la cola',
+    joining: 'Inscribiendo…',
+    unavailable: 'La cola no está disponible ahora.',
+    duplicate: 'Ya estás en esta cola.',
+    failed: 'No pudimos añadirte a la cola.',
+    loading: 'Cargando tu estado privado…',
+    position: 'Posición',
+    wait: 'Espera estimada',
+    minutes: 'minutos',
+    queue: 'Personas esperando'
+  },
+  fr: {
+    title: 'Venir sans rendez-vous',
+    statusTitle: 'Votre statut dans la file',
+    closed: 'Les inscriptions sont fermées pour le moment.',
+    empty: "Personne n'attend pour le moment.",
+    any: "N'importe quel professionnel",
+    service: 'Service',
+    provider: 'Professionnel',
+    name: 'Nom',
+    email: 'E-mail',
+    phone: 'Téléphone',
+    join: 'Rejoindre la file',
+    joining: 'Inscription…',
+    unavailable: "La file n'est pas disponible.",
+    duplicate: 'Vous êtes déjà dans cette file.',
+    failed: 'Impossible de vous ajouter à la file.',
+    loading: 'Chargement de votre statut privé…',
+    position: 'Position',
+    wait: 'Attente estimée',
+    minutes: 'minutes',
+    queue: 'Personnes en attente'
+  },
+  ro: {
+    title: 'Programări fără rezervare',
+    statusTitle: 'Starea ta în coadă',
+    closed: 'Înscrierile sunt închise momentan.',
+    empty: 'Nu așteaptă nimeni momentan.',
+    any: 'Orice profesionist',
+    service: 'Serviciu',
+    provider: 'Profesionist',
+    name: 'Nume',
+    email: 'E-mail',
+    phone: 'Telefon',
+    join: 'Intră în coadă',
+    joining: 'Înscriere…',
+    unavailable: 'Înscrierile nu sunt disponibile momentan.',
+    duplicate: 'Ești deja în această coadă.',
+    failed: 'Nu te-am putut adăuga în coadă.',
+    loading: 'Se încarcă starea privată…',
+    position: 'Poziție',
+    wait: 'Timp estimat',
+    minutes: 'minute',
+    queue: 'Persoane care așteaptă'
+  }
+} as const
 
 export function WalkInRouteFlow({
   pathname,
@@ -17,32 +111,47 @@ export function WalkInRouteFlow({
   locale: BookingLocale
   acknowledgment: boolean
 }) {
-  const [queue, setQueue] = useState<readonly WalkInQueueEntry[] | null>(null)
+  const message = copy[locale]
+  const [overview, setOverview] = useState<WalkInOverview | null>(null)
+  const [current, setCurrent] = useState<WalkInQueueEntry | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   useEffect(() => {
-    void fetch(pathname, { headers: { accept: 'application/json' } })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('unavailable')
-        const value = await response.json()
-        setQueue(
-          acknowledgment ? [value as WalkInQueueEntry] : (value as WalkInQueueEntry[])
-        )
+    let active = true
+    const load = () =>
+      void fetch(pathname, {
+        headers: { accept: 'application/json' },
+        credentials: 'same-origin'
       })
-      .catch(() => setError('Walk-ins are unavailable right now.'))
-  }, [acknowledgment, pathname])
+        .then(async (response) => {
+          if (!response.ok) throw new Error('unavailable')
+          const value = await response.json()
+          if (!active) return
+          if (acknowledgment) setCurrent(value as WalkInQueueEntry)
+          else setOverview(value as WalkInOverview)
+        })
+        .catch(() => active && setError(message.unavailable))
+    load()
+    const timer = acknowledgment ? window.setInterval(load, 15_000) : undefined
+    return () => {
+      active = false
+      if (timer !== undefined) window.clearInterval(timer)
+    }
+  }, [acknowledgment, message.unavailable, pathname])
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitting(true)
     setError(null)
     const data = new FormData(event.currentTarget)
+    const providerId = String(data.get('providerId'))
     const response = await fetch(pathname, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         serviceId: data.get('serviceId'),
-        providerPreference: { kind: 'any' },
+        providerPreference:
+          providerId === 'any' ? { kind: 'any' } : { kind: 'specific', providerId },
         customerDetails: {
           name: data.get('name'),
           email: data.get('email'),
@@ -56,49 +165,90 @@ export function WalkInRouteFlow({
     else {
       setError(
         result.error === 'walk_in_duplicate'
-          ? 'You are already in this queue.'
+          ? message.duplicate
           : result.error === 'walk_ins_closed'
-            ? 'Walk-ins are closed right now.'
-            : 'We could not add you to the queue.'
+            ? message.closed
+            : message.failed
       )
       setSubmitting(false)
     }
   }
-  const current = queue?.[0]
   return (
     <BookingViewport>
       <BookingStack>
         <BookingSurface>
           <BookingText variant="largeTitle">
-            {acknowledgment ? 'Your walk-in status' : 'Walk in today'}
+            {acknowledgment ? message.statusTitle : message.title}
           </BookingText>
           {error ? <p role="alert">{error}</p> : null}
-          {acknowledgment && current ? (
-            <div aria-live="polite">
-              <p>Status: {current.status}</p>
-              <p>Position: {current.position}</p>
-              <p>Estimated wait: {current.projectedWaitMinutes} minutes</p>
-            </div>
-          ) : acknowledgment ? (
-            <p>Loading your private queue status…</p>
+          {acknowledgment ? (
+            current ? (
+              <div aria-live="polite">
+                <p>{current.status}</p>
+                <p>
+                  {message.position}: {current.position}
+                </p>
+                <p>
+                  {message.wait}: {current.projectedWaitMinutes} {message.minutes}
+                </p>
+              </div>
+            ) : (
+              <p>{message.loading}</p>
+            )
+          ) : overview ? (
+            <>
+              {overview.state === 'closed' ? (
+                <p>{message.closed}</p>
+              ) : overview.services.length === 0 ? (
+                <p>{message.unavailable}</p>
+              ) : (
+                <form onSubmit={submit}>
+                  <label>
+                    {message.service}
+                    <select name="serviceId" required>
+                      {overview.services.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {message.provider}
+                    <select name="providerId">
+                      <option value="any">{message.any}</option>
+                      {overview.providers.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    {message.name}
+                    <input name="name" autoComplete="name" required />
+                  </label>
+                  <label>
+                    {message.email}
+                    <input name="email" type="email" autoComplete="email" required />
+                  </label>
+                  <label>
+                    {message.phone}
+                    <input name="phone" type="tel" autoComplete="tel" required />
+                  </label>
+                  <button disabled={submitting} type="submit">
+                    {submitting ? message.joining : message.join}
+                  </button>
+                </form>
+              )}
+              <p>
+                {overview.queue.length === 0
+                  ? message.empty
+                  : `${message.queue}: ${overview.queue.length}`}
+              </p>
+            </>
           ) : (
-            <form onSubmit={submit}>
-              <label>
-                Service ID <input name="serviceId" required />
-              </label>
-              <label>
-                Name <input name="name" autoComplete="name" required />
-              </label>
-              <label>
-                Email <input name="email" type="email" autoComplete="email" required />
-              </label>
-              <label>
-                Phone <input name="phone" type="tel" autoComplete="tel" required />
-              </label>
-              <button disabled={submitting} type="submit">
-                {submitting ? 'Joining…' : 'Join the queue'}
-              </button>
-            </form>
+            <p>{message.loading}</p>
           )}
         </BookingSurface>
       </BookingStack>

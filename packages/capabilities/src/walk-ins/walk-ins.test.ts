@@ -44,6 +44,21 @@ const layer = () =>
   })
 
 describe('Walk-ins', () => {
+  it('exposes configured enrollment options and an explicit empty queue', async () => {
+    const overview = await Effect.runPromise(
+      Effect.flatMap(WalkIns, (walkIns) => walkIns.overview('shp_downtown')).pipe(
+        Effect.provide(layer())
+      )
+    )
+
+    expect(overview).toEqual({
+      state: 'open',
+      services: [{ id: 'svc_cut', name: 'svc_cut' }],
+      providers: [{ id: 'prv_ana', name: 'prv_ana' }],
+      queue: []
+    })
+  })
+
   it('enrolls once and derives position and wait from ordered active entries', async () => {
     const runtime = layer()
     const first = await Effect.runPromise(
@@ -111,5 +126,38 @@ describe('Walk-ins', () => {
       _tag: 'Failure',
       failure: { _tag: 'WalkInEntryNotFound' }
     })
+  })
+
+  it('supports every terminal lifecycle without re-entering the queue', async () => {
+    const runtime = layer()
+    const serve = await Effect.runPromise(
+      enroll('+40733333333').pipe(Effect.provide(runtime))
+    )
+    const remove = await Effect.runPromise(
+      enroll('+40744444444').pipe(Effect.provide(runtime))
+    )
+    const expire = await Effect.runPromise(
+      enroll('+40755555555').pipe(Effect.provide(runtime))
+    )
+    const move = (
+      entryId: string,
+      to: 'called' | 'serving' | 'served' | 'removed' | 'expired'
+    ) =>
+      Effect.runPromise(
+        Effect.flatMap(WalkIns, (walkIns) =>
+          walkIns.transition({ shopId: 'shp_downtown', entryId, to })
+        ).pipe(Effect.provide(runtime))
+      )
+    await move(serve.entry.id, 'called')
+    await move(serve.entry.id, 'serving')
+    expect((await move(serve.entry.id, 'served')).entry.status).toBe('served')
+    expect((await move(remove.entry.id, 'removed')).entry.status).toBe('removed')
+    expect((await move(expire.entry.id, 'expired')).entry.status).toBe('expired')
+    const queue = await Effect.runPromise(
+      Effect.flatMap(WalkIns, (walkIns) => walkIns.queue('shp_downtown')).pipe(
+        Effect.provide(runtime)
+      )
+    )
+    expect(queue).toEqual([])
   })
 })

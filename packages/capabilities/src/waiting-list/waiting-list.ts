@@ -1,5 +1,6 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { CapabilityUnavailable } from '../errors.ts'
+import { hashSha256 } from '../internal/crypto.ts'
 
 export const WaitingListStatus = Schema.Literals([
   'active',
@@ -30,6 +31,8 @@ export const WaitingListCustomer = Schema.Struct({
   phone: Schema.optional(Schema.String)
 })
 export const OfferedSlot = Schema.Struct({
+  shopId: Schema.String,
+  serviceIds: Schema.Array(Schema.String),
   providerId: Schema.String,
   startsAt: Schema.String,
   endsAt: Schema.String
@@ -46,6 +49,8 @@ export const deriveOfferCandidates = (
   [...slots]
     .filter(
       (slot) =>
+        slot.shopId.length > 0 &&
+        request.serviceIds.every((serviceId) => slot.serviceIds.includes(serviceId)) &&
         slot.startsAt >= request.from &&
         slot.endsAt <= request.until &&
         (request.providerPreference.kind === 'any' ||
@@ -83,7 +88,8 @@ export class WaitingListInvalid extends Schema.TaggedErrorClass<WaitingListInval
     reason: Schema.Literals([
       'invalid_date_window',
       'services_required',
-      'application_inactive'
+      'application_inactive',
+      'candidate_ineligible'
     ])
   }
 ) {}
@@ -118,6 +124,18 @@ export class OfferBooking extends Context.Service<
   }
 >()('@b2b-saas-starter/capabilities/OfferBooking') {}
 
+export const SeedOfferBooking: Layer.Layer<OfferBooking> = Layer.succeed(OfferBooking)({
+  createSessionWithHold: () => {
+    const suffix = crypto.randomUUID().replaceAll('-', '')
+    return Effect.succeed({
+      bookingSessionId: `bsn_${suffix}`,
+      timeSlotHoldId: `hld_${suffix}`,
+      routeId: `brt_${suffix}`,
+      capability: suffix
+    })
+  }
+})
+
 type WaitingListError =
   | WaitingListInvalid
   | WaitingListApplicationUnavailable
@@ -127,7 +145,9 @@ type WaitingListError =
 export type WaitingListShape = {
   readonly apply: (input: {
     id: string
+    merchantSlug: string
     shopId: string
+    capability: string
     request: WaitingListRequest
     customer: WaitingListCustomer
     now: string
@@ -138,10 +158,19 @@ export type WaitingListShape = {
   >
   readonly withdraw: (
     applicationId: string,
+    capability: string,
     now: string
   ) => Effect.Effect<
     WaitingListApplicationRecord,
     WaitingListInvalid | WaitingListApplicationUnavailable | CapabilityUnavailable
+  >
+  readonly inspectApplication: (
+    applicationId: string,
+    capability: string,
+    now: string
+  ) => Effect.Effect<
+    WaitingListApplicationRecord,
+    WaitingListApplicationUnavailable | CapabilityUnavailable
   >
   readonly offer: (input: {
     id: string
@@ -156,6 +185,15 @@ export type WaitingListShape = {
     capability: string,
     now: string
   ) => Effect.Effect<
+    AvailabilityOffer,
+    AvailabilityOfferUnavailable | CapabilityUnavailable
+  >
+  readonly exchangeOfferAccess: (input: {
+    offerId: string
+    presentedCapability: string
+    cookieCapability: string
+    now: string
+  }) => Effect.Effect<
     AvailabilityOffer,
     AvailabilityOfferUnavailable | CapabilityUnavailable
   >
@@ -185,10 +223,12 @@ export class WaitingList extends Context.Service<WaitingList, WaitingListShape>(
 
 export type SeedWaitingListStore = {
   readonly applications: Map<string, WaitingListApplicationRecord>
-  readonly offers: Map<string, AvailabilityOffer & { capability: string }>
+  readonly applicationCapabilityHashes: Map<string, string>
+  readonly offers: Map<string, AvailabilityOffer & { capabilityHash: string }>
 }
 export const emptySeedWaitingListStore = (): SeedWaitingListStore => ({
   applications: new Map(),
+  applicationCapabilityHashes: new Map(),
   offers: new Map()
 })
 const unavailable = () =>
@@ -203,12 +243,30 @@ export const SeedWaitingList = (
     WaitingList,
     Effect.gen(function* () {
       const booking = yield* OfferBooking
-      const authorize = (offerId: string, capability: string, now: string) => {
-        const offer = store.offers.get(offerId)
-        return offer && offer.capability === capability && activeAt(offer, now)
-          ? offer
-          : null
-      }
+      const authorize = (offerId: string, capability: string, now: string) =>
+        Effect.gen(function* () {
+          const offer = store.offers.get(offerId)
+          const capabilityHash = yield* Effect.promise(() => hashSha256(capability))
+          return offer &&
+            offer.capabilityHash === capabilityHash &&
+            activeAt(offer, now)
+            ? offer
+            : null
+        })
+      const authorizeApplication = (
+        applicationId: string,
+        capability: string,
+        now: string
+      ) =>
+        Effect.gen(function* () {
+          const application = store.applications.get(applicationId)
+          const capabilityHash = yield* Effect.promise(() => hashSha256(capability))
+          return application &&
+            application.expiresAt > now &&
+            store.applicationCapabilityHashes.get(applicationId) === capabilityHash
+            ? application
+            : null
+        })
       return {
         apply: (input) =>
           Effect.gen(function* () {
@@ -219,19 +277,27 @@ export const SeedWaitingList = (
               input.expiresAt <= input.now
             )
               return yield* new WaitingListInvalid({ reason: 'invalid_date_window' })
-            const { now, ...values } = input
+            const { now, merchantSlug: _merchantSlug, capability, ...values } = input
             const application: WaitingListApplicationRecord = {
               ...values,
               createdAt: now,
               status: 'active'
             }
             store.applications.set(application.id, application)
+            store.applicationCapabilityHashes.set(
+              application.id,
+              yield* Effect.promise(() => hashSha256(capability))
+            )
             return application
           }),
-        withdraw: (applicationId, now) =>
+        withdraw: (applicationId, capability, now) =>
           Effect.gen(function* () {
             const application = store.applications.get(applicationId)
-            if (!application)
+            const capabilityHash = yield* Effect.promise(() => hashSha256(capability))
+            if (
+              !application ||
+              store.applicationCapabilityHashes.get(applicationId) !== capabilityHash
+            )
               return yield* new WaitingListApplicationUnavailable({ applicationId })
             if (application.status !== 'active')
               return yield* new WaitingListInvalid({ reason: 'application_inactive' })
@@ -246,6 +312,14 @@ export const SeedWaitingList = (
                 })
             return withdrawn
           }),
+        inspectApplication: (applicationId, capability, now) =>
+          Effect.flatMap(
+            authorizeApplication(applicationId, capability, now),
+            (application) =>
+              application
+                ? Effect.succeed(application)
+                : Effect.fail(new WaitingListApplicationUnavailable({ applicationId }))
+          ),
         offer: (input) =>
           Effect.gen(function* () {
             const application = store.applications.get(input.applicationId)
@@ -255,6 +329,8 @@ export const SeedWaitingList = (
               })
             if (application.status !== 'active' || application.expiresAt <= input.now)
               return yield* new WaitingListInvalid({ reason: 'application_inactive' })
+            const existing = store.offers.get(input.id)
+            if (existing?.applicationId === input.applicationId) return existing
             for (const offer of store.offers.values())
               if (
                 offer.applicationId === input.applicationId &&
@@ -263,9 +339,10 @@ export const SeedWaitingList = (
                 return yield* new PendingOfferExists({
                   applicationId: input.applicationId
                 })
-            const { now, ...values } = input
-            const offer: AvailabilityOffer & { capability: string } = {
+            const { now, capability, ...values } = input
+            const offer: AvailabilityOffer & { capabilityHash: string } = {
               ...values,
+              capabilityHash: yield* Effect.promise(() => hashSha256(capability)),
               createdAt: now,
               status: 'pending',
               respondedAt: null,
@@ -274,13 +351,29 @@ export const SeedWaitingList = (
             store.offers.set(input.id, offer)
             return offer
           }),
-        inspectOffer: (id, capability, now) => {
-          const offer = authorize(id, capability, now)
-          return offer ? Effect.succeed(offer) : Effect.fail(unavailable())
-        },
+        inspectOffer: (id, capability, now) =>
+          Effect.flatMap(authorize(id, capability, now), (offer) =>
+            offer ? Effect.succeed(offer) : Effect.fail(unavailable())
+          ),
+        exchangeOfferAccess: (input) =>
+          Effect.gen(function* () {
+            const offer = yield* authorize(
+              input.offerId,
+              input.presentedCapability,
+              input.now
+            )
+            if (!offer) return yield* unavailable()
+            store.offers.set(input.offerId, {
+              ...offer,
+              capabilityHash: yield* Effect.promise(() =>
+                hashSha256(input.cookieCapability)
+              )
+            })
+            return offer
+          }),
         declineOffer: (id, capability, now) =>
           Effect.gen(function* () {
-            const offer = authorize(id, capability, now)
+            const offer = yield* authorize(id, capability, now)
             if (!offer) return yield* unavailable()
             const declined = { ...offer, status: 'declined' as const, respondedAt: now }
             store.offers.set(id, declined)
@@ -288,16 +381,23 @@ export const SeedWaitingList = (
           }),
         acceptOffer: (id, capability, now) =>
           Effect.gen(function* () {
-            const offer = authorize(id, capability, now)
+            const offer = yield* authorize(id, capability, now)
             if (!offer) return yield* unavailable()
             const application = store.applications.get(offer.applicationId)
             if (!application || application.status !== 'active')
               return yield* unavailable()
-            const result = yield* booking.createSessionWithHold({
-              application,
-              offer,
-              now
+            // Claim before yielding to the booking port so concurrent accepts cannot
+            // both create a session. Roll back the claim if booking fails.
+            store.offers.set(id, {
+              ...offer,
+              status: 'accepted',
+              respondedAt: now
             })
+            const result = yield* booking
+              .createSessionWithHold({ application, offer, now })
+              .pipe(
+                Effect.tapError(() => Effect.sync(() => store.offers.set(id, offer)))
+              )
             store.offers.set(id, {
               ...offer,
               status: 'accepted',
@@ -322,6 +422,15 @@ export const SeedWaitingList = (
             for (const [id, application] of store.applications)
               if (application.status === 'active' && application.expiresAt <= now) {
                 store.applications.set(id, { ...application, status: 'expired' })
+                for (const [offerId, offer] of store.offers)
+                  if (offer.applicationId === id && offer.status === 'pending') {
+                    store.offers.set(offerId, {
+                      ...offer,
+                      status: 'superseded',
+                      respondedAt: now
+                    })
+                    offers++
+                  }
                 applications++
               }
             return { applications, offers }

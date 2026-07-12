@@ -144,3 +144,49 @@ export function createMerchantAuth(options: CreateMerchantAuthOptions) {
 }
 
 export type MerchantAuth = ReturnType<typeof createMerchantAuth>
+
+export type CreateCustomerAuthOptions = {
+  readonly db: Database
+  readonly secret: string
+  readonly baseURL: string
+  readonly trustedOrigins?: string[]
+  readonly production: boolean
+  readonly google?: { readonly clientId: string; readonly clientSecret: string }
+  readonly apple?: { readonly clientId: string; readonly clientSecret: string }
+}
+
+/**
+ * Customer authentication is optional and is never a Merchant authorization
+ * source. Its distinct cookie prefix prevents Merchant App sessions from being
+ * presented as customer sessions even though Better Auth shares D1 storage.
+ */
+export function createCustomerAuth(options: CreateCustomerAuthOptions) {
+  return betterAuth({
+    appName: 'Booking Customer',
+    secret: options.secret,
+    baseURL: options.baseURL,
+    trustedOrigins: options.trustedOrigins,
+    database: drizzleAdapter(options.db, { provider: 'sqlite', schema }),
+    advanced: {
+      cookiePrefix: 'booking_customer',
+      useSecureCookies: options.production,
+      defaultCookieAttributes: {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: options.production
+      }
+    },
+    session: {
+      expiresIn: day * 30,
+      updateAge: day,
+      cookieCache: { enabled: false }
+    },
+    emailAndPassword: { enabled: false },
+    socialProviders: {
+      ...(options.google ? { google: options.google } : {}),
+      ...(options.apple ? { apple: options.apple } : {})
+    }
+  })
+}
+
+export type CustomerAuth = ReturnType<typeof createCustomerAuth>

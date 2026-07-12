@@ -2,12 +2,13 @@ import { Schema } from 'effect'
 import {
   WalkInEnrollment,
   type WalkInAcknowledgment,
+  type WalkInOverview,
   type WalkInQueueEntry
 } from '@b2b-saas-starter/capabilities/walk-ins'
 
 type Dependencies = {
   readonly resolveShop: (slug: string) => Promise<{ readonly id: string }>
-  readonly queue: (shopId: string) => Promise<readonly WalkInQueueEntry[]>
+  readonly overview: (shopId: string) => Promise<WalkInOverview>
   readonly enroll: (
     input: typeof WalkInEnrollment.Type
   ) => Promise<WalkInAcknowledgment>
@@ -61,7 +62,7 @@ export const handleWalkInRequest = async (
       if (!capability) return json({ error: 'walk_in_not_found' }, 404)
       return json(await dependencies.inspect({ shopId: shop.id, entryId, capability }))
     }
-    if (request.method === 'GET') return json(await dependencies.queue(shop.id))
+    if (request.method === 'GET') return json(await dependencies.overview(shop.id))
     if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
     const unknownBody = await request.json()
     const body = Schema.decodeUnknownSync(WalkInEnrollment)({

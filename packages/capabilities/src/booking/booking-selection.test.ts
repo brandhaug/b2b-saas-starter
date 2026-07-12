@@ -1,5 +1,6 @@
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { hashSha256 } from '../internal/crypto.ts'
 import type { BookingSession } from './booking-sessions.ts'
 import {
   BookingSelection,
@@ -424,6 +425,53 @@ describe('Booking Selection', () => {
       primaryServiceId: null,
       additionalServiceIds: []
     })
+  })
+
+  it('accepts a restricted Provider only with a short-lived proof bound to its Booking Session and Provider', async () => {
+    const { store, run } = fixture()
+    store.providers.set('prv_ava', {
+      ...store.providers.get('prv_ava')!,
+      bookingAccess: 'restricted',
+      bookingAccessVerifierHash: await hashSha256('2468')
+    })
+    const proof = await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.verifyProviderAccess(
+          session,
+          'prv_ava',
+          '2468',
+          new Date().toISOString()
+        )
+      )
+    )
+    const selected = await run(
+      Effect.flatMap(BookingSelection, (selection) =>
+        selection.chooseProvider(
+          session,
+          { kind: 'specific', providerId: 'prv_ava' },
+          1,
+          proof.proof
+        )
+      )
+    )
+    expect(selected.providerPreference).toEqual({
+      kind: 'specific',
+      providerId: 'prv_ava'
+    })
+
+    const wrongSession = { ...session, id: 'bsn_other' }
+    await expect(
+      run(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.chooseProvider(
+            wrongSession,
+            { kind: 'specific', providerId: 'prv_ava' },
+            1,
+            proof.proof
+          )
+        )
+      )
+    ).rejects.toMatchObject({ _tag: 'BookingSelectionRejected' })
   })
 
   it('rejects invalid, private, duplicate, ineligible, and mixed-currency selections without mutation or disclosure', async () => {

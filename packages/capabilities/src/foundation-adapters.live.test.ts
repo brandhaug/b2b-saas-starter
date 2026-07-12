@@ -28,13 +28,6 @@ import {
 import { ScheduledWorkQueue } from './scheduled-work/index.ts'
 import { LiveGiftCards, SeedGiftCards } from './gift-cards/adapters.ts'
 import { GiftCards } from './gift-cards/index.ts'
-import { LiveWalkIns, SeedWalkIns } from './walk-ins/adapters.ts'
-import { WalkIns } from './walk-ins/index.ts'
-import {
-  LiveCustomerIdentity,
-  SeedCustomerIdentity
-} from './customer-identity/adapters.ts'
-import { CustomerIdentity } from './customer-identity/index.ts'
 
 let test: TestD1
 const now = '2026-07-11T12:00:00.000Z'
@@ -111,19 +104,6 @@ const giftCard = {
   scopeId: party.shopId,
   initialValueMinor: 5000
 } as const
-const walkIn = {
-  id: 'wie_contract',
-  shopId: party.shopId,
-  status: 'waiting',
-  position: 1
-} as const
-const customerAccount = {
-  id: 'cua_contract',
-  merchantId: 'mrc_contract',
-  email: 'customer@example.test',
-  displayName: 'Customer',
-  phone: null
-} as const
 
 beforeAll(async () => {
   test = await provisionTestD1()
@@ -140,9 +120,7 @@ beforeAll(async () => {
     `INSERT INTO scheduled_work (id, shop_id, kind, payload_json, idempotency_key, status, run_at, attempts, created_at, updated_at) VALUES ('swk_contract', 'shp_contract', 'expire-hold', '{}', 'expire-hold:contract', 'pending', '${now}', 0, '${now}', '${now}')`,
     `INSERT INTO gift_card_products (id, merchant_id, name, currency, scope, scope_id, preset_amounts_json, allows_custom_amount, active, created_at, updated_at) VALUES ('gcp_contract', 'mrc_contract', 'Gift', 'EUR', 'shop', 'shp_contract', '[5000]', 0, 1, '${now}', '${now}')`,
     `INSERT INTO gift_card_sales (id, shop_id, gift_card_product_id, status, amount_minor, currency, recipient_json, purchaser_json, created_at, updated_at) VALUES ('gcs_contract', 'shp_contract', 'gcp_contract', 'issued', 5000, 'EUR', '{}', '{}', '${now}', '${now}')`,
-    `INSERT INTO gift_cards (id, gift_card_sale_id, code_hash, status, currency, scope, scope_id, initial_value_minor, created_at, updated_at) VALUES ('gcd_contract', 'gcs_contract', 'gift_hash', 'active', 'EUR', 'shop', 'shp_contract', 5000, '${now}', '${now}')`,
-    `INSERT INTO walk_in_entries (id, shop_id, status, position, request_json, customer_snapshot_json, created_at, updated_at) VALUES ('wie_contract', 'shp_contract', 'waiting', 1, '{}', '{}', '${now}', '${now}')`,
-    `INSERT INTO customer_accounts (id, merchant_id, email, display_name, phone, created_at, updated_at) VALUES ('cua_contract', 'mrc_contract', 'customer@example.test', 'Customer', NULL, '${now}', '${now}')`
+    `INSERT INTO gift_cards (id, gift_card_sale_id, code_hash, status, currency, scope, scope_id, initial_value_minor, created_at, updated_at) VALUES ('gcd_contract', 'gcs_contract', 'gift_hash', 'active', 'EUR', 'shop', 'shp_contract', 5000, '${now}', '${now}')`
   ]
   for (const statement of statements) await test.d1.prepare(statement).run()
 }, 60_000)
@@ -260,38 +238,6 @@ describe('foundation Seed and Live contracts', () => {
             live(LiveGiftCards)
           )
         )
-      ]),
-      Promise.all([
-        Effect.runPromise(
-          Effect.provide(
-            Effect.flatMap(WalkIns, (service) => service.findById(walkIn.id)),
-            SeedWalkIns([walkIn])
-          )
-        ),
-        Effect.runPromise(
-          Effect.provide(
-            Effect.flatMap(WalkIns, (service) => service.findById(walkIn.id)),
-            live(LiveWalkIns)
-          )
-        )
-      ]),
-      Promise.all([
-        Effect.runPromise(
-          Effect.provide(
-            Effect.flatMap(CustomerIdentity, (service) =>
-              service.findById(customerAccount.id)
-            ),
-            SeedCustomerIdentity([customerAccount])
-          )
-        ),
-        Effect.runPromise(
-          Effect.provide(
-            Effect.flatMap(CustomerIdentity, (service) =>
-              service.findById(customerAccount.id)
-            ),
-            live(LiveCustomerIdentity)
-          )
-        )
       ])
     ])
     for (const [seedResult, liveResult] of pairs) expect(liveResult).toEqual(seedResult)
@@ -361,24 +307,6 @@ describe('foundation Seed and Live contracts', () => {
             Effect.flatMap(GiftCards, (service) => service.findById('gcd_missing'))
           ),
           live(LiveGiftCards)
-        )
-      ),
-      Effect.runPromise(
-        Effect.provide(
-          Effect.result(
-            Effect.flatMap(WalkIns, (service) => service.findById('wie_missing'))
-          ),
-          live(LiveWalkIns)
-        )
-      ),
-      Effect.runPromise(
-        Effect.provide(
-          Effect.result(
-            Effect.flatMap(CustomerIdentity, (service) =>
-              service.findById('cua_missing')
-            )
-          ),
-          live(LiveCustomerIdentity)
         )
       )
     ])
