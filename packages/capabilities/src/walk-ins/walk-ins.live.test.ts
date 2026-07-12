@@ -152,7 +152,7 @@ describe('Live Walk-ins', () => {
     expect(new Set(first.map(({ position }) => position)).size).toBe(3)
   })
 
-  it('expires due protected acknowledgments deterministically', async () => {
+  it('expires due queue entries independently of protected acknowledgment TTL', async () => {
     const layer = LiveWalkIns.pipe(Layer.provide(layerFromD1(test.d1)))
     const enrolled = await Effect.runPromise(
       Effect.flatMap(WalkIns, (walkIns) =>

@@ -181,7 +181,7 @@ describe('WalkInRouteFlow', () => {
           />
         )
         expect(await screen.findByRole('heading', { name: title })).toBeTruthy()
-        expect(screen.getByRole('button')).toBeTruthy()
+        expect(await screen.findByRole('button')).toBeTruthy()
         view.unmount()
       }
     }
