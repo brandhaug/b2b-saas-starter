@@ -3,6 +3,7 @@ import {
   BookingCheckout,
   BookingConfirmation,
   BookingScheduling,
+  BookingSchedulingRejected,
   BookingSelection,
   BookingSessions,
   CapabilityUnavailable,
@@ -82,6 +83,7 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
       canonical = canonical.replaceAll(sessionId, 'bsn_current')
     }
     canonical = canonical.replaceAll(/brt_[a-f0-9]{32}/g, 'brt_current')
+    canonical = canonical.replaceAll(/hld_[a-z0-9_]+/g, 'hld_current')
     canonical = canonical.replaceAll(
       /trace_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
       'trace_current'
@@ -195,18 +197,48 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
             )
         },
         scheduling: {
-          availability: (session, input) =>
-            Effect.provide(
+          availability: (session, input) => {
+            if (scenario.journey === 'scheduling-loading') return Effect.never
+            if (scenario.journey === 'scheduling-unavailable') {
+              return Effect.fail(
+                new CapabilityUnavailable({
+                  capability: 'booking-scheduling',
+                  reason: 'deterministic_failure'
+                })
+              )
+            }
+            const result = Effect.provide(
               Effect.flatMap(BookingScheduling, (service) =>
                 service.availability(session, input)
               ),
               schedulingLayer
-            ),
-          hold: (session, input) =>
-            Effect.provide(
+            )
+            return scenario.journey === 'scheduling-empty'
+              ? Effect.map(result, (availability) => ({
+                  ...availability,
+                  slots: []
+                }))
+              : result
+          },
+          hold: (session, input) => {
+            if (scenario.journey === 'scheduling-conflict') {
+              return Effect.fail(
+                new BookingSchedulingRejected({
+                  reason: 'slot_lost',
+                  message: 'That time was just booked'
+                })
+              )
+            }
+            return Effect.provide(
               Effect.flatMap(BookingScheduling, (service) =>
                 service.hold(session, input)
               ),
+              schedulingLayer
+            )
+          },
+          release: (session) =>
+            Effect.provide(
+              Effect.flatMap(BookingScheduling, (service) => service.release(session)),
               schedulingLayer
             )
         },

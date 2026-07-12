@@ -329,8 +329,56 @@ accept(
   'PRD.md'
 )
 
+const deliveredSchedulingEntries: Readonly<
+  Record<string, { readonly status: ParityStatus; readonly scenario: string }>
+> = {
+  'route:/book/:shopIdOrRoute/barber/:barberIdOrRoute/schedule': {
+    status: 'verified',
+    scenario: 'booking/scheduling-available'
+  },
+  'state:shop-any-provider': {
+    status: 'verified',
+    scenario: 'booking/scheduling-available'
+  },
+  'state:shop-specific-provider': {
+    status: 'implemented',
+    scenario: 'parity/state/shop-specific-provider'
+  },
+  'state:schedule-loading': {
+    status: 'verified',
+    scenario: 'booking/scheduling-loading'
+  },
+  'state:schedule-empty': {
+    status: 'verified',
+    scenario: 'booking/scheduling-empty'
+  },
+  'state:schedule-selected': {
+    status: 'verified',
+    scenario: 'booking/scheduling-available'
+  },
+  'state:hold-conflict': {
+    status: 'verified',
+    scenario: 'booking/scheduling-conflict'
+  },
+  'state:hold-expired': {
+    status: 'verified',
+    scenario: 'booking/scheduling-expiry-recovery'
+  },
+  'defect:schedule-unresolved-loading': {
+    status: 'verified',
+    scenario: 'booking/scheduling-loading'
+  },
+  'defect:schedule-empty-without-recovery': {
+    status: 'verified',
+    scenario: 'booking/scheduling-empty'
+  }
+}
+
 export const fullParityLedger: ParityLedger = {
   version: 1,
   inventory,
-  entries
+  entries: entries.map((entry) => ({
+    ...entry,
+    ...deliveredSchedulingEntries[entry.inventoryId]
+  }))
 }

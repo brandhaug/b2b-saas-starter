@@ -28,6 +28,12 @@ export type ScenarioManifestInput = {
     | 'deliberate-blank'
     | 'selection-loading'
     | 'selection-error'
+    | 'scheduling-available'
+    | 'scheduling-empty'
+    | 'scheduling-loading'
+    | 'scheduling-unavailable'
+    | 'scheduling-conflict'
+    | 'scheduling-expiry-recovery'
     | 'shell-boundary'
 }
 
@@ -76,6 +82,12 @@ const isValid = (value: unknown): value is ScenarioManifestInput => {
       'deliberate-blank',
       'selection-loading',
       'selection-error',
+      'scheduling-available',
+      'scheduling-empty',
+      'scheduling-loading',
+      'scheduling-unavailable',
+      'scheduling-conflict',
+      'scheduling-expiry-recovery',
       'shell-boundary'
     ].includes(String(value.journey)) &&
     isRecord(fixture) &&

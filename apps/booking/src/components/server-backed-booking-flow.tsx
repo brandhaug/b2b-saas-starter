@@ -34,7 +34,7 @@ export function ServerBackedBookingFlow({
   readonly sessionId: string
   readonly selectionRefreshedMessage?: string
 }) {
-  const { message } = useBookingLocalization()
+  const { locale, message } = useBookingLocalization()
   const queryClient = useQueryClient()
   const [scheduling, setScheduling] = useState(false)
   const [slotLost, setSlotLost] = useState(false)
@@ -140,6 +140,25 @@ export function ServerBackedBookingFlow({
       )
     }
   })
+  const releaseMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`${base}/hold`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' }
+      })
+      if (!response.ok) throw new Error('hold release unavailable')
+    },
+    onSuccess: () => {
+      setCheckout(false)
+      setHoldExpired(false)
+      setSlotLost(false)
+      queryClient.setQueryData<BookingAvailability>(availabilityKey, (current) =>
+        current ? { ...current, hold: null } : current
+      )
+      void queryClient.invalidateQueries({ queryKey: availabilityKey })
+    }
+  })
   const detailsMutation = useMutation({
     mutationFn: async (details: CustomerDetails) => {
       const response = await fetch(`${base}/customer-details`, {
@@ -226,18 +245,18 @@ export function ServerBackedBookingFlow({
   if (!journey.data)
     return (
       <Status
-        title="Preparing your booking"
-        copy="Loading active services and professionals…"
+        title={message('feedback.loading')}
+        copy={message('scheduling.finding_copy')}
       />
     )
   if (scheduling) {
     if (expiredSession) {
       return (
         <Status
-          title="This Booking Session has expired"
-          copy="Start again to choose a new appointment."
+          title={message('status.session_expired')}
+          copy={message('recovery.session_expired_copy')}
           href={`/${encodeURIComponent(merchantSlug)}/booking`}
-          action="Start again"
+          action={message('action.start_again')}
         />
       )
     }
@@ -255,24 +274,26 @@ export function ServerBackedBookingFlow({
     if (availability.isError || holdMutation.isError)
       return (
         <Status
-          title="Times unavailable"
-          copy="Your service choices are still saved. Refresh to try again."
+          title={message('status.times_unavailable')}
+          copy={message('scheduling.unavailable_copy')}
         />
       )
     if (!availability.data)
       return (
         <Status
-          title="Finding available times"
-          copy="Checking professional schedules and current holds…"
+          title={message('scheduling.finding_title')}
+          copy={message('scheduling.finding_copy')}
         />
       )
     return (
       <BookingSchedulingFlow
         availability={availability.data}
-        busy={holdMutation.isPending}
+        busy={holdMutation.isPending || releaseMutation.isPending}
         slotLost={slotLost}
         holdExpired={holdExpired}
+        locale={locale}
         onSelect={(startsAt) => holdMutation.mutate(startsAt)}
+        onRelease={() => releaseMutation.mutate()}
         onCheckout={() => setCheckout(true)}
       />
     )

@@ -235,6 +235,9 @@ export type BookingSessionHttpDependencies = {
       TimeSlotHold,
       BookingSchedulingRejected | CapabilityUnavailable
     >
+    readonly release: (
+      session: BookingSession
+    ) => BookingSessionEffect<void, CapabilityUnavailable>
   }
   readonly checkout?: {
     readonly saveCustomerDetails: (
@@ -890,6 +893,15 @@ export const handleBookingSessionRequest = (
       )
       return result._tag === 'Success'
         ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'hold' && request.method === 'DELETE') {
+      if (!dependencies.scheduling) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.scheduling.release(authorization.success)
+      )
+      return result._tag === 'Success'
+        ? withPrivateHeaders(new Response(null, { status: 204 }))
         : mapSessionFailure(result.failure, merchantSlug)
     }
     if (endpoint === 'customer-details' && request.method === 'POST') {

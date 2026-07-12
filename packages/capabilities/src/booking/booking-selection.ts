@@ -13,7 +13,8 @@ import {
   services,
   shopProviders,
   shops,
-  shopServices
+  shopServices,
+  timeSlotHolds
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -193,6 +194,7 @@ export type SeedBookingSelectionStore = {
   readonly services: Map<string, StoredService>
   readonly eligibility: Set<SeedBookingSelectionEligibilityKey>
   readonly selections: Map<string, StoredSelection>
+  invalidateDependents?: (sessionId: string) => void
 }
 
 declare const eligibilityBrand: unique symbol
@@ -621,6 +623,9 @@ export const SeedBookingSelection = (
           shopId: catalog.shopId
         })
         store.selections.set(session.id, selected)
+        if (JSON.stringify(current) !== JSON.stringify(selected)) {
+          store.invalidateDependents?.(session.id)
+        }
         return journey(catalog, selected, reconciliationFor(current, selected))
       }),
     chooseShop: (session, shopId, expectedVersion) =>
@@ -643,6 +648,7 @@ export const SeedBookingSelection = (
           additionalServiceIds: []
         }
         store.selections.set(session.id, selected)
+        store.invalidateDependents?.(session.id)
         const catalog = yield* seedCatalog(
           store,
           session.merchantSlug,
@@ -684,6 +690,7 @@ export const SeedBookingSelection = (
           additionalServiceIds: []
         }
         store.selections.set(session.id, selected)
+        store.invalidateDependents?.(session.id)
         return journey(catalog, selected)
       }),
     chooseServices: (session, input, expectedVersion) =>
@@ -705,6 +712,7 @@ export const SeedBookingSelection = (
         const selected = yield* validateServices(catalog, current, input)
         const versioned = { ...selected, version: expectedVersion + 1 }
         store.selections.set(session.id, versioned)
+        store.invalidateDependents?.(session.id)
         return journey(catalog, versioned)
       })
   })
@@ -1012,6 +1020,10 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
                   )
                   .toSQL()
               ),
+              db
+                .delete(timeSlotHolds)
+                .where(and(eq(timeSlotHolds.bookingSessionId, sessionId), current))
+                .toSQL(),
               db
                 .update(bookingParties)
                 .set({

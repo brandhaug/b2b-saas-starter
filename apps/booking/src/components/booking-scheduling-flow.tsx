@@ -5,6 +5,11 @@ import type {
   BookingTimeSlot
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
+import {
+  translateBookingMessage,
+  type BookingLocale,
+  type BookingTranslationKey
+} from '../localization/booking-localization.ts'
 import { styles } from './booking-flow.styles.ts'
 
 export function BookingSchedulingFlow({
@@ -12,16 +17,21 @@ export function BookingSchedulingFlow({
   busy,
   slotLost,
   holdExpired = false,
+  locale = 'en',
   onSelect,
+  onRelease,
   onCheckout
 }: {
   readonly availability: BookingAvailability
   readonly busy: boolean
   readonly slotLost: boolean
   readonly holdExpired?: boolean
+  readonly locale?: BookingLocale
   readonly onSelect: (startsAt: string) => void
+  readonly onRelease?: () => void
   readonly onCheckout?: () => void
 }) {
+  const message = (key: BookingTranslationKey) => translateBookingMessage(locale, key)
   const formatters = useMemo(
     () => ({
       date: new Intl.DateTimeFormat('en-CA', {
@@ -30,29 +40,28 @@ export function BookingSchedulingFlow({
         month: '2-digit',
         day: '2-digit'
       }),
-      month: new Intl.DateTimeFormat('en-US', {
+      month: new Intl.DateTimeFormat(locale, {
         timeZone: availability.timezone,
         month: 'long',
         year: 'numeric'
       }),
-      longDate: new Intl.DateTimeFormat('en-US', {
+      longDate: new Intl.DateTimeFormat(locale, {
         timeZone: availability.timezone,
         weekday: 'long',
         month: 'long',
         day: 'numeric'
       }),
-      weekday: new Intl.DateTimeFormat('en-US', {
+      weekday: new Intl.DateTimeFormat(locale, {
         timeZone: availability.timezone,
         weekday: 'short'
       }),
-      time: new Intl.DateTimeFormat('en-GB', {
+      time: new Intl.DateTimeFormat(locale, {
         timeZone: availability.timezone,
         hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
+        minute: '2-digit'
       })
     }),
-    [availability.timezone]
+    [availability.timezone, locale]
   )
   const localDate = (instant: string) => formatters.date.format(new Date(instant))
   const days = useMemo(
@@ -85,7 +94,7 @@ export function BookingSchedulingFlow({
               {...stylex.props(styles.icon16)}
             />
           </span>
-          <h1 {...stylex.props(styles.title)}>Choose your appointment</h1>
+          <h1 {...stylex.props(styles.title)}>{message('scheduling.choose_title')}</h1>
           <button
             type="button"
             aria-label="Booking menu"
@@ -101,10 +110,12 @@ export function BookingSchedulingFlow({
           {slotLost || holdExpired ? (
             <div {...stylex.props(styles.alert)}>
               <p {...stylex.props(styles.alertTitle)}>
-                {holdExpired ? 'Your held time expired' : 'That time was just booked'}
+                {holdExpired
+                  ? message('scheduling.expired_title')
+                  : message('status.slot_lost')}
               </p>
               <p {...stylex.props(styles.alertCopy)}>
-                Your service choices are still saved.
+                {message('scheduling.saved_copy')}
               </p>
             </div>
           ) : null}
@@ -116,7 +127,9 @@ export function BookingSchedulingFlow({
                   {...stylex.props(styles.icon20)}
                 />
               </span>
-              <h2 {...stylex.props(styles.emptyTitle)}>Your time is held</h2>
+              <h2 {...stylex.props(styles.emptyTitle)}>
+                {message('scheduling.held_title')}
+              </h2>
               <p {...stylex.props(styles.emptyCopy)}>
                 {formatters.longDate.format(new Date(availability.hold.quote.startsAt))}{' '}
                 at {formatters.time.format(new Date(availability.hold.quote.startsAt))}
@@ -124,7 +137,7 @@ export function BookingSchedulingFlow({
                 {availability.hold.quote.assignedProvider.displayName}
               </p>
               <p {...stylex.props(styles.selectedTimeFeedback)}>
-                Your frozen quote remains held for checkout.
+                {message('scheduling.held_copy')}
               </p>
             </div>
           ) : availability.slots.length === 0 ? (
@@ -135,9 +148,11 @@ export function BookingSchedulingFlow({
                   {...stylex.props(styles.icon20)}
                 />
               </span>
-              <h2 {...stylex.props(styles.emptyTitle)}>No times in the next 14 days</h2>
+              <h2 {...stylex.props(styles.emptyTitle)}>
+                {message('scheduling.empty_title')}
+              </h2>
               <p {...stylex.props(styles.emptyCopy)}>
-                Your professional and service choices are still saved.
+                {message('scheduling.empty_copy')}
               </p>
             </div>
           ) : (
@@ -156,7 +171,7 @@ export function BookingSchedulingFlow({
                   }}
                   {...stylex.props(styles.textButton)}
                 >
-                  Previous
+                  {message('scheduling.previous')}
                 </button>
                 <button
                   type="button"
@@ -168,7 +183,7 @@ export function BookingSchedulingFlow({
                   }}
                   {...stylex.props(styles.textButton)}
                 >
-                  Next dates
+                  {message('scheduling.next')}
                 </button>
               </div>
               <div {...stylex.props(styles.dateGrid)}>
@@ -219,22 +234,34 @@ export function BookingSchedulingFlow({
               </div>
               {availability.hold ? (
                 <p {...stylex.props(styles.selectedTimeFeedback)}>
-                  Selected with {availability.hold.quote.assignedProvider.displayName} ·
-                  held for checkout
+                  {message('scheduling.selected_with')}{' '}
+                  {availability.hold.quote.assignedProvider.displayName} ·{' '}
+                  {message('scheduling.held_for_checkout')}
                 </p>
               ) : null}
             </>
           )}
           {availability.hold && onCheckout ? (
             <div {...stylex.props(styles.inlineActions)}>
-              <span />
+              {onRelease ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onRelease}
+                  {...stylex.props(styles.textButton)}
+                >
+                  {message('action.release_time')}
+                </button>
+              ) : (
+                <span />
+              )}
               <button
                 type="button"
                 disabled={busy}
                 onClick={onCheckout}
                 {...stylex.props(styles.primaryButton)}
               >
-                Go to checkout
+                {message('action.checkout')}
               </button>
             </div>
           ) : null}

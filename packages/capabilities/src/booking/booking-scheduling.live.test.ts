@@ -491,5 +491,27 @@ describe('Live Booking Scheduling', () => {
       )
     )
     expect(replacement.quote.totalMinor).toBe(5500)
+
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.chooseProvider(
+            anySession,
+            { kind: 'specific', providerId: 'prv_schedule_two' },
+            5
+          )
+        ),
+        selectionLayer
+      )
+    )
+    expect(
+      await run(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.currentHold(anySession, {
+            now: '2026-07-10T09:41:00.000Z'
+          })
+        )
+      )
+    ).toBeNull()
   })
 })

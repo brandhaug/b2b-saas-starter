@@ -42,11 +42,11 @@ describe('Booking scheduling flow', () => {
     )
     expect(screen.getByText('July 2026')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /monday, july 13/i }))
-    fireEvent.click(screen.getByRole('button', { name: '09:00' }))
+    fireEvent.click(screen.getByRole('button', { name: /09:00/ }))
     expect(select).toHaveBeenCalledWith('2026-07-13T09:00:00.000Z')
     fireEvent.click(screen.getByRole('button', { name: 'Next dates' }))
     fireEvent.click(screen.getByRole('button', { name: /monday, july 20/i }))
-    fireEvent.click(screen.getByRole('button', { name: '09:00' }))
+    fireEvent.click(screen.getByRole('button', { name: /09:00/ }))
     expect(select).toHaveBeenLastCalledWith('2026-07-20T09:00:00.000Z')
   })
 
@@ -81,9 +81,21 @@ describe('Booking scheduling flow', () => {
       />
     )
     expect(screen.getByText('Your held time expired')).toBeTruthy()
+
+    rerender(
+      <BookingSchedulingFlow
+        availability={{ ...availability, slots: [] }}
+        busy={false}
+        slotLost={false}
+        locale="ro"
+        onSelect={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Nu sunt intervale în următoarele 14 zile')).toBeTruthy()
   })
 
   it('keeps a valid frozen hold visible when current Availability has no slots', () => {
+    const release = vi.fn()
     render(
       <BookingSchedulingFlow
         availability={{
@@ -118,9 +130,13 @@ describe('Booking scheduling flow', () => {
         busy={false}
         slotLost={false}
         onSelect={vi.fn()}
+        onRelease={release}
+        onCheckout={vi.fn()}
       />
     )
     expect(screen.getByText('Your time is held')).toBeTruthy()
     expect(screen.getByText(/frozen quote remains held/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Choose another time' }))
+    expect(release).toHaveBeenCalledOnce()
   })
 })

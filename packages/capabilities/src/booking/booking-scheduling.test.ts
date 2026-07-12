@@ -70,6 +70,62 @@ const fixture = async () => {
 }
 
 describe('Booking Scheduling', () => {
+  it('property: every offered interval has the selected duration and excludes commitments', async () => {
+    for (const [primaryMinutes, additionalMinutes] of [
+      [15, 15],
+      [30, 45],
+      [45, 60],
+      [60, 30],
+      [75, 15]
+    ] as const) {
+      const { scenario, run } = await fixture()
+      const primary = scenario.services.find(
+        (service) => service.id === 'svc_seed_signature_cut'
+      )!
+      const additional = scenario.services.find(
+        (service) => service.id === 'svc_seed_beard_detail'
+      )!
+      ;(primary as { durationMinutes: number }).durationMinutes = primaryMinutes
+      ;(additional as { durationMinutes: number }).durationMinutes = additionalMinutes
+
+      const availability = await run(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.availability(session('bsn_one'), {
+            from: '2026-07-13T00:00:00.000Z',
+            days: 1,
+            now
+          })
+        )
+      )
+      const expectedDuration = (primaryMinutes + additionalMinutes) * 60_000
+      expect(
+        availability.slots.every(
+          (slot) =>
+            Date.parse(slot.endsAt) - Date.parse(slot.startsAt) === expectedDuration
+        )
+      ).toBe(true)
+      expect(
+        availability.slots.every(
+          (slot) =>
+            !scenario.appointments.some(
+              (appointment) =>
+                appointment.status === 'scheduled' &&
+                slot.startsAt < appointment.endsAt &&
+                slot.endsAt > appointment.startsAt
+            )
+        )
+      ).toBe(true)
+      expect(availability.slots).toEqual(
+        [...availability.slots].sort((left, right) =>
+          left.startsAt.localeCompare(right.startsAt)
+        )
+      )
+      expect(new Set(availability.slots.map((slot) => slot.startsAt)).size).toBe(
+        availability.slots.length
+      )
+    }
+  })
+
   it('derives unpersisted Availability from all Services and excludes Appointments', async () => {
     const { store, run } = await fixture()
     const availability = await run(
@@ -195,5 +251,57 @@ describe('Booking Scheduling', () => {
       )
     )
     expect(afterExpiry.bookingSessionId).toBe('bsn_two')
+  })
+
+  it('releases a hold idempotently and invalidates it after a material selection change', async () => {
+    const { store, run } = await fixture()
+    const bookingSession = session('bsn_one')
+    const startsAt = '2026-07-13T06:00:00.000Z'
+    await run(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.hold(bookingSession, { startsAt, now })
+      )
+    )
+
+    await run(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.release(bookingSession)
+      )
+    )
+    await run(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.release(bookingSession)
+      )
+    )
+    expect(store.holds.size).toBe(0)
+
+    await run(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.hold(bookingSession, { startsAt, now })
+      )
+    )
+    const selectionLayer = SeedBookingSelection(store.selections)
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.chooseServices(
+            bookingSession,
+            {
+              primaryServiceId: 'svc_seed_signature_cut',
+              additionalServiceIds: []
+            },
+            3
+          )
+        ),
+        selectionLayer
+      )
+    )
+
+    const invalidated = await run(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.currentHold(bookingSession, { now })
+      )
+    )
+    expect(invalidated).toBeNull()
   })
 })

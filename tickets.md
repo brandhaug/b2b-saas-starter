@@ -102,12 +102,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Merchant, Brand, Shop, and Catalog Selection.
 
-- [ ] Availability derives from Schedule Rules, service duration, Provider eligibility, Provider preference, existing commitments, and injected time.
-- [ ] Specific Provider and Any Provider choices resolve deterministically and never expose an ineligible Provider.
-- [ ] Hold acquisition is atomic and conflict-free under concurrency.
-- [ ] Expiry, release, replacement, selection invalidation, and stale-state recovery are explicit and clock-driven.
-- [ ] Deliberate legacy blank or loading states remain only where named by the ledger; documented unresolved-loading and empty-state defects are corrected.
-- [ ] Property, concurrency, and journey scenarios cover available, empty, unavailable, loading, conflict, expiry, and recovery behavior.
+- [x] Availability derives from Schedule Rules, service duration, Provider eligibility, Provider preference, existing commitments, and injected time.
+- [x] Specific Provider and Any Provider choices resolve deterministically and never expose an ineligible Provider.
+- [x] Hold acquisition is atomic and conflict-free under concurrency.
+- [x] Expiry, release, replacement, selection invalidation, and stale-state recovery are explicit and clock-driven.
+- [x] Deliberate legacy blank or loading states remain only where named by the ledger; documented unresolved-loading and empty-state defects are corrected.
+- [x] Property, concurrency, and journey scenarios cover available, empty, unavailable, loading, conflict, expiry, and recovery behavior.
 
 ## Deliver Composite Booking Parties and Group Holds
 

@@ -20,7 +20,10 @@ const base = {
     analytics: { track: { status: 'disabled' } }
   },
   network: { allow: ['http://booking.test'] },
-  console: { allow: [] as readonly string[] }
+  console: {
+    // The local booking ingress does not proxy Vite's development-only HMR socket.
+    allow: ["WebSocket connection to 'ws://localhost"] as readonly string[]
+  }
 }
 
 export const smokeScenarios = await Promise.all([
@@ -56,11 +59,65 @@ export const smokeScenarios = await Promise.all([
   defineScenario({
     ...base,
     id: 'booking/deliberate-error',
-    console: { allow: ['503 (Service Unavailable)'] },
+    console: {
+      allow: ['503 (Service Unavailable)', "WebSocket connection to 'ws://localhost"]
+    },
     journey: 'selection-error',
     route: '/mara-booking-studio/booking',
     assertions: ['localized recovery is visible']
   }),
+  ...(
+    [
+      {
+        id: 'booking/scheduling-available',
+        journey: 'scheduling-available',
+        assertions: [
+          'available Time Slots are visible',
+          'a Time Slot can be held and explicitly released'
+        ]
+      },
+      {
+        id: 'booking/scheduling-empty',
+        journey: 'scheduling-empty',
+        assertions: ['empty Availability has explicit recovery']
+      },
+      {
+        id: 'booking/scheduling-loading',
+        journey: 'scheduling-loading',
+        assertions: ['Availability loading is visible']
+      },
+      {
+        id: 'booking/scheduling-unavailable',
+        journey: 'scheduling-unavailable',
+        console: {
+          allow: [
+            '503 (Service Unavailable)',
+            "WebSocket connection to 'ws://localhost"
+          ]
+        },
+        assertions: ['unavailable scheduling has explicit recovery']
+      },
+      {
+        id: 'booking/scheduling-conflict',
+        journey: 'scheduling-conflict',
+        console: {
+          allow: ['409 (Conflict)', "WebSocket connection to 'ws://localhost"]
+        },
+        assertions: ['hold conflict preserves selections and offers recovery']
+      },
+      {
+        id: 'booking/scheduling-expiry-recovery',
+        journey: 'scheduling-expiry-recovery',
+        assertions: ['hold expiry is clock-driven and a replacement can be selected']
+      }
+    ] as const
+  ).map((scenario) =>
+    defineScenario({
+      ...base,
+      ...scenario,
+      route: '/mara-booking-studio/booking'
+    })
+  ),
   defineScenario({
     ...base,
     id: 'booking/canonical-shell-standalone-fr',

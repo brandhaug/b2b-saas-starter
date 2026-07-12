@@ -103,6 +103,9 @@ export type BookingSchedulingShape = {
     session: BookingSession,
     input: { readonly now: string }
   ) => Effect.Effect<TimeSlotHold | null, CapabilityUnavailable>
+  readonly release: (
+    session: BookingSession
+  ) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class BookingScheduling extends Context.Service<
@@ -159,7 +162,15 @@ export type SeedBookingSchedulingStore = {
 export const emptySeedBookingSchedulingStore = (
   scenario: SeedBookingScenario,
   selections: SeedBookingSelectionStore
-): SeedBookingSchedulingStore => ({ scenario, selections, holds: new Map() })
+): SeedBookingSchedulingStore => {
+  const store = { scenario, selections, holds: new Map<string, StoredHold>() }
+  selections.invalidateDependents = (sessionId) => {
+    for (const [holdId, hold] of store.holds) {
+      if (hold.bookingSessionId === sessionId) store.holds.delete(holdId)
+    }
+  }
+  return store
+}
 
 const eligibilityKey = (providerId: string, serviceId: string) =>
   `${providerId}\0${serviceId}`
@@ -379,6 +390,12 @@ export const SeedBookingScheduling = (
   store: SeedBookingSchedulingStore
 ): Layer.Layer<BookingScheduling> =>
   Layer.succeed(BookingScheduling)({
+    release: (session) =>
+      Effect.sync(() => {
+        for (const [holdId, hold] of store.holds) {
+          if (hold.bookingSessionId === session.id) store.holds.delete(holdId)
+        }
+      }),
     currentHold: (session, input) =>
       Effect.succeed(
         [...store.holds.values()].find(
@@ -612,6 +629,12 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
         ).pipe(Effect.map((rows) => (rows[0] ? livePublicHold(rows[0]) : null)))
 
       return {
+        release: (session) =>
+          orUnavailable('booking-scheduling')(
+            db
+              .delete(timeSlotHolds)
+              .where(eq(timeSlotHolds.bookingSessionId, session.id))
+          ).pipe(Effect.asVoid),
         currentHold: (session, input) => currentHold(session, input.now),
         availability: (session, range) =>
           Effect.gen(function* () {

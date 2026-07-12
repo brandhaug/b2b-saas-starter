@@ -715,7 +715,8 @@ describe('Booking Session HTTP boundary', () => {
               reason: 'slot_lost',
               message: 'That time was just booked'
             })
-          )
+          ),
+        release: () => Effect.void
       },
       takeRead: () => Effect.succeed(true),
       takeWrite: () => Effect.succeed(true),
@@ -753,6 +754,22 @@ describe('Booking Session HTTP boundary', () => {
       kind: 'slot_lost',
       message: 'That time was just booked'
     })
+
+    const released = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/hold`, {
+          method: 'DELETE',
+          headers: {
+            ...headers,
+            origin: 'https://www.example.test',
+            'sec-fetch-site': 'same-origin',
+            'content-type': 'application/json'
+          }
+        }),
+        dependencies
+      )
+    )
+    expect(released.status).toBe(204)
   })
 
   it('accepts only Customer Details and returns server-owned Pay In Person review facts', async () => {

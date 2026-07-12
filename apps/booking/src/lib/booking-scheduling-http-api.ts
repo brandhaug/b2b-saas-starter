@@ -48,6 +48,17 @@ export const BookingSchedulingHttpGroup = HttpApiGroup.make('booking-scheduling'
       error: [BookingSchedulingHttpError, CapabilityUnavailable]
     })
   )
+  .add(
+    HttpApiEndpoint.delete(
+      'releaseHold',
+      '/:merchantSlug/booking/session/:sessionId/hold',
+      {
+        params: BookingSchedulingPath,
+        success: Schema.Void.pipe(HttpApiSchema.status(204)),
+        error: CapabilityUnavailable
+      }
+    )
+  )
 
 export const BookingSessionHttpApi = HttpApi.make('booking-session').add(
   BookingSchedulingHttpGroup

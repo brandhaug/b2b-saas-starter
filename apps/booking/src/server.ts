@@ -173,6 +173,13 @@ export default {
                 scheduling.hold(session, input)
               ),
               capabilitiesLayer
+            ),
+          release: (session) =>
+            Effect.provide(
+              Effect.flatMap(BookingScheduling, (scheduling) =>
+                scheduling.release(session)
+              ),
+              capabilitiesLayer
             )
         },
         checkout: {

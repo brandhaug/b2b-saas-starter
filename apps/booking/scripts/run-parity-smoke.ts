@@ -63,6 +63,15 @@ const exerciseHistoryBoundary = async (
   )
 }
 
+const openScheduling = async (page: Page) => {
+  const anyProfessional = page.getByRole('button', { name: /any professional/i })
+  await anyProfessional.waitFor()
+  await anyProfessional.click()
+  await page.getByRole('button', { name: 'Signature Cut' }).click()
+  await page.getByRole('button', { name: /View order/ }).click()
+  await page.getByRole('button', { name: 'Choose time' }).click()
+}
+
 const normalizeScreenshotRaster = async (page: Page, screenshot: Uint8Array) => {
   // Chromium can vary text anti-aliasing by a few channel values between otherwise
   // identical runs. A fixed palette keeps hashes sensitive to visible layout and
@@ -133,7 +142,7 @@ const capture = async (
   const assertionResults = new Map<string, boolean>()
   if (scenario.journey === 'pay-in-person') {
     await page.clock.runFor(100)
-    const anyProfessional = page.getByRole('button', { name: /Any professional/ })
+    const anyProfessional = page.getByRole('button', { name: /any professional/i })
     await anyProfessional.waitFor({ timeout: 5_000 }).catch(async () => {
       await page.reload()
       await anyProfessional.waitFor()
@@ -273,11 +282,58 @@ const capture = async (
       if (!response.ok) throw new Error(`Confirmation failed: ${response.status}`)
       await response.json()
     })
+  } else if (scenario.journey.startsWith('scheduling-')) {
+    await page.clock.runFor(100)
+    await openScheduling(page)
+    if (scenario.journey === 'scheduling-loading') {
+      await page.getByRole('heading', { name: 'Finding available times' }).waitFor()
+      assertionResults.set('Availability loading is visible', true)
+    } else if (scenario.journey === 'scheduling-unavailable') {
+      await page.getByRole('heading', { name: 'Times unavailable' }).waitFor()
+      assertionResults.set('unavailable scheduling has explicit recovery', true)
+    } else if (scenario.journey === 'scheduling-empty') {
+      await page
+        .getByRole('heading', { name: 'No times in the next 14 days' })
+        .waitFor()
+      assertionResults.set('empty Availability has explicit recovery', true)
+    } else {
+      const times = page.getByRole('button', { name: /\d{1,2}:\d{2}/ })
+      await times.first().waitFor()
+      if (scenario.journey === 'scheduling-available') {
+        assertionResults.set('available Time Slots are visible', true)
+        await times.first().click()
+        const release = page.getByRole('button', { name: 'Choose another time' })
+        await release.waitFor()
+        await release.click()
+        await page.getByRole('button', { name: 'Go to checkout' }).waitFor({
+          state: 'hidden'
+        })
+        assertionResults.set('a Time Slot can be held and explicitly released', true)
+      } else if (scenario.journey === 'scheduling-conflict') {
+        await times.first().click()
+        await page.getByText('That time was just booked').waitFor()
+        assertionResults.set(
+          'hold conflict preserves selections and offers recovery',
+          true
+        )
+      } else {
+        await times.first().click()
+        await page.getByRole('button', { name: 'Go to checkout' }).waitFor()
+        await page.clock.runFor(10 * 60_000 + 1)
+        await page.getByText('Your held time expired').waitFor()
+        await times.nth(1).click()
+        await page.getByRole('button', { name: 'Go to checkout' }).waitFor()
+        assertionResults.set(
+          'hold expiry is clock-driven and a replacement can be selected',
+          true
+        )
+      }
+    }
   } else if (scenario.journey === 'shell-boundary') {
     await page.clock.runFor(100)
     const shell = page.locator('[data-booking-shell="canonical"]')
     await shell.waitFor()
-    await page.getByRole('button', { name: /Any professional/ }).waitFor()
+    await shell.getByRole('button').first().waitFor()
     assertionResults.set('booking shell is visible', await shell.isVisible())
     assertionResults.set(
       'session locale is persisted',
@@ -438,25 +494,28 @@ try {
                     : original.postDataBuffer()
               }
             )
-            const response =
-              selected.journey === 'selection-loading' &&
-              parsed.pathname.endsWith('/selection')
-                ? await new Promise<Response>((resolve) => {
-                    void fixtureRequest(fixtureHttpRequest)
-                    void (async () => {
-                      for (let attempt = 0; attempt < 50; attempt += 1) {
-                        const snapshot = controller.snapshot() as {
-                          readonly sessions?: readonly unknown[]
-                        }
-                        if ((snapshot.sessions?.length ?? 0) > 0) break
-                        await new Promise((resume) => setTimeout(resume, 0))
+            const stalledFixtureRequest =
+              (selected.journey === 'selection-loading' &&
+                parsed.pathname.endsWith('/selection')) ||
+              (selected.journey === 'scheduling-loading' &&
+                parsed.pathname.endsWith('/availability'))
+            const response = stalledFixtureRequest
+              ? await new Promise<Response>((resolve) => {
+                  void fixtureRequest(fixtureHttpRequest)
+                  void (async () => {
+                    for (let attempt = 0; attempt < 50; attempt += 1) {
+                      const snapshot = controller.snapshot() as {
+                        readonly sessions?: readonly unknown[]
                       }
-                      page.once('close', () =>
-                        resolve(new Response(null, { status: 499 }))
-                      )
-                    })()
-                  })
-                : await fixtureRequest(fixtureHttpRequest)
+                      if ((snapshot.sessions?.length ?? 0) > 0) break
+                      await new Promise((resume) => setTimeout(resume, 0))
+                    }
+                    page.once('close', () =>
+                      resolve(new Response(null, { status: 499 }))
+                    )
+                  })()
+                })
+              : await fixtureRequest(fixtureHttpRequest)
             if (page.isClosed()) return
             const headers = Object.fromEntries(response.headers.entries())
             delete headers.connection
