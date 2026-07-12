@@ -46,6 +46,10 @@ export type Appointment = typeof Appointment.Type
 
 export const ConfirmationAccess = Schema.Struct({
   routeId: Schema.String,
+  bookingPartyId: Schema.optional(Schema.NullOr(Schema.String)),
+  purpose: Schema.optional(
+    Schema.Literals(['appointment_confirmation', 'party_confirmation'])
+  ),
   tokenVersion: Schema.Number,
   signingKeyId: Schema.String,
   expiresAt: Schema.String,
@@ -140,6 +144,11 @@ const hmac = async (key: string, value: string): Promise<string> => {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+const accessPurpose = (metadata: Omit<ConfirmationAccess, 'token'>) =>
+  metadata.purpose ?? 'appointment_confirmation'
+const accessResource = (metadata: Omit<ConfirmationAccess, 'token'>) =>
+  metadata.bookingPartyId ?? metadata.routeId
+
 export const deriveConfirmationToken = (
   metadata: Omit<ConfirmationAccess, 'token'>,
   keyring: ConfirmationSigningKeyring
@@ -148,7 +157,7 @@ export const deriveConfirmationToken = (
   if (!key) return Promise.reject(new Error('Unknown Confirmation signing key'))
   return hmac(
     key,
-    `${metadata.routeId}.${metadata.tokenVersion}.${metadata.expiresAt}.${metadata.signingKeyId}`
+    `${accessPurpose(metadata)}.${accessResource(metadata)}.${metadata.routeId}.${metadata.tokenVersion}.${metadata.expiresAt}.${metadata.signingKeyId}`
   )
 }
 
@@ -160,7 +169,7 @@ export const deriveConfirmationCookieCredential = (
   if (!key) return Promise.reject(new Error('Unknown Confirmation signing key'))
   return hmac(
     key,
-    `cookie.${metadata.routeId}.${metadata.tokenVersion}.${metadata.expiresAt}.${metadata.signingKeyId}`
+    `cookie.${accessPurpose(metadata)}.${accessResource(metadata)}.${metadata.routeId}.${metadata.tokenVersion}.${metadata.expiresAt}.${metadata.signingKeyId}`
   )
 }
 
@@ -289,9 +298,10 @@ export const SeedBookingConfirmation = (
                 (session) => session.confirmedAppointmentId === appointment.id
               )?.locale ?? 'en',
             snapshot: appointment.snapshot as StoredAppointmentSnapshot,
-            appointments: (
-              recordForAppointmentParty(store, appointment.id)
-                ?.confirmedAppointmentIds ?? [appointment.id]
+            appointments: (metadata.purpose === 'party_confirmation'
+              ? (recordForAppointmentParty(store, appointment.id)
+                  ?.confirmedAppointmentIds ?? [appointment.id])
+              : [appointment.id]
             ).map((id) => {
               const sibling = store.appointments.get(id)!
               return {
@@ -390,6 +400,11 @@ export const SeedBookingConfirmation = (
           }
           const access = {
             routeId,
+            bookingPartyId: requestIds.length > 1 ? `seed_party_${session.id}` : null,
+            purpose:
+              requestIds.length > 1 && index === 0
+                ? ('party_confirmation' as const)
+                : ('appointment_confirmation' as const),
             tokenVersion: 1,
             signingKeyId: keyring.currentKeyId,
             expiresAt: addMillisecondsToIso(hold.endsAt, 30 * 24 * 60 * 60_000)
@@ -436,6 +451,8 @@ const resultFrom = async (
 ): Promise<BookingConfirmationResult> => {
   const metadata = {
     routeId: row.access.routeId,
+    bookingPartyId: row.access.bookingPartyId,
+    purpose: row.access.purpose,
     tokenVersion: row.access.tokenVersion,
     signingKeyId: row.access.signingKeyId,
     expiresAt: row.access.expiresAt
@@ -553,6 +570,8 @@ export const LiveBookingConfirmation = (
             if (!row) return { kind: 'not_found' as const }
             const metadata = {
               routeId: row.access.routeId,
+              bookingPartyId: row.access.bookingPartyId,
+              purpose: row.access.purpose,
               tokenVersion: row.access.tokenVersion,
               signingKeyId: row.access.signingKeyId,
               expiresAt: row.access.expiresAt,
@@ -594,16 +613,15 @@ export const LiveBookingConfirmation = (
               )
               if (exchanged.length !== 1) return { kind: 'not_found' as const }
             }
-            const partyAppointments = row.appointment.bookingPartyId
-              ? yield* orUnavailable('booking-confirmation')(
-                  db
-                    .select({ appointment: appointments })
-                    .from(appointments)
-                    .where(
-                      eq(appointments.bookingPartyId, row.appointment.bookingPartyId)
-                    )
-                )
-              : [{ appointment: row.appointment }]
+            const partyAppointments =
+              row.access.purpose === 'party_confirmation' && row.access.bookingPartyId
+                ? yield* orUnavailable('booking-confirmation')(
+                    db
+                      .select({ appointment: appointments })
+                      .from(appointments)
+                      .where(eq(appointments.bookingPartyId, row.access.bookingPartyId))
+                  )
+                : [{ appointment: row.appointment }]
             return {
               kind: 'found' as const,
               cookieCredential: yield* Effect.promise(() =>
@@ -808,6 +826,11 @@ export const LiveBookingConfirmation = (
                 db.insert(confirmationAccess).values({
                   routeId: item.routeId,
                   appointmentId: item.appointmentId,
+                  bookingPartyId: party.id,
+                  purpose:
+                    item === generated[0]
+                      ? 'party_confirmation'
+                      : 'appointment_confirmation',
                   tokenVersion: 1,
                   signingKeyId: keyring.currentKeyId,
                   expiresAt: item.expiresAt,
@@ -934,6 +957,8 @@ export const LiveBookingConfirmation = (
             const accessMetadata = {
               routeId,
               appointmentId,
+              bookingPartyId: null,
+              purpose: 'appointment_confirmation' as const,
               tokenVersion: 1,
               signingKeyId: keyring.currentKeyId,
               expiresAt,

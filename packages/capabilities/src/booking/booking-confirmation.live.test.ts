@@ -464,6 +464,26 @@ describe('Live Booking Confirmation', () => {
       )
     )
 
+    await test.d1
+      .prepare(
+        "CREATE TRIGGER reject_group_settlement BEFORE INSERT ON settlement_allocations BEGIN SELECT RAISE(ABORT, 'forced group rollback'); END"
+      )
+      .run()
+    try {
+      await expect(confirm('bsn_group')).rejects.toMatchObject({
+        _tag: 'CapabilityUnavailable',
+        capability: 'booking-confirmation'
+      })
+    } finally {
+      await test.d1.prepare('DROP TRIGGER reject_group_settlement').run()
+    }
+    const rolledBack = await test.d1
+      .prepare(
+        "SELECT (SELECT count(*) FROM appointments WHERE booking_party_id = 'bpt_group') appointments, (SELECT count(*) FROM time_slot_holds WHERE booking_session_id = 'bsn_group') holds, (SELECT count(*) FROM settlement_allocations WHERE booking_party_id = 'bpt_group') settlement"
+      )
+      .first<{ appointments: number; holds: number; settlement: number }>()
+    expect(rolledBack).toEqual({ appointments: 0, holds: 2, settlement: 0 })
+
     const first = await confirm('bsn_group')
     const replay = await confirm('bsn_group', 'consumed')
     expect(first.appointments).toHaveLength(2)
@@ -486,7 +506,11 @@ describe('Live Booking Confirmation', () => {
             settlement: yield* db
               .select()
               .from(settlementAllocations)
-              .where(eq(settlementAllocations.bookingPartyId, 'bpt_group'))
+              .where(eq(settlementAllocations.bookingPartyId, 'bpt_group')),
+            access: yield* db
+              .select()
+              .from(confirmationAccess)
+              .where(eq(confirmationAccess.bookingPartyId, 'bpt_group'))
           }
         }),
         layerFromD1(test.d1)
@@ -496,6 +520,10 @@ describe('Live Booking Confirmation', () => {
     expect(stored.holds).toHaveLength(0)
     expect(stored.settlement).toEqual([
       expect.objectContaining({ tender: 'pay_in_person', amountMinor: 15000 })
+    ])
+    expect(stored.access.map((access) => access.purpose).sort()).toEqual([
+      'appointment_confirmation',
+      'party_confirmation'
     ])
   })
 

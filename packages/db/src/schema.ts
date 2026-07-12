@@ -514,6 +514,12 @@ export const confirmationAccess = sqliteTable(
       .notNull()
       .unique()
       .references(() => appointments.id, { onDelete: 'cascade' }),
+    bookingPartyId: text('booking_party_id'),
+    purpose: text('purpose', {
+      enum: ['appointment_confirmation', 'party_confirmation']
+    })
+      .default('appointment_confirmation')
+      .notNull(),
     tokenVersion: integer('token_version').default(1).notNull(),
     signingKeyId: text('signing_key_id').notNull(),
     expiresAt: text('expires_at').notNull(),

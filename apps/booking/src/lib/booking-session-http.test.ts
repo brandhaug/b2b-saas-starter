@@ -1158,36 +1158,61 @@ describe('Booking Session HTTP boundary', () => {
   it('exchanges a valid Confirmation token for an exact-path 24-hour cookie and serves the clean view', async () => {
     const token = 'a'.repeat(64)
     const cookieCredential = 'b'.repeat(64)
+    const snapshot = {
+      startsAt: '2026-07-13T09:00:00.000Z',
+      endsAt: '2026-07-13T10:00:00.000Z',
+      providerPreference: { kind: 'any' as const },
+      assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
+      services: [
+        {
+          id: 'svc_cut',
+          role: 'primary' as const,
+          name: 'Cut',
+          durationMinutes: 60,
+          priceMinor: 5000,
+          currency: 'USD'
+        }
+      ],
+      durationMinutes: 60,
+      currency: 'USD',
+      totalMinor: 5000,
+      merchantTimezone: 'America/New_York',
+      customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
+      checkoutPath: 'pay_in_person' as const
+    }
     const confirmation = {
       routeId: 'cnf_clean',
       status: 'scheduled' as const,
       startsAt: '2026-07-13T09:00:00.000Z',
       endsAt: '2026-07-13T10:00:00.000Z',
       locale: 'ro' as const,
-      appointments: [],
-      merchant: { publicName: 'Mara Studio' },
-      snapshot: {
-        startsAt: '2026-07-13T09:00:00.000Z',
-        endsAt: '2026-07-13T10:00:00.000Z',
-        providerPreference: { kind: 'any' as const },
-        assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
-        services: [
-          {
-            id: 'svc_cut',
-            role: 'primary' as const,
-            name: 'Cut',
-            durationMinutes: 60,
-            priceMinor: 5000,
-            currency: 'USD'
+      appointments: [
+        {
+          id: 'apt_mia',
+          status: 'scheduled' as const,
+          startsAt: snapshot.startsAt,
+          endsAt: snapshot.endsAt,
+          snapshot
+        },
+        {
+          id: 'apt_noah',
+          status: 'scheduled' as const,
+          startsAt: '2026-07-13T11:00:00.000Z',
+          endsAt: '2026-07-13T12:00:00.000Z',
+          snapshot: {
+            ...snapshot,
+            startsAt: '2026-07-13T11:00:00.000Z',
+            endsAt: '2026-07-13T12:00:00.000Z',
+            customerDetails: {
+              name: 'Noah',
+              email: 'noah@example.com',
+              phone: null
+            }
           }
-        ],
-        durationMinutes: 60,
-        currency: 'USD',
-        totalMinor: 5000,
-        merchantTimezone: 'America/New_York',
-        customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
-        checkoutPath: 'pay_in_person' as const
-      }
+        }
+      ],
+      merchant: { publicName: 'Mara Studio' },
+      snapshot
     }
     const dependencies = {
       publicSiteOrigin: 'https://www.example.test',
@@ -1231,7 +1256,10 @@ describe('Booking Session HTTP boundary', () => {
       )
     )
     expect(clean.status).toBe(200)
-    expect(await clean.text()).toContain('Confirmarea programării')
+    const html = await clean.text()
+    expect(html).toContain('Confirmarea programării')
+    expect(html).toContain('Mia')
+    expect(html).toContain('Noah')
     expect(clean.headers.get('cache-control')).toBe('private, no-store')
     expect(clean.headers.get('referrer-policy')).toBe('no-referrer')
   })
