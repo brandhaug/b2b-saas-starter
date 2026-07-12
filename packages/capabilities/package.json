@@ -11,6 +11,7 @@
     "./governance": "./src/governance/index.ts",
     "./errors": "./src/errors.ts",
     "./pricing": "./src/pricing/index.ts",
+    "./pricing/testing": "./src/pricing/testing.ts",
     "./payments": "./src/payments/index.ts",
     "./customer-engagement": "./src/customer-engagement/index.ts",
     "./gift-cards": "./src/gift-cards/index.ts",

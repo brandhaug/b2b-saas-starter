@@ -11,11 +11,13 @@ describe('Booking checkout', () => {
     render(
       <BookingCheckoutFlow
         review={null}
+        preparation={null}
         busy={false}
         validationIssues={[]}
         validationMessages={{}}
         onSubmit={submit}
-        onBook={vi.fn()}
+        onFinalize={vi.fn()}
+        onEdit={vi.fn()}
       />
     )
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mia' } })
@@ -35,6 +37,7 @@ describe('Booking checkout', () => {
     const view = render(
       <BookingCheckoutFlow
         review={null}
+        preparation={null}
         busy={false}
         validationIssues={[
           { field: 'name', code: 'name_required' },
@@ -45,7 +48,8 @@ describe('Booking checkout', () => {
           email_invalid: 'Enter a valid email address.'
         }}
         onSubmit={vi.fn()}
-        onBook={vi.fn()}
+        onFinalize={vi.fn()}
+        onEdit={vi.fn()}
       />
     )
     expect(screen.getByText('Enter your name.')).toBeTruthy()
@@ -55,6 +59,7 @@ describe('Booking checkout', () => {
     view.rerender(
       <BookingCheckoutFlow
         review={null}
+        preparation={null}
         busy={false}
         validationIssues={[
           { field: 'name', code: 'name_required' },
@@ -65,7 +70,8 @@ describe('Booking checkout', () => {
           email_invalid: 'Introdu o adresă de e-mail validă.'
         }}
         onSubmit={vi.fn()}
-        onBook={vi.fn()}
+        onFinalize={vi.fn()}
+        onEdit={vi.fn()}
       />
     )
     expect(screen.getByText('Introdu numele.')).toBeTruthy()
@@ -73,14 +79,85 @@ describe('Booking checkout', () => {
   })
 
   it('renders only the server review and settled Pay In Person copy', () => {
-    const book = vi.fn()
+    const finalize = vi.fn()
+    const edit = vi.fn()
     render(
       <BookingCheckoutFlow
         busy={false}
         validationIssues={[]}
         validationMessages={{}}
         onSubmit={vi.fn()}
-        onBook={book}
+        onFinalize={finalize}
+        onEdit={edit}
+        preparation={{
+          party: {
+            id: 'bpt_one',
+            bookingSessionId: 'bsn_one',
+            shopId: 'shp_one',
+            activeRequestId: 'brq_one',
+            lifecycle: 'active',
+            currency: 'USD',
+            locale: 'en',
+            version: 1,
+            requests: [
+              {
+                id: 'brq_one',
+                bookingPartyId: 'bpt_one',
+                position: 0,
+                providerPreference: 'any',
+                providerId: 'prv_ava',
+                primaryServiceId: 'svc_cut',
+                serviceIds: ['svc_cut'],
+                holdId: 'hld_one',
+                holdExpiresAt: '2026-07-10T09:40:00.000Z',
+                customerAccountId: null,
+                customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
+                startsAt: '2026-07-13T09:00:00.000Z',
+                endsAt: '2026-07-13T10:00:00.000Z'
+              }
+            ]
+          },
+          quote: {
+            id: 'pqt_one',
+            bookingPartyId: 'bpt_one',
+            version: 1,
+            currency: 'USD',
+            subtotalMinor: 5000,
+            adjustmentMinor: 0,
+            tipMinor: 0,
+            totalMinor: 5000,
+            facts: {
+              partyVersion: 1,
+              pricingPolicyVersion: 0,
+              lines: [
+                {
+                  requestId: 'brq_one',
+                  holdId: 'hld_one',
+                  serviceIds: ['svc_cut'],
+                  amountMinor: 5000
+                }
+              ],
+              policyVersions: ['checkout:3'],
+              promotionReservationIds: [],
+              giftCardReservationIds: []
+            },
+            acceptedAt: null,
+            expiresAt: '2026-07-10T09:40:00.000Z',
+            adjustments: []
+          },
+          policy: {
+            id: 'pol_one',
+            scope: 'shop',
+            scopeId: 'shp_one',
+            kind: 'checkout',
+            version: 3,
+            disclosure: 'Cancel up to 24 hours before the appointment.',
+            effectiveAt: '2026-01-01T00:00:00.000Z',
+            retiredAt: null
+          },
+          policyAcceptance: null,
+          marketingConsents: []
+        }}
         review={{
           customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
           checkoutPath: 'pay_in_person',
@@ -110,11 +187,27 @@ describe('Booking checkout', () => {
     expect(screen.getByRole('heading', { name: 'Confirm booking' })).toBeTruthy()
     expect(screen.getByText('Pay In Person')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Book' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Book' }))
-    expect(book).toHaveBeenCalledWith()
     expect(
-      screen.getByRole('link', { name: 'Terms of Service' }).getAttribute('href')
-    ).toBe('/terms')
+      screen.getByText('Cancel up to 24 hours before the appointment.')
+    ).toBeTruthy()
+    expect(screen.getByText('Mia')).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: /email offers for mia/i }))
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /accept checkout policy version 3/i })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }))
+    expect(finalize).toHaveBeenCalledWith({
+      acceptQuote: true,
+      acceptPolicy: true,
+      marketingConsents: [
+        {
+          personId: 'brq_one',
+          channel: 'email',
+          granted: true,
+          policyVersion: 'marketing:v1'
+        }
+      ]
+    })
     expect(
       screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')
     ).toBe('/privacy')

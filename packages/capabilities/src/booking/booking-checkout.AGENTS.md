@@ -13,8 +13,10 @@ Pay In Person checkout review boundary.
   Notifications, which are required to deliver Booking outcomes.
 - A review is confirmable only when every Booking Request is complete and the exact
   Pricing Quote and Checkout Policy disclosure/version have been accepted.
-- Review facts come only from the current, unexpired Time Slot Hold and its immutable
-  Booking Quote. Browser input contains Customer Details only.
+- Review facts come only from the current Booking Party, unexpired holds, accepted
+  Pricing Quote, applicable Checkout Policy acceptance, and recorded consent facts.
+  Browser input may select acceptance/consent commands but never supplies quote,
+  disclosure, version, party-completeness, or total facts.
 - Telemetry is provider-neutral, no-op by default, gated by measurement consent, and
   unable to change or mask command outcomes.
 - Checkout Path is fixed to `pay_in_person`; payment and confirmation behavior belong

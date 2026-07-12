@@ -7,6 +7,8 @@ import {
   BookingJourney as BookingJourneySchema,
   BookingParty as BookingPartySchema,
   CheckoutReview as CheckoutReviewSchema,
+  CheckoutPreparation as CheckoutPreparationSchema,
+  PartyCheckoutReview as PartyCheckoutReviewSchema,
   BookingSchedulingRecovery as BookingSchedulingRecoverySchema,
   TimeSlotHold as TimeSlotHoldSchema,
   type BookingAvailability,
@@ -15,6 +17,7 @@ import {
   type ProviderPreference,
   type ServiceSelection,
   type CheckoutReview,
+  type CheckoutPreparation,
   type CustomerDetails,
   type CustomerDetailsIssue,
   bookingPartyContinuation
@@ -26,10 +29,15 @@ import { BookingPartyFlow } from './booking-party-flow.tsx'
 import { styles } from './booking-flow.styles.ts'
 import { translateBookingMessage } from '../localization/booking-localization.ts'
 import { useBookingLocalization } from '../localization/booking-localization-provider.tsx'
+import {
+  noOpCheckoutTelemetry,
+  type CheckoutTelemetry
+} from '../lib/checkout-telemetry.ts'
 
 export function ServerBackedBookingFlow({
   merchantSlug,
   sessionId,
+  telemetry = noOpCheckoutTelemetry,
   selectionRefreshedMessage = translateBookingMessage(
     'en',
     'feedback.selection_refreshed'
@@ -37,6 +45,7 @@ export function ServerBackedBookingFlow({
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
+  readonly telemetry?: CheckoutTelemetry
   readonly selectionRefreshedMessage?: string
 }) {
   const { locale, message } = useBookingLocalization()
@@ -46,6 +55,7 @@ export function ServerBackedBookingFlow({
   const [holdExpired, setHoldExpired] = useState(false)
   const [checkout, setCheckout] = useState(false)
   const [review, setReview] = useState<CheckoutReview | null>(null)
+  const [preparation, setPreparation] = useState<CheckoutPreparation | null>(null)
   const [validationIssues, setValidationIssues] = useState<
     readonly CustomerDetailsIssue[]
   >([])
@@ -282,6 +292,7 @@ export function ServerBackedBookingFlow({
         return
       }
       setValidationIssues([])
+      void telemetry.track('customer_details_submitted')
       const currentParty = party.data
       const nextGuest = currentParty?.requests.find(
         (request) =>
@@ -307,10 +318,64 @@ export function ServerBackedBookingFlow({
         }
       }
       setReview(result.review)
-    }
+      const prepared = await fetch(`${base}/checkout-prepare`, {
+        credentials: 'same-origin'
+      })
+      if (!prepared.ok) throw new Error('checkout preparation unavailable')
+      setPreparation(
+        Schema.decodeUnknownSync(CheckoutPreparationSchema)(await prepared.json())
+      )
+    },
+    onError: (error) => void telemetry.report(error)
   })
-  const confirmMutation = useMutation({
-    mutationFn: async () => {
+  const finalizeMutation = useMutation({
+    mutationFn: async (input: {
+      readonly acceptQuote: boolean
+      readonly acceptPolicy: boolean
+      readonly marketingConsents: readonly {
+        readonly personId: string
+        readonly channel: 'email'
+        readonly granted: boolean
+        readonly policyVersion: string
+      }[]
+    }) => {
+      if (!preparation?.quote) throw new Error('quote unavailable')
+      if (input.acceptQuote) {
+        const response = await fetch(`${base}/quote-accept`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ quoteId: preparation.quote.id })
+        })
+        if (!response.ok) throw new Error('quote acceptance unavailable')
+      }
+      if (input.acceptPolicy && preparation.policy) {
+        const response = await fetch(`${base}/policy-accept`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ policyId: preparation.policy.id })
+        })
+        if (!response.ok) throw new Error('policy acceptance unavailable')
+        void telemetry.track('policy_accepted')
+      }
+      await Promise.all(
+        input.marketingConsents.map(async (consent) => {
+          const response = await fetch(`${base}/marketing-consent`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(consent)
+          })
+          if (!response.ok) throw new Error('marketing consent unavailable')
+        })
+      )
+      const reviewed = await fetch(`${base}/checkout-review`, {
+        credentials: 'same-origin'
+      })
+      if (!reviewed.ok) throw new Error('party review unavailable')
+      Schema.decodeUnknownSync(PartyCheckoutReviewSchema)(await reviewed.json())
+      void telemetry.track('checkout_reviewed')
       const response = await fetch(`${base}/confirm`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -326,7 +391,8 @@ export function ServerBackedBookingFlow({
     },
     onSuccess: (result) => {
       if (result) window.location.assign(result.location)
-    }
+    },
+    onError: (error) => void telemetry.report(error)
   })
   const heldUntil = availability.data?.hold?.expiresAt
   useEffect(() => {
@@ -388,7 +454,8 @@ export function ServerBackedBookingFlow({
       return (
         <BookingCheckoutFlow
           review={review}
-          busy={detailsMutation.isPending || confirmMutation.isPending}
+          preparation={preparation}
+          busy={detailsMutation.isPending || finalizeMutation.isPending}
           validationIssues={validationIssues}
           validationMessages={{
             name_required: message('validation.name_required'),
@@ -396,8 +463,38 @@ export function ServerBackedBookingFlow({
             email_invalid: message('validation.email_invalid'),
             phone_invalid: message('validation.phone_invalid')
           }}
+          copy={{
+            title: message('checkout.title'),
+            guests: message('checkout.guests'),
+            edit: message('checkout.edit'),
+            emailOffers: (name) => `${message('checkout.email_offers')} ${name}`,
+            operationalNotifications: message('checkout.operational_notifications'),
+            acceptPolicy: (version) =>
+              `${message('checkout.accept_policy')} ${version}`,
+            priceProposal: (version) =>
+              `${message('checkout.price_proposal')} ${version}`,
+            payInPerson: message('status.pay_in_person'),
+            book: message('checkout.book'),
+            privacy: message('checkout.privacy')
+          }}
           onSubmit={(details) => detailsMutation.mutate(details)}
-          onBook={() => confirmMutation.mutate()}
+          onFinalize={(input) => finalizeMutation.mutate(input)}
+          onEdit={(requestId) =>
+            party.data &&
+            partyMutation.mutate(
+              {
+                endpoint: 'activate',
+                body: { version: party.data.version, requestId },
+                preserveScheduling: true
+              },
+              {
+                onSuccess: () => {
+                  setReview(null)
+                  setPreparation(null)
+                }
+              }
+            )
+          }
         />
       )
     }

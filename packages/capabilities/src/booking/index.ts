@@ -73,7 +73,9 @@ export type {
 export {
   BookingCheckout,
   CheckoutPolicy,
+  CheckoutPreparation,
   CheckoutReview,
+  CheckoutCommandRejected,
   CheckoutReviewUnavailable,
   CheckoutUnavailable,
   CustomerDetails,
@@ -87,14 +89,13 @@ export {
   SeedBookingCheckout,
   acceptCheckoutPolicy,
   buildCheckoutReview,
-  createCheckoutTelemetry,
   emptySeedBookingCheckoutStore,
   normalizeCustomerDetails,
   resolveCheckoutPolicy
 } from './booking-checkout.ts'
 export type {
   BookingCheckoutShape,
-  CheckoutFunnelEvent,
+  BookingCheckoutFailure,
   SeedBookingCheckoutStore
 } from './booking-checkout.ts'
 export {

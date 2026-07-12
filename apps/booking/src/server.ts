@@ -248,6 +248,41 @@ export default {
                 checkout.review(session, input)
               ),
               capabilitiesLayer
+            ),
+          prepare: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (checkout) =>
+                checkout.prepare(session, input)
+              ),
+              capabilitiesLayer
+            ),
+          acceptQuote: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (checkout) =>
+                checkout.acceptQuote(session, input)
+              ),
+              capabilitiesLayer
+            ),
+          acceptPolicy: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (checkout) =>
+                checkout.acceptPolicy(session, input)
+              ),
+              capabilitiesLayer
+            ),
+          recordMarketingConsent: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (checkout) =>
+                checkout.recordMarketingConsent(session, input)
+              ),
+              capabilitiesLayer
+            ),
+          reviewParty: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (checkout) =>
+                checkout.reviewParty(session, input)
+              ),
+              capabilitiesLayer
             )
         },
         confirmation: {

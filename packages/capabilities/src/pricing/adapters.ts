@@ -1,5 +1,5 @@
 import { Effect, Layer, Semaphore } from 'effect'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, or, sql } from 'drizzle-orm'
 import {
   batch,
   type BatchStatement,
@@ -7,6 +7,7 @@ import {
   bookingRequests,
   bookingRequestServices,
   bookingSessions,
+  brands,
   checkoutPolicies,
   Database,
   giftCardReservations,
@@ -17,6 +18,7 @@ import {
   promotionReservations,
   promotions,
   services,
+  shops,
   timeSlotHolds
 } from '@b2b-saas-starter/db'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -338,6 +340,56 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
     PricingQuotes,
     Effect.gen(function* () {
       const db = yield* Database
+      const activePolicies = (shopId: string, now: string) =>
+        Effect.gen(function* () {
+          const [topology] = yield* orUnavailable('pricing-quotes')(
+            db
+              .select({ brandId: shops.brandId, merchantId: brands.merchantId })
+              .from(shops)
+              .innerJoin(brands, eq(brands.id, shops.brandId))
+              .where(eq(shops.id, shopId))
+              .limit(1)
+          )
+          if (!topology) return []
+          const rows = yield* orUnavailable('pricing-quotes')(
+            db
+              .select()
+              .from(checkoutPolicies)
+              .where(
+                and(
+                  or(
+                    and(
+                      eq(checkoutPolicies.scope, 'shop'),
+                      eq(checkoutPolicies.scopeId, shopId)
+                    ),
+                    and(
+                      eq(checkoutPolicies.scope, 'brand'),
+                      eq(checkoutPolicies.scopeId, topology.brandId)
+                    ),
+                    and(
+                      eq(checkoutPolicies.scope, 'merchant'),
+                      eq(checkoutPolicies.scopeId, topology.merchantId)
+                    )
+                  ),
+                  sql`${checkoutPolicies.effectiveAt} <= ${now}`,
+                  sql`(${checkoutPolicies.retiredAt} IS NULL OR ${checkoutPolicies.retiredAt} > ${now})`
+                )
+              )
+          )
+          const rank = { merchant: 0, brand: 1, shop: 2 } as const
+          const resolved = new Map<string, (typeof rows)[number]>()
+          for (const policy of rows) {
+            const current = resolved.get(policy.kind)
+            if (
+              !current ||
+              rank[policy.scope] > rank[current.scope] ||
+              (rank[policy.scope] === rank[current.scope] &&
+                policy.version > current.version)
+            )
+              resolved.set(policy.kind, policy)
+          }
+          return [...resolved.values()]
+        })
       const read = (quote: typeof pricingQuotes.$inferSelect) =>
         Effect.gen(function* () {
           const adjustments = yield* orUnavailable('pricing-quotes')(
@@ -491,18 +543,7 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
                 }),
               { discard: true }
             )
-            const policyRows = yield* orUnavailable('pricing-quotes')(
-              db
-                .select()
-                .from(checkoutPolicies)
-                .where(
-                  and(
-                    eq(checkoutPolicies.shopId, party.shopId),
-                    sql`${checkoutPolicies.effectiveAt} <= ${material.now}`,
-                    sql`(${checkoutPolicies.retiredAt} IS NULL OR ${checkoutPolicies.retiredAt} > ${material.now})`
-                  )
-                )
-            )
+            const policyRows = yield* activePolicies(party.shopId, material.now)
             const activePolicyVersions = policyRows
               .map((policy) => `${policy.kind}:${policy.version}`)
               .sort()
@@ -785,21 +826,7 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
               )
               if ((pricingPolicy?.version ?? 0) !== quote.facts.pricingPolicyVersion)
                 return yield* new QuoteUnconfirmable({ quoteId, reason: 'stale' })
-              const policies = yield* orUnavailable('pricing-quotes')(
-                db
-                  .select({
-                    kind: checkoutPolicies.kind,
-                    version: checkoutPolicies.version
-                  })
-                  .from(checkoutPolicies)
-                  .where(
-                    and(
-                      eq(checkoutPolicies.shopId, party.shopId),
-                      sql`${checkoutPolicies.effectiveAt} <= ${now}`,
-                      sql`(${checkoutPolicies.retiredAt} IS NULL OR ${checkoutPolicies.retiredAt} > ${now})`
-                    )
-                  )
-              )
+              const policies = yield* activePolicies(party.shopId, now)
               const versions = policies
                 .map((item) => `${item.kind}:${item.version}`)
                 .sort()

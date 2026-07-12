@@ -8,7 +8,8 @@ import {
   CoordinatedHoldInput as CoordinatedHoldInputSchema,
   BookingSchedulingRejected,
   CheckoutUnavailable,
-  CustomerDetailsInvalid,
+  CheckoutCommandRejected,
+  CheckoutReviewUnavailable,
   BookingConfirmationRejected,
   BookingSelectionRejected,
   ServiceSelection as ServiceSelectionSchema,
@@ -29,12 +30,22 @@ import {
   type PresentedBookingSessionCapability,
   type ServiceSelection,
   type CheckoutReview,
+  type CheckoutPreparation,
+  type PartyCheckoutReview,
+  type CheckoutPolicyAcceptance,
+  type MarketingConsent,
+  type BookingCheckoutFailure,
   type CustomerDetails,
   type CustomerDetailsIssue,
   normalizeCustomerDetails,
   type BookingConfirmationResult,
   type ConfirmationReadResult
 } from '@b2b-saas-starter/capabilities/booking'
+import {
+  InvalidQuoteMaterial,
+  PricingQuoteNotFound,
+  QuoteUnconfirmable
+} from '@b2b-saas-starter/capabilities/pricing'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 import {
   canonicalizeBookingRequest,
@@ -71,6 +82,7 @@ type BookingSessionHttpFailure =
   | BookingPartyNotFound
   | BookingSchedulingRejected
   | CheckoutUnavailable
+  | BookingCheckoutFailure
   | BookingConfirmationRejected
 
 type BookingSessionEffect<A, E = never> = Effect.Effect<A, E>
@@ -80,6 +92,14 @@ const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/
 const CAPABILITY = /^[a-f0-9]{64}$/
 const CONFIRMATION_ID = /^[A-Za-z0-9_-]{1,128}$/
 const CONFIRMATION_TOKEN = /^[a-f0-9]{64}$/
+const QuoteAcceptanceInput = Schema.Struct({ quoteId: Schema.String })
+const PolicyAcceptanceInput = Schema.Struct({ policyId: Schema.String })
+const MarketingConsentInput = Schema.Struct({
+  personId: Schema.String,
+  channel: Schema.Literals(['email', 'sms']),
+  granted: Schema.Boolean,
+  policyVersion: Schema.String
+})
 
 export const bookingSessionCookie = (input: {
   readonly sessionId: string
@@ -313,10 +333,7 @@ export type BookingSessionHttpDependencies = {
       session: BookingSession,
       details: CustomerDetails,
       input: { readonly now: string }
-    ) => BookingSessionEffect<
-      CheckoutReview,
-      CheckoutUnavailable | CapabilityUnavailable
-    >
+    ) => BookingSessionEffect<CheckoutReview, BookingCheckoutFailure>
     readonly review: (
       session: BookingSession,
       input: { readonly now: string }
@@ -324,6 +341,32 @@ export type BookingSessionHttpDependencies = {
       CheckoutReview,
       CheckoutUnavailable | CapabilityUnavailable
     >
+    readonly prepare?: (
+      session: BookingSession,
+      input: { readonly now: string }
+    ) => BookingSessionEffect<CheckoutPreparation, BookingCheckoutFailure>
+    readonly acceptQuote?: (
+      session: BookingSession,
+      input: { readonly quoteId: string; readonly now: string }
+    ) => BookingSessionEffect<unknown, BookingCheckoutFailure>
+    readonly acceptPolicy?: (
+      session: BookingSession,
+      input: { readonly policyId: string; readonly now: string }
+    ) => BookingSessionEffect<CheckoutPolicyAcceptance, BookingCheckoutFailure>
+    readonly recordMarketingConsent?: (
+      session: BookingSession,
+      input: {
+        readonly personId: string
+        readonly channel: 'email' | 'sms'
+        readonly granted: boolean
+        readonly policyVersion: string
+        readonly now: string
+      }
+    ) => BookingSessionEffect<MarketingConsent, BookingCheckoutFailure>
+    readonly reviewParty?: (
+      session: BookingSession,
+      input: { readonly now: string }
+    ) => BookingSessionEffect<PartyCheckoutReview, BookingCheckoutFailure>
   }
   readonly confirmation?: {
     readonly confirm: (
@@ -437,6 +480,20 @@ const mapSessionFailure = (
       Response.json({ kind: 'hold_expired', message: error.message }, { status: 409 })
     )
   }
+  if (
+    error instanceof CheckoutCommandRejected ||
+    error instanceof CheckoutReviewUnavailable
+  ) {
+    return withPrivateHeaders(Response.json({ kind: error.reason }, { status: 409 }))
+  }
+  if (error instanceof QuoteUnconfirmable) {
+    return withPrivateHeaders(
+      Response.json({ kind: `quote_${error.reason}` }, { status: 409 })
+    )
+  }
+  if (error instanceof PricingQuoteNotFound || error instanceof InvalidQuoteMaterial) {
+    return withPrivateHeaders(Response.json({ kind: 'quote_stale' }, { status: 409 }))
+  }
   if (error instanceof BookingConfirmationRejected) {
     return withPrivateHeaders(
       Response.json({ kind: error.reason, message: error.message }, { status: 409 })
@@ -497,14 +554,7 @@ const jsonJourney = (value: BookingJourney): Response =>
     })
   )
 
-const jsonPrivate = (
-  value:
-    | BookingAvailability
-    | TimeSlotHold
-    | readonly TimeSlotHold[]
-    | CheckoutReview
-    | BookingParty
-): Response =>
+const jsonPrivate = (value: unknown): Response =>
   withPrivateHeaders(
     Response.json(value, {
       headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -564,10 +614,16 @@ const localeCountry = {
 } as const
 
 const customerDetailsFrom = (
-  value: unknown,
-  locale: BookingLocale
+  value: unknown
 ):
-  | { readonly details: CustomerDetails; readonly issues: null }
+  | {
+      readonly details: {
+        readonly name: string
+        readonly email: string
+        readonly phone: string | null
+      }
+      readonly issues: null
+    }
   | { readonly details: null; readonly issues: readonly CustomerDetailsIssue[] } => {
   if (typeof value !== 'object' || value === null)
     return { details: null, issues: [{ field: 'name', code: 'name_required' }] }
@@ -592,22 +648,13 @@ const customerDetailsFrom = (
       issues.push({ field: 'phone', code: 'phone_invalid' })
     return { details: null, issues }
   }
-  try {
-    return {
-      details: normalizeCustomerDetails(
-        {
-          name: input.name,
-          email: input.email,
-          phone: typeof input.phone === 'string' ? input.phone : null
-        },
-        localeCountry[locale]
-      ),
-      issues: null
-    }
-  } catch (error) {
-    if (error instanceof CustomerDetailsInvalid)
-      return { details: null, issues: error.issues }
-    return { details: null, issues: [{ field: 'name', code: 'name_required' }] }
+  return {
+    details: {
+      name: input.name,
+      email: input.email,
+      phone: typeof input.phone === 'string' ? input.phone : null
+    },
+    issues: null
   }
 }
 
@@ -1105,10 +1152,7 @@ export const handleBookingSessionRequest = (
     }
     if (endpoint === 'customer-details' && request.method === 'POST') {
       if (!dependencies.checkout) return unavailable()
-      const decoded = customerDetailsFrom(
-        yield* readJson(request),
-        authorization.success.locale ?? 'en'
-      )
+      const decoded = customerDetailsFrom(yield* readJson(request))
       if (!decoded.details) {
         return withPrivateHeaders(
           Response.json(
@@ -1117,10 +1161,23 @@ export const handleBookingSessionRequest = (
           )
         )
       }
+      const normalized = yield* Effect.result(
+        normalizeCustomerDetails(
+          decoded.details,
+          localeCountry[authorization.success.locale ?? 'en']
+        )
+      )
+      if (normalized._tag === 'Failure')
+        return withPrivateHeaders(
+          Response.json(
+            { kind: 'invalid_customer_details', issues: normalized.failure.issues },
+            { status: 422 }
+          )
+        )
       const result = yield* Effect.result(
         dependencies.checkout.saveCustomerDetails(
           authorization.success,
-          decoded.details,
+          normalized.success,
           { now }
         )
       )
@@ -1137,6 +1194,72 @@ export const handleBookingSessionRequest = (
         ? jsonPrivate(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
     }
+    if (endpoint === 'checkout-prepare' && request.method === 'GET') {
+      if (!dependencies.checkout?.prepare) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.checkout.prepare(authorization.success, { now })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'quote-accept' && request.method === 'POST') {
+      if (!dependencies.checkout?.acceptQuote) return unavailable()
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(QuoteAcceptanceInput)(yield* readJson(request))
+      )
+      if (decoded._tag === 'Failure') return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.checkout.acceptQuote(authorization.success, {
+          ...decoded.success,
+          now
+        })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'policy-accept' && request.method === 'POST') {
+      if (!dependencies.checkout?.acceptPolicy) return unavailable()
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(PolicyAcceptanceInput)(yield* readJson(request))
+      )
+      if (decoded._tag === 'Failure') return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.checkout.acceptPolicy(authorization.success, {
+          ...decoded.success,
+          now
+        })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'marketing-consent' && request.method === 'POST') {
+      if (!dependencies.checkout?.recordMarketingConsent) return unavailable()
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(MarketingConsentInput)(yield* readJson(request))
+      )
+      if (decoded._tag === 'Failure') return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.checkout.recordMarketingConsent(authorization.success, {
+          ...decoded.success,
+          now
+        })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'checkout-review' && request.method === 'GET') {
+      if (!dependencies.checkout?.reviewParty) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.checkout.reviewParty(authorization.success, { now })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
     if (endpoint === 'confirm' && request.method === 'POST') {
       const input = yield* readJson(request)
       if (
@@ -1148,6 +1271,13 @@ export const handleBookingSessionRequest = (
         return hiddenNotFound()
       }
       if (!dependencies.confirmation) return unavailable()
+      if (dependencies.checkout?.reviewParty) {
+        const readiness = yield* Effect.result(
+          dependencies.checkout.reviewParty(authorization.success, { now })
+        )
+        if (readiness._tag === 'Failure')
+          return mapSessionFailure(readiness.failure, merchantSlug)
+      }
       const traceId = request.headers.get('cf-ray') ?? `trace_${crypto.randomUUID()}`
       const result = yield* Effect.result(
         dependencies.confirmation.confirm(authorization.success, { now, traceId })

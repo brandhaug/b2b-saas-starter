@@ -1261,9 +1261,15 @@ export const checkoutPolicies = sqliteTable(
   'checkout_policies',
   {
     id: id(),
-    shopId: text('shop_id')
-      .notNull()
-      .references(() => shops.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id').references(() => merchants.id, {
+      onDelete: 'cascade'
+    }),
+    brandId: text('brand_id').references(() => brands.id, {
+      onDelete: 'cascade'
+    }),
+    shopId: text('shop_id').references(() => shops.id, { onDelete: 'cascade' }),
+    scope: text('scope', { enum: ['merchant', 'brand', 'shop'] }).notNull(),
+    scopeId: text('scope_id').notNull(),
     kind: text('kind').notNull(),
     version: integer('version').notNull(),
     disclosure: text('disclosure').notNull(),
@@ -1272,10 +1278,15 @@ export const checkoutPolicies = sqliteTable(
     createdAt: isoCreatedAt()
   },
   (table) => [
-    uniqueIndex('checkout_policies_shop_kind_version_unique').on(
-      table.shopId,
+    uniqueIndex('checkout_policies_scope_kind_version_unique').on(
+      table.scope,
+      table.scopeId,
       table.kind,
       table.version
+    ),
+    check(
+      'checkout_policies_exact_scope',
+      sql`(${table.scope} = 'merchant' AND ${table.merchantId} = ${table.scopeId} AND ${table.brandId} IS NULL AND ${table.shopId} IS NULL) OR (${table.scope} = 'brand' AND ${table.merchantId} IS NULL AND ${table.brandId} = ${table.scopeId} AND ${table.shopId} IS NULL) OR (${table.scope} = 'shop' AND ${table.merchantId} IS NULL AND ${table.brandId} IS NULL AND ${table.shopId} = ${table.scopeId})`
     )
   ]
 )

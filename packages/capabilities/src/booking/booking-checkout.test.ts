@@ -1,10 +1,9 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Layer, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   BookingCheckout,
   acceptCheckoutPolicy,
   buildCheckoutReview,
-  createCheckoutTelemetry,
   CustomerDetails,
   normalizeCustomerDetails,
   resolveCheckoutPolicy,
@@ -13,6 +12,8 @@ import {
 } from './booking-checkout.ts'
 import type { SeedBookingSchedulingStore } from './booking-scheduling.ts'
 import type { BookingSession } from './booking-sessions.ts'
+import { SeedBookingParties } from './foundation-adapters.ts'
+import { SeedPricingQuotes } from '../pricing/adapters.ts'
 
 const now = '2026-07-10T09:30:00.000Z'
 const session = (id: string): BookingSession => ({
@@ -64,26 +65,137 @@ const scheduling = {
   ])
 } as unknown as SeedBookingSchedulingStore
 
+const legacyCheckoutLayer = (store: ReturnType<typeof emptySeedBookingCheckoutStore>) =>
+  SeedBookingCheckout(store).pipe(
+    Layer.provide(Layer.merge(SeedBookingParties(), SeedPricingQuotes()))
+  )
+
 describe('Booking Checkout', () => {
-  it('normalizes Customer Details and reports stable field error codes', () => {
-    expect(
-      normalizeCustomerDetails(
+  it('prepares and accepts an exact party quote and policy before review', async () => {
+    const store = emptySeedBookingCheckoutStore(scheduling)
+    store.policies.push({
+      id: 'pol_shop',
+      scope: 'shop',
+      scopeId: 'shp_one',
+      kind: 'checkout',
+      version: 3,
+      disclosure: 'Cancel up to 24 hours before the appointment.',
+      effectiveAt: '2026-01-01T00:00:00.000Z',
+      retiredAt: null
+    })
+    const party = {
+      id: 'bpt_one',
+      bookingSessionId: 'bsn_one',
+      shopId: 'shp_one',
+      activeRequestId: 'brq_one',
+      lifecycle: 'active' as const,
+      currency: 'USD',
+      locale: 'en',
+      version: 1,
+      requests: [
         {
-          name: '  Mia   Popescu ',
-          email: ' MIA@Example.COM ',
-          phone: '0722 123 456'
-        },
-        'RO'
+          id: 'brq_one',
+          bookingPartyId: 'bpt_one',
+          position: 0,
+          providerPreference: 'any' as const,
+          providerId: 'prv_ava',
+          primaryServiceId: 'svc_cut',
+          serviceIds: ['svc_cut'],
+          holdId: 'hld_one',
+          holdExpiresAt: '2026-07-10T09:40:00.000Z',
+          customerAccountId: null,
+          customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
+          startsAt: quote.startsAt,
+          endsAt: quote.endsAt
+        }
+      ]
+    }
+    scheduling.holds.set('hld_one', {
+      ...scheduling.holds.get('hld_one')!,
+      bookingRequestId: 'brq_one'
+    })
+    const layer = SeedBookingCheckout(store).pipe(
+      Layer.provide(
+        Layer.merge(
+          SeedBookingParties(
+            [party],
+            new Map(),
+            new Map(),
+            new Map(),
+            scheduling.holds
+          ),
+          SeedPricingQuotes()
+        )
       )
-    ).toEqual({
+    )
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const checkout = yield* BookingCheckout
+          const prepared = yield* checkout.prepare(session('bsn_one'), { now })
+          const quoted = yield* checkout.acceptQuote(session('bsn_one'), {
+            quoteId: prepared.quote!.id,
+            now
+          })
+          yield* checkout.acceptPolicy(session('bsn_one'), {
+            policyId: prepared.policy!.id,
+            now
+          })
+          yield* checkout.recordMarketingConsent(session('bsn_one'), {
+            personId: 'brq_one',
+            channel: 'email',
+            granted: false,
+            policyVersion: 'marketing:v1',
+            now
+          })
+          const review = yield* checkout.reviewParty(session('bsn_one'), { now })
+          store.policies.push({
+            ...store.policies[0]!,
+            id: 'pol_shop_v4',
+            version: 4,
+            disclosure: 'Cancel up to 48 hours before the appointment.'
+          })
+          const rebuilt = yield* checkout.prepare(session('bsn_one'), { now })
+          return { quoted, review, rebuilt }
+        }),
+        layer
+      )
+    )
+    expect(result.quoted.acceptedAt).toBe(now)
+    expect(result.review).toMatchObject({
+      readyToConfirm: true,
+      policyAcceptance: { policyId: 'pol_shop', version: 3 },
+      marketingConsents: [{ personId: 'brq_one', granted: false }]
+    })
+    expect(result.rebuilt).toMatchObject({
+      quote: { version: 2, acceptedAt: null },
+      policy: { id: 'pol_shop_v4', version: 4 },
+      policyAcceptance: { policyId: 'pol_shop', version: 3 }
+    })
+  })
+  it('normalizes Customer Details and reports stable field error codes', async () => {
+    await expect(
+      Effect.runPromise(
+        normalizeCustomerDetails(
+          {
+            name: '  Mia   Popescu ',
+            email: ' MIA@Example.COM ',
+            phone: '0722 123 456'
+          },
+          'RO'
+        )
+      )
+    ).resolves.toEqual({
       name: 'Mia Popescu',
       email: 'mia@example.com',
       phone: '+40722123456'
     })
 
-    expect(() =>
-      normalizeCustomerDetails({ name: ' ', email: 'bad', phone: '12' }, 'RO')
-    ).toThrow(
+    await expect(
+      Effect.runPromise(
+        normalizeCustomerDetails({ name: ' ', email: 'bad', phone: '12' }, 'RO')
+      )
+    ).rejects.toMatchObject(
       expect.objectContaining({
         _tag: 'CustomerDetailsInvalid',
         issues: [
@@ -150,67 +262,64 @@ describe('Booking Checkout', () => {
     })
   })
 
-  it('requires every request, accepted quote, and policy acceptance in party review', () => {
-    expect(() =>
-      buildCheckoutReview({
-        requests: [
-          { id: 'brq_one', complete: true },
-          { id: 'brq_two', complete: false }
-        ],
-        acceptedQuote: { id: 'pqt_one', acceptedAt: now },
-        policyAcceptance: {
-          policyId: 'pol_one',
-          version: 1,
-          disclosure: 'Terms',
-          acceptedAt: now
-        },
-        marketingConsents: []
-      })
-    ).toThrow(expect.objectContaining({ reason: 'request_incomplete' }))
-
-    expect(
-      buildCheckoutReview({
-        requests: [
-          { id: 'brq_one', complete: true },
-          { id: 'brq_two', complete: true }
-        ],
-        acceptedQuote: { id: 'pqt_one', acceptedAt: now },
-        policyAcceptance: {
-          policyId: 'pol_one',
-          version: 1,
-          disclosure: 'Terms',
-          acceptedAt: now
-        },
-        marketingConsents: [
-          {
-            personId: 'brq_one',
-            channel: 'email',
-            granted: false,
-            policyVersion: 'marketing:v1',
-            recordedAt: now
-          }
-        ]
-      })
-    ).toMatchObject({ readyToConfirm: true, acceptedQuote: { id: 'pqt_one' } })
-  })
-
-  it('uses provider-neutral no-op telemetry and isolates optional provider failures', async () => {
-    const noOp = createCheckoutTelemetry()
+  it('requires every request, accepted quote, and policy acceptance in party review', async () => {
+    const policy = {
+      id: 'pol_one',
+      scope: 'shop' as const,
+      scopeId: 'shp_one',
+      kind: 'checkout',
+      version: 1,
+      disclosure: 'Terms',
+      effectiveAt: '2026-01-01T00:00:00.000Z',
+      retiredAt: null
+    }
     await expect(
-      noOp.track({ name: 'checkout_reviewed', analyticsConsent: true })
-    ).resolves.toBeUndefined()
+      Effect.runPromise(
+        buildCheckoutReview({
+          requests: [
+            { id: 'brq_one', complete: true },
+            { id: 'brq_two', complete: false }
+          ],
+          acceptedQuote: { id: 'pqt_one', acceptedAt: now },
+          policy,
+          policyAcceptance: {
+            policyId: 'pol_one',
+            version: 1,
+            disclosure: 'Terms',
+            acceptedAt: now
+          },
+          marketingConsents: []
+        })
+      )
+    ).rejects.toMatchObject({ reason: 'request_incomplete' })
 
-    const failing = createCheckoutTelemetry({
-      analytics: { send: () => Promise.reject(new Error('provider down')) },
-      errors: { report: () => Promise.reject(new Error('monitor down')) }
-    })
     await expect(
-      failing.track({ name: 'checkout_reviewed', analyticsConsent: false })
-    ).resolves.toBeUndefined()
-    await expect(
-      failing.track({ name: 'checkout_reviewed', analyticsConsent: true })
-    ).resolves.toBeUndefined()
-    await expect(failing.report(new Error('command failed'))).resolves.toBeUndefined()
+      Effect.runPromise(
+        buildCheckoutReview({
+          requests: [
+            { id: 'brq_one', complete: true },
+            { id: 'brq_two', complete: true }
+          ],
+          acceptedQuote: { id: 'pqt_one', acceptedAt: now },
+          policy,
+          policyAcceptance: {
+            policyId: 'pol_one',
+            version: 1,
+            disclosure: 'Terms',
+            acceptedAt: now
+          },
+          marketingConsents: [
+            {
+              personId: 'brq_one',
+              channel: 'email',
+              granted: false,
+              policyVersion: 'marketing:v1',
+              recordedAt: now
+            }
+          ]
+        })
+      )
+    ).resolves.toMatchObject({ readyToConfirm: true, acceptedQuote: { id: 'pqt_one' } })
   })
 
   it('validates required unverified details and preserves server-owned review facts', async () => {
@@ -231,7 +340,7 @@ describe('Booking Checkout', () => {
             { now }
           )
         ),
-        SeedBookingCheckout(store)
+        legacyCheckoutLayer(store)
       )
     )
     expect(result).toEqual({
@@ -260,7 +369,7 @@ describe('Booking Checkout', () => {
             )
           )
         ),
-        SeedBookingCheckout(store)
+        legacyCheckoutLayer(store)
       )
     )
     expect(result).toMatchObject({

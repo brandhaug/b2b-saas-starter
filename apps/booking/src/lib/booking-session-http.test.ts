@@ -5,6 +5,7 @@ import {
   BookingPartyConflict,
   BookingSelectionRejected,
   BookingSessionGone,
+  CheckoutReviewUnavailable,
   type BookingJourney
 } from '@b2b-saas-starter/capabilities/booking'
 import {
@@ -910,6 +911,8 @@ describe('Booking Session HTTP boundary', () => {
       totalMinor: 5000
     }
     let received: unknown
+    const checkoutCommands: string[] = []
+    let checkoutReady = true
     const dependencies = {
       publicSiteOrigin: 'https://www.example.test',
       enter: () => Effect.die(new Error('not called')),
@@ -939,7 +942,31 @@ describe('Booking Session HTTP boundary', () => {
             quote
           })
         },
-        review: () => Effect.die(new Error('not called'))
+        review: () => Effect.die(new Error('not called')),
+        prepare: () => {
+          checkoutCommands.push('prepare')
+          return Effect.succeed({} as never)
+        },
+        acceptQuote: () => {
+          checkoutCommands.push('quote')
+          return Effect.succeed({} as never)
+        },
+        acceptPolicy: () => {
+          checkoutCommands.push('policy')
+          return Effect.succeed({} as never)
+        },
+        recordMarketingConsent: () => {
+          checkoutCommands.push('consent')
+          return Effect.succeed({} as never)
+        },
+        reviewParty: () => {
+          checkoutCommands.push('review')
+          return checkoutReady
+            ? Effect.succeed({} as never)
+            : Effect.fail(
+                new CheckoutReviewUnavailable({ reason: 'policy_unaccepted' })
+              )
+        }
       },
       confirmation: {
         read: () => Effect.die(new Error('not called')),
@@ -1004,6 +1031,41 @@ describe('Booking Session HTTP boundary', () => {
       quote: { totalMinor: 5000, assignedProvider: { id: 'prv_ava' } }
     })
 
+    for (const [endpoint, body] of [
+      ['checkout-prepare', null],
+      ['quote-accept', { quoteId: 'pqt_one' }],
+      ['policy-accept', { policyId: 'pol_one' }],
+      [
+        'marketing-consent',
+        {
+          personId: 'brq_one',
+          channel: 'email',
+          granted: false,
+          policyVersion: 'marketing:v1'
+        }
+      ],
+      ['checkout-review', null]
+    ] as const) {
+      const command = await Effect.runPromise(
+        handleBookingSessionRequest(
+          new Request(`${base}/${endpoint}`, {
+            method: body ? 'POST' : 'GET',
+            headers,
+            ...(body ? { body: JSON.stringify(body) } : {})
+          }),
+          dependencies
+        )
+      )
+      expect(command.status).toBe(200)
+    }
+    expect(checkoutCommands).toEqual([
+      'prepare',
+      'quote',
+      'policy',
+      'consent',
+      'review'
+    ])
+
     const invalid = await Effect.runPromise(
       handleBookingSessionRequest(
         new Request(`${base}/customer-details`, {
@@ -1035,6 +1097,23 @@ describe('Booking Session HTTP boundary', () => {
       )
     )
     expect(confirm.status).toBe(404)
+
+    checkoutReady = false
+    const blockedConfirmation = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/confirm`, {
+          method: 'POST',
+          headers,
+          body: '{}'
+        }),
+        dependencies
+      )
+    )
+    expect(blockedConfirmation.status).toBe(409)
+    expect(await blockedConfirmation.json()).toEqual({
+      kind: 'policy_unaccepted'
+    })
+    checkoutReady = true
 
     const acceptedCommand = await Effect.runPromise(
       handleBookingSessionRequest(

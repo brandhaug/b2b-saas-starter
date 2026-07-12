@@ -143,11 +143,11 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 - [x] Customer Details are normalized and validated with stable localized errors, including E.164-compatible phone behavior.
 - [x] Each exposed error remains correctly associated when the customer changes locale.
-- [ ] Policy resolution follows accepted configuration precedence and acceptance snapshots the exact disclosure and version once for the Booking Party.
-- [ ] Marketing Consent is person-specific and independent of Operational Notifications.
-- [ ] Checkout review requires every Booking Request to be complete and shows the accepted quote and policy facts.
-- [ ] Editing a material fact invalidates and rebuilds only the dependent state required by the contract.
-- [ ] Provider-neutral funnel events use a no-op default; consent-gated analytics and optional error reporting cannot affect commands.
+- [x] Policy resolution follows accepted configuration precedence and acceptance snapshots the exact disclosure and version once for the Booking Party.
+- [x] Marketing Consent is person-specific and independent of Operational Notifications.
+- [x] Checkout review requires every Booking Request to be complete and shows the accepted quote and policy facts.
+- [x] Editing a material fact invalidates and rebuilds only the dependent state required by the contract.
+- [x] Provider-neutral funnel events use a no-op default; consent-gated analytics and optional error reporting cannot affect commands.
 
 ## Deliver Provider-Free Confirmation and Protected Access
 

@@ -90,6 +90,53 @@ describe('Booking Parties', () => {
       endsAt: null,
       customerDetails: { name: 'Coordinator' }
     })
+    expect(updated.version).toBe(2)
+  })
+
+  it('preserves pricing material and holds when only Customer Details change', async () => {
+    const updated = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingParties, (parties) =>
+          parties.updateRequest(
+            initial.id,
+            'brq_coordinator',
+            {
+              customerDetails: {
+                name: 'Updated Coordinator',
+                email: 'updated@example.com',
+                phone: null
+              }
+            },
+            1,
+            '2026-07-12T10:00:00.000Z'
+          )
+        ),
+        SeedBookingParties(
+          [initial],
+          new Map(),
+          new Map(),
+          new Map(),
+          new Map([
+            [
+              'hld_one',
+              {
+                id: 'hld_one',
+                bookingRequestId: 'brq_coordinator',
+                startsAt: '2026-07-13T09:00:00.000Z',
+                endsAt: '2026-07-13T09:30:00.000Z',
+                expiresAt: '2026-07-12T10:30:00.000Z'
+              }
+            ]
+          ])
+        )
+      )
+    )
+    expect(updated.version).toBe(1)
+    expect(updated.requests[0]).toMatchObject({
+      holdId: 'hld_one',
+      startsAt: '2026-07-13T09:00:00.000Z',
+      customerDetails: { name: 'Updated Coordinator' }
+    })
   })
 
   it('keeps the version unchanged when a request identity is missing', async () => {

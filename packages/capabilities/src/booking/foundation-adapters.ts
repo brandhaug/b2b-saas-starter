@@ -219,16 +219,16 @@ export const SeedBookingParties = (
     updateRequest: (id, requestId, material, version) =>
       change(id, version, (party) => {
         if (!party.requests.some((request) => request.id === requestId)) return party
+        const schedulingChanged =
+          material.providerPreference !== undefined ||
+          material.providerId !== undefined ||
+          material.primaryServiceId !== undefined ||
+          material.serviceIds !== undefined
         return {
           ...party,
-          version: version + 1,
+          version: schedulingChanged ? version + 1 : version,
           requests: party.requests.map((request) => {
             if (request.id !== requestId) return request
-            const schedulingChanged =
-              material.providerPreference !== undefined ||
-              material.providerId !== undefined ||
-              material.primaryServiceId !== undefined ||
-              material.serviceIds !== undefined
             const providerChanged =
               material.providerPreference !== undefined ||
               material.providerId !== undefined
@@ -284,7 +284,7 @@ export const SeedBookingParties = (
         activeRequests.set(party.bookingSessionId, requestId)
         const selection = requestSelections.get(requestId)
         onActivate?.(party.bookingSessionId, selection)
-        return { ...party, activeRequestId: requestId, version: version + 1 }
+        return { ...party, activeRequestId: requestId }
       }),
     continuation: (id, now) =>
       Effect.map(get(id), (party) => bookingPartyContinuation(party, now))
@@ -408,7 +408,8 @@ export const LiveBookingParties: Layer.Layer<BookingParties, never, Database> =
       const atomicMutation = (
         bookingPartyId: string,
         expectedVersion: number,
-        statements: Parameters<typeof batch>[1]
+        statements: Parameters<typeof batch>[1],
+        bumpVersion = true
       ) =>
         mutationSemaphore.withPermit(
           batch(db, [
@@ -421,7 +422,7 @@ export const LiveBookingParties: Layer.Layer<BookingParties, never, Database> =
               })
             },
             ...statements,
-            bump(bookingPartyId, expectedVersion)
+            ...(bumpVersion ? [bump(bookingPartyId, expectedVersion)] : [])
           ]).pipe(
             Effect.mapError((error) =>
               /booking_parties\.(?:id|booking_session_id)/i.test(error.reason)
@@ -561,57 +562,67 @@ export const LiveBookingParties: Layer.Layer<BookingParties, never, Database> =
               material.providerId !== undefined
             const serviceIds = material.serviceIds ?? request.serviceIds
             const createdAt = now
-            yield* atomicMutation(bookingPartyId, expectedVersion, [
-              ...(schedulingChanged && request.holdId
-                ? [db.delete(timeSlotHolds).where(eq(timeSlotHolds.id, request.holdId))]
-                : []),
-              db
-                .update(bookingRequests)
-                .set({
-                  ...(material.providerPreference !== undefined
-                    ? { providerPreference: material.providerPreference }
-                    : {}),
-                  ...(material.providerId !== undefined
-                    ? { providerId: material.providerId }
-                    : {}),
-                  ...(material.primaryServiceId !== undefined
-                    ? { primaryServiceId: material.primaryServiceId }
-                    : {}),
-                  ...(providerChanged ? { primaryServiceId: null } : {}),
-                  ...(material.customerDetails !== undefined
-                    ? {
-                        customerDetailsJson: material.customerDetails
-                          ? JSON.stringify(material.customerDetails)
-                          : null
-                      }
-                    : {}),
-                  ...(schedulingChanged
-                    ? { holdId: null, startsAt: null, endsAt: null }
-                    : {})
-                })
-                .where(
-                  and(
-                    eq(bookingRequests.id, requestId),
-                    eq(bookingRequests.bookingPartyId, bookingPartyId)
-                  )
-                ),
-              ...(material.serviceIds !== undefined || providerChanged
-                ? [
-                    db
-                      .delete(bookingRequestServices)
-                      .where(eq(bookingRequestServices.bookingRequestId, requestId)),
-                    ...(providerChanged ? [] : serviceIds).map((serviceId, position) =>
-                      db.insert(bookingRequestServices).values({
-                        bookingRequestId: requestId,
-                        serviceId,
-                        role: position === 0 ? 'primary' : 'additional',
-                        position,
-                        createdAt
-                      })
+            yield* atomicMutation(
+              bookingPartyId,
+              expectedVersion,
+              [
+                ...(schedulingChanged && request.holdId
+                  ? [
+                      db
+                        .delete(timeSlotHolds)
+                        .where(eq(timeSlotHolds.id, request.holdId))
+                    ]
+                  : []),
+                db
+                  .update(bookingRequests)
+                  .set({
+                    ...(material.providerPreference !== undefined
+                      ? { providerPreference: material.providerPreference }
+                      : {}),
+                    ...(material.providerId !== undefined
+                      ? { providerId: material.providerId }
+                      : {}),
+                    ...(material.primaryServiceId !== undefined
+                      ? { primaryServiceId: material.primaryServiceId }
+                      : {}),
+                    ...(providerChanged ? { primaryServiceId: null } : {}),
+                    ...(material.customerDetails !== undefined
+                      ? {
+                          customerDetailsJson: material.customerDetails
+                            ? JSON.stringify(material.customerDetails)
+                            : null
+                        }
+                      : {}),
+                    ...(schedulingChanged
+                      ? { holdId: null, startsAt: null, endsAt: null }
+                      : {})
+                  })
+                  .where(
+                    and(
+                      eq(bookingRequests.id, requestId),
+                      eq(bookingRequests.bookingPartyId, bookingPartyId)
                     )
-                  ]
-                : [])
-            ])
+                  ),
+                ...(material.serviceIds !== undefined || providerChanged
+                  ? [
+                      db
+                        .delete(bookingRequestServices)
+                        .where(eq(bookingRequestServices.bookingRequestId, requestId)),
+                      ...(providerChanged ? [] : serviceIds).map(
+                        (serviceId, position) =>
+                          db.insert(bookingRequestServices).values({
+                            bookingRequestId: requestId,
+                            serviceId,
+                            role: position === 0 ? 'primary' : 'additional',
+                            position,
+                            createdAt
+                          })
+                      )
+                    ]
+                  : [])
+              ],
+              schedulingChanged
+            )
             return yield* finish(bookingPartyId)
           }),
         activateRequest: (bookingPartyId, requestId, expectedVersion) =>
@@ -622,35 +633,40 @@ export const LiveBookingParties: Layer.Layer<BookingParties, never, Database> =
             const additionalIds = request.serviceIds.filter(
               (serviceId) => serviceId !== request.primaryServiceId
             )
-            yield* atomicMutation(bookingPartyId, expectedVersion, [
-              db
-                .update(bookingParties)
-                .set({ activeRequestId: requestId })
-                .where(eq(bookingParties.id, bookingPartyId)),
-              db
-                .update(bookingSessions)
-                .set({
-                  providerPreference: request.providerPreference,
-                  providerId: request.providerId,
-                  primaryServiceId: request.primaryServiceId
-                })
-                .where(eq(bookingSessions.id, party.bookingSessionId)),
-              db
-                .delete(bookingSessionAdditionalServices)
-                .where(
-                  eq(
-                    bookingSessionAdditionalServices.bookingSessionId,
-                    party.bookingSessionId
-                  )
-                ),
-              ...additionalIds.map((serviceId, position) =>
-                db.insert(bookingSessionAdditionalServices).values({
-                  bookingSessionId: party.bookingSessionId,
-                  serviceId,
-                  position
-                })
-              )
-            ])
+            yield* atomicMutation(
+              bookingPartyId,
+              expectedVersion,
+              [
+                db
+                  .update(bookingParties)
+                  .set({ activeRequestId: requestId })
+                  .where(eq(bookingParties.id, bookingPartyId)),
+                db
+                  .update(bookingSessions)
+                  .set({
+                    providerPreference: request.providerPreference,
+                    providerId: request.providerId,
+                    primaryServiceId: request.primaryServiceId
+                  })
+                  .where(eq(bookingSessions.id, party.bookingSessionId)),
+                db
+                  .delete(bookingSessionAdditionalServices)
+                  .where(
+                    eq(
+                      bookingSessionAdditionalServices.bookingSessionId,
+                      party.bookingSessionId
+                    )
+                  ),
+                ...additionalIds.map((serviceId, position) =>
+                  db.insert(bookingSessionAdditionalServices).values({
+                    bookingSessionId: party.bookingSessionId,
+                    serviceId,
+                    position
+                  })
+                )
+              ],
+              false
+            )
             return yield* finish(bookingPartyId)
           }),
         continuation: (bookingPartyId, now) =>

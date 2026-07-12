@@ -306,27 +306,32 @@ const seedMerchantCatalogConfiguration: SeedMerchantCatalogConfigurationStore = 
     seedBookingScenario.eligibility.map((pair) => seedEligibilityKey(pair))
   )
 }
+const seedBookingPartiesLayer = SeedBookingParties(
+  [],
+  seedBookingScheduling.requestSelections,
+  seedBookingScheduling.activeRequests,
+  seedBookingScheduling.partyRequests,
+  seedBookingScheduling.holds,
+  seedBookingSessions.parties,
+  (sessionId, request) => {
+    const current = seedBookingSelection.selections.get(sessionId)
+    seedBookingSelection.selections.set(sessionId, {
+      version: current?.version ?? 1,
+      ...(current?.shopId ? { shopId: current.shopId } : {}),
+      providerPreference: request?.providerPreference ?? null,
+      primaryServiceId: request?.primaryServiceId ?? null,
+      additionalServiceIds: [...(request?.additionalServiceIds ?? [])]
+    })
+  }
+)
+const seedPricingQuotesLayer = SeedPricingQuotes()
+const seedBookingCheckoutLayer = SeedBookingCheckout(seedBookingCheckout).pipe(
+  Layer.provide(Layer.merge(seedBookingPartiesLayer, seedPricingQuotesLayer))
+)
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
-  SeedBookingParties(
-    [],
-    seedBookingScheduling.requestSelections,
-    seedBookingScheduling.activeRequests,
-    seedBookingScheduling.partyRequests,
-    seedBookingScheduling.holds,
-    seedBookingSessions.parties,
-    (sessionId, request) => {
-      const current = seedBookingSelection.selections.get(sessionId)
-      seedBookingSelection.selections.set(sessionId, {
-        version: current?.version ?? 1,
-        ...(current?.shopId ? { shopId: current.shopId } : {}),
-        providerPreference: request?.providerPreference ?? null,
-        primaryServiceId: request?.primaryServiceId ?? null,
-        additionalServiceIds: [...(request?.additionalServiceIds ?? [])]
-      })
-    }
-  ),
-  SeedPricingQuotes(),
+  seedBookingPartiesLayer,
+  seedPricingQuotesLayer,
   SeedPaymentLedger(),
   SeedCustomerEngagement(),
   SeedNotificationIntents(),
@@ -356,7 +361,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedBookingSessions(seedBookingSessions),
   SeedBookingSelection(seedBookingSelection),
   SeedBookingScheduling(seedBookingScheduling),
-  SeedBookingCheckout(seedBookingCheckout),
+  seedBookingCheckoutLayer,
   SeedBookingConfirmation(seedBookingConfirmation, seedConfirmationKeyring),
   SeedAppointmentOperations(seedOperationalAppointments),
   SeedBookingNotificationOutbox
@@ -382,9 +387,14 @@ export const makeLiveCapabilitiesLayer = (
   // Callers construct the live layer from inside a request, queue, or scheduled
   // handler, so create the local-only fallback at that handler-time boundary.
   const cursorSecret = options.platformApiCursorSecret || crypto.randomUUID()
+  const liveBookingPartiesLayer = LiveBookingParties
+  const livePricingQuotesLayer = LivePricingQuotes
+  const liveBookingCheckoutLayer = LiveBookingCheckout.pipe(
+    Layer.provide(Layer.merge(liveBookingPartiesLayer, livePricingQuotesLayer))
+  )
   return Layer.mergeAll(
-    LiveBookingParties,
-    LivePricingQuotes,
+    liveBookingPartiesLayer,
+    livePricingQuotesLayer,
     LivePaymentLedger,
     LiveCustomerEngagement,
     LiveNotificationIntents,
@@ -404,7 +414,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveBookingSessions,
     LiveBookingSelection,
     LiveBookingScheduling,
-    LiveBookingCheckout,
+    liveBookingCheckoutLayer,
     LiveBookingConfirmation(
       options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} }
     ),

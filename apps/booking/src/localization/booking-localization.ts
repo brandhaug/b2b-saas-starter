@@ -83,7 +83,17 @@ const en = {
   'validation.name_required': 'Enter your name.',
   'validation.name_too_long': 'Enter a name with 120 characters or fewer.',
   'validation.phone_invalid': 'Enter a valid phone number.',
-  'title.appointment_confirmation': 'Appointment Confirmation'
+  'title.appointment_confirmation': 'Appointment Confirmation',
+  'checkout.title': 'Confirm booking',
+  'checkout.guests': 'Guests',
+  'checkout.edit': 'Edit',
+  'checkout.email_offers': 'Email offers for',
+  'checkout.operational_notifications':
+    'Operational booking notifications are sent regardless of marketing consent.',
+  'checkout.accept_policy': 'Accept Checkout Policy version',
+  'checkout.price_proposal': 'Price proposal',
+  'checkout.book': 'Book',
+  'checkout.privacy': 'Customer Details are used for this booking.'
 } as const
 
 export type BookingTranslationKey = keyof typeof en
@@ -168,7 +178,17 @@ const es = {
   'validation.name_required': 'Introduce tu nombre.',
   'validation.name_too_long': 'Introduce un nombre de 120 caracteres o menos.',
   'validation.phone_invalid': 'Introduce un número de teléfono válido.',
-  'title.appointment_confirmation': 'Confirmación de la cita'
+  'title.appointment_confirmation': 'Confirmación de la cita',
+  'checkout.title': 'Confirmar reserva',
+  'checkout.guests': 'Personas',
+  'checkout.edit': 'Editar',
+  'checkout.email_offers': 'Ofertas por correo para',
+  'checkout.operational_notifications':
+    'Las notificaciones de la reserva se envían independientemente del consentimiento de marketing.',
+  'checkout.accept_policy': 'Aceptar la versión de la política de reserva',
+  'checkout.price_proposal': 'Propuesta de precio',
+  'checkout.book': 'Reservar',
+  'checkout.privacy': 'Los datos del cliente se usan para esta reserva.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const fr = {
@@ -252,7 +272,17 @@ const fr = {
   'validation.name_required': 'Saisissez votre nom.',
   'validation.name_too_long': 'Saisissez un nom de 120 caractères maximum.',
   'validation.phone_invalid': 'Saisissez un numéro de téléphone valide.',
-  'title.appointment_confirmation': 'Confirmation du rendez-vous'
+  'title.appointment_confirmation': 'Confirmation du rendez-vous',
+  'checkout.title': 'Confirmer la réservation',
+  'checkout.guests': 'Personnes',
+  'checkout.edit': 'Modifier',
+  'checkout.email_offers': 'Offres par courriel pour',
+  'checkout.operational_notifications':
+    'Les notifications de réservation sont envoyées indépendamment du consentement marketing.',
+  'checkout.accept_policy': 'Accepter la version de la politique de réservation',
+  'checkout.price_proposal': 'Proposition de prix',
+  'checkout.book': 'Réserver',
+  'checkout.privacy': 'Les coordonnées client servent à cette réservation.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const ro = {
@@ -335,7 +365,17 @@ const ro = {
   'validation.name_required': 'Introdu numele.',
   'validation.name_too_long': 'Introdu un nume de cel mult 120 de caractere.',
   'validation.phone_invalid': 'Introdu un număr de telefon valid.',
-  'title.appointment_confirmation': 'Confirmarea programării'
+  'title.appointment_confirmation': 'Confirmarea programării',
+  'checkout.title': 'Confirmă rezervarea',
+  'checkout.guests': 'Persoane',
+  'checkout.edit': 'Editează',
+  'checkout.email_offers': 'Oferte prin e-mail pentru',
+  'checkout.operational_notifications':
+    'Notificările operaționale ale rezervării sunt trimise indiferent de consimțământul de marketing.',
+  'checkout.accept_policy': 'Acceptă versiunea politicii de rezervare',
+  'checkout.price_proposal': 'Propunere de preț',
+  'checkout.book': 'Rezervă',
+  'checkout.privacy': 'Datele clientului sunt folosite pentru această rezervare.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 export const bookingCatalogs = { en, es, fr, ro } as const satisfies Record<

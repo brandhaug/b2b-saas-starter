@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import {
   BookingCheckout,
   BookingConfirmation,
@@ -22,6 +22,7 @@ import {
   enterBookingSession,
   seedBookingSelectionEligibilityKey
 } from '@b2b-saas-starter/capabilities/booking'
+import { SeedPricingQuotes } from '@b2b-saas-starter/capabilities/pricing/testing'
 import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   handleBookingSessionRequest,
@@ -81,7 +82,10 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
       })
     }
   )
-  const checkoutLayer = SeedBookingCheckout(checkout)
+  const pricingLayer = SeedPricingQuotes()
+  const checkoutLayer = SeedBookingCheckout(checkout).pipe(
+    Layer.provide(Layer.merge(partiesLayer, pricingLayer))
+  )
   const confirmationLayer = SeedBookingConfirmation(confirmation, {
     currentKeyId: 'parity',
     keys: { parity: 'deterministic-parity-confirmation-key' }
@@ -408,6 +412,41 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
             Effect.provide(
               Effect.flatMap(BookingCheckout, (service) =>
                 service.review(session, input)
+              ),
+              checkoutLayer
+            ),
+          prepare: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (service) =>
+                service.prepare(session, input)
+              ),
+              checkoutLayer
+            ),
+          acceptQuote: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (service) =>
+                service.acceptQuote(session, input)
+              ),
+              checkoutLayer
+            ),
+          acceptPolicy: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (service) =>
+                service.acceptPolicy(session, input)
+              ),
+              checkoutLayer
+            ),
+          recordMarketingConsent: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (service) =>
+                service.recordMarketingConsent(session, input)
+              ),
+              checkoutLayer
+            ),
+          reviewParty: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (service) =>
+                service.reviewParty(session, input)
               ),
               checkoutLayer
             )
