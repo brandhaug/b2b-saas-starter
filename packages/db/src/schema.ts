@@ -1177,6 +1177,8 @@ export const giftCardProducts = sqliteTable('gift_card_products', {
   allowsCustomAmount: integer('allows_custom_amount', { mode: 'boolean' })
     .default(false)
     .notNull(),
+  customAmountMinMinor: integer('custom_amount_min_minor'),
+  customAmountMaxMinor: integer('custom_amount_max_minor'),
   active: integer('active', { mode: 'boolean' }).default(true).notNull(),
   createdAt: isoCreatedAt(),
   updatedAt: isoUpdatedAt()
@@ -1198,7 +1200,13 @@ export const giftCardSales = sqliteTable('gift_card_sales', {
   currency: text('currency').notNull(),
   recipientJson: text('recipient_json').notNull(),
   purchaserJson: text('purchaser_json').notNull(),
-  paymentId: text('payment_id').references(() => payments.id, { onDelete: 'restrict' }),
+  paymentId: text('payment_id')
+    .unique()
+    .references(() => payments.id, { onDelete: 'restrict' }),
+  receiptRouteId: text('receipt_route_id').unique(),
+  receiptTokenHash: text('receipt_token_hash'),
+  receiptSigningKeyId: text('receipt_signing_key_id'),
+  receiptExpiresAt: text('receipt_expires_at'),
   createdAt: isoCreatedAt(),
   updatedAt: isoUpdatedAt()
 })

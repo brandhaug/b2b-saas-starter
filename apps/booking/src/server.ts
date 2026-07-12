@@ -12,6 +12,11 @@ import {
 } from '@b2b-saas-starter/capabilities/booking'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
+  GiftCardSales,
+  hashGiftCardReceiptToken,
+  purchaseAndIssueGiftCard
+} from '@b2b-saas-starter/capabilities/gift-cards'
+import {
   eligiblePaymentMethods,
   PaymentProvider,
   PaymentProviderFailure,
@@ -23,6 +28,7 @@ import {
 import { readTraceHeader, reportOperationalError } from '@b2b-saas-starter/logger'
 import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
 import { makeStripePaymentProvider } from './lib/stripe-payment-provider.ts'
+import { handleGiftCardRequest } from './lib/gift-card-http.ts'
 
 type RateLimitBinding = {
   readonly limit: (input: { readonly key: string }) => Promise<{
@@ -113,6 +119,19 @@ export const publishBookingWakeUp = async <A extends { readonly outboxId: string
     // The durable outbox is authoritative; publication is only a wake-up.
   }
   return result
+}
+
+export const reconcilePaymentAndResumeGiftCard = async <
+  A extends {
+    readonly payment: { readonly id: string; readonly status: string }
+  }
+>(
+  reconcile: () => Promise<A>,
+  resume: (paymentId: string) => Promise<unknown>
+): Promise<A> => {
+  const view = await reconcile()
+  if (view.payment.status === 'captured') await resume(view.payment.id)
+  return view
 }
 
 type FallbackRateState = { count: number; resetAt: number }
@@ -236,6 +255,46 @@ export default {
             })
         })
     })
+    const runtimeLayer = Layer.merge(capabilitiesLayer, paymentProviderLayer)
+    const giftCardResponse = await handleGiftCardRequest(request, {
+      resolveSelection: ({ merchantSlug, shopSlug, providerSlug }) =>
+        Effect.runPromise(
+          Effect.flatMap(GiftCardSales, (sales) =>
+            sales.resolvePurchaseRoute({
+              merchantSlug,
+              shopSlug,
+              providerLocator: providerSlug
+            })
+          ).pipe(Effect.provide(capabilitiesLayer))
+        ),
+      listProducts: (selection) =>
+        Effect.runPromise(
+          Effect.flatMap(GiftCardSales, (sales) => sales.listProducts(selection)).pipe(
+            Effect.provide(capabilitiesLayer)
+          )
+        ),
+      purchase: (input) =>
+        signingKeys[readyEnv.CONFIRMATION_CURRENT_KEY_ID]
+          ? Effect.runPromise(
+              purchaseAndIssueGiftCard({
+                ...input,
+                receiptKeyring: {
+                  currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
+                  keys: signingKeys
+                }
+              }).pipe(Effect.provide(runtimeLayer))
+            )
+          : Promise.reject({ _tag: 'CapabilityUnavailable' }),
+      receiptState: (input) =>
+        Effect.runPromise(
+          Effect.flatMap(GiftCardSales, (sales) => sales.receiptState(input)).pipe(
+            Effect.provide(capabilitiesLayer)
+          )
+        ),
+      hashToken: (token) => Effect.runPromise(hashGiftCardReceiptToken(token)),
+      now: () => new Date().toISOString()
+    })
+    if (giftCardResponse) return giftCardResponse
     const callbackMatch = new URL(request.url).pathname.match(
       /^\/[^/]+\/booking\/payment-callback\/([^/]+)$/
     )
@@ -246,21 +305,29 @@ export default {
         request,
         callbackMatch[1]!,
         paymentProvider,
-        (event) =>
-          Effect.runPromise(
-            Effect.provide(
-              Effect.flatMap(PaymentSettlement, (payments) =>
-                payments.reconcile({
-                  paymentId: event.paymentId,
-                  provider: callbackMatch[1]!,
-                  providerEventId: event.providerEventId,
-                  facts: event.facts ?? [],
-                  now: new Date().toISOString()
-                })
+        async (event) => {
+          const now = new Date().toISOString()
+          await reconcilePaymentAndResumeGiftCard(
+            () =>
+              Effect.runPromise(
+                Effect.flatMap(PaymentSettlement, (payments) =>
+                  payments.reconcile({
+                    paymentId: event.paymentId,
+                    provider: callbackMatch[1]!,
+                    providerEventId: event.providerEventId,
+                    facts: event.facts ?? [],
+                    now
+                  })
+                ).pipe(Effect.provide(capabilitiesLayer))
               ),
-              capabilitiesLayer
-            )
-          ).then(() => undefined)
+            (paymentId) =>
+              Effect.runPromise(
+                Effect.flatMap(GiftCardSales, (sales) =>
+                  sales.resumeIssuanceForPayment({ paymentId, now })
+                ).pipe(Effect.provide(capabilitiesLayer))
+              )
+          )
+        }
       )
     }
     return Effect.runPromise(

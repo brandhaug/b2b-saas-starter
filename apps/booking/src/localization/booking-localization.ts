@@ -120,7 +120,26 @@ const en = {
   'payment.processing': 'Your payment is processing. Do not submit it again.',
   'payment.failed':
     'Your payment could not be completed. No successful collection was recorded.',
-  'payment.succeeded': 'Payment complete.'
+  'payment.succeeded': 'Payment complete.',
+  'gift_card.unavailable': 'Gift Cards are not available for this selection.',
+  'gift_card.processing':
+    'Your payment is processing. Your Gift Card will be issued after capture.',
+  'gift_card.failed':
+    'Payment could not be completed. Check the details and try again.',
+  'gift_card.issued': 'Your Gift Card is ready.',
+  'gift_card.amount': 'Choose an amount',
+  'gift_card.custom_amount': 'Custom amount',
+  'gift_card.purchaser': 'From you',
+  'gift_card.purchaser_name': 'Your name',
+  'gift_card.purchaser_email': 'Your email',
+  'gift_card.recipient': 'For the recipient',
+  'gift_card.recipient_name': 'Recipient name',
+  'gift_card.recipient_email': 'Recipient email',
+  'gift_card.message': 'Message',
+  'gift_card.continue_payment': 'Continue to payment',
+  'gift_card.scope_brand': 'Valid across this brand.',
+  'gift_card.scope_shop': 'Valid at this shop.',
+  'gift_card.scope_provider': 'Valid with this specific professional.'
 } as const
 
 export type BookingTranslationKey = keyof typeof en
@@ -242,7 +261,27 @@ const es = {
   'payment.processing': 'Tu pago se está procesando. No lo envíes de nuevo.',
   'payment.failed':
     'No se pudo completar el pago. No se registró ningún cobro correcto.',
-  'payment.succeeded': 'Pago completado.'
+  'payment.succeeded': 'Pago completado.',
+  'gift_card.unavailable':
+    'Las tarjetas regalo no están disponibles para esta selección.',
+  'gift_card.processing':
+    'Tu pago se está procesando. La tarjeta regalo se emitirá después del cobro.',
+  'gift_card.failed':
+    'No se pudo completar el pago. Revisa los datos e inténtalo de nuevo.',
+  'gift_card.issued': 'Tu tarjeta regalo está lista.',
+  'gift_card.amount': 'Elige un importe',
+  'gift_card.custom_amount': 'Importe personalizado',
+  'gift_card.purchaser': 'De tu parte',
+  'gift_card.purchaser_name': 'Tu nombre',
+  'gift_card.purchaser_email': 'Tu correo electrónico',
+  'gift_card.recipient': 'Para la persona destinataria',
+  'gift_card.recipient_name': 'Nombre de la persona destinataria',
+  'gift_card.recipient_email': 'Correo de la persona destinataria',
+  'gift_card.message': 'Mensaje',
+  'gift_card.continue_payment': 'Continuar al pago',
+  'gift_card.scope_brand': 'Válida en toda esta marca.',
+  'gift_card.scope_shop': 'Válida en este local.',
+  'gift_card.scope_provider': 'Válida con este profesional específico.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const fr = {
@@ -364,7 +403,26 @@ const fr = {
   'payment.processing': 'Votre paiement est en cours. Ne le soumettez pas à nouveau.',
   'payment.failed':
     'Votre paiement n’a pas abouti. Aucun encaissement réussi n’a été enregistré.',
-  'payment.succeeded': 'Paiement effectué.'
+  'payment.succeeded': 'Paiement effectué.',
+  'gift_card.unavailable':
+    'Les cartes cadeaux ne sont pas disponibles pour cette sélection.',
+  'gift_card.processing':
+    'Votre paiement est en cours. La carte cadeau sera émise après encaissement.',
+  'gift_card.failed': 'Le paiement a échoué. Vérifiez les informations et réessayez.',
+  'gift_card.issued': 'Votre carte cadeau est prête.',
+  'gift_card.amount': 'Choisir un montant',
+  'gift_card.custom_amount': 'Montant personnalisé',
+  'gift_card.purchaser': 'De votre part',
+  'gift_card.purchaser_name': 'Votre nom',
+  'gift_card.purchaser_email': 'Votre e-mail',
+  'gift_card.recipient': 'Pour le destinataire',
+  'gift_card.recipient_name': 'Nom du destinataire',
+  'gift_card.recipient_email': 'E-mail du destinataire',
+  'gift_card.message': 'Message',
+  'gift_card.continue_payment': 'Continuer vers le paiement',
+  'gift_card.scope_brand': 'Valable dans toute cette marque.',
+  'gift_card.scope_shop': 'Valable dans cet établissement.',
+  'gift_card.scope_provider': 'Valable avec ce professionnel précis.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const ro = {
@@ -484,7 +542,26 @@ const ro = {
   'payment.processing': 'Plata ta este în curs. Nu o trimite din nou.',
   'payment.failed':
     'Plata nu a putut fi finalizată. Nu a fost înregistrată nicio încasare reușită.',
-  'payment.succeeded': 'Plată finalizată.'
+  'payment.succeeded': 'Plată finalizată.',
+  'gift_card.unavailable':
+    'Cardurile cadou nu sunt disponibile pentru această selecție.',
+  'gift_card.processing': 'Plata este în curs. Cardul cadou va fi emis după încasare.',
+  'gift_card.failed':
+    'Plata nu a putut fi finalizată. Verifică detaliile și încearcă din nou.',
+  'gift_card.issued': 'Cardul tău cadou este gata.',
+  'gift_card.amount': 'Alege o sumă',
+  'gift_card.custom_amount': 'Sumă personalizată',
+  'gift_card.purchaser': 'Din partea ta',
+  'gift_card.purchaser_name': 'Numele tău',
+  'gift_card.purchaser_email': 'E-mailul tău',
+  'gift_card.recipient': 'Pentru destinatar',
+  'gift_card.recipient_name': 'Numele destinatarului',
+  'gift_card.recipient_email': 'E-mailul destinatarului',
+  'gift_card.message': 'Mesaj',
+  'gift_card.continue_payment': 'Continuă la plată',
+  'gift_card.scope_brand': 'Valabil în cadrul acestui brand.',
+  'gift_card.scope_shop': 'Valabil în această locație.',
+  'gift_card.scope_provider': 'Valabil cu acest profesionist.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 export const bookingCatalogs = { en, es, fr, ro } as const satisfies Record<

@@ -134,7 +134,19 @@ import {
   SeedScheduledWorkQueue
 } from './scheduled-work/adapters.ts'
 import { ScheduledWorkQueue } from './scheduled-work/index.ts'
-import { LiveGiftCards, SeedGiftCards } from './gift-cards/adapters.ts'
+import {
+  LiveGiftCards,
+  LiveGiftCardPayment,
+  LiveGiftCardSales,
+  SeedGiftCards
+} from './gift-cards/adapters.ts'
+import {
+  emptySeedGiftCardSalesStore,
+  GiftCardPayment,
+  GiftCardSales,
+  SeedGiftCardPayment,
+  SeedGiftCardSales
+} from './gift-cards/gift-card-sales.ts'
 import { GiftCards } from './gift-cards/index.ts'
 import { LiveWalkIns, SeedWalkIns } from './walk-ins/adapters.ts'
 import { WalkIns } from './walk-ins/index.ts'
@@ -170,6 +182,8 @@ export type CapabilityServices =
   | NotificationIntents
   | ScheduledWorkQueue
   | GiftCards
+  | GiftCardSales
+  | GiftCardPayment
   | WalkIns
   | CustomerIdentity
 
@@ -335,6 +349,7 @@ const seedBookingPartiesLayer = SeedBookingParties(
   }
 )
 const seedPricingQuotesLayer = SeedPricingQuotes()
+const seedGiftCardSalesStore = emptySeedGiftCardSalesStore()
 const seedBookingCheckoutLayer = SeedBookingCheckout(seedBookingCheckout).pipe(
   Layer.provide(Layer.merge(seedBookingPartiesLayer, seedPricingQuotesLayer))
 )
@@ -348,6 +363,8 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedNotificationIntents(),
   SeedScheduledWorkQueue(),
   SeedGiftCards(),
+  SeedGiftCardSales(seedGiftCardSalesStore),
+  SeedGiftCardPayment(seedGiftCardSalesStore),
   SeedWalkIns(),
   SeedCustomerIdentity(),
   SeedShopTopology([
@@ -414,6 +431,8 @@ export const makeLiveCapabilitiesLayer = (
     LiveNotificationIntents,
     LiveScheduledWorkQueue,
     LiveGiftCards,
+    LiveGiftCardSales,
+    LiveGiftCardPayment,
     LiveWalkIns,
     LiveCustomerIdentity,
     LiveShopTopology,

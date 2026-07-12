@@ -128,8 +128,8 @@ export type MonetaryFact = {
 }
 export type PaymentRecord = {
   readonly id: string
-  readonly bookingPartyId: string
-  readonly pricingQuoteId: string
+  readonly bookingPartyId: string | null
+  readonly pricingQuoteId: string | null
   readonly amountMinor: number
   readonly currency: string
   readonly status: PaymentStatus

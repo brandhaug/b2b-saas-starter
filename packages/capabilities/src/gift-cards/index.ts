@@ -30,3 +30,24 @@ export type GiftCardsShape = {
 export class GiftCards extends Context.Service<GiftCards, GiftCardsShape>()(
   '@b2b-saas-starter/capabilities/GiftCards'
 ) {}
+
+export {
+  GiftCardPerson,
+  GiftCardSale,
+  IssuedGiftCard,
+  GiftCardSaleConflict,
+  GiftCardPayment,
+  GiftCardSales,
+  hashGiftCardReceiptToken,
+  purchaseAndIssueGiftCard,
+  sortGiftCardProducts,
+  giftCardAmountIsPermitted
+} from './gift-card-sales.ts'
+export type {
+  GiftCardReceipt,
+  GiftCardReceiptState,
+  GiftCardPurchaseResult,
+  GiftCardPaymentShape,
+  GiftCardSalesShape,
+  GiftCardProductOffer
+} from './gift-card-sales.ts'

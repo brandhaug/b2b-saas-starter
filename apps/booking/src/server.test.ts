@@ -20,7 +20,11 @@ vi.mock('./lib/booking-session-http.ts', () => ({
 }))
 
 import { reportOperationalError } from '@b2b-saas-starter/logger'
-import worker, { publishBookingWakeUp, reconcilePaymentCallback } from './server.ts'
+import worker, {
+  publishBookingWakeUp,
+  reconcilePaymentAndResumeGiftCard,
+  reconcilePaymentCallback
+} from './server.ts'
 
 describe('Booking Worker entry', () => {
   it('uses the local Worker environment when Vite omits the fetch env argument', async () => {
@@ -100,5 +104,14 @@ describe('Booking Worker entry', () => {
         providerEventId: 'evt_callback'
       })
     )
+  })
+
+  it('continues captured Gift Card payments into retryable issuance', async () => {
+    const resume = vi.fn(async () => undefined)
+    const view = { payment: { id: 'pay_gift_async', status: 'captured' } }
+    await expect(
+      reconcilePaymentAndResumeGiftCard(async () => view, resume)
+    ).resolves.toBe(view)
+    expect(resume).toHaveBeenCalledWith('pay_gift_async')
   })
 })
