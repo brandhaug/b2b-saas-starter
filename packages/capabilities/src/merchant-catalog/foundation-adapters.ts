@@ -7,6 +7,16 @@ import { ShopNotFound, ShopTopology, type Shop } from './foundations.ts'
 export const SeedShopTopology = (records: readonly Shop[]): Layer.Layer<ShopTopology> =>
   Layer.succeed(ShopTopology)({
     listAll: () => Effect.succeed(records),
+    listOwned: (merchantId) =>
+      Effect.succeed(records.filter((shop) => shop.merchantId === merchantId)),
+    findOwnedById: ({ merchantId, shopId }) => {
+      const shop = records.find(
+        (candidate) => candidate.id === shopId && candidate.merchantId === merchantId
+      )
+      return shop
+        ? Effect.succeed(shop)
+        : Effect.fail(new ShopNotFound({ slug: shopId }))
+    },
     findByBookingPath: ({ merchantSlug, shopSlug }) => {
       const shop = records.find(
         (candidate) =>
@@ -39,6 +49,44 @@ export const LiveShopTopology: Layer.Layer<ShopTopology, never, Database> =
               timezone: shop.timezone,
               currency: shop.currency
             }))
+          ),
+        listOwned: (merchantId) =>
+          Effect.map(
+            orUnavailable('shop-topology')(
+              db.select().from(shops).where(eq(shops.merchantId, merchantId))
+            ),
+            (rows) =>
+              rows.map((shop) => ({
+                id: shop.id,
+                brandId: shop.brandId,
+                merchantId: shop.merchantId,
+                slug: shop.slug,
+                publicName: shop.publicName,
+                timezone: shop.timezone,
+                currency: shop.currency
+              }))
+          ),
+        findOwnedById: ({ merchantId, shopId }) =>
+          Effect.flatMap(
+            orUnavailable('shop-topology')(
+              db
+                .select()
+                .from(shops)
+                .where(and(eq(shops.id, shopId), eq(shops.merchantId, merchantId)))
+                .limit(1)
+            ),
+            ([shop]) =>
+              shop
+                ? Effect.succeed({
+                    id: shop.id,
+                    brandId: shop.brandId,
+                    merchantId: shop.merchantId,
+                    slug: shop.slug,
+                    publicName: shop.publicName,
+                    timezone: shop.timezone,
+                    currency: shop.currency
+                  })
+                : Effect.fail(new ShopNotFound({ slug: shopId }))
           ),
         findByBookingPath: ({ merchantSlug, shopSlug }) =>
           Effect.flatMap(

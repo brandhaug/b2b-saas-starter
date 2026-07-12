@@ -26,6 +26,8 @@ export type CanonicalBookingRoute = {
   readonly merchantSlug: string
   readonly pathname: string
   readonly transactional: boolean
+  readonly shopSlug?: string | undefined
+  readonly serviceSlug?: string | undefined
 }
 
 const SAFE_SEGMENT = /^[a-z0-9](?:[a-z0-9_-]{0,126}[a-z0-9])?$/
@@ -48,7 +50,9 @@ const route = (
   kind,
   merchantSlug: segments[0]!,
   pathname: `/${segments.map(encodeURIComponent).join('/')}`,
-  transactional
+  transactional,
+  shopSlug: segments[2],
+  serviceSlug: kind === 'walk-in-service' ? segments[5] : undefined
 })
 
 export function matchCanonicalBookingRoute(

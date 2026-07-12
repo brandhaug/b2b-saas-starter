@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WalkInsRouteImport } from './routes/walk-ins'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SignInRouteImport } from './routes/sign-in'
@@ -24,6 +25,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppointmentsAppointmentIdRouteImport } from './routes/appointments.$appointmentId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
+const WalkInsRoute = WalkInsRouteImport.update({
+  id: '/walk-ins',
+  path: '/walk-ins',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
   path: '/verify-email',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/verify-email'
+    | '/walk-ins'
     | '/appointments/$appointmentId'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/verify-email'
+    | '/walk-ins'
     | '/appointments/$appointmentId'
     | '/api/auth/$'
   id:
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/verify-email'
+    | '/walk-ins'
     | '/appointments/$appointmentId'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -209,11 +221,19 @@ export interface RootRouteChildren {
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  WalkInsRoute: typeof WalkInsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/walk-ins': {
+      id: '/walk-ins'
+      path: '/walk-ins'
+      fullPath: '/walk-ins'
+      preLoaderRoute: typeof WalkInsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verify-email': {
       id: '/verify-email'
       path: '/verify-email'
@@ -340,6 +360,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  WalkInsRoute: WalkInsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

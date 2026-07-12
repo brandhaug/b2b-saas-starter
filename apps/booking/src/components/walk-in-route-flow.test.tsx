@@ -43,6 +43,29 @@ describe('WalkInRouteFlow', () => {
     expect(screen.getByText('No one is waiting right now.')).toBeTruthy()
   })
 
+  it('preselects the service encoded by the canonical walk-in service route', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          ...overview,
+          services: [{ id: 'svc_other', name: 'Other service' }, ...overview.services]
+        })
+      )
+    )
+    render(
+      <WalkInRouteFlow
+        pathname="/m/booking/s/walk-ins"
+        locale="en"
+        acknowledgment={false}
+        initialServiceId="signature-cut"
+      />
+    )
+    expect(
+      ((await screen.findByLabelText('Service')) as unknown as HTMLSelectElement).value
+    ).toBe('svc_cut')
+  })
+
   it('localizes the closed journey in Romanian', async () => {
     vi.stubGlobal(
       'fetch',
@@ -182,8 +205,84 @@ describe('WalkInRouteFlow', () => {
         )
         expect(await screen.findByRole('heading', { name: title })).toBeTruthy()
         expect(await screen.findByRole('button')).toBeTruthy()
+        expect(view.container.querySelector('[data-walk-in-viewport]')?.className).toBe(
+          'px-3 py-4 sm:px-8 sm:py-10'
+        )
         view.unmount()
       }
     }
   )
+
+  it.each([
+    ['en', 'Walk-ins are closed right now.', 'Served'],
+    ['es', 'La atención sin cita está cerrada ahora.', 'Atendido'],
+    ['fr', 'Les inscriptions sont fermées pour le moment.', 'Terminé'],
+    ['ro', 'Înscrierile sunt închise momentan.', 'Finalizat']
+  ] as const)(
+    'covers closed and terminal %s journeys at compact and wide viewports',
+    async (locale, closedLabel, servedLabel) => {
+      for (const width of [320, 1280]) {
+        Object.defineProperty(window, 'innerWidth', {
+          configurable: true,
+          value: width
+        })
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => Response.json({ ...overview, state: 'closed' }))
+        )
+        const closed = render(
+          <WalkInRouteFlow
+            pathname="/m/booking/s/walk-ins"
+            locale={locale}
+            acknowledgment={false}
+          />
+        )
+        expect(await screen.findByText(closedLabel)).toBeTruthy()
+        closed.unmount()
+
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () =>
+            Response.json({
+              id: 'wie_served',
+              shopId: 'shp_one',
+              status: 'served',
+              position: 1,
+              projectedWaitMinutes: 0,
+              serviceId: 'svc_cut',
+              providerPreference: { kind: 'any' },
+              locale,
+              history: []
+            })
+          )
+        )
+        const served = render(
+          <WalkInRouteFlow
+            pathname="/m/booking/s/walk-ins/wie_served"
+            locale={locale}
+            acknowledgment
+          />
+        )
+        expect(await screen.findByText(servedLabel)).toBeTruthy()
+        served.unmount()
+      }
+    }
+  )
+
+  it('does not fall back to a different service for an invalid service slug', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json(overview))
+    )
+    render(
+      <WalkInRouteFlow
+        pathname="/m/booking/s/walk-ins"
+        locale="en"
+        acknowledgment={false}
+        initialServiceId="missing-service"
+      />
+    )
+    expect(await screen.findByText('Walk-ins are unavailable right now.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Join the queue' })).toBeNull()
+  })
 })

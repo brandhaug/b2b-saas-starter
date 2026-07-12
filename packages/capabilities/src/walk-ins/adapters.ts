@@ -26,6 +26,7 @@ import {
   WalkInsClosed,
   WalkInTransitionRejected,
   WalkInUnavailable,
+  walkInMerchantTransitions,
   StoredWalkInRequest,
   type WalkInConfiguration as WalkInConfigurationType,
   type WalkInEnrollment,
@@ -51,9 +52,9 @@ type Stored = {
 
 const active = new Set<WalkInStatus>(['waiting', 'called', 'serving'])
 const transitions: Readonly<Record<WalkInStatus, readonly WalkInStatus[]>> = {
-  waiting: ['called', 'removed', 'expired'],
-  called: ['serving', 'waiting', 'removed', 'expired'],
-  serving: ['served', 'removed', 'expired'],
+  waiting: [...walkInMerchantTransitions('waiting'), 'expired'],
+  called: [...walkInMerchantTransitions('called'), 'expired'],
+  serving: [...walkInMerchantTransitions('serving'), 'expired'],
   served: [],
   removed: [],
   expired: []

@@ -39,12 +39,23 @@ function CanonicalNestedBookingRoute() {
         locale={route?.locale ?? 'en'}
       />
     )
-  if (matched?.kind === 'walk-in-landing' || matched?.kind === 'walk-in-acknowledgment')
+  if (
+    matched?.kind === 'walk-in-landing' ||
+    matched?.kind === 'walk-in-acknowledgment' ||
+    matched?.kind === 'walk-in-service'
+  )
     return (
       <WalkInRouteFlow
-        pathname={location.pathname}
+        pathname={
+          matched.kind === 'walk-in-service'
+            ? `/${matched.merchantSlug}/booking/${matched.shopSlug}/walk-ins`
+            : location.pathname
+        }
         locale={route?.locale ?? 'en'}
         acknowledgment={matched.kind === 'walk-in-acknowledgment'}
+        initialServiceId={
+          matched.kind === 'walk-in-service' ? matched.serviceSlug : undefined
+        }
       />
     )
   if (!route?.bookingLocator) return null

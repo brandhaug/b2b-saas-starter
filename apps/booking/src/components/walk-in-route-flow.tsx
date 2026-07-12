@@ -134,20 +134,41 @@ const copy = {
   }
 } as const
 
+const serviceRouteKey = (value: string) =>
+  value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+
 export function WalkInRouteFlow({
   pathname,
   locale,
-  acknowledgment
+  acknowledgment,
+  initialServiceId
 }: {
   pathname: string
   locale: BookingLocale
   acknowledgment: boolean
+  initialServiceId?: string | undefined
 }) {
   const message = copy[locale]
   const [overview, setOverview] = useState<WalkInOverview | null>(null)
   const [current, setCurrent] = useState<WalkInQueueEntry | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const matchingServices =
+    overview?.services.filter(
+      (service) =>
+        service.id === initialServiceId ||
+        serviceRouteKey(service.name) === initialServiceId
+    ) ?? []
+  const selectedServiceId = initialServiceId
+    ? matchingServices.length === 1
+      ? matchingServices[0]?.id
+      : undefined
+    : overview?.services[0]?.id
   useEffect(() => {
     let active = true
     const load = () =>
@@ -207,83 +228,89 @@ export function WalkInRouteFlow({
   }
   return (
     <BookingViewport>
-      <BookingStack>
-        <BookingSurface>
-          <BookingText variant="largeTitle">
-            {acknowledgment ? message.statusTitle : message.title}
-          </BookingText>
-          {error ? <p role="alert">{error}</p> : null}
-          {acknowledgment ? (
-            current ? (
-              <div aria-live="polite">
-                <p>{message.status[current.status]}</p>
+      <div className="px-3 py-4 sm:px-8 sm:py-10" data-walk-in-viewport>
+        <BookingStack>
+          <BookingSurface>
+            <BookingText variant="largeTitle">
+              {acknowledgment ? message.statusTitle : message.title}
+            </BookingText>
+            {error ? <p role="alert">{error}</p> : null}
+            {acknowledgment ? (
+              current ? (
+                <div aria-live="polite">
+                  <p>{message.status[current.status]}</p>
+                  <p>
+                    {message.position}: {current.position}
+                  </p>
+                  <p>
+                    {message.wait}: {current.projectedWaitMinutes} {message.minutes}
+                  </p>
+                </div>
+              ) : (
+                <p>{message.loading}</p>
+              )
+            ) : overview ? (
+              <>
+                {overview.state === 'closed' ? (
+                  <p>{message.closed}</p>
+                ) : overview.services.length === 0 || !selectedServiceId ? (
+                  <p>{message.unavailable}</p>
+                ) : (
+                  <form onSubmit={submit}>
+                    <label>
+                      {message.service}
+                      <select
+                        name="serviceId"
+                        required
+                        defaultValue={selectedServiceId}
+                      >
+                        {overview.services.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      {message.provider}
+                      <select name="providerId">
+                        <option value="any">{message.any}</option>
+                        {overview.providers.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      {message.name}
+                      <input name="name" autoComplete="name" required />
+                    </label>
+                    <label>
+                      {message.email}
+                      <input name="email" type="email" autoComplete="email" required />
+                    </label>
+                    <label>
+                      {message.phone}
+                      <input name="phone" type="tel" autoComplete="tel" required />
+                    </label>
+                    <button disabled={submitting} type="submit">
+                      {submitting ? message.joining : message.join}
+                    </button>
+                  </form>
+                )}
                 <p>
-                  {message.position}: {current.position}
+                  {overview.queue.length === 0
+                    ? message.empty
+                    : `${message.queue}: ${overview.queue.length}`}
                 </p>
-                <p>
-                  {message.wait}: {current.projectedWaitMinutes} {message.minutes}
-                </p>
-              </div>
+              </>
             ) : (
               <p>{message.loading}</p>
-            )
-          ) : overview ? (
-            <>
-              {overview.state === 'closed' ? (
-                <p>{message.closed}</p>
-              ) : overview.services.length === 0 ? (
-                <p>{message.unavailable}</p>
-              ) : (
-                <form onSubmit={submit}>
-                  <label>
-                    {message.service}
-                    <select name="serviceId" required>
-                      {overview.services.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    {message.provider}
-                    <select name="providerId">
-                      <option value="any">{message.any}</option>
-                      {overview.providers.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    {message.name}
-                    <input name="name" autoComplete="name" required />
-                  </label>
-                  <label>
-                    {message.email}
-                    <input name="email" type="email" autoComplete="email" required />
-                  </label>
-                  <label>
-                    {message.phone}
-                    <input name="phone" type="tel" autoComplete="tel" required />
-                  </label>
-                  <button disabled={submitting} type="submit">
-                    {submitting ? message.joining : message.join}
-                  </button>
-                </form>
-              )}
-              <p>
-                {overview.queue.length === 0
-                  ? message.empty
-                  : `${message.queue}: ${overview.queue.length}`}
-              </p>
-            </>
-          ) : (
-            <p>{message.loading}</p>
-          )}
-        </BookingSurface>
-      </BookingStack>
+            )}
+          </BookingSurface>
+        </BookingStack>
+      </div>
     </BookingViewport>
   )
 }

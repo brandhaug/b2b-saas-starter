@@ -11,6 +11,17 @@ export const WalkInStatus = Schema.Literals([
   'expired'
 ])
 export type WalkInStatus = typeof WalkInStatus.Type
+const merchantTransitions: Readonly<Record<WalkInStatus, readonly WalkInStatus[]>> = {
+  waiting: ['called', 'removed'],
+  called: ['serving', 'waiting', 'removed'],
+  serving: ['served', 'removed'],
+  served: [],
+  removed: [],
+  expired: []
+}
+export const walkInMerchantTransitions = (
+  status: WalkInStatus
+): readonly WalkInStatus[] => merchantTransitions[status]
 
 export const WalkInConfiguration = Schema.Struct({
   shopId: ShopId,
