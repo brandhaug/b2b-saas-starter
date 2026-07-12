@@ -15,9 +15,10 @@ import type {
 import { WalkInHttpApi } from './walk-in-http-api.ts'
 
 export type WalkInHttpDependencies = {
-  readonly resolveShop: (
-    slug: string
-  ) => Effect.Effect<{ readonly id: string }, unknown>
+  readonly resolveShop: (input: {
+    merchantSlug: string
+    shopSlug: string
+  }) => Effect.Effect<{ readonly id: string }, unknown>
   readonly overview: (shopId: string) => Effect.Effect<WalkInOverview, unknown>
   readonly enroll: (
     input: WalkInEnrollment
@@ -56,14 +57,14 @@ const handlers = (dependencies: WalkInHttpDependencies) =>
   HttpApiBuilder.group(WalkInHttpApi, 'walk-ins', (group) =>
     group
       .handle('overview', ({ params }) =>
-        dependencies.resolveShop(params.shopSlug).pipe(
+        dependencies.resolveShop(params).pipe(
           Effect.flatMap((shop) => dependencies.overview(shop.id)),
           Effect.map((value) => json(value)),
           Effect.catch((error) => Effect.succeed(failure(error)))
         )
       )
       .handle('enroll', ({ params, payload, request }) =>
-        dependencies.resolveShop(params.shopSlug).pipe(
+        dependencies.resolveShop(params).pipe(
           Effect.flatMap((shop) =>
             dependencies.enroll({ ...payload, shopId: shop.id })
           ),
@@ -87,7 +88,7 @@ const handlers = (dependencies: WalkInHttpDependencies) =>
         )
         if (!capability)
           return Effect.succeed(json({ error: 'walk_in_not_found' }, 404))
-        return dependencies.resolveShop(params.shopSlug).pipe(
+        return dependencies.resolveShop(params).pipe(
           Effect.flatMap((shop) =>
             dependencies.inspect({
               shopId: shop.id,

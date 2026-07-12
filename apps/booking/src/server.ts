@@ -458,10 +458,10 @@ export default {
     })
     if (giftCardResponse) return giftCardResponse
     const walkInResponse = await handleWalkInRequest(request, {
-      resolveShop: (slug) =>
-        Effect.flatMap(ShopTopology, (topology) => topology.findBySlug(slug)).pipe(
-          Effect.provide(capabilitiesLayer)
-        ),
+      resolveShop: (input) =>
+        Effect.flatMap(ShopTopology, (topology) =>
+          topology.findByBookingPath(input)
+        ).pipe(Effect.provide(capabilitiesLayer)),
       overview: (shopId) =>
         Effect.flatMap(WalkIns, (walkIns) => walkIns.overview(shopId)).pipe(
           Effect.provide(capabilitiesLayer)

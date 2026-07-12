@@ -53,7 +53,7 @@ const active = new Set<WalkInStatus>(['waiting', 'called', 'serving'])
 const transitions: Readonly<Record<WalkInStatus, readonly WalkInStatus[]>> = {
   waiting: ['called', 'removed', 'expired'],
   called: ['serving', 'waiting', 'removed', 'expired'],
-  serving: ['served', 'removed'],
+  serving: ['served', 'removed', 'expired'],
   served: [],
   removed: [],
   expired: []

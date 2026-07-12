@@ -169,6 +169,17 @@ describe('Live Walk-ins', () => {
         })
       ).pipe(Effect.provide(layer))
     )
+    for (const to of ['called', 'serving'] as const) {
+      await Effect.runPromise(
+        Effect.flatMap(WalkIns, (walkIns) =>
+          walkIns.transition({
+            shopId: 'shp_walk',
+            entryId: enrolled.entry.id,
+            to
+          })
+        ).pipe(Effect.provide(layer))
+      )
+    }
     await test.d1
       .prepare(
         "UPDATE protected_access_grants SET expires_at = '2026-07-12T09:00:00.000Z' WHERE resource_id = ?"
