@@ -373,7 +373,9 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedBookingSelection(seedBookingSelection),
   SeedBookingScheduling(seedBookingScheduling),
   seedBookingCheckoutLayer,
-  SeedBookingConfirmation(seedBookingConfirmation, seedConfirmationKeyring),
+  SeedBookingConfirmation(seedBookingConfirmation, seedConfirmationKeyring).pipe(
+    Layer.provide(SeedPaymentSettlement(emptySeedPaymentSettlementStore()))
+  ),
   SeedAppointmentOperations(seedOperationalAppointments),
   SeedBookingNotificationOutbox
 )

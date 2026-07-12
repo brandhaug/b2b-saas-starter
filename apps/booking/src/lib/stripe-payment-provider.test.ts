@@ -92,4 +92,39 @@ describe('Stripe payment provider adapter', () => {
       facts: [{ kind: 'capture', amountMinor: 5000 }]
     })
   })
+
+  it('normalizes Stripe cumulative partial refunds into immutable deltas', async () => {
+    const timestamp = 1_783_859_200
+    const secret = 'whsec_test'
+    const body = JSON.stringify({
+      id: 'evt_refund_two',
+      type: 'charge.refunded',
+      created: timestamp,
+      data: {
+        object: {
+          id: 'ch_one',
+          amount_refunded: 5000,
+          currency: 'usd',
+          metadata: { payment_id: 'pay_one' }
+        },
+        previous_attributes: { amount_refunded: 2000 }
+      }
+    })
+    const signature = await sign(body, timestamp, secret)
+    const response = await makeStripePaymentProvider({
+      secretKey: 'sk_test',
+      webhookSecret: secret,
+      now: () => timestamp * 1000
+    }).fetch(
+      new Request('https://payment-provider.invalid/verify-callback', {
+        method: 'POST',
+        headers: { 'stripe-signature': `t=${timestamp},v1=${signature}` },
+        body
+      })
+    )
+    expect(await response.json()).toMatchObject({
+      providerEventId: 'evt_refund_two',
+      facts: [{ kind: 'refund', amountMinor: 3000 }]
+    })
+  })
 })

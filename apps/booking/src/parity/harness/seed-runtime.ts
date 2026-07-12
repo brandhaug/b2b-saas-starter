@@ -112,11 +112,7 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
         }
       })
   })
-  const confirmation = emptySeedBookingConfirmationStore(
-    sessions,
-    checkout,
-    paymentStore
-  )
+  const confirmation = emptySeedBookingConfirmationStore(sessions, checkout)
   let sequence = 0
   const mutations: { sequence: number; method: string; pathname: string }[] = []
   const assets = createContentStore()
@@ -151,7 +147,7 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
   const confirmationLayer = SeedBookingConfirmation(confirmation, {
     currentKeyId: 'parity',
     keys: { parity: 'deterministic-parity-confirmation-key' }
-  })
+  }).pipe(Layer.provide(paymentLayer))
 
   const snapshot = () => {
     const value = {

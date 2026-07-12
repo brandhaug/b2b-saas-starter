@@ -12,6 +12,7 @@ import {
   Database,
   merchants,
   notificationIntents,
+  payments,
   pricingQuoteAcceptances,
   pricingQuotes,
   policyAcceptances,
@@ -29,7 +30,6 @@ import type { BookingSession } from './booking-sessions.ts'
 import type { SeedBookingCheckoutStore } from './booking-checkout.ts'
 import type { SeedBookingSessionStore } from './booking-sessions.ts'
 import { PaymentSettlement } from '../payments/index.ts'
-import type { SeedPaymentSettlementStore } from '../payments/payment-settlement.ts'
 
 export type ConfirmationSigningKeyring = {
   readonly currentKeyId: string
@@ -248,7 +248,6 @@ const rejected = (reason: BookingConfirmationRejected['reason']) =>
 export type SeedBookingConfirmationStore = {
   readonly sessions: SeedBookingSessionStore
   readonly checkout: SeedBookingCheckoutStore
-  readonly paymentSettlement?: SeedPaymentSettlementStore
   readonly appointments: Map<string, Appointment>
   readonly access: Map<string, Omit<ConfirmationAccess, 'token'>>
   readonly exchangedAccess: Set<string>
@@ -260,12 +259,10 @@ export type SeedBookingConfirmationStore = {
 
 export const emptySeedBookingConfirmationStore = (
   sessions: SeedBookingSessionStore,
-  checkout: SeedBookingCheckoutStore,
-  paymentSettlement?: SeedPaymentSettlementStore
+  checkout: SeedBookingCheckoutStore
 ): SeedBookingConfirmationStore => ({
   sessions,
   checkout,
-  ...(paymentSettlement ? { paymentSettlement } : {}),
   appointments: new Map(),
   access: new Map(),
   exchangedAccess: new Set(),
@@ -286,107 +283,208 @@ const recordForAppointmentParty = (
 export const SeedBookingConfirmation = (
   store: SeedBookingConfirmationStore,
   keyring: ConfirmationSigningKeyring
-): Layer.Layer<BookingConfirmation> =>
-  Layer.succeed(BookingConfirmation)({
-    read: (input) =>
-      Effect.gen(function* () {
-        const metadata = store.access.get(input.routeId)
-        const appointment = [...store.appointments.values()].find(
-          (candidate) => `cnf_${candidate.id}` === input.routeId
-        )
-        if (
-          !metadata ||
-          !appointment ||
-          store.checkout.scheduling.scenario.merchant.slug !== input.merchantSlug
-        )
-          return { kind: 'not_found' as const }
-        const expected = yield* Effect.promise(() =>
-          (input.credentialKind === 'bearer'
-            ? deriveConfirmationToken(metadata, keyring)
-            : deriveConfirmationCookieCredential(metadata, keyring)
-          ).catch(() => '')
-        )
-        const valid = metadata.expiresAt > input.now && expected === input.credential
-        if (
-          valid &&
-          input.credentialKind === 'bearer' &&
-          store.exchangedAccess.has(input.routeId)
-        )
-          return { kind: 'not_found' as const }
-        if (!valid) {
-          return expected === input.credential && metadata.expiresAt <= input.now
-            ? {
-                kind: 'expired' as const,
-                locale:
-                  [...store.sessions.sessions.values()].find(
-                    (session) => session.confirmedAppointmentId === appointment.id
-                  )?.locale ?? 'en'
+): Layer.Layer<BookingConfirmation, never, PaymentSettlement> =>
+  Layer.effect(
+    BookingConfirmation,
+    Effect.map(PaymentSettlement, (paymentSettlements) => ({
+      read: (input) =>
+        Effect.gen(function* () {
+          const metadata = store.access.get(input.routeId)
+          const appointment = [...store.appointments.values()].find(
+            (candidate) => `cnf_${candidate.id}` === input.routeId
+          )
+          if (
+            !metadata ||
+            !appointment ||
+            store.checkout.scheduling.scenario.merchant.slug !== input.merchantSlug
+          )
+            return { kind: 'not_found' as const }
+          const expected = yield* Effect.promise(() =>
+            (input.credentialKind === 'bearer'
+              ? deriveConfirmationToken(metadata, keyring)
+              : deriveConfirmationCookieCredential(metadata, keyring)
+            ).catch(() => '')
+          )
+          const valid = metadata.expiresAt > input.now && expected === input.credential
+          if (
+            valid &&
+            input.credentialKind === 'bearer' &&
+            store.exchangedAccess.has(input.routeId)
+          )
+            return { kind: 'not_found' as const }
+          if (!valid) {
+            return expected === input.credential && metadata.expiresAt <= input.now
+              ? {
+                  kind: 'expired' as const,
+                  locale:
+                    [...store.sessions.sessions.values()].find(
+                      (session) => session.confirmedAppointmentId === appointment.id
+                    )?.locale ?? 'en'
+                }
+              : { kind: 'not_found' as const }
+          }
+          if (input.credentialKind === 'bearer')
+            store.exchangedAccess.add(input.routeId)
+          return {
+            kind: 'found' as const,
+            cookieCredential: yield* Effect.promise(() =>
+              deriveConfirmationCookieCredential(metadata, keyring)
+            ),
+            confirmation: {
+              routeId: input.routeId,
+              status: appointment.status,
+              startsAt: appointment.startsAt,
+              endsAt: appointment.endsAt,
+              locale:
+                [...store.sessions.sessions.values()].find(
+                  (session) => session.confirmedAppointmentId === appointment.id
+                )?.locale ?? 'en',
+              snapshot: appointment.snapshot as StoredAppointmentSnapshot,
+              appointments: (metadata.purpose === 'party_confirmation'
+                ? (recordForAppointmentParty(store, appointment.id)
+                    ?.confirmedAppointmentIds ?? [appointment.id])
+                : [appointment.id]
+              ).map((id) => {
+                const sibling = store.appointments.get(id)!
+                return {
+                  id: sibling.id,
+                  status: sibling.status,
+                  startsAt: sibling.startsAt,
+                  endsAt: sibling.endsAt,
+                  snapshot: sibling.snapshot as StoredAppointmentSnapshot
+                }
+              }),
+              merchant: {
+                publicName: store.checkout.scheduling.scenario.merchant.publicName
               }
-            : { kind: 'not_found' as const }
-        }
-        if (input.credentialKind === 'bearer') store.exchangedAccess.add(input.routeId)
-        return {
-          kind: 'found' as const,
-          cookieCredential: yield* Effect.promise(() =>
-            deriveConfirmationCookieCredential(metadata, keyring)
-          ),
-          confirmation: {
-            routeId: input.routeId,
-            status: appointment.status,
-            startsAt: appointment.startsAt,
-            endsAt: appointment.endsAt,
-            locale:
-              [...store.sessions.sessions.values()].find(
-                (session) => session.confirmedAppointmentId === appointment.id
-              )?.locale ?? 'en',
-            snapshot: appointment.snapshot as StoredAppointmentSnapshot,
-            appointments: (metadata.purpose === 'party_confirmation'
-              ? (recordForAppointmentParty(store, appointment.id)
-                  ?.confirmedAppointmentIds ?? [appointment.id])
-              : [appointment.id]
-            ).map((id) => {
-              const sibling = store.appointments.get(id)!
-              return {
-                id: sibling.id,
-                status: sibling.status,
-                startsAt: sibling.startsAt,
-                endsAt: sibling.endsAt,
-                snapshot: sibling.snapshot as StoredAppointmentSnapshot
-              }
-            }),
-            merchant: {
-              publicName: store.checkout.scheduling.scenario.merchant.publicName
             }
           }
-        }
-      }),
-    confirm: (session, input) =>
-      Effect.gen(function* () {
-        const record = store.sessions.sessions.get(session.id)
-        const committedIds =
-          record?.confirmedAppointmentIds ??
-          (record?.confirmedAppointmentId ? [record.confirmedAppointmentId] : [])
-        if (
-          committedIds.length > 0 &&
-          record?.replayExpiresAt &&
-          record.replayExpiresAt > input.now
-        ) {
-          const appointments = committedIds.map((id) => store.appointments.get(id)!)
-          const accesses = yield* Effect.forEach(appointments, (appointment) => {
-            const access = [...store.access.values()].find(
-              (candidate) => candidate.routeId === `cnf_${appointment.id}`
-            )!
-            return Effect.promise(async () => ({
-              ...access,
-              token: await deriveConfirmationToken(access, keyring)
-            }))
-          })
-          const outboxIds = appointments.map(
-            (appointment) =>
-              [...store.outbox.entries()].find(
-                ([, value]) => value.appointmentId === appointment.id
-              )![0]
+        }),
+      confirm: (session, input) =>
+        Effect.gen(function* () {
+          const record = store.sessions.sessions.get(session.id)
+          const committedIds =
+            record?.confirmedAppointmentIds ??
+            (record?.confirmedAppointmentId ? [record.confirmedAppointmentId] : [])
+          if (
+            committedIds.length > 0 &&
+            record?.replayExpiresAt &&
+            record.replayExpiresAt > input.now
+          ) {
+            const appointments = committedIds.map((id) => store.appointments.get(id)!)
+            const accesses = yield* Effect.forEach(appointments, (appointment) => {
+              const access = [...store.access.values()].find(
+                (candidate) => candidate.routeId === `cnf_${appointment.id}`
+              )!
+              return Effect.promise(async () => ({
+                ...access,
+                token: await deriveConfirmationToken(access, keyring)
+              }))
+            })
+            const outboxIds = appointments.map(
+              (appointment) =>
+                [...store.outbox.entries()].find(
+                  ([, value]) => value.appointmentId === appointment.id
+                )![0]
+            )
+            return {
+              appointment: appointments[0]!,
+              appointments,
+              access: accesses[0]!,
+              accesses,
+              outboxId: outboxIds[0]!,
+              outboxIds,
+              replayed: true
+            }
+          }
+          const partyRequestIds = store.checkout.scheduling.partyRequests.get(
+            session.id
           )
+          const requestIds = partyRequestIds?.size
+            ? [...partyRequestIds]
+            : [store.checkout.scheduling.activeRequests.get(session.id) ?? session.id]
+          const holds = requestIds.map((requestId) =>
+            [...store.checkout.scheduling.holds.values()].find(
+              (candidate) =>
+                candidate.bookingSessionId === session.id &&
+                candidate.expiresAt > input.now &&
+                (candidate.bookingRequestId === requestId ||
+                  (requestIds.length === 1 && !candidate.bookingRequestId))
+            )
+          )
+          if (holds.some((hold) => !hold)) return yield* rejected('hold_expired')
+          const details = requestIds.map((requestId) =>
+            store.checkout.details.get(requestId)
+          )
+          if (details.some((value) => !value)) return yield* rejected('details_missing')
+          if (!record || record.lifecycle !== 'active')
+            return yield* rejected('conflict')
+          const partyId = store.sessions.parties.get(session.id)?.id
+          const settlement = partyId
+            ? yield* paymentSettlements.settlementForConfirmation(partyId)
+            : ({ kind: 'pay_in_person' } as const)
+          if (settlement.kind === 'processing')
+            return yield* new BookingConfirmationProcessing({
+              reason: 'commitment_unknown'
+            })
+          const checkoutPath =
+            settlement.kind === 'captured' ? 'online_payment' : 'pay_in_person'
+          const appointments: Appointment[] = []
+          const accesses: ConfirmationAccess[] = []
+          const outboxIds: string[] = []
+          for (let index = 0; index < requestIds.length; index += 1) {
+            const requestId = requestIds[index]!
+            const hold = holds[index]!
+            const appointmentId = `apt_${requestId}`
+            const routeId = `cnf_${appointmentId}`
+            const outboxId = `obx_${appointmentId}`
+            const appointment: Appointment = {
+              id: appointmentId,
+              merchantId: record.merchantId,
+              providerId: hold.providerId,
+              status: 'scheduled',
+              startsAt: hold.startsAt,
+              endsAt: hold.endsAt,
+              snapshot: {
+                ...hold.quote,
+                merchantTimezone: store.checkout.scheduling.scenario.merchant.timezone,
+                customerDetails: details[index]!,
+                checkoutPath
+              },
+              createdAt: input.now
+            }
+            const access = {
+              routeId,
+              bookingPartyId: requestIds.length > 1 ? `seed_party_${session.id}` : null,
+              purpose:
+                requestIds.length > 1 && index === 0
+                  ? ('party_confirmation' as const)
+                  : ('appointment_confirmation' as const),
+              tokenVersion: 1,
+              signingKeyId: keyring.currentKeyId,
+              expiresAt: addMillisecondsToIso(hold.endsAt, 30 * 24 * 60 * 60_000)
+            }
+            store.appointments.set(appointmentId, appointment)
+            store.access.set(routeId, access)
+            store.outbox.set(outboxId, { appointmentId, traceId: input.traceId })
+            store.checkout.scheduling.holds.delete(hold.id)
+            store.checkout.details.delete(requestId)
+            appointments.push(appointment)
+            accesses.push({
+              ...access,
+              token: yield* Effect.promise(() =>
+                deriveConfirmationToken(access, keyring)
+              )
+            })
+            outboxIds.push(outboxId)
+          }
+          store.sessions.sessions.set(session.id, {
+            ...record,
+            lifecycle: 'consumed',
+            confirmedAppointmentId: appointments[0]!.id,
+            confirmedAppointmentIds: appointments.map((appointment) => appointment.id),
+            replayExpiresAt: addMillisecondsToIso(input.now, 24 * 60 * 60_000)
+          })
           return {
             appointment: appointments[0]!,
             appointments,
@@ -394,104 +492,11 @@ export const SeedBookingConfirmation = (
             accesses,
             outboxId: outboxIds[0]!,
             outboxIds,
-            replayed: true
+            replayed: false
           }
-        }
-        const partyRequestIds = store.checkout.scheduling.partyRequests.get(session.id)
-        const requestIds = partyRequestIds?.size
-          ? [...partyRequestIds]
-          : [store.checkout.scheduling.activeRequests.get(session.id) ?? session.id]
-        const holds = requestIds.map((requestId) =>
-          [...store.checkout.scheduling.holds.values()].find(
-            (candidate) =>
-              candidate.bookingSessionId === session.id &&
-              candidate.expiresAt > input.now &&
-              (candidate.bookingRequestId === requestId ||
-                (requestIds.length === 1 && !candidate.bookingRequestId))
-          )
-        )
-        if (holds.some((hold) => !hold)) return yield* rejected('hold_expired')
-        const details = requestIds.map((requestId) =>
-          store.checkout.details.get(requestId)
-        )
-        if (details.some((value) => !value)) return yield* rejected('details_missing')
-        if (!record || record.lifecycle !== 'active') return yield* rejected('conflict')
-        const partyId = store.sessions.parties.get(session.id)?.id
-        const payment = partyId
-          ? [...(store.paymentSettlement?.payments.values() ?? [])].find(
-              (candidate) => candidate.bookingPartyId === partyId
-            )
-          : undefined
-        if (payment && payment.status !== 'captured')
-          return yield* new BookingConfirmationProcessing({
-            reason: 'commitment_unknown'
-          })
-        const checkoutPath = payment ? 'online_payment' : 'pay_in_person'
-        const appointments: Appointment[] = []
-        const accesses: ConfirmationAccess[] = []
-        const outboxIds: string[] = []
-        for (let index = 0; index < requestIds.length; index += 1) {
-          const requestId = requestIds[index]!
-          const hold = holds[index]!
-          const appointmentId = `apt_${requestId}`
-          const routeId = `cnf_${appointmentId}`
-          const outboxId = `obx_${appointmentId}`
-          const appointment: Appointment = {
-            id: appointmentId,
-            merchantId: record.merchantId,
-            providerId: hold.providerId,
-            status: 'scheduled',
-            startsAt: hold.startsAt,
-            endsAt: hold.endsAt,
-            snapshot: {
-              ...hold.quote,
-              merchantTimezone: store.checkout.scheduling.scenario.merchant.timezone,
-              customerDetails: details[index]!,
-              checkoutPath
-            },
-            createdAt: input.now
-          }
-          const access = {
-            routeId,
-            bookingPartyId: requestIds.length > 1 ? `seed_party_${session.id}` : null,
-            purpose:
-              requestIds.length > 1 && index === 0
-                ? ('party_confirmation' as const)
-                : ('appointment_confirmation' as const),
-            tokenVersion: 1,
-            signingKeyId: keyring.currentKeyId,
-            expiresAt: addMillisecondsToIso(hold.endsAt, 30 * 24 * 60 * 60_000)
-          }
-          store.appointments.set(appointmentId, appointment)
-          store.access.set(routeId, access)
-          store.outbox.set(outboxId, { appointmentId, traceId: input.traceId })
-          store.checkout.scheduling.holds.delete(hold.id)
-          store.checkout.details.delete(requestId)
-          appointments.push(appointment)
-          accesses.push({
-            ...access,
-            token: yield* Effect.promise(() => deriveConfirmationToken(access, keyring))
-          })
-          outboxIds.push(outboxId)
-        }
-        store.sessions.sessions.set(session.id, {
-          ...record,
-          lifecycle: 'consumed',
-          confirmedAppointmentId: appointments[0]!.id,
-          confirmedAppointmentIds: appointments.map((appointment) => appointment.id),
-          replayExpiresAt: addMillisecondsToIso(input.now, 24 * 60 * 60_000)
         })
-        return {
-          appointment: appointments[0]!,
-          appointments,
-          access: accesses[0]!,
-          accesses,
-          outboxId: outboxIds[0]!,
-          outboxIds,
-          replayed: false
-        }
-      })
-  })
+    }))
+  )
 
 const resultFrom = async (
   row: {
@@ -809,6 +814,10 @@ export const LiveBookingConfirmation = (
                 })
               const checkoutPath =
                 settlement.kind === 'captured' ? 'online_payment' : 'pay_in_person'
+              const settlementGuard =
+                settlement.kind === 'captured'
+                  ? sql`exists (select 1 from ${payments} where ${payments.id} = ${settlement.paymentId} and ${payments.bookingPartyId} = ${party.id} and ${payments.status} = 'captured' and ${payments.capturedMinor} >= ${acceptedQuote.totalMinor} and ${payments.currency} = ${party.currency})`
+                  : sql`not exists (select 1 from ${payments} where ${payments.bookingPartyId} = ${party.id})`
               const acceptedPolicy = (yield* orUnavailable('booking-confirmation')(
                 db
                   .select({ acceptance: policyAcceptances })
@@ -890,7 +899,8 @@ export const LiveBookingConfirmation = (
                     .where(
                       and(
                         eq(timeSlotHolds.id, item.row.hold.id),
-                        gt(timeSlotHolds.expiresAt, input.now)
+                        gt(timeSlotHolds.expiresAt, input.now),
+                        settlementGuard
                       )
                     )
                 ),

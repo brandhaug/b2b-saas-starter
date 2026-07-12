@@ -44,7 +44,10 @@ const normalizeEvent = (event: {
   readonly id: string
   readonly type: string
   readonly created: number
-  readonly data: { readonly object: Record<string, unknown> }
+  readonly data: {
+    readonly object: Record<string, unknown>
+    readonly previous_attributes?: Record<string, unknown>
+  }
 }) => {
   const object = event.data.object
   const paymentId =
@@ -56,13 +59,19 @@ const normalizeEvent = (event: {
   const reference = typeof object.id === 'string' ? object.id : event.id
   const currency =
     typeof object.currency === 'string' ? object.currency.toUpperCase() : null
+  const cumulativeRefund = object.amount_refunded
+  const previousRefund = event.data.previous_attributes?.amount_refunded
+  const refundDelta =
+    typeof cumulativeRefund === 'number'
+      ? cumulativeRefund - (typeof previousRefund === 'number' ? previousRefund : 0)
+      : null
   const amount =
     event.type === 'payment_intent.succeeded'
       ? object.amount_received
       : event.type === 'payment_intent.amount_capturable_updated'
         ? object.amount_capturable
         : event.type === 'charge.refunded'
-          ? object.amount_refunded
+          ? refundDelta
           : event.type === 'payment_intent.canceled'
             ? object.amount
             : null

@@ -1,5 +1,5 @@
 import { Effect, Layer } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import {
   batch,
   bookingParties,
@@ -255,6 +255,19 @@ export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Databa
                 code: 'payment_quote_mismatch'
               })
             }
+            const [activeAttempt] = yield* orUnavailable('payment-settlement')(
+              db
+                .select()
+                .from(paymentAttempts)
+                .where(
+                  and(
+                    eq(paymentAttempts.paymentId, payment.id),
+                    inArray(paymentAttempts.outcome, ['pending', 'succeeded'])
+                  )
+                )
+                .limit(1)
+            )
+            if (activeAttempt) return yield* read(payment.id, activeAttempt.id)
             yield* orUnavailable('payment-settlement')(
               db
                 .insert(paymentAttempts)

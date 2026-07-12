@@ -48,6 +48,16 @@ describe('online Payment settlement', () => {
         wallets: { applePay: true, googlePay: true, cashAppPay: true }
       })
     ).toEqual({ state: 'needs_configuration', methods: [] })
+
+    expect(
+      deriveEligiblePaymentMethods({
+        configuration: configured,
+        currency: 'RON',
+        amountMinor: 12_500,
+        savedMethodCount: 1,
+        wallets: { applePay: false, googlePay: false, cashAppPay: false }
+      }).methods
+    ).toEqual(['card', 'saved_card'])
   })
 
   it('replays an attempt and derives status only from immutable monetary facts', async () => {
@@ -86,6 +96,22 @@ describe('online Payment settlement', () => {
 
     const first = await start()
     expect(await start()).toEqual(first)
+    const samePendingAttempt = await run(
+      Effect.flatMap(PaymentSettlement, (payments) =>
+        payments.start({
+          bookingPartyId: 'bpt_online',
+          bookingPartyVersion: 1,
+          pricingQuoteId: 'pqt_online',
+          amountMinor: 12_500,
+          currency: 'USD',
+          method: 'card',
+          provider: 'stripe',
+          idempotencyKey: 'lost-browser-key',
+          now: '2026-07-12T12:00:00.000Z'
+        })
+      )
+    )
+    expect(samePendingAttempt.attempt.id).toBe(first.attempt.id)
 
     const failed = await run(
       Effect.flatMap(PaymentSettlement, (payments) =>

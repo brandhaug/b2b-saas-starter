@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { emptySeedBookingSelectionStore } from './booking-selection.ts'
 import { emptySeedBookingSchedulingStore } from './booking-scheduling.ts'
@@ -8,6 +8,10 @@ import {
   emptySeedBookingConfirmationStore,
   SeedBookingConfirmation
 } from './booking-confirmation.ts'
+import {
+  emptySeedPaymentSettlementStore,
+  SeedPaymentSettlement
+} from '../payments/payment-settlement.ts'
 import {
   emptySeedBookingSessionStore,
   type BookingSession
@@ -106,7 +110,7 @@ describe('Booking Confirmation', () => {
     const layer = SeedBookingConfirmation(store, {
       currentKeyId: 'test',
       keys: { test: 'confirmation-test-key' }
-    })
+    }).pipe(Layer.provide(SeedPaymentSettlement(emptySeedPaymentSettlementStore())))
     const confirm = (value: BookingSession) =>
       Effect.runPromise(
         Effect.provide(

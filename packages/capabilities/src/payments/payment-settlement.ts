@@ -76,6 +76,15 @@ export type PaymentMethodEligibility = {
   readonly methods: readonly OnlinePaymentMethod[]
 }
 
+const methodMeetsQuoteEligibility = (
+  method: OnlinePaymentMethod,
+  currency: string,
+  amountMinor: number
+) =>
+  (method !== 'cash_app_pay' || currency === 'USD') &&
+  (method !== 'klarna' ||
+    (['USD', 'EUR', 'GBP'].includes(currency) && amountMinor >= 100))
+
 export const deriveEligiblePaymentMethods = (input: {
   readonly configuration: PaymentConfiguration
   readonly currency: string
@@ -91,14 +100,12 @@ export const deriveEligiblePaymentMethods = (input: {
     return { state: input.configuration.state, methods: [] }
   }
   const methods = input.configuration.methods.filter((method) => {
+    if (!methodMeetsQuoteEligibility(method, input.currency, input.amountMinor))
+      return false
     if (method === 'saved_card') return input.savedMethodCount > 0
     if (method === 'apple_pay') return input.wallets.applePay
     if (method === 'google_pay') return input.wallets.googlePay
-    if (method === 'cash_app_pay')
-      return input.wallets.cashAppPay && input.currency === 'USD'
-    if (method === 'klarna') {
-      return ['USD', 'EUR', 'GBP'].includes(input.currency) && input.amountMinor >= 100
-    }
+    if (method === 'cash_app_pay') return input.wallets.cashAppPay
     return true
   })
   return { state: 'ready', methods }
@@ -233,7 +240,9 @@ export const settleAcceptedPricingQuote = (input: {
     const provider = yield* PaymentProvider
     if (
       provider.configuration.state !== 'configured' ||
-      !provider.configuration.methods.includes(input.method)
+      !provider.configuration.methods.includes(input.method) ||
+      input.method === 'saved_card' ||
+      !methodMeetsQuoteEligibility(input.method, input.currency, input.amountMinor)
     )
       return yield* new PaymentSettlementConflict({
         code: 'payment_method_unavailable'
@@ -428,6 +437,11 @@ export const SeedPaymentSettlement = (
           ) {
             throw new PaymentSettlementConflict({ code: 'payment_quote_mismatch' })
           }
+          const activeAttempt = [...store.attempts.values()].find(
+            (attempt) =>
+              attempt.paymentId === payment.id && attempt.outcome !== 'failed'
+          )
+          if (activeAttempt) return { payment, attempt: activeAttempt }
           const attempt: PaymentAttempt = {
             id: `pat_${store.attempts.size + 1}`,
             paymentId: payment.id,
