@@ -252,7 +252,7 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 - [x] Offers are delivered sequentially and support accept, decline, expiry, and supersession without leaking candidate identity.
 - [x] Acceptance atomically consumes the offer and creates a purpose-bound Booking Session plus Time Slot Hold, not an Appointment.
 - [x] Declined and expired offers can leave the application Active; fulfilled, withdrawn, and expired lifecycles are explicit.
-- [ ] Deterministic worker, concurrency, stale-link, empty, invalid, fulfilled, and offer-driven rescheduling scenarios pass.
+- [x] Deterministic worker, concurrency, stale-link, empty, invalid, fulfilled, and offer-driven rescheduling scenarios pass.
 
 ## Deliver Walk-in Enrollment and Queue Lifecycle
 

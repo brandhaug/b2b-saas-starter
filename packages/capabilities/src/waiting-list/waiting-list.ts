@@ -23,7 +23,8 @@ export const WaitingListRequest = Schema.Struct({
   serviceIds: Schema.Array(Schema.String),
   providerPreference: WaitingListProviderPreference,
   from: Schema.String,
-  until: Schema.String
+  until: Schema.String,
+  replacementAppointmentId: Schema.optional(Schema.String)
 })
 export const WaitingListCustomer = Schema.Struct({
   name: Schema.String,
@@ -112,6 +113,13 @@ export type OfferBookingResult = {
   readonly timeSlotHoldId: string
   readonly routeId: string
   readonly capability: string
+  readonly purpose: 'new-booking' | 'appointment-replacement'
+  readonly replacementAppointmentId?: string
+}
+export type DeliveredAvailabilityOffer = {
+  readonly offer: AvailabilityOffer
+  readonly capability: string
+  readonly customer: WaitingListCustomer
 }
 export class OfferBooking extends Context.Service<
   OfferBooking,
@@ -131,7 +139,8 @@ export const SeedOfferBooking: Layer.Layer<OfferBooking> = Layer.succeed(OfferBo
       bookingSessionId: `bsn_${suffix}`,
       timeSlotHoldId: `hld_${suffix}`,
       routeId: `brt_${suffix}`,
-      capability: suffix
+      capability: suffix,
+      purpose: 'new-booking'
     })
   }
 })
@@ -216,6 +225,9 @@ export type WaitingListShape = {
   readonly expire: (
     now: string
   ) => Effect.Effect<{ applications: number; offers: number }, CapabilityUnavailable>
+  readonly deliverAvailable: (
+    now: string
+  ) => Effect.Effect<readonly DeliveredAvailabilityOffer[], WaitingListError>
 }
 export class WaitingList extends Context.Service<WaitingList, WaitingListShape>()(
   '@b2b-saas-starter/capabilities/WaitingList'
@@ -434,7 +446,8 @@ export const SeedWaitingList = (
                 applications++
               }
             return { applications, offers }
-          })
+          }),
+        deliverAvailable: () => Effect.succeed([])
       }
     })
   )

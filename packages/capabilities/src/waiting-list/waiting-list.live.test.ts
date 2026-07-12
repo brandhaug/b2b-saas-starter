@@ -27,6 +27,39 @@ beforeAll(async () => {
 afterAll(async () => test.dispose())
 
 describe('Live Waiting List', () => {
+  it('derives and delivers one deterministic offer per eligible application', async () => {
+    await test.d1
+      .prepare(
+        `INSERT INTO schedule_rules (id, merchant_id, provider_id, weekday, start_time, end_time, created_at, updated_at) VALUES ('scr_wait', 'mrc_wait', 'prv_wait', 1, '09:00', '10:00', '${now}', '${now}')`
+      )
+      .run()
+    await run(
+      Effect.gen(function* () {
+        const waitingList = yield* WaitingList
+        yield* waitingList.apply({
+          id: 'wla_delivery',
+          merchantSlug: 'wait-shop',
+          shopId: 'shp_wait',
+          capability: 'application-delivery',
+          request: {
+            serviceIds: ['svc_wait'],
+            providerPreference: { kind: 'specific', providerId: 'prv_wait' },
+            from: '2026-07-13T00:00:00.000Z',
+            until: '2026-07-14T00:00:00.000Z'
+          },
+          customer: { name: 'Grace', email: 'grace@example.com' },
+          now,
+          expiresAt: '2026-07-15T00:00:00.000Z'
+        })
+        const first = yield* waitingList.deliverAvailable(now)
+        const retry = yield* waitingList.deliverAvailable(now)
+        expect(first).toHaveLength(1)
+        expect(first[0]?.offer.slot.startsAt).toBe('2026-07-13T09:00:00.000Z')
+        expect(retry).toHaveLength(0)
+      })
+    )
+  })
+
   it('stores only a capability hash and atomically accepts exactly once', async () => {
     await run(
       Effect.gen(function* () {

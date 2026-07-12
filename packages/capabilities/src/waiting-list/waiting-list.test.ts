@@ -31,12 +31,18 @@ const setup = () => {
   const store = emptySeedWaitingListStore()
   let bookings = 0
   const booking = Layer.succeed(OfferBooking)({
-    createSessionWithHold: () =>
+    createSessionWithHold: ({ application }) =>
       Effect.sync(() => ({
         bookingSessionId: `bsn_${++bookings}`,
         timeSlotHoldId: `hold_${bookings}`,
         routeId: `route_${bookings}`,
-        capability: `session-secret-${bookings}`
+        capability: `session-secret-${bookings}`,
+        purpose: application.request.replacementAppointmentId
+          ? ('appointment-replacement' as const)
+          : ('new-booking' as const),
+        ...(application.request.replacementAppointmentId
+          ? { replacementAppointmentId: application.request.replacementAppointmentId }
+          : {})
       }))
   })
   const layer = SeedWaitingList(store).pipe(Layer.provide(booking))
@@ -157,6 +163,44 @@ describe('Waiting List', () => {
     expect(store.applications.get('wla_1')?.status).toBe('fulfilled')
     expect(store.offers.get('off_1')?.status).toBe('accepted')
     expect(bookings()).toBe(1)
+  })
+
+  it('accepts a replacement offer into a purpose-bound replacement session without mutating an Appointment', async () => {
+    const { run } = setup()
+    const result = await run(
+      Effect.gen(function* () {
+        const waitingList = yield* WaitingList
+        yield* waitingList.apply({
+          id: 'wla_replace',
+          merchantSlug: 'shop',
+          shopId: 'shop_1',
+          capability: 'application-secret',
+          request: { ...request, replacementAppointmentId: 'apt_original' },
+          customer,
+          now,
+          expiresAt: '2026-07-21T00:00:00.000Z'
+        })
+        yield* waitingList.offer({
+          id: 'off_replace',
+          applicationId: 'wla_replace',
+          slot,
+          capability: 'replace-secret',
+          now,
+          expiresAt: '2026-07-12T11:00:00.000Z'
+        })
+        return yield* waitingList.acceptOffer(
+          'off_replace',
+          'replace-secret',
+          '2026-07-12T10:10:00.000Z'
+        )
+      })
+    )
+    expect(result).toMatchObject({
+      purpose: 'appointment-replacement',
+      replacementAppointmentId: 'apt_original',
+      timeSlotHoldId: 'hold_1'
+    })
+    expect(result).not.toHaveProperty('appointmentId')
   })
 
   it('does not consume the offer when bound session creation fails', async () => {

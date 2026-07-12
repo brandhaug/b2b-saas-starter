@@ -112,6 +112,9 @@ export default {
             Effect.flatMap(WaitingList, (waitingList) => waitingList.expire(now)).pipe(
               Effect.provide(capabilityLayer)
             ),
+            Effect.flatMap(WaitingList, (waitingList) =>
+              waitingList.deliverAvailable(now)
+            ).pipe(Effect.provide(capabilityLayer)),
             Effect.gen(function* () {
               const topology = yield* ShopTopology
               const walkIns = yield* WalkIns

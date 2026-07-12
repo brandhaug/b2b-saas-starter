@@ -35,7 +35,8 @@ const dependencies = (): WaitingListHttpDependencies => ({
     bookingSessionId: 'bsn_1',
     timeSlotHoldId: 'hld_1',
     routeId: 'brt_1',
-    capability: 'session-secret'
+    capability: 'session-secret',
+    purpose: 'new-booking' as const
   })),
   now: () => '2026-07-12T12:00:00.000Z',
   newApplicationId: () => 'wla_1',
