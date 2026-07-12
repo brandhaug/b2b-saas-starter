@@ -670,6 +670,29 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                 )
               )
           )
+          const supersededOffers =
+            expiredApplications.length > 0
+              ? yield* orUnavailable('waiting-list')(
+                  db
+                    .select({ id: availabilityOffers.id })
+                    .from(availabilityOffers)
+                    .where(
+                      and(
+                        eq(availabilityOffers.status, 'pending'),
+                        inArray(
+                          availabilityOffers.waitingListApplicationId,
+                          expiredApplications.map(({ id }) => id)
+                        )
+                      )
+                    )
+                )
+              : []
+          const terminalOfferIds = [
+            ...new Set([
+              ...expiredOffers.map(({ id }) => id),
+              ...supersededOffers.map(({ id }) => id)
+            ])
+          ]
           const expiryStatements = [
             db
               .update(availabilityOffers)
@@ -704,7 +727,25 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                   eq(waitingListApplications.status, 'active'),
                   lte(waitingListApplications.expiresAt, now)
                 )
-              )
+              ),
+            ...(terminalOfferIds.length > 0
+              ? [
+                  db
+                    .update(notificationIntents)
+                    .set({ status: 'cancelled', updatedAt: now })
+                    .where(
+                      and(
+                        eq(notificationIntents.sourceType, 'availability-offer'),
+                        inArray(notificationIntents.sourceId, terminalOfferIds),
+                        inArray(notificationIntents.status, [
+                          'pending',
+                          'processing',
+                          'failed'
+                        ])
+                      )
+                    )
+                ]
+              : [])
           ]
           yield* orUnavailable('waiting-list')(batch(db, expiryStatements))
           return {
@@ -712,8 +753,9 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
             offers: expiredOffers.length
           }
         }),
-      deliverAvailable: (now, deliveryKey) =>
+      deliverAvailable: (now, deliveryKeyring) =>
         Effect.gen(function* () {
+          const deliveryKey = deliveryKeyring.keys[deliveryKeyring.currentKeyId] ?? ''
           if (!deliveryKey)
             return yield* new CapabilityUnavailable({
               capability: 'waiting-list',
@@ -744,10 +786,20 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                 .limit(1)
             )
             if (pending) {
+              const pendingOffer = offerFromRow(pending)
+              const pendingKey =
+                deliveryKeyring.keys[
+                  pendingOffer.slot.deliveryKeyId ?? deliveryKeyring.currentKeyId
+                ] ?? ''
+              if (!pendingKey)
+                return yield* new CapabilityUnavailable({
+                  capability: 'waiting-list',
+                  reason: 'missing-delivery-key-version'
+                })
               delivered.push({
-                offer: offerFromRow(pending),
+                offer: pendingOffer,
                 capability: yield* Effect.promise(() =>
-                  hashSha256(`${deliveryKey}:${pending.id}`)
+                  hashSha256(`${pendingKey}:${pending.id}`)
                 ),
                 customer: application.customer,
                 merchantSlug:
@@ -897,6 +949,7 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                 slot: {
                   shopId: application.shopId,
                   serviceIds: [...application.request.serviceIds],
+                  deliveryKeyId: deliveryKeyring.currentKeyId,
                   ...candidate
                 },
                 capability,

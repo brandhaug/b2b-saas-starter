@@ -136,18 +136,7 @@ export const handleWaitingListRequest = async (
       if (!applicationMatch[2] && request.method === 'POST') {
         const body = Schema.decodeUnknownSync(Apply)(await request.json())
         if (body.request.replacementAppointmentId) {
-          const routeId = body.request.replacementConfirmationRouteId
-          const credential = routeId
-            ? cookie(request, `confirmation_${routeId}`)
-            : undefined
-          if (!routeId || !credential) return json({ state: 'not-found' }, 404)
-          await dependencies.authorizeReplacement({
-            merchantSlug: applicationMatch[1]!,
-            appointmentId: body.request.replacementAppointmentId,
-            routeId,
-            cookieCredential: credential,
-            now: dependencies.now()
-          })
+          return json({ state: 'not-found' }, 404)
         }
         const capability = dependencies.newApplicationCapability()
         const application = await dependencies.apply({

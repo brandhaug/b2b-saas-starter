@@ -37,7 +37,8 @@ export const OfferedSlot = Schema.Struct({
   serviceIds: Schema.Array(Schema.String),
   providerId: Schema.String,
   startsAt: Schema.String,
-  endsAt: Schema.String
+  endsAt: Schema.String,
+  deliveryKeyId: Schema.optional(Schema.String)
 })
 
 export type WaitingListRequest = typeof WaitingListRequest.Type
@@ -229,7 +230,10 @@ export type WaitingListShape = {
   ) => Effect.Effect<{ applications: number; offers: number }, CapabilityUnavailable>
   readonly deliverAvailable: (
     now: string,
-    deliveryKey: string
+    deliveryKeyring: {
+      currentKeyId: string
+      keys: Readonly<Record<string, string>>
+    }
   ) => Effect.Effect<readonly DeliveredAvailabilityOffer[], WaitingListError>
 }
 export class WaitingList extends Context.Service<WaitingList, WaitingListShape>()(

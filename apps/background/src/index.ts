@@ -25,7 +25,8 @@ type Env = {
   readonly EMAIL?: SendEmailBinding
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly OPERATIONAL_EMAIL_ENABLED?: string
-  readonly WAITING_LIST_DELIVERY_KEY?: string
+  readonly WAITING_LIST_DELIVERY_CURRENT_KEY_ID?: string
+  readonly WAITING_LIST_DELIVERY_KEYS?: string
 }
 
 const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
@@ -106,6 +107,11 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     const now = new Date(event.scheduledTime).toISOString()
     const capabilityLayer = selectCapabilitiesLayer(capabilitiesEnv(env))
+    await env.DB.prepare(
+      "UPDATE notification_intents SET status = 'failed', updated_at = ? WHERE source_type = 'availability-offer' AND status = 'processing' AND updated_at < ?"
+    )
+      .bind(now, new Date(Date.parse(now) - 5 * 60_000).toISOString())
+      .run()
     await runtime.runPromise(
       withTriggerScope(
         { service: 'background', event: 'booking_recovery', env },
@@ -120,8 +126,20 @@ export default {
                 Effect.gen(function* () {
                   const waitingList = yield* WaitingList
                   const email = yield* EmailDispatcher
-                  const deliveryKey = env.WAITING_LIST_DELIVERY_KEY ?? ''
-                  const offers = yield* waitingList.deliverAvailable(now, deliveryKey)
+                  let keys: Record<string, string> = {}
+                  try {
+                    keys = JSON.parse(env.WAITING_LIST_DELIVERY_KEYS ?? '{}') as Record<
+                      string,
+                      string
+                    >
+                  } catch {
+                    // Missing/invalid keyrings fail through the capability.
+                  }
+                  const offers = yield* waitingList.deliverAvailable(now, {
+                    currentKeyId:
+                      env.WAITING_LIST_DELIVERY_CURRENT_KEY_ID ?? 'unconfigured',
+                    keys
+                  })
                   yield* Effect.forEach(offers, (delivery) =>
                     Effect.gen(function* () {
                       const claimed = yield* Effect.promise(() =>
