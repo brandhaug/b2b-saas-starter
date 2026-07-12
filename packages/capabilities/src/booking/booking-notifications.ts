@@ -190,7 +190,19 @@ export const LiveBookingNotificationOutbox: Layer.Layer<
           if (claimed.length === 0) return null
           const row = (yield* read(outboxId))[0]
           if (!row || !row.appointment.snapshot) return null
-          if (!row.outbox.notificationIntentId) return null
+          if (!row.outbox.notificationIntentId) {
+            yield* unavailable(
+              db
+                .update(bookingOutbox)
+                .set({
+                  webhookStatus: 'dead_lettered',
+                  processedAt: now,
+                  claimedAt: null
+                })
+                .where(eq(bookingOutbox.id, outboxId))
+            )
+            return null
+          }
           yield* unavailable(
             db
               .update(notificationIntents)
