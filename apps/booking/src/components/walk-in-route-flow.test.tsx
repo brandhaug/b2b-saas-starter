@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../presentation/booking-primitives.tsx', () => ({
@@ -91,6 +91,69 @@ describe('WalkInRouteFlow', () => {
     )
     expect(await screen.findByText('Serving')).toBeTruthy()
     expect(screen.getByText('Position: 1')).toBeTruthy()
+  })
+
+  it.each([
+    ['waiting', 'Waiting'],
+    ['called', 'Called'],
+    ['serving', 'Serving'],
+    ['served', 'Served'],
+    ['removed', 'Removed'],
+    ['expired', 'Expired']
+  ] as const)('renders the %s acknowledgment lifecycle', async (status, label) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          id: `wie_${status}`,
+          shopId: 'shp_one',
+          status,
+          position: 1,
+          projectedWaitMinutes: 0,
+          serviceId: 'svc_cut',
+          providerPreference: { kind: 'any' },
+          locale: 'en',
+          history: []
+        })
+      )
+    )
+    render(
+      <WalkInRouteFlow
+        pathname={`/m/booking/s/walk-ins/wie_${status}`}
+        locale="en"
+        acknowledgment
+      />
+    )
+    expect(await screen.findByText(label)).toBeTruthy()
+  })
+
+  it.each([
+    ['walk_in_duplicate', 'You are already in this queue.'],
+    ['walk_ins_unavailable', 'We could not add you to the queue.']
+  ] as const)('submits enrollment and renders %s feedback', async (error, feedback) => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(overview))
+      .mockResolvedValueOnce(Response.json({ error }, { status: 409 }))
+    vi.stubGlobal('fetch', fetch)
+    render(
+      <WalkInRouteFlow
+        pathname="/m/booking/s/walk-ins"
+        locale="en"
+        acknowledgment={false}
+      />
+    )
+    await screen.findByRole('option', { name: 'Signature cut' })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mara' } })
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'mara@example.test' }
+    })
+    fireEvent.change(screen.getByLabelText('Phone'), {
+      target: { value: '+40711111111' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Join the queue' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(feedback)
+    expect(fetch).toHaveBeenCalledTimes(2)
   })
 
   it.each([

@@ -30,7 +30,8 @@ const layer = () =>
         eligibleServiceIds: ['svc_cut'],
         eligibleProviderIds: ['prv_ana'],
         averageServiceMinutes: 15,
-        acknowledgmentTtlMinutes: 60
+        acknowledgmentTtlMinutes: 60,
+        entryTtlMinutes: 240
       },
       {
         shopId: 'shp_uptown',
@@ -38,7 +39,8 @@ const layer = () =>
         eligibleServiceIds: ['svc_cut'],
         eligibleProviderIds: ['prv_ana'],
         averageServiceMinutes: 15,
-        acknowledgmentTtlMinutes: 60
+        acknowledgmentTtlMinutes: 60,
+        entryTtlMinutes: 240
       }
     ]
   })

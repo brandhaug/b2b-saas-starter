@@ -1,3 +1,4 @@
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { handleWalkInRequest } from './walk-in-http.ts'
 
@@ -13,26 +14,28 @@ const entry = {
   history: [{ from: null, to: 'waiting' as const, occurredAt: '2026-07-12T10:00:00Z' }]
 } as const
 const dependencies = {
-  resolveShop: async () => ({ id: 'shp_one' }),
-  overview: async () => ({
-    state: 'open' as const,
-    services: [{ id: 'svc_cut', name: 'Signature cut' }],
-    providers: [{ id: 'prv_ana', name: 'Ana' }],
-    queue: [entry]
-  }),
-  enroll: async () => ({
-    entry,
-    acknowledgment: {
-      capability: 'a'.repeat(64),
-      expiresAt: '2099-07-12T11:00:00Z'
-    },
-    notificationIntent: {
-      id: 'nti_one',
-      topic: 'walk-in.enrolled' as const,
-      sourceId: entry.id
-    }
-  }),
-  inspect: async () => entry
+  resolveShop: () => Effect.succeed({ id: 'shp_one' }),
+  overview: () =>
+    Effect.succeed({
+      state: 'open' as const,
+      services: [{ id: 'svc_cut', name: 'Signature cut' }],
+      providers: [{ id: 'prv_ana', name: 'Ana' }],
+      queue: [entry]
+    }),
+  enroll: () =>
+    Effect.succeed({
+      entry,
+      acknowledgment: {
+        capability: 'a'.repeat(64),
+        expiresAt: '2099-07-12T11:00:00Z'
+      },
+      notificationIntent: {
+        id: 'nti_one',
+        topic: 'walk-in.enrolled' as const,
+        sourceId: entry.id
+      }
+    }),
+  inspect: () => Effect.succeed(entry)
 }
 
 describe('walk-in HTTP', () => {
@@ -95,13 +98,13 @@ describe('walk-in HTTP', () => {
           locale: 'en'
         })
       }),
-      { ...dependencies, enroll: async () => Promise.reject({ _tag: 'WalkInsClosed' }) }
+      { ...dependencies, enroll: () => Effect.fail({ _tag: 'WalkInsClosed' }) }
     )
     const unavailable = await handleWalkInRequest(
       new Request('https://booking.test/mara/booking/downtown/walk-ins'),
       {
         ...dependencies,
-        overview: async () => Promise.reject({ _tag: 'CapabilityUnavailable' })
+        overview: () => Effect.fail({ _tag: 'CapabilityUnavailable' })
       }
     )
     expect(closed?.status).toBe(409)

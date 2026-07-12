@@ -45,7 +45,8 @@ type Stored = {
   entry: Entry
   contactKey: string
   capability: string
-  expiresAt: string
+  acknowledgmentExpiresAt: string
+  entryExpiresAt: string
 }
 
 const active = new Set<WalkInStatus>(['waiting', 'called', 'serving'])
@@ -107,7 +108,8 @@ export const SeedWalkIns = (
     },
     contactKey: '',
     capability: randomHex(32),
-    expiresAt: new Date(Date.parse(now()) + 60 * 60_000).toISOString()
+    acknowledgmentExpiresAt: new Date(Date.parse(now()) + 60 * 60_000).toISOString(),
+    entryExpiresAt: new Date(Date.parse(now()) + 4 * 60 * 60_000).toISOString()
   }))
   const configurationFor = (shopId: string) => configurations.get(shopId)
   const queue: WalkInsShape['queue'] = (shopId) => {
@@ -151,7 +153,7 @@ export const SeedWalkIns = (
     inspect: ({ shopId, entryId, capability }) =>
       Effect.flatMap(find(entryId, shopId), (stored) =>
         stored.capability === capability &&
-        Date.parse(stored.expiresAt) > Date.parse(now())
+        Date.parse(stored.acknowledgmentExpiresAt) > Date.parse(now())
           ? Effect.succeed(stored.entry)
           : Effect.fail(new WalkInEntryNotFound({ entryId }))
       ),
@@ -217,7 +219,16 @@ export const SeedWalkIns = (
       const expiresAt = new Date(
         Date.parse(createdAt) + configuration.acknowledgmentTtlMinutes * 60_000
       ).toISOString()
-      records.push({ entry, contactKey: key, capability, expiresAt })
+      const entryExpiresAt = new Date(
+        Date.parse(createdAt) + configuration.entryTtlMinutes * 60_000
+      ).toISOString()
+      records.push({
+        entry,
+        contactKey: key,
+        capability,
+        acknowledgmentExpiresAt: expiresAt,
+        entryExpiresAt
+      })
       return Effect.succeed({
         entry,
         acknowledgment: { capability, expiresAt },
@@ -258,9 +269,12 @@ export const SeedWalkIns = (
           }
         })
       }),
-    expireAcknowledgments: (at) => {
+    expireEntries: ({ shopId, now: at }) => {
       const expired = records.filter(
-        (record) => active.has(record.entry.status) && record.expiresAt <= at
+        (record) =>
+          record.entry.shopId === shopId &&
+          active.has(record.entry.status) &&
+          record.entryExpiresAt <= at
       )
       for (const stored of expired) {
         const from = stored.entry.status
@@ -391,7 +405,11 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
                 inArray(walkInEntries.status, ['waiting', 'called', 'serving'])
               )
             )
-            .orderBy(asc(walkInEntries.position), asc(walkInEntries.createdAt))
+            .orderBy(
+              asc(walkInEntries.position),
+              asc(walkInEntries.createdAt),
+              asc(walkInEntries.id)
+            )
         )
         return yield* Effect.forEach(rows, (row, index) =>
           Effect.gen(function* () {
@@ -573,6 +591,9 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
           const expiresAt = new Date(
             Date.parse(now) + configuration.acknowledgmentTtlMinutes * 60_000
           ).toISOString()
+          const entryExpiresAt = new Date(
+            Date.parse(now) + configuration.entryTtlMinutes * 60_000
+          ).toISOString()
           const grantId = newCapabilityId('pag')
           const intentId = newCapabilityId('nti')
           const historyId = newCapabilityId('lch')
@@ -592,6 +613,7 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
                 contactKey: key,
                 requestJson: JSON.stringify(request),
                 customerSnapshotJson: JSON.stringify(enrollment.customerDetails),
+                expiresAt: entryExpiresAt,
                 createdAt: now,
                 updatedAt: now
               }),
@@ -716,7 +738,7 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
                       stored?.customerSnapshotJson ?? '{}',
                       JSON.stringify({ entryId }),
                       entryId,
-                      `walk-in.${to}:${entryId}`,
+                      `walk-in.${to}:${entryId}:${historyId}`,
                       now,
                       now,
                       now
@@ -743,32 +765,24 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
             }
           }
         }),
-      expireAcknowledgments: (at) =>
+      expireEntries: ({ shopId, now: at }) =>
         Effect.gen(function* () {
           const due = yield* orUnavailable('walk-ins')(
             db
-              .select({ shopId: walkInEntries.shopId, entryId: walkInEntries.id })
+              .select({ entryId: walkInEntries.id })
               .from(walkInEntries)
-              .innerJoin(
-                protectedAccessGrants,
-                and(
-                  eq(protectedAccessGrants.resourceType, 'walk-in-entry'),
-                  eq(protectedAccessGrants.resourceId, walkInEntries.id),
-                  eq(protectedAccessGrants.shopId, walkInEntries.shopId)
-                )
-              )
               .where(
                 and(
-                  inArray(walkInEntries.status, ['waiting', 'called']),
-                  eq(protectedAccessGrants.purpose, 'walk-in-acknowledgment'),
-                  sql`${protectedAccessGrants.expiresAt} <= ${at}`
+                  eq(walkInEntries.shopId, shopId),
+                  inArray(walkInEntries.status, ['waiting', 'called', 'serving']),
+                  sql`${walkInEntries.expiresAt} IS NOT NULL`,
+                  sql`${walkInEntries.expiresAt} <= ${at}`
                 )
               )
           )
           const expired = yield* Effect.forEach(
             due,
-            ({ shopId, entryId }) =>
-              service.transition({ shopId, entryId, to: 'expired' }),
+            ({ entryId }) => service.transition({ shopId, entryId, to: 'expired' }),
             { concurrency: 1 }
           )
           return expired.map((result) => result.entry)

@@ -18,7 +18,8 @@ export const WalkInConfiguration = Schema.Struct({
   eligibleServiceIds: Schema.Array(Schema.String),
   eligibleProviderIds: Schema.Array(Schema.String),
   averageServiceMinutes: Schema.Number.check(Schema.isGreaterThan(0)),
-  acknowledgmentTtlMinutes: Schema.Number.check(Schema.isGreaterThan(0))
+  acknowledgmentTtlMinutes: Schema.Number.check(Schema.isGreaterThan(0)),
+  entryTtlMinutes: Schema.Number.check(Schema.isGreaterThan(0))
 })
 export type WalkInConfiguration = typeof WalkInConfiguration.Type
 export const WalkInOption = Schema.Struct({ id: Schema.String, name: Schema.String })
@@ -145,9 +146,10 @@ export type WalkInsShape = {
     },
     WalkInError
   >
-  readonly expireAcknowledgments: (
-    now: string
-  ) => Effect.Effect<readonly (typeof WalkInQueueEntry.Type)[], WalkInError>
+  readonly expireEntries: (input: {
+    readonly shopId: string
+    readonly now: string
+  }) => Effect.Effect<readonly (typeof WalkInQueueEntry.Type)[], WalkInError>
 }
 export class WalkIns extends Context.Service<WalkIns, WalkInsShape>()(
   '@b2b-saas-starter/capabilities/WalkIns'

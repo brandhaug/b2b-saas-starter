@@ -20,6 +20,7 @@ export class ShopNotFound extends Schema.TaggedErrorClass<ShopNotFound>()(
 ) {}
 
 export type ShopTopologyShape = {
+  readonly listAll: () => Effect.Effect<readonly Shop[], CapabilityUnavailable>
   readonly findBySlug: (
     slug: string
   ) => Effect.Effect<Shop, ShopNotFound | CapabilityUnavailable>

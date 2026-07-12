@@ -1329,6 +1329,7 @@ export const walkInEntries = sqliteTable(
     contactKey: text('contact_key'),
     requestJson: text('request_json').notNull(),
     customerSnapshotJson: text('customer_snapshot_json').notNull(),
+    expiresAt: text('expires_at'),
     createdAt: isoCreatedAt(),
     updatedAt: isoUpdatedAt()
   },
@@ -1340,6 +1341,11 @@ export const walkInEntries = sqliteTable(
       table.shopId,
       table.status,
       table.position
+    ),
+    index('walk_in_entries_shop_status_expiry_idx').on(
+      table.shopId,
+      table.status,
+      table.expiresAt
     )
   ]
 )

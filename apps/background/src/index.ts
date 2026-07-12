@@ -12,6 +12,7 @@ import { WideEventLoggerLive, withTriggerScope } from '@b2b-saas-starter/logger'
 import { processBookingOutbox, recoverBookingOutbox } from './booking-notifications.ts'
 import { WaitingList } from '@b2b-saas-starter/capabilities/waiting-list'
 import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
+import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
 
 type Env = {
   readonly DB: D1Database
@@ -111,9 +112,16 @@ export default {
             Effect.flatMap(WaitingList, (waitingList) => waitingList.expire(now)).pipe(
               Effect.provide(capabilityLayer)
             ),
-            Effect.flatMap(WalkIns, (walkIns) =>
-              walkIns.expireAcknowledgments(now)
-            ).pipe(Effect.provide(capabilityLayer))
+            Effect.gen(function* () {
+              const topology = yield* ShopTopology
+              const walkIns = yield* WalkIns
+              const shops = yield* topology.listAll()
+              yield* Effect.forEach(
+                shops,
+                (shop) => walkIns.expireEntries({ shopId: shop.id, now }),
+                { concurrency: 4 }
+              )
+            }).pipe(Effect.provide(capabilityLayer))
           ],
           { concurrency: 3 }
         ).pipe(Effect.asVoid)

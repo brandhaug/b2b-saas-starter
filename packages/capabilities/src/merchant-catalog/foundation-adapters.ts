@@ -6,6 +6,7 @@ import { ShopNotFound, ShopTopology, type Shop } from './foundations.ts'
 
 export const SeedShopTopology = (records: readonly Shop[]): Layer.Layer<ShopTopology> =>
   Layer.succeed(ShopTopology)({
+    listAll: () => Effect.succeed(records),
     findBySlug: (slug) => {
       const shop = records.find((candidate) => candidate.slug === slug)
       return shop ? Effect.succeed(shop) : Effect.fail(new ShopNotFound({ slug }))
@@ -18,6 +19,18 @@ export const LiveShopTopology: Layer.Layer<ShopTopology, never, Database> =
     Effect.gen(function* () {
       const db = yield* Database
       return {
+        listAll: () =>
+          Effect.map(orUnavailable('shop-topology')(db.select().from(shops)), (rows) =>
+            rows.map((shop) => ({
+              id: shop.id,
+              brandId: shop.brandId,
+              merchantId: shop.merchantId,
+              slug: shop.slug,
+              publicName: shop.publicName,
+              timezone: shop.timezone,
+              currency: shop.currency
+            }))
+          ),
         findBySlug: (slug) =>
           Effect.flatMap(
             orUnavailable('shop-topology')(
