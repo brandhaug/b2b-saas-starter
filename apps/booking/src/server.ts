@@ -130,7 +130,8 @@ export const reconcilePaymentAndResumeGiftCard = async <
   resume: (paymentId: string) => Promise<unknown>
 ): Promise<A> => {
   const view = await reconcile()
-  if (view.payment.status === 'captured') await resume(view.payment.id)
+  if (['captured', 'refunded', 'cancelled'].includes(view.payment.status))
+    await resume(view.payment.id)
   return view
 }
 

@@ -114,4 +114,15 @@ describe('Booking Worker entry', () => {
     ).resolves.toBe(view)
     expect(resume).toHaveBeenCalledWith('pay_gift_async')
   })
+
+  it('continues terminal Gift Card payment facts into cancellation or refund', async () => {
+    for (const status of ['cancelled', 'refunded']) {
+      const resume = vi.fn(async () => undefined)
+      await reconcilePaymentAndResumeGiftCard(
+        async () => ({ payment: { id: `pay_${status}`, status } }),
+        resume
+      )
+      expect(resume).toHaveBeenCalledWith(`pay_${status}`)
+    }
+  })
 })

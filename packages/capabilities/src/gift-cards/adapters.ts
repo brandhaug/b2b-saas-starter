@@ -82,7 +82,11 @@ export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
           const [sale] = yield* orUnavailable('gift-card-sales')(
             db.select().from(giftCardSales).where(eq(giftCardSales.id, saleId)).limit(1)
           )
-          if (!sale || sale.status !== 'issued' || !sale.giftCardProductId)
+          if (
+            !sale ||
+            (sale.status !== 'issued' && sale.status !== 'refunded') ||
+            !sale.giftCardProductId
+          )
             return yield* new GiftCardSaleConflict({ code: 'receipt_not_found' })
           const [card] = yield* orUnavailable('gift-card-sales')(
             db
@@ -517,6 +521,60 @@ export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
                 .limit(1)
             )
             if (!sale) return null
+            const [payment] = yield* orUnavailable('gift-card-sales')(
+              db
+                .select()
+                .from(payments)
+                .where(eq(payments.id, input.paymentId))
+                .limit(1)
+            )
+            if (!payment) return null
+            if (payment.status === 'cancelled') {
+              yield* orUnavailable('gift-card-sales')(
+                db
+                  .update(giftCardSales)
+                  .set({ status: 'cancelled', updatedAt: input.now })
+                  .where(eq(giftCardSales.id, sale.id))
+              )
+              return null
+            }
+            if (payment.status === 'refunded') {
+              const [card] = yield* orUnavailable('gift-card-sales')(
+                db
+                  .select()
+                  .from(giftCards)
+                  .where(eq(giftCards.giftCardSaleId, sale.id))
+                  .limit(1)
+              )
+              if (!card) return null
+              const refundKey = `gift-card-refund:${sale.id}`
+              yield* orUnavailable('gift-card-sales')(
+                batch(db, [
+                  db
+                    .insert(giftCardLedgerEntries)
+                    .values({
+                      id: `gcl_${stableSuffix(refundKey)}`,
+                      giftCardId: card.id,
+                      kind: 'refund',
+                      amountMinor: -sale.amountMinor,
+                      idempotencyKey: refundKey,
+                      occurredAt: input.now,
+                      createdAt: input.now
+                    })
+                    .onConflictDoNothing(),
+                  db
+                    .update(giftCards)
+                    .set({ status: 'voided', updatedAt: input.now })
+                    .where(eq(giftCards.id, card.id)),
+                  db
+                    .update(giftCardSales)
+                    .set({ status: 'refunded', updatedAt: input.now })
+                    .where(eq(giftCardSales.id, sale.id))
+                ])
+              )
+              return yield* readReceiptBySale(sale.id)
+            }
+            if (payment.status !== 'captured') return null
             if (
               !sale.receiptRouteId ||
               !sale.receiptTokenHash ||
