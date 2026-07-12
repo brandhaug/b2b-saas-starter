@@ -25,6 +25,7 @@ type Env = {
   readonly EMAIL?: SendEmailBinding
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly OPERATIONAL_EMAIL_ENABLED?: string
+  readonly WAITING_LIST_DELIVERY_KEY?: string
 }
 
 const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
@@ -108,56 +109,82 @@ export default {
     await runtime.runPromise(
       withTriggerScope(
         { service: 'background', event: 'booking_recovery', env },
-        Effect.all(
-          [
-            recoverBookingNotificationOutbox(now, env),
-            Effect.flatMap(WaitingList, (waitingList) => waitingList.expire(now)).pipe(
-              Effect.provide(capabilityLayer)
-            ),
-            Effect.gen(function* () {
-              const waitingList = yield* WaitingList
-              const email = yield* EmailDispatcher
-              const config = bookingConfig(env)
-              const deliveryKey =
-                config.confirmationKeyring.keys[
-                  config.confirmationKeyring.currentKeyId
-                ] ?? ''
-              const offers = yield* waitingList.deliverAvailable(now, deliveryKey)
-              yield* Effect.forEach(offers, (delivery) =>
-                email.send({
-                  idempotencyKey: `availability-offer:${delivery.offer.id}`,
-                  from: env.CLOUDFLARE_EMAIL_FROM ?? '',
-                  to: delivery.customer.email,
-                  subject: 'A requested time is available',
-                  element: AvailabilityOfferEmail({
-                    startsAt: delivery.offer.slot.startsAt,
-                    offerUrl: `${env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071'}/${delivery.merchantSlug}/booking/waiting-list/${delivery.offer.applicationId}/offers/${delivery.offer.id}?capability=${encodeURIComponent(delivery.capability)}`
-                  })
-                })
-              )
-            }).pipe(
-              Effect.provide(capabilityLayer),
-              Effect.provide(
-                selectEmailDispatcherLayer({
-                  ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
-                  ...(env.CLOUDFLARE_EMAIL_FROM
-                    ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
-                    : {})
-                })
-              )
-            ),
-            Effect.gen(function* () {
-              const topology = yield* ShopTopology
-              const walkIns = yield* WalkIns
-              const shops = yield* topology.listAll()
-              yield* Effect.forEach(
-                shops,
-                (shop) => walkIns.expireEntries({ shopId: shop.id, now }),
-                { concurrency: 4 }
-              )
-            }).pipe(Effect.provide(capabilityLayer))
-          ],
-          { concurrency: 3 }
+        Effect.flatMap(
+          Effect.flatMap(WaitingList, (waitingList) => waitingList.expire(now)).pipe(
+            Effect.provide(capabilityLayer)
+          ),
+          () =>
+            Effect.all(
+              [
+                recoverBookingNotificationOutbox(now, env),
+                Effect.gen(function* () {
+                  const waitingList = yield* WaitingList
+                  const email = yield* EmailDispatcher
+                  const deliveryKey = env.WAITING_LIST_DELIVERY_KEY ?? ''
+                  const offers = yield* waitingList.deliverAvailable(now, deliveryKey)
+                  yield* Effect.forEach(offers, (delivery) =>
+                    Effect.gen(function* () {
+                      const claimed = yield* Effect.promise(() =>
+                        env.DB.prepare(
+                          "UPDATE notification_intents SET status = 'processing', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status IN ('pending', 'failed')"
+                        )
+                          .bind(now, delivery.offer.id)
+                          .run()
+                      )
+                      if ((claimed.meta.changes ?? 0) !== 1) return
+                      yield* email.send({
+                        idempotencyKey: `availability-offer:${delivery.offer.id}`,
+                        from: env.CLOUDFLARE_EMAIL_FROM ?? '',
+                        to: delivery.customer.email,
+                        subject: 'A requested time is available',
+                        element: AvailabilityOfferEmail({
+                          startsAt: delivery.offer.slot.startsAt,
+                          offerUrl: `${env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071'}/${delivery.merchantSlug}/booking/waiting-list/${delivery.offer.applicationId}/offers/${delivery.offer.id}?capability=${encodeURIComponent(delivery.capability)}`
+                        })
+                      })
+                      yield* Effect.promise(() =>
+                        env.DB.prepare(
+                          "UPDATE notification_intents SET status = 'delivered', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status = 'processing'"
+                        )
+                          .bind(now, delivery.offer.id)
+                          .run()
+                      )
+                    }).pipe(
+                      Effect.tapError(() =>
+                        Effect.promise(() =>
+                          env.DB.prepare(
+                            "UPDATE notification_intents SET status = 'failed', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status = 'processing'"
+                          )
+                            .bind(now, delivery.offer.id)
+                            .run()
+                        )
+                      )
+                    )
+                  )
+                }).pipe(
+                  Effect.provide(capabilityLayer),
+                  Effect.provide(
+                    selectEmailDispatcherLayer({
+                      ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+                      ...(env.CLOUDFLARE_EMAIL_FROM
+                        ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+                        : {})
+                    })
+                  )
+                ),
+                Effect.gen(function* () {
+                  const topology = yield* ShopTopology
+                  const walkIns = yield* WalkIns
+                  const shops = yield* topology.listAll()
+                  yield* Effect.forEach(
+                    shops,
+                    (shop) => walkIns.expireEntries({ shopId: shop.id, now }),
+                    { concurrency: 4 }
+                  )
+                }).pipe(Effect.provide(capabilityLayer))
+              ],
+              { concurrency: 3 }
+            )
         ).pipe(Effect.asVoid)
       )
     )

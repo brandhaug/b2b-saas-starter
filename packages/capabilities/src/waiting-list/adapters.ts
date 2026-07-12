@@ -737,7 +737,8 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                 .where(
                   and(
                     eq(availabilityOffers.waitingListApplicationId, row.id),
-                    eq(availabilityOffers.status, 'pending')
+                    eq(availabilityOffers.status, 'pending'),
+                    gt(availabilityOffers.expiresAt, now)
                   )
                 )
                 .limit(1)

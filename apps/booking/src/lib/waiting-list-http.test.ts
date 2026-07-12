@@ -102,4 +102,38 @@ describe('Waiting List HTTP', () => {
       'booking_session_bsn_1=session-secret'
     )
   })
+
+  it('creates replacement applications only from the exact confirmation cookie path', async () => {
+    const deps = dependencies()
+    const response = await handleWaitingListRequest(
+      new Request('https://example.com/shop/booking/confirmations/cnf_1/waiting-list', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: 'confirmation_cnf_1=confirmation-cookie'
+        },
+        body: JSON.stringify({
+          shopId: 'shp_1',
+          request: {
+            serviceIds: ['svc_1'],
+            providerPreference: { kind: 'any' },
+            from: '2026-07-13T00:00:00.000Z',
+            until: '2026-07-20T00:00:00.000Z',
+            replacementAppointmentId: 'apt_1'
+          },
+          customer: { name: 'Ada', email: 'ada@example.com' },
+          expiresAt: '2026-07-21T00:00:00.000Z'
+        })
+      }),
+      deps
+    )
+    expect(response?.status).toBe(201)
+    expect(deps.authorizeReplacement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: 'apt_1',
+        routeId: 'cnf_1',
+        cookieCredential: 'confirmation-cookie'
+      })
+    )
+  })
 })

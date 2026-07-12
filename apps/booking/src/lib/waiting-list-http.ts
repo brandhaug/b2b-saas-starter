@@ -91,6 +91,43 @@ export const handleWaitingListRequest = async (
   dependencies: WaitingListHttpDependencies
 ): Promise<Response | null> => {
   const url = new URL(request.url)
+  const replacementMatch = url.pathname.match(
+    /^\/([^/]+)\/booking\/confirmations\/([^/]+)\/waiting-list$/
+  )
+  if (replacementMatch && request.method === 'POST') {
+    try {
+      const body = Schema.decodeUnknownSync(Apply)(await request.json())
+      const appointmentId = body.request.replacementAppointmentId
+      const routeId = replacementMatch[2]!
+      const credential = cookie(request, `confirmation_${routeId}`)
+      if (!appointmentId || !credential) return json({ state: 'not-found' }, 404)
+      await dependencies.authorizeReplacement({
+        merchantSlug: replacementMatch[1]!,
+        appointmentId,
+        routeId,
+        cookieCredential: credential,
+        now: dependencies.now()
+      })
+      const capability = dependencies.newApplicationCapability()
+      const application = await dependencies.apply({
+        ...body,
+        request: { ...body.request, replacementConfirmationRouteId: routeId },
+        id: dependencies.newApplicationId(),
+        merchantSlug: replacementMatch[1]!,
+        capability,
+        now: dependencies.now()
+      })
+      return Response.json(application, {
+        status: 201,
+        headers: {
+          'cache-control': 'no-store',
+          'set-cookie': `__Host-waiting-list-${application.id}=${capability}; Path=/${replacementMatch[1]}/booking/waiting-list/${application.id}; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`
+        }
+      })
+    } catch (error) {
+      return failure(error)
+    }
+  }
   const applicationMatch = url.pathname.match(
     /^\/([^/]+)\/booking\/waiting-list(?:\/([^/]+))?$/
   )
