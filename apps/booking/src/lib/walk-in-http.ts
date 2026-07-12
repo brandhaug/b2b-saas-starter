@@ -23,7 +23,7 @@ const json = (value: unknown, status = 200, headers?: HeadersInit) =>
     status,
     headers: { 'cache-control': 'no-store', ...headers }
   })
-const cookieName = (entryId: string) => `__Host-walk-in-${entryId}`
+const cookieName = (entryId: string) => `__Secure-walk-in-${entryId}`
 const cookie = (request: Request, name: string) =>
   request.headers
     .get('cookie')
