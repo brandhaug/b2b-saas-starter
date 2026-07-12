@@ -225,7 +225,8 @@ export type BookingSessionHttpDependencies = {
   ) => BookingSessionEffect<void, CapabilityUnavailable>
   readonly parties?: {
     readonly load: (
-      session: BookingSession
+      session: BookingSession,
+      now?: string
     ) => BookingSessionEffect<
       BookingParty,
       BookingPartyNotFound | CapabilityUnavailable
@@ -287,7 +288,8 @@ export type BookingSessionHttpDependencies = {
       session: BookingSession,
       preference: ProviderPreference,
       expectedVersion: number,
-      providerProof?: string
+      providerProof?: string,
+      now?: string
     ) => BookingSessionEffect<
       BookingJourney,
       BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
@@ -1061,7 +1063,7 @@ export const handleBookingSessionRequest = (
     if (endpoint === 'selection' && request.method === 'GET') {
       if (!dependencies.selection) return unavailable()
       const result = yield* Effect.result(
-        dependencies.selection.load(authorization.success)
+        dependencies.selection.load(authorization.success, now)
       )
       return result._tag === 'Success'
         ? jsonJourney(result.success)
@@ -1087,12 +1089,13 @@ export const handleBookingSessionRequest = (
           authorization.success,
           preference,
           version,
-          providerProof
+          providerProof,
+          now
         )
       )
       if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
         const latest = yield* Effect.result(
-          dependencies.selection.load(authorization.success)
+          dependencies.selection.load(authorization.success, now)
         )
         if (latest._tag === 'Success') {
           return withPrivateHeaders(
@@ -1142,7 +1145,7 @@ export const handleBookingSessionRequest = (
       )
       if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
         const latest = yield* Effect.result(
-          dependencies.selection.load(authorization.success)
+          dependencies.selection.load(authorization.success, now)
         )
         if (latest._tag === 'Success') {
           return withPrivateHeaders(
@@ -1171,7 +1174,7 @@ export const handleBookingSessionRequest = (
       )
       if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
         const latest = yield* Effect.result(
-          dependencies.selection.load(authorization.success)
+          dependencies.selection.load(authorization.success, now)
         )
         if (latest._tag === 'Success') {
           return withPrivateHeaders(

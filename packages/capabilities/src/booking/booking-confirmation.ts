@@ -301,6 +301,7 @@ export const SeedBookingConfirmation = (
           if (
             !metadata ||
             metadata.bookingPartyId !== input.bookingPartyId ||
+            metadata.purpose !== 'party_confirmation' ||
             metadata.expiresAt <= input.now
           )
             return yield* new CapabilityUnavailable({
@@ -638,7 +639,12 @@ export const LiveBookingConfirmation = (
                 )
                 .limit(1)
             )
-            if (!access || access.revokedAt || access.expiresAt <= input.now)
+            if (
+              !access ||
+              access.purpose !== 'party_confirmation' ||
+              access.revokedAt ||
+              access.expiresAt <= input.now
+            )
               return yield* new CapabilityUnavailable({
                 capability: 'booking-confirmation',
                 reason: 'continuation_not_found'

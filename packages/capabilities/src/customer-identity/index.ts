@@ -115,6 +115,47 @@ export class CustomerIdentity extends Context.Service<
   CustomerIdentityShape
 >()('@b2b-saas-starter/capabilities/CustomerIdentity') {}
 
+const ConfirmedBookingAssociation = Schema.Struct({
+  appointment: Schema.Struct({
+    merchantId: Schema.String,
+    snapshot: Schema.Struct({ customerDetails: CustomerDetailsSnapshot })
+  }),
+  access: Schema.Struct({
+    bookingPartyId: Schema.NullOr(BookingPartyId),
+    routeId: Schema.String
+  })
+})
+
+/** Optional identity enrichment never changes the committed Booking outcome. */
+export const associateVerifiedBooking = <A>(input: {
+  readonly principal: VerifiedCustomerPrincipal | null
+  readonly confirmation: A
+  readonly now: string
+}): Effect.Effect<A, never, CustomerIdentity> =>
+  Effect.gen(function* () {
+    if (!input.principal) return input.confirmation
+    const decoded = yield* Effect.option(
+      Schema.decodeUnknownEffect(ConfirmedBookingAssociation)(input.confirmation)
+    )
+    if (decoded._tag === 'None' || !decoded.value.access.bookingPartyId)
+      return input.confirmation
+    const identity = yield* CustomerIdentity
+    const session = yield* identity.establishSession({
+      principal: input.principal,
+      now: input.now,
+      expiresAt: new Date(Date.parse(input.now) + 30 * 24 * 60 * 60_000).toISOString()
+    })
+    yield* identity.associateBooking({
+      session,
+      merchantId: decoded.value.appointment.merchantId,
+      bookingPartyId: decoded.value.access.bookingPartyId,
+      confirmationRouteId: decoded.value.access.routeId,
+      customerDetails: decoded.value.appointment.snapshot.customerDetails,
+      now: input.now
+    })
+    return input.confirmation
+  }).pipe(Effect.catch(() => Effect.succeed(input.confirmation)))
+
 export type CustomerIdentityProviderState =
   | 'disabled'
   | 'needs_configuration'

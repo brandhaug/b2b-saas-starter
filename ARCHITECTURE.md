@@ -38,7 +38,8 @@ and derive from the same clock-anchored Seed Booking Scenario used by local D1.
 
 ## Data and transaction boundary
 
-D1 stores Better Auth records plus Merchant-owned catalog, schedule rules,
+D1 stores Better Auth records, optional platform Customer identities and sessions,
+merchant-scoped booking associations, plus Merchant-owned catalog, schedule rules,
 Booking Sessions/Holds, immutable Appointment snapshots, Confirmation access,
 notification outbox work, Platform API tokens/Webhooks, delivery history, and
 audit events. Availability and the Customer Directory are derived, not persisted.
@@ -57,6 +58,8 @@ reclaims durable work.
 | Merchant session cookie    | host-only Merchant App cookie; never bound to Public Site                       |
 | Booking Session capability | browser cookie scoped to one Merchant booking path; only a hash persists        |
 | Confirmation token         | exchanged once for an exact-path cookie; only hashes/access metadata persist    |
+| Customer session cookie    | customer-only Better Auth namespace; never grants Merchant membership           |
+| Provider access proof      | short-lived Booking Session/Provider-bound proof; only its hash persists        |
 | Platform API token         | one Merchant and explicit scopes; plaintext disclosed once, hash persists       |
 | Webhook signing secret     | plaintext disclosed once; encrypted/derived delivery material stays server-side |
 
@@ -81,8 +84,7 @@ See [.env.example](./.env.example) and [docs/operations.md](./docs/operations.md
 ## Vertical-slice boundary and accepted target
 
 Pay Now/payment-provider state, refunds, rescheduling, reminders, analytics,
-customer accounts, Merchant roles beyond Owner, Brands/Shops and multi-location,
-durable Customer identity, persisted Availability, realtime transport, and
+Merchant roles beyond Owner, persisted Availability, realtime transport, and
 customer-write Platform API operations are outside the implemented Booking Vertical
 Slice. Except for persisted Availability, realtime transport, and customer-write
 Platform API operations, the accepted full-parity work is planned in the machine-readable

@@ -11,7 +11,7 @@ import {
   enterBookingSession
 } from '@b2b-saas-starter/capabilities/booking'
 import {
-  CustomerDetailsSnapshot,
+  associateVerifiedBooking,
   CustomerIdentity
 } from '@b2b-saas-starter/capabilities/customer-identity'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
@@ -36,6 +36,7 @@ import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
 import { makeStripePaymentProvider } from './lib/stripe-payment-provider.ts'
 import { handleGiftCardRequest } from './lib/gift-card-http.ts'
 import {
+  customerAuthProviderOutcome,
   customerAuthProviderState,
   makeCustomerAuthEdge
 } from './lib/customer-auth-edge.ts'
@@ -89,9 +90,6 @@ const PaymentProviderCallback = Schema.Struct({
   paymentId: Schema.String.check(Schema.isMinLength(1)),
   providerEventId: Schema.String.check(Schema.isMinLength(1)),
   facts: PaymentProviderResult.fields.facts
-})
-const AppointmentCustomerDetails = Schema.Struct({
-  customerDetails: CustomerDetailsSnapshot
 })
 
 const configuredPaymentMethods = (env: BookingWorkerEnv) => {
@@ -210,54 +208,39 @@ export default {
     }
     const readyEnv = env as BookingWorkerEnv
     const requestUrl = new URL(request.url)
+    const customerAuthConfig = {
+      db: readyEnv.DB,
+      secret: readyEnv.CUSTOMER_AUTH_SECRET ?? '',
+      baseURL: `${readyEnv.PUBLIC_SITE_ORIGIN.replace(/\/$/, '')}/api/customer-auth`,
+      trustedOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
+      production: requestUrl.protocol === 'https:',
+      googleEnabled: readyEnv.CUSTOMER_GOOGLE_ENABLED === 'true',
+      appleEnabled: readyEnv.CUSTOMER_APPLE_ENABLED === 'true',
+      ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_ID
+        ? { googleClientId: readyEnv.CUSTOMER_GOOGLE_CLIENT_ID }
+        : {}),
+      ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET
+        ? { googleClientSecret: readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET }
+        : {}),
+      ...(readyEnv.CUSTOMER_APPLE_CLIENT_ID
+        ? { appleClientId: readyEnv.CUSTOMER_APPLE_CLIENT_ID }
+        : {}),
+      ...(readyEnv.CUSTOMER_APPLE_CLIENT_SECRET
+        ? { appleClientSecret: readyEnv.CUSTOMER_APPLE_CLIENT_SECRET }
+        : {})
+    }
     const customerAuth = readyEnv.CUSTOMER_AUTH_SECRET
-      ? makeCustomerAuthEdge({
-          db: readyEnv.DB,
-          secret: readyEnv.CUSTOMER_AUTH_SECRET,
-          baseURL: `${readyEnv.PUBLIC_SITE_ORIGIN.replace(/\/$/, '')}/api/customer-auth`,
-          trustedOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
-          production: requestUrl.protocol === 'https:',
-          googleEnabled: readyEnv.CUSTOMER_GOOGLE_ENABLED === 'true',
-          appleEnabled: readyEnv.CUSTOMER_APPLE_ENABLED === 'true',
-          ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_ID
-            ? { googleClientId: readyEnv.CUSTOMER_GOOGLE_CLIENT_ID }
-            : {}),
-          ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET
-            ? { googleClientSecret: readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET }
-            : {}),
-          ...(readyEnv.CUSTOMER_APPLE_CLIENT_ID
-            ? { appleClientId: readyEnv.CUSTOMER_APPLE_CLIENT_ID }
-            : {}),
-          ...(readyEnv.CUSTOMER_APPLE_CLIENT_SECRET
-            ? { appleClientSecret: readyEnv.CUSTOMER_APPLE_CLIENT_SECRET }
-            : {})
-        })
+      ? makeCustomerAuthEdge(customerAuthConfig)
       : null
     if (requestUrl.pathname === '/customer-identity/providers') {
+      const authenticated = Boolean(
+        customerAuth && (await customerAuth.session(request.headers))
+      )
       return Response.json(
         {
           anonymousBooking: 'available',
-          providers: customerAuthProviderState({
-            db: readyEnv.DB,
-            secret: readyEnv.CUSTOMER_AUTH_SECRET ?? '',
-            baseURL: '',
-            trustedOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
-            production: requestUrl.protocol === 'https:',
-            googleEnabled: readyEnv.CUSTOMER_GOOGLE_ENABLED === 'true',
-            appleEnabled: readyEnv.CUSTOMER_APPLE_ENABLED === 'true',
-            ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_ID
-              ? { googleClientId: readyEnv.CUSTOMER_GOOGLE_CLIENT_ID }
-              : {}),
-            ...(readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET
-              ? { googleClientSecret: readyEnv.CUSTOMER_GOOGLE_CLIENT_SECRET }
-              : {}),
-            ...(readyEnv.CUSTOMER_APPLE_CLIENT_ID
-              ? { appleClientId: readyEnv.CUSTOMER_APPLE_CLIENT_ID }
-              : {}),
-            ...(readyEnv.CUSTOMER_APPLE_CLIENT_SECRET
-              ? { appleClientSecret: readyEnv.CUSTOMER_APPLE_CLIENT_SECRET }
-              : {})
-          })
+          providers: customerAuthProviderState(customerAuthConfig),
+          outcome: customerAuthProviderOutcome(requestUrl, authenticated)
         },
         { headers: { 'cache-control': 'private, no-store' } }
       )
@@ -605,19 +588,22 @@ export default {
             )
         },
         selection: {
-          load: (session) =>
+          load: (session, now) =>
             Effect.provide(
-              Effect.flatMap(BookingSelection, (selection) => selection.load(session)),
+              Effect.flatMap(BookingSelection, (selection) =>
+                selection.load(session, now)
+              ),
               capabilitiesLayer
             ),
-          chooseProvider: (session, preference, expectedVersion, providerProof) =>
+          chooseProvider: (session, preference, expectedVersion, providerProof, now) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) =>
                 selection.chooseProvider(
                   session,
                   preference,
                   expectedVersion,
-                  providerProof
+                  providerProof,
+                  now
                 )
               ),
               capabilitiesLayer
@@ -796,40 +782,13 @@ export default {
               (result) =>
                 Effect.promise(async () => {
                   const principal = await customerAuth?.principal(request.headers)
-                  const bookingPartyId = result.access.bookingPartyId
-                  let customerDetails: typeof CustomerDetailsSnapshot.Type | null = null
-                  try {
-                    customerDetails = Schema.decodeUnknownSync(
-                      AppointmentCustomerDetails
-                    )(result.appointment.snapshot).customerDetails
-                  } catch {
-                    // A malformed historical snapshot must not roll back confirmation.
-                  }
-                  if (principal && bookingPartyId && customerDetails) {
-                    await Effect.runPromise(
-                      Effect.gen(function* () {
-                        const identity = yield* CustomerIdentity
-                        const accountSession = yield* identity.establishSession({
-                          principal,
-                          now: input.now,
-                          expiresAt: new Date(
-                            Date.parse(input.now) + 30 * 24 * 60 * 60_000
-                          ).toISOString()
-                        })
-                        yield* identity.associateBooking({
-                          session: accountSession,
-                          merchantId: result.appointment.merchantId,
-                          bookingPartyId,
-                          confirmationRouteId: result.access.routeId,
-                          customerDetails,
-                          now: input.now
-                        })
-                      }).pipe(
-                        Effect.provide(capabilitiesLayer),
-                        Effect.catch(() => Effect.void)
-                      )
-                    )
-                  }
+                  await Effect.runPromise(
+                    associateVerifiedBooking({
+                      principal: principal ?? null,
+                      confirmation: result,
+                      now: input.now
+                    }).pipe(Effect.provide(capabilitiesLayer))
+                  )
                   return publishBookingWakeUp(readyEnv.BOOKING_EVENTS_QUEUE, result)
                 })
             )

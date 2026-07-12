@@ -3,7 +3,8 @@ import { Effect } from 'effect'
 import {
   CustomerIdentity,
   CustomerIdentityNotFound,
-  CustomerIdentityRejected
+  CustomerIdentityRejected,
+  associateVerifiedBooking
 } from './index.ts'
 import { SeedCustomerIdentity } from './adapters.ts'
 
@@ -20,6 +21,25 @@ const run = <A, E>(effect: Effect.Effect<A, E, CustomerIdentity>) =>
   Effect.runPromise(effect.pipe(Effect.provide(SeedCustomerIdentity())))
 
 describe('Customer Identity', () => {
+  it('returns the identical Booking outcome for anonymous and verified customers', async () => {
+    const confirmation = {
+      appointment: {
+        merchantId: 'mrc_one',
+        snapshot: {
+          customerDetails: { name: 'Customer', email: 'c@example.test', phone: null }
+        }
+      },
+      access: { bookingPartyId: 'bpt_one', routeId: 'cnf_one' },
+      replayed: false
+    }
+    const [anonymous, verified] = await Promise.all([
+      run(associateVerifiedBooking({ principal: null, confirmation, now })),
+      run(associateVerifiedBooking({ principal, confirmation, now }))
+    ])
+    expect(anonymous).toEqual(confirmation)
+    expect(verified).toEqual(confirmation)
+  })
+
   it('requires a live verified account session for merchant-scoped continuation', async () => {
     const result = await run(
       Effect.gen(function* () {

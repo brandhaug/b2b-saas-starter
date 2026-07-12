@@ -27,6 +27,22 @@ export const customerAuthProviderState = (config: CustomerAuthEdgeConfig) => {
   }
 }
 
+export const customerAuthProviderOutcome = (
+  requestUrl: URL,
+  authenticated: boolean
+):
+  | { readonly state: 'success'; readonly provider: 'google' | 'apple' }
+  | {
+      readonly state: 'error'
+      readonly provider: 'google' | 'apple'
+    }
+  | null => {
+  const provider = requestUrl.searchParams.get('provider')
+  if (provider !== 'google' && provider !== 'apple') return null
+  if (authenticated) return { state: 'success', provider }
+  return requestUrl.searchParams.has('error') ? { state: 'error', provider } : null
+}
+
 export const makeCustomerAuthEdge = (config: CustomerAuthEdgeConfig) => {
   const db = createDb(config.db)
   const providers = customerAuthProviderState(config)

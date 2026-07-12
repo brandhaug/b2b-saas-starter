@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { customerAuthProviderState } from './customer-auth-edge.ts'
+import {
+  customerAuthProviderOutcome,
+  customerAuthProviderState
+} from './customer-auth-edge.ts'
 
 const config = {
   db: {} as D1Database,
@@ -35,5 +38,22 @@ describe('customer auth edge', () => {
         appleClientSecret: 'apple-secret'
       })
     ).toEqual({ google: 'configured', apple: 'configured' })
+  })
+
+  it('reports real callback error and authenticated success outcomes', () => {
+    expect(
+      customerAuthProviderOutcome(
+        new URL(
+          'https://booking.test/customer-identity/providers?provider=google&error=access_denied'
+        ),
+        false
+      )
+    ).toEqual({ state: 'error', provider: 'google' })
+    expect(
+      customerAuthProviderOutcome(
+        new URL('https://booking.test/customer-identity/providers?provider=apple'),
+        true
+      )
+    ).toEqual({ state: 'success', provider: 'apple' })
   })
 })

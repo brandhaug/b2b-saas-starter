@@ -459,6 +459,20 @@ describe('Booking Selection', () => {
       providerId: 'prv_ava'
     })
 
+    await expect(
+      run(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.chooseProvider(
+            session,
+            { kind: 'specific', providerId: 'prv_ava' },
+            2,
+            proof.proof,
+            proof.expiresAt
+          )
+        )
+      )
+    ).rejects.toMatchObject({ _tag: 'BookingSelectionRejected' })
+
     const wrongSession = { ...session, id: 'bsn_other' }
     await expect(
       run(

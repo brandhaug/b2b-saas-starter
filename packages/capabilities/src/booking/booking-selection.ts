@@ -117,12 +117,16 @@ type SelectionEffect<A> = Effect.Effect<
 >
 
 export type BookingSelectionShape = {
-  readonly load: (session: BookingSession) => SelectionEffect<BookingJourney>
+  readonly load: (
+    session: BookingSession,
+    now?: string
+  ) => SelectionEffect<BookingJourney>
   readonly chooseProvider: (
     session: BookingSession,
     preference: ProviderPreference,
     expectedVersion: number,
-    providerProof?: string
+    providerProof?: string,
+    now?: string
   ) => SelectionEffect<BookingJourney>
   readonly verifyProviderAccess: (
     session: BookingSession,
@@ -656,7 +660,7 @@ export const SeedBookingSelection = (
         })
         return { proof, expiresAt }
       }),
-    load: (session) =>
+    load: (session, now = session.lastActivityAt) =>
       Effect.gen(function* () {
         const current = store.selections.get(session.id) ?? emptySelection()
         const catalog = yield* seedCatalog(
@@ -674,7 +678,7 @@ export const SeedBookingSelection = (
               (proof) =>
                 proof.bookingSessionId === session.id &&
                 proof.providerId === providerId &&
-                proof.expiresAt > new Date().toISOString()
+                proof.expiresAt > now
             )
           : false
         const selected = yield* normalizeSelection(
@@ -717,7 +721,13 @@ export const SeedBookingSelection = (
         )
         return journey(catalog, selected, ['shop_changed'])
       }),
-    chooseProvider: (session, preference, expectedVersion, providerProof) =>
+    chooseProvider: (
+      session,
+      preference,
+      expectedVersion,
+      providerProof,
+      now = session.lastActivityAt
+    ) =>
       Effect.gen(function* () {
         const current = store.selections.get(session.id) ?? emptySelection()
         const catalog = yield* seedCatalog(
@@ -747,7 +757,7 @@ export const SeedBookingSelection = (
             !proof ||
             proof.bookingSessionId !== session.id ||
             proof.providerId !== preference.providerId ||
-            proof.expiresAt <= new Date().toISOString()
+            proof.expiresAt <= now
           )
             return yield* rejected()
         }
@@ -1184,7 +1194,7 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
           return nextVersion
         })
       }
-      const load = (session: BookingSession) =>
+      const load = (session: BookingSession, now = session.lastActivityAt) =>
         Effect.gen(function* () {
           const state = yield* readLiveState(db, session)
           const providerId =
@@ -1200,7 +1210,7 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
                     and(
                       eq(providerAccessProofs.bookingSessionId, session.id),
                       eq(providerAccessProofs.providerId, providerId),
-                      sql`${providerAccessProofs.expiresAt} > CURRENT_TIMESTAMP`
+                      sql`${providerAccessProofs.expiresAt} > ${now}`
                     )
                   )
                   .limit(1)
@@ -1291,7 +1301,13 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
             )
             return journey(state.catalog, { ...selected, version }, ['shop_changed'])
           }),
-        chooseProvider: (session, preference, expectedVersion, providerProof) =>
+        chooseProvider: (
+          session,
+          preference,
+          expectedVersion,
+          providerProof,
+          now = session.lastActivityAt
+        ) =>
           Effect.gen(function* () {
             const state = yield* readLiveState(db, session)
             if (state.partyLifecycle !== 'active') return yield* rejected()
@@ -1317,7 +1333,7 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
                         providerAccessProofs.proofHash,
                         yield* Effect.promise(() => hashSha256(providerProof))
                       ),
-                      sql`${providerAccessProofs.expiresAt} > CURRENT_TIMESTAMP`
+                      sql`${providerAccessProofs.expiresAt} > ${now}`
                     )
                   )
                   .limit(1)
