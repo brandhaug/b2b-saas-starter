@@ -52,6 +52,12 @@ export type GiftCardHttpDependencies = {
     tokenHash: string
     now: string
   }) => Promise<GiftCardReceiptState>
+  readonly exchangeReceiptAccess: (input: {
+    routeId: string
+    presentedTokenHash: string
+    cookieTokenHash: string
+    now: string
+  }) => Promise<void>
   readonly hashToken: (token: string) => Promise<string>
   readonly now: () => string
 }
@@ -101,22 +107,30 @@ export const handleGiftCardRequest = async (
     const token = presented ?? cookie
     if (!token) return json({ error: 'gift_card_receipt_not_found' }, 404)
     try {
-      const receiptState = await dependencies.receiptState({
-        routeId,
-        tokenHash: await dependencies.hashToken(token),
-        now: dependencies.now()
-      })
-
-      if (!presented)
+      const now = dependencies.now()
+      if (!presented) {
+        const receiptState = await dependencies.receiptState({
+          routeId,
+          tokenHash: await dependencies.hashToken(token),
+          now
+        })
         return request.headers.get('accept')?.includes('application/json')
           ? json(receiptState)
           : null
+      }
+      const cookieCredential = crypto.randomUUID().replaceAll('-', '')
+      await dependencies.exchangeReceiptAccess({
+        routeId,
+        presentedTokenHash: await dependencies.hashToken(presented),
+        cookieTokenHash: await dependencies.hashToken(cookieCredential),
+        now
+      })
       url.searchParams.delete('token')
       return new Response(null, {
         status: 303,
         headers: {
           location: `${url.pathname}${url.search}`,
-          'set-cookie': `${cookieName(routeId)}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`,
+          'set-cookie': `${cookieName(routeId)}=${encodeURIComponent(cookieCredential)}; Path=${url.pathname}; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`,
           'cache-control': 'no-store'
         }
       })

@@ -291,6 +291,12 @@ export default {
             Effect.provide(capabilitiesLayer)
           )
         ),
+      exchangeReceiptAccess: (input) =>
+        Effect.runPromise(
+          Effect.flatMap(GiftCardSales, (sales) =>
+            sales.exchangeReceiptAccess(input)
+          ).pipe(Effect.provide(capabilitiesLayer))
+        ),
       hashToken: (token) => Effect.runPromise(hashGiftCardReceiptToken(token)),
       now: () => new Date().toISOString()
     })

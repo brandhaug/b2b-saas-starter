@@ -46,6 +46,7 @@ const dependencies = (): GiftCardHttpDependencies => ({
       }) as const
   ),
   receiptState: vi.fn(async () => ({ state: 'issued', receipt }) as const),
+  exchangeReceiptAccess: vi.fn(async () => {}),
   hashToken: vi.fn(async (token) => `hash:${token}`),
   now: () => '2026-07-12T00:00:00.000Z'
 })
@@ -91,9 +92,13 @@ describe('Gift Card HTTP boundary', () => {
     expect(response?.headers.get('set-cookie')).toMatch(
       /HttpOnly; Secure; SameSite=Lax/
     )
-    expect(deps.receiptState).toHaveBeenCalledWith(
-      expect.objectContaining({ routeId: 'gcr_one', tokenHash: 'hash:secret' })
+    expect(deps.exchangeReceiptAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routeId: 'gcr_one',
+        presentedTokenHash: 'hash:secret'
+      })
     )
+    expect(response?.headers.get('set-cookie')).not.toContain('secret')
   })
 
   it('returns a neutral response when receipt capability is absent', async () => {

@@ -477,6 +477,36 @@ export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
               receipt: yield* readReceiptBySale(sale.id)
             }
           }),
+        exchangeReceiptAccess: (input) =>
+          Effect.gen(function* () {
+            const [sale] = yield* orUnavailable('gift-card-sales')(
+              db
+                .select({
+                  id: giftCardSales.id,
+                  tokenHash: giftCardSales.receiptTokenHash,
+                  expiresAt: giftCardSales.receiptExpiresAt
+                })
+                .from(giftCardSales)
+                .where(eq(giftCardSales.receiptRouteId, input.routeId))
+                .limit(1)
+            )
+            if (
+              !sale ||
+              sale.tokenHash !== input.presentedTokenHash ||
+              !sale.expiresAt ||
+              sale.expiresAt <= input.now
+            )
+              return yield* new GiftCardSaleConflict({ code: 'receipt_not_found' })
+            yield* orUnavailable('gift-card-sales')(
+              db
+                .update(giftCardSales)
+                .set({
+                  receiptTokenHash: input.cookieTokenHash,
+                  updatedAt: input.now
+                })
+                .where(eq(giftCardSales.id, sale.id))
+            )
+          }),
         resumeIssuanceForPayment: (input) =>
           Effect.gen(function* () {
             const [sale] = yield* orUnavailable('gift-card-sales')(

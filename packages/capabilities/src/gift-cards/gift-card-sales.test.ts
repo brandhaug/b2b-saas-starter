@@ -332,6 +332,56 @@ describe('Gift Card purchase and issuance', () => {
     await expect(run(5_000)).rejects.toMatchObject({ code: 'idempotency_mismatch' })
   })
 
+  it('exchanges receipt URL access exactly once for a cookie credential', async () => {
+    const store = emptySeedGiftCardSalesStore({
+      products: [product],
+      capturedPayments: [{ id: 'pay_gift', amountMinor: 5_000, currency: 'USD' }]
+    })
+    const layer = SeedGiftCardSales(store)
+    const run = <A>(effect: Effect.Effect<A, unknown, GiftCardSales>) =>
+      Effect.runPromise(effect.pipe(Effect.provide(layer)))
+    const sale = await run(
+      Effect.flatMap(GiftCardSales, (cards) =>
+        cards.createSale({
+          brandId: 'brd_demo',
+          shopId: 'shp_demo',
+          giftCardProductId: product.id,
+          amountMinor: 5_000,
+          currency: 'USD',
+          idempotencyKey: 'exchange-once',
+          ...people,
+          now: '2026-07-12T12:00:00.000Z'
+        })
+      )
+    )
+    await run(
+      Effect.flatMap(GiftCardSales, (cards) =>
+        cards.protectReceipt({
+          saleId: sale.id,
+          routeId: 'gcr_exchange',
+          tokenHash: 'url-hash',
+          signingKeyId: 'current',
+          expiresAt: '2026-08-12T12:00:00.000Z',
+          now: '2026-07-12T12:00:00.000Z'
+        })
+      )
+    )
+    const exchange = () =>
+      run(
+        Effect.flatMap(GiftCardSales, (cards) =>
+          cards.exchangeReceiptAccess({
+            routeId: 'gcr_exchange',
+            presentedTokenHash: 'url-hash',
+            cookieTokenHash: 'cookie-hash',
+            now: '2026-07-12T12:01:00.000Z'
+          })
+        )
+      )
+    await exchange()
+    await expect(exchange()).rejects.toMatchObject({ code: 'receipt_not_found' })
+    expect(store.receiptAccess.get('gcr_exchange')?.tokenHash).toBe('cookie-hash')
+  })
+
   it('rejects a Brand product from another Brand under the same Merchant', async () => {
     const crossBrand = {
       ...product,

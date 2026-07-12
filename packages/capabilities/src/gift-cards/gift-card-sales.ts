@@ -211,6 +211,12 @@ export type GiftCardSalesShape = {
     GiftCardReceiptState,
     GiftCardSaleConflict | CapabilityUnavailable
   >
+  readonly exchangeReceiptAccess: (input: {
+    readonly routeId: string
+    readonly presentedTokenHash: string
+    readonly cookieTokenHash: string
+    readonly now: string
+  }) => Effect.Effect<void, GiftCardSaleConflict | CapabilityUnavailable>
   readonly resumeIssuanceForPayment: (input: {
     readonly paymentId: string
     readonly now: string
@@ -656,6 +662,20 @@ export const SeedGiftCardSales = (
         const sale = store.sales.get(access.saleId)
         if (!sale || sale.status !== 'issued') return { state: 'processing' as const }
         return { state: 'issued' as const, receipt: yield* service.receipt(input) }
+      }),
+    exchangeReceiptAccess: (input) =>
+      Effect.gen(function* () {
+        const access = store.receiptAccess.get(input.routeId)
+        if (
+          !access ||
+          access.tokenHash !== input.presentedTokenHash ||
+          access.expiresAt <= input.now
+        )
+          return yield* new GiftCardSaleConflict({ code: 'receipt_not_found' })
+        store.receiptAccess.set(input.routeId, {
+          ...access,
+          tokenHash: input.cookieTokenHash
+        })
       }),
     resumeIssuanceForPayment: (input) => {
       const sale = [...store.sales.values()].find(
