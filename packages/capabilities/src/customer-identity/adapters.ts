@@ -1,26 +1,28 @@
 import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { customerAccounts, Database } from '@b2b-saas-starter/db'
+import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
-import { CustomerAccountNotFound, CustomerIdentity } from './index.ts'
+import {
+  CustomerAccountNotFound,
+  CustomerIdentity,
+  SeedCustomerIdentity
+} from './index.ts'
 
 type Account = typeof import('./index.ts').CustomerAccount.Type
-export const SeedCustomerIdentity = (
-  records: readonly Account[] = []
-): Layer.Layer<CustomerIdentity> =>
-  Layer.succeed(CustomerIdentity)({
-    findById: (customerAccountId) => {
-      const account = records.find((record) => record.id === customerAccountId)
-      return account
-        ? Effect.succeed(account)
-        : Effect.fail(new CustomerAccountNotFound({ customerAccountId }))
-    }
-  })
+export { SeedCustomerIdentity }
 export const LiveCustomerIdentity: Layer.Layer<CustomerIdentity, never, Database> =
   Layer.effect(
     CustomerIdentity,
     Effect.gen(function* () {
       const db = yield* Database
+      const unavailable = () =>
+        Effect.fail(
+          new CapabilityUnavailable({
+            capability: 'customer-identity',
+            reason: 'write_adapter_not_configured'
+          })
+        )
       return {
         findById: (customerAccountId) =>
           Effect.flatMap(
@@ -41,7 +43,14 @@ export const LiveCustomerIdentity: Layer.Layer<CustomerIdentity, never, Database
                     phone: account.phone
                   })
                 : Effect.fail(new CustomerAccountNotFound({ customerAccountId }))
-          )
+          ),
+        verifyAccount: unavailable,
+        associateBooking: unavailable,
+        lookupMerchantOwnership: unavailable,
+        recoverConfirmation: unavailable,
+        configureProviderPasscode: unavailable,
+        verifyProviderPasscode: unavailable,
+        authorizeProviderProof: unavailable
       }
     })
   )
