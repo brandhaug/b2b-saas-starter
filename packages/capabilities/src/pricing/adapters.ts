@@ -516,29 +516,27 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
               return yield* new InvalidQuoteMaterial({
                 reason: 'policy versions no longer match server state'
               })
-            if (material.giftCardReservationIds.length > 0) {
-              const reservations = yield* orUnavailable('pricing-quotes')(
-                db
-                  .select({ id: giftCardReservations.id })
-                  .from(giftCardReservations)
-                  .where(
-                    and(
-                      eq(giftCardReservations.bookingPartyId, material.bookingPartyId),
-                      eq(giftCardReservations.currency, material.currency),
-                      eq(giftCardReservations.status, 'active'),
-                      sql`${giftCardReservations.expiresAt} > ${material.now}`
-                    )
+            const reservations = yield* orUnavailable('pricing-quotes')(
+              db
+                .select({ id: giftCardReservations.id })
+                .from(giftCardReservations)
+                .where(
+                  and(
+                    eq(giftCardReservations.bookingPartyId, material.bookingPartyId),
+                    eq(giftCardReservations.currency, material.currency),
+                    eq(giftCardReservations.status, 'active'),
+                    sql`${giftCardReservations.expiresAt} > ${material.now}`
                   )
-              )
-              const activeIds = new Set(reservations.map((item) => item.id))
-              if (
-                activeIds.size !== material.giftCardReservationIds.length ||
-                material.giftCardReservationIds.some((id) => !activeIds.has(id))
-              )
-                return yield* new InvalidQuoteMaterial({
-                  reason: 'gift-card reservations no longer match server state'
-                })
-            }
+                )
+            )
+            const activeIds = new Set(reservations.map((item) => item.id))
+            if (
+              activeIds.size !== material.giftCardReservationIds.length ||
+              material.giftCardReservationIds.some((id) => !activeIds.has(id))
+            )
+              return yield* new InvalidQuoteMaterial({
+                reason: 'gift-card reservations no longer match server state'
+              })
             const [policy] = yield* orUnavailable('pricing-quotes')(
               db
                 .select()
@@ -676,7 +674,9 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
                       code: material.promotionCode ?? '',
                       reason: 'uses_exhausted'
                     })
-                  : /unique|constraint/i.test(error.reason)
+                  : /pricing_quotes_party_version_unique|promotion_reservations_quote_unique/i.test(
+                        error.reason
+                      )
                     ? new InvalidQuoteMaterial({
                         reason: 'quote version or reservation conflict'
                       })
