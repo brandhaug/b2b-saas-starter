@@ -81,6 +81,7 @@ const en = {
   'scheduling.held_for_checkout': 'held for checkout',
   'validation.email_invalid': 'Enter a valid email address.',
   'validation.name_required': 'Enter your name.',
+  'validation.name_too_long': 'Enter a name with 120 characters or fewer.',
   'validation.phone_invalid': 'Enter a valid phone number.',
   'title.appointment_confirmation': 'Appointment Confirmation'
 } as const
@@ -165,6 +166,7 @@ const es = {
   'scheduling.held_for_checkout': 'reservado para el pago',
   'validation.email_invalid': 'Introduce una dirección de correo válida.',
   'validation.name_required': 'Introduce tu nombre.',
+  'validation.name_too_long': 'Introduce un nombre de 120 caracteres o menos.',
   'validation.phone_invalid': 'Introduce un número de teléfono válido.',
   'title.appointment_confirmation': 'Confirmación de la cita'
 } as const satisfies Record<BookingTranslationKey, string>
@@ -248,6 +250,7 @@ const fr = {
   'scheduling.held_for_checkout': 'retenu pour le paiement',
   'validation.email_invalid': 'Saisissez une adresse courriel valide.',
   'validation.name_required': 'Saisissez votre nom.',
+  'validation.name_too_long': 'Saisissez un nom de 120 caractères maximum.',
   'validation.phone_invalid': 'Saisissez un numéro de téléphone valide.',
   'title.appointment_confirmation': 'Confirmation du rendez-vous'
 } as const satisfies Record<BookingTranslationKey, string>
@@ -330,6 +333,7 @@ const ro = {
   'scheduling.held_for_checkout': 'rezervat pentru finalizare',
   'validation.email_invalid': 'Introdu o adresă de e-mail validă.',
   'validation.name_required': 'Introdu numele.',
+  'validation.name_too_long': 'Introdu un nume de cel mult 120 de caractere.',
   'validation.phone_invalid': 'Introdu un număr de telefon valid.',
   'title.appointment_confirmation': 'Confirmarea programării'
 } as const satisfies Record<BookingTranslationKey, string>

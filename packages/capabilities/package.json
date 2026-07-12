@@ -37,7 +37,8 @@
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",
     "drizzle-orm": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "libphonenumber-js": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",

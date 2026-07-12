@@ -141,8 +141,8 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Pricing, Promotions, and Quote Acceptance.
 
-- [ ] Customer Details are normalized and validated with stable localized errors, including E.164-compatible phone behavior.
-- [ ] Each exposed error remains correctly associated when the customer changes locale.
+- [x] Customer Details are normalized and validated with stable localized errors, including E.164-compatible phone behavior.
+- [x] Each exposed error remains correctly associated when the customer changes locale.
 - [ ] Policy resolution follows accepted configuration precedence and acceptance snapshots the exact disclosure and version once for the Booking Party.
 - [ ] Marketing Consent is person-specific and independent of Operational Notifications.
 - [ ] Checkout review requires every Booking Request to be complete and shows the accepted quote and policy facts.

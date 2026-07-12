@@ -918,6 +918,7 @@ describe('Booking Session HTTP boundary', () => {
           id: 'bsn_private',
           merchantSlug: 'mara-studio',
           checkoutPath: 'pay_in_person' as const,
+          locale: 'ro' as const,
           lifecycle: 'active' as const,
           createdAt: '2026-07-10T09:30:00.000Z',
           lastActivityAt: '2026-07-10T09:30:00.000Z',
@@ -984,7 +985,7 @@ describe('Booking Session HTTP boundary', () => {
           body: JSON.stringify({
             name: ' Mia ',
             email: 'MIA@EXAMPLE.COM',
-            phone: '',
+            phone: '0722 123 456',
             checkoutPath: 'pay_now',
             totalMinor: 1,
             providerId: 'prv_attacker'
@@ -996,11 +997,31 @@ describe('Booking Session HTTP boundary', () => {
     expect(received).toEqual({
       name: 'Mia',
       email: 'mia@example.com',
-      phone: null
+      phone: '+40722123456'
     })
     expect(await response.json()).toMatchObject({
       checkoutPath: 'pay_in_person',
       quote: { totalMinor: 5000, assignedProvider: { id: 'prv_ava' } }
+    })
+
+    const invalid = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/customer-details`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ name: '', email: 'bad', phone: '12' })
+        }),
+        dependencies
+      )
+    )
+    expect(invalid.status).toBe(422)
+    expect(await invalid.json()).toEqual({
+      kind: 'invalid_customer_details',
+      issues: [
+        { field: 'name', code: 'name_required' },
+        { field: 'email', code: 'email_invalid' },
+        { field: 'phone', code: 'phone_invalid' }
+      ]
     })
 
     const confirm = await Effect.runPromise(

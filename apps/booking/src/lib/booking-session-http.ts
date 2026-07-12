@@ -8,8 +8,8 @@ import {
   CoordinatedHoldInput as CoordinatedHoldInputSchema,
   BookingSchedulingRejected,
   CheckoutUnavailable,
+  CustomerDetailsInvalid,
   BookingConfirmationRejected,
-  CustomerDetails as CustomerDetailsSchema,
   BookingSelectionRejected,
   ServiceSelection as ServiceSelectionSchema,
   BookingSessionGone,
@@ -30,6 +30,8 @@ import {
   type ServiceSelection,
   type CheckoutReview,
   type CustomerDetails,
+  type CustomerDetailsIssue,
+  normalizeCustomerDetails,
   type BookingConfirmationResult,
   type ConfirmationReadResult
 } from '@b2b-saas-starter/capabilities/booking'
@@ -554,24 +556,58 @@ const holdTimeSlotFrom = (value: unknown): HoldTimeSlotInput | null => {
   }
 }
 
-const customerDetailsFrom = (value: unknown): CustomerDetails | null => {
+const localeCountry = {
+  en: 'US',
+  es: 'ES',
+  fr: 'FR',
+  ro: 'RO'
+} as const
+
+const customerDetailsFrom = (
+  value: unknown,
+  locale: BookingLocale
+):
+  | { readonly details: CustomerDetails; readonly issues: null }
+  | { readonly details: null; readonly issues: readonly CustomerDetailsIssue[] } => {
+  if (typeof value !== 'object' || value === null)
+    return { details: null, issues: [{ field: 'name', code: 'name_required' }] }
+  const input = value as Record<string, unknown>
+  if (
+    typeof input.name !== 'string' ||
+    typeof input.email !== 'string' ||
+    (input.phone !== null &&
+      input.phone !== undefined &&
+      typeof input.phone !== 'string')
+  ) {
+    const issues: CustomerDetailsIssue[] = []
+    if (typeof input.name !== 'string')
+      issues.push({ field: 'name', code: 'name_required' })
+    if (typeof input.email !== 'string')
+      issues.push({ field: 'email', code: 'email_invalid' })
+    if (
+      input.phone !== null &&
+      input.phone !== undefined &&
+      typeof input.phone !== 'string'
+    )
+      issues.push({ field: 'phone', code: 'phone_invalid' })
+    return { details: null, issues }
+  }
   try {
-    if (typeof value !== 'object' || value === null) return null
-    const input = value as Record<string, unknown>
-    const normalized = {
-      name: typeof input.name === 'string' ? input.name.trim() : input.name,
-      email:
-        typeof input.email === 'string'
-          ? input.email.trim().toLowerCase()
-          : input.email,
-      phone:
-        typeof input.phone === 'string'
-          ? input.phone.trim() || null
-          : (input.phone ?? null)
+    return {
+      details: normalizeCustomerDetails(
+        {
+          name: input.name,
+          email: input.email,
+          phone: typeof input.phone === 'string' ? input.phone : null
+        },
+        localeCountry[locale]
+      ),
+      issues: null
     }
-    return Schema.decodeUnknownSync(CustomerDetailsSchema)(normalized)
-  } catch {
-    return null
+  } catch (error) {
+    if (error instanceof CustomerDetailsInvalid)
+      return { details: null, issues: error.issues }
+    return { details: null, issues: [{ field: 'name', code: 'name_required' }] }
   }
 }
 
@@ -1069,19 +1105,24 @@ export const handleBookingSessionRequest = (
     }
     if (endpoint === 'customer-details' && request.method === 'POST') {
       if (!dependencies.checkout) return unavailable()
-      const details = customerDetailsFrom(yield* readJson(request))
-      if (!details) {
+      const decoded = customerDetailsFrom(
+        yield* readJson(request),
+        authorization.success.locale ?? 'en'
+      )
+      if (!decoded.details) {
         return withPrivateHeaders(
           Response.json(
-            { kind: 'invalid_customer_details', message: 'Check your details' },
+            { kind: 'invalid_customer_details', issues: decoded.issues },
             { status: 422 }
           )
         )
       }
       const result = yield* Effect.result(
-        dependencies.checkout.saveCustomerDetails(authorization.success, details, {
-          now
-        })
+        dependencies.checkout.saveCustomerDetails(
+          authorization.success,
+          decoded.details,
+          { now }
+        )
       )
       return result._tag === 'Success'
         ? jsonPrivate(result.success)

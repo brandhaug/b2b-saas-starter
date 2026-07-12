@@ -12,7 +12,8 @@ describe('Booking checkout', () => {
       <BookingCheckoutFlow
         review={null}
         busy={false}
-        invalid={false}
+        validationIssues={[]}
+        validationMessages={{}}
         onSubmit={submit}
         onBook={vi.fn()}
       />
@@ -31,18 +32,44 @@ describe('Booking checkout', () => {
   })
 
   it('keeps invalid Customer Details correctable', () => {
-    render(
+    const view = render(
       <BookingCheckoutFlow
         review={null}
         busy={false}
-        invalid
+        validationIssues={[
+          { field: 'name', code: 'name_required' },
+          { field: 'email', code: 'email_invalid' }
+        ]}
+        validationMessages={{
+          name_required: 'Enter your name.',
+          email_invalid: 'Enter a valid email address.'
+        }}
         onSubmit={vi.fn()}
         onBook={vi.fn()}
       />
     )
-    expect(screen.getByRole('alert').textContent).toContain('Check your name and email')
+    expect(screen.getByText('Enter your name.')).toBeTruthy()
+    expect(screen.getByText('Enter a valid email address.')).toBeTruthy()
     expect(screen.getByLabelText('Name')).toBeTruthy()
     expect(screen.getByLabelText('Email')).toBeTruthy()
+    view.rerender(
+      <BookingCheckoutFlow
+        review={null}
+        busy={false}
+        validationIssues={[
+          { field: 'name', code: 'name_required' },
+          { field: 'email', code: 'email_invalid' }
+        ]}
+        validationMessages={{
+          name_required: 'Introdu numele.',
+          email_invalid: 'Introdu o adresă de e-mail validă.'
+        }}
+        onSubmit={vi.fn()}
+        onBook={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Introdu numele.')).toBeTruthy()
+    expect(screen.getByText('Introdu o adresă de e-mail validă.')).toBeTruthy()
   })
 
   it('renders only the server review and settled Pay In Person copy', () => {
@@ -50,7 +77,8 @@ describe('Booking checkout', () => {
     render(
       <BookingCheckoutFlow
         busy={false}
-        invalid={false}
+        validationIssues={[]}
+        validationMessages={{}}
         onSubmit={vi.fn()}
         onBook={book}
         review={{

@@ -1,18 +1,23 @@
 import * as stylex from '@stylexjs/stylex'
 import { useMemo, type FormEvent } from 'react'
-import type { CheckoutReview } from '@b2b-saas-starter/capabilities/booking'
+import type {
+  CheckoutReview,
+  CustomerDetailsIssue
+} from '@b2b-saas-starter/capabilities/booking'
 import { styles } from './booking-flow.styles.ts'
 
 export function BookingCheckoutFlow({
   review,
   busy,
-  invalid,
+  validationIssues,
+  validationMessages,
   onSubmit,
   onBook
 }: {
   readonly review: CheckoutReview | null
   readonly busy: boolean
-  readonly invalid: boolean
+  readonly validationIssues: readonly CustomerDetailsIssue[]
+  readonly validationMessages: Partial<Record<CustomerDetailsIssue['code'], string>>
   readonly onSubmit: (details: {
     readonly name: string
     readonly email: string
@@ -43,15 +48,30 @@ export function BookingCheckoutFlow({
         <main {...stylex.props(styles.main, styles.checkoutSurface)}>
           {!review ? (
             <form onSubmit={submit} noValidate>
-              {invalid ? (
-                <div role="alert" {...stylex.props(styles.alert)}>
-                  Check your name and email and try again.
-                </div>
-              ) : null}
               <div {...stylex.props(styles.fieldGrid)}>
-                <Field label="Name" name="name" type="text" required />
-                <Field label="Email" name="email" type="email" required />
-                <Field label="Phone (optional)" name="phone" type="tel" />
+                <Field
+                  label="Name"
+                  name="name"
+                  type="text"
+                  required
+                  issues={validationIssues}
+                  messages={validationMessages}
+                />
+                <Field
+                  label="Email"
+                  name="email"
+                  type="email"
+                  required
+                  issues={validationIssues}
+                  messages={validationMessages}
+                />
+                <Field
+                  label="Phone (optional)"
+                  name="phone"
+                  type="tel"
+                  issues={validationIssues}
+                  messages={validationMessages}
+                />
               </div>
               <div {...stylex.props(styles.inlineActions)}>
                 <span />
@@ -78,12 +98,30 @@ function Field(props: {
   readonly name: string
   readonly type: string
   readonly required?: boolean
+  readonly issues: readonly CustomerDetailsIssue[]
+  readonly messages: Partial<Record<CustomerDetailsIssue['code'], string>>
 }) {
+  const issue = props.issues.find((candidate) => candidate.field === props.name)
+  const errorId = issue ? `${props.name}-error` : undefined
+  const { issues: _, messages: __, ...input } = props
   return (
-    <label {...stylex.props(styles.label)}>
-      <span {...stylex.props(styles.labelText)}>{props.label}</span>
-      <input {...props} {...stylex.props(styles.input)} />
-    </label>
+    <div {...stylex.props(styles.label)}>
+      <label htmlFor={props.name} {...stylex.props(styles.labelText)}>
+        {props.label}
+      </label>
+      <input
+        {...input}
+        id={props.name}
+        aria-invalid={Boolean(issue)}
+        aria-describedby={errorId}
+        {...stylex.props(styles.input)}
+      />
+      {issue ? (
+        <span id={errorId} role="alert" {...stylex.props(styles.alert)}>
+          {props.messages[issue.code] ?? issue.code}
+        </span>
+      ) : null}
+    </div>
   )
 }
 

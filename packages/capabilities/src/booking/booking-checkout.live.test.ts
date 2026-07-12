@@ -110,7 +110,7 @@ describe('Live Booking Checkout', () => {
           Effect.flatMap(BookingCheckout, (checkout) =>
             checkout.saveCustomerDetails(
               session(id),
-              { name, email: 'same@example.com', phone: '+1 555 0100' },
+              { name, email: 'same@example.com', phone: '+15550100100' },
               { now }
             )
           ),

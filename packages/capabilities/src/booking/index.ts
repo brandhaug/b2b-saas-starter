@@ -72,14 +72,29 @@ export type {
 } from './booking-scheduling.ts'
 export {
   BookingCheckout,
+  CheckoutPolicy,
   CheckoutReview,
+  CheckoutReviewUnavailable,
   CheckoutUnavailable,
   CustomerDetails,
+  CustomerDetailsErrorCode,
+  CustomerDetailsField,
+  CustomerDetailsInvalid,
+  CustomerDetailsIssue,
+  MarketingConsent,
+  PartyCheckoutReview,
+  CheckoutPolicyAcceptance,
   SeedBookingCheckout,
-  emptySeedBookingCheckoutStore
+  acceptCheckoutPolicy,
+  buildCheckoutReview,
+  createCheckoutTelemetry,
+  emptySeedBookingCheckoutStore,
+  normalizeCustomerDetails,
+  resolveCheckoutPolicy
 } from './booking-checkout.ts'
 export type {
   BookingCheckoutShape,
+  CheckoutFunnelEvent,
   SeedBookingCheckoutStore
 } from './booking-checkout.ts'
 export {

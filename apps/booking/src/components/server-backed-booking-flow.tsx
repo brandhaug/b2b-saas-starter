@@ -16,6 +16,7 @@ import {
   type ServiceSelection,
   type CheckoutReview,
   type CustomerDetails,
+  type CustomerDetailsIssue,
   bookingPartyContinuation
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
@@ -45,7 +46,9 @@ export function ServerBackedBookingFlow({
   const [holdExpired, setHoldExpired] = useState(false)
   const [checkout, setCheckout] = useState(false)
   const [review, setReview] = useState<CheckoutReview | null>(null)
-  const [invalidDetails, setInvalidDetails] = useState(false)
+  const [validationIssues, setValidationIssues] = useState<
+    readonly CustomerDetailsIssue[]
+  >([])
   const [expiredSession, setExpiredSession] = useState(false)
   const [selectionRefreshed, setSelectionRefreshed] = useState(false)
   const [partyNow, setPartyNow] = useState('9999-12-31T23:59:59.999Z')
@@ -249,7 +252,12 @@ export function ServerBackedBookingFlow({
         body: JSON.stringify(details)
       })
       if (response.status === 410) return { kind: 'session_expired' as const }
-      if (response.status === 422) return { kind: 'invalid' as const }
+      if (response.status === 422) {
+        const body = (await response.json()) as {
+          readonly issues?: readonly CustomerDetailsIssue[]
+        }
+        return { kind: 'invalid' as const, issues: body.issues ?? [] }
+      }
       if (response.status === 409) return { kind: 'expired' as const }
       if (!response.ok) throw new Error('checkout unavailable')
       return {
@@ -259,7 +267,7 @@ export function ServerBackedBookingFlow({
     },
     onSuccess: async (result) => {
       if (result.kind === 'invalid') {
-        setInvalidDetails(true)
+        setValidationIssues(result.issues)
         return
       }
       if (result.kind === 'session_expired') {
@@ -273,7 +281,7 @@ export function ServerBackedBookingFlow({
         void queryClient.invalidateQueries({ queryKey: availabilityKey })
         return
       }
-      setInvalidDetails(false)
+      setValidationIssues([])
       const currentParty = party.data
       const nextGuest = currentParty?.requests.find(
         (request) =>
@@ -381,7 +389,13 @@ export function ServerBackedBookingFlow({
         <BookingCheckoutFlow
           review={review}
           busy={detailsMutation.isPending || confirmMutation.isPending}
-          invalid={invalidDetails}
+          validationIssues={validationIssues}
+          validationMessages={{
+            name_required: message('validation.name_required'),
+            name_too_long: message('validation.name_too_long'),
+            email_invalid: message('validation.email_invalid'),
+            phone_invalid: message('validation.phone_invalid')
+          }}
           onSubmit={(details) => detailsMutation.mutate(details)}
           onBook={() => confirmMutation.mutate()}
         />
