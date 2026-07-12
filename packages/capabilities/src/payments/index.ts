@@ -52,3 +52,5 @@ export type PaymentLedgerShape = {
 export class PaymentLedger extends Context.Service<PaymentLedger, PaymentLedgerShape>()(
   '@b2b-saas-starter/capabilities/PaymentLedger'
 ) {}
+
+export * from './payment-settlement.ts'

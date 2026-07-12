@@ -105,7 +105,21 @@ const en = {
   'checkout.email': 'Email',
   'checkout.phone_optional': 'Phone (optional)',
   'checkout.review_booking': 'Review booking',
-  'checkout.total': 'Total'
+  'checkout.total': 'Total',
+  'payment.method': 'Payment method',
+  'payment.card': 'Card',
+  'payment.saved_card': 'Saved card',
+  'payment.apple_pay': 'Apple Pay',
+  'payment.google_pay': 'Google Pay',
+  'payment.cash_app_pay': 'Cash App Pay',
+  'payment.klarna': 'Buy now, pay later',
+  'payment.disabled': 'Online payment is unavailable. You can pay in person.',
+  'payment.needs_configuration':
+    'Online payment is not configured. You can pay in person.',
+  'payment.processing': 'Your payment is processing. Do not submit it again.',
+  'payment.failed':
+    'Your payment could not be completed. No successful collection was recorded.',
+  'payment.succeeded': 'Payment complete.'
 } as const
 
 export type BookingTranslationKey = keyof typeof en
@@ -212,7 +226,21 @@ const es = {
   'checkout.email': 'Correo electrónico',
   'checkout.phone_optional': 'Teléfono (opcional)',
   'checkout.review_booking': 'Revisar reserva',
-  'checkout.total': 'Total'
+  'checkout.total': 'Total',
+  'payment.method': 'Método de pago',
+  'payment.card': 'Tarjeta',
+  'payment.saved_card': 'Tarjeta guardada',
+  'payment.apple_pay': 'Apple Pay',
+  'payment.google_pay': 'Google Pay',
+  'payment.cash_app_pay': 'Cash App Pay',
+  'payment.klarna': 'Compra ahora y paga después',
+  'payment.disabled': 'El pago en línea no está disponible. Puedes pagar en persona.',
+  'payment.needs_configuration':
+    'El pago en línea no está configurado. Puedes pagar en persona.',
+  'payment.processing': 'Tu pago se está procesando. No lo envíes de nuevo.',
+  'payment.failed':
+    'No se pudo completar el pago. No se registró ningún cobro correcto.',
+  'payment.succeeded': 'Pago completado.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const fr = {
@@ -318,7 +346,22 @@ const fr = {
   'checkout.email': 'E-mail',
   'checkout.phone_optional': 'Téléphone (facultatif)',
   'checkout.review_booking': 'Vérifier la réservation',
-  'checkout.total': 'Total'
+  'checkout.total': 'Total',
+  'payment.method': 'Mode de paiement',
+  'payment.card': 'Carte',
+  'payment.saved_card': 'Carte enregistrée',
+  'payment.apple_pay': 'Apple Pay',
+  'payment.google_pay': 'Google Pay',
+  'payment.cash_app_pay': 'Cash App Pay',
+  'payment.klarna': 'Acheter maintenant, payer plus tard',
+  'payment.disabled':
+    'Le paiement en ligne est indisponible. Vous pouvez payer sur place.',
+  'payment.needs_configuration':
+    'Le paiement en ligne n’est pas configuré. Vous pouvez payer sur place.',
+  'payment.processing': 'Votre paiement est en cours. Ne le soumettez pas à nouveau.',
+  'payment.failed':
+    'Votre paiement n’a pas abouti. Aucun encaissement réussi n’a été enregistré.',
+  'payment.succeeded': 'Paiement effectué.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const ro = {
@@ -423,7 +466,21 @@ const ro = {
   'checkout.email': 'E-mail',
   'checkout.phone_optional': 'Telefon (opțional)',
   'checkout.review_booking': 'Verifică rezervarea',
-  'checkout.total': 'Total'
+  'checkout.total': 'Total',
+  'payment.method': 'Metodă de plată',
+  'payment.card': 'Card',
+  'payment.saved_card': 'Card salvat',
+  'payment.apple_pay': 'Apple Pay',
+  'payment.google_pay': 'Google Pay',
+  'payment.cash_app_pay': 'Cash App Pay',
+  'payment.klarna': 'Cumpără acum, plătește mai târziu',
+  'payment.disabled': 'Plata online nu este disponibilă. Poți plăti în persoană.',
+  'payment.needs_configuration':
+    'Plata online nu este configurată. Poți plăti în persoană.',
+  'payment.processing': 'Plata ta este în curs. Nu o trimite din nou.',
+  'payment.failed':
+    'Plata nu a putut fi finalizată. Nu a fost înregistrată nicio încasare reușită.',
+  'payment.succeeded': 'Plată finalizată.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 export const bookingCatalogs = { en, es, fr, ro } as const satisfies Record<

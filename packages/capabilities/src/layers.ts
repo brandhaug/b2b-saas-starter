@@ -108,8 +108,17 @@ import {
 import { deriveSeedOperationalAppointments } from './seed-fixture.ts'
 import { LivePricingQuotes, SeedPricingQuotes } from './pricing/adapters.ts'
 import { PricingQuotes } from './pricing/index.ts'
-import { LivePaymentLedger, SeedPaymentLedger } from './payments/adapters.ts'
-import { PaymentLedger } from './payments/index.ts'
+import {
+  LivePaymentLedger,
+  LivePaymentSettlement,
+  SeedPaymentLedger
+} from './payments/adapters.ts'
+import {
+  emptySeedPaymentSettlementStore,
+  PaymentLedger,
+  PaymentSettlement,
+  SeedPaymentSettlement
+} from './payments/index.ts'
 import {
   LiveCustomerEngagement,
   SeedCustomerEngagement
@@ -156,6 +165,7 @@ export type CapabilityServices =
   | BookingParties
   | PricingQuotes
   | PaymentLedger
+  | PaymentSettlement
   | CustomerEngagement
   | NotificationIntents
   | ScheduledWorkQueue
@@ -333,6 +343,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   seedBookingPartiesLayer,
   seedPricingQuotesLayer,
   SeedPaymentLedger(),
+  SeedPaymentSettlement(emptySeedPaymentSettlementStore()),
   SeedCustomerEngagement(),
   SeedNotificationIntents(),
   SeedScheduledWorkQueue(),
@@ -396,6 +407,7 @@ export const makeLiveCapabilitiesLayer = (
     liveBookingPartiesLayer,
     livePricingQuotesLayer,
     LivePaymentLedger,
+    LivePaymentSettlement,
     LiveCustomerEngagement,
     LiveNotificationIntents,
     LiveScheduledWorkQueue,

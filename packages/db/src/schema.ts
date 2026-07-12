@@ -1074,6 +1074,10 @@ export const payments = sqliteTable(
     bookingPartyId: text('booking_party_id').references(() => bookingParties.id, {
       onDelete: 'restrict'
     }),
+    pricingQuoteId: text('pricing_quote_id').references(() => pricingQuotes.id, {
+      onDelete: 'restrict'
+    }),
+    amountMinor: integer('amount_minor').default(0).notNull(),
     status: text('status', { enum: paymentStatuses }).default('pending').notNull(),
     currency: text('currency').notNull(),
     authorizedMinor: integer('authorized_minor').default(0).notNull(),
@@ -1082,7 +1086,10 @@ export const payments = sqliteTable(
     createdAt: isoCreatedAt(),
     updatedAt: isoUpdatedAt()
   },
-  (table) => [index('payments_booking_party_id_idx').on(table.bookingPartyId)]
+  (table) => [
+    uniqueIndex('payments_booking_party_id_unique').on(table.bookingPartyId),
+    index('payments_pricing_quote_id_idx').on(table.pricingQuoteId)
+  ]
 )
 
 export const paymentAttempts = sqliteTable(
@@ -1094,6 +1101,11 @@ export const paymentAttempts = sqliteTable(
       .references(() => payments.id, { onDelete: 'cascade' }),
     idempotencyKey: text('idempotency_key').unique().notNull(),
     provider: text('provider').notNull(),
+    method: text('method', {
+      enum: ['card', 'saved_card', 'apple_pay', 'google_pay', 'cash_app_pay', 'klarna']
+    })
+      .default('card')
+      .notNull(),
     outcome: text('outcome', { enum: ['pending', 'succeeded', 'failed'] }).notNull(),
     providerReference: text('provider_reference'),
     failureCode: text('failure_code'),
@@ -1119,7 +1131,32 @@ export const paymentTransactions = sqliteTable(
     occurredAt: text('occurred_at').notNull(),
     createdAt: isoCreatedAt()
   },
-  (table) => [index('payment_transactions_payment_id_idx').on(table.paymentId)]
+  (table) => [
+    index('payment_transactions_payment_id_idx').on(table.paymentId),
+    uniqueIndex('payment_transactions_provider_fact_unique').on(
+      table.kind,
+      table.providerReference
+    )
+  ]
+)
+
+export const paymentReconciliationEvents = sqliteTable(
+  'payment_reconciliation_events',
+  {
+    id: id(),
+    paymentId: text('payment_id')
+      .notNull()
+      .references(() => payments.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    providerEventId: text('provider_event_id').notNull(),
+    receivedAt: text('received_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('payment_reconciliation_provider_event_unique').on(
+      table.provider,
+      table.providerEventId
+    )
+  ]
 )
 
 export const giftCardProducts = sqliteTable('gift_card_products', {
