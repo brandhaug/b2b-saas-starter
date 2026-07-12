@@ -69,7 +69,6 @@ accept(
     'assigned-gift-card': 'Provider-scoped Gift Card purchase and issuance.',
     'unassigned-gift-card': 'Merchant, Brand, or Shop Gift Card purchase and issuance.',
     'pay-in-person': 'Provider-free confirmation with no Payment.',
-    'online-payment': 'Eligible online payment methods and reconciliation.',
     'gift-card-redemption': 'Full, partial, and mixed settlement.',
     'confirmation-management': 'Protected view, cancel, and reschedule actions.',
     'waiting-list-offer': 'Application, offer, acceptance, decline, and expiry.',
@@ -78,6 +77,14 @@ accept(
     'verified-continuation': 'Optional identity recovery with anonymous equivalence.'
   },
   'research/reproducible-legacy-parity-baseline.md'
+)
+
+accept(
+  'journey',
+  'capabilities/payments',
+  'verified',
+  { 'online-payment': 'Eligible online payment methods and reconciliation.' },
+  'tickets.md'
 )
 
 accept(
@@ -224,9 +231,6 @@ accept(
   'planned',
   {
     'provider-free': 'All optional providers absent.',
-    'stripe-cards': 'Configured card and saved-method adapter.',
-    wallets: 'Eligible Apple Pay, Google Pay, and Cash App Pay.',
-    bnpl: 'Eligible provider-backed BNPL.',
     email: 'Operational email delivery states.',
     identity: 'Optional Google and Apple identity.',
     analytics: 'Consent-gated provider-neutral funnel telemetry.',
@@ -234,6 +238,18 @@ accept(
     maps: 'Ordinary URL or configured map adapter.'
   },
   'issues/07-decide-optional-integrations-and-feature-variants.md'
+)
+
+accept(
+  'integration',
+  'booking-app/providers',
+  'verified',
+  {
+    'stripe-cards': 'Configured card and saved-method adapter.',
+    wallets: 'Eligible Apple Pay, Google Pay, and Cash App Pay.',
+    bnpl: 'Eligible provider-backed BNPL.'
+  },
+  'tickets.md'
 )
 
 accept(

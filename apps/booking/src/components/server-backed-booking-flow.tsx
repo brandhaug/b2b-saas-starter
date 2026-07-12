@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Schema } from 'effect'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookingAvailability as BookingAvailabilitySchema,
   BookingJourney as BookingJourneySchema,
@@ -22,6 +22,11 @@ import {
   type CustomerDetailsIssue,
   bookingPartyContinuation
 } from '@b2b-saas-starter/capabilities/booking'
+import type {
+  PaymentMethod,
+  PaymentMethodEligibility,
+  PaymentView
+} from '@b2b-saas-starter/capabilities/payments'
 import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
@@ -49,18 +54,34 @@ export function ServerBackedBookingFlow({
   readonly selectionRefreshedMessage?: string
 }) {
   const { locale, message } = useBookingLocalization()
+  const paymentReturn =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('payment_return') === '1'
+  const paymentCancelled =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('payment_cancel') === '1'
   const queryClient = useQueryClient()
-  const [scheduling, setScheduling] = useState(false)
+  const [scheduling, setScheduling] = useState(paymentReturn)
   const [slotLost, setSlotLost] = useState(false)
   const [holdExpired, setHoldExpired] = useState(false)
-  const [checkout, setCheckout] = useState(false)
+  const [checkout, setCheckout] = useState(paymentReturn)
   const [review, setReview] = useState<CheckoutReview | null>(null)
   const [preparation, setPreparation] = useState<CheckoutPreparation | null>(null)
   const [validationIssues, setValidationIssues] = useState<
     readonly CustomerDetailsIssue[]
   >([])
   const [expiredSession, setExpiredSession] = useState(false)
-  const [confirmationProcessing, setConfirmationProcessing] = useState(false)
+  const [confirmationProcessing, setConfirmationProcessing] = useState(
+    paymentReturn && !paymentCancelled
+  )
+  const [paymentEligibility, setPaymentEligibility] =
+    useState<PaymentMethodEligibility>({ state: 'disabled', methods: [] })
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pay_in_person')
+  const [paymentStatus, setPaymentStatus] = useState<
+    'idle' | 'processing' | 'failed' | 'succeeded'
+  >('idle')
+  const paymentIdempotencyKey = useRef(`payment-${crypto.randomUUID()}`)
+  const paymentReturnConfirmed = useRef(false)
   const [selectionRefreshed, setSelectionRefreshed] = useState(false)
   const [partyNow, setPartyNow] = useState('9999-12-31T23:59:59.999Z')
   useEffect(() => {
@@ -93,6 +114,47 @@ export function ServerBackedBookingFlow({
       return Schema.decodeUnknownSync(BookingPartySchema)(await response.json())
     }
   })
+  const returnedPayment = useQuery({
+    queryKey: ['booking-payment-return', merchantSlug, sessionId],
+    enabled: paymentReturn && Boolean(party.data),
+    retry: false,
+    refetchInterval: paymentCancelled ? false : 2_000,
+    queryFn: async () => {
+      const response = await fetch(`${base}/payment-status`, {
+        credentials: 'same-origin'
+      })
+      if (!response.ok) throw new Error('payment status unavailable')
+      return (await response.json()) as PaymentView | null
+    }
+  })
+  useEffect(() => {
+    const returned = returnedPayment.data
+    if (!returned) return
+    setPaymentMethod(returned.attempt.method)
+    if (paymentCancelled) {
+      setPaymentStatus('failed')
+      setConfirmationProcessing(false)
+      return
+    }
+    if (returned.payment.status !== 'captured' || paymentReturnConfirmed.current) {
+      setPaymentStatus('processing')
+      return
+    }
+    paymentReturnConfirmed.current = true
+    setPaymentStatus('succeeded')
+    void fetch(`${base}/confirm`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: '{}'
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('confirmation unavailable')
+        return (await response.json()) as { readonly location: string }
+      })
+      .then((result) => window.location.assign(result.location))
+      .catch((error) => void telemetry.report(error))
+  }, [base, paymentCancelled, returnedPayment.data, telemetry])
   const partyMutation = useMutation({
     mutationFn: async ({
       endpoint,
@@ -326,6 +388,17 @@ export function ServerBackedBookingFlow({
       setPreparation(
         Schema.decodeUnknownSync(CheckoutPreparationSchema)(await prepared.json())
       )
+      const supportsPaymentRequest = 'PaymentRequest' in window
+      const walletQuery = new URLSearchParams({
+        applePay: 'ApplePaySession' in window ? '1' : '0',
+        googlePay: supportsPaymentRequest ? '1' : '0',
+        cashAppPay: supportsPaymentRequest ? '1' : '0'
+      })
+      const methods = await fetch(`${base}/payment-methods?${walletQuery}`, {
+        credentials: 'same-origin'
+      })
+      if (methods.ok)
+        setPaymentEligibility((await methods.json()) as PaymentMethodEligibility)
     },
     onError: (error) => void telemetry.report(error)
   })
@@ -376,6 +449,36 @@ export function ServerBackedBookingFlow({
       if (!reviewed.ok) throw new Error('party review unavailable')
       Schema.decodeUnknownSync(PartyCheckoutReviewSchema)(await reviewed.json())
       void telemetry.track('checkout_reviewed')
+      if (paymentMethod !== 'pay_in_person') {
+        setPaymentStatus('processing')
+        const payment = await fetch(`${base}/payment-settle`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            method: paymentMethod,
+            idempotencyKey: paymentIdempotencyKey.current,
+            paymentMethodReference: 'hosted_checkout'
+          })
+        })
+        if (!payment.ok) {
+          setPaymentStatus('failed')
+          throw new Error('payment settlement unavailable')
+        }
+        const settled = (await payment.json()) as {
+          readonly view: PaymentView
+          readonly nextActionUrl: string | null
+        }
+        if (settled.nextActionUrl) {
+          window.location.assign(settled.nextActionUrl)
+          return
+        }
+        if (settled.view.payment.status !== 'captured') {
+          setPaymentStatus('processing')
+          return
+        }
+        setPaymentStatus('succeeded')
+      }
       const response = await fetch(`${base}/confirm`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -493,6 +596,32 @@ export function ServerBackedBookingFlow({
             phoneOptional: message('checkout.phone_optional'),
             reviewBooking: message('checkout.review_booking'),
             total: message('checkout.total')
+          }}
+          payment={{
+            eligibility: paymentEligibility,
+            selected: paymentMethod,
+            status: paymentStatus,
+            legend: message('payment.method'),
+            onSelect: (method) => {
+              setPaymentMethod(method)
+              setPaymentStatus('idle')
+            },
+            labels: {
+              pay_in_person: message('status.pay_in_person'),
+              card: message('payment.card'),
+              saved_card: message('payment.saved_card'),
+              apple_pay: message('payment.apple_pay'),
+              google_pay: message('payment.google_pay'),
+              cash_app_pay: message('payment.cash_app_pay'),
+              klarna: message('payment.klarna')
+            },
+            messages: {
+              disabled: message('payment.disabled'),
+              needs_configuration: message('payment.needs_configuration'),
+              processing: message('payment.processing'),
+              failed: message('payment.failed'),
+              succeeded: message('payment.succeeded')
+            }
           }}
           onSubmit={(details) => detailsMutation.mutate(details)}
           onFinalize={(input) => finalizeMutation.mutate(input)}

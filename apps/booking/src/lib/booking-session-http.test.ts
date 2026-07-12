@@ -57,6 +57,111 @@ describe('Booking Session HTTP boundary', () => {
     ]
   }
 
+  it('exposes configured methods and settles through the private Session contract', async () => {
+    const capability = '8'.repeat(64)
+    const session = {
+      id: 'bsn_payment_http',
+      merchantSlug: 'mara-studio',
+      checkoutPath: 'pay_in_person' as const,
+      lifecycle: 'active' as const,
+      createdAt: '2026-07-10T09:30:00.000Z',
+      lastActivityAt: '2026-07-10T09:30:00.000Z',
+      idleExpiresAt: '2026-07-10T10:00:00.000Z',
+      absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
+    }
+    const settled = {
+      payment: {
+        id: 'pay_http',
+        bookingPartyId: 'bpt_http',
+        pricingQuoteId: 'pqt_http',
+        amountMinor: 5000,
+        currency: 'USD',
+        status: 'captured' as const,
+        authorizedMinor: 0,
+        capturedMinor: 5000,
+        refundedMinor: 0
+      },
+      attempt: {
+        id: 'pat_http',
+        paymentId: 'pay_http',
+        idempotencyKey: 'payment-submit-http',
+        provider: 'deterministic',
+        method: 'apple_pay' as const,
+        outcome: 'succeeded' as const,
+        providerReference: 'pi_http',
+        failureCode: null
+      }
+    }
+    let settlementInput: unknown
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () => Effect.succeed(session),
+      payments: {
+        status: () => Effect.succeed(null),
+        methods: () =>
+          Effect.succeed({
+            state: 'ready' as const,
+            methods: ['card', 'apple_pay'] as const
+          }),
+        settle: (_session: unknown, input: unknown) => {
+          settlementInput = input
+          return Effect.succeed({ view: settled, nextActionUrl: null })
+        }
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called')),
+      now: () => '2026-07-10T09:30:00.000Z'
+    }
+    const headers = {
+      cookie: `booking_session_bsn_payment_http=${capability}`,
+      origin: 'https://www.example.test',
+      'sec-fetch-site': 'same-origin',
+      'content-type': 'application/json'
+    }
+    const methods = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(
+          'https://www.example.test/mara-studio/booking/session/bsn_payment_http/payment-methods',
+          { headers }
+        ),
+        dependencies
+      )
+    )
+    expect(await methods.json()).toEqual({
+      state: 'ready',
+      methods: ['card', 'apple_pay']
+    })
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(
+          'https://www.example.test/mara-studio/booking/session/bsn_payment_http/payment-settle',
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              method: 'apple_pay',
+              idempotencyKey: 'payment-submit-http',
+              paymentMethodReference: 'pm_http'
+            })
+          }
+        ),
+        dependencies
+      )
+    )
+    expect(response.status).toBe(200)
+    expect(
+      ((await response.json()) as { view: { payment: { status: string } } }).view
+        .payment.status
+    ).toBe('captured')
+    expect(settlementInput).toMatchObject({
+      method: 'apple_pay',
+      idempotencyKey: 'payment-submit-http',
+      paymentMethodReference: 'pm_http'
+    })
+  })
+
   it('routes authorized party switching and coordinated holds through the real private contract', async () => {
     const capability = '9'.repeat(64)
     const session = {
@@ -1264,6 +1369,7 @@ describe('Booking Session HTTP boundary', () => {
       merchant: { publicName: 'Mara Studio' },
       snapshot
     }
+    const readKeys: string[] = []
     const dependencies = {
       publicSiteOrigin: 'https://www.example.test',
       enter: () => Effect.die(new Error('not called')),
@@ -1277,7 +1383,10 @@ describe('Booking Session HTTP boundary', () => {
             cookieCredential
           })
       },
-      takeRead: () => Effect.succeed(true),
+      takeRead: (key: string) => {
+        readKeys.push(key)
+        return Effect.succeed(true)
+      },
       takeWrite: () => Effect.succeed(true),
       fallback: () => Effect.die(new Error('not called'))
     }
@@ -1312,6 +1421,10 @@ describe('Booking Session HTTP boundary', () => {
     expect(html).toContain('Noah')
     expect(clean.headers.get('cache-control')).toBe('private, no-store')
     expect(clean.headers.get('referrer-policy')).toBe('no-referrer')
+    expect(readKeys).toEqual([
+      `confirmation:exchange:path:${path}`,
+      `confirmation:display:path:${path}`
+    ])
   })
 
   it('uses uniform private 404s for unknown credentials and a private explanatory 410 only for authentic expiry', async () => {

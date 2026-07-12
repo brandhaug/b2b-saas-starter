@@ -2,16 +2,21 @@ import { Effect, Layer } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import {
   batch,
+  bookingParties,
   Database,
   paymentAttempts,
   paymentReconciliationEvents,
   paymentTransactions,
-  payments
+  payments,
+  pricingQuoteAcceptances,
+  pricingQuotes
 } from '@b2b-saas-starter/db'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { PaymentLedger, PaymentNotFound } from './index.ts'
 import {
   PaymentAttemptNotFound,
+  derivePaymentRecord,
+  monetaryFactsAreValid,
   PaymentSettlement,
   PaymentSettlementConflict,
   type PaymentRecord,
@@ -71,39 +76,20 @@ const recordFromRows = (
   payment: typeof payments.$inferSelect,
   facts: readonly (typeof paymentTransactions.$inferSelect)[]
 ): PaymentRecord => {
-  const sum = (kind: 'authorization' | 'capture' | 'refund' | 'void') =>
+  return derivePaymentRecord(
+    {
+      id: payment.id,
+      bookingPartyId: payment.bookingPartyId!,
+      pricingQuoteId: payment.pricingQuoteId!,
+      amountMinor: payment.amountMinor,
+      currency: payment.currency,
+      status: payment.status,
+      authorizedMinor: payment.authorizedMinor,
+      capturedMinor: payment.capturedMinor,
+      refundedMinor: payment.refundedMinor
+    },
     facts
-      .filter((fact) => fact.kind === kind)
-      .reduce((total, fact) => total + fact.amountMinor, 0)
-  const authorizedMinor = sum('authorization')
-  const capturedMinor = sum('capture')
-  const refundedMinor = sum('refund')
-  const voidedMinor = sum('void')
-  const status =
-    capturedMinor > 0 && refundedMinor >= capturedMinor
-      ? 'refunded'
-      : refundedMinor > 0
-        ? 'partially_refunded'
-        : capturedMinor >= payment.amountMinor && capturedMinor > 0
-          ? 'captured'
-          : capturedMinor > 0
-            ? 'partially_captured'
-            : authorizedMinor > voidedMinor
-              ? 'authorized'
-              : voidedMinor > 0
-                ? 'cancelled'
-                : 'pending'
-  return {
-    id: payment.id,
-    bookingPartyId: payment.bookingPartyId!,
-    pricingQuoteId: payment.pricingQuoteId!,
-    amountMinor: payment.amountMinor,
-    currency: payment.currency,
-    status,
-    authorizedMinor,
-    capturedMinor,
-    refundedMinor
-  }
+  )
 }
 
 export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Database> =
@@ -160,6 +146,38 @@ export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Databa
           }
         })
       return {
+        findForParty: (bookingPartyId: string) =>
+          Effect.gen(function* () {
+            const [payment] = yield* orUnavailable('payment-settlement')(
+              db
+                .select()
+                .from(payments)
+                .where(eq(payments.bookingPartyId, bookingPartyId))
+                .limit(1)
+            )
+            return payment ? yield* read(payment.id) : null
+          }),
+        settlementForConfirmation: (bookingPartyId: string) =>
+          Effect.map(
+            orUnavailable('payment-settlement')(
+              db
+                .select()
+                .from(payments)
+                .where(eq(payments.bookingPartyId, bookingPartyId))
+                .limit(1)
+            ),
+            ([payment]) =>
+              !payment
+                ? ({ kind: 'pay_in_person' } as const)
+                : payment.status === 'captured'
+                  ? ({
+                      kind: 'captured',
+                      paymentId: payment.id,
+                      amountMinor: payment.capturedMinor,
+                      currency: payment.currency
+                    } as const)
+                  : ({ kind: 'processing', paymentId: payment.id } as const)
+          ),
         start: (input) =>
           Effect.gen(function* () {
             const [replay] = yield* orUnavailable('payment-settlement')(
@@ -170,6 +188,39 @@ export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Databa
                 .limit(1)
             )
             if (replay) return yield* read(replay.paymentId, replay.id)
+            const [quote] = yield* orUnavailable('payment-settlement')(
+              db
+                .select({ quote: pricingQuotes, acceptance: pricingQuoteAcceptances })
+                .from(pricingQuotes)
+                .innerJoin(
+                  pricingQuoteAcceptances,
+                  eq(pricingQuoteAcceptances.pricingQuoteId, pricingQuotes.id)
+                )
+                .where(eq(pricingQuotes.id, input.pricingQuoteId))
+                .limit(1)
+            )
+            if (
+              !quote ||
+              quote.quote.bookingPartyId !== input.bookingPartyId ||
+              quote.acceptance.partyVersion !== input.bookingPartyVersion ||
+              quote.quote.totalMinor !== input.amountMinor ||
+              quote.quote.currency !== input.currency ||
+              quote.quote.expiresAt <= input.now
+            )
+              return yield* new PaymentSettlementConflict({
+                code: 'quote_unconfirmable'
+              })
+            const [party] = yield* orUnavailable('payment-settlement')(
+              db
+                .select({ version: bookingParties.version })
+                .from(bookingParties)
+                .where(eq(bookingParties.id, input.bookingPartyId))
+                .limit(1)
+            )
+            if (!party || party.version !== input.bookingPartyVersion)
+              return yield* new PaymentSettlementConflict({
+                code: 'quote_unconfirmable'
+              })
             const paymentId = `pay_${stableSuffix(input.bookingPartyId)}`
             const attemptId = `pat_${stableSuffix(input.idempotencyKey)}`
             yield* orUnavailable('payment-settlement')(
@@ -258,6 +309,24 @@ export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Databa
                 code: 'fact_currency_mismatch'
               })
             }
+            const existingFacts = yield* orUnavailable('payment-settlement')(
+              db
+                .select()
+                .from(paymentTransactions)
+                .where(eq(paymentTransactions.paymentId, attempt.paymentId))
+            )
+            if (
+              !monetaryFactsAreValid(recordFromRows(payment!, existingFacts), [
+                ...existingFacts,
+                ...input.facts.map((fact) => ({
+                  ...fact,
+                  paymentId: attempt.paymentId
+                }))
+              ])
+            )
+              return yield* new PaymentSettlementConflict({
+                code: 'invalid_monetary_facts'
+              })
             yield* orUnavailable('payment-settlement')(
               batch(db, [
                 ...input.facts.map((fact) =>
@@ -315,6 +384,35 @@ export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Databa
                 .limit(1)
             )
             if (replay) return yield* read(replay.paymentId)
+            const [payment] = yield* orUnavailable('payment-settlement')(
+              db
+                .select()
+                .from(payments)
+                .where(eq(payments.id, input.paymentId))
+                .limit(1)
+            )
+            if (!payment)
+              return yield* new PaymentSettlementConflict({
+                code: 'payment_not_found'
+              })
+            const existingFacts = yield* orUnavailable('payment-settlement')(
+              db
+                .select()
+                .from(paymentTransactions)
+                .where(eq(paymentTransactions.paymentId, input.paymentId))
+            )
+            if (
+              !monetaryFactsAreValid(recordFromRows(payment, existingFacts), [
+                ...existingFacts,
+                ...input.facts.map((fact) => ({
+                  ...fact,
+                  paymentId: input.paymentId
+                }))
+              ])
+            )
+              return yield* new PaymentSettlementConflict({
+                code: 'invalid_monetary_facts'
+              })
             yield* orUnavailable('payment-settlement')(
               batch(db, [
                 db

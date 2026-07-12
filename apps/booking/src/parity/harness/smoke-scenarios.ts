@@ -58,6 +58,29 @@ export const smokeScenarios = await Promise.all([
       ...base,
       id:
         locale === 'en'
+          ? 'booking/online-payment-success'
+          : `booking/online-payment-success-${locale}`,
+      journey: 'online-payment',
+      locale,
+      route: `/mara-booking-studio/booking?locale=${locale}`,
+      providers: {
+        ...base.providers,
+        payment: { 'create-payment': { status: 'success' } }
+      },
+      assertions: [
+        'eligible online methods are visible',
+        'accepted quote amount and currency are provider inputs',
+        'successful capture confirms with an external Payment allocation',
+        'processing failure retry and success copy use the selected locale',
+        'no undeclared network request is made'
+      ]
+    })
+  ),
+  ...(['en', 'es', 'fr', 'ro'] as const).map((locale) =>
+    defineScenario({
+      ...base,
+      id:
+        locale === 'en'
           ? 'booking/pay-in-person-smoke'
           : `booking/pay-in-person-smoke-${locale}`,
       journey: 'pay-in-person',

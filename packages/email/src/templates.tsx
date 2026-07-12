@@ -24,6 +24,7 @@ export interface AppointmentConfirmationEmailProps {
   readonly timeZone: string
   readonly services: readonly { readonly name: string; readonly price: string }[]
   readonly total: string
+  readonly settlementLabel: string
   readonly confirmationUrl: string
 }
 
@@ -44,7 +45,7 @@ export function AppointmentConfirmationEmail(props: AppointmentConfirmationEmail
             </Text>
           ))}
           <Text>Total: {props.total}</Text>
-          <Text>Pay In Person</Text>
+          <Text>{props.settlementLabel}</Text>
           <Button href={props.confirmationUrl}>View confirmation</Button>
           <Text>
             <Link href={props.confirmationUrl}>{props.confirmationUrl}</Link>

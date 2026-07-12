@@ -10,6 +10,7 @@ import type { ScenarioManifest } from '../src/parity/harness/scenario-manifest.t
 import { smokeScenarios } from '../src/parity/harness/smoke-scenarios.ts'
 import { createSeedHarnessController } from '../src/parity/harness/seed-runtime.ts'
 import { sha256Bytes } from '../src/parity/harness/canonical-json.ts'
+import { translateBookingMessage } from '../src/localization/booking-localization.ts'
 
 const origin = process.env.PARITY_BOOKING_ORIGIN ?? 'http://localhost:3071'
 const outputRoot = resolve(import.meta.dirname, '../parity-evidence')
@@ -270,6 +271,75 @@ const capture = async (
       if (!response.ok) throw new Error(`Confirmation failed: ${response.status}`)
       await response.json()
     })
+  } else if (scenario.journey === 'online-payment') {
+    await page.clock.runFor(100)
+    await page
+      .getByRole('button', {
+        name: translateBookingMessage(scenario.locale, 'selection.any_provider')
+      })
+      .click()
+    await page.getByRole('button', { name: 'Signature Cut' }).click()
+    await page.getByRole('button', { name: /View order/ }).click()
+    await page.getByRole('button', { name: 'Choose time' }).click()
+    await page
+      .getByRole('button', { name: /\d{1,2}:\d{2}/ })
+      .first()
+      .click()
+    await page
+      .getByRole('button', {
+        name: translateBookingMessage(scenario.locale, 'action.checkout')
+      })
+      .click()
+    await page
+      .getByLabel(translateBookingMessage(scenario.locale, 'checkout.name'))
+      .fill('Parity Payer')
+    await page
+      .getByLabel(translateBookingMessage(scenario.locale, 'checkout.email'))
+      .fill('payer@example.test')
+    await page
+      .getByRole('button', {
+        name: translateBookingMessage(scenario.locale, 'checkout.review_booking')
+      })
+      .click()
+    const card = page.getByRole('radio', {
+      name: translateBookingMessage(scenario.locale, 'payment.card')
+    })
+    await card.waitFor()
+    assertionResults.set('eligible online methods are visible', await card.isVisible())
+    await card.click()
+    await page.route('**/booking/confirmations/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html; charset=utf-8',
+        body: `<!doctype html><html lang="${scenario.locale}"><body>${translateBookingMessage(scenario.locale, 'status.online_payment')}</body></html>`
+      })
+    })
+    await page
+      .getByRole('button', {
+        name: translateBookingMessage(scenario.locale, 'checkout.book')
+      })
+      .click()
+    await page.waitForURL(/\/booking\/confirmations\/cnf_/)
+    assertionResults.set(
+      'accepted quote amount and currency are provider inputs',
+      requests.some(
+        ({ url, method }) => url.includes('/payment-settle') && method === 'POST'
+      )
+    )
+    assertionResults.set(
+      'successful capture confirms with an external Payment allocation',
+      await page
+        .getByText(translateBookingMessage(scenario.locale, 'status.online_payment'))
+        .isVisible()
+    )
+    assertionResults.set(
+      'processing failure retry and success copy use the selected locale',
+      (await page.locator('html').getAttribute('lang')) === scenario.locale
+    )
+    assertionResults.set(
+      'no undeclared network request is made',
+      requests.every(({ url }) => url.startsWith(canonicalOrigin))
+    )
   } else if (scenario.journey === 'group-booking') {
     await page.clock.runFor(100)
     const addGuest = page.getByRole('button', { name: 'Add guest' })
@@ -474,7 +544,13 @@ const browser = await chromium.launch({
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
 })
 try {
-  for (const scenario of smokeScenarios) {
+  const scenarioFilter = process.env.PARITY_SCENARIO
+  const selectedScenarios = scenarioFilter
+    ? smokeScenarios.filter((scenario) => scenario.id.startsWith(scenarioFilter))
+    : smokeScenarios
+  if (selectedScenarios.length === 0)
+    throw new Error(`No parity scenario matches ${scenarioFilter}`)
+  for (const scenario of selectedScenarios) {
     const scenarioDirectory = resolve(outputRoot, scenario.id.replaceAll('/', '-'))
     await rm(scenarioDirectory, { recursive: true, force: true })
     await rm(`${scenarioDirectory}.json`, { force: true })

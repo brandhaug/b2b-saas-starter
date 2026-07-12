@@ -32,7 +32,14 @@ revoke/replace them instead of attempting to read plaintext from storage.
 
 ## Provider-light environments
 
-Email is optional. Missing email configuration or an unavailable external Webhook
-does not make the application unhealthy and cannot block confirmation. Local and
-CI verification uses deterministic fakes for external delivery while exercising
-the real D1 claim and history behavior.
+Email and online Payment settlement are optional. Missing provider configuration
+keeps Pay In Person available and exposes no online method. Stripe settlement is
+enabled only when `STRIPE_SECRET_KEY` is present; configure
+`STRIPE_WEBHOOK_SECRET` and the merchant-first callback URL
+`/:merchantSlug/booking/payment-callback/stripe` for reconciliation. Restrict
+`PAYMENT_PROVIDER_METHODS` to methods enabled in the Stripe account.
+
+An unavailable external provider or Webhook does not make the application
+unhealthy and cannot erase committed local facts. Local and CI verification uses
+deterministic fakes for external delivery and settlement while exercising the real
+D1 idempotency and reconciliation behavior.

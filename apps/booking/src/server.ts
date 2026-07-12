@@ -1,6 +1,6 @@
 import startServer from '@tanstack/react-start/server-entry'
 import { env as workerEnv } from 'cloudflare:workers'
-import { Effect } from 'effect'
+import { Effect, Layer, Schema } from 'effect'
 import {
   BookingSelection,
   BookingScheduling,
@@ -11,8 +11,18 @@ import {
   enterBookingSession
 } from '@b2b-saas-starter/capabilities/booking'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import {
+  eligiblePaymentMethods,
+  PaymentProvider,
+  PaymentProviderFailure,
+  PaymentProviderResult,
+  PaymentSettlement,
+  PaymentSettlementConflict,
+  settleAcceptedPricingQuote
+} from '@b2b-saas-starter/capabilities/payments'
 import { readTraceHeader, reportOperationalError } from '@b2b-saas-starter/logger'
 import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
+import { makeStripePaymentProvider } from './lib/stripe-payment-provider.ts'
 
 type RateLimitBinding = {
   readonly limit: (input: { readonly key: string }) => Promise<{
@@ -30,6 +40,67 @@ export type BookingWorkerEnv = {
   }
   readonly CONFIRMATION_SIGNING_KEYS: string
   readonly CONFIRMATION_CURRENT_KEY_ID: string
+  readonly PAYMENT_PROVIDER_NAME?: string
+  readonly PAYMENT_PROVIDER_METHODS?: string
+  readonly STRIPE_SECRET_KEY?: string
+  readonly STRIPE_WEBHOOK_SECRET?: string
+  readonly PAYMENT_PROVIDER?: {
+    readonly fetch: (request: Request) => Promise<Response>
+  }
+}
+
+const ONLINE_METHODS = [
+  'card',
+  'saved_card',
+  'apple_pay',
+  'google_pay',
+  'cash_app_pay',
+  'klarna'
+] as const
+
+const PaymentProviderCallback = Schema.Struct({
+  paymentId: Schema.String.check(Schema.isMinLength(1)),
+  providerEventId: Schema.String.check(Schema.isMinLength(1)),
+  facts: PaymentProviderResult.fields.facts
+})
+
+const configuredPaymentMethods = (env: BookingWorkerEnv) => {
+  const requested = new Set(
+    (env.PAYMENT_PROVIDER_METHODS ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  )
+  if (requested.size === 0 && env.STRIPE_SECRET_KEY) requested.add('card')
+  return ONLINE_METHODS.filter((method) => requested.has(method))
+}
+
+export const reconcilePaymentCallback = async (
+  request: Request,
+  provider: string,
+  binding: NonNullable<BookingWorkerEnv['PAYMENT_PROVIDER']>,
+  reconcile: (event: typeof PaymentProviderCallback.Type) => Promise<void>
+): Promise<Response> => {
+  try {
+    const verified = await binding.fetch(
+      new Request('https://payment-provider.invalid/verify-callback', {
+        method: 'POST',
+        headers: request.headers,
+        body: await request.arrayBuffer()
+      })
+    )
+    if (!verified.ok) return new Response('Invalid callback', { status: 400 })
+    const event = Schema.decodeUnknownSync(PaymentProviderCallback)(
+      await verified.json()
+    )
+    await reconcile(event)
+    return new Response(null, { status: 204 })
+  } catch {
+    return new Response('Payment reconciliation unavailable', {
+      status: 503,
+      headers: { 'retry-after': '60', 'x-payment-provider': provider }
+    })
+  }
 }
 
 export const publishBookingWakeUp = async <A extends { readonly outboxId: string }>(
@@ -109,6 +180,89 @@ export default {
         keys: signingKeys
       }
     })
+    const paymentProvider =
+      readyEnv.PAYMENT_PROVIDER ??
+      (readyEnv.STRIPE_SECRET_KEY
+        ? makeStripePaymentProvider({
+            secretKey: readyEnv.STRIPE_SECRET_KEY,
+            ...(readyEnv.STRIPE_WEBHOOK_SECRET
+              ? { webhookSecret: readyEnv.STRIPE_WEBHOOK_SECRET }
+              : {})
+          })
+        : undefined)
+    const paymentProviderName =
+      readyEnv.PAYMENT_PROVIDER_NAME ??
+      (readyEnv.STRIPE_SECRET_KEY ? 'stripe' : 'unconfigured')
+    const methods = configuredPaymentMethods(readyEnv)
+    const paymentProviderLayer = Layer.succeed(PaymentProvider)({
+      configuration: {
+        provider: paymentProviderName,
+        state:
+          methods.length === 0
+            ? 'disabled'
+            : paymentProvider
+              ? 'configured'
+              : 'needs_configuration',
+        methods
+      },
+      settle: (input) =>
+        Effect.tryPromise({
+          try: async () => {
+            if (!paymentProvider) throw new Error('provider_not_configured')
+            const response = await paymentProvider.fetch(
+              new Request('https://payment-provider.invalid/settle', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  paymentId: input.payment.id,
+                  attemptId: input.attempt.id,
+                  amountMinor: input.payment.amountMinor,
+                  currency: input.payment.currency,
+                  method: input.attempt.method,
+                  paymentMethodReference: input.paymentMethodReference,
+                  idempotencyKey: input.attempt.idempotencyKey,
+                  returnUrl: input.returnUrl
+                })
+              })
+            )
+            if (!response.ok) throw new Error(`provider_${response.status}`)
+            return Schema.decodeUnknownSync(PaymentProviderResult)(
+              await response.json()
+            )
+          },
+          catch: (cause) =>
+            new PaymentProviderFailure({
+              code: cause instanceof Error ? cause.message : 'provider_error'
+            })
+        })
+    })
+    const callbackMatch = new URL(request.url).pathname.match(
+      /^\/[^/]+\/booking\/payment-callback\/([^/]+)$/
+    )
+    if (callbackMatch && request.method === 'POST') {
+      if (!paymentProvider || callbackMatch[1] !== paymentProviderName)
+        return new Response('Not found', { status: 404 })
+      return reconcilePaymentCallback(
+        request,
+        callbackMatch[1]!,
+        paymentProvider,
+        (event) =>
+          Effect.runPromise(
+            Effect.provide(
+              Effect.flatMap(PaymentSettlement, (payments) =>
+                payments.reconcile({
+                  paymentId: event.paymentId,
+                  provider: callbackMatch[1]!,
+                  providerEventId: event.providerEventId,
+                  facts: event.facts ?? [],
+                  now: new Date().toISOString()
+                })
+              ),
+              capabilitiesLayer
+            )
+          ).then(() => undefined)
+      )
+    }
     return Effect.runPromise(
       handleBookingSessionRequest(request, {
         publicSiteOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
@@ -283,6 +437,58 @@ export default {
                 checkout.reviewParty(session, input)
               ),
               capabilitiesLayer
+            )
+        },
+        payments: {
+          status: (session) =>
+            Effect.gen(function* () {
+              const parties = yield* BookingParties
+              const party = yield* parties.findForSession(session.id)
+              const payments = yield* PaymentSettlement
+              return yield* payments.findForParty(party.id)
+            }).pipe(Effect.provide(capabilitiesLayer)),
+          methods: (session, input) =>
+            Effect.gen(function* () {
+              const checkout = yield* BookingCheckout
+              const preparation = yield* checkout.prepare(session, {
+                now: input.now
+              })
+              if (!preparation.quote) return { state: 'disabled' as const, methods: [] }
+              return yield* eligiblePaymentMethods({
+                currency: preparation.quote.currency,
+                amountMinor: preparation.quote.totalMinor,
+                savedMethodCount: 0,
+                wallets: input.wallets
+              })
+            }).pipe(
+              Effect.provide(paymentProviderLayer),
+              Effect.provide(capabilitiesLayer)
+            ),
+          settle: (session, input) =>
+            Effect.gen(function* () {
+              const checkout = yield* BookingCheckout
+              const preparation = yield* checkout.prepare(session, { now: input.now })
+              if (!preparation.quote)
+                return yield* new PaymentSettlementConflict({
+                  code: 'quote_unconfirmable'
+                })
+              const party = yield* BookingParties
+              const currentParty = yield* party.findForSession(session.id)
+              return yield* settleAcceptedPricingQuote({
+                bookingPartyId: currentParty.id,
+                bookingPartyVersion: currentParty.version,
+                pricingQuoteId: preparation.quote.id,
+                amountMinor: preparation.quote.totalMinor,
+                currency: preparation.quote.currency,
+                method: input.method,
+                idempotencyKey: input.idempotencyKey,
+                paymentMethodReference: input.paymentMethodReference,
+                returnUrl: `${readyEnv.PUBLIC_SITE_ORIGIN.replace(/\/$/, '')}/${encodeURIComponent(session.merchantSlug)}/booking/session/${encodeURIComponent(session.id)}?payment_return=1`,
+                now: input.now
+              })
+            }).pipe(
+              Effect.provide(paymentProviderLayer),
+              Effect.provide(capabilitiesLayer)
             )
         },
         confirmation: {

@@ -36,7 +36,7 @@ export const AppointmentSnapshot = Schema.Struct({
     email: Schema.String,
     phone: Schema.NullOr(Schema.String)
   }),
-  checkoutPath: Schema.Literal('pay_in_person')
+  checkoutPath: Schema.Literals(['pay_in_person', 'online_payment'])
 })
 export type AppointmentSnapshot = typeof AppointmentSnapshot.Type
 export const OperationalAppointment = Schema.Struct({

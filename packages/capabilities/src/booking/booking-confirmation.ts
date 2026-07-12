@@ -28,6 +28,8 @@ import { orUnavailable } from '../internal/unavailable.ts'
 import type { BookingSession } from './booking-sessions.ts'
 import type { SeedBookingCheckoutStore } from './booking-checkout.ts'
 import type { SeedBookingSessionStore } from './booking-sessions.ts'
+import { PaymentSettlement } from '../payments/index.ts'
+import type { SeedPaymentSettlementStore } from '../payments/payment-settlement.ts'
 
 export type ConfirmationSigningKeyring = {
   readonly currentKeyId: string
@@ -246,6 +248,7 @@ const rejected = (reason: BookingConfirmationRejected['reason']) =>
 export type SeedBookingConfirmationStore = {
   readonly sessions: SeedBookingSessionStore
   readonly checkout: SeedBookingCheckoutStore
+  readonly paymentSettlement?: SeedPaymentSettlementStore
   readonly appointments: Map<string, Appointment>
   readonly access: Map<string, Omit<ConfirmationAccess, 'token'>>
   readonly exchangedAccess: Set<string>
@@ -257,10 +260,12 @@ export type SeedBookingConfirmationStore = {
 
 export const emptySeedBookingConfirmationStore = (
   sessions: SeedBookingSessionStore,
-  checkout: SeedBookingCheckoutStore
+  checkout: SeedBookingCheckoutStore,
+  paymentSettlement?: SeedPaymentSettlementStore
 ): SeedBookingConfirmationStore => ({
   sessions,
   checkout,
+  ...(paymentSettlement ? { paymentSettlement } : {}),
   appointments: new Map(),
   access: new Map(),
   exchangedAccess: new Set(),
@@ -411,6 +416,17 @@ export const SeedBookingConfirmation = (
         )
         if (details.some((value) => !value)) return yield* rejected('details_missing')
         if (!record || record.lifecycle !== 'active') return yield* rejected('conflict')
+        const partyId = store.sessions.parties.get(session.id)?.id
+        const payment = partyId
+          ? [...(store.paymentSettlement?.payments.values() ?? [])].find(
+              (candidate) => candidate.bookingPartyId === partyId
+            )
+          : undefined
+        if (payment && payment.status !== 'captured')
+          return yield* new BookingConfirmationProcessing({
+            reason: 'commitment_unknown'
+          })
+        const checkoutPath = payment ? 'online_payment' : 'pay_in_person'
         const appointments: Appointment[] = []
         const accesses: ConfirmationAccess[] = []
         const outboxIds: string[] = []
@@ -431,7 +447,7 @@ export const SeedBookingConfirmation = (
               ...hold.quote,
               merchantTimezone: store.checkout.scheduling.scenario.merchant.timezone,
               customerDetails: details[index]!,
-              checkoutPath: 'pay_in_person'
+              checkoutPath
             },
             createdAt: input.now
           }
@@ -553,11 +569,12 @@ const resultsFrom = async (
 
 export const LiveBookingConfirmation = (
   keyring: ConfirmationSigningKeyring
-): Layer.Layer<BookingConfirmation, never, Database> =>
+): Layer.Layer<BookingConfirmation, never, Database | PaymentSettlement> =>
   Layer.effect(
     BookingConfirmation,
     Effect.gen(function* () {
       const db = yield* Database
+      const paymentSettlements = yield* PaymentSettlement
       const readCommitted = (sessionId: string) =>
         orUnavailable('booking-confirmation')(
           db
@@ -778,6 +795,20 @@ export const LiveBookingConfirmation = (
               )
               if (!accepted[0]) return yield* rejected('conflict')
               const acceptedQuote = accepted[0]
+              const settlement = yield* paymentSettlements.settlementForConfirmation(
+                party.id
+              )
+              if (
+                settlement.kind === 'processing' ||
+                (settlement.kind === 'captured' &&
+                  (settlement.amountMinor < acceptedQuote.totalMinor ||
+                    settlement.currency !== party.currency))
+              )
+                return yield* new BookingConfirmationProcessing({
+                  reason: 'commitment_unknown'
+                })
+              const checkoutPath =
+                settlement.kind === 'captured' ? 'online_payment' : 'pay_in_person'
               const acceptedPolicy = (yield* orUnavailable('booking-confirmation')(
                 db
                   .select({ acceptance: policyAcceptances })
@@ -800,7 +831,7 @@ export const LiveBookingConfirmation = (
                   ...row.hold.quote,
                   merchantTimezone: row.timezone,
                   customerDetails: JSON.parse(row.request.customerDetailsJson!),
-                  checkoutPath: 'pay_in_person',
+                  checkoutPath,
                   acceptedQuote: {
                     id: acceptedQuote.quoteId,
                     version: acceptedQuote.version,
@@ -911,7 +942,12 @@ export const LiveBookingConfirmation = (
                 db.insert(settlementAllocations).values({
                   id: `sta_${randomHex(16)}`,
                   bookingPartyId: party.id,
-                  tender: 'pay_in_person',
+                  tender:
+                    settlement.kind === 'captured'
+                      ? 'external_payment'
+                      : 'pay_in_person',
+                  referenceId:
+                    settlement.kind === 'captured' ? settlement.paymentId : null,
                   amountMinor: acceptedQuote.totalMinor,
                   currency: party.currency,
                   createdAt: input.now

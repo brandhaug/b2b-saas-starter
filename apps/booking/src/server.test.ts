@@ -20,7 +20,7 @@ vi.mock('./lib/booking-session-http.ts', () => ({
 }))
 
 import { reportOperationalError } from '@b2b-saas-starter/logger'
-import worker, { publishBookingWakeUp } from './server.ts'
+import worker, { publishBookingWakeUp, reconcilePaymentCallback } from './server.ts'
 
 describe('Booking Worker entry', () => {
   it('uses the local Worker environment when Vite omits the fetch env argument', async () => {
@@ -62,5 +62,43 @@ describe('Booking Worker entry', () => {
     const queue = { send: vi.fn().mockRejectedValue(new Error('queue unavailable')) }
     await expect(publishBookingWakeUp(queue, committed)).resolves.toBe(committed)
     expect(queue.send).toHaveBeenCalledWith({ outboxId: 'obx_committed' })
+  })
+
+  it('accepts only provider-verified callback facts for reconciliation', async () => {
+    const reconcile = vi.fn(async () => undefined)
+    const binding = {
+      fetch: vi.fn(async () =>
+        Response.json({
+          paymentId: 'pay_callback',
+          providerEventId: 'evt_callback',
+          facts: [
+            {
+              kind: 'capture',
+              amountMinor: 5000,
+              currency: 'USD',
+              providerReference: 'ch_callback',
+              occurredAt: '2026-07-12T12:00:00.000Z'
+            }
+          ]
+        })
+      )
+    }
+    const response = await reconcilePaymentCallback(
+      new Request('https://example.test/mara/booking/payment-callback/stripe', {
+        method: 'POST',
+        headers: { 'stripe-signature': 'signed' },
+        body: '{}'
+      }),
+      'stripe',
+      binding,
+      reconcile
+    )
+    expect(response.status).toBe(204)
+    expect(reconcile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentId: 'pay_callback',
+        providerEventId: 'evt_callback'
+      })
+    )
   })
 })

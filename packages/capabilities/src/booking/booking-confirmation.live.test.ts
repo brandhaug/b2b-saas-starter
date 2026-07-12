@@ -31,6 +31,7 @@ import {
   LiveBookingConfirmation,
   verifyConfirmationToken
 } from './booking-confirmation.ts'
+import { LivePaymentSettlement } from '../payments/adapters.ts'
 import {
   AppointmentOperations,
   LiveAppointmentOperations
@@ -203,7 +204,10 @@ afterAll(async () => test.dispose())
 
 describe('Live Booking Confirmation', () => {
   const layer = () =>
-    LiveBookingConfirmation(keyring).pipe(Layer.provide(layerFromD1(test.d1)))
+    LiveBookingConfirmation(keyring).pipe(
+      Layer.provide(LivePaymentSettlement),
+      Layer.provide(layerFromD1(test.d1))
+    )
   const confirm = (id: string, lifecycle: 'active' | 'consumed' = 'active') =>
     Effect.runPromise(
       Effect.provide(
@@ -515,6 +519,13 @@ describe('Live Booking Confirmation', () => {
       .first<{ appointments: number; holds: number; settlement: number }>()
     expect(rolledBack).toEqual({ appointments: 0, holds: 2, settlement: 0 })
 
+    await test.d1
+      .prepare(
+        "INSERT INTO payments (id, booking_party_id, pricing_quote_id, amount_minor, status, currency, captured_minor, created_at, updated_at) VALUES ('pay_group', 'bpt_group', 'pqt_group', 15000, 'captured', 'USD', 15000, ?, ?)"
+      )
+      .bind(now, now)
+      .run()
+
     const first = await confirm('bsn_group')
     const replay = await confirm('bsn_group', 'consumed')
     expect(first.appointments).toHaveLength(2)
@@ -550,8 +561,13 @@ describe('Live Booking Confirmation', () => {
     expect(stored.appointments).toHaveLength(2)
     expect(stored.holds).toHaveLength(0)
     expect(stored.settlement).toEqual([
-      expect.objectContaining({ tender: 'pay_in_person', amountMinor: 15000 })
+      expect.objectContaining({
+        tender: 'external_payment',
+        referenceId: 'pay_group',
+        amountMinor: 15000
+      })
     ])
+    expect(stored.appointments[0]?.snapshot?.checkoutPath).toBe('online_payment')
     expect(stored.access.map((access) => access.purpose).sort()).toEqual([
       'appointment_confirmation',
       'party_confirmation'
@@ -600,6 +616,7 @@ describe('Live Booking Confirmation', () => {
             })
           ),
           LiveBookingConfirmation(keyringOverride).pipe(
+            Layer.provide(LivePaymentSettlement),
             Layer.provide(layerFromD1(test.d1))
           )
         )

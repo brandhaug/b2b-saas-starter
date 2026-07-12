@@ -175,18 +175,21 @@ export const SeedPricingQuotes = (
   initial: readonly PricingQuote[] = [],
   promotions: readonly Promotion[] = [],
   rules: PricingRules = noPricingRules
-): Layer.Layer<PricingQuotes> =>
-  Layer.effect(
+): Layer.Layer<PricingQuotes> => {
+  // Seed layers are rebuilt at each HTTP request boundary by the deterministic
+  // harness. Keep their in-memory repository in the adapter closure so quote
+  // creation and acceptance remain visible across those requests.
+  const quotes = new Map(initial.map((quote) => [quote.id, structuredClone(quote)]))
+  const acceptances = new Map(
+    initial.flatMap((quote) =>
+      quote.acceptedAt ? ([[quote.id, quote.acceptedAt]] as const) : []
+    )
+  )
+  const reservations: PromotionReservation[] = []
+  return Layer.effect(
     PricingQuotes,
     Effect.gen(function* () {
       const semaphore = yield* Semaphore.make(1)
-      const quotes = new Map(initial.map((quote) => [quote.id, structuredClone(quote)]))
-      const acceptances = new Map(
-        initial.flatMap((quote) =>
-          quote.acceptedAt ? ([[quote.id, quote.acceptedAt]] as const) : []
-        )
-      )
-      const reservations: PromotionReservation[] = []
       const exclusive = <A, E>(effect: Effect.Effect<A, E>) =>
         semaphore.withPermits(1)(effect)
       const find = (quoteId: string) =>
@@ -334,6 +337,7 @@ export const SeedPricingQuotes = (
       }
     })
   )
+}
 
 export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
   Layer.effect(

@@ -23,6 +23,15 @@ import {
   seedBookingSelectionEligibilityKey
 } from '@b2b-saas-starter/capabilities/booking'
 import { SeedPricingQuotes } from '@b2b-saas-starter/capabilities/pricing/testing'
+import {
+  eligiblePaymentMethods,
+  emptySeedPaymentSettlementStore,
+  PaymentProvider,
+  PaymentSettlement,
+  SeedPaymentSettlement,
+  settleAcceptedPricingQuote,
+  type PaymentProviderResult
+} from '@b2b-saas-starter/capabilities/payments'
 import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   handleBookingSessionRequest,
@@ -54,7 +63,60 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
   })
   const scheduling = emptySeedBookingSchedulingStore(graph, selection)
   const checkout = emptySeedBookingCheckoutStore(scheduling)
-  const confirmation = emptySeedBookingConfirmationStore(sessions, checkout)
+  const paymentStore = emptySeedPaymentSettlementStore()
+  const paymentLayer = SeedPaymentSettlement(paymentStore)
+  const paymentOutcomes = scenario.providers.payment as
+    | Record<string, ProviderOutcome>
+    | undefined
+  const paymentDouble = createProviderDouble('payment', paymentOutcomes ?? {})
+  const configuredPayment = paymentOutcomes?.['create-payment']
+  const paymentProviderLayer = Layer.succeed(PaymentProvider)({
+    configuration: {
+      provider: 'deterministic',
+      state:
+        configuredPayment?.status === 'disabled'
+          ? 'disabled'
+          : configuredPayment?.status === 'needs-configuration'
+            ? 'needs_configuration'
+            : 'configured',
+      methods:
+        configuredPayment?.status === 'disabled' ||
+        configuredPayment?.status === 'needs-configuration'
+          ? []
+          : ['card', 'apple_pay', 'google_pay', 'cash_app_pay', 'klarna']
+    },
+    settle: (input) =>
+      Effect.promise(async () => {
+        const outcome = await paymentDouble.invoke('create-payment', input)
+        if (outcome.status === 'success' && outcome.value)
+          return outcome.value as PaymentProviderResult
+        if (outcome.status === 'success')
+          return {
+            outcome: 'succeeded',
+            providerReference: `provider_${input.attempt.id}`,
+            facts: [
+              {
+                kind: 'capture',
+                amountMinor: input.payment.amountMinor,
+                currency: input.payment.currency,
+                providerReference: `capture_${input.payment.id}`,
+                occurredAt: scenario.clock.instant
+              }
+            ]
+          }
+        return {
+          outcome: 'failed',
+          providerReference: `provider_${input.attempt.id}`,
+          failureCode: 'code' in outcome ? outcome.code : 'provider_unavailable',
+          facts: []
+        }
+      })
+  })
+  const confirmation = emptySeedBookingConfirmationStore(
+    sessions,
+    checkout,
+    paymentStore
+  )
   let sequence = 0
   const mutations: { sequence: number; method: string; pathname: string }[] = []
   const assets = createContentStore()
@@ -100,6 +162,8 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
       appointments: mapValues(confirmation.appointments),
       access: mapValues(confirmation.access),
       outbox: mapValues(confirmation.outbox),
+      payments: mapValues(paymentStore.payments),
+      paymentAttempts: mapValues(paymentStore.attempts),
       providers: scenario.providers
     }
     let canonical = JSON.stringify(value)
@@ -116,6 +180,11 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
     })
     canonical = canonical.replaceAll(/brt_[a-f0-9]{32}/g, 'brt_current')
     canonical = canonical.replaceAll(/hld_[a-z0-9_]+/g, 'hld_current')
+    canonical = canonical.replaceAll(/pqt_[a-z0-9_]+/g, 'pqt_current')
+    canonical = canonical.replaceAll(
+      /payment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+      'payment-current'
+    )
     canonical = canonical.replaceAll(
       /trace_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
       'trace_current'
@@ -449,6 +518,60 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
                 service.reviewParty(session, input)
               ),
               checkoutLayer
+            )
+        },
+        payments: {
+          status: (session) =>
+            Effect.gen(function* () {
+              const parties = yield* BookingParties
+              const party = yield* parties.findForSession(session.id)
+              const payments = yield* PaymentSettlement
+              return yield* payments.findForParty(party.id)
+            }).pipe(Effect.provide(partiesLayer), Effect.provide(paymentLayer)),
+          methods: (_session, input) =>
+            eligiblePaymentMethods({
+              currency: graph.merchant.currency,
+              amountMinor: 5000,
+              savedMethodCount: 0,
+              wallets: input.wallets
+            }).pipe(Effect.provide(paymentProviderLayer)),
+          settle: (session, input) =>
+            Effect.gen(function* () {
+              const checkoutService = yield* BookingCheckout
+              const preparation = yield* checkoutService.prepare(session, {
+                now: input.now
+              })
+              if (!preparation.quote)
+                return yield* new CapabilityUnavailable({
+                  capability: 'payment-settlement',
+                  reason: 'quote_unavailable'
+                })
+              const parties = yield* BookingParties
+              const party = yield* parties.findForSession(session.id)
+              paymentStore.acceptedQuotes.set(preparation.quote.id, {
+                bookingPartyId: party.id,
+                partyVersion: party.version,
+                amountMinor: preparation.quote.totalMinor,
+                currency: preparation.quote.currency,
+                expiresAt: preparation.quote.expiresAt
+              })
+              return yield* settleAcceptedPricingQuote({
+                bookingPartyId: party.id,
+                bookingPartyVersion: party.version,
+                pricingQuoteId: preparation.quote.id,
+                amountMinor: preparation.quote.totalMinor,
+                currency: preparation.quote.currency,
+                method: input.method,
+                idempotencyKey: input.idempotencyKey,
+                paymentMethodReference: input.paymentMethodReference,
+                returnUrl: `http://booking.test/${session.merchantSlug}/booking/session/${session.id}?payment_return=1`,
+                now: input.now
+              })
+            }).pipe(
+              Effect.provide(checkoutLayer),
+              Effect.provide(partiesLayer),
+              Effect.provide(paymentLayer),
+              Effect.provide(paymentProviderLayer)
             )
         },
         confirmation: {

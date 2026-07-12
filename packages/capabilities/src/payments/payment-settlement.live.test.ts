@@ -16,7 +16,8 @@ beforeAll(async () => {
     `INSERT INTO shops (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at) VALUES ('shp_payment', 'brd_payment', 'mrc_payment', 'payments', 'Payments', 'UTC', 'USD', '${now}', '${now}')`,
     `INSERT INTO booking_sessions (id, merchant_id, capability_hash, checkout_path, lifecycle, created_at, last_activity_at, idle_expires_at, absolute_expires_at) VALUES ('bsn_payment', 'mrc_payment', 'hash', 'pay_in_person', 'active', '${now}', '${now}', '2026-07-12T13:00:00.000Z', '2026-07-12T14:00:00.000Z')`,
     `INSERT INTO booking_parties (id, booking_session_id, shop_id, lifecycle, currency, locale, version, created_at, updated_at) VALUES ('bpt_payment', 'bsn_payment', 'shp_payment', 'active', 'USD', 'en', 1, '${now}', '${now}')`,
-    `INSERT INTO pricing_quotes (id, booking_party_id, version, currency, subtotal_minor, total_minor, facts_json, accepted_at, expires_at, created_at) VALUES ('pqt_payment', 'bpt_payment', 1, 'USD', 12500, 12500, '{}', '${now}', '2026-07-12T13:00:00.000Z', '${now}')`
+    `INSERT INTO pricing_quotes (id, booking_party_id, version, currency, subtotal_minor, total_minor, facts_json, accepted_at, expires_at, created_at) VALUES ('pqt_payment', 'bpt_payment', 1, 'USD', 12500, 12500, '{}', '${now}', '2026-07-12T13:00:00.000Z', '${now}')`,
+    `INSERT INTO pricing_quote_acceptances (pricing_quote_id, booking_party_id, party_version, accepted_at, created_at) VALUES ('pqt_payment', 'bpt_payment', 1, '${now}', '${now}')`
   ]
   for (const statement of statements) await test.d1.prepare(statement).run()
 }, 60_000)
@@ -37,6 +38,7 @@ describe('live online Payment settlement', () => {
         Effect.flatMap(PaymentSettlement, (service) =>
           service.start({
             bookingPartyId: 'bpt_payment',
+            bookingPartyVersion: 1,
             pricingQuoteId: 'pqt_payment',
             amountMinor: 12500,
             currency: 'USD',
@@ -47,27 +49,38 @@ describe('live online Payment settlement', () => {
           })
         )
       )
-    const first = await start()
-    expect(await start()).toEqual(first)
-    const captured = await run(
-      Effect.flatMap(PaymentSettlement, (service) =>
-        service.recordAttemptOutcome({
-          attemptId: first.attempt.id,
-          outcome: 'succeeded',
-          providerReference: 'pi_live',
-          facts: [
-            {
-              kind: 'capture',
-              amountMinor: 12500,
-              currency: 'USD',
-              providerReference: 'ch_live',
-              occurredAt: now
-            }
-          ],
-          now
-        })
+    const [first, concurrentReplay] = await Promise.all([start(), start()])
+    expect(concurrentReplay).toEqual(first)
+    const capture = () =>
+      run(
+        Effect.flatMap(PaymentSettlement, (service) =>
+          service.recordAttemptOutcome({
+            attemptId: first.attempt.id,
+            outcome: 'succeeded',
+            providerReference: 'pi_live',
+            facts: [
+              {
+                kind: 'capture',
+                amountMinor: 12500,
+                currency: 'USD',
+                providerReference: 'ch_live',
+                occurredAt: now
+              }
+            ],
+            now
+          })
+        )
       )
-    )
+    await test.d1
+      .prepare(
+        "CREATE TRIGGER reject_payment_fact BEFORE INSERT ON payment_transactions BEGIN SELECT RAISE(ABORT, 'forced local failure'); END"
+      )
+      .run()
+    await expect(capture()).rejects.toMatchObject({
+      _tag: 'CapabilityUnavailable'
+    })
+    await test.d1.prepare('DROP TRIGGER reject_payment_fact').run()
+    const captured = await capture()
     expect(captured.payment.status).toBe('captured')
     const reconciled = await run(
       Effect.flatMap(PaymentSettlement, (service) =>

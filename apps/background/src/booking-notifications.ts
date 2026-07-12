@@ -93,6 +93,10 @@ const sendEmail = (
           price: money(service.priceMinor, service.currency)
         })),
         total: money(work.snapshot.totalMinor, work.snapshot.currency),
+        settlementLabel:
+          work.snapshot.checkoutPath === 'online_payment'
+            ? 'Paid Online'
+            : 'Pay In Person',
         confirmationUrl: url
       })
     })

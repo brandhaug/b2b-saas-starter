@@ -429,7 +429,7 @@ export const makeLiveCapabilitiesLayer = (
     liveBookingCheckoutLayer,
     LiveBookingConfirmation(
       options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} }
-    ),
+    ).pipe(Layer.provide(LivePaymentSettlement)),
     LiveAppointmentOperations,
     LiveBookingNotificationOutbox
   )

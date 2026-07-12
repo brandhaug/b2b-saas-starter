@@ -81,6 +81,7 @@ describe('AppointmentConfirmationEmail', () => {
           { name: 'Beard trim', price: '$10.00' }
         ],
         total: '$35.00',
+        settlementLabel: 'Pay In Person',
         confirmationUrl: 'https://example.com/mara/confirmation/cnf_1?token=secret'
       }),
       { plainText: true }

@@ -5,7 +5,15 @@ import type {
   CheckoutReview,
   CustomerDetailsIssue
 } from '@b2b-saas-starter/capabilities/booking'
+import type {
+  PaymentMethod,
+  PaymentMethodEligibility
+} from '@b2b-saas-starter/capabilities/payments'
 import { styles } from './booking-flow.styles.ts'
+import {
+  PaymentMethodSelector,
+  type PaymentPresentationStatus
+} from './payment-method-selector.tsx'
 
 type CheckoutCopy = {
   readonly title: string
@@ -54,6 +62,7 @@ export function BookingCheckoutFlow({
   onSubmit,
   onFinalize,
   onEdit,
+  payment,
   copy = defaultCopy
 }: {
   readonly review: CheckoutReview | null
@@ -76,6 +85,21 @@ export function BookingCheckoutFlow({
     }[]
   }) => void
   readonly onEdit: (requestId: string) => void
+  readonly payment?: {
+    readonly eligibility: PaymentMethodEligibility
+    readonly selected: PaymentMethod
+    readonly status: PaymentPresentationStatus
+    readonly onSelect: (method: PaymentMethod) => void
+    readonly legend: string
+    readonly labels: Record<PaymentMethod, string>
+    readonly messages: {
+      readonly disabled: string
+      readonly needs_configuration: string
+      readonly processing: string
+      readonly failed: string
+      readonly succeeded: string
+    }
+  }
   readonly copy?: CheckoutCopy
 }) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -145,6 +169,7 @@ export function BookingCheckoutFlow({
               onFinalize={onFinalize}
               onEdit={onEdit}
               copy={copy}
+              payment={payment}
             />
           )}
         </main>
@@ -191,7 +216,8 @@ function Review({
   busy,
   onFinalize,
   onEdit,
-  copy
+  copy,
+  payment
 }: {
   readonly review: CheckoutReview
   readonly preparation: CheckoutPreparation | null
@@ -199,6 +225,7 @@ function Review({
   readonly onFinalize: Parameters<typeof BookingCheckoutFlow>[0]['onFinalize']
   readonly onEdit: (requestId: string) => void
   readonly copy: CheckoutCopy
+  readonly payment: Parameters<typeof BookingCheckoutFlow>[0]['payment']
 }) {
   const [policyAccepted, setPolicyAccepted] = useState(false)
   const [marketing, setMarketing] = useState<Record<string, boolean>>({})
@@ -240,7 +267,7 @@ function Review({
         {copy.total}: {currency.format(review.quote.totalMinor / 100)}{' '}
         {review.quote.currency}
       </p>
-      <p>{copy.payInPerson}</p>
+      {payment ? <PaymentMethodSelector {...payment} /> : <p>{copy.payInPerson}</p>}
       {preparation ? (
         <>
           <h2>{copy.guests}</h2>

@@ -108,7 +108,7 @@ export type StoredAppointmentSnapshot = StoredBookingQuote & {
     readonly email: string
     readonly phone: string | null
   }
-  readonly checkoutPath: 'pay_in_person'
+  readonly checkoutPath: 'pay_in_person' | 'online_payment'
   readonly acceptedQuote?: {
     readonly id: string
     readonly version: number

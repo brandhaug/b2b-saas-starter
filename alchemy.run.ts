@@ -76,6 +76,8 @@ const CONFIRMATION_SIGNING_KEYS = Redacted.make(
   requiredEnv('CONFIRMATION_SIGNING_KEYS')
 )
 const CONFIRMATION_CURRENT_KEY_ID = requiredEnv('CONFIRMATION_CURRENT_KEY_ID')
+const STRIPE_SECRET_KEY = optionalSecret('STRIPE_SECRET_KEY')
+const STRIPE_WEBHOOK_SECRET = optionalSecret('STRIPE_WEBHOOK_SECRET')
 const merchantAppOrigin = requiredEnv('MERCHANT_APP_ORIGIN')
 const publicSiteOrigin = requiredEnv('PUBLIC_SITE_ORIGIN')
 const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
@@ -189,9 +191,16 @@ export const Stack = Alchemy.Stack(
         DB: db,
         BOOKING_EVENTS_QUEUE: bookingEventsQueue,
         CONFIRMATION_SIGNING_KEYS,
-        CONFIRMATION_CURRENT_KEY_ID
+        CONFIRMATION_CURRENT_KEY_ID,
+        ...(STRIPE_SECRET_KEY ? { STRIPE_SECRET_KEY } : {}),
+        ...(STRIPE_WEBHOOK_SECRET ? { STRIPE_WEBHOOK_SECRET } : {})
       },
-      env: { ...optionalModuleEnv, PUBLIC_SITE_ORIGIN: publicSiteOrigin },
+      env: {
+        ...optionalModuleEnv,
+        PUBLIC_SITE_ORIGIN: publicSiteOrigin,
+        PAYMENT_PROVIDER_NAME: 'stripe',
+        PAYMENT_PROVIDER_METHODS: process.env.PAYMENT_PROVIDER_METHODS ?? 'card'
+      },
       compatibility: {
         flags: ['nodejs_compat']
       },

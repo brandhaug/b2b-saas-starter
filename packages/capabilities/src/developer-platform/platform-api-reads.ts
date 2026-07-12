@@ -83,7 +83,7 @@ export const PlatformAppointment = Schema.Struct({
     email: Schema.String,
     phone: Schema.NullOr(Schema.String)
   }),
-  checkoutPath: Schema.Literal('pay_in_person'),
+  checkoutPath: Schema.Literals(['pay_in_person', 'online_payment']),
   total: PlatformMoney,
   createdAt: utcTimestamp,
   updatedAt: utcTimestamp

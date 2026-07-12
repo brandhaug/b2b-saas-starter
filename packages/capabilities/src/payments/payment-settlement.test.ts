@@ -51,7 +51,20 @@ describe('online Payment settlement', () => {
   })
 
   it('replays an attempt and derives status only from immutable monetary facts', async () => {
-    const store = emptySeedPaymentSettlementStore()
+    const store = emptySeedPaymentSettlementStore(
+      new Map([
+        [
+          'pqt_online',
+          {
+            bookingPartyId: 'bpt_online',
+            amountMinor: 12_500,
+            currency: 'USD',
+            expiresAt: '2026-07-12T13:00:00.000Z',
+            partyVersion: 1
+          }
+        ]
+      ])
+    )
     const run = <A>(effect: Effect.Effect<A, unknown, PaymentSettlement>) =>
       Effect.runPromise(effect.pipe(Effect.provide(SeedPaymentSettlement(store))))
     const start = () =>
@@ -59,6 +72,7 @@ describe('online Payment settlement', () => {
         Effect.flatMap(PaymentSettlement, (payments) =>
           payments.start({
             bookingPartyId: 'bpt_online',
+            bookingPartyVersion: 1,
             pricingQuoteId: 'pqt_online',
             amountMinor: 12_500,
             currency: 'USD',
@@ -105,6 +119,7 @@ describe('online Payment settlement', () => {
       Effect.flatMap(PaymentSettlement, (payments) =>
         payments.start({
           bookingPartyId: 'bpt_online',
+          bookingPartyVersion: 1,
           pricingQuoteId: 'pqt_online',
           amountMinor: 12_500,
           currency: 'USD',
@@ -115,6 +130,27 @@ describe('online Payment settlement', () => {
         })
       )
     )
+    await expect(
+      run(
+        Effect.flatMap(PaymentSettlement, (payments) =>
+          payments.recordAttemptOutcome({
+            attemptId: retry.attempt.id,
+            outcome: 'succeeded',
+            providerReference: 'pi_overcapture',
+            facts: [
+              {
+                kind: 'capture',
+                amountMinor: 12_501,
+                currency: 'USD',
+                providerReference: 'ch_overcapture',
+                occurredAt: '2026-07-12T12:01:01.000Z'
+              }
+            ],
+            now: '2026-07-12T12:01:01.000Z'
+          })
+        )
+      )
+    ).rejects.toMatchObject({ code: 'invalid_monetary_facts' })
     const captured = await run(
       Effect.flatMap(PaymentSettlement, (payments) =>
         payments.recordAttemptOutcome({
@@ -160,6 +196,29 @@ describe('online Payment settlement', () => {
     )
     expect(duplicate.payment.capturedMinor).toBe(12_500)
     expect(store.facts.size).toBe(1)
+    const refunded = await run(
+      Effect.flatMap(PaymentSettlement, (payments) =>
+        payments.reconcile({
+          paymentId: captured.payment.id,
+          provider: 'stripe',
+          providerEventId: 'evt_refund',
+          facts: [
+            {
+              kind: 'refund',
+              amountMinor: 2500,
+              currency: 'USD',
+              providerReference: 're_partial',
+              occurredAt: '2026-07-12T12:03:00.000Z'
+            }
+          ],
+          now: '2026-07-12T12:03:00.000Z'
+        })
+      )
+    )
+    expect(refunded.payment).toMatchObject({
+      status: 'partially_refunded',
+      refundedMinor: 2500
+    })
   })
 
   it('keeps Pay In Person provider-free and creates no Payment', async () => {
@@ -179,5 +238,68 @@ describe('online Payment settlement', () => {
       currency: 'EUR'
     })
     expect(store.payments.size).toBe(0)
+  })
+
+  it('derives cancellation and refunds from immutable provider facts', async () => {
+    const store = emptySeedPaymentSettlementStore(
+      new Map([
+        [
+          'pqt_lifecycle',
+          {
+            bookingPartyId: 'bpt_lifecycle',
+            amountMinor: 5000,
+            currency: 'EUR',
+            expiresAt: '2026-07-12T13:00:00.000Z',
+            partyVersion: 1
+          }
+        ]
+      ])
+    )
+    const run = <A>(effect: Effect.Effect<A, unknown, PaymentSettlement>) =>
+      Effect.runPromise(effect.pipe(Effect.provide(SeedPaymentSettlement(store))))
+    const start = (key: string) =>
+      run(
+        Effect.flatMap(PaymentSettlement, (payments) =>
+          payments.start({
+            bookingPartyId: 'bpt_lifecycle',
+            bookingPartyVersion: 1,
+            pricingQuoteId: 'pqt_lifecycle',
+            amountMinor: 5000,
+            currency: 'EUR',
+            method: 'card',
+            provider: 'stripe',
+            idempotencyKey: key,
+            now: '2026-07-12T12:00:00.000Z'
+          })
+        )
+      )
+    const attempt = await start('lifecycle-attempt')
+    const cancelled = await run(
+      Effect.flatMap(PaymentSettlement, (payments) =>
+        payments.recordAttemptOutcome({
+          attemptId: attempt.attempt.id,
+          outcome: 'succeeded',
+          providerReference: 'pi_cancelled',
+          facts: [
+            {
+              kind: 'authorization',
+              amountMinor: 5000,
+              currency: 'EUR',
+              providerReference: 'auth_cancelled',
+              occurredAt: '2026-07-12T12:00:01.000Z'
+            },
+            {
+              kind: 'void',
+              amountMinor: 5000,
+              currency: 'EUR',
+              providerReference: 'void_cancelled',
+              occurredAt: '2026-07-12T12:00:02.000Z'
+            }
+          ],
+          now: '2026-07-12T12:00:02.000Z'
+        })
+      )
+    )
+    expect(cancelled.payment.status).toBe('cancelled')
   })
 })

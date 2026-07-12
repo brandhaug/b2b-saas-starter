@@ -18,6 +18,59 @@ export type PaymentConfiguration = {
   readonly methods: readonly OnlinePaymentMethod[]
 }
 
+export const PaymentProviderResult = Schema.Struct({
+  outcome: Schema.Literals(['succeeded', 'failed', 'processing']),
+  providerReference: Schema.String,
+  failureCode: Schema.optional(Schema.String),
+  facts: Schema.Array(
+    Schema.Struct({
+      kind: Schema.Literals(['authorization', 'capture', 'refund', 'void']),
+      amountMinor: Schema.Number,
+      currency: Schema.String,
+      providerReference: Schema.String,
+      occurredAt: Schema.String
+    })
+  ),
+  nextActionUrl: Schema.optional(Schema.String)
+})
+export type PaymentProviderResult = typeof PaymentProviderResult.Type
+
+export class PaymentProviderFailure extends Schema.TaggedErrorClass<PaymentProviderFailure>()(
+  'PaymentProviderFailure',
+  { code: Schema.String }
+) {}
+
+export type PaymentProviderShape = {
+  readonly configuration: PaymentConfiguration
+  readonly settle: (input: {
+    readonly payment: PaymentRecord
+    readonly attempt: PaymentAttempt
+    readonly paymentMethodReference: string
+    readonly returnUrl: string
+  }) => Effect.Effect<PaymentProviderResult, PaymentProviderFailure>
+}
+export class PaymentProvider extends Context.Service<
+  PaymentProvider,
+  PaymentProviderShape
+>()('@b2b-saas-starter/capabilities/PaymentProvider') {}
+
+export const eligiblePaymentMethods = (input: {
+  readonly currency: string
+  readonly amountMinor: number
+  readonly savedMethodCount: number
+  readonly wallets: {
+    readonly applePay: boolean
+    readonly googlePay: boolean
+    readonly cashAppPay: boolean
+  }
+}) =>
+  Effect.map(PaymentProvider, (provider) =>
+    deriveEligiblePaymentMethods({
+      configuration: provider.configuration,
+      ...input
+    })
+  )
+
 export type PaymentMethodEligibility = {
   readonly state: 'disabled' | 'needs_configuration' | 'ready'
   readonly methods: readonly OnlinePaymentMethod[]
@@ -107,8 +160,23 @@ type SettlementError =
   | CapabilityUnavailable
 
 export type PaymentSettlementShape = {
+  readonly findForParty: (
+    bookingPartyId: string
+  ) => Effect.Effect<PaymentView | null, SettlementError>
+  readonly settlementForConfirmation: (bookingPartyId: string) => Effect.Effect<
+    | { readonly kind: 'pay_in_person' }
+    | { readonly kind: 'processing'; readonly paymentId: string }
+    | {
+        readonly kind: 'captured'
+        readonly paymentId: string
+        readonly amountMinor: number
+        readonly currency: string
+      },
+    CapabilityUnavailable
+  >
   readonly start: (input: {
     readonly bookingPartyId: string
+    readonly bookingPartyVersion: number
     readonly pricingQuoteId: string
     readonly amountMinor: number
     readonly currency: string
@@ -148,14 +216,81 @@ export class PaymentSettlement extends Context.Service<
   PaymentSettlementShape
 >()('@b2b-saas-starter/capabilities/PaymentSettlement') {}
 
+export const settleAcceptedPricingQuote = (input: {
+  readonly bookingPartyId: string
+  readonly bookingPartyVersion: number
+  readonly pricingQuoteId: string
+  readonly amountMinor: number
+  readonly currency: string
+  readonly method: OnlinePaymentMethod
+  readonly idempotencyKey: string
+  readonly paymentMethodReference: string
+  readonly returnUrl: string
+  readonly now: string
+}) =>
+  Effect.gen(function* () {
+    const settlements = yield* PaymentSettlement
+    const provider = yield* PaymentProvider
+    if (
+      provider.configuration.state !== 'configured' ||
+      !provider.configuration.methods.includes(input.method)
+    )
+      return yield* new PaymentSettlementConflict({
+        code: 'payment_method_unavailable'
+      })
+    const started = yield* settlements.start({
+      bookingPartyId: input.bookingPartyId,
+      bookingPartyVersion: input.bookingPartyVersion,
+      pricingQuoteId: input.pricingQuoteId,
+      amountMinor: input.amountMinor,
+      currency: input.currency,
+      method: input.method,
+      provider: provider.configuration.provider,
+      idempotencyKey: input.idempotencyKey,
+      now: input.now
+    })
+    if (started.attempt.outcome !== 'pending')
+      return { view: started, nextActionUrl: null }
+    const result = yield* provider.settle({
+      payment: started.payment,
+      attempt: started.attempt,
+      paymentMethodReference: input.paymentMethodReference,
+      returnUrl: input.returnUrl
+    })
+    if (result.outcome === 'processing')
+      return { view: started, nextActionUrl: result.nextActionUrl ?? null }
+    const view = yield* settlements.recordAttemptOutcome({
+      attemptId: started.attempt.id,
+      outcome: result.outcome,
+      providerReference: result.providerReference,
+      ...(result.failureCode ? { failureCode: result.failureCode } : {}),
+      facts: result.outcome === 'succeeded' ? result.facts : [],
+      now: input.now
+    })
+    return { view, nextActionUrl: result.nextActionUrl ?? null }
+  })
+
 export type SeedPaymentSettlementStore = {
+  readonly acceptedQuotes: Map<
+    string,
+    {
+      readonly bookingPartyId: string
+      readonly amountMinor: number
+      readonly currency: string
+      readonly expiresAt: string
+      readonly partyVersion: number
+    }
+  >
   readonly payments: Map<string, PaymentRecord>
   readonly attempts: Map<string, PaymentAttempt>
   readonly attemptsByKey: Map<string, string>
   readonly facts: Map<string, MonetaryFact & { readonly paymentId: string }>
   readonly events: Set<string>
 }
-export const emptySeedPaymentSettlementStore = (): SeedPaymentSettlementStore => ({
+export const emptySeedPaymentSettlementStore = (
+  acceptedQuotes: SeedPaymentSettlementStore['acceptedQuotes'] = new Map()
+): SeedPaymentSettlementStore => ({
+  acceptedQuotes,
   payments: new Map(),
   attempts: new Map(),
   attemptsByKey: new Map(),
@@ -163,7 +298,7 @@ export const emptySeedPaymentSettlementStore = (): SeedPaymentSettlementStore =>
   events: new Set()
 })
 
-const derivePayment = (
+export const derivePaymentRecord = (
   payment: PaymentRecord,
   facts: Iterable<MonetaryFact & { readonly paymentId: string }>
 ): PaymentRecord => {
@@ -195,10 +330,65 @@ const derivePayment = (
   return { ...payment, status, authorizedMinor, capturedMinor, refundedMinor }
 }
 
+export const monetaryFactsAreValid = (
+  payment: PaymentRecord,
+  facts: Iterable<MonetaryFact & { readonly paymentId: string }>
+): boolean => {
+  const all = [
+    ...new Map(
+      [...facts]
+        .filter((fact) => fact.paymentId === payment.id)
+        .map((fact) => [`${fact.kind}:${fact.providerReference}`, fact] as const)
+    ).values()
+  ]
+  if (
+    all.some(
+      (fact) =>
+        !Number.isSafeInteger(fact.amountMinor) ||
+        fact.amountMinor <= 0 ||
+        fact.currency !== payment.currency
+    )
+  )
+    return false
+  const derived = derivePaymentRecord(payment, all)
+  return (
+    derived.capturedMinor <= payment.amountMinor &&
+    derived.refundedMinor <= derived.capturedMinor
+  )
+}
+
 export const SeedPaymentSettlement = (
   store = emptySeedPaymentSettlementStore()
 ): Layer.Layer<PaymentSettlement> =>
   Layer.succeed(PaymentSettlement)({
+    findForParty: (bookingPartyId) => {
+      const payment = [...store.payments.values()].find(
+        (candidate) => candidate.bookingPartyId === bookingPartyId
+      )
+      const attempt = payment
+        ? [...store.attempts.values()]
+            .filter((candidate) => candidate.paymentId === payment.id)
+            .at(-1)
+        : null
+      return Effect.succeed(payment && attempt ? { payment, attempt } : null)
+    },
+    settlementForConfirmation: (bookingPartyId) => {
+      const payment = [...store.payments.values()].find(
+        (candidate) => candidate.bookingPartyId === bookingPartyId
+      )
+      return Effect.succeed(
+        !payment
+          ? ({ kind: 'pay_in_person' } as const)
+          : payment.status === 'captured'
+            ? ({
+                kind: 'captured',
+                paymentId: payment.id,
+                amountMinor: payment.capturedMinor,
+                currency: payment.currency
+              } as const)
+            : ({ kind: 'processing', paymentId: payment.id } as const)
+      )
+    },
     start: (input) =>
       Effect.try({
         try: () => {
@@ -207,6 +397,16 @@ export const SeedPaymentSettlement = (
             const attempt = store.attempts.get(replayId)!
             return { payment: store.payments.get(attempt.paymentId)!, attempt }
           }
+          const quote = store.acceptedQuotes.get(input.pricingQuoteId)
+          if (
+            !quote ||
+            quote.bookingPartyId !== input.bookingPartyId ||
+            quote.partyVersion !== input.bookingPartyVersion ||
+            quote.amountMinor !== input.amountMinor ||
+            quote.currency !== input.currency ||
+            quote.expiresAt <= input.now
+          )
+            throw new PaymentSettlementConflict({ code: 'quote_unconfirmable' })
           const existingPayment = [...store.payments.values()].find(
             (payment) => payment.bookingPartyId === input.bookingPartyId
           )
@@ -268,6 +468,14 @@ export const SeedPaymentSettlement = (
         return Effect.fail(
           new PaymentSettlementConflict({ code: 'failed_attempt_has_facts' })
         )
+      const proposed = [
+        ...store.facts.values(),
+        ...input.facts.map((fact) => ({ ...fact, paymentId: attempt.paymentId }))
+      ]
+      if (!monetaryFactsAreValid(store.payments.get(attempt.paymentId)!, proposed))
+        return Effect.fail(
+          new PaymentSettlementConflict({ code: 'invalid_monetary_facts' })
+        )
       for (const fact of input.facts) {
         if (fact.currency !== store.payments.get(attempt.paymentId)!.currency) {
           return Effect.fail(
@@ -286,7 +494,7 @@ export const SeedPaymentSettlement = (
         failureCode: input.failureCode ?? null
       }
       store.attempts.set(attempt.id, completed)
-      const payment = derivePayment(
+      const payment = derivePaymentRecord(
         store.payments.get(attempt.paymentId)!,
         store.facts.values()
       )
@@ -298,6 +506,14 @@ export const SeedPaymentSettlement = (
       if (!payment)
         return Effect.fail(new PaymentSettlementConflict({ code: 'payment_not_found' }))
       if (!store.events.has(`${input.provider}:${input.providerEventId}`)) {
+        const proposed = [
+          ...store.facts.values(),
+          ...input.facts.map((fact) => ({ ...fact, paymentId: payment.id }))
+        ]
+        if (!monetaryFactsAreValid(payment, proposed))
+          return Effect.fail(
+            new PaymentSettlementConflict({ code: 'invalid_monetary_facts' })
+          )
         for (const fact of input.facts) {
           store.facts.set(`${fact.kind}:${fact.providerReference}`, {
             ...fact,
@@ -306,7 +522,7 @@ export const SeedPaymentSettlement = (
         }
         store.events.add(`${input.provider}:${input.providerEventId}`)
       }
-      const derived = derivePayment(payment, store.facts.values())
+      const derived = derivePaymentRecord(payment, store.facts.values())
       store.payments.set(payment.id, derived)
       const attempt = [...store.attempts.values()].find(
         (row) => row.paymentId === payment.id

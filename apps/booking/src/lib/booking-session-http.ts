@@ -47,6 +47,11 @@ import {
   PricingQuoteNotFound,
   QuoteUnconfirmable
 } from '@b2b-saas-starter/capabilities/pricing'
+import type {
+  OnlinePaymentMethod,
+  PaymentMethodEligibility,
+  PaymentView
+} from '@b2b-saas-starter/capabilities/payments'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 import {
   canonicalizeBookingRequest,
@@ -386,6 +391,40 @@ export type BookingSessionHttpDependencies = {
       readonly now: string
     }) => BookingSessionEffect<ConfirmationReadResult, CapabilityUnavailable>
   }
+  readonly payments?: {
+    readonly status: (
+      session: BookingSession
+    ) => BookingSessionEffect<
+      PaymentView | null,
+      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
+    >
+    readonly methods: (
+      session: BookingSession,
+      input: {
+        readonly now: string
+        readonly wallets: {
+          readonly applePay: boolean
+          readonly googlePay: boolean
+          readonly cashAppPay: boolean
+        }
+      }
+    ) => BookingSessionEffect<
+      PaymentMethodEligibility,
+      CapabilityUnavailable | BookingCheckoutFailure
+    >
+    readonly settle: (
+      session: BookingSession,
+      input: {
+        readonly method: OnlinePaymentMethod
+        readonly idempotencyKey: string
+        readonly paymentMethodReference: string
+        readonly now: string
+      }
+    ) => BookingSessionEffect<
+      { readonly view: PaymentView; readonly nextActionUrl: string | null },
+      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
+    >
+  }
   readonly takeRead: (key: string) => BookingSessionEffect<boolean>
   readonly takeWrite: (key: string) => BookingSessionEffect<boolean>
   readonly fallback: (request: Request) => BookingSessionEffect<Response>
@@ -535,9 +574,15 @@ const escapeHtml = (value: string) =>
 const confirmationHtml = (
   confirmation: Extract<ConfirmationReadResult, { kind: 'found' }>['confirmation']
 ) => {
-  const message = (key: string) => translateBookingMessage(confirmation.locale, key)
-  const title = message('title.appointment_confirmation')
   const snapshot = confirmation.snapshot
+  const message = (key: string) =>
+    translateBookingMessage(
+      confirmation.locale,
+      key === 'status.pay_in_person' && snapshot.checkoutPath === 'online_payment'
+        ? 'status.online_payment'
+        : key
+    )
+  const title = message('title.appointment_confirmation')
   const services = snapshot.services
     .map(
       (service) =>
@@ -711,8 +756,6 @@ export const handleBookingSessionRequest = (
         !dependencies.confirmation
       )
         return withPrivateHeaders(hiddenNotFound())
-      if (!(yield* dependencies.takeRead(`confirmation:${clientKey}`)))
-        return withPrivateHeaders(tooManyRequests())
       const cookieName = `confirmation_${routeId}`
       const cookieToken = request.headers
         .get('cookie')
@@ -721,6 +764,12 @@ export const handleBookingSessionRequest = (
         .find((part) => part.startsWith(`${cookieName}=`))
         ?.slice(cookieName.length + 1)
       const queryToken = url.searchParams.get('token')
+      if (
+        !(yield* dependencies.takeRead(
+          `confirmation:${queryToken ? 'exchange' : 'display'}:${clientKey}`
+        ))
+      )
+        return withPrivateHeaders(tooManyRequests())
       const credential = queryToken ?? cookieToken
       if (!credential || !CONFIRMATION_TOKEN.test(credential))
         return withPrivateHeaders(hiddenNotFound())
@@ -1271,6 +1320,64 @@ export const handleBookingSessionRequest = (
       return result._tag === 'Success'
         ? jsonPrivate(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'payment-methods' && request.method === 'GET') {
+      if (!dependencies.payments) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.payments.methods(authorization.success, {
+          now,
+          wallets: {
+            applePay: url.searchParams.get('applePay') === '1',
+            googlePay: url.searchParams.get('googlePay') === '1',
+            cashAppPay: url.searchParams.get('cashAppPay') === '1'
+          }
+        })
+      )
+      return result._tag === 'Success' ? jsonPrivate(result.success) : unavailable()
+    }
+    if (endpoint === 'payment-status' && request.method === 'GET') {
+      if (!dependencies.payments) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.payments.status(authorization.success)
+      )
+      return result._tag === 'Success' ? jsonPrivate(result.success) : unavailable()
+    }
+    if (endpoint === 'payment-settle' && request.method === 'POST') {
+      if (!dependencies.payments) return unavailable()
+      const body = yield* readJson(request)
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(
+          Schema.Struct({
+            method: Schema.Literals([
+              'card',
+              'saved_card',
+              'apple_pay',
+              'google_pay',
+              'cash_app_pay',
+              'klarna'
+            ]),
+            idempotencyKey: Schema.String.check(Schema.isMinLength(8)),
+            paymentMethodReference: Schema.String.check(Schema.isMinLength(1))
+          })
+        )(body)
+      )
+      if (decoded._tag === 'Failure') return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.payments.settle(authorization.success, {
+          ...decoded.success,
+          now
+        })
+      )
+      if (result._tag === 'Failure') {
+        const code = 'code' in result.failure ? result.failure.code : undefined
+        return withPrivateHeaders(
+          Response.json(
+            { kind: code ?? 'payment_failed' },
+            { status: code === 'payment_processing' ? 202 : 409 }
+          )
+        )
+      }
+      return jsonPrivate(result.success)
     }
     if (endpoint === 'confirm' && request.method === 'POST') {
       const input = yield* readJson(request)
