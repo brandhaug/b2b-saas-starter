@@ -1112,7 +1112,12 @@ export const paymentAttempts = sqliteTable(
     createdAt: isoCreatedAt(),
     completedAt: text('completed_at')
   },
-  (table) => [index('payment_attempts_payment_id_idx').on(table.paymentId)]
+  (table) => [
+    index('payment_attempts_payment_id_idx').on(table.paymentId),
+    uniqueIndex('payment_attempts_active_payment_unique')
+      .on(table.paymentId)
+      .where(sql`${table.outcome} <> 'failed'`)
+  ]
 )
 
 export const paymentTransactions = sqliteTable(

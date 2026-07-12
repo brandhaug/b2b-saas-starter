@@ -33,7 +33,7 @@ const run = <A>(effect: Effect.Effect<A, unknown, PaymentSettlement>) =>
 
 describe('live online Payment settlement', () => {
   it('replays starts and deduplicates provider callbacks and facts', async () => {
-    const start = () =>
+    const start = (idempotencyKey: string) =>
       run(
         Effect.flatMap(PaymentSettlement, (service) =>
           service.start({
@@ -44,13 +44,16 @@ describe('live online Payment settlement', () => {
             currency: 'USD',
             method: 'apple_pay',
             provider: 'stripe',
-            idempotencyKey: 'submit-live-1',
+            idempotencyKey,
             now
           })
         )
       )
-    const [first, concurrentReplay] = await Promise.all([start(), start()])
-    expect(concurrentReplay).toEqual(first)
+    const [first, concurrentReplay] = await Promise.all([
+      start('submit-live-1'),
+      start('different-browser-key')
+    ])
+    expect(concurrentReplay.attempt.id).toBe(first.attempt.id)
     const capture = () =>
       run(
         Effect.flatMap(PaymentSettlement, (service) =>

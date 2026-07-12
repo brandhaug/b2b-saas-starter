@@ -282,7 +282,23 @@ export const LivePaymentSettlement: Layer.Layer<PaymentSettlement, never, Databa
                 })
                 .onConflictDoNothing()
             )
-            return yield* read(payment.id, attemptId)
+            const [claimedAttempt] = yield* orUnavailable('payment-settlement')(
+              db
+                .select({ id: paymentAttempts.id })
+                .from(paymentAttempts)
+                .where(
+                  and(
+                    eq(paymentAttempts.paymentId, payment.id),
+                    inArray(paymentAttempts.outcome, ['pending', 'succeeded'])
+                  )
+                )
+                .limit(1)
+            )
+            if (!claimedAttempt)
+              return yield* new PaymentSettlementConflict({
+                code: 'payment_attempt_claim_failed'
+              })
+            return yield* read(payment.id, claimedAttempt.id)
           }),
         recordAttemptOutcome: (input) =>
           Effect.gen(function* () {

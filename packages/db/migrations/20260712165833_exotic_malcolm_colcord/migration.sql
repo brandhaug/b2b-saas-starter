@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `payment_attempts_active_payment_unique` ON `payment_attempts` (`payment_id`) WHERE "payment_attempts"."outcome" <> 'failed';
