@@ -538,15 +538,25 @@ export const bookingOutbox = sqliteTable(
       .notNull()
       .unique()
       .references(() => appointments.id, { onDelete: 'cascade' }),
+    notificationIntentId: text('notification_intent_id').unique(),
     kind: text('kind', { enum: ['appointment.created'] }).notNull(),
     traceId: text('trace_id').notNull(),
     createdAt: isoCreatedAt(),
     claimedAt: text('claimed_at'),
     emailStatus: text('email_status')
-      .$type<'pending' | 'delivered' | 'skipped' | 'failed'>()
+      .$type<
+        | 'pending'
+        | 'delivered'
+        | 'disabled'
+        | 'needs_configuration'
+        | 'failed_retryable'
+        | 'failed_terminal'
+      >()
       .default('pending')
       .notNull(),
     emailFailureCode: text('email_failure_code'),
+    emailAttemptCount: integer('email_attempt_count').default(0).notNull(),
+    emailNextAttemptAt: text('email_next_attempt_at'),
     webhookStatus: text('webhook_status')
       .$type<'pending' | 'completed' | 'dead_lettered'>()
       .default('pending')

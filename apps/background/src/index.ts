@@ -19,6 +19,7 @@ type Env = {
   readonly PUBLIC_SITE_ORIGIN?: string
   readonly EMAIL?: SendEmailBinding
   readonly CLOUDFLARE_EMAIL_FROM?: string
+  readonly OPERATIONAL_EMAIL_ENABLED?: string
 }
 
 const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
@@ -36,7 +37,12 @@ const bookingConfig = (env: Env) => {
   }
   return {
     publicOrigin: env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071',
-    emailConfigured: Boolean(env.EMAIL && env.CLOUDFLARE_EMAIL_FROM),
+    emailProviderState:
+      env.OPERATIONAL_EMAIL_ENABLED === 'false'
+        ? ('disabled' as const)
+        : env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
+          ? ('configured' as const)
+          : ('needs_configuration' as const),
     confirmationKeyring: {
       currentKeyId: env.CONFIRMATION_CURRENT_KEY_ID ?? 'unconfigured',
       keys

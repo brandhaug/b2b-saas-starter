@@ -11,6 +11,10 @@ import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/error
 import { AppointmentConfirmationEmail, EmailDispatcher } from '@b2b-saas-starter/email'
 
 export const BOOKING_RETRY_DELAYS = [30, 60, 90, 120, 150, 180] as const
+export type OperationalEmailProviderState =
+  | 'disabled'
+  | 'needs_configuration'
+  | 'configured'
 
 export const classifyBookingResponse = (
   statusCode: number | null,
@@ -97,7 +101,7 @@ export const processBookingOutbox = (input: {
   readonly outboxId: string
   readonly now: string
   readonly publicOrigin: string
-  readonly emailConfigured: boolean
+  readonly emailProviderState: OperationalEmailProviderState
   readonly confirmationKeyring: ConfirmationSigningKeyring
   readonly scheduleRetry?: (outboxId: string, delaySeconds: number) => Promise<unknown>
 }): Effect.Effect<
@@ -109,21 +113,64 @@ export const processBookingOutbox = (input: {
     const store = yield* BookingNotificationOutbox
     const work = yield* store.claim(input.outboxId, input.now)
     if (!work) return
+    let emailRetryPending = false
 
-    if (work.emailStatus === 'pending') {
-      if (!input.emailConfigured)
-        yield* store.recordEmail(work.outboxId, 'skipped', 'email_not_configured')
+    if (work.emailStatus === 'pending' || work.emailStatus === 'failed_retryable') {
+      const emailDue = !work.emailNextAttemptAt || work.emailNextAttemptAt <= input.now
+      if (!emailDue) {
+        // A queue wake-up may arrive before the durable retry deadline.
+        emailRetryPending = true
+      } else if (input.emailProviderState === 'disabled')
+        yield* store.recordEmail(work.outboxId, 'disabled', null, 0, null)
+      else if (input.emailProviderState === 'needs_configuration')
+        yield* store.recordEmail(
+          work.outboxId,
+          'needs_configuration',
+          'email_not_configured',
+          0,
+          null
+        )
       else {
+        const attemptNumber = work.emailAttemptCount + 1
         const outcome = yield* Effect.result(
           sendEmail(work, input.publicOrigin, input.confirmationKeyring).pipe(
             Effect.annotateLogs({ traceId: work.traceId, outboxId: work.outboxId })
           )
         )
-        yield* store.recordEmail(
-          work.outboxId,
-          Result.isSuccess(outcome) ? 'delivered' : 'failed',
-          Result.isSuccess(outcome) ? null : 'email_send_failed'
-        )
+        if (Result.isSuccess(outcome))
+          yield* store.recordEmail(
+            work.outboxId,
+            'delivered',
+            null,
+            attemptNumber,
+            null
+          )
+        else if (attemptNumber >= 7)
+          yield* store.recordEmail(
+            work.outboxId,
+            'failed_terminal',
+            'email_retries_exhausted',
+            attemptNumber,
+            null
+          )
+        else {
+          const delay = BOOKING_RETRY_DELAYS[attemptNumber - 1]!
+          const nextAttemptAt = new Date(
+            Date.parse(input.now) + delay * 1000
+          ).toISOString()
+          yield* store.recordEmail(
+            work.outboxId,
+            'failed_retryable',
+            'email_send_failed',
+            attemptNumber,
+            nextAttemptAt
+          )
+          if (input.scheduleRetry)
+            yield* Effect.promise(() =>
+              input.scheduleRetry!(work.outboxId, delay)
+            ).pipe(Effect.catch(() => Effect.void))
+          emailRetryPending = true
+        }
       }
     }
 
@@ -260,8 +307,12 @@ export const processBookingOutbox = (input: {
     }
     yield* store.finish(
       work.outboxId,
-      pending ? 'pending' : deadLettered ? 'dead_lettered' : 'completed',
-      pending ? null : input.now
+      pending || emailRetryPending
+        ? 'pending'
+        : deadLettered
+          ? 'dead_lettered'
+          : 'completed',
+      pending || emailRetryPending ? null : input.now
     )
     yield* Effect.log('booking.notifications.processed', {
       traceId: work.traceId,

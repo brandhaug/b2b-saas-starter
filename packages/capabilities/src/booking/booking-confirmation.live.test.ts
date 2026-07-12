@@ -12,6 +12,7 @@ import {
   Database,
   layerFromD1,
   merchants,
+  notificationIntents,
   providers,
   pricingQuoteAcceptances,
   pricingQuotes,
@@ -128,6 +129,24 @@ beforeAll(async () => {
           timezone: 'America/New_York',
           currency: 'USD',
           plan: 'solo',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(brands).values({
+          id: 'brd_confirm',
+          merchantId: 'mer_confirm',
+          name: 'Confirm Live',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(shops).values({
+          id: 'shp_confirm',
+          brandId: 'brd_confirm',
+          merchantId: 'mer_confirm',
+          slug: 'confirm-live-shop',
+          publicName: 'Confirm Live',
+          timezone: 'America/New_York',
+          currency: 'USD',
           createdAt: now,
           updatedAt: now
         })
@@ -269,7 +288,8 @@ describe('Live Booking Confirmation', () => {
             holds: yield* db.select().from(timeSlotHolds),
             appointments: yield* db.select().from(appointments),
             access: yield* db.select().from(confirmationAccess),
-            outbox: yield* db.select().from(bookingOutbox)
+            outbox: yield* db.select().from(bookingOutbox),
+            notificationIntents: yield* db.select().from(notificationIntents)
           }
         }),
         layerFromD1(test.d1)
@@ -300,6 +320,17 @@ describe('Live Booking Confirmation', () => {
       })
     ])
     expect(JSON.stringify(stored.outbox)).not.toContain(first.access.token)
+    expect(stored.notificationIntents).toEqual([
+      expect.objectContaining({
+        id: stored.outbox[0]!.notificationIntentId,
+        shopId: 'shp_confirm',
+        topic: 'appointment.confirmed',
+        sourceType: 'appointment',
+        sourceId: first.appointment.id,
+        deduplicationKey: `appointment.confirmed:${first.appointment.id}`,
+        status: 'pending'
+      })
+    ])
   })
 
   it('rolls the entire transaction back when an access write fails', async () => {

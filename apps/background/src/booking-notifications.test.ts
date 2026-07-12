@@ -55,6 +55,7 @@ describe('processBookingOutbox', () => {
     const work = {
       outboxId: 'out_test',
       appointmentId: 'apt_test',
+      notificationIntentId: 'nti_test',
       merchantId: 'mer_test',
       merchantSlug: 'mara',
       traceId: 'trace_test',
@@ -89,7 +90,9 @@ describe('processBookingOutbox', () => {
         signingKeyId: 'current',
         expiresAt: '2026-08-20T11:00:00.000Z'
       },
-      emailStatus: 'pending' as const
+      emailStatus: 'pending' as const,
+      emailAttemptCount: 0,
+      emailNextAttemptAt: null
     }
     const store = Layer.succeed(BookingNotificationOutbox)({
       claim: () => Effect.succeed(work),
@@ -111,7 +114,7 @@ describe('processBookingOutbox', () => {
         outboxId: work.outboxId,
         now: work.createdAt,
         publicOrigin: 'https://example.com',
-        emailConfigured: true,
+        emailProviderState: 'configured',
         confirmationKeyring: {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
@@ -123,7 +126,7 @@ describe('processBookingOutbox', () => {
       )
     )
     expect(send).toHaveBeenCalledOnce()
-    expect(recordEmail).toHaveBeenCalledWith('out_test', 'delivered', null)
+    expect(recordEmail).toHaveBeenCalledWith('out_test', 'delivered', null, 1, null)
     expect(finish).toHaveBeenCalledWith('out_test', 'completed', work.createdAt)
 
     send.mockClear()
@@ -133,7 +136,7 @@ describe('processBookingOutbox', () => {
         outboxId: work.outboxId,
         now: work.createdAt,
         publicOrigin: 'https://example.com',
-        emailConfigured: false,
+        emailProviderState: 'needs_configuration',
         confirmationKeyring: { currentKeyId: 'current', keys: {} }
       }).pipe(
         Effect.provide(store),
@@ -144,8 +147,10 @@ describe('processBookingOutbox', () => {
     expect(send).not.toHaveBeenCalled()
     expect(recordEmail).toHaveBeenCalledWith(
       'out_test',
-      'skipped',
-      'email_not_configured'
+      'needs_configuration',
+      'email_not_configured',
+      0,
+      null
     )
 
     recordEmail.mockClear()
@@ -154,7 +159,7 @@ describe('processBookingOutbox', () => {
         outboxId: work.outboxId,
         now: work.createdAt,
         publicOrigin: 'https://example.com',
-        emailConfigured: true,
+        emailProviderState: 'configured',
         confirmationKeyring: {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
@@ -176,6 +181,64 @@ describe('processBookingOutbox', () => {
         Effect.provide(FetchHttpClient.layer)
       )
     )
-    expect(recordEmail).toHaveBeenCalledWith('out_test', 'failed', 'email_send_failed')
+    expect(recordEmail).toHaveBeenCalledWith(
+      'out_test',
+      'failed_retryable',
+      'email_send_failed',
+      1,
+      '2026-07-11T10:00:30.000Z'
+    )
+
+    recordEmail.mockClear()
+    await Effect.runPromise(
+      processBookingOutbox({
+        outboxId: work.outboxId,
+        now: work.createdAt,
+        publicOrigin: 'https://example.com',
+        emailProviderState: 'configured',
+        confirmationKeyring: {
+          currentKeyId: 'current',
+          keys: { current: 'confirmation-key' }
+        }
+      }).pipe(
+        Effect.provide(
+          Layer.succeed(BookingNotificationOutbox)({
+            claim: () => Effect.succeed({ ...work, emailAttemptCount: 6 }),
+            recoverable: () => Effect.succeed([]),
+            recordEmail,
+            ensureEvent: () =>
+              Effect.succeed({
+                id: 'evt_test',
+                rawBody: '{"id":"evt_test"}',
+                occurredAt: work.createdAt
+              }),
+            endpoints: () => Effect.succeed([]),
+            attempts: () => Effect.succeed([]),
+            recordAttempt: () => Effect.void,
+            finish
+          })
+        ),
+        Effect.provide(
+          Layer.succeed(EmailDispatcher)({
+            send: () =>
+              Effect.fail(
+                new EmailSendError({
+                  message: 'provider unavailable',
+                  to: 'mia@example.com',
+                  subject: 'Your appointment is confirmed'
+                })
+              )
+          })
+        ),
+        Effect.provide(FetchHttpClient.layer)
+      )
+    )
+    expect(recordEmail).toHaveBeenCalledWith(
+      'out_test',
+      'failed_terminal',
+      'email_retries_exhausted',
+      7,
+      null
+    )
   })
 })

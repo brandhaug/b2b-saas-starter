@@ -11,11 +11,13 @@ import {
   confirmationAccess,
   Database,
   merchants,
+  notificationIntents,
   pricingQuoteAcceptances,
   pricingQuotes,
   policyAcceptances,
   promotionReservations,
   settlementAllocations,
+  shops,
   timeSlotHolds,
   type BatchStatement,
   type StoredAppointmentSnapshot
@@ -680,6 +682,7 @@ export const LiveBookingConfirmation = (
                   party: bookingParties,
                   request: bookingRequests,
                   hold: timeSlotHolds,
+                  shopId: bookingParties.shopId,
                   timezone: merchants.timezone
                 })
                 .from(bookingParties)
@@ -765,6 +768,7 @@ export const LiveBookingConfirmation = (
                 const appointmentId = `apt_${randomHex(16)}`
                 const routeId = `cnf_${randomHex(16)}`
                 const outboxId = `obx_${randomHex(16)}`
+                const notificationIntentId = `nti_${randomHex(16)}`
                 const snapshot: StoredAppointmentSnapshot = {
                   ...row.hold.quote,
                   merchantTimezone: row.timezone,
@@ -789,6 +793,7 @@ export const LiveBookingConfirmation = (
                   appointmentId,
                   routeId,
                   outboxId,
+                  notificationIntentId,
                   snapshot,
                   expiresAt: addMillisecondsToIso(
                     row.hold.endsAt,
@@ -846,9 +851,30 @@ export const LiveBookingConfirmation = (
                   revokedAt: null,
                   createdAt: input.now
                 }),
+                db.insert(notificationIntents).values({
+                  id: item.notificationIntentId,
+                  shopId: item.row.shopId,
+                  topic: 'appointment.confirmed',
+                  recipientJson: JSON.stringify({
+                    email: item.snapshot.customerDetails.email
+                  }),
+                  payloadJson: JSON.stringify({
+                    appointmentId: item.appointmentId,
+                    snapshot: item.snapshot,
+                    confirmationRouteId: item.routeId
+                  }),
+                  sourceType: 'appointment',
+                  sourceId: item.appointmentId,
+                  deduplicationKey: `appointment.confirmed:${item.appointmentId}`,
+                  status: 'pending',
+                  availableAt: input.now,
+                  createdAt: input.now,
+                  updatedAt: input.now
+                }),
                 db.insert(bookingOutbox).values({
                   id: item.outboxId,
                   appointmentId: item.appointmentId,
+                  notificationIntentId: item.notificationIntentId,
                   kind: 'appointment.created',
                   traceId: input.traceId,
                   createdAt: input.now
@@ -928,10 +954,12 @@ export const LiveBookingConfirmation = (
                 .select({
                   session: bookingSessions,
                   hold: timeSlotHolds,
-                  timezone: merchants.timezone
+                  timezone: merchants.timezone,
+                  shopId: shops.id
                 })
                 .from(bookingSessions)
                 .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
+                .innerJoin(shops, eq(shops.merchantId, bookingSessions.merchantId))
                 .innerJoin(
                   timeSlotHolds,
                   and(
@@ -955,6 +983,7 @@ export const LiveBookingConfirmation = (
             const appointmentId = `apt_${randomHex(16)}`
             const routeId = `cnf_${randomHex(16)}`
             const outboxId = `obx_${randomHex(16)}`
+            const notificationIntentId = `nti_${randomHex(16)}`
             const replayExpiresAt = addMillisecondsToIso(input.now, 24 * 60 * 60_000)
             const expiresAt = addMillisecondsToIso(
               row.hold.endsAt,
@@ -1021,9 +1050,28 @@ export const LiveBookingConfirmation = (
                   )
               ),
               db.insert(confirmationAccess).values(accessMetadata),
+              db.insert(notificationIntents).values({
+                id: notificationIntentId,
+                shopId: row.shopId,
+                topic: 'appointment.confirmed',
+                recipientJson: JSON.stringify({ email: row.session.customerEmail }),
+                payloadJson: JSON.stringify({
+                  appointmentId,
+                  snapshot,
+                  confirmationRouteId: routeId
+                }),
+                sourceType: 'appointment',
+                sourceId: appointmentId,
+                deduplicationKey: `appointment.confirmed:${appointmentId}`,
+                status: 'pending',
+                availableAt: input.now,
+                createdAt: input.now,
+                updatedAt: input.now
+              }),
               db.insert(bookingOutbox).values({
                 id: outboxId,
                 appointmentId,
+                notificationIntentId,
                 kind: 'appointment.created',
                 traceId: input.traceId,
                 createdAt: input.now

@@ -169,12 +169,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Provider-Free Confirmation and Protected Access.
 
-- [ ] Domain commits append semantically deduplicated Notification Intents containing committed facts.
-- [ ] Queue messages and operational logs contain identifiers rather than Customer Details or bearer secrets.
-- [ ] Delivery is at least once, retryable, idempotent, and recoverable after stale work or worker interruption.
-- [ ] Disabled, needs-configuration, retryable-failure, terminal-failure, and success provider states are deterministic.
-- [ ] Provider or queue failure never rolls back a committed Appointment.
-- [ ] Duplicate delivery, recovery, and provider-free scenarios prove the observable notification status.
+- [x] Domain commits append semantically deduplicated Notification Intents containing committed facts.
+- [x] Queue messages and operational logs contain identifiers rather than Customer Details or bearer secrets.
+- [x] Delivery is at least once, retryable, idempotent, and recoverable after stale work or worker interruption.
+- [x] Disabled, needs-configuration, retryable-failure, terminal-failure, and success provider states are deterministic.
+- [x] Provider or queue failure never rolls back a committed Appointment.
+- [x] Duplicate delivery, recovery, and provider-free scenarios prove the observable notification status.
 
 ## Deliver Online Payment Settlement
 

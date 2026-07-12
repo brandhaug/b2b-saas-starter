@@ -48,6 +48,24 @@ beforeAll(async () => {
       ['mer_notify', 'Notify', 'notify', 'Europe/Bucharest', 'USD', 'solo', now, now]
     ],
     [
+      'INSERT INTO brands (id, merchant_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      ['brd_notify', 'mer_notify', 'Notify', now, now]
+    ],
+    [
+      'INSERT INTO shops (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        'shp_notify',
+        'brd_notify',
+        'mer_notify',
+        'notify-shop',
+        'Notify',
+        'Europe/Bucharest',
+        'USD',
+        now,
+        now
+      ]
+    ],
+    [
       'INSERT INTO providers (id, merchant_id, display_name, status, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       ['prv_notify', 'mer_notify', 'Ava', 'active', 1, now, now]
     ],
@@ -70,8 +88,32 @@ beforeAll(async () => {
       ['cnf_notify', 'apt_notify', 1, 'current', '2026-08-20T11:00:00.000Z', now]
     ],
     [
-      'INSERT INTO booking_outbox (id, appointment_id, kind, trace_id, created_at) VALUES (?, ?, ?, ?, ?)',
-      ['out_notify', 'apt_notify', 'appointment.created', 'trace_notify', now]
+      'INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, deduplication_key, status, available_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        'nti_notify',
+        'shp_notify',
+        'appointment.confirmed',
+        JSON.stringify({ email: 'mia@example.com' }),
+        JSON.stringify({ appointmentId: 'apt_notify' }),
+        'appointment',
+        'apt_notify',
+        'appointment.confirmed:apt_notify',
+        'pending',
+        now,
+        now,
+        now
+      ]
+    ],
+    [
+      'INSERT INTO booking_outbox (id, appointment_id, notification_intent_id, kind, trace_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        'out_notify',
+        'apt_notify',
+        'nti_notify',
+        'appointment.created',
+        'trace_notify',
+        now
+      ]
     ],
     [
       'INSERT INTO platform_webhook_endpoints (id, merchant_id, url, signing_secret, status, events, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
