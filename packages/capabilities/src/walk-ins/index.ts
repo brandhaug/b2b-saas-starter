@@ -45,6 +45,7 @@ export const WalkInQueueEntry = Schema.Struct({
   locale: Schema.String,
   history: Schema.Array(WalkInHistoryEvent)
 })
+export type WalkInQueueEntry = typeof WalkInQueueEntry.Type
 export class WalkInEntryNotFound extends Schema.TaggedErrorClass<WalkInEntryNotFound>()(
   'WalkInEntryNotFound',
   { entryId: WalkInEntryId }
@@ -66,19 +67,18 @@ export class WalkInTransitionRejected extends Schema.TaggedErrorClass<WalkInTran
   { entryId: WalkInEntryId, from: WalkInStatus, to: WalkInStatus }
 ) {}
 
-export type WalkInEnrollment = {
-  readonly shopId: string
-  readonly serviceId: string
-  readonly providerPreference:
-    | { readonly kind: 'any' }
-    | { readonly kind: 'specific'; readonly providerId: string }
-  readonly customerDetails: {
-    readonly name: string
-    readonly email: string
-    readonly phone: string
-  }
-  readonly locale: string
-}
+export const WalkInEnrollment = Schema.Struct({
+  shopId: ShopId,
+  serviceId: Schema.String,
+  providerPreference: WalkInQueueEntry.fields.providerPreference,
+  customerDetails: Schema.Struct({
+    name: Schema.String.check(Schema.isMinLength(1)),
+    email: Schema.String.check(Schema.isMinLength(3)),
+    phone: Schema.String.check(Schema.isMinLength(5))
+  }),
+  locale: Schema.String
+})
+export type WalkInEnrollment = typeof WalkInEnrollment.Type
 export type WalkInError =
   | WalkInEntryNotFound
   | WalkInsClosed

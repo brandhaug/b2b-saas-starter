@@ -415,7 +415,9 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
           )
           if (!grant || Date.parse(grant.expiresAt) <= Date.now())
             return yield* Effect.fail(new WalkInEntryNotFound({ entryId }))
-          const entry = yield* findQueueEntry(entryId)
+          const entries = yield* queue(shopId)
+          const queued = entries.find((candidate) => candidate.id === entryId)
+          const entry = queued ?? (yield* findQueueEntry(entryId))
           if (entry.shopId !== shopId)
             return yield* Effect.fail(new WalkInEntryNotFound({ entryId }))
           return entry
@@ -448,7 +450,11 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
           const key = contactKey(enrollment)
           const rows = yield* orUnavailable('walk-ins')(
             db
-              .select({ id: walkInEntries.id, requestJson: walkInEntries.requestJson })
+              .select({
+                id: walkInEntries.id,
+                contactKey: walkInEntries.contactKey,
+                requestJson: walkInEntries.requestJson
+              })
               .from(walkInEntries)
               .where(
                 and(
@@ -458,7 +464,8 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
               )
           )
           const duplicate = rows.find(
-            (row) => parseRequest(row.requestJson).contactKey === key
+            (row) =>
+              (row.contactKey ?? parseRequest(row.requestJson).contactKey) === key
           )
           if (duplicate)
             return yield* Effect.fail(
@@ -486,6 +493,7 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
                 shopId: enrollment.shopId,
                 status: 'waiting',
                 position: current.length + 1,
+                contactKey: key,
                 requestJson: JSON.stringify(request),
                 customerSnapshotJson: JSON.stringify(enrollment.customerDetails),
                 createdAt: now,
@@ -527,13 +535,34 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
               })
             ])
           )
-          if (committed._tag === 'Failure')
+          if (committed._tag === 'Failure') {
+            const [racingDuplicate] = yield* orUnavailable('walk-ins')(
+              db
+                .select({ id: walkInEntries.id })
+                .from(walkInEntries)
+                .where(
+                  and(
+                    eq(walkInEntries.shopId, enrollment.shopId),
+                    eq(walkInEntries.contactKey, key),
+                    inArray(walkInEntries.status, ['waiting', 'called', 'serving'])
+                  )
+                )
+                .limit(1)
+            )
+            if (racingDuplicate)
+              return yield* Effect.fail(
+                new WalkInDuplicate({
+                  shopId: enrollment.shopId,
+                  entryId: racingDuplicate.id
+                })
+              )
             return yield* Effect.fail(
               new CapabilityUnavailable({
                 capability: 'walk-ins',
                 reason: committed.failure.reason
               })
             )
+          }
           return {
             entry: yield* findQueueEntry(id),
             acknowledgment: { capability, expiresAt },
@@ -555,50 +584,59 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
             )
           const now = new Date().toISOString()
           const intentId = newCapabilityId('nti')
-          const committed = yield* Effect.result(
-            batch(db, [
-              db
-                .update(walkInEntries)
-                .set({ status: to, updatedAt: now })
-                .where(
-                  and(
-                    eq(walkInEntries.id, entryId),
-                    eq(walkInEntries.shopId, shopId),
-                    eq(walkInEntries.status, entry.status)
-                  )
-                ),
-              db.insert(lifecycleHistory).values({
-                id: newCapabilityId('lch'),
-                aggregateType: 'walk-in-entry',
-                aggregateId: entryId,
-                fromState: entry.status,
-                toState: to,
-                factsJson: '{}',
-                occurredAt: now,
-                createdAt: now
-              }),
-              db.insert(notificationIntents).values({
-                id: intentId,
-                shopId,
-                topic: `walk-in.${to}`,
-                recipientJson: '{}',
-                payloadJson: JSON.stringify({ entryId }),
-                sourceType: 'walk-in-entry',
-                sourceId: entryId,
-                deduplicationKey: `walk-in.${to}:${entryId}`,
-                status: 'pending',
-                availableAt: now,
-                createdAt: now,
-                updatedAt: now
-              })
-            ])
+          const [stored] = yield* orUnavailable('walk-ins')(
+            db
+              .select({ customerSnapshotJson: walkInEntries.customerSnapshotJson })
+              .from(walkInEntries)
+              .where(
+                and(eq(walkInEntries.id, entryId), eq(walkInEntries.shopId, shopId))
+              )
+              .limit(1)
           )
-          if (committed._tag === 'Failure')
+          const historyId = newCapabilityId('lch')
+          const raw = db.$client.config.db
+          const committed = yield* Effect.result(
+            Effect.tryPromise({
+              try: () =>
+                raw.batch([
+                  raw
+                    .prepare(
+                      'UPDATE walk_in_entries SET status = ?, updated_at = ? WHERE id = ? AND shop_id = ? AND status = ?'
+                    )
+                    .bind(to, now, entryId, shopId, entry.status),
+                  raw
+                    .prepare(
+                      "INSERT INTO lifecycle_history (id, aggregate_type, aggregate_id, from_state, to_state, facts_json, occurred_at, created_at) SELECT ?, 'walk-in-entry', ?, ?, ?, '{}', ?, ? WHERE changes() = 1"
+                    )
+                    .bind(historyId, entryId, entry.status, to, now, now),
+                  raw
+                    .prepare(
+                      "INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, deduplication_key, status, available_at, created_at, updated_at) SELECT ?, ?, ?, ?, ?, 'walk-in-entry', ?, ?, 'pending', ?, ?, ? WHERE changes() = 1"
+                    )
+                    .bind(
+                      intentId,
+                      shopId,
+                      `walk-in.${to}`,
+                      stored?.customerSnapshotJson ?? '{}',
+                      JSON.stringify({ entryId }),
+                      entryId,
+                      `walk-in.${to}:${entryId}`,
+                      now,
+                      now,
+                      now
+                    )
+                ]),
+              catch: (cause) =>
+                new CapabilityUnavailable({
+                  capability: 'walk-ins',
+                  reason: cause instanceof Error ? cause.message : String(cause)
+                })
+            })
+          )
+          if (committed._tag === 'Failure') return yield* Effect.fail(committed.failure)
+          if (committed.success[0]?.meta.changes !== 1)
             return yield* Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'walk-ins',
-                reason: committed.failure.reason
-              })
+              new WalkInTransitionRejected({ entryId, from: entry.status, to })
             )
           return {
             entry: yield* findQueueEntry(entryId),

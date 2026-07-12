@@ -16,6 +16,8 @@ import {
   hashGiftCardReceiptToken,
   purchaseAndIssueGiftCard
 } from '@b2b-saas-starter/capabilities/gift-cards'
+import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
+import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
 import {
   eligiblePaymentMethods,
   PaymentProvider,
@@ -29,6 +31,7 @@ import { readTraceHeader, reportOperationalError } from '@b2b-saas-starter/logge
 import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
 import { makeStripePaymentProvider } from './lib/stripe-payment-provider.ts'
 import { handleGiftCardRequest } from './lib/gift-card-http.ts'
+import { handleWalkInRequest } from './lib/walk-in-http.ts'
 
 type RateLimitBinding = {
   readonly limit: (input: { readonly key: string }) => Promise<{
@@ -302,6 +305,33 @@ export default {
       now: () => new Date().toISOString()
     })
     if (giftCardResponse) return giftCardResponse
+    const walkInResponse = await handleWalkInRequest(request, {
+      resolveShop: (slug) =>
+        Effect.runPromise(
+          Effect.flatMap(ShopTopology, (topology) => topology.findBySlug(slug)).pipe(
+            Effect.provide(capabilitiesLayer)
+          )
+        ),
+      queue: (shopId) =>
+        Effect.runPromise(
+          Effect.flatMap(WalkIns, (walkIns) => walkIns.queue(shopId)).pipe(
+            Effect.provide(capabilitiesLayer)
+          )
+        ),
+      enroll: (input) =>
+        Effect.runPromise(
+          Effect.flatMap(WalkIns, (walkIns) => walkIns.enroll(input)).pipe(
+            Effect.provide(capabilitiesLayer)
+          )
+        ),
+      inspect: (input) =>
+        Effect.runPromise(
+          Effect.flatMap(WalkIns, (walkIns) => walkIns.inspect(input)).pipe(
+            Effect.provide(capabilitiesLayer)
+          )
+        )
+    })
+    if (walkInResponse) return walkInResponse
     const callbackMatch = new URL(request.url).pathname.match(
       /^\/[^/]+\/booking\/payment-callback\/([^/]+)$/
     )

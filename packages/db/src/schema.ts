@@ -1325,12 +1325,16 @@ export const walkInEntries = sqliteTable(
       .references(() => shops.id, { onDelete: 'cascade' }),
     status: text('status', { enum: walkInStatuses }).default('waiting').notNull(),
     position: integer('position').notNull(),
+    contactKey: text('contact_key'),
     requestJson: text('request_json').notNull(),
     customerSnapshotJson: text('customer_snapshot_json').notNull(),
     createdAt: isoCreatedAt(),
     updatedAt: isoUpdatedAt()
   },
   (table) => [
+    uniqueIndex('walk_in_entries_active_contact_unique')
+      .on(table.shopId, table.contactKey)
+      .where(sql`${table.status} IN ('waiting', 'called', 'serving')`),
     index('walk_in_entries_shop_status_position_idx').on(
       table.shopId,
       table.status,
