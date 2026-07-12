@@ -144,14 +144,11 @@ export default {
                   })
                   yield* Effect.forEach(offers, (delivery) =>
                     Effect.gen(function* () {
-                      const claimed = yield* Effect.promise(() =>
-                        env.DB.prepare(
-                          "UPDATE notification_intents SET status = 'processing', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status IN ('pending', 'failed') AND EXISTS (SELECT 1 FROM availability_offers WHERE availability_offers.id = notification_intents.source_id AND availability_offers.status = 'pending' AND availability_offers.expires_at > ?)"
-                        )
-                          .bind(now, delivery.offer.id, now)
-                          .run()
+                      const claimed = yield* waitingList.claimOfferDelivery(
+                        delivery.offer.id,
+                        now
                       )
-                      if ((claimed.meta.changes ?? 0) !== 1) return
+                      if (!claimed) return
                       yield* email.send({
                         idempotencyKey: `availability-offer:${delivery.offer.id}`,
                         from: env.CLOUDFLARE_EMAIL_FROM ?? '',

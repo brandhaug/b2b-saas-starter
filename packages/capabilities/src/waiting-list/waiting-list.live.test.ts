@@ -109,13 +109,12 @@ describe('Live Waiting List', () => {
           now,
           expiresAt: '2026-07-12T12:01:00.000Z'
         })
-        yield* Effect.promise(() =>
-          test.d1
-            .prepare(
-              "UPDATE notification_intents SET status = 'processing' WHERE source_type = 'availability-offer' AND source_id = 'avo_claimed_expiry'"
-            )
-            .run()
-        )
+        expect(
+          yield* waitingList.claimOfferDelivery(
+            'avo_claimed_expiry',
+            '2026-07-12T12:00:30.000Z'
+          )
+        ).toBe(true)
         yield* waitingList.expire('2026-07-12T12:02:00.000Z')
       })
     )

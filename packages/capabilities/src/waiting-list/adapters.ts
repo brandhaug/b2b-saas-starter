@@ -970,6 +970,24 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
             })
           }
           return delivered
+        }),
+      claimOfferDelivery: (offerId, now) =>
+        Effect.gen(function* () {
+          const result = yield* Effect.tryPromise({
+            try: () =>
+              db.$client.config.db
+                .prepare(
+                  "UPDATE notification_intents SET status = 'processing', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status IN ('pending', 'failed') AND EXISTS (SELECT 1 FROM availability_offers WHERE availability_offers.id = notification_intents.source_id AND availability_offers.status = 'pending' AND availability_offers.expires_at > ?)"
+                )
+                .bind(now, offerId, now)
+                .run(),
+            catch: () =>
+              new CapabilityUnavailable({
+                capability: 'waiting-list',
+                reason: 'delivery-claim-failed'
+              })
+          })
+          return (result?.meta.changes ?? 0) === 1
         })
     }
     return service

@@ -236,6 +236,10 @@ export type WaitingListShape = {
       keys: Readonly<Record<string, string>>
     }
   ) => Effect.Effect<readonly DeliveredAvailabilityOffer[], WaitingListError>
+  readonly claimOfferDelivery: (
+    offerId: string,
+    now: string
+  ) => Effect.Effect<boolean, CapabilityUnavailable>
 }
 export class WaitingList extends Context.Service<WaitingList, WaitingListShape>()(
   '@b2b-saas-starter/capabilities/WaitingList'
@@ -455,7 +459,8 @@ export const SeedWaitingList = (
               }
             return { applications, offers }
           }),
-        deliverAvailable: () => Effect.succeed([])
+        deliverAvailable: () => Effect.succeed([]),
+        claimOfferDelivery: () => Effect.succeed(true)
       }
     })
   )
