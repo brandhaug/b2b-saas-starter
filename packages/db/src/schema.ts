@@ -945,6 +945,53 @@ export const pricingAdjustments = sqliteTable(
   (table) => [index('pricing_adjustments_quote_id_idx').on(table.pricingQuoteId)]
 )
 
+export const promotions = sqliteTable(
+  'promotions',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    code: text('code').notNull(),
+    label: text('label').notNull(),
+    currency: text('currency').notNull(),
+    kind: text('kind', { enum: ['fixed', 'percentage'] }).notNull(),
+    value: integer('value').notNull(),
+    minimumSubtotalMinor: integer('minimum_subtotal_minor').default(0).notNull(),
+    maximumUses: integer('maximum_uses'),
+    startsAt: text('starts_at').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('promotions_merchant_code_unique').on(table.merchantId, table.code),
+    check('promotions_valid_window', sql`${table.startsAt} < ${table.expiresAt}`),
+    check('promotions_positive_value', sql`${table.value} > 0`)
+  ]
+)
+
+export const promotionReservations = sqliteTable(
+  'promotion_reservations',
+  {
+    id: id(),
+    promotionId: text('promotion_id')
+      .notNull()
+      .references(() => promotions.id, { onDelete: 'restrict' }),
+    pricingQuoteId: text('pricing_quote_id')
+      .notNull()
+      .references(() => pricingQuotes.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['active', 'committed', 'released', 'expired'] })
+      .default('active')
+      .notNull(),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('promotion_reservations_quote_unique').on(table.pricingQuoteId),
+    index('promotion_reservations_usage_idx').on(table.promotionId, table.status)
+  ]
+)
+
 export const settlementAllocations = sqliteTable(
   'settlement_allocations',
   {

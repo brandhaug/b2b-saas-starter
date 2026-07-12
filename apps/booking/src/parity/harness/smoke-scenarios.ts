@@ -224,5 +224,30 @@ export const smokeScenarios = await Promise.all([
       'acquisition is removed',
       'canonical back and forward history is deterministic'
     ]
-  })
+  }),
+  defineScenario({
+    ...base,
+    id: 'booking/pricing-allocation-and-promotion',
+    journey: 'pricing-quote',
+    route: '/mara-booking-studio/booking',
+    assertions: [
+      'the complete Booking Party has one immutable single-currency quote',
+      'discount tax fee and tip adjustments preserve minor-unit arithmetic',
+      'limited Promotion use is reserved by the server',
+      'acceptance binds the exact party holds policies and tender reservations'
+    ]
+  }),
+  ...(['en', 'es', 'fr', 'ro'] as const).map((locale) =>
+    defineScenario({
+      ...base,
+      id: `booking/quote-recovery-${locale}`,
+      journey: 'quote-expired',
+      locale,
+      route: `/mara-booking-studio/booking?locale=${locale}`,
+      assertions: [
+        'expired stale and superseded quotes have stable localized recovery',
+        'locale switching does not change monetary facts'
+      ]
+    })
+  )
 ])

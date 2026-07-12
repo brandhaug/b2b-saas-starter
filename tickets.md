@@ -128,12 +128,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Composite Booking Parties and Group Holds.
 
-- [ ] Pricing Quotes are immutable, versioned, single-currency, and bound to exact requests, holds, policy versions, promotions, tips, and gift-card reservations.
-- [ ] Discounts, tax, fees, and tips appear as named Pricing Adjustments with deterministic allocation where required.
-- [ ] Server-owned Promotions validate eligibility and reserve limited uses without trusting client calculations.
-- [ ] Material changes, expiry, or invalid dependencies make the accepted quote unconfirmable rather than silently repricing it.
-- [ ] Stale, superseded, and expired quote states have stable localized recovery.
-- [ ] Arithmetic, allocation, reservation, concurrency, and locale-switch scenarios prove monetary invariants.
+- [x] Pricing Quotes are immutable, versioned, single-currency, and bound to exact requests, holds, policy versions, promotions, tips, and gift-card reservations.
+- [x] Discounts, tax, fees, and tips appear as named Pricing Adjustments with deterministic allocation where required.
+- [x] Server-owned Promotions validate eligibility and reserve limited uses without trusting client calculations.
+- [x] Material changes, expiry, or invalid dependencies make the accepted quote unconfirmable rather than silently repricing it.
+- [x] Stale, superseded, and expired quote states have stable localized recovery.
+- [x] Arithmetic, allocation, reservation, concurrency, and locale-switch scenarios prove monetary invariants.
 
 ## Deliver Customer Details, Policies, Consent, and Checkout Review
 

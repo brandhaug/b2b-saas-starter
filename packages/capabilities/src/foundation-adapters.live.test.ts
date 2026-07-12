@@ -57,7 +57,13 @@ const quote = {
   adjustmentMinor: 0,
   tipMinor: 0,
   totalMinor: 5000,
-  facts: {},
+  facts: {
+    partyVersion: 1,
+    lines: [],
+    policyVersions: [],
+    promotionReservationIds: [],
+    giftCardReservationIds: []
+  },
   acceptedAt: null,
   expiresAt: '2026-07-11T12:10:00.000Z',
   adjustments: []
@@ -126,7 +132,7 @@ beforeAll(async () => {
     `INSERT INTO shops (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at) VALUES ('shp_contract', 'brd_contract', 'mrc_contract', 'contract', 'Contract', 'UTC', 'EUR', '${now}', '${now}')`,
     `INSERT INTO booking_sessions (id, merchant_id, capability_hash, checkout_path, lifecycle, created_at, last_activity_at, idle_expires_at, absolute_expires_at) VALUES ('bsn_contract', 'mrc_contract', 'contract_hash', 'pay_in_person', 'active', '${now}', '${now}', '${now}', '${now}')`,
     `INSERT INTO booking_parties (id, booking_session_id, shop_id, lifecycle, currency, locale, version, created_at, updated_at) VALUES ('bpt_contract', 'bsn_contract', 'shp_contract', 'active', 'EUR', 'en', 1, '${now}', '${now}')`,
-    `INSERT INTO pricing_quotes (id, booking_party_id, version, currency, subtotal_minor, adjustment_minor, tip_minor, total_minor, facts_json, accepted_at, expires_at, created_at) VALUES ('pqt_contract', 'bpt_contract', 1, 'EUR', 5000, 0, 0, 5000, '{}', NULL, '${quote.expiresAt}', '${now}')`,
+    `INSERT INTO pricing_quotes (id, booking_party_id, version, currency, subtotal_minor, adjustment_minor, tip_minor, total_minor, facts_json, accepted_at, expires_at, created_at) VALUES ('pqt_contract', 'bpt_contract', 1, 'EUR', 5000, 0, 0, 5000, '${JSON.stringify(quote.facts)}', NULL, '${quote.expiresAt}', '${now}')`,
     `INSERT INTO payments (id, booking_party_id, status, currency, authorized_minor, captured_minor, refunded_minor, created_at, updated_at) VALUES ('pay_contract', 'bpt_contract', 'pending', 'EUR', 0, 0, 0, '${now}', '${now}')`,
     `INSERT INTO waiting_list_applications (id, shop_id, status, request_json, customer_snapshot_json, created_at, updated_at, expires_at) VALUES ('wla_contract', 'shp_contract', 'active', '{}', '{}', '${now}', '${now}', '${application.expiresAt}')`,
     `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, deduplication_key, status, available_at, created_at, updated_at) VALUES ('nti_contract', 'shp_contract', 'appointment.created', '{}', '{}', 'appointment', 'apt_contract', 'appointment.created:apt_contract', 'pending', '${now}', '${now}', '${now}')`,

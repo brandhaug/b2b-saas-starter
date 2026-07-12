@@ -22,6 +22,8 @@ export const scenarioJourneys = [
   'scheduling-conflict',
   'scheduling-expiry-recovery',
   'group-booking',
+  'pricing-quote',
+  'quote-expired',
   'shell-boundary'
 ] as const
 
