@@ -712,8 +712,13 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
             offers: expiredOffers.length
           }
         }),
-      deliverAvailable: (now) =>
+      deliverAvailable: (now, deliveryKey) =>
         Effect.gen(function* () {
+          if (!deliveryKey)
+            return yield* new CapabilityUnavailable({
+              capability: 'waiting-list',
+              reason: 'missing-delivery-key'
+            })
           const applications = yield* orUnavailable('waiting-list')(
             db
               .select()
@@ -727,7 +732,7 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
             if (application.expiresAt <= now) continue
             const [pending] = yield* orUnavailable('waiting-list')(
               db
-                .select({ id: availabilityOffers.id })
+                .select()
                 .from(availabilityOffers)
                 .where(
                   and(
@@ -737,7 +742,25 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
                 )
                 .limit(1)
             )
-            if (pending) continue
+            if (pending) {
+              delivered.push({
+                offer: offerFromRow(pending),
+                capability: yield* Effect.promise(() =>
+                  hashSha256(`${deliveryKey}:${pending.id}`)
+                ),
+                customer: application.customer,
+                merchantSlug:
+                  (yield* orUnavailable('waiting-list')(
+                    db
+                      .select({ slug: merchants.slug })
+                      .from(merchants)
+                      .innerJoin(shops, eq(shops.merchantId, merchants.id))
+                      .where(eq(shops.id, application.shopId))
+                      .limit(1)
+                  ))[0]?.slug ?? ''
+              })
+              continue
+            }
             const [shop] = yield* orUnavailable('waiting-list')(
               db.select().from(shops).where(eq(shops.id, row.shopId)).limit(1)
             )
@@ -862,10 +885,13 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
               }
             }
             if (!candidate) continue
-            const capability = randomHex(32)
+            const offerId = newCapabilityId('avo')
+            const capability = yield* Effect.promise(() =>
+              hashSha256(`${deliveryKey}:${offerId}`)
+            )
             const issued = yield* Effect.result(
               service.offer({
-                id: newCapabilityId('avo'),
+                id: offerId,
                 applicationId: application.id,
                 slot: {
                   shopId: application.shopId,

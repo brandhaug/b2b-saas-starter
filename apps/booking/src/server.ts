@@ -419,7 +419,27 @@ export default {
       now: () => new Date().toISOString(),
       newApplicationId: () => `wla_${crypto.randomUUID().replaceAll('-', '')}`,
       newApplicationCapability: () => crypto.randomUUID().replaceAll('-', ''),
-      newOfferCookieCapability: () => crypto.randomUUID().replaceAll('-', '')
+      newOfferCookieCapability: () => crypto.randomUUID().replaceAll('-', ''),
+      authorizeReplacement: async (input) => {
+        const result = await Effect.runPromise(
+          Effect.flatMap(BookingConfirmation, (confirmation) =>
+            confirmation.read({
+              routeId: input.routeId,
+              merchantSlug: input.merchantSlug,
+              credential: input.cookieCredential,
+              credentialKind: 'cookie',
+              now: input.now
+            })
+          ).pipe(Effect.provide(capabilitiesLayer))
+        )
+        if (
+          result.kind !== 'found' ||
+          !result.confirmation.appointments.some(
+            (appointment) => appointment.id === input.appointmentId
+          )
+        )
+          throw new Error('replacement_not_authorized')
+      }
     })
     if (waitingListResponse) return waitingListResponse
     const giftCardResponse = await handleGiftCardRequest(request, {

@@ -117,7 +117,12 @@ export default {
             Effect.gen(function* () {
               const waitingList = yield* WaitingList
               const email = yield* EmailDispatcher
-              const offers = yield* waitingList.deliverAvailable(now)
+              const config = bookingConfig(env)
+              const deliveryKey =
+                config.confirmationKeyring.keys[
+                  config.confirmationKeyring.currentKeyId
+                ] ?? ''
+              const offers = yield* waitingList.deliverAvailable(now, deliveryKey)
               yield* Effect.forEach(offers, (delivery) =>
                 email.send({
                   idempotencyKey: `availability-offer:${delivery.offer.id}`,

@@ -60,6 +60,13 @@ export type WaitingListHttpDependencies = {
   readonly newApplicationId: () => string
   readonly newApplicationCapability: () => string
   readonly newOfferCookieCapability: () => string
+  readonly authorizeReplacement: (input: {
+    merchantSlug: string
+    appointmentId: string
+    routeId: string
+    cookieCredential: string
+    now: string
+  }) => Promise<void>
 }
 
 const json = (value: unknown, status = 200) =>
@@ -91,6 +98,20 @@ export const handleWaitingListRequest = async (
     try {
       if (!applicationMatch[2] && request.method === 'POST') {
         const body = Schema.decodeUnknownSync(Apply)(await request.json())
+        if (body.request.replacementAppointmentId) {
+          const routeId = body.request.replacementConfirmationRouteId
+          const credential = routeId
+            ? cookie(request, `confirmation_${routeId}`)
+            : undefined
+          if (!routeId || !credential) return json({ state: 'not-found' }, 404)
+          await dependencies.authorizeReplacement({
+            merchantSlug: applicationMatch[1]!,
+            appointmentId: body.request.replacementAppointmentId,
+            routeId,
+            cookieCredential: credential,
+            now: dependencies.now()
+          })
+        }
         const capability = dependencies.newApplicationCapability()
         const application = await dependencies.apply({
           ...body,

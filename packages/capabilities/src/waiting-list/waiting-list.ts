@@ -228,7 +228,8 @@ export type WaitingListShape = {
     now: string
   ) => Effect.Effect<{ applications: number; offers: number }, CapabilityUnavailable>
   readonly deliverAvailable: (
-    now: string
+    now: string,
+    deliveryKey: string
   ) => Effect.Effect<readonly DeliveredAvailabilityOffer[], WaitingListError>
 }
 export class WaitingList extends Context.Service<WaitingList, WaitingListShape>()(

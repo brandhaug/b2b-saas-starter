@@ -41,7 +41,8 @@ const dependencies = (): WaitingListHttpDependencies => ({
   now: () => '2026-07-12T12:00:00.000Z',
   newApplicationId: () => 'wla_1',
   newApplicationCapability: () => 'application-secret',
-  newOfferCookieCapability: () => 'cookie-secret'
+  newOfferCookieCapability: () => 'cookie-secret',
+  authorizeReplacement: vi.fn(async () => {})
 })
 
 describe('Waiting List HTTP', () => {

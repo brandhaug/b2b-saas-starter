@@ -51,11 +51,12 @@ describe('Live Waiting List', () => {
           now,
           expiresAt: '2026-07-15T00:00:00.000Z'
         })
-        const first = yield* waitingList.deliverAvailable(now)
-        const retry = yield* waitingList.deliverAvailable(now)
+        const first = yield* waitingList.deliverAvailable(now, 'delivery-key')
+        const retry = yield* waitingList.deliverAvailable(now, 'delivery-key')
         expect(first).toHaveLength(1)
         expect(first[0]?.offer.slot.startsAt).toBe('2026-07-13T09:00:00.000Z')
-        expect(retry).toHaveLength(0)
+        expect(retry).toHaveLength(1)
+        expect(retry[0]?.capability).toBe(first[0]?.capability)
       })
     )
   })
