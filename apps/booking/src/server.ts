@@ -233,14 +233,13 @@ export default {
       ? makeCustomerAuthEdge(customerAuthConfig)
       : null
     if (requestUrl.pathname === '/customer-identity/providers') {
-      const authenticated = Boolean(
-        customerAuth && (await customerAuth.session(request.headers))
-      )
+      const authenticatedProvider =
+        (await customerAuth?.principal(request.headers))?.provider ?? null
       return Response.json(
         {
           anonymousBooking: 'available',
           providers: customerAuthProviderState(customerAuthConfig),
-          outcome: customerAuthProviderOutcome(requestUrl, authenticated)
+          outcome: customerAuthProviderOutcome(requestUrl, authenticatedProvider)
         },
         { headers: { 'cache-control': 'private, no-store' } }
       )
@@ -460,28 +459,20 @@ export default {
     if (giftCardResponse) return giftCardResponse
     const walkInResponse = await handleWalkInRequest(request, {
       resolveShop: (slug) =>
-        Effect.runPromise(
-          Effect.flatMap(ShopTopology, (topology) => topology.findBySlug(slug)).pipe(
-            Effect.provide(capabilitiesLayer)
-          )
+        Effect.flatMap(ShopTopology, (topology) => topology.findBySlug(slug)).pipe(
+          Effect.provide(capabilitiesLayer)
         ),
       overview: (shopId) =>
-        Effect.runPromise(
-          Effect.flatMap(WalkIns, (walkIns) => walkIns.overview(shopId)).pipe(
-            Effect.provide(capabilitiesLayer)
-          )
+        Effect.flatMap(WalkIns, (walkIns) => walkIns.overview(shopId)).pipe(
+          Effect.provide(capabilitiesLayer)
         ),
       enroll: (input) =>
-        Effect.runPromise(
-          Effect.flatMap(WalkIns, (walkIns) => walkIns.enroll(input)).pipe(
-            Effect.provide(capabilitiesLayer)
-          )
+        Effect.flatMap(WalkIns, (walkIns) => walkIns.enroll(input)).pipe(
+          Effect.provide(capabilitiesLayer)
         ),
       inspect: (input) =>
-        Effect.runPromise(
-          Effect.flatMap(WalkIns, (walkIns) => walkIns.inspect(input)).pipe(
-            Effect.provide(capabilitiesLayer)
-          )
+        Effect.flatMap(WalkIns, (walkIns) => walkIns.inspect(input)).pipe(
+          Effect.provide(capabilitiesLayer)
         )
     })
     if (walkInResponse) return walkInResponse

@@ -46,13 +46,13 @@ describe('customer auth edge', () => {
         new URL(
           'https://booking.test/customer-identity/providers?provider=google&error=access_denied'
         ),
-        false
+        null
       )
-    ).toEqual({ state: 'error', provider: 'google' })
+    ).toEqual({ state: 'error' })
     expect(
       customerAuthProviderOutcome(
         new URL('https://booking.test/customer-identity/providers?provider=apple'),
-        true
+        'apple'
       )
     ).toEqual({ state: 'success', provider: 'apple' })
   })

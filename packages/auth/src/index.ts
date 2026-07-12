@@ -3,6 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { username } from 'better-auth/plugins/username'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import type { Database } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
 
@@ -190,3 +191,46 @@ export function createCustomerAuth(options: CreateCustomerAuthOptions) {
 }
 
 export type CustomerAuth = ReturnType<typeof createCustomerAuth>
+
+export type AuthenticatedCustomerPrincipal = {
+  readonly provider: 'google' | 'apple'
+  readonly providerSubject: string
+  readonly email: string
+  readonly emailVerified: true
+  readonly displayName: string | null
+}
+
+export async function resolveCustomerPrincipal(input: {
+  readonly auth: CustomerAuth
+  readonly db: Database
+  readonly headers: Headers
+}): Promise<AuthenticatedCustomerPrincipal | null> {
+  const current = await input.auth.api.getSession({ headers: input.headers })
+  if (!current?.user.emailVerified) return null
+  const [provider] = await input.db
+    .select({
+      providerId: schema.account.providerId,
+      accountId: schema.account.accountId
+    })
+    .from(schema.account)
+    .where(
+      and(
+        eq(schema.account.userId, current.user.id),
+        inArray(schema.account.providerId, ['google', 'apple'])
+      )
+    )
+    .orderBy(desc(schema.account.createdAt))
+    .limit(1)
+  if (
+    !provider ||
+    (provider.providerId !== 'google' && provider.providerId !== 'apple')
+  )
+    return null
+  return {
+    provider: provider.providerId,
+    providerSubject: provider.accountId,
+    email: current.user.email,
+    emailVerified: true,
+    displayName: current.user.name || null
+  }
+}

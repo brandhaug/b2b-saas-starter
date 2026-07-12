@@ -279,7 +279,8 @@ export type BookingSessionHttpDependencies = {
   }
   readonly selection?: {
     readonly load: (
-      session: BookingSession
+      session: BookingSession,
+      now?: string
     ) => BookingSessionEffect<
       BookingJourney,
       BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable

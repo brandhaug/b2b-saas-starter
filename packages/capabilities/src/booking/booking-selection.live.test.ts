@@ -257,6 +257,26 @@ describe('Live Booking Selection', () => {
       kind: 'specific',
       providerId: 'prv_one'
     })
+    const expired = await Effect.runPromise(
+      Effect.provide(
+        Effect.result(
+          Effect.flatMap(BookingSelection, (selection) =>
+            selection.chooseProvider(
+              issued.session,
+              { kind: 'specific', providerId: 'prv_one' },
+              restricted.version,
+              proof.proof,
+              proof.expiresAt
+            )
+          )
+        ),
+        refreshedLayer
+      )
+    )
+    expect(expired).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'BookingSelectionRejected' }
+    })
 
     await Effect.runPromise(
       Effect.provide(

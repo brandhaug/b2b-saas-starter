@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",
-    "better-auth": "catalog:"
+    "better-auth": "catalog:",
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
