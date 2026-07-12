@@ -260,12 +260,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Merchant, Brand, Shop, and Catalog Selection; Deliver Single-Request Availability and Time Slot Holds; Deliver Durable Operational Notifications.
 
-- [ ] Shop-scoped configuration controls whether walk-ins are open and which Services and Provider preferences are eligible.
-- [ ] Enrollment captures required contact details and rejects duplicates deterministically.
-- [ ] Queue position and wait projections derive from real ordered entries rather than hard-coded presentation data.
-- [ ] Waiting, Called, Serving, Served, Removed, and Expired transitions preserve Shop isolation and history.
-- [ ] Protected acknowledgements and Notification Intents follow the same privacy and delivery contracts as Booking.
-- [ ] Closed, empty, unavailable, duplicate, provider-failure, lifecycle, locale, and viewport scenarios pass.
+- [x] Shop-scoped configuration controls whether walk-ins are open and which Services and Provider preferences are eligible.
+- [x] Enrollment captures required contact details and rejects duplicates deterministically.
+- [x] Queue position and wait projections derive from real ordered entries rather than hard-coded presentation data.
+- [x] Waiting, Called, Serving, Served, Removed, and Expired transitions preserve Shop isolation and history.
+- [x] Protected acknowledgements and Notification Intents follow the same privacy and delivery contracts as Booking.
+- [x] Closed, empty, unavailable, duplicate, provider-failure, lifecycle, locale, and viewport scenarios pass.
 
 ## Deliver Optional Customer Identity and Verified Continuation
 
