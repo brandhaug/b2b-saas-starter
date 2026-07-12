@@ -273,12 +273,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Merchant, Brand, Shop, and Catalog Selection; Deliver Provider-Free Confirmation and Protected Access.
 
-- [ ] Anonymous and verified customers can reach equivalent Booking outcomes.
-- [ ] Customer Account association never rewrites snapshotted Customer Details or grants cross-merchant data access.
-- [ ] Verified continuation can recover eligible confirmation access without replacing purpose-limited capability checks.
-- [ ] Optional Google and Apple identity providers expose disabled, needs-configuration, error, and success states without blocking anonymous booking.
-- [ ] Provider passcode proof is short lived and bound to one Booking Session and Provider; it is neither Customer identity nor Merchant authorization.
-- [ ] Account linking, ownership lookup, merchant isolation, historical immutability, recovery, passcode, and provider scenarios pass.
+- [x] Anonymous and verified customers can reach equivalent Booking outcomes.
+- [x] Customer Account association never rewrites snapshotted Customer Details or grants cross-merchant data access.
+- [x] Verified continuation can recover eligible confirmation access without replacing purpose-limited capability checks.
+- [x] Optional Google and Apple identity providers expose disabled, needs-configuration, error, and success states without blocking anonymous booking.
+- [x] Provider passcode proof is short lived and bound to one Booking Session and Provider; it is neither Customer identity nor Merchant authorization.
+- [x] Account linking, ownership lookup, merchant isolation, historical immutability, recovery, passcode, and provider scenarios pass.
 
 ## Close Visual, Responsive, Motion, Copy, and Accessibility Parity
 
