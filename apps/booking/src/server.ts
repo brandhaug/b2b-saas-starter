@@ -262,46 +262,36 @@ export default {
     const runtimeLayer = Layer.merge(capabilitiesLayer, paymentProviderLayer)
     const giftCardResponse = await handleGiftCardRequest(request, {
       resolveSelection: ({ merchantSlug, shopSlug, providerSlug }) =>
-        Effect.runPromise(
-          Effect.flatMap(GiftCardSales, (sales) =>
-            sales.resolvePurchaseRoute({
-              merchantSlug,
-              shopSlug,
-              providerLocator: providerSlug
-            })
-          ).pipe(Effect.provide(capabilitiesLayer))
-        ),
+        Effect.flatMap(GiftCardSales, (sales) =>
+          sales.resolvePurchaseRoute({
+            merchantSlug,
+            shopSlug,
+            providerLocator: providerSlug
+          })
+        ).pipe(Effect.provide(capabilitiesLayer)),
       listProducts: (selection) =>
-        Effect.runPromise(
-          Effect.flatMap(GiftCardSales, (sales) => sales.listProducts(selection)).pipe(
-            Effect.provide(capabilitiesLayer)
-          )
+        Effect.flatMap(GiftCardSales, (sales) => sales.listProducts(selection)).pipe(
+          Effect.provide(capabilitiesLayer)
         ),
       purchase: (input) =>
         signingKeys[readyEnv.CONFIRMATION_CURRENT_KEY_ID]
-          ? Effect.runPromise(
-              purchaseAndIssueGiftCard({
-                ...input,
-                receiptKeyring: {
-                  currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
-                  keys: signingKeys
-                }
-              }).pipe(Effect.provide(runtimeLayer))
-            )
-          : Promise.reject({ _tag: 'CapabilityUnavailable' }),
+          ? purchaseAndIssueGiftCard({
+              ...input,
+              receiptKeyring: {
+                currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
+                keys: signingKeys
+              }
+            }).pipe(Effect.provide(runtimeLayer))
+          : Effect.fail({ _tag: 'CapabilityUnavailable' }),
       receiptState: (input) =>
-        Effect.runPromise(
-          Effect.flatMap(GiftCardSales, (sales) => sales.receiptState(input)).pipe(
-            Effect.provide(capabilitiesLayer)
-          )
+        Effect.flatMap(GiftCardSales, (sales) => sales.receiptState(input)).pipe(
+          Effect.provide(capabilitiesLayer)
         ),
       exchangeReceiptAccess: (input) =>
-        Effect.runPromise(
-          Effect.flatMap(GiftCardSales, (sales) =>
-            sales.exchangeReceiptAccess(input)
-          ).pipe(Effect.provide(capabilitiesLayer))
-        ),
-      hashToken: (token) => Effect.runPromise(hashGiftCardReceiptToken(token)),
+        Effect.flatMap(GiftCardSales, (sales) =>
+          sales.exchangeReceiptAccess(input)
+        ).pipe(Effect.provide(capabilitiesLayer)),
+      hashToken: hashGiftCardReceiptToken,
       now: () => new Date().toISOString()
     })
     if (giftCardResponse) return giftCardResponse

@@ -1,3 +1,4 @@
+import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 import {
   handleGiftCardRequest,
@@ -27,31 +28,41 @@ const receipt = {
   }
 } as const
 const dependencies = (): GiftCardHttpDependencies => ({
-  resolveSelection: vi.fn(async () => ({
-    merchantId: 'mer_one',
-    brandId: 'brd_one',
-    shopId: 'shp_one'
-  })),
-  listProducts: vi.fn(async () => []),
-  purchase: vi.fn(
-    async () =>
-      ({
-        state: 'issued',
-        receipt,
-        access: {
-          routeId: 'gcr_one',
-          token: 'secret',
-          expiresAt: '2026-08-12T00:00:00.000Z'
-        }
-      }) as const
+  resolveSelection: vi.fn(() =>
+    Effect.succeed({
+      merchantId: 'mer_one',
+      brandId: 'brd_one',
+      shopId: 'shp_one'
+    })
   ),
-  receiptState: vi.fn(async () => ({ state: 'issued', receipt }) as const),
-  exchangeReceiptAccess: vi.fn(async () => {}),
-  hashToken: vi.fn(async (token) => `hash:${token}`),
+  listProducts: vi.fn(() => Effect.succeed([])),
+  purchase: vi.fn(() =>
+    Effect.succeed({
+      state: 'issued',
+      receipt,
+      access: {
+        routeId: 'gcr_one',
+        token: 'secret',
+        expiresAt: '2026-08-12T00:00:00.000Z'
+      }
+    } as const)
+  ),
+  receiptState: vi.fn(() => Effect.succeed({ state: 'issued', receipt } as const)),
+  exchangeReceiptAccess: vi.fn(() => Effect.void),
+  hashToken: vi.fn((token) => Effect.succeed(`hash:${token}`)),
   now: () => '2026-07-12T00:00:00.000Z'
 })
 
 describe('Gift Card HTTP boundary', () => {
+  it('leaves unrelated routes to the rest of the Booking router', async () => {
+    await expect(
+      handleGiftCardRequest(
+        new Request('https://booking.test/mara/booking/services'),
+        dependencies()
+      )
+    ).resolves.toBeNull()
+  })
+
   it('purchases through the canonical route and returns a protected receipt URL', async () => {
     const deps = dependencies()
     const response = await handleGiftCardRequest(
@@ -113,9 +124,12 @@ describe('Gift Card HTTP boundary', () => {
   it('preserves needs-configuration instead of reporting invalid input', async () => {
     const deps = {
       ...dependencies(),
-      purchase: vi.fn(async () => {
-        throw { _tag: 'GiftCardSaleConflict', code: 'payment_method_unavailable' }
-      })
+      purchase: vi.fn(() =>
+        Effect.fail({
+          _tag: 'GiftCardSaleConflict',
+          code: 'payment_method_unavailable'
+        })
+      )
     }
     const response = await handleGiftCardRequest(
       new Request('https://booking.test/mara/booking/downtown/any/gift-cards', {
