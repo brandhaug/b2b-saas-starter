@@ -1627,7 +1627,12 @@ describe('Booking Session HTTP boundary', () => {
       rescheduling: {
         execute: (input: unknown) => {
           command = input
-          return Effect.succeed({ sessionId: 'rsc_http', status: 'active' })
+          return Effect.succeed({
+            sessionId: 'rsc_http',
+            bookingSessionId: 'rsc_http',
+            expiresAt: '2026-07-13T10:20:00.000Z',
+            status: 'active'
+          })
         }
       },
       takeRead: () => Effect.succeed(true),
@@ -1648,7 +1653,7 @@ describe('Booking Session HTTP boundary', () => {
           },
           body: JSON.stringify({
             action: 'begin',
-            capability: 'r'.repeat(64),
+            capability: 'a'.repeat(64),
             expiresAt: '2026-07-13T10:20:00.000Z'
           })
         }
@@ -1657,6 +1662,9 @@ describe('Booking Session HTTP boundary', () => {
       handleBookingSessionRequest(request('apt_one'), dependencies)
     )
     expect(response.status).toBe(200)
+    expect(response.headers.get('set-cookie')).toContain(
+      'booking_session_rsc_http=' + 'a'.repeat(64)
+    )
     expect(command).toMatchObject({
       merchantSlug: 'mara-studio',
       appointmentId: 'apt_one',

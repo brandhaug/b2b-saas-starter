@@ -141,19 +141,19 @@ const RescheduleReplacementInput = Schema.Struct({
 const RescheduleHttpCommand = Schema.Union([
   Schema.Struct({
     action: Schema.Literal('begin'),
-    capability: Schema.String.check(Schema.isMinLength(32)),
+    capability: Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/)),
     expiresAt: Schema.String
   }),
   Schema.Struct({
     action: Schema.Literal('prepare'),
     sessionId: Schema.String,
-    capability: Schema.String.check(Schema.isMinLength(32)),
+    capability: Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/)),
     replacement: RescheduleReplacementInput
   }),
   Schema.Struct({
     action: Schema.Literal('commit'),
     sessionId: Schema.String,
-    capability: Schema.String.check(Schema.isMinLength(32)),
+    capability: Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/)),
     idempotencyKey: Schema.String.check(Schema.isMinLength(8))
   })
 ])
@@ -955,6 +955,20 @@ export const handleBookingSessionRequest = (
           : withPrivateHeaders(
               Response.json({ kind: code ?? 'reschedule_failed' }, { status: 409 })
             )
+      }
+      if (
+        decoded.success.action === 'begin' &&
+        typeof result.success === 'object' &&
+        result.success !== null &&
+        'bookingSessionId' in result.success &&
+        'expiresAt' in result.success
+      ) {
+        const response = jsonPrivate(result.success)
+        response.headers.append(
+          'set-cookie',
+          `${COOKIE_PREFIX}${String(result.success.bookingSessionId)}=${decoded.success.capability}; Path=/${merchantSlug}/booking; HttpOnly; ${url.protocol === 'https:' ? 'Secure; ' : ''}SameSite=Lax`
+        )
+        return response
       }
       return jsonPrivate(result.success)
     }

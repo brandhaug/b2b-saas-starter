@@ -1,5 +1,5 @@
 import { Effect, Layer } from 'effect'
-import { and, eq, gt, inArray, lt, ne } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 import {
   appointments,
   batch,
@@ -14,10 +14,12 @@ import {
   pricingQuoteAcceptances,
   pricingQuotes,
   providers,
+  refundObligationAllocations,
   refundObligations,
   rescheduleCommands,
   rescheduleSessions,
   scheduledWork,
+  settlementAllocations,
   timeSlotHolds,
   type StoredAppointmentSnapshot
 } from '@b2b-saas-starter/db'
@@ -54,6 +56,7 @@ const mapAppointment = (
     id: row.id,
     merchantId: row.merchantId,
     shopId,
+    bookingPartyId: row.bookingPartyId,
     status: row.status,
     version: row.version,
     providerId: row.providerId,
@@ -373,7 +376,7 @@ export const LiveBookingRescheduling: Layer.Layer<
               db.insert(bookingSessions).values({
                 id: bookingSessionId,
                 merchantId: appointment.merchantId,
-                capabilityHash: `reschedule:${input.capabilityHash}`,
+                capabilityHash: input.capabilityHash,
                 checkoutPath: 'pay_in_person',
                 lifecycle: 'active',
                 createdAt: input.now,
@@ -574,6 +577,47 @@ export const LiveBookingRescheduling: Layer.Layer<
           const reminderKey = replacement.reminderAt
             ? `reminder:${appointment.id}:${toVersion}:${replacement.reminderAt}`
             : null
+          const refundAllocations =
+            replacement.settlement.kind === 'refund' && appointment.bookingPartyId
+              ? yield* orUnavailable('booking-rescheduling')(
+                  db
+                    .select()
+                    .from(settlementAllocations)
+                    .where(
+                      eq(
+                        settlementAllocations.bookingPartyId,
+                        appointment.bookingPartyId
+                      )
+                    )
+                    .orderBy(
+                      asc(settlementAllocations.createdAt),
+                      asc(settlementAllocations.id)
+                    )
+                )
+              : []
+          let remainingRefund =
+            replacement.settlement.kind === 'refund'
+              ? replacement.settlement.amountMinor
+              : 0
+          const refundAllocationRows = refundAllocations.flatMap((allocation) => {
+            if (remainingRefund <= 0) return []
+            const amountMinor = Math.min(remainingRefund, allocation.amountMinor)
+            remainingRefund -= amountMinor
+            return [
+              {
+                tender: allocation.tender,
+                referenceId: allocation.referenceId,
+                amountMinor
+              }
+            ]
+          })
+          if (remainingRefund > 0) {
+            refundAllocationRows.push({
+              tender: 'pay_in_person',
+              referenceId: null,
+              amountMinor: remainingRefund
+            })
+          }
           const statements = [
             ...(replacement.settlement.kind === 'refund'
               ? [
@@ -588,7 +632,17 @@ export const LiveBookingRescheduling: Layer.Layer<
                       createdAt: input.now,
                       updatedAt: input.now
                     })
-                    .onConflictDoNothing()
+                    .onConflictDoNothing(),
+                  ...refundAllocationRows.map((allocation, position) =>
+                    db
+                      .insert(refundObligationAllocations)
+                      .values({
+                        refundObligationId: replacement.settlement.referenceId!,
+                        position,
+                        ...allocation
+                      })
+                      .onConflictDoNothing()
+                  )
                 ]
               : []),
             db.insert(rescheduleCommands).values({

@@ -15,6 +15,7 @@ export type ReschedulableAppointment = {
   readonly id: string
   readonly merchantId: string
   readonly shopId: string
+  readonly bookingPartyId?: string | null
   readonly status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
   readonly version: number
   readonly providerId: string

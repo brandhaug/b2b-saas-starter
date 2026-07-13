@@ -171,3 +171,13 @@ BEGIN
 			AND a.`version` = NEW.`appointment_version`
 	) THEN RAISE(ABORT, 'appointment_version_conflict') END;
 END;
+--> statement-breakpoint
+CREATE TRIGGER `reschedule_booking_party_cannot_create_appointment`
+BEFORE INSERT ON `appointments`
+WHEN EXISTS (
+	SELECT 1 FROM `reschedule_sessions` AS s
+	WHERE s.`booking_party_id` = NEW.`booking_party_id`
+)
+BEGIN
+	SELECT RAISE(ABORT, 'reschedule_session_cannot_confirm_new_appointment');
+END;
