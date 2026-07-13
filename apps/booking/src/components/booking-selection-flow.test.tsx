@@ -102,7 +102,7 @@ describe('Booking selection flow', () => {
   })
 
   it('adds the legacy translucent title chrome after scrolling', async () => {
-    render(
+    const { rerender } = render(
       <BookingSelectionFlow
         journey={teamJourney}
         busy={false}
@@ -117,6 +117,16 @@ describe('Booking selection flow', () => {
     fireEvent.scroll(scrollable)
 
     await waitFor(() => expect(titleContainer.className).not.toBe(transparentClassName))
+
+    rerender(
+      <BookingSelectionFlow
+        journey={{ ...teamJourney, providerPreference: { kind: 'any' } }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+    expect(titleContainer.className).toBe(transparentClassName)
   })
 
   it('offers Specific Provider and Any Provider choices for Team journeys', () => {

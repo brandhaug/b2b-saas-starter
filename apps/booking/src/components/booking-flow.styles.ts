@@ -105,7 +105,9 @@ export const styles = stylex.create({
     paddingRight: 16,
     paddingBottom: 32,
     paddingLeft: 16,
-    scrollbarWidth: 'none'
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    '::-webkit-scrollbar': { display: 'none' }
   },
   routeLayer: {
     position: 'absolute',
@@ -113,7 +115,7 @@ export const styles = stylex.create({
     display: 'flex',
     width: '100%',
     height: '100%',
-    overflow: 'auto'
+    overflowY: 'auto'
   },
   scrollableFrame: {
     position: 'relative',

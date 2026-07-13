@@ -37,7 +37,10 @@ export function BookingSelectionFlow({
     readonly afterVersion: number
   } | null>(null)
   const [orderOpen, setOrderOpen] = useState(false)
-  const [titleScrolled, setTitleScrolled] = useState(false)
+  const [titleScrollState, setTitleScrollState] = useState({
+    presenceKey: '',
+    scrolled: false
+  })
   const shopSelectionConfirmed =
     pendingShop !== null &&
     journey.shopId === pendingShop.id &&
@@ -70,6 +73,13 @@ export function BookingSelectionFlow({
   const canGoBack =
     (showProviders && journey.shops.length > 1) ||
     (!showLocations && !showProviders && journey.presentation === 'team')
+  const routePresenceKey = showLocations
+    ? 'locations'
+    : showProviders
+      ? 'providers'
+      : 'services'
+  const titleScrolled =
+    titleScrollState.presenceKey === routePresenceKey && titleScrollState.scrolled
 
   return (
     <BookingPremiumThemeBoundary palette={journey.resolvedConfiguration.premiumPalette}>
@@ -113,16 +123,17 @@ export function BookingSelectionFlow({
           </div>
 
           <RoutePresence
-            presenceKey={
-              showLocations ? 'locations' : showProviders ? 'providers' : 'services'
-            }
+            presenceKey={routePresenceKey}
             className={stylex.props(styles.routeLayer).className}
           >
             <div {...stylex.props(styles.scrollableFrame)}>
               <div
                 data-testid="container:scrollable"
                 onScroll={(event) =>
-                  setTitleScrolled(event.currentTarget.scrollTop > 0)
+                  setTitleScrollState({
+                    presenceKey: routePresenceKey,
+                    scrolled: event.currentTarget.scrollTop > 0
+                  })
                 }
                 {...stylex.props(styles.main)}
               >
