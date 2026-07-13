@@ -889,6 +889,7 @@ export function ServerBackedBookingFlow({
           chooseLocation: message('selection.choose_location'),
           chooseProvider: message('selection.choose_provider'),
           chooseService: message('selection.choose_service'),
+          chooseServiceFirst: message('selection.choose_service_first'),
           shop: message('label.shop'),
           nearby: message('selection.nearby'),
           search: message('selection.search'),

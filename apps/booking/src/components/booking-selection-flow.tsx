@@ -427,7 +427,7 @@ function ProviderGrid({
             {...stylex.props(styles.icon24)}
           />
         </div>
-        <p {...stylex.props(styles.providerName)}>{messages.chooseService}</p>
+        <p {...stylex.props(styles.providerName)}>{messages.chooseServiceFirst}</p>
         <p
           {...stylex.props(
             styles.providerAvailability,
@@ -652,6 +652,7 @@ export type BookingSelectionMessages = {
   readonly chooseLocation: string
   readonly chooseProvider: string
   readonly chooseService: string
+  readonly chooseServiceFirst: string
   readonly shop: string
   readonly nearby: string
   readonly search: string
@@ -672,7 +673,8 @@ export type BookingSelectionMessages = {
 const defaultMessages: BookingSelectionMessages = {
   chooseLocation: 'Choose a location',
   chooseProvider: 'Choose a professional',
-  chooseService: 'What can we do for you?',
+  chooseService: 'Choose a service',
+  chooseServiceFirst: 'Choose a service first',
   shop: 'Shop',
   nearby: 'Nearby',
   search: 'Search',

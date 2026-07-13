@@ -159,14 +159,14 @@ describe('Booking selection flow', () => {
     )
 
     expect(title.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
-    expect(title.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
+    expect(title.queryByText('Choose a service', { selector: 'p' })).toBeNull()
 
     await new Promise((resolve) => setTimeout(resolve, 400))
     expect(title.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
-    expect(title.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
+    expect(title.queryByText('Choose a service', { selector: 'p' })).toBeNull()
 
     await new Promise((resolve) => setTimeout(resolve, 350))
-    expect(title.getByText('What can we do for you?', { selector: 'p' })).toBeTruthy()
+    expect(title.getByText('Choose a service', { selector: 'p' })).toBeTruthy()
     expect(title.queryByText('Choose a professional', { selector: 'p' })).toBeNull()
   })
 
@@ -208,6 +208,7 @@ describe('Booking selection flow', () => {
     const availability = screen.getByTestId('text:barberAvailability:prv_ava')
     expect(availability.tagName).toBe('P')
     expect(availability.textContent).toBe('Available')
+    expect(screen.getByText('Choose a service first', { selector: 'p' })).toBeTruthy()
   })
 
   it('shows the legacy selected provider card state before route advancement', () => {
