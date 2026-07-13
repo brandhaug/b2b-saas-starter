@@ -95,7 +95,7 @@ function BookingSelectionFlowContent({
     titleScrollState.presenceKey === routePresenceKey && titleScrollState.scrolled
 
   return (
-    <BookingWidgetShell busy={busy} busyLabel={messages.processing}>
+    <BookingWidgetShell>
       <div
         data-testid="container:title"
         {...stylex.props(styles.header, titleScrolled && styles.headerScrolled)}
@@ -556,7 +556,6 @@ function ServiceGrid({
 }
 
 export type BookingSelectionMessages = {
-  readonly processing: string
   readonly chooseLocation: string
   readonly chooseProvider: string
   readonly chooseService: string
@@ -577,7 +576,6 @@ export type BookingSelectionMessages = {
 }
 
 const defaultMessages: BookingSelectionMessages = {
-  processing: 'Processing…',
   chooseLocation: 'Choose a location',
   chooseProvider: 'Choose a professional',
   chooseService: 'What can we do for you?',

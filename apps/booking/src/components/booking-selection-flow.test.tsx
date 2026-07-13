@@ -151,6 +151,34 @@ describe('Booking selection flow', () => {
     })
   })
 
+  it('does not cover provider or service navigation with a processing overlay', async () => {
+    const { rerender } = render(
+      <BookingSelectionFlow
+        journey={teamJourney}
+        busy
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('button', { name: /any professional/i })).toBeTruthy()
+
+    rerender(
+      <BookingSelectionFlow
+        journey={{ ...teamJourney, providerPreference: { kind: 'any' } }}
+        busy
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('status')).toBeNull()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /signature cut/i })).toBeTruthy()
+    )
+  })
+
   it('uses the legacy location view before entering a multi-Shop booking', async () => {
     const chooseShop = vi.fn()
     const journey: BookingJourney = {

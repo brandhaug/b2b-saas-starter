@@ -886,7 +886,6 @@ export function ServerBackedBookingFlow({
       <BookingSelectionFlow
         journey={journey.data}
         messages={{
-          processing: message('feedback.loading'),
           chooseLocation: message('selection.choose_location'),
           chooseProvider: message('selection.choose_provider'),
           chooseService: message('selection.choose_service'),
