@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from 'react'
 import {
+  BOOKING_LANGUAGE_NAMES,
   BOOKING_LOCALES,
   formatBookingCurrency,
   formatBookingDate,
@@ -113,13 +114,6 @@ export function useBookingLocalization() {
   return value
 }
 
-const languageNames: Record<BookingLocale, string> = {
-  en: 'English',
-  es: 'Español',
-  fr: 'Français',
-  ro: 'Română'
-}
-
 const styles = stylex.create({
   label: {
     display: 'grid',
@@ -217,7 +211,7 @@ export function BookingLanguagePicker({
             >
               {BOOKING_LOCALES.map((value) => (
                 <option key={value} value={value}>
-                  {languageNames[value]}
+                  {BOOKING_LANGUAGE_NAMES[value]}
                 </option>
               ))}
             </select>
@@ -241,7 +235,7 @@ export function BookingLanguagePicker({
       >
         {BOOKING_LOCALES.map((value) => (
           <option key={value} value={value}>
-            {languageNames[value]}
+            {BOOKING_LANGUAGE_NAMES[value]}
           </option>
         ))}
       </select>

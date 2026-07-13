@@ -84,6 +84,40 @@ function LegacyWidgetMenu({
   )
 }
 
+function LegacyLanguageGlobe(props: LucideProps) {
+  return (
+    <svg viewBox="0 0 12 12" fill="none" aria-hidden="true" {...props}>
+      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M1 6h10M6 1c1.25 1.37 1.96 3.15 2 5-.04 1.85-.75 3.63-2 5-1.25-1.37-1.96-3.15-2-5 .04-1.85.75-3.63 2-5Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function LegacySignInCta(props: LucideProps) {
+  return (
+    <svg viewBox="0 0 73 72" fill="none" aria-hidden="true" {...props}>
+      <rect
+        x="1"
+        y="0.5"
+        width="71"
+        height="71"
+        rx="35.5"
+        stroke="currentColor"
+        opacity="0.3"
+      />
+      <path
+        d="M35.6 25.7a10.3 10.3 0 1 1-8.6 15.9l-1.4.9A12 12 0 1 0 25.6 29.5l1.4.9a10.3 10.3 0 0 1 8.6-4.7Zm2 9.5H25.5v1.7h12.1L34.5 40l1.2 1.2 4.5-4.6a.85.85 0 0 0 0-1.2l-4.5-4.6-1.2 1.2 3.1 3.2Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
 export function BookingVisualAsset({
   assetRole,
   enabledProviders = [],
@@ -109,6 +143,12 @@ export function BookingVisualAsset({
     }
     if (asset.name === 'legacy-widget-menu') {
       return <LegacyWidgetMenu {...iconProps} />
+    }
+    if (asset.name === 'legacy-language-globe') {
+      return <LegacyLanguageGlobe {...iconProps} />
+    }
+    if (asset.name === 'legacy-sign-in-cta') {
+      return <LegacySignInCta {...iconProps} />
     }
     const Icon = iconByName[asset.name]
     if (!Icon) return null

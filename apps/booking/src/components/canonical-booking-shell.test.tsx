@@ -46,6 +46,40 @@ afterEach(() => {
 })
 
 describe('Canonical Booking Shell', () => {
+  it('opens the legacy booking menu popup from the title action', async () => {
+    render(
+      <CanonicalBookingShell
+        merchantSlug="mara"
+        sessionId="bsn_menu"
+        locale="en"
+        embedding="standalone"
+      />
+    )
+
+    const menu = screen.getByRole('button', { name: 'Booking menu' })
+    expect(menu.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(menu)
+
+    const popup = screen.getByRole('dialog', { name: 'Booking menu' })
+    expect(popup.getAttribute('data-testid')).toBe('popup:booking-menu')
+    expect(menu.getAttribute('aria-expanded')).toBe('true')
+    expect(
+      within(popup).getByRole('button', { name: 'Language: English' })
+    ).toBeTruthy()
+    expect(
+      (
+        within(popup).getByRole('button', {
+          name: 'Sign in with email'
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true)
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close menu' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Booking menu' })).toBeNull()
+    )
+    expect(menu.getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('hydrates the Session locale and persists changes with history replacement', async () => {
     const localeStorage = new Map<string, string>()
     Object.defineProperty(window, 'localStorage', {
@@ -89,22 +123,14 @@ describe('Canonical Booking Shell', () => {
     ).toContain('#111111')
     const titleActions = screen.getByTestId('mock-title-actions')
     const menu = within(titleActions).getByRole('button', {
-      name: 'Booking menu'
+      name: 'Menu de réservation'
     })
     expect(menu.parentElement).toBe(titleActions)
     expect(menu.getAttribute('data-testid')).toBe('btn:menu')
     expect(menu.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 10 10')
-    fireEvent.click(screen.getByRole('button', { name: 'Booking menu' }))
-    expect(
-      (
-        screen.getByRole('combobox', {
-          name: 'Langue'
-        }) as unknown as HTMLSelectElement
-      ).value
-    ).toBe('fr')
-    fireEvent.change(screen.getByRole('combobox', { name: 'Langue' }), {
-      target: { value: 'ro' }
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Menu de réservation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Langue: Français' }))
+    fireEvent.click(screen.getByTestId('lang:ro'))
 
     expect(new URLSearchParams(window.location.search).get('locale')).toBe('fr')
     expect(screen.getByRole('status').textContent).toBe('Pregătim rezervarea…')

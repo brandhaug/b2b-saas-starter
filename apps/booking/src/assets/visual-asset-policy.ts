@@ -3,6 +3,7 @@ import { Schema } from 'effect'
 export const visualAssetRoles = [
   'navigation-back',
   'navigation-menu',
+  'language-selector',
   'location-nearby',
   'location-search',
   'booking-shop',
@@ -11,6 +12,7 @@ export const visualAssetRoles = [
   'calendar-scheduling',
   'service-category',
   'booking-party',
+  'sign-in-cta',
   'typography-body',
   'typography-mono',
   'password-mask',
@@ -268,6 +270,11 @@ const fallbackByRole: Record<
     role: 'navigation-menu',
     name: 'legacy-widget-menu'
   },
+  'language-selector': {
+    kind: 'code-native',
+    role: 'language-selector',
+    name: 'legacy-language-globe'
+  },
   'location-nearby': {
     kind: 'code-native',
     role: 'location-nearby',
@@ -292,6 +299,11 @@ const fallbackByRole: Record<
     name: 'scissors'
   },
   'booking-party': { kind: 'code-native', role: 'booking-party', name: 'users-round' },
+  'sign-in-cta': {
+    kind: 'code-native',
+    role: 'sign-in-cta',
+    name: 'legacy-sign-in-cta'
+  },
   'typography-body': {
     kind: 'text',
     role: 'typography-body',

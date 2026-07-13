@@ -18,6 +18,7 @@ import {
   type SelectHTMLAttributes,
   type ReactNode
 } from 'react'
+import { createPortal } from 'react-dom'
 import { bookingTheme } from './booking-theme.stylex.ts'
 
 type Gap = 'none' | 'xs' | 'sm' | 'md' | 'lg'
@@ -201,6 +202,52 @@ const styles = stylex.create({
     borderTopRightRadius: bookingTheme.radiusSheet,
     backgroundColor: bookingTheme.colorSurface,
     boxShadow: bookingTheme.shadowSheet
+  },
+  popupBackdrop: {
+    position: 'absolute',
+    zIndex: bookingTheme.layerChrome,
+    inset: 0,
+    backgroundColor: '#000000',
+    pointerEvents: 'auto'
+  },
+  popupWrapper: {
+    position: 'absolute',
+    zIndex: bookingTheme.layerPopupStack,
+    inset: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    paddingTop: 44,
+    pointerEvents: 'none'
+  },
+  popupSheet: {
+    position: 'relative',
+    width: '100%',
+    maxHeight: '100%',
+    margin: 0,
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+    padding: 0,
+    borderWidth: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    backgroundColor: bookingTheme.colorSurface,
+    boxShadow: bookingTheme.shadowSheet,
+    outline: 'none',
+    pointerEvents: 'auto',
+    scrollbarWidth: 'none'
+  },
+  popupStickyHeader: {
+    position: 'sticky',
+    zIndex: 1,
+    top: 0,
+    backgroundColor: 'transparent',
+    transitionProperty: 'background-color, box-shadow',
+    transitionDuration: '150ms'
+  },
+  popupStickyHeaderScrolled: {
+    backgroundColor: bookingTheme.colorSurface,
+    boxShadow: '0 2px 8px rgb(0 0 0 / 8%)'
   },
   overlayHeading: {
     margin: 0,
@@ -603,23 +650,12 @@ export function BookingAnnouncement({ children }: { readonly children: ReactNode
 const focusableSelector =
   'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-export function BookingOverlay({
-  open,
-  title,
-  closeLabel = 'Close dialog',
-  onClose,
-  children
-}: {
-  readonly open: boolean
-  readonly title: string
-  readonly closeLabel?: string
-  readonly onClose: () => void
-  readonly children: ReactNode
-}) {
-  const titleId = useId()
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const reduced = useBookingReducedMotion()
-  const closeOverlay = useEffectEvent(onClose)
+function useBookingModalLifecycle(
+  open: boolean,
+  dialogRef: React.RefObject<HTMLDialogElement | null>,
+  onClose: () => void
+) {
+  const closeModal = useEffectEvent(onClose)
   useEffect(() => {
     if (!open) return
     const previouslyFocused = document.activeElement as HTMLElement | null
@@ -628,11 +664,11 @@ export function BookingOverlay({
     const dialog = dialogRef.current
     const focusable = () =>
       dialog ? [...dialog.querySelectorAll<HTMLElement>(focusableSelector)] : []
-    focusable()[0]?.focus()
+    ;(focusable()[0] ?? dialog)?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        closeOverlay()
+        closeModal()
         return
       }
       if (event.key !== 'Tab') return
@@ -654,7 +690,26 @@ export function BookingOverlay({
       document.body.style.overflow = previousOverflow
       previouslyFocused?.focus()
     }
-  }, [open, titleId])
+  }, [open])
+}
+
+export function BookingOverlay({
+  open,
+  title,
+  closeLabel = 'Close dialog',
+  onClose,
+  children
+}: {
+  readonly open: boolean
+  readonly title: string
+  readonly closeLabel?: string
+  readonly onClose: () => void
+  readonly children: ReactNode
+}) {
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const reduced = useBookingReducedMotion()
+  useBookingModalLifecycle(open, dialogRef, onClose)
   return (
     <LazyMotion features={domAnimation} strict>
       <AnimatePresence>
@@ -697,6 +752,85 @@ export function BookingOverlay({
         ) : null}
       </AnimatePresence>
     </LazyMotion>
+  )
+}
+
+export function BookingPopupSheet({
+  target,
+  open,
+  label,
+  onClose,
+  testId,
+  header,
+  children
+}: {
+  readonly target: HTMLElement | null
+  readonly open: boolean
+  readonly label: string
+  readonly onClose: () => void
+  readonly testId?: string
+  readonly header: ReactNode
+  readonly children: ReactNode
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const [scrolled, setScrolled] = useState(false)
+  const reduced = useBookingReducedMotion()
+  const closePopup = () => {
+    setScrolled(false)
+    onClose()
+  }
+  useBookingModalLifecycle(open, dialogRef, closePopup)
+
+  if (!target) return null
+  return createPortal(
+    <LazyMotion features={domAnimation} strict>
+      <AnimatePresence>
+        {open
+          ? [
+              <m.div
+                key="booking-popup-backdrop"
+                aria-hidden="true"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.25 }}
+                exit={{ opacity: 0 }}
+                transition={reduced ? { duration: 0 } : interactionTransition}
+                onClick={closePopup}
+                {...stylex.props(styles.popupBackdrop)}
+              />,
+              <m.div
+                key="booking-popup-sheet"
+                initial={{ y: reduced ? 0 : '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: reduced ? 0 : '100%' }}
+                transition={reduced ? { duration: 0 } : interactionTransition}
+                {...stylex.props(styles.popupWrapper)}
+              >
+                <dialog
+                  ref={dialogRef}
+                  open
+                  aria-modal="true"
+                  aria-label={label}
+                  data-testid={testId}
+                  tabIndex={-1}
+                  onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
+                  {...stylex.props(styles.popupSheet)}
+                >
+                  <div
+                    {...stylex.props(
+                      styles.popupStickyHeader,
+                      scrolled && styles.popupStickyHeaderScrolled
+                    )}
+                  >
+                    {header}
+                  </div>
+                  {children}
+                </dialog>
+              </m.div>
+            ]
+          : null}
+      </AnimatePresence>
+    </LazyMotion>,
+    target
   )
 }
 

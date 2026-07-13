@@ -3,6 +3,13 @@ export const BOOKING_CATALOG_VERSION = 1 as const
 
 export type BookingLocale = (typeof BOOKING_LOCALES)[number]
 
+export const BOOKING_LANGUAGE_NAMES: Record<BookingLocale, string> = {
+  en: 'English',
+  es: 'Español',
+  fr: 'Français',
+  ro: 'Română'
+}
+
 export const walkInCatalog = {
   en: {
     title: 'Walk in today',
@@ -129,6 +136,7 @@ export const walkInCatalog = {
 const en = {
   'action.back': 'Back',
   'action.close': 'Close',
+  'action.close_menu': 'Close menu',
   'action.continue': 'Continue',
   'action.checkout': 'Go to checkout',
   'action.release_time': 'Choose another time',
@@ -149,6 +157,15 @@ const en = {
   'feedback.source_language': 'Shown in the merchant’s original language',
   'label.duration': 'Duration',
   'label.language': 'Language',
+  'label.booking_menu': 'Booking menu',
+  'menu.sign_in_title': 'Sign in',
+  'menu.sign_in_subtitle': 'Use your email or social sign in',
+  'menu.sign_in_needs_configuration': 'Customer sign-in needs configuration.',
+  'menu.sign_in_email': 'Sign in with email',
+  'menu.sign_in_apple': 'Continue with Apple',
+  'menu.sign_in_google': 'Continue with Google',
+  'menu.create_account': 'Create account',
+  'menu.manage_choices': 'Manage choices',
   'label.merchant': 'Merchant',
   'label.provider': 'Provider',
   'label.shop': 'Shop',
@@ -313,6 +330,7 @@ export type BookingTranslationKey = keyof typeof en
 const es = {
   'action.back': 'Atrás',
   'action.close': 'Cerrar',
+  'action.close_menu': 'Cerrar menú',
   'action.continue': 'Continuar',
   'action.checkout': 'Ir al pago',
   'action.release_time': 'Elegir otra hora',
@@ -333,6 +351,15 @@ const es = {
   'feedback.source_language': 'Se muestra en el idioma original del comercio',
   'label.duration': 'Duración',
   'label.language': 'Idioma',
+  'label.booking_menu': 'Menú de reservas',
+  'menu.sign_in_title': 'Iniciar sesión',
+  'menu.sign_in_subtitle': 'Usa tu correo o una cuenta social',
+  'menu.sign_in_needs_configuration': 'El inicio de sesión requiere configuración.',
+  'menu.sign_in_email': 'Iniciar sesión con correo',
+  'menu.sign_in_apple': 'Continuar con Apple',
+  'menu.sign_in_google': 'Continuar con Google',
+  'menu.create_account': 'Crear cuenta',
+  'menu.manage_choices': 'Gestionar opciones',
   'label.merchant': 'Comercio',
   'label.provider': 'Profesional',
   'label.shop': 'Local',
@@ -497,6 +524,7 @@ const es = {
 const fr = {
   'action.back': 'Retour',
   'action.close': 'Fermer',
+  'action.close_menu': 'Fermer le menu',
   'action.continue': 'Continuer',
   'action.checkout': 'Passer au paiement',
   'action.release_time': 'Choisir une autre heure',
@@ -517,6 +545,16 @@ const fr = {
   'feedback.source_language': 'Affiché dans la langue originale du commerce',
   'label.duration': 'Durée',
   'label.language': 'Langue',
+  'label.booking_menu': 'Menu de réservation',
+  'menu.sign_in_title': 'Se connecter',
+  'menu.sign_in_subtitle': 'Utilisez votre e-mail ou un compte social',
+  'menu.sign_in_needs_configuration':
+    'La connexion client nécessite une configuration.',
+  'menu.sign_in_email': 'Se connecter avec un e-mail',
+  'menu.sign_in_apple': 'Continuer avec Apple',
+  'menu.sign_in_google': 'Continuer avec Google',
+  'menu.create_account': 'Créer un compte',
+  'menu.manage_choices': 'Gérer les choix',
   'label.merchant': 'Commerce',
   'label.provider': 'Professionnel',
   'label.shop': 'Établissement',
@@ -682,6 +720,7 @@ const fr = {
 const ro = {
   'action.back': 'Înapoi',
   'action.close': 'Închide',
+  'action.close_menu': 'Închide meniul',
   'action.continue': 'Continuă',
   'action.checkout': 'Continuă la plată',
   'action.release_time': 'Alege alt interval',
@@ -702,6 +741,15 @@ const ro = {
   'feedback.source_language': 'Afișat în limba originală a comerciantului',
   'label.duration': 'Durată',
   'label.language': 'Limbă',
+  'label.booking_menu': 'Meniu de rezervare',
+  'menu.sign_in_title': 'Autentificare',
+  'menu.sign_in_subtitle': 'Folosește adresa de e-mail sau un cont social',
+  'menu.sign_in_needs_configuration': 'Autentificarea clienților necesită configurare.',
+  'menu.sign_in_email': 'Autentificare cu e-mail',
+  'menu.sign_in_apple': 'Continuă cu Apple',
+  'menu.sign_in_google': 'Continuă cu Google',
+  'menu.create_account': 'Creează cont',
+  'menu.manage_choices': 'Gestionează opțiunile',
   'label.merchant': 'Comerciant',
   'label.provider': 'Profesionist',
   'label.shop': 'Locație',

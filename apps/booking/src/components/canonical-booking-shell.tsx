@@ -3,7 +3,6 @@ import { useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ServerBackedBookingFlow } from './server-backed-booking-flow.tsx'
 import {
-  BookingLanguagePicker,
   BookingLocalizationProvider,
   useBookingLocalization
 } from '../localization/booking-localization-provider.tsx'
@@ -11,6 +10,7 @@ import type { BookingLocale } from '../localization/booking-localization.ts'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
 import { BookingShellProvider } from './booking-widget-shell.tsx'
 import { styles } from './booking-flow.styles.ts'
+import { BookingWidgetMenu } from './booking-widget-menu.tsx'
 
 export function CanonicalBookingShell({
   merchantSlug,
@@ -62,7 +62,7 @@ export function CanonicalBookingShell({
         sessionLocale={locale}
         onLocaleChange={persistLocale}
       >
-        <LocalizedLanguagePicker target={titleActionTarget} />
+        <BookingWidgetMenuPortal target={titleActionTarget} />
         <LocalizedServerBackedBookingFlow
           merchantSlug={merchantSlug}
           sessionId={sessionId}
@@ -76,19 +76,12 @@ export function CanonicalBookingShell({
   )
 }
 
-function LocalizedLanguagePicker({
+function BookingWidgetMenuPortal({
   target
 }: {
   readonly target: HTMLDivElement | null
 }) {
-  const { message } = useBookingLocalization()
-  const picker = (
-    <BookingLanguagePicker
-      label={message('label.language')}
-      placement={target ? 'title' : 'toolbar'}
-    />
-  )
-  return target ? createPortal(picker, target) : picker
+  return target ? createPortal(<BookingWidgetMenu />, target) : null
 }
 
 function LocalePersistenceStatus({ target }: { readonly target: HTMLElement | null }) {
