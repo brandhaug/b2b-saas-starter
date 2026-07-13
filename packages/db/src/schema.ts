@@ -1447,7 +1447,7 @@ export const cancellationCommands = sqliteTable(
       .references(() => merchants.id, { onDelete: 'cascade' }),
     scope: text('scope', { enum: ['appointment', 'party'] }).notNull(),
     targetId: text('target_id').notNull(),
-    idempotencyKey: text('idempotency_key').unique().notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
     resultJson: text('result_json', { mode: 'json' }).$type<{
       readonly appointmentIds: readonly string[]
       readonly refundObligationIds: readonly string[]

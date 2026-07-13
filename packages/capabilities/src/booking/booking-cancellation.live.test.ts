@@ -37,9 +37,11 @@ beforeAll(async () => {
   test = await provisionTestD1()
   for (const statement of [
     `INSERT INTO merchants (id, public_name, slug, timezone, currency, plan, created_at, updated_at) VALUES ('mrc_cancel', 'Cancel Shop', 'cancel-shop', 'UTC', 'USD', 'solo', '${now}', '${now}')`,
+    `INSERT INTO merchants (id, public_name, slug, timezone, currency, plan, created_at, updated_at) VALUES ('mrc_other', 'Other Shop', 'other-shop', 'UTC', 'USD', 'solo', '${now}', '${now}')`,
     `INSERT INTO brands (id, merchant_id, name, created_at, updated_at) VALUES ('brd_cancel', 'mrc_cancel', 'Cancel Shop', '${now}', '${now}')`,
     `INSERT INTO shops (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at) VALUES ('shp_cancel', 'brd_cancel', 'mrc_cancel', 'cancel', 'Cancel Shop', 'UTC', 'USD', '${now}', '${now}')`,
     `INSERT INTO providers (id, merchant_id, display_name, status, created_at, updated_at) VALUES ('prv_cancel', 'mrc_cancel', 'Mara', 'active', '${now}', '${now}')`,
+    `INSERT INTO providers (id, merchant_id, display_name, status, created_at, updated_at) VALUES ('prv_other', 'mrc_other', 'Other', 'active', '${now}', '${now}')`,
     `INSERT INTO booking_sessions (id, merchant_id, capability_hash, checkout_path, lifecycle, created_at, last_activity_at, idle_expires_at, absolute_expires_at) VALUES ('bsn_cancel', 'mrc_cancel', 'hash', 'pay_in_person', 'consumed', '${now}', '${now}', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z')`,
     `INSERT INTO booking_parties (id, booking_session_id, shop_id, lifecycle, currency, locale, version, created_at, updated_at) VALUES ('bpt_cancel', 'bsn_cancel', 'shp_cancel', 'confirmed', 'USD', 'en', 1, '${now}', '${now}')`,
     `INSERT INTO gift_card_products (id, merchant_id, name, currency, scope, scope_id, preset_amounts_json, allows_custom_amount, active, created_at, updated_at) VALUES ('gcp_cancel', 'mrc_cancel', 'Cancel card', 'USD', 'shop', 'shp_cancel', '[10000]', 0, 1, '${now}', '${now}')`,
@@ -50,6 +52,7 @@ beforeAll(async () => {
     `INSERT INTO payment_transactions (id, payment_id, kind, amount_minor, currency, provider_reference, occurred_at, created_at) VALUES ('ptx_cancel_capture', 'pay_cancel', 'capture', 6000, 'USD', 'pi_cancel:capture', '${now}', '${now}')`,
     `INSERT INTO appointments (id, merchant_id, provider_id, booking_party_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_one', 'mrc_cancel', 'prv_cancel', 'bpt_cancel', 'scheduled', '2026-07-14T10:00:00.000Z', '2026-07-14T11:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
     `INSERT INTO appointments (id, merchant_id, provider_id, booking_party_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_two', 'mrc_cancel', 'prv_cancel', 'bpt_cancel', 'scheduled', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
+    `INSERT INTO appointments (id, merchant_id, provider_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_other', 'mrc_other', 'prv_other', 'scheduled', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
     `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_gift', 'bpt_cancel', 'gift_card', 'gcd_cancel', 4000, 'USD', '${now}')`,
     `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_pay', 'bpt_cancel', 'external_payment', 'pay_cancel', 6000, 'USD', '${now}')`
   ])
@@ -172,6 +175,22 @@ describe('Live Booking cancellation', () => {
     expect(outcome).toMatchObject({
       _tag: 'Failure',
       failure: { code: 'appointment_not_found' }
+    })
+
+    const independent = await run(
+      Effect.flatMap(BookingCancellations, (service) =>
+        service.cancel({
+          merchantId: 'mrc_other',
+          scope: { kind: 'appointment', appointmentId: 'apt_cancel_other' },
+          idempotencyKey: 'cancel-live-one',
+          reason: 'customer_requested',
+          now
+        })
+      )
+    )
+    expect(independent).toMatchObject({
+      replayed: false,
+      appointments: [{ id: 'apt_cancel_other', status: 'cancelled' }]
     })
   })
 })
