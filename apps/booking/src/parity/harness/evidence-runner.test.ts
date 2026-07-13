@@ -5,7 +5,7 @@ import { smokeScenarios } from './smoke-scenarios.ts'
 describe('parity evidence runner seam', () => {
   it('captures complete evidence and proves clean-run hash stability', async () => {
     const scenario = smokeScenarios.find(
-      (candidate) => candidate.id === 'booking/pay-in-person-smoke'
+      (candidate) => candidate.motion.policy === 'sample-timeline'
     )!
     const driver: ScenarioDriver = {
       run: async ({ scenario }) => {
@@ -15,6 +15,12 @@ describe('parity evidence runner seam', () => {
             passed: true
           })),
           screenshot: new TextEncoder().encode(`stable:${scenario.id}`),
+          visualCheckpoints: Object.fromEntries(
+            scenario.motion.checkpoints.map((checkpoint) => [
+              `timeline-${checkpoint}ms.png`,
+              new TextEncoder().encode(`timeline:${checkpoint}`)
+            ])
+          ),
           dom: '<main><h1>Book an appointment</h1></main>',
           accessibility: { role: 'main', name: 'Book an appointment' },
           console: [],
@@ -36,7 +42,7 @@ describe('parity evidence runner seam', () => {
     expect(result.stable).toBe(true)
     expect(result.first).toMatchObject({
       schemaVersion: 1,
-      scenarioId: 'booking/pay-in-person-smoke',
+      scenarioId: scenario.id,
       semanticAssertions: scenario.assertions.map((assertion) => ({
         assertion,
         passed: true
@@ -45,7 +51,39 @@ describe('parity evidence runner seam', () => {
       mutationHistory: [{ sequence: 1, type: 'journey.loaded' }]
     })
     expect(result.first.screenshotHash).toBe(result.second.screenshotHash)
+    expect(result.first.visualCheckpointHashes).toEqual(
+      result.second.visualCheckpointHashes
+    )
+    expect(new Set(Object.values(result.first.visualCheckpointHashes)).size).toBe(
+      scenario.motion.checkpoints.length
+    )
     expect(result.first.canonicalStateHash).toBe(result.second.canonicalStateHash)
+  })
+
+  it('rejects a timeline run that omits declared checkpoints', async () => {
+    const scenario = smokeScenarios.find(
+      (candidate) => candidate.motion.policy === 'sample-timeline'
+    )!
+    const driver: ScenarioDriver = {
+      run: async () => ({
+        semanticAssertions: scenario.assertions.map((assertion) => ({
+          assertion,
+          passed: true
+        })),
+        screenshot: new Uint8Array(),
+        dom: '<main />',
+        accessibility: '',
+        console: [],
+        requests: [],
+        trace: new Uint8Array(),
+        canonicalState: {},
+        mutationHistory: []
+      })
+    }
+
+    await expect(runScenarioTwice({ scenario, driver })).rejects.toThrow(
+      /motion checkpoint evidence mismatch/i
+    )
   })
 
   it('fails when the driver makes an undeclared request', async () => {

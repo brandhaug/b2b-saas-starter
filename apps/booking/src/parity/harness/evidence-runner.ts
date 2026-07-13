@@ -8,6 +8,7 @@ export type DriverEvidence = {
     readonly passed: boolean
   }[]
   readonly screenshot: Uint8Array
+  readonly visualCheckpoints?: Readonly<Record<string, Uint8Array>>
   readonly dom: string
   readonly accessibility: unknown
   readonly console: readonly { readonly type: string; readonly text: string }[]
@@ -37,6 +38,7 @@ export type EvidenceBundle = {
   readonly scenarioId: string
   readonly fixtureIdentity: string
   readonly screenshotHash: string
+  readonly visualCheckpointHashes: Readonly<Record<string, string>>
   readonly canonicalStateHash: string
   readonly traceHash: string
   readonly semanticAssertions: DriverEvidence['semanticAssertions']
@@ -63,12 +65,34 @@ const runOnce = async (input: {
     timezone: scenario.clock.timezone,
     request: (url) => policy.assertAllowed(url)
   })
+  const visualCheckpointHashes = Object.fromEntries(
+    await Promise.all(
+      Object.entries(driverEvidence.visualCheckpoints ?? {}).map(
+        async ([checkpoint, screenshot]) => [checkpoint, await sha256Bytes(screenshot)]
+      )
+    )
+  )
+  if (scenario.motion.policy === 'sample-timeline') {
+    const expected = scenario.motion.checkpoints
+      .map((checkpoint) => `timeline-${checkpoint}ms.png`)
+      .sort()
+    const actual = Object.keys(visualCheckpointHashes).sort()
+    if (
+      expected.length !== actual.length ||
+      expected.some((checkpoint, index) => checkpoint !== actual[index])
+    ) {
+      throw new Error(
+        `Motion checkpoint evidence mismatch for ${scenario.id}: ${JSON.stringify({ expected, actual })}`
+      )
+    }
+  }
   for (const request of driverEvidence.requests) policy.assertAllowed(request.url)
   return {
     schemaVersion: 1,
     scenarioId: scenario.id,
     fixtureIdentity: scenario.fixtureIdentity,
     screenshotHash: await sha256Bytes(driverEvidence.screenshot),
+    visualCheckpointHashes,
     canonicalStateHash: await sha256Identity(driverEvidence.canonicalState),
     traceHash: await sha256Bytes(driverEvidence.trace),
     semanticAssertions: driverEvidence.semanticAssertions,
@@ -90,6 +114,8 @@ export const runScenarioTwice = async (input: {
   const second = await runOnce({ ...input, namespace: `${input.scenario.id}:run-2` })
   const stable =
     first.screenshotHash === second.screenshotHash &&
+    canonicalJson(first.visualCheckpointHashes) ===
+      canonicalJson(second.visualCheckpointHashes) &&
     first.canonicalStateHash === second.canonicalStateHash
   if (
     !first.semanticAssertions.every(({ passed }) => passed) ||

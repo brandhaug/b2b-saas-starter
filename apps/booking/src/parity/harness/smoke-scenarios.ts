@@ -1,5 +1,9 @@
 import { defineScenario } from './scenario-manifest.ts'
-import { visualParityMotion, visualParityProfiles } from '../visual-parity-contract.ts'
+import {
+  scenarioPresentationFor,
+  visualParityMotion,
+  visualParityProfiles
+} from '../visual-parity-contract.ts'
 
 const base = {
   schemaVersion: 1 as const,
@@ -30,6 +34,19 @@ const base = {
   console: {
     // The local booking ingress does not proxy Vite's development-only HMR socket.
     allow: ["WebSocket connection to 'ws://localhost"] as readonly string[]
+  }
+}
+
+const shellScenario = (profile: Parameters<typeof scenarioPresentationFor>[0]) => {
+  const presentation = scenarioPresentationFor(profile)
+  return {
+    viewport: presentation.viewport,
+    input: presentation.input,
+    embedding: presentation.embedding,
+    fixture: {
+      ...base.fixture,
+      data: { ...base.fixture.data, ...presentation.fixtureData }
+    }
   }
 }
 
@@ -278,11 +295,14 @@ export const smokeScenarios = await Promise.all([
   ),
   defineScenario({
     ...base,
+    ...shellScenario('desktop-1440x900'),
     id: 'booking/canonical-shell-standalone-fr',
     journey: 'shell-boundary',
     locale: 'fr',
-    viewport: visualParityProfiles['desktop-1440x900'].host,
-    input: 'mouse-keyboard',
+    motion: {
+      policy: visualParityMotion.choreographyPolicy,
+      checkpoints: [0, visualParityMotion.interactionMs, visualParityMotion.pageMs]
+    },
     route:
       '/mara-booking-studio/booking?locale=fr&utm_source=parity&utm_campaign=shell',
     assertions: [
@@ -295,6 +315,7 @@ export const smokeScenarios = await Promise.all([
   ...(['en', 'es', 'fr', 'ro'] as const).map((locale) =>
     defineScenario({
       ...base,
+      ...shellScenario('mobile-narrow-375x812'),
       id: `booking/canonical-shell-mobile-narrow-${locale}`,
       journey: 'shell-boundary',
       locale,
@@ -309,9 +330,9 @@ export const smokeScenarios = await Promise.all([
   ),
   defineScenario({
     ...base,
+    ...shellScenario('mobile-wide-376x812'),
     id: 'booking/canonical-shell-mobile-wide-en',
     journey: 'shell-boundary',
-    viewport: visualParityProfiles['mobile-wide-376x812'].host,
     route: '/mara-booking-studio/booking?locale=en',
     assertions: [
       'booking shell is visible',
@@ -322,10 +343,9 @@ export const smokeScenarios = await Promise.all([
   }),
   defineScenario({
     ...base,
+    ...shellScenario('laptop-1024x768'),
     id: 'booking/canonical-shell-laptop-en',
     journey: 'shell-boundary',
-    viewport: visualParityProfiles['laptop-1024x768'].host,
-    input: 'mouse-keyboard',
     route: '/mara-booking-studio/booking?locale=en',
     assertions: [
       'booking shell is visible',
@@ -336,15 +356,10 @@ export const smokeScenarios = await Promise.all([
   }),
   defineScenario({
     ...base,
+    ...shellScenario('zoom-200'),
     id: 'booking/canonical-shell-zoom-200-en',
     journey: 'shell-boundary',
-    viewport: visualParityProfiles['zoom-200'].host,
-    input: 'mouse-keyboard',
     route: '/mara-booking-studio/booking?locale=en',
-    fixture: {
-      ...base.fixture,
-      data: { ...base.fixture.data, zoom: 2 }
-    },
     assertions: [
       'booking shell is visible',
       'session locale is persisted',
@@ -354,11 +369,10 @@ export const smokeScenarios = await Promise.all([
   }),
   defineScenario({
     ...base,
+    ...shellScenario('tablet-widget-768x900-iframe-375x700'),
     id: 'booking/canonical-shell-widget-ro',
     journey: 'shell-boundary',
     locale: 'ro',
-    embedding: 'widget',
-    viewport: visualParityProfiles['tablet-widget-768x900-iframe-375x700'].host,
     route: '/mara-booking-studio/booking?locale=ro&embed=widget&rwg_token=parity',
     assertions: [
       'booking shell is visible',

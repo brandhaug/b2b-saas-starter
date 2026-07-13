@@ -8,6 +8,7 @@ import type {
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
+import { RoutePresence } from '../presentation/booking-primitives.tsx'
 import { styles } from './booking-flow.styles.ts'
 
 export function BookingSelectionFlow({
@@ -103,22 +104,24 @@ export function BookingSelectionFlow({
             {journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
               <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
             ) : null}
-            {showProviders ? (
-              <ProviderGrid
-                journey={journey}
-                busy={busy}
-                messages={messages}
-                onChoose={chooseProvider}
-              />
-            ) : (
-              <ServiceGrid
-                journey={journey}
-                busy={busy}
-                selectedPrimary={selectedPrimary}
-                onChoose={onChooseServices}
-                messages={messages}
-              />
-            )}
+            <RoutePresence presenceKey={showProviders ? 'providers' : 'services'}>
+              {showProviders ? (
+                <ProviderGrid
+                  journey={journey}
+                  busy={busy}
+                  messages={messages}
+                  onChoose={chooseProvider}
+                />
+              ) : (
+                <ServiceGrid
+                  journey={journey}
+                  busy={busy}
+                  selectedPrimary={selectedPrimary}
+                  onChoose={onChooseServices}
+                  messages={messages}
+                />
+              )}
+            </RoutePresence>
           </main>
         </div>
 

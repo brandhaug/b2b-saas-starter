@@ -1,4 +1,4 @@
-import { chromium, type BrowserContext, type Page } from '@playwright/test'
+import { chromium, type BrowserContext, type Frame, type Page } from '@playwright/test'
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import {
@@ -9,7 +9,10 @@ import {
 import type { ScenarioManifest } from '../src/parity/harness/scenario-manifest.ts'
 import { smokeScenarios } from '../src/parity/harness/smoke-scenarios.ts'
 import { createSeedHarnessController } from '../src/parity/harness/seed-runtime.ts'
-import { translateBookingMessage } from '../src/localization/booking-localization.ts'
+import {
+  translateBookingMessage,
+  type BookingLocale
+} from '../src/localization/booking-localization.ts'
 
 const origin = process.env.PARITY_BOOKING_ORIGIN ?? 'http://localhost:3071'
 const outputRoot = resolve(import.meta.dirname, '../parity-evidence')
@@ -31,10 +34,10 @@ const waitForBooking = async () => {
 }
 
 const exerciseHistoryBoundary = async (
-  page: Page,
+  page: Page | Frame,
   cleanUrl: string,
   embedding: string,
-  locale: string
+  locale: BookingLocale
 ) => {
   const current = new URL(cleanUrl)
   const merchantSlug = current.pathname.split('/').filter(Boolean)[0]!
@@ -42,16 +45,18 @@ const exerciseHistoryBoundary = async (
   await page.evaluate((url) => {
     window.history.pushState(window.history.state, '', url)
   }, historyUrl)
-  await page.goBack()
+  await page.evaluate(() => history.back())
   await page.waitForURL(cleanUrl)
-  await page.goForward()
+  await page.evaluate(() => history.forward())
   await page.waitForURL(historyUrl)
   const forwardShell = page.locator('[data-booking-shell="canonical"]')
   await forwardShell.waitFor()
   const forwardStateValid =
     (await forwardShell.getAttribute('data-embedding')) === embedding &&
-    (await page.getByRole('combobox').inputValue()) === locale
-  await page.goBack()
+    (await page
+      .getByLabel(translateBookingMessage(locale, 'label.language'))
+      .inputValue()) === locale
+  await page.evaluate(() => history.back())
   await page.waitForURL(cleanUrl)
 
   const shell = page.locator('[data-booking-shell="canonical"]')
@@ -59,7 +64,9 @@ const exerciseHistoryBoundary = async (
     forwardStateValid &&
     page.url() === cleanUrl &&
     (await shell.getAttribute('data-embedding')) === embedding &&
-    (await page.getByRole('combobox').inputValue()) === locale
+    (await page
+      .getByLabel(translateBookingMessage(locale, 'label.language'))
+      .inputValue()) === locale
   )
 }
 
@@ -95,7 +102,52 @@ const capture = async (
   await page.emulateMedia({
     reducedMotion: scenario.motion.policy === 'reduced' ? 'reduce' : 'no-preference'
   })
-  await page.goto(`${origin}${scenario.route}`)
+  let bookingSurface: Page | Frame = page
+  if (scenario.embedding === 'widget') {
+    const contentViewport = scenario.fixture.data.contentViewport as
+      | { readonly width: number; readonly height: number }
+      | undefined
+    if (!contentViewport)
+      throw new Error(`Embedded scenario ${scenario.id} has no content viewport`)
+    const hostUrl = `${origin}/__parity/embed-host`
+    const hostHtml = `<!doctype html>
+      <html><head><style>
+        html, body { margin: 0; min-height: 100%; background: #eceff3; }
+        body { display: grid; place-items: start center; padding-top: 40px; }
+        iframe { width: ${contentViewport.width}px; height: ${contentViewport.height}px; border: 0; background: white; }
+      </style></head><body>
+        <iframe title="Embedded booking" src="${origin}${scenario.route}"></iframe>
+      </body></html>`
+    await page.route(hostUrl, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html; charset=utf-8',
+        body: hostHtml
+      })
+    })
+    await page.goto(hostUrl)
+    const iframe = await page.getByTitle('Embedded booking').elementHandle()
+    const frame = await iframe?.contentFrame()
+    if (!frame)
+      throw new Error(`Embedded scenario ${scenario.id} did not create a frame`)
+    await frame.waitForLoadState('domcontentloaded')
+    bookingSurface = frame
+  } else {
+    await page.goto(`${origin}${scenario.route}`)
+  }
+  const visualCheckpoints: Record<string, Uint8Array> = {}
+  const captureMotionTimeline = async () => {
+    if (scenario.motion.policy !== 'sample-timeline') return
+    let elapsed = 0
+    for (const checkpoint of [...scenario.motion.checkpoints].sort((a, b) => a - b)) {
+      await page.clock.runFor(checkpoint - elapsed)
+      elapsed = checkpoint
+      const artifact = await page.screenshot({ animations: 'allow', fullPage: true })
+      const name = `timeline-${checkpoint}ms.png`
+      visualCheckpoints[name] = artifact
+      await writeFile(resolve(tracePath, '..', name), artifact)
+    }
+  }
   const assertionResults = new Map<string, boolean>()
   if (
     scenario.journey === 'pay-in-person' ||
@@ -596,14 +648,41 @@ const capture = async (
     }
   } else if (scenario.journey === 'shell-boundary') {
     await page.clock.runFor(100)
-    const shell = page.locator('[data-booking-shell="canonical"]')
+    if (scenario.embedding === 'widget') {
+      const currentFrame = page.frames().find((frame) => frame !== page.mainFrame())
+      if (!currentFrame)
+        throw new Error(
+          `Embedded scenario ${scenario.id} detached its frame at ${page.url()}`
+        )
+      bookingSurface = currentFrame
+    }
+    const embeddedSurface = page.frameLocator('iframe[title="Embedded booking"]')
+    const shell =
+      scenario.embedding === 'widget'
+        ? embeddedSurface.locator('[data-booking-shell="canonical"]')
+        : bookingSurface.locator('[data-booking-shell="canonical"]')
     await shell.waitFor()
     await shell.getByRole('button').first().waitFor()
+    if (scenario.embedding === 'widget') {
+      const currentFrame = page.frames().find((frame) => frame !== page.mainFrame())
+      if (!currentFrame)
+        throw new Error(`Embedded scenario ${scenario.id} lost its frame`)
+      bookingSurface = currentFrame
+    }
+    if (scenario.motion.policy === 'sample-timeline') {
+      await shell.getByRole('button', { name: /n’importe quel professionnel/i }).click()
+      await shell.getByRole('button', { name: 'Signature Cut' }).waitFor()
+      await page.clock.runFor(Math.max(...scenario.motion.checkpoints))
+      await shell.getByRole('button', { name: 'Back' }).click()
+      await captureMotionTimeline()
+    }
     assertionResults.set('booking shell is visible', await shell.isVisible())
     assertionResults.set(
       'session locale is persisted',
-      new URL(page.url()).searchParams.get('locale') === scenario.locale &&
-        (await page.getByRole('combobox').inputValue()) === scenario.locale
+      new URL(bookingSurface.url()).searchParams.get('locale') === scenario.locale &&
+        (await shell
+          .getByLabel(translateBookingMessage(scenario.locale, 'label.language'))
+          .inputValue()) === scenario.locale
     )
     assertionResults.set(
       'embedding profile is applied',
@@ -618,7 +697,9 @@ const capture = async (
           const expectedScrollOwner =
             profile.embedding === 'standalone' ? 'document' : 'content'
           const passed =
-            bounds.width <= 375 &&
+            bounds.width <= profile.contentViewport.width &&
+            window.innerWidth === profile.contentViewport.width &&
+            window.innerHeight === profile.contentViewport.height &&
             element.getAttribute('data-scroll-owner') === expectedScrollOwner &&
             document.documentElement.scrollWidth <= document.documentElement.clientWidth
           document.documentElement.style.fontSize = ''
@@ -626,18 +707,27 @@ const capture = async (
         },
         {
           embedding: scenario.embedding,
+          contentViewport: scenario.fixture.data.contentViewport as {
+            width: number
+            height: number
+          },
           zoom: scenario.fixture.data.zoom
         }
       )
     )
-    const cleanUrl = page.url()
+    const cleanUrl = bookingSurface.url()
     assertionResults.set(
       'acquisition is removed',
       !/[?&](?:utm_[^=]*|gclid|rwg_token)=/.test(new URL(cleanUrl).search)
     )
     assertionResults.set(
       'canonical back and forward history is deterministic',
-      await exerciseHistoryBoundary(page, cleanUrl, scenario.embedding, scenario.locale)
+      await exerciseHistoryBoundary(
+        bookingSurface,
+        cleanUrl,
+        scenario.embedding,
+        scenario.locale
+      )
     )
   } else if (scenario.journey === 'selection-loading') {
     await page.getByRole('heading', { name: 'Preparing your booking' }).waitFor()
@@ -650,7 +740,7 @@ const capture = async (
       await unavailable.waitFor()
     })
   }
-  const body = page.locator('body')
+  const body = bookingSurface.locator('body')
   const visibleText = (await body.innerText()).trim()
   const defaultAssertion =
     scenario.journey === 'deliberate-blank'
@@ -660,21 +750,23 @@ const capture = async (
     assertion,
     passed: assertionResults.get(assertion) ?? (index === 0 && defaultAssertion)
   }))
-  await page.evaluate(() => document.fonts.ready)
+  await bookingSurface.evaluate(() => document.fonts.ready)
   const finalCheckpoint = Math.max(0, ...scenario.motion.checkpoints)
-  if (finalCheckpoint > 0) await page.clock.runFor(finalCheckpoint)
+  if (scenario.motion.policy !== 'sample-timeline' && finalCheckpoint > 0)
+    await page.clock.runFor(finalCheckpoint)
   if (scenario.visual.mode !== 'exact')
     throw new Error(
       `Element mask rendering is not implemented for ${scenario.id}; exact capture is required`
     )
   const screenshot = await page.screenshot({ animations: 'disabled', fullPage: true })
   await writeFile(resolve(tracePath, '../screenshot.png'), screenshot)
-  const dom = await page.content()
+  const dom = await bookingSurface.content()
   const accessibility = await body.ariaSnapshot()
   await context.tracing.stop({ path: tracePath })
   return {
     semanticAssertions,
     screenshot,
+    visualCheckpoints,
     dom,
     accessibility,
     console: consoleEntries,
@@ -693,6 +785,9 @@ const capture = async (
       })),
     artifacts: {
       screenshot: 'screenshot.png',
+      ...Object.fromEntries(
+        Object.keys(visualCheckpoints).map((name) => [`timeline:${name}`, name])
+      ),
       har: 'requests.har',
       trace: 'trace.zip',
       video: 'video.webm'
@@ -873,6 +968,8 @@ try {
           JSON.stringify({
             firstScreenshot: result.first.screenshotHash,
             secondScreenshot: result.second.screenshotHash,
+            firstVisualCheckpoints: result.first.visualCheckpointHashes,
+            secondVisualCheckpoints: result.second.visualCheckpointHashes,
             firstState: result.first.canonicalStateHash,
             secondState: result.second.canonicalStateHash,
             firstCanonicalState: result.first.canonicalState,

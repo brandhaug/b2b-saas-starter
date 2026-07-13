@@ -22,7 +22,7 @@ describe('visual parity contract', () => {
     expect(visualParityMotion).toMatchObject({ interactionMs: 150, pageMs: 300 })
   })
 
-  it('requires every supported locale at every visual profile', () => {
+  it('applies every required locale and complete presentation profile', () => {
     expect(visualParityLocales).toEqual(['en', 'es', 'fr', 'ro'])
     expect(requiredVisualEvidenceCells).toHaveLength(9)
     for (const { locale, profile } of requiredVisualEvidenceCells) {
@@ -33,10 +33,32 @@ describe('visual parity contract', () => {
             scenario.journey === 'shell-boundary' &&
             scenario.locale === locale &&
             scenario.viewport.width === expected.host.width &&
-            scenario.viewport.height === expected.host.height
+            scenario.viewport.height === expected.host.height &&
+            scenario.input === expected.input &&
+            scenario.embedding === expected.embedding &&
+            scenario.fixture.data.visualProfile === profile &&
+            JSON.stringify(scenario.fixture.data.contentViewport) ===
+              JSON.stringify(expected.content) &&
+            scenario.fixture.data.zoom ===
+              ('zoom' in expected ? expected.zoom : undefined)
         )
       ).toBe(true)
     }
+  })
+
+  it('samples a real choreography timeline at the accepted checkpoints', () => {
+    expect(
+      smokeScenarios.some(
+        (scenario) =>
+          scenario.motion.policy === visualParityMotion.choreographyPolicy &&
+          JSON.stringify(scenario.motion.checkpoints) ===
+            JSON.stringify([
+              0,
+              visualParityMotion.interactionMs,
+              visualParityMotion.pageMs
+            ])
+      )
+    ).toBe(true)
   })
 
   it('keeps screenshot tolerances explicit and element-scoped', () => {

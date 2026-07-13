@@ -42,6 +42,20 @@ export const visualParityProfiles = {
 
 export type VisualParityProfile = keyof typeof visualParityProfiles
 
+export const scenarioPresentationFor = (profile: VisualParityProfile) => {
+  const presentation = visualParityProfiles[profile]
+  return {
+    viewport: presentation.host,
+    input: presentation.input,
+    embedding: presentation.embedding,
+    fixtureData: {
+      visualProfile: profile,
+      contentViewport: presentation.content,
+      ...('zoom' in presentation ? { zoom: presentation.zoom } : {})
+    }
+  } as const
+}
+
 export const visualParityLocales = [
   'en',
   'es',
