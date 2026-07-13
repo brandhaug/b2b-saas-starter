@@ -165,6 +165,9 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
       outbox: mapValues(confirmation.outbox),
       payments: mapValues(paymentStore.payments),
       paymentAttempts: mapValues(paymentStore.attempts),
+      cancellationAppointments: mapValues(cancellations.appointments),
+      cancellationHistory: cancellations.history,
+      refundObligations: cancellations.refundObligations,
       providers: scenario.providers
     }
     let canonical = JSON.stringify(value)
@@ -182,6 +185,8 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
     canonical = canonical.replaceAll(/brt_[a-f0-9]{32}/g, 'brt_current')
     canonical = canonical.replaceAll(/hld_[a-z0-9_]+/g, 'hld_current')
     canonical = canonical.replaceAll(/pqt_[a-z0-9_]+/g, 'pqt_current')
+    canonical = canonical.replaceAll(/alh_[a-z0-9_]+/g, 'alh_current')
+    canonical = canonical.replaceAll(/rfo_[a-z0-9_]+/g, 'rfo_current')
     canonical = canonical.replaceAll(
       /payment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
       'payment-current'
@@ -617,7 +622,7 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
                 cancellations.appointments.set(appointment.id, {
                   id: appointment.id,
                   merchantId: graph.merchant.id,
-                  bookingPartyId: null,
+                  bookingPartyId: `bpt_cancellation_${appointment.id}`,
                   status: appointment.status,
                   startsAt: appointment.startsAt,
                   totalMinor: snapshot.totalMinor,
@@ -633,14 +638,28 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
                     refundableUntilMinutesBeforeStart: 0,
                     refundBasisPoints: 10_000
                   },
-                  settlementAllocations: [
-                    {
-                      tender: 'pay_in_person',
-                      referenceId: null,
-                      amountMinor: snapshot.totalMinor
-                    }
-                  ]
+                  settlementAllocations:
+                    scenario.journey === 'cancellation-refund'
+                      ? [
+                          {
+                            tender: 'external_payment',
+                            referenceId: `pay_refund_${appointment.id}`,
+                            amountMinor: snapshot.totalMinor
+                          }
+                        ]
+                      : [
+                          {
+                            tender: 'pay_in_person',
+                            referenceId: null,
+                            amountMinor: snapshot.totalMinor
+                          }
+                        ]
                 })
+                if (scenario.journey === 'cancellation-refund')
+                  cancellations.appointments.set(`${appointment.id}_sibling`, {
+                    ...cancellations.appointments.get(appointment.id)!,
+                    id: `${appointment.id}_sibling`
+                  })
               }
               const result = yield* Effect.flatMap(BookingCancellations, (service) =>
                 service.cancel({

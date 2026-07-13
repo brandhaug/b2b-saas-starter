@@ -110,7 +110,8 @@ const capture = async (
   page: Page,
   scenario: ScenarioManifest,
   tracePath: string,
-  fixtureRequest: (request: Request) => Promise<Response>
+  fixtureRequest: (request: Request) => Promise<Response>,
+  fixtureSnapshot: () => unknown
 ): Promise<DriverEvidence> => {
   const consoleEntries: { type: string; text: string }[] = []
   const requests: { url: string; method: string; status?: number }[] = []
@@ -373,15 +374,52 @@ const capture = async (
           translateBookingMessage(scenario.locale, 'status.appointment_cancelled')
         )
         .waitFor()
+      const cancellationState = fixtureSnapshot() as {
+        readonly cancellationAppointments?: readonly (readonly [
+          string,
+          { readonly id: string; readonly status: string }
+        ])[]
+        readonly cancellationHistory?: readonly {
+          readonly appointmentId: string
+          readonly reason: string
+          readonly toStatus: string
+        }[]
+        readonly refundObligations?: readonly {
+          readonly appointmentId: string
+          readonly status: string
+          readonly amountMinor: number
+          readonly allocations: readonly { readonly tender: string }[]
+        }[]
+      }
+      const cancelled = cancellationState.cancellationAppointments?.find(
+        ([, appointment]) => appointment.status === 'cancelled'
+      )?.[1]
+      const sibling = cancellationState.cancellationAppointments?.find(
+        ([, appointment]) => appointment.id !== cancelled?.id
+      )?.[1]
+      const obligation = cancellationState.refundObligations?.find(
+        ({ appointmentId }) => appointmentId === cancelled?.id
+      )
       assertionResults.set(
         'cancellation commits while provider-free refund work remains optional',
-        true
+        obligation?.status === 'pending' &&
+          obligation.amountMinor > 0 &&
+          obligation.allocations.some(({ tender }) => tender === 'external_payment')
       )
       assertionResults.set(
         'the cancelled Appointment is visible after the command',
-        true
+        cancelled?.status === 'cancelled' &&
+          cancellationState.cancellationHistory?.some(
+            (entry) =>
+              entry.appointmentId === cancelled.id &&
+              entry.toStatus === 'cancelled' &&
+              entry.reason === 'customer_requested'
+          ) === true
       )
-      assertionResults.set('no sibling Appointment is changed implicitly', true)
+      assertionResults.set(
+        'no sibling Appointment is changed implicitly',
+        sibling !== undefined && sibling.status !== 'cancelled'
+      )
       assertionResults.set(
         'no undeclared network request is made',
         requests.every(({ url }) => url.startsWith(canonicalOrigin))
@@ -814,7 +852,8 @@ try {
             page,
             selected,
             resolve(runDirectory, 'trace.zip'),
-            fixtureRequest
+            fixtureRequest,
+            controller.snapshot
           )
           if (undeclaredRequest) {
             throw new Error(`Undeclared network request: ${undeclaredRequest}`)

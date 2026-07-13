@@ -224,10 +224,10 @@ export const evaluateCancellation = (
   }
 }
 
-const targetKey = (scope: CancellationResult['scope']) =>
+const targetKey = (merchantId: string, scope: CancellationResult['scope']) =>
   scope.kind === 'appointment'
-    ? `appointment:${scope.appointmentId}`
-    : `party:${scope.bookingPartyId}`
+    ? `${merchantId}:appointment:${scope.appointmentId}`
+    : `${merchantId}:party:${scope.bookingPartyId}`
 
 export const SeedBookingCancellations = (
   store = emptySeedBookingCancellationStore()
@@ -244,9 +244,13 @@ export const SeedBookingCancellations = (
     cancel: (input) =>
       Effect.try({
         try: () => {
-          const replay = store.commands.get(input.idempotencyKey)
+          const commandKey = `${input.merchantId}:${input.idempotencyKey}`
+          const replay = store.commands.get(commandKey)
           if (replay) {
-            if (targetKey(replay.scope) !== targetKey(input.scope))
+            if (
+              targetKey(input.merchantId, replay.scope) !==
+              targetKey(input.merchantId, input.scope)
+            )
               throw new BookingCancellationRejected({
                 code: 'idempotency_key_reused'
               })
@@ -276,7 +280,9 @@ export const SeedBookingCancellations = (
           )
           if (evaluations.some((evaluation) => !evaluation.cancellation.eligible))
             throw new BookingCancellationRejected({ code: 'cancellation_ineligible' })
-          const existingTarget = store.commandTargets.get(targetKey(scope))
+          const existingTarget = store.commandTargets.get(
+            targetKey(input.merchantId, scope)
+          )
           if (existingTarget) return store.commands.get(existingTarget)!
 
           const cancelled = records.map((record) => ({
@@ -323,14 +329,14 @@ export const SeedBookingCancellations = (
           }
           store.refundObligations.push(...obligations)
           const result: CancellationResult = {
-            commandId: `ccm_${stableSuffix(input.idempotencyKey)}`,
+            commandId: `ccm_${stableSuffix(commandKey)}`,
             scope,
             appointments: cancelled,
             refundObligations: obligations,
             replayed: false
           }
-          store.commands.set(input.idempotencyKey, result)
-          store.commandTargets.set(targetKey(scope), input.idempotencyKey)
+          store.commands.set(commandKey, result)
+          store.commandTargets.set(targetKey(input.merchantId, scope), commandKey)
           return result
         },
         catch: (cause) =>

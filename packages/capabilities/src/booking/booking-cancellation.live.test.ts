@@ -127,12 +127,24 @@ describe('Live Booking cancellation', () => {
       )
     )
     expect(refunded).toMatchObject({ status: 'succeeded', attemptCount: 2 })
+    const replayedSuccess = await run(
+      Effect.flatMap(BookingCancellations, (service) =>
+        service.recordRefundOutcome({
+          obligationId: result.refundObligations[0]!.id,
+          providerEventId: 'refund-provider-success',
+          outcome: 'succeeded',
+          now
+        })
+      )
+    )
+    expect(replayedSuccess).toMatchObject({ status: 'succeeded', attemptCount: 2 })
     const monetary = await test.d1.batch([
       test.d1.prepare(
         "SELECT refunded_minor, status FROM payments WHERE id = 'pay_cancel'"
       ),
       test.d1.prepare("SELECT * FROM payment_transactions WHERE kind = 'refund'"),
-      test.d1.prepare("SELECT * FROM gift_card_ledger_entries WHERE kind = 'refund'")
+      test.d1.prepare("SELECT * FROM gift_card_ledger_entries WHERE kind = 'refund'"),
+      test.d1.prepare('SELECT * FROM refund_obligation_events ORDER BY occurred_at')
     ])
     expect(monetary[0]!.results[0]).toMatchObject({
       refunded_minor: 1000,
@@ -140,5 +152,26 @@ describe('Live Booking cancellation', () => {
     })
     expect(monetary[1]!.results).toHaveLength(1)
     expect(monetary[2]!.results).toHaveLength(1)
+    expect(monetary[3]!.results).toHaveLength(2)
+  })
+
+  it('keeps cancellation replay neutral across merchants', async () => {
+    const outcome = await run(
+      Effect.result(
+        Effect.flatMap(BookingCancellations, (service) =>
+          service.cancel({
+            merchantId: 'mrc_other',
+            scope: { kind: 'appointment', appointmentId: 'apt_cancel_one' },
+            idempotencyKey: 'cancel-live-one',
+            reason: 'customer_requested',
+            now
+          })
+        )
+      )
+    )
+    expect(outcome).toMatchObject({
+      _tag: 'Failure',
+      failure: { code: 'appointment_not_found' }
+    })
   })
 })

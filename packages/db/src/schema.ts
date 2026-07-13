@@ -1111,7 +1111,7 @@ export const paymentAttempts = sqliteTable(
     paymentId: text('payment_id')
       .notNull()
       .references(() => payments.id, { onDelete: 'cascade' }),
-    idempotencyKey: text('idempotency_key').unique().notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
     provider: text('provider').notNull(),
     method: text('method', {
       enum: ['card', 'saved_card', 'apple_pay', 'google_pay', 'cash_app_pay', 'klarna']
@@ -1455,7 +1455,15 @@ export const cancellationCommands = sqliteTable(
     createdAt: isoCreatedAt()
   },
   (table) => [
-    uniqueIndex('cancellation_commands_target_unique').on(table.scope, table.targetId),
+    uniqueIndex('cancellation_commands_idempotency_unique').on(
+      table.merchantId,
+      table.idempotencyKey
+    ),
+    uniqueIndex('cancellation_commands_target_unique').on(
+      table.merchantId,
+      table.scope,
+      table.targetId
+    ),
     index('cancellation_commands_merchant_idx').on(table.merchantId)
   ]
 )
@@ -1516,6 +1524,33 @@ export const refundObligations = sqliteTable(
   (table) => [
     index('refund_obligations_status_idx').on(table.status, table.updatedAt),
     check('refund_obligations_positive_amount', sql`${table.amountMinor} > 0`)
+  ]
+)
+
+export const refundObligationEvents = sqliteTable(
+  'refund_obligation_events',
+  {
+    id: id(),
+    refundObligationId: text('refund_obligation_id')
+      .notNull()
+      .references(() => refundObligations.id, { onDelete: 'cascade' }),
+    providerEventId: text('provider_event_id').notNull(),
+    outcome: text('outcome', {
+      enum: ['succeeded', 'failed_retryable', 'failed_terminal']
+    }).notNull(),
+    failureCode: text('failure_code'),
+    expectedAttemptCount: integer('expected_attempt_count').notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('refund_obligation_events_provider_event_unique').on(
+      table.providerEventId
+    ),
+    index('refund_obligation_events_obligation_idx').on(
+      table.refundObligationId,
+      table.occurredAt
+    )
   ]
 )
 

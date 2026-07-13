@@ -18,7 +18,7 @@ CREATE TABLE `cancellation_commands` (
 	`merchant_id` text NOT NULL,
 	`scope` text NOT NULL,
 	`target_id` text NOT NULL,
-	`idempotency_key` text NOT NULL UNIQUE,
+	`idempotency_key` text NOT NULL,
 	`result_json` text,
 	`created_at` text NOT NULL,
 	CONSTRAINT `fk_cancellation_commands_merchant_id_merchants_id_fk` FOREIGN KEY (`merchant_id`) REFERENCES `merchants`(`id`) ON DELETE CASCADE
@@ -54,6 +54,7 @@ CREATE TABLE `refund_obligations` (
 );
 --> statement-breakpoint
 CREATE INDEX `appointment_cancellations_command_idx` ON `appointment_cancellations` (`command_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `cancellation_commands_target_unique` ON `cancellation_commands` (`scope`,`target_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `cancellation_commands_idempotency_unique` ON `cancellation_commands` (`merchant_id`,`idempotency_key`);--> statement-breakpoint
+CREATE UNIQUE INDEX `cancellation_commands_target_unique` ON `cancellation_commands` (`merchant_id`,`scope`,`target_id`);--> statement-breakpoint
 CREATE INDEX `cancellation_commands_merchant_idx` ON `cancellation_commands` (`merchant_id`);--> statement-breakpoint
 CREATE INDEX `refund_obligations_status_idx` ON `refund_obligations` (`status`,`updated_at`);

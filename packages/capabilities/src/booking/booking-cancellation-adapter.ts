@@ -10,6 +10,7 @@ import {
   giftCardLedgerEntries,
   paymentTransactions,
   payments,
+  refundObligationEvents,
   refundObligationAllocations,
   refundObligations,
   settlementAllocations,
@@ -242,7 +243,12 @@ export const LiveBookingCancellations: Layer.Layer<
             db
               .select()
               .from(cancellationCommands)
-              .where(eq(cancellationCommands.idempotencyKey, input.idempotencyKey))
+              .where(
+                and(
+                  eq(cancellationCommands.merchantId, input.merchantId),
+                  eq(cancellationCommands.idempotencyKey, input.idempotencyKey)
+                )
+              )
               .limit(1)
           )
           const scope = input.scope
@@ -261,6 +267,7 @@ export const LiveBookingCancellations: Layer.Layer<
               .from(cancellationCommands)
               .where(
                 and(
+                  eq(cancellationCommands.merchantId, input.merchantId),
                   eq(cancellationCommands.scope, scope.kind),
                   eq(cancellationCommands.targetId, targetId)
                 )
@@ -288,7 +295,7 @@ export const LiveBookingCancellations: Layer.Layer<
             return yield* new BookingCancellationRejected({
               code: 'cancellation_ineligible'
             })
-          const commandId = `ccm_${stableSuffix(input.idempotencyKey)}`
+          const commandId = `ccm_${stableSuffix(`${input.merchantId}:${input.idempotencyKey}`)}`
           const obligationRows = evaluations.flatMap((evaluation, index) =>
             evaluation.refund.entitled
               ? [
@@ -306,7 +313,7 @@ export const LiveBookingCancellations: Layer.Layer<
                 ]
               : []
           )
-          yield* orUnavailable('booking-cancellations')(
+          const concurrentCommand = yield* orUnavailable('booking-cancellations')(
             batch(db, [
               db.insert(cancellationCommands).values({
                 id: commandId,
@@ -382,7 +389,29 @@ export const LiveBookingCancellations: Layer.Layer<
                 )
               ])
             ])
+          ).pipe(
+            Effect.as(null),
+            Effect.catchTag('CapabilityUnavailable', (error) =>
+              Effect.gen(function* () {
+                const [command] = yield* orUnavailable('booking-cancellations')(
+                  db
+                    .select()
+                    .from(cancellationCommands)
+                    .where(
+                      and(
+                        eq(cancellationCommands.merchantId, input.merchantId),
+                        eq(cancellationCommands.scope, scope.kind),
+                        eq(cancellationCommands.targetId, targetId)
+                      )
+                    )
+                    .limit(1)
+                )
+                if (command) return command
+                return yield* error
+              })
+            )
           )
+          if (concurrentCommand) return yield* readCommand(concurrentCommand)
           const [stored] = yield* orUnavailable('booking-cancellations')(
             db
               .select()
@@ -403,16 +432,16 @@ export const LiveBookingCancellations: Layer.Layer<
           const [eventReplay] = yield* orUnavailable('booking-cancellations')(
             db
               .select()
-              .from(refundObligations)
-              .where(eq(refundObligations.providerEventId, input.providerEventId))
+              .from(refundObligationEvents)
+              .where(eq(refundObligationEvents.providerEventId, input.providerEventId))
               .limit(1)
           )
           if (eventReplay) {
-            if (eventReplay.id !== input.obligationId)
+            if (eventReplay.refundObligationId !== input.obligationId)
               return yield* new BookingCancellationRejected({
                 code: 'idempotency_key_reused'
               })
-            return (yield* readObligations([eventReplay.id]))[0]!
+            return (yield* readObligations([eventReplay.refundObligationId]))[0]!
           }
           const [current] = yield* orUnavailable('booking-cancellations')(
             db
@@ -436,8 +465,21 @@ export const LiveBookingCancellations: Layer.Layer<
           const giftCards = allocations.filter(
             (allocation) => allocation.tender === 'gift_card'
           )
-          yield* orUnavailable('booking-cancellations')(
+          const concurrentEvent = yield* orUnavailable('booking-cancellations')(
             batch(db, [
+              db.insert(refundObligationEvents).values({
+                id: `roe_${stableSuffix(input.providerEventId)}`,
+                refundObligationId: current.id,
+                providerEventId: input.providerEventId,
+                outcome: input.outcome,
+                failureCode:
+                  input.outcome === 'succeeded'
+                    ? null
+                    : (input.failureCode ?? 'unknown'),
+                expectedAttemptCount: current.attemptCount,
+                occurredAt: input.now,
+                createdAt: input.now
+              }),
               ...(input.outcome === 'succeeded'
                 ? [
                     ...external.map((allocation, index) =>
@@ -496,7 +538,25 @@ export const LiveBookingCancellations: Layer.Layer<
                 })
                 .where(eq(refundObligations.id, current.id))
             ])
+          ).pipe(
+            Effect.as(false),
+            Effect.catchTag('CapabilityUnavailable', (error) =>
+              Effect.gen(function* () {
+                const [event] = yield* orUnavailable('booking-cancellations')(
+                  db
+                    .select()
+                    .from(refundObligationEvents)
+                    .where(
+                      eq(refundObligationEvents.providerEventId, input.providerEventId)
+                    )
+                    .limit(1)
+                )
+                if (event?.refundObligationId === input.obligationId) return true
+                return yield* error
+              })
+            )
           )
+          if (concurrentEvent) return (yield* readObligations([input.obligationId]))[0]!
           return (yield* readObligations([current.id]))[0]!
         })
     }
