@@ -95,6 +95,24 @@ describe('Booking selection flow', () => {
     expect(titleContainer.children[0]?.tagName).toBe('DIV')
   })
 
+  it('adds the legacy translucent title chrome after scrolling', async () => {
+    render(
+      <BookingSelectionFlow
+        journey={teamJourney}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+    const titleContainer = screen.getByTestId('container:title')
+    const transparentClassName = titleContainer.className
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 10 })
+    fireEvent.scroll(window)
+
+    await waitFor(() => expect(titleContainer.className).not.toBe(transparentClassName))
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 })
+  })
+
   it('offers Specific Provider and Any Provider choices for Team journeys', () => {
     const chooseProvider = vi.fn()
     render(

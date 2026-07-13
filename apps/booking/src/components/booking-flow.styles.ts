@@ -24,18 +24,21 @@ export const styles = stylex.create({
   },
   header: {
     position: 'sticky',
-    zIndex: 2,
+    zIndex: bookingTheme.layerChrome,
     display: 'flex',
     boxSizing: 'border-box',
-    paddingTop: 24,
-    paddingBottom: 24,
-    paddingInline: 16,
+    paddingTop: bookingTheme.space6,
+    paddingBottom: bookingTheme.space6,
+    paddingInline: bookingTheme.space4,
     backgroundColor: 'transparent',
     color: 'inherit',
     transitionProperty: 'background-color',
-    transitionDuration: '250ms'
+    transitionDuration: bookingTheme.motionPage
   },
-  titleRoute: { display: 'block' },
+  headerScrolled: {
+    backgroundColor: 'rgb(247 247 247 / 85%)',
+    backdropFilter: 'blur(4px)'
+  },
   title: {
     margin: 0,
     fontSize: 20,
@@ -65,11 +68,11 @@ export const styles = stylex.create({
   },
   titleActions: {
     position: 'absolute',
-    top: 20,
-    right: 16,
-    zIndex: 2,
+    top: bookingTheme.space5,
+    right: bookingTheme.space4,
+    zIndex: bookingTheme.layerChrome,
     display: 'flex',
-    gap: 8
+    gap: bookingTheme.space2
   },
   icon16: {
     width: 16,

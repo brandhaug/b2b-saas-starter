@@ -1,5 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
-import { useMemo, useState } from 'react'
+import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
+import { useEffect, useMemo, useState } from 'react'
 import type {
   BookingJourney,
   ProviderPreference,
@@ -36,6 +37,14 @@ export function BookingSelectionFlow({
     readonly afterVersion: number
   } | null>(null)
   const [orderOpen, setOrderOpen] = useState(false)
+  const [titleScrolled, setTitleScrolled] = useState(
+    () => typeof window !== 'undefined' && window.scrollY > 0
+  )
+  useEffect(() => {
+    const updateTitleChrome = () => setTitleScrolled(window.scrollY > 0)
+    window.addEventListener('scroll', updateTitleChrome, { passive: true })
+    return () => window.removeEventListener('scroll', updateTitleChrome)
+  }, [])
   const shopSelectionConfirmed =
     pendingShop !== null &&
     journey.shopId === pendingShop.id &&
@@ -73,26 +82,38 @@ export function BookingSelectionFlow({
     <BookingPremiumThemeBoundary palette={journey.resolvedConfiguration.premiumPalette}>
       <div {...stylex.props(styles.app)} aria-busy={busy}>
         <div {...stylex.props(styles.widget)}>
-          <div data-testid="container:title" {...stylex.props(styles.header)}>
-            {canGoBack ? (
-              <button
-                type="button"
-                aria-label="Back"
-                onClick={() => {
-                  if (journey.shops.length > 1 && showProviders) setPendingShop(null)
-                  else setEditingProvider(true)
-                }}
-                {...stylex.props(styles.iconButton, styles.backButton)}
-              >
-                <BookingVisualAsset
-                  assetRole="navigation-back"
-                  {...stylex.props(styles.icon16)}
-                />
-              </button>
-            ) : null}
-            <div {...stylex.props(styles.titleRoute)}>
+          <div
+            data-testid="container:title"
+            {...stylex.props(styles.header, titleScrolled && styles.headerScrolled)}
+          >
+            <LazyMotion features={domAnimation} strict>
+              <AnimatePresence initial>
+                {canGoBack ? (
+                  <m.button
+                    type="button"
+                    aria-label="Back"
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 24, opacity: 0.3 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    onClick={() => {
+                      if (journey.shops.length > 1 && showProviders)
+                        setPendingShop(null)
+                      else setEditingProvider(true)
+                    }}
+                    {...stylex.props(styles.iconButton, styles.backButton)}
+                  >
+                    <BookingVisualAsset
+                      assetRole="navigation-back"
+                      {...stylex.props(styles.icon16)}
+                    />
+                  </m.button>
+                ) : null}
+              </AnimatePresence>
+            </LazyMotion>
+            <RoutePresence presenceKey={`title:${pageTitle}`}>
               <p {...stylex.props(styles.title)}>{pageTitle}</p>
-            </div>
+            </RoutePresence>
             {onTitleActionMount ? (
               <div ref={onTitleActionMount} {...stylex.props(styles.titleActions)} />
             ) : null}
