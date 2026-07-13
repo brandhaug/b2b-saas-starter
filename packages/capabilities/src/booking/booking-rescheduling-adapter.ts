@@ -323,19 +323,15 @@ export const LiveBookingRescheduling: Layer.Layer<
             db
               .select()
               .from(refundObligations)
-              .where(
-                and(
-                  eq(refundObligations.id, replacement.settlement.referenceId!),
-                  eq(refundObligations.appointmentId, appointment.id),
-                  eq(refundObligations.currency, replacement.quote.currency),
-                  eq(refundObligations.amountMinor, replacement.settlement.amountMinor)
-                )
-              )
+              .where(eq(refundObligations.id, replacement.settlement.referenceId!))
               .limit(1)
           )
           if (
             obligation &&
-            !['pending', 'failed_retryable'].includes(obligation.status)
+            (obligation.appointmentId !== appointment.id ||
+              obligation.currency !== replacement.quote.currency ||
+              obligation.amountMinor !== replacement.settlement.amountMinor ||
+              !['pending', 'failed_retryable'].includes(obligation.status))
           )
             return yield* rejected('settlement_mismatch')
         }
