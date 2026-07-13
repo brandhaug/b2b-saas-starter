@@ -706,7 +706,7 @@ export type RouteDirection = 'forward' | 'back'
 const interactionTransition: Transition = { duration: 0.15, ease: 'easeInOut' }
 const pageTransition: Transition = { duration: 0.3, ease: 'easeInOut' }
 const routeTransition: Transition = { duration: 0.3, delay: 0.3 }
-const routeTitleTransition: Transition = { duration: 0.3, delay: 0.6 }
+const routeTitleTransition: Transition = { duration: 0, delay: 0.6 }
 
 const presenceVariants: Record<PresenceVariant, Variants> = {
   fade: {

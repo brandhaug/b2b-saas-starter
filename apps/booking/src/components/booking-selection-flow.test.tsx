@@ -157,13 +157,9 @@ describe('Booking selection flow', () => {
     expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
     expect(screen.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
 
-    await waitFor(
-      () =>
-        expect(
-          screen.getByText('What can we do for you?', { selector: 'p' })
-        ).toBeTruthy(),
-      { timeout: 1_500 }
-    )
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    expect(screen.getByText('What can we do for you?', { selector: 'p' })).toBeTruthy()
+    expect(screen.queryByText('Choose a professional', { selector: 'p' })).toBeNull()
   })
 
   it('offers Specific Provider and Any Provider choices for Team journeys', () => {
