@@ -261,7 +261,7 @@ const fallbackByRole: Record<
   'navigation-back': {
     kind: 'code-native',
     role: 'navigation-back',
-    name: 'arrow-left'
+    name: 'legacy-back-chevron'
   },
   'navigation-menu': { kind: 'code-native', role: 'navigation-menu', name: 'menu' },
   'location-nearby': {

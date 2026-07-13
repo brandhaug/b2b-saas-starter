@@ -179,6 +179,31 @@ describe('Booking selection flow', () => {
     )
   })
 
+  it('uses the legacy delayed page transition when the Back chevron appears', async () => {
+    render(
+      <BookingSelectionFlow
+        journey={{ ...teamJourney, providerPreference: { kind: 'any' } }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    const back = screen.getByRole('button', { name: 'Back' })
+    const chevron = back.querySelector('svg')
+    expect(chevron?.getAttribute('viewBox')).toBe('0 0 9 16')
+    expect(chevron?.querySelectorAll('path')).toHaveLength(1)
+    expect(chevron?.querySelector('path')?.getAttribute('d')).toContain(
+      'M8.07552 15.8411'
+    )
+    expect(back.style.width).toBe('0px')
+
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(back.style.width).toBe('0px')
+
+    await waitFor(() => expect(back.style.width).toBe('24px'))
+  })
+
   it('uses the legacy location view before entering a multi-Shop booking', async () => {
     const chooseShop = vi.fn()
     const journey: BookingJourney = {

@@ -112,7 +112,7 @@ function BookingSelectionFlowContent({
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 24, opacity: 0.3 }}
                 exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                transition={{ duration: 0.3, delay: 0.3 }}
                 onClick={() => {
                   setRouteDirection('back')
                   if (journey.shops.length > 1 && showProviders) setPendingShop(null)
@@ -122,7 +122,7 @@ function BookingSelectionFlowContent({
               >
                 <BookingVisualAsset
                   assetRole="navigation-back"
-                  {...stylex.props(styles.icon16)}
+                  {...stylex.props(styles.backIcon)}
                 />
               </m.button>
             ) : null}

@@ -84,6 +84,10 @@ export const styles = stylex.create({
     width: 16,
     height: 16
   },
+  backIcon: {
+    width: 9,
+    height: 16
+  },
   icon20: {
     width: 20,
     height: 20
