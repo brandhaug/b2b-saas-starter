@@ -334,7 +334,7 @@ export const LiveBookingRescheduling: Layer.Layer<
               .limit(1)
           )
           if (
-            !obligation ||
+            obligation &&
             !['pending', 'failed_retryable'].includes(obligation.status)
           )
             return yield* rejected('settlement_mismatch')
@@ -579,6 +579,22 @@ export const LiveBookingRescheduling: Layer.Layer<
             ? `reminder:${appointment.id}:${toVersion}:${replacement.reminderAt}`
             : null
           const statements = [
+            ...(replacement.settlement.kind === 'refund'
+              ? [
+                  db
+                    .insert(refundObligations)
+                    .values({
+                      id: replacement.settlement.referenceId!,
+                      appointmentId: appointment.id,
+                      amountMinor: replacement.settlement.amountMinor,
+                      currency: replacement.quote.currency,
+                      idempotencyKey: `reschedule-refund:${appointment.id}:${fromVersion}`,
+                      createdAt: input.now,
+                      updatedAt: input.now
+                    })
+                    .onConflictDoNothing()
+                ]
+              : []),
             db.insert(rescheduleCommands).values({
               id: commandId,
               merchantId: input.merchantId,

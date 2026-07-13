@@ -108,6 +108,55 @@ const MarketingConsentInput = Schema.Struct({
   channel: Schema.Literals(['email', 'sms']),
   granted: Schema.Boolean
 })
+const RescheduleReplacementInput = Schema.Struct({
+  hold: Schema.Struct({
+    id: Schema.String,
+    providerId: Schema.String,
+    providerDisplayName: Schema.String,
+    startsAt: Schema.String,
+    endsAt: Schema.String,
+    expiresAt: Schema.String
+  }),
+  quote: Schema.Struct({
+    id: Schema.String,
+    version: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
+    totalMinor: Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+    currency: Schema.String,
+    acceptedAt: Schema.String,
+    expiresAt: Schema.String
+  }),
+  policyAcceptance: Schema.Struct({
+    policyId: Schema.String,
+    policyVersion: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
+    disclosureSnapshot: Schema.String,
+    acceptedAt: Schema.String
+  }),
+  settlement: Schema.Struct({
+    kind: Schema.Literals(['unchanged', 'refund', 'additional_collection']),
+    amountMinor: Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+    referenceId: Schema.NullOr(Schema.String)
+  }),
+  reminderAt: Schema.NullOr(Schema.String)
+})
+const RescheduleHttpCommand = Schema.Union([
+  Schema.Struct({
+    action: Schema.Literal('begin'),
+    capability: Schema.String.check(Schema.isMinLength(32)),
+    expiresAt: Schema.String
+  }),
+  Schema.Struct({
+    action: Schema.Literal('prepare'),
+    sessionId: Schema.String,
+    capability: Schema.String.check(Schema.isMinLength(32)),
+    replacement: RescheduleReplacementInput
+  }),
+  Schema.Struct({
+    action: Schema.Literal('commit'),
+    sessionId: Schema.String,
+    capability: Schema.String.check(Schema.isMinLength(32)),
+    idempotencyKey: Schema.String.check(Schema.isMinLength(8))
+  })
+])
 
 export const bookingSessionCookie = (input: {
   readonly sessionId: string
@@ -417,6 +466,17 @@ export type BookingSessionHttpDependencies = {
       readonly now: string
     }) => BookingSessionEffect<
       CancellationResult,
+      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
+    >
+  }
+  readonly rescheduling?: {
+    readonly execute: (input: {
+      readonly merchantSlug: string
+      readonly appointmentId: string
+      readonly command: typeof RescheduleHttpCommand.Type
+      readonly now: string
+    }) => BookingSessionEffect<
+      unknown,
       CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
     >
   }
@@ -827,6 +887,77 @@ export const handleBookingSessionRequest = (
     if (!merchantSlug) return hiddenNotFound()
     const now = dependencies.now?.() ?? new Date().toISOString()
     const clientKey = request.headers.get('cf-connecting-ip') ?? `path:${url.pathname}`
+
+    const rescheduleMatch =
+      segments.length === 7 &&
+      segments[2] === 'confirmations' &&
+      segments[4] === 'appointments' &&
+      segments[6] === 'reschedule'
+        ? { routeId: segments[3]!, appointmentId: segments[5]! }
+        : null
+    if (rescheduleMatch) {
+      if (
+        request.method !== 'POST' ||
+        !CONFIRMATION_ID.test(rescheduleMatch.routeId) ||
+        !dependencies.confirmation ||
+        !dependencies.rescheduling
+      )
+        return withPrivateHeaders(hiddenNotFound())
+      const invalidMutation = validatePrivateMutationRequest(
+        request,
+        dependencies.publicSiteOrigin
+      )
+      if (invalidMutation) return withPrivateHeaders(invalidMutation)
+      if (!(yield* dependencies.takeWrite(`reschedule:${clientKey}`)))
+        return withPrivateHeaders(tooManyRequests())
+      const cookieName = `confirmation_${rescheduleMatch.routeId}`
+      const credential = request.headers
+        .get('cookie')
+        ?.split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${cookieName}=`))
+        ?.slice(cookieName.length + 1)
+      if (!credential || !CONFIRMATION_TOKEN.test(credential))
+        return withPrivateHeaders(hiddenNotFound())
+      const access = yield* Effect.result(
+        dependencies.confirmation.read({
+          routeId: rescheduleMatch.routeId,
+          merchantSlug,
+          credential,
+          credentialKind: 'cookie',
+          now
+        })
+      )
+      if (
+        access._tag === 'Failure' ||
+        access.success.kind !== 'found' ||
+        !access.success.confirmation.appointments.some(
+          (appointment) => appointment.id === rescheduleMatch.appointmentId
+        )
+      )
+        return withPrivateHeaders(hiddenNotFound())
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(RescheduleHttpCommand)(yield* readJson(request))
+      )
+      if (decoded._tag === 'Failure') return withPrivateHeaders(hiddenNotFound())
+      const result = yield* Effect.result(
+        dependencies.rescheduling.execute({
+          merchantSlug,
+          appointmentId: rescheduleMatch.appointmentId,
+          command: decoded.success,
+          now
+        })
+      )
+      if (result._tag === 'Failure') {
+        const code = 'code' in result.failure ? result.failure.code : undefined
+        return code === 'appointment_not_found'
+          ? withPrivateHeaders(hiddenNotFound())
+          : withPrivateHeaders(
+              Response.json({ kind: code ?? 'reschedule_failed' }, { status: 409 })
+            )
+      }
+      return jsonPrivate(result.success)
+    }
 
     const cancellationMatch =
       segments.length === 7 &&

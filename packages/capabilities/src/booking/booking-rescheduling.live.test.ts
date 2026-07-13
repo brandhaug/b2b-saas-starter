@@ -338,4 +338,64 @@ describe('Live Booking rescheduling', () => {
       )
     ).rejects.toMatchObject({ code: 'settlement_mismatch' })
   })
+
+  it('atomically creates the refund obligation for a price decrease', async () => {
+    const session = await run(
+      Effect.flatMap(BookingRescheduling, (service) =>
+        service.begin({
+          merchantId: 'mrc_reschedule',
+          appointmentId: 'apt_reschedule',
+          capabilityHash: 'reschedule-capability-refund',
+          expiresAt: '2026-07-13T10:20:00.000Z',
+          now
+        })
+      )
+    )
+    const base = replacement('2026-07-18T12:00:00.000Z')
+    const facts: RescheduleReplacement = {
+      ...base,
+      hold: { ...base.hold, id: 'hld_reschedule_refund' },
+      quote: { ...base.quote, id: 'prq_reschedule_refund', totalMinor: 4_000 },
+      settlement: {
+        kind: 'refund',
+        amountMinor: 1_000,
+        referenceId: 'rfo_reschedule_price_drop'
+      }
+    }
+    await persistReplacementFacts(session, facts)
+    await run(
+      Effect.flatMap(BookingRescheduling, (service) =>
+        service.prepare({
+          sessionId: session.id,
+          capabilityHash: 'reschedule-capability-refund',
+          replacement: facts,
+          now
+        })
+      )
+    )
+    await run(
+      Effect.flatMap(BookingRescheduling, (service) =>
+        service.commit({
+          merchantId: 'mrc_reschedule',
+          sessionId: session.id,
+          capabilityHash: 'reschedule-capability-refund',
+          idempotencyKey: 'reschedule-refund-once',
+          now
+        })
+      )
+    )
+
+    expect(
+      await test.d1
+        .prepare(
+          "SELECT appointment_id, amount_minor, currency, status FROM refund_obligations WHERE id = 'rfo_reschedule_price_drop'"
+        )
+        .first()
+    ).toMatchObject({
+      appointment_id: 'apt_reschedule',
+      amount_minor: 1_000,
+      currency: 'USD',
+      status: 'pending'
+    })
+  })
 })

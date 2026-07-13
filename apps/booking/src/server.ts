@@ -9,6 +9,8 @@ import {
   BookingConfirmation,
   BookingCancellationRejected,
   BookingCancellations,
+  BookingRescheduleRejected,
+  BookingRescheduling,
   BookingParties,
   enterBookingSession
 } from '@b2b-saas-starter/capabilities/booking'
@@ -105,6 +107,14 @@ const configuredPaymentMethods = (env: BookingWorkerEnv) => {
   if (requested.size === 0 && env.STRIPE_SECRET_KEY) requested.add('card')
   return ONLINE_METHODS.filter((method) => requested.has(method))
 }
+
+const hashRescheduleCapability = async (capability: string) =>
+  Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(capability))
+    ),
+    (byte) => byte.toString(16).padStart(2, '0')
+  ).join('')
 
 export const reconcilePaymentCallback = async (
   request: Request,
@@ -936,6 +946,49 @@ export default {
                       })
                     )
             )
+        },
+        rescheduling: {
+          execute: (input) =>
+            Effect.gen(function* () {
+              const merchant = yield* Effect.promise(() =>
+                readyEnv.DB.prepare('SELECT id FROM merchants WHERE slug = ? LIMIT 1')
+                  .bind(input.merchantSlug)
+                  .first<{ id: string }>()
+              )
+              if (!merchant)
+                return yield* new BookingRescheduleRejected({
+                  code: 'appointment_not_found'
+                })
+              const capabilityHash = yield* Effect.promise(() =>
+                hashRescheduleCapability(input.command.capability)
+              )
+              const service = yield* BookingRescheduling
+              switch (input.command.action) {
+                case 'begin':
+                  return yield* service.begin({
+                    merchantId: merchant.id,
+                    appointmentId: input.appointmentId,
+                    capabilityHash,
+                    expiresAt: input.command.expiresAt,
+                    now: input.now
+                  })
+                case 'prepare':
+                  return yield* service.prepare({
+                    sessionId: input.command.sessionId,
+                    capabilityHash,
+                    replacement: input.command.replacement,
+                    now: input.now
+                  })
+                case 'commit':
+                  return yield* service.commit({
+                    merchantId: merchant.id,
+                    sessionId: input.command.sessionId,
+                    capabilityHash,
+                    idempotencyKey: input.command.idempotencyKey,
+                    now: input.now
+                  })
+              }
+            }).pipe(Effect.provide(capabilitiesLayer))
         },
         takeRead: (key) =>
           Effect.promise(() =>

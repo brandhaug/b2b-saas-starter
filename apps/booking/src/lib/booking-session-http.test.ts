@@ -1598,4 +1598,74 @@ describe('Booking Session HTTP boundary', () => {
       )
     ).toMatchObject({ status: 404 })
   })
+
+  it('runs rescheduling commands only for an appointment in the protected confirmation', async () => {
+    const cookieCredential = 'e'.repeat(64)
+    let command: unknown
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () => Effect.die(new Error('not called')),
+      confirmation: {
+        confirm: () => Effect.die(new Error('not called')),
+        read: () =>
+          Effect.succeed({
+            kind: 'found' as const,
+            confirmation: {
+              routeId: 'cnf_reschedule',
+              status: 'scheduled' as const,
+              startsAt: '2026-07-14T09:00:00.000Z',
+              endsAt: '2026-07-14T10:00:00.000Z',
+              locale: 'en' as const,
+              snapshot: {} as never,
+              appointments: [{ id: 'apt_one' } as never],
+              merchant: { publicName: 'Mara Studio' }
+            },
+            cookieCredential
+          })
+      },
+      rescheduling: {
+        execute: (input: unknown) => {
+          command = input
+          return Effect.succeed({ sessionId: 'rsc_http', status: 'active' })
+        }
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called')),
+      now: () => '2026-07-13T10:00:00.000Z'
+    }
+    const request = (appointmentId: string) =>
+      new Request(
+        `https://www.example.test/mara-studio/booking/confirmations/cnf_reschedule/appointments/${appointmentId}/reschedule`,
+        {
+          method: 'POST',
+          headers: {
+            cookie: `confirmation_cnf_reschedule=${cookieCredential}`,
+            origin: 'https://www.example.test',
+            'sec-fetch-site': 'same-origin',
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'begin',
+            capability: 'r'.repeat(64),
+            expiresAt: '2026-07-13T10:20:00.000Z'
+          })
+        }
+      )
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(request('apt_one'), dependencies)
+    )
+    expect(response.status).toBe(200)
+    expect(command).toMatchObject({
+      merchantSlug: 'mara-studio',
+      appointmentId: 'apt_one',
+      command: { action: 'begin' }
+    })
+    expect(
+      await Effect.runPromise(
+        handleBookingSessionRequest(request('apt_other'), dependencies)
+      )
+    ).toMatchObject({ status: 404 })
+  })
 })
