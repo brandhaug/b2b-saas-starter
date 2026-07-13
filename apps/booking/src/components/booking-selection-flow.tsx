@@ -18,6 +18,7 @@ export function BookingSelectionFlow({
   onChooseProvider,
   onChooseServices,
   onContinue,
+  onTitleActionMount,
   messages = defaultMessages
 }: {
   readonly journey: BookingJourney
@@ -26,6 +27,7 @@ export function BookingSelectionFlow({
   readonly onChooseProvider: (preference: ProviderPreference) => void
   readonly onChooseServices: (selection: ServiceSelection) => void
   readonly onContinue?: () => void
+  readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
   readonly messages?: BookingSelectionMessages
 }) {
   const [editingProvider, setEditingProvider] = useState(false)
@@ -71,7 +73,7 @@ export function BookingSelectionFlow({
     <BookingPremiumThemeBoundary palette={journey.resolvedConfiguration.premiumPalette}>
       <div {...stylex.props(styles.app)} aria-busy={busy}>
         <div {...stylex.props(styles.widget)}>
-          <header {...stylex.props(styles.header)}>
+          <div data-testid="container:title" {...stylex.props(styles.header)}>
             {canGoBack ? (
               <button
                 type="button"
@@ -88,9 +90,13 @@ export function BookingSelectionFlow({
                 />
               </button>
             ) : null}
-            <h1 {...stylex.props(styles.title)}>{pageTitle}</h1>
-            <span aria-hidden="true" {...stylex.props(styles.headerEnd)} />
-          </header>
+            <div {...stylex.props(styles.titleRoute)}>
+              <p {...stylex.props(styles.title)}>{pageTitle}</p>
+            </div>
+            {onTitleActionMount ? (
+              <div ref={onTitleActionMount} {...stylex.props(styles.titleActions)} />
+            ) : null}
+          </div>
 
           <main {...stylex.props(styles.main)}>
             {!showLocations &&

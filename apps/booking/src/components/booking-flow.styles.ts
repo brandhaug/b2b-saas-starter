@@ -24,21 +24,19 @@ export const styles = stylex.create({
   },
   header: {
     position: 'sticky',
-    top: 0,
-    zIndex: 20,
+    zIndex: 2,
     display: 'flex',
-    minHeight: 72,
-    alignItems: 'center',
-    gap: 0,
-    paddingTop: 'max(24px, env(safe-area-inset-top))',
+    boxSizing: 'border-box',
+    paddingTop: 24,
     paddingBottom: 24,
     paddingInline: 16,
-    backgroundColor: 'rgb(247 247 247 / 85%)',
-    backdropFilter: 'blur(4px)'
+    backgroundColor: 'transparent',
+    color: 'inherit',
+    transitionProperty: 'background-color',
+    transitionDuration: '250ms'
   },
+  titleRoute: { display: 'block' },
   title: {
-    minWidth: 0,
-    flex: 1,
     margin: 0,
     fontSize: 20,
     fontWeight: 600,
@@ -60,11 +58,19 @@ export const styles = stylex.create({
     color: '#000000'
   },
   backButton: {
+    opacity: 0.3,
     borderColor: 'transparent',
     backgroundColor: 'transparent',
     color: '#747983'
   },
-  headerEnd: { width: 24, height: 24, flexShrink: 0 },
+  titleActions: {
+    position: 'absolute',
+    top: 20,
+    right: 16,
+    zIndex: 2,
+    display: 'flex',
+    gap: 8
+  },
   icon16: {
     width: 16,
     height: 16

@@ -52,12 +52,14 @@ export function ServerBackedBookingFlow({
   selectionRefreshedMessage = translateBookingMessage(
     'en',
     'feedback.selection_refreshed'
-  )
+  ),
+  onTitleActionMount
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
   readonly telemetry?: CheckoutTelemetry
   readonly selectionRefreshedMessage?: string
+  readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
 }) {
   const { locale, message } = useBookingLocalization()
   const paymentReturn =
@@ -888,6 +890,7 @@ export function ServerBackedBookingFlow({
           invalidAssociationsCopy: message('selection.invalid_associations_copy')
         }}
         busy={selectionMutation.isPending}
+        {...(onTitleActionMount ? { onTitleActionMount } : {})}
         onChooseShop={(shopId) =>
           selectionMutation.mutate({
             endpoint: 'shop',

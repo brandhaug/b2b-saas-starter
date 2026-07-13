@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ServerBackedBookingFlow } from './server-backed-booking-flow.tsx'
 import {
   BookingLanguagePicker,
@@ -20,6 +21,9 @@ export function CanonicalBookingShell({
   readonly embedding: BookingEmbedding
 }) {
   const [persistingLocale, setPersistingLocale] = useState(false)
+  const [titleActionTarget, setTitleActionTarget] = useState<HTMLDivElement | null>(
+    null
+  )
   const persistLocale = useCallback(
     (nextLocale: BookingLocale) => {
       setPersistingLocale(true)
@@ -60,13 +64,14 @@ export function CanonicalBookingShell({
         sessionLocale={locale}
         onLocaleChange={persistLocale}
       >
-        <LocalizedLanguagePicker />
+        <LocalizedLanguagePicker target={titleActionTarget} />
         {persistingLocale ? (
           <LocalePersistenceStatus />
         ) : (
           <LocalizedServerBackedBookingFlow
             merchantSlug={merchantSlug}
             sessionId={sessionId}
+            onTitleActionMount={setTitleActionTarget}
           />
         )}
       </BookingLocalizationProvider>
@@ -74,9 +79,19 @@ export function CanonicalBookingShell({
   )
 }
 
-function LocalizedLanguagePicker() {
+function LocalizedLanguagePicker({
+  target
+}: {
+  readonly target: HTMLDivElement | null
+}) {
   const { message } = useBookingLocalization()
-  return <BookingLanguagePicker label={message('label.language')} placement="toolbar" />
+  const picker = (
+    <BookingLanguagePicker
+      label={message('label.language')}
+      placement={target ? 'title' : 'toolbar'}
+    />
+  )
+  return target ? createPortal(picker, target) : picker
 }
 
 function LocalePersistenceStatus() {
@@ -86,16 +101,19 @@ function LocalePersistenceStatus() {
 
 function LocalizedServerBackedBookingFlow({
   merchantSlug,
-  sessionId
+  sessionId,
+  onTitleActionMount
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
+  readonly onTitleActionMount: (element: HTMLDivElement | null) => void
 }) {
   const { message } = useBookingLocalization()
   return (
     <ServerBackedBookingFlow
       merchantSlug={merchantSlug}
       sessionId={sessionId}
+      onTitleActionMount={onTitleActionMount}
       selectionRefreshedMessage={message('feedback.selection_refreshed')}
     />
   )

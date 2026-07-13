@@ -1,10 +1,26 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CanonicalBookingShell } from './canonical-booking-shell.tsx'
 
 vi.mock('./server-backed-booking-flow.tsx', () => ({
-  ServerBackedBookingFlow: () => <p>Booking journey</p>
+  ServerBackedBookingFlow: ({
+    onTitleActionMount
+  }: {
+    onTitleActionMount: (element: HTMLDivElement | null) => void
+  }) => (
+    <>
+      <div data-testid="mock-title-actions" ref={onTitleActionMount} />
+      <p>Booking journey</p>
+    </>
+  )
 }))
 
 afterEach(() => {
@@ -49,6 +65,11 @@ describe('Canonical Booking Shell', () => {
         .querySelector('[data-booking-shell="canonical"]')
         ?.getAttribute('data-embedding')
     ).toBe('widget')
+    expect(
+      within(screen.getByTestId('mock-title-actions')).getByRole('button', {
+        name: 'Booking menu'
+      })
+    ).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Booking menu' }))
     expect(
       (

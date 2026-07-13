@@ -185,13 +185,13 @@ export function BookingLanguagePicker({
   placement = 'inline'
 }: {
   readonly label: string
-  readonly placement?: 'inline' | 'toolbar'
+  readonly placement?: 'inline' | 'toolbar' | 'title'
 }) {
   const { locale, setLocale } = useBookingLocalization()
   const [open, setOpen] = useState(false)
-  if (placement === 'toolbar') {
+  if (placement === 'toolbar' || placement === 'title') {
     return (
-      <div {...stylex.props(styles.toolbar)}>
+      <div {...stylex.props(placement === 'toolbar' && styles.toolbar)}>
         <button
           type="button"
           aria-label="Booking menu"

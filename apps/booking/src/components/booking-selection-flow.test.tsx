@@ -79,6 +79,22 @@ const teamJourney: BookingJourney = {
 afterEach(cleanup)
 
 describe('Booking selection flow', () => {
+  it('uses the legacy WidgetTitleContainer DOM contract', () => {
+    const { container } = render(
+      <BookingSelectionFlow
+        journey={teamJourney}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    const titleContainer = screen.getByTestId('container:title')
+    expect(titleContainer.tagName).toBe('DIV')
+    expect(container.querySelector('header')).toBeNull()
+    expect(titleContainer.children[0]?.tagName).toBe('DIV')
+  })
+
   it('offers Specific Provider and Any Provider choices for Team journeys', () => {
     const chooseProvider = vi.fn()
     render(
@@ -151,7 +167,7 @@ describe('Booking selection flow', () => {
         onChooseServices={vi.fn()}
       />
     )
-    expect(screen.getByRole('heading', { name: 'Choose a location' })).toBeTruthy()
+    expect(screen.getByText('Choose a location', { selector: 'p' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Nearby' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
@@ -163,7 +179,7 @@ describe('Booking selection flow', () => {
     expect(chooseShop).toHaveBeenCalledWith('shp_river')
     expect(screen.getByText('21 Mercer Street')).toBeTruthy()
     expect(screen.getByText('New York, NY 10013')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Choose a location' })).toBeTruthy()
+    expect(screen.getByText('Choose a location', { selector: 'p' })).toBeTruthy()
     rerender(
       <BookingSelectionFlow
         journey={{ ...journey, shopId: 'shp_river', version: journey.version + 1 }}
@@ -174,9 +190,7 @@ describe('Booking selection flow', () => {
       />
     )
     await waitFor(() =>
-      expect(
-        screen.getByRole('heading', { name: 'Choose a professional' })
-      ).toBeTruthy()
+      expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
     )
     await waitFor(() =>
       expect(
