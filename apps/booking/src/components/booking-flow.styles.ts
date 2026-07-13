@@ -177,6 +177,12 @@ export const styles = stylex.create({
     transitionProperty: 'border-color, background-color, box-shadow',
     transitionDuration: '150ms'
   },
+  providerCardSelected: {
+    borderColor: bookingTheme.colorPrimary,
+    backgroundColor: bookingTheme.colorPrimary,
+    color: bookingTheme.colorPrimaryFont
+  },
+  providerCardBusy: { pointerEvents: 'none' },
   providerCardDisabled: { opacity: 0.32, pointerEvents: 'none' },
   avatar: {
     display: 'grid',
@@ -213,6 +219,7 @@ export const styles = stylex.create({
     textAlign: 'center',
     textTransform: 'capitalize'
   },
+  providerAvailabilitySelected: { color: 'inherit' },
   mutedSmall: {
     marginTop: 4,
     color: '#616163',

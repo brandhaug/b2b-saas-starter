@@ -210,6 +210,31 @@ describe('Booking selection flow', () => {
     expect(availability.textContent).toBe('Available')
   })
 
+  it('shows the legacy selected provider card state before route advancement', () => {
+    const chooseProvider = vi.fn()
+    render(
+      <BookingSelectionFlow
+        journey={teamJourney}
+        busy={false}
+        onChooseProvider={chooseProvider}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    const card = screen.getByTestId('card:barber:prv_ava')
+    const defaultClassName = card.className
+    expect(card.getAttribute('aria-pressed')).toBe('false')
+
+    fireEvent.click(card)
+
+    expect(chooseProvider).toHaveBeenCalledWith({
+      kind: 'specific',
+      providerId: 'prv_ava'
+    })
+    expect(card.getAttribute('aria-pressed')).toBe('true')
+    expect(card.className).not.toBe(defaultClassName)
+  })
+
   it('does not cover provider or service navigation with a processing overlay', async () => {
     const { rerender } = render(
       <BookingSelectionFlow

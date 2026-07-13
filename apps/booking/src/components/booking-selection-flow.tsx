@@ -58,6 +58,10 @@ function BookingSelectionFlowContent({
   messages = defaultMessages
 }: BookingSelectionFlowProps) {
   const [editingProvider, setEditingProvider] = useState(false)
+  const [pendingProviderChoice, setPendingProviderChoice] = useState<{
+    readonly preference: ProviderPreference
+    readonly journeyVersion: number
+  } | null>(null)
   const [routeDirection, setRouteDirection] = useState<'forward' | 'back'>('forward')
   const [pendingShop, setPendingShop] = useState<{
     readonly id: string
@@ -84,12 +88,14 @@ function BookingSelectionFlowContent({
 
   const chooseProvider = (preference: ProviderPreference) => {
     setRouteDirection('forward')
+    setPendingProviderChoice({ preference, journeyVersion: journey.version })
     setEditingProvider(false)
     onChooseProvider(preference)
   }
 
   const chooseShop = (shopId: string) => {
     setRouteDirection('forward')
+    setPendingProviderChoice(null)
     setPendingShop({ id: shopId, afterVersion: journey.version })
     onChooseShop?.(shopId)
   }
@@ -183,6 +189,11 @@ function BookingSelectionFlowContent({
                 <ProviderGrid
                   journey={journey}
                   busy={busy}
+                  selectedPreference={
+                    pendingProviderChoice?.journeyVersion === journey.version
+                      ? pendingProviderChoice.preference
+                      : journey.providerPreference
+                  }
                   messages={messages}
                   onChoose={chooseProvider}
                 />
@@ -372,11 +383,13 @@ function LocationGrid({
 function ProviderGrid({
   journey,
   busy,
+  selectedPreference,
   onChoose,
   messages
 }: {
   readonly journey: BookingJourney
   readonly busy: boolean
+  readonly selectedPreference: ProviderPreference | null
   readonly onChoose: (preference: ProviderPreference) => void
   readonly messages: BookingSelectionMessages
 }) {
@@ -384,12 +397,14 @@ function ProviderGrid({
     (provider) => provider.access === 'public' && provider.eligibleServiceIds.length > 0
   )
   const anyProviderDisabled = busy || !publicProviderAvailable
+  const anyProviderSelected = selectedPreference?.kind === 'any'
   return (
     <div {...stylex.props(styles.gridTwo)}>
       <div
         role="button"
         tabIndex={anyProviderDisabled ? -1 : 0}
         aria-disabled={anyProviderDisabled}
+        aria-pressed={anyProviderSelected}
         aria-label={messages.anyProvider}
         data-testid="card:chooseServiceFirst"
         onClick={() => {
@@ -400,7 +415,9 @@ function ProviderGrid({
         }
         {...stylex.props(
           styles.providerCard,
-          anyProviderDisabled && styles.providerCardDisabled
+          anyProviderSelected && styles.providerCardSelected,
+          busy && styles.providerCardBusy,
+          !publicProviderAvailable && styles.providerCardDisabled
         )}
       >
         <div {...stylex.props(styles.avatar)}>
@@ -410,10 +427,20 @@ function ProviderGrid({
           />
         </div>
         <p {...stylex.props(styles.providerName)}>{messages.chooseService}</p>
-        <p {...stylex.props(styles.providerAvailability)}>{messages.anyProvider}</p>
+        <p
+          {...stylex.props(
+            styles.providerAvailability,
+            anyProviderSelected && styles.providerAvailabilitySelected
+          )}
+        >
+          {messages.anyProvider}
+        </p>
       </div>
       {journey.providers.map((provider) => {
         const disabled = busy || provider.access === 'restricted'
+        const selected =
+          selectedPreference?.kind === 'specific' &&
+          selectedPreference.providerId === provider.id
         const choose = () =>
           onChoose({ kind: 'specific' as const, providerId: provider.id })
         return (
@@ -422,6 +449,7 @@ function ProviderGrid({
             role="button"
             tabIndex={disabled ? -1 : 0}
             aria-disabled={disabled}
+            aria-pressed={selected}
             aria-label={`${provider.localizedName?.text ?? provider.displayName}, ${
               provider.access === 'restricted'
                 ? messages.providerRestricted
@@ -434,7 +462,9 @@ function ProviderGrid({
             onKeyDown={(event) => activateCard(event, disabled, choose)}
             {...stylex.props(
               styles.providerCard,
-              disabled && styles.providerCardDisabled
+              selected && styles.providerCardSelected,
+              busy && styles.providerCardBusy,
+              provider.access === 'restricted' && styles.providerCardDisabled
             )}
           >
             <div {...stylex.props(styles.avatar)}>
@@ -453,7 +483,10 @@ function ProviderGrid({
             />
             <p
               data-testid={`text:barberAvailability:${provider.id}`}
-              {...stylex.props(styles.providerAvailability)}
+              {...stylex.props(
+                styles.providerAvailability,
+                selected && styles.providerAvailabilitySelected
+              )}
             >
               {provider.access === 'restricted'
                 ? messages.providerRestricted
