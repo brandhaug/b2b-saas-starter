@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type {
   BookingJourney,
   ProviderPreference,
@@ -37,14 +37,7 @@ export function BookingSelectionFlow({
     readonly afterVersion: number
   } | null>(null)
   const [orderOpen, setOrderOpen] = useState(false)
-  const [titleScrolled, setTitleScrolled] = useState(
-    () => typeof window !== 'undefined' && window.scrollY > 0
-  )
-  useEffect(() => {
-    const updateTitleChrome = () => setTitleScrolled(window.scrollY > 0)
-    window.addEventListener('scroll', updateTitleChrome, { passive: true })
-    return () => window.removeEventListener('scroll', updateTitleChrome)
-  }, [])
+  const [titleScrolled, setTitleScrolled] = useState(false)
   const shopSelectionConfirmed =
     pendingShop !== null &&
     journey.shopId === pendingShop.id &&
@@ -119,41 +112,55 @@ export function BookingSelectionFlow({
             ) : null}
           </div>
 
-          <main {...stylex.props(styles.main)}>
-            {!showLocations &&
-            journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
-              <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
-            ) : null}
-            <RoutePresence
-              presenceKey={
-                showLocations ? 'locations' : showProviders ? 'providers' : 'services'
-              }
-            >
-              {showLocations ? (
-                <LocationGrid
-                  journey={journey}
-                  busy={busy || !onChooseShop}
-                  messages={messages}
-                  onChoose={chooseShop}
-                />
-              ) : showProviders ? (
-                <ProviderGrid
-                  journey={journey}
-                  busy={busy}
-                  messages={messages}
-                  onChoose={chooseProvider}
-                />
-              ) : (
-                <ServiceGrid
-                  journey={journey}
-                  busy={busy}
-                  selectedPrimary={selectedPrimary}
-                  onChoose={onChooseServices}
-                  messages={messages}
-                />
-              )}
-            </RoutePresence>
-          </main>
+          <RoutePresence
+            presenceKey={
+              showLocations ? 'locations' : showProviders ? 'providers' : 'services'
+            }
+            className={stylex.props(styles.routeLayer).className}
+          >
+            <div {...stylex.props(styles.scrollableFrame)}>
+              <div
+                data-testid="container:scrollable"
+                onScroll={(event) =>
+                  setTitleScrolled(event.currentTarget.scrollTop > 0)
+                }
+                {...stylex.props(styles.main)}
+              >
+                <div aria-hidden="true" {...stylex.props(styles.scrollOrigin)} />
+                <div {...stylex.props(styles.contentOffset)}>
+                  {!showLocations &&
+                  journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
+                    <p {...stylex.props(styles.mutedSmall)}>
+                      {messages.sourceLanguage}
+                    </p>
+                  ) : null}
+                  {showLocations ? (
+                    <LocationGrid
+                      journey={journey}
+                      busy={busy || !onChooseShop}
+                      messages={messages}
+                      onChoose={chooseShop}
+                    />
+                  ) : showProviders ? (
+                    <ProviderGrid
+                      journey={journey}
+                      busy={busy}
+                      messages={messages}
+                      onChoose={chooseProvider}
+                    />
+                  ) : (
+                    <ServiceGrid
+                      journey={journey}
+                      busy={busy}
+                      selectedPrimary={selectedPrimary}
+                      onChoose={onChooseServices}
+                      messages={messages}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          </RoutePresence>
         </div>
 
         {selectedPrimary && !showProviders ? (

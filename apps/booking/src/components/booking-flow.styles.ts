@@ -8,16 +8,19 @@ const interactiveBackground = {
 
 export const styles = stylex.create({
   app: {
-    minHeight: '100dvh',
-    paddingBottom: 'max(96px, calc(80px + env(safe-area-inset-bottom)))',
+    height: '100dvh',
+    overflow: 'hidden',
     backgroundColor: '#f7f7f7',
     color: '#000000',
     fontFamily: bookingTheme.fontText
   },
   widget: {
+    position: 'relative',
+    display: 'flex',
     width: '100%',
     maxWidth: 375,
-    minHeight: '100dvh',
+    height: '100dvh',
+    flexDirection: 'column',
     marginInline: 'auto',
     overflow: 'hidden',
     backgroundColor: '#f7f7f7'
@@ -95,11 +98,31 @@ export const styles = stylex.create({
     whiteSpace: 'nowrap'
   },
   main: {
+    height: '100%',
+    overflowX: 'hidden',
+    overflowY: 'auto',
     paddingTop: 0,
     paddingRight: 16,
     paddingBottom: 32,
-    paddingLeft: 16
+    paddingLeft: 16,
+    scrollbarWidth: 'none'
   },
+  routeLayer: {
+    position: 'absolute',
+    zIndex: bookingTheme.layerContent,
+    display: 'flex',
+    width: '100%',
+    height: '100%',
+    overflow: 'auto'
+  },
+  scrollableFrame: {
+    position: 'relative',
+    width: '100%',
+    flex: 1,
+    overflow: 'hidden'
+  },
+  scrollOrigin: { width: '100%', height: 0 },
+  contentOffset: { paddingTop: bookingTheme.space18 },
   checkoutSurface: {
     paddingTop: 24,
     borderTopWidth: 1,

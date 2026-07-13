@@ -752,10 +752,12 @@ function useBookingReducedMotion() {
 function MotionContent({
   presenceKey,
   variant,
+  className,
   children
 }: {
   readonly presenceKey: string
   readonly variant: PresenceVariant
+  readonly className?: string | undefined
   readonly children: ReactNode
 }) {
   const reduced = useBookingReducedMotion()
@@ -777,6 +779,7 @@ function MotionContent({
         exit="exit"
         transition={transition}
         layout={variant === 'height' || variant === 'route'}
+        className={className}
         {...(variant === 'height' ? { style: { overflow: 'hidden' as const } } : {})}
       >
         {children}
@@ -836,15 +839,22 @@ export function CalendarPresence(props: {
 export function RoutePresence({
   presenceKey,
   initial = false,
+  className,
   children
 }: {
   readonly presenceKey: string
   readonly initial?: boolean
+  readonly className?: string | undefined
   readonly children: ReactNode
 }) {
   return (
     <AnimatePresence initial={initial} mode="wait">
-      <MotionContent key={presenceKey} presenceKey={presenceKey} variant="route">
+      <MotionContent
+        key={presenceKey}
+        presenceKey={presenceKey}
+        variant="route"
+        {...(className ? { className } : {})}
+      >
         {children}
       </MotionContent>
     </AnimatePresence>

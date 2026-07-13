@@ -90,9 +90,15 @@ describe('Booking selection flow', () => {
     )
 
     const titleContainer = screen.getByTestId('container:title')
+    const scrollable = screen.getByTestId('container:scrollable')
     expect(titleContainer.tagName).toBe('DIV')
+    expect(scrollable.tagName).toBe('DIV')
     expect(container.querySelector('header')).toBeNull()
+    expect(container.querySelector('main')).toBeNull()
     expect(titleContainer.children[0]?.tagName).toBe('DIV')
+    expect(scrollable.parentElement?.parentElement?.parentElement).toBe(
+      titleContainer.parentElement
+    )
   })
 
   it('adds the legacy translucent title chrome after scrolling', async () => {
@@ -105,12 +111,12 @@ describe('Booking selection flow', () => {
       />
     )
     const titleContainer = screen.getByTestId('container:title')
+    const scrollable = screen.getByTestId('container:scrollable')
     const transparentClassName = titleContainer.className
-    Object.defineProperty(window, 'scrollY', { configurable: true, value: 10 })
-    fireEvent.scroll(window)
+    Object.defineProperty(scrollable, 'scrollTop', { configurable: true, value: 10 })
+    fireEvent.scroll(scrollable)
 
     await waitFor(() => expect(titleContainer.className).not.toBe(transparentClassName))
-    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 })
   })
 
   it('offers Specific Provider and Any Provider choices for Team journeys', () => {
