@@ -95,7 +95,7 @@ export function BookingSchedulingFlow({
 
   return (
     <BookingPremiumThemeBoundary palette={premiumPalette}>
-      <BookingWidgetShell busy={busy}>
+      <BookingWidgetShell busy={busy} busyLabel={message('feedback.loading')}>
         <header {...stylex.props(styles.header)}>
           <span {...stylex.props(styles.iconButton)} aria-hidden="true">
             <BookingVisualAsset

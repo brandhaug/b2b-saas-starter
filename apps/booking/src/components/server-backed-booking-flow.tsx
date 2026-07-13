@@ -39,11 +39,11 @@ import {
   createBrowserCheckoutTelemetry,
   type CheckoutTelemetry
 } from '../lib/checkout-telemetry.ts'
+import { BookingWidgetShell } from './booking-widget-shell.tsx'
 import {
   BookingPremiumThemeBoundary,
   type BookingPremiumPalette
 } from '../presentation/booking-premium-theme.tsx'
-import { BookingWidgetShell } from './booking-widget-shell.tsx'
 
 type SettlementPaymentEligibility = PaymentMethodEligibility & {
   readonly giftCardMinor: number
@@ -624,6 +624,7 @@ export function ServerBackedBookingFlow({
             phone_invalid: message('validation.phone_invalid')
           }}
           copy={{
+            processing: message('feedback.loading'),
             title: message('checkout.title'),
             guests: message('checkout.guests'),
             edit: message('checkout.edit'),
@@ -885,6 +886,7 @@ export function ServerBackedBookingFlow({
       <BookingSelectionFlow
         journey={journey.data}
         messages={{
+          processing: message('feedback.loading'),
           chooseLocation: message('selection.choose_location'),
           chooseProvider: message('selection.choose_provider'),
           chooseService: message('selection.choose_service'),

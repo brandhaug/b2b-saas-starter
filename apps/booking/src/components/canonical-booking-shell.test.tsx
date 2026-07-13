@@ -12,16 +12,29 @@ import { CanonicalBookingShell } from './canonical-booking-shell.tsx'
 
 vi.mock('./server-backed-booking-flow.tsx', async () => {
   const { BookingWidgetShell } = await import('./booking-widget-shell.tsx')
+  const { BookingPremiumThemeBoundary } =
+    await import('../presentation/booking-premium-theme.tsx')
+  const palette = {
+    primaryColor: '#111111',
+    primaryDark: '#222222',
+    primaryDarker: '#333333',
+    primaryLight: '#444444',
+    primaryFontColor: '#555555',
+    secondaryColor: '#666666',
+    linkColor: '#777777'
+  } as const
   return {
     ServerBackedBookingFlow: ({
       onTitleActionMount
     }: {
       onTitleActionMount: (element: HTMLDivElement | null) => void
     }) => (
-      <BookingWidgetShell>
-        <div data-testid="mock-title-actions" ref={onTitleActionMount} />
-        <p>Booking journey</p>
-      </BookingWidgetShell>
+      <BookingPremiumThemeBoundary palette={palette}>
+        <BookingWidgetShell>
+          <div data-testid="mock-title-actions" ref={onTitleActionMount} />
+          <p>Booking journey</p>
+        </BookingWidgetShell>
+      </BookingPremiumThemeBoundary>
     )
   }
 })
@@ -72,6 +85,9 @@ describe('Canonical Booking Shell', () => {
       1
     )
     expect(
+      container.querySelector('[data-booking-shell="canonical"]')?.getAttribute('style')
+    ).toContain('#111111')
+    expect(
       within(screen.getByTestId('mock-title-actions')).getByRole('button', {
         name: 'Booking menu'
       })
@@ -90,7 +106,10 @@ describe('Canonical Booking Shell', () => {
 
     expect(new URLSearchParams(window.location.search).get('locale')).toBe('fr')
     expect(screen.getByRole('status').textContent).toBe('Pregătim rezervarea…')
-    expect(screen.queryByText('Booking journey')).toBeNull()
+    expect(
+      container.querySelector('[data-booking-shell="canonical"]')?.getAttribute('style')
+    ).toContain('#111111')
+    expect(screen.getByText('Booking journey')).toBeTruthy()
     resolvePersistence(new Response(null, { status: 204 }))
 
     await waitFor(() =>

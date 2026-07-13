@@ -235,9 +235,6 @@ describe('Booking selection flow', () => {
           .hasAttribute('disabled')
       ).toBe(true)
     )
-    expect(
-      container.querySelector('[data-booking-shell="canonical"]')?.getAttribute('style')
-    ).toContain('#111111')
   })
 
   it('skips Provider choice for Solo, hands off to Additional Services, and opens the full order summary', () => {

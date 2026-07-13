@@ -22,7 +22,7 @@ export function BookingShellProvider({
 
 export function BookingWidgetShell({
   busy = false,
-  busyLabel = 'Processing…',
+  busyLabel,
   children
 }: {
   readonly busy?: boolean
@@ -37,12 +37,12 @@ export function BookingWidgetShell({
       data-booking-shell="canonical"
       data-embedding={embedding}
       data-booking-embedding={embedding}
-      data-scroll-owner={embedding === 'standalone' ? 'document' : 'content'}
+      data-scroll-owner="content"
       style={premiumStyle}
       {...stylex.props(styles.widget)}
     >
       {children}
-      {busy ? (
+      {busy && busyLabel ? (
         <output aria-live="polite" {...stylex.props(styles.processingOverlay)}>
           {busyLabel}
         </output>

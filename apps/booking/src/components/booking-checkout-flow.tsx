@@ -15,13 +15,14 @@ import {
   type PaymentPresentationStatus
 } from './payment-method-selector.tsx'
 import { BookingButton, BookingField } from '../presentation/booking-primitives.tsx'
+import { BookingWidgetShell } from './booking-widget-shell.tsx'
 import {
   BookingPremiumThemeBoundary,
   type BookingPremiumPalette
 } from '../presentation/booking-premium-theme.tsx'
-import { BookingWidgetShell } from './booking-widget-shell.tsx'
 
 type CheckoutCopy = {
+  readonly processing: string
   readonly title: string
   readonly guests: string
   readonly edit: string
@@ -47,6 +48,7 @@ type CheckoutCopy = {
   readonly giftCardUnavailable: string
 }
 const defaultCopy: CheckoutCopy = {
+  processing: 'Processing…',
   title: 'Confirm booking',
   guests: 'Guests',
   edit: 'Edit',
@@ -150,7 +152,7 @@ export function BookingCheckoutFlow({
   }
   return (
     <BookingPremiumThemeBoundary palette={premiumPalette}>
-      <BookingWidgetShell busy={busy}>
+      <BookingWidgetShell busy={busy} busyLabel={copy.processing}>
         <header {...stylex.props(styles.header)}>
           <h1 {...stylex.props(styles.title)}>{copy.title}</h1>
         </header>

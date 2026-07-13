@@ -1,3 +1,4 @@
+import * as stylex from '@stylexjs/stylex'
 import { useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ServerBackedBookingFlow } from './server-backed-booking-flow.tsx'
@@ -8,7 +9,8 @@ import {
 } from '../localization/booking-localization-provider.tsx'
 import type { BookingLocale } from '../localization/booking-localization.ts'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
-import { BookingShellProvider, BookingWidgetShell } from './booking-widget-shell.tsx'
+import { BookingShellProvider } from './booking-widget-shell.tsx'
+import { styles } from './booking-flow.styles.ts'
 
 export function CanonicalBookingShell({
   merchantSlug,
@@ -61,15 +63,14 @@ export function CanonicalBookingShell({
         onLocaleChange={persistLocale}
       >
         <LocalizedLanguagePicker target={titleActionTarget} />
+        <LocalizedServerBackedBookingFlow
+          merchantSlug={merchantSlug}
+          sessionId={sessionId}
+          onTitleActionMount={setTitleActionTarget}
+        />
         {persistingLocale ? (
-          <LocalePersistenceStatus />
-        ) : (
-          <LocalizedServerBackedBookingFlow
-            merchantSlug={merchantSlug}
-            sessionId={sessionId}
-            onTitleActionMount={setTitleActionTarget}
-          />
-        )}
+          <LocalePersistenceStatus target={titleActionTarget?.parentElement ?? null} />
+        ) : null}
       </BookingLocalizationProvider>
     </BookingShellProvider>
   )
@@ -90,13 +91,16 @@ function LocalizedLanguagePicker({
   return target ? createPortal(picker, target) : picker
 }
 
-function LocalePersistenceStatus() {
+function LocalePersistenceStatus({ target }: { readonly target: HTMLElement | null }) {
   const { message } = useBookingLocalization()
-  return (
-    <BookingWidgetShell>
-      <output>{message('feedback.loading')}</output>
-    </BookingWidgetShell>
-  )
+  return target
+    ? createPortal(
+        <output aria-live="polite" {...stylex.props(styles.processingOverlay)}>
+          {message('feedback.loading')}
+        </output>,
+        target
+      )
+    : null
 }
 
 function LocalizedServerBackedBookingFlow({
