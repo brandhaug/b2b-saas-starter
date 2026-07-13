@@ -20,23 +20,39 @@ function CanonicalNestedBookingRoute() {
   const { merchantSlug } = Route.useParams()
   const matched = matchCanonicalBookingRoute(location.pathname)
   if (/\/booking\/waiting-list$/.test(location.pathname))
-    return <WaitingListRouteFlow pathname={location.pathname} application />
+    return (
+      <WaitingListRouteFlow
+        pathname={location.pathname}
+        application
+        locale={route?.locale ?? 'en'}
+        embedding={route?.embedding ?? 'standalone'}
+      />
+    )
   if (/\/booking\/waiting-list\/[^/]+$/.test(location.pathname))
     return (
       <WaitingListRouteFlow
         pathname={location.pathname}
         application
         applicationStatus
+        locale={route?.locale ?? 'en'}
+        embedding={route?.embedding ?? 'standalone'}
       />
     )
   if (/\/booking\/waiting-list\/[^/]+\/offers\/[^/]+$/.test(location.pathname))
-    return <WaitingListRouteFlow pathname={location.pathname} />
+    return (
+      <WaitingListRouteFlow
+        pathname={location.pathname}
+        locale={route?.locale ?? 'en'}
+        embedding={route?.embedding ?? 'standalone'}
+      />
+    )
   if (matched?.kind === 'gift-card-purchase' || matched?.kind === 'gift-card-receipt')
     return (
       <GiftCardRouteFlow
         pathname={location.pathname}
         kind={matched.kind === 'gift-card-purchase' ? 'purchase' : 'receipt'}
         locale={route?.locale ?? 'en'}
+        embedding={route?.embedding ?? 'standalone'}
       />
     )
   if (
@@ -56,6 +72,7 @@ function CanonicalNestedBookingRoute() {
         initialServiceId={
           matched.kind === 'walk-in-service' ? matched.serviceSlug : undefined
         }
+        embedding={route?.embedding ?? 'standalone'}
       />
     )
   if (!route?.bookingLocator) return null

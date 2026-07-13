@@ -3,6 +3,129 @@ export const BOOKING_CATALOG_VERSION = 1 as const
 
 export type BookingLocale = (typeof BOOKING_LOCALES)[number]
 
+export const walkInCatalog = {
+  en: {
+    title: 'Walk in today',
+    statusTitle: 'Your walk-in status',
+    closed: 'Walk-ins are closed right now.',
+    empty: 'No one is waiting right now.',
+    any: 'Any professional',
+    service: 'Service',
+    provider: 'Professional',
+    name: 'Name',
+    email: 'Email',
+    phone: 'Phone',
+    join: 'Join the queue',
+    joining: 'Joining…',
+    unavailable: 'Walk-ins are unavailable right now.',
+    duplicate: 'You are already in this queue.',
+    failed: 'We could not add you to the queue.',
+    loading: 'Loading your private queue status…',
+    position: 'Position',
+    wait: 'Estimated wait',
+    minutes: 'minutes',
+    queue: 'People currently waiting',
+    status: {
+      waiting: 'Waiting',
+      called: 'Called',
+      serving: 'Serving',
+      served: 'Served',
+      removed: 'Removed',
+      expired: 'Expired'
+    }
+  },
+  es: {
+    title: 'Atención sin cita',
+    statusTitle: 'Tu estado en la cola',
+    closed: 'La atención sin cita está cerrada ahora.',
+    empty: 'No hay nadie esperando ahora.',
+    any: 'Cualquier profesional',
+    service: 'Servicio',
+    provider: 'Profesional',
+    name: 'Nombre',
+    email: 'Correo',
+    phone: 'Teléfono',
+    join: 'Unirme a la cola',
+    joining: 'Inscribiendo…',
+    unavailable: 'La cola no está disponible ahora.',
+    duplicate: 'Ya estás en esta cola.',
+    failed: 'No pudimos añadirte a la cola.',
+    loading: 'Cargando tu estado privado…',
+    position: 'Posición',
+    wait: 'Espera estimada',
+    minutes: 'minutos',
+    queue: 'Personas esperando',
+    status: {
+      waiting: 'En espera',
+      called: 'Llamado',
+      serving: 'En servicio',
+      served: 'Atendido',
+      removed: 'Retirado',
+      expired: 'Caducado'
+    }
+  },
+  fr: {
+    title: 'Venir sans rendez-vous',
+    statusTitle: 'Votre statut dans la file',
+    closed: 'Les inscriptions sont fermées pour le moment.',
+    empty: "Personne n'attend pour le moment.",
+    any: "N'importe quel professionnel",
+    service: 'Service',
+    provider: 'Professionnel',
+    name: 'Nom',
+    email: 'E-mail',
+    phone: 'Téléphone',
+    join: 'Rejoindre la file',
+    joining: 'Inscription…',
+    unavailable: "La file n'est pas disponible.",
+    duplicate: 'Vous êtes déjà dans cette file.',
+    failed: 'Impossible de vous ajouter à la file.',
+    loading: 'Chargement de votre statut privé…',
+    position: 'Position',
+    wait: 'Attente estimée',
+    minutes: 'minutes',
+    queue: 'Personnes en attente',
+    status: {
+      waiting: 'En attente',
+      called: 'Appelé',
+      serving: 'En service',
+      served: 'Terminé',
+      removed: 'Retiré',
+      expired: 'Expiré'
+    }
+  },
+  ro: {
+    title: 'Programări fără rezervare',
+    statusTitle: 'Starea ta în coadă',
+    closed: 'Înscrierile sunt închise momentan.',
+    empty: 'Nu așteaptă nimeni momentan.',
+    any: 'Orice profesionist',
+    service: 'Serviciu',
+    provider: 'Profesionist',
+    name: 'Nume',
+    email: 'E-mail',
+    phone: 'Telefon',
+    join: 'Intră în coadă',
+    joining: 'Înscriere…',
+    unavailable: 'Înscrierile nu sunt disponibile momentan.',
+    duplicate: 'Ești deja în această coadă.',
+    failed: 'Nu te-am putut adăuga în coadă.',
+    loading: 'Se încarcă starea privată…',
+    position: 'Poziție',
+    wait: 'Timp estimat',
+    minutes: 'minute',
+    queue: 'Persoane care așteaptă',
+    status: {
+      waiting: 'În așteptare',
+      called: 'Chemat',
+      serving: 'În desfășurare',
+      served: 'Finalizat',
+      removed: 'Eliminat',
+      expired: 'Expirat'
+    }
+  }
+} as const
+
 const en = {
   'action.back': 'Back',
   'action.close': 'Close',
@@ -152,7 +275,28 @@ const en = {
   'gift_card.needs_configuration': 'Online Gift Card payment needs configuration.',
   'gift_card.scope_brand': 'Valid across this brand.',
   'gift_card.scope_shop': 'Valid at this shop.',
-  'gift_card.scope_provider': 'Valid with this specific professional.'
+  'gift_card.scope_provider': 'Valid with this specific professional.',
+  'waiting.title': 'Join the waiting list',
+  'waiting.offer_title': 'Your availability offer',
+  'waiting.intro':
+    'Tell us what works and we’ll contact you when a matching time opens.',
+  'waiting.shop': 'Shop ID',
+  'waiting.service': 'Service ID',
+  'waiting.from': 'From',
+  'waiting.until': 'Until',
+  'waiting.name': 'Name',
+  'waiting.email': 'Email',
+  'waiting.phone': 'Phone',
+  'waiting.checking': 'Checking this private offer…',
+  'waiting.unavailable': 'This offer is unavailable or has expired.',
+  'waiting.withdraw': 'Withdraw application',
+  'waiting.accept': 'Accept and continue',
+  'waiting.decline': 'Decline',
+  'waiting.active':
+    'Your application is active. We’ll send private offers one at a time.',
+  'waiting.withdrawn': 'Your application was withdrawn.',
+  'waiting.declined': 'You declined this offer. Your application remains active.',
+  'waiting.held': 'Your time is being held while you finish booking.'
 } as const
 
 export type BookingTranslationKey = keyof typeof en
@@ -308,7 +452,28 @@ const es = {
     'El pago en línea de tarjetas regalo requiere configuración.',
   'gift_card.scope_brand': 'Válida en toda esta marca.',
   'gift_card.scope_shop': 'Válida en este local.',
-  'gift_card.scope_provider': 'Válida con este profesional específico.'
+  'gift_card.scope_provider': 'Válida con este profesional específico.',
+  'waiting.title': 'Únete a la lista de espera',
+  'waiting.offer_title': 'Tu oferta de disponibilidad',
+  'waiting.intro':
+    'Indícanos qué horario te conviene y te avisaremos cuando se libere una cita.',
+  'waiting.shop': 'ID de local',
+  'waiting.service': 'ID de servicio',
+  'waiting.from': 'Desde',
+  'waiting.until': 'Hasta',
+  'waiting.name': 'Nombre',
+  'waiting.email': 'Correo',
+  'waiting.phone': 'Teléfono',
+  'waiting.checking': 'Comprobando esta oferta privada…',
+  'waiting.unavailable': 'Esta oferta no está disponible o ha caducado.',
+  'waiting.withdraw': 'Retirar solicitud',
+  'waiting.accept': 'Aceptar y continuar',
+  'waiting.decline': 'Rechazar',
+  'waiting.active':
+    'Tu solicitud está activa. Enviaremos ofertas privadas de una en una.',
+  'waiting.withdrawn': 'Tu solicitud fue retirada.',
+  'waiting.declined': 'Rechazaste esta oferta. Tu solicitud sigue activa.',
+  'waiting.held': 'Reservamos tu hora mientras terminas la reserva.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const fr = {
@@ -463,7 +628,28 @@ const fr = {
     'Le paiement en ligne des cartes cadeaux doit être configuré.',
   'gift_card.scope_brand': 'Valable dans toute cette marque.',
   'gift_card.scope_shop': 'Valable dans cet établissement.',
-  'gift_card.scope_provider': 'Valable avec ce professionnel précis.'
+  'gift_card.scope_provider': 'Valable avec ce professionnel précis.',
+  'waiting.title': 'Rejoindre la liste d’attente',
+  'waiting.offer_title': 'Votre offre de disponibilité',
+  'waiting.intro':
+    'Indiquez-nous vos disponibilités et nous vous contacterons lorsqu’un créneau se libère.',
+  'waiting.shop': 'ID du salon',
+  'waiting.service': 'ID du service',
+  'waiting.from': 'Du',
+  'waiting.until': 'Au',
+  'waiting.name': 'Nom',
+  'waiting.email': 'E-mail',
+  'waiting.phone': 'Téléphone',
+  'waiting.checking': 'Vérification de cette offre privée…',
+  'waiting.unavailable': 'Cette offre est indisponible ou a expiré.',
+  'waiting.withdraw': 'Retirer la demande',
+  'waiting.accept': 'Accepter et continuer',
+  'waiting.decline': 'Refuser',
+  'waiting.active':
+    'Votre demande est active. Les offres privées seront envoyées une à la fois.',
+  'waiting.withdrawn': 'Votre demande a été retirée.',
+  'waiting.declined': 'Vous avez refusé cette offre. Votre demande reste active.',
+  'waiting.held': 'Votre créneau est réservé pendant que vous terminez.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 const ro = {
@@ -616,7 +802,27 @@ const ro = {
     'Plata online pentru carduri cadou necesită configurare.',
   'gift_card.scope_brand': 'Valabil în cadrul acestui brand.',
   'gift_card.scope_shop': 'Valabil în această locație.',
-  'gift_card.scope_provider': 'Valabil cu acest profesionist.'
+  'gift_card.scope_provider': 'Valabil cu acest profesionist.',
+  'waiting.title': 'Înscrie-te pe lista de așteptare',
+  'waiting.offer_title': 'Oferta ta de disponibilitate',
+  'waiting.intro':
+    'Spune-ne ce intervale îți convin și te vom contacta când apare un loc.',
+  'waiting.shop': 'ID locație',
+  'waiting.service': 'ID serviciu',
+  'waiting.from': 'De la',
+  'waiting.until': 'Până la',
+  'waiting.name': 'Nume',
+  'waiting.email': 'E-mail',
+  'waiting.phone': 'Telefon',
+  'waiting.checking': 'Verificăm oferta privată…',
+  'waiting.unavailable': 'Oferta nu este disponibilă sau a expirat.',
+  'waiting.withdraw': 'Retrage cererea',
+  'waiting.accept': 'Acceptă și continuă',
+  'waiting.decline': 'Refuză',
+  'waiting.active': 'Cererea ta este activă. Vom trimite ofertele private pe rând.',
+  'waiting.withdrawn': 'Cererea ta a fost retrasă.',
+  'waiting.declined': 'Ai refuzat oferta. Cererea rămâne activă.',
+  'waiting.held': 'Păstrăm intervalul cât timp finalizezi rezervarea.'
 } as const satisfies Record<BookingTranslationKey, string>
 
 export const bookingCatalogs = { en, es, fr, ro } as const satisfies Record<

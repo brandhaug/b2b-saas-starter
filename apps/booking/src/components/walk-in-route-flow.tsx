@@ -3,136 +3,26 @@ import type {
   WalkInOverview,
   WalkInQueueEntry
 } from '@b2b-saas-starter/capabilities/walk-ins'
-import type { BookingLocale } from '../localization/booking-localization.ts'
 import {
+  walkInCatalog,
+  type BookingLocale
+} from '../localization/booking-localization.ts'
+import {
+  BookingLanguagePicker,
+  BookingLocalizationProvider,
+  useBookingLocalization
+} from '../localization/booking-localization-provider.tsx'
+import {
+  BookingButton,
+  BookingField,
+  BookingPageContent,
+  BookingPageHeader,
+  BookingSelectField,
   BookingStack,
+  BookingStatus,
   BookingSurface,
-  BookingText,
   BookingViewport
 } from '../presentation/booking-primitives.tsx'
-
-const copy = {
-  en: {
-    title: 'Walk in today',
-    statusTitle: 'Your walk-in status',
-    closed: 'Walk-ins are closed right now.',
-    empty: 'No one is waiting right now.',
-    any: 'Any professional',
-    service: 'Service',
-    provider: 'Professional',
-    name: 'Name',
-    email: 'Email',
-    phone: 'Phone',
-    join: 'Join the queue',
-    joining: 'Joining…',
-    unavailable: 'Walk-ins are unavailable right now.',
-    duplicate: 'You are already in this queue.',
-    failed: 'We could not add you to the queue.',
-    loading: 'Loading your private queue status…',
-    position: 'Position',
-    wait: 'Estimated wait',
-    minutes: 'minutes',
-    queue: 'People currently waiting',
-    status: {
-      waiting: 'Waiting',
-      called: 'Called',
-      serving: 'Serving',
-      served: 'Served',
-      removed: 'Removed',
-      expired: 'Expired'
-    }
-  },
-  es: {
-    title: 'Atención sin cita',
-    statusTitle: 'Tu estado en la cola',
-    closed: 'La atención sin cita está cerrada ahora.',
-    empty: 'No hay nadie esperando ahora.',
-    any: 'Cualquier profesional',
-    service: 'Servicio',
-    provider: 'Profesional',
-    name: 'Nombre',
-    email: 'Correo',
-    phone: 'Teléfono',
-    join: 'Unirme a la cola',
-    joining: 'Inscribiendo…',
-    unavailable: 'La cola no está disponible ahora.',
-    duplicate: 'Ya estás en esta cola.',
-    failed: 'No pudimos añadirte a la cola.',
-    loading: 'Cargando tu estado privado…',
-    position: 'Posición',
-    wait: 'Espera estimada',
-    minutes: 'minutos',
-    queue: 'Personas esperando',
-    status: {
-      waiting: 'En espera',
-      called: 'Llamado',
-      serving: 'En servicio',
-      served: 'Atendido',
-      removed: 'Retirado',
-      expired: 'Caducado'
-    }
-  },
-  fr: {
-    title: 'Venir sans rendez-vous',
-    statusTitle: 'Votre statut dans la file',
-    closed: 'Les inscriptions sont fermées pour le moment.',
-    empty: "Personne n'attend pour le moment.",
-    any: "N'importe quel professionnel",
-    service: 'Service',
-    provider: 'Professionnel',
-    name: 'Nom',
-    email: 'E-mail',
-    phone: 'Téléphone',
-    join: 'Rejoindre la file',
-    joining: 'Inscription…',
-    unavailable: "La file n'est pas disponible.",
-    duplicate: 'Vous êtes déjà dans cette file.',
-    failed: 'Impossible de vous ajouter à la file.',
-    loading: 'Chargement de votre statut privé…',
-    position: 'Position',
-    wait: 'Attente estimée',
-    minutes: 'minutes',
-    queue: 'Personnes en attente',
-    status: {
-      waiting: 'En attente',
-      called: 'Appelé',
-      serving: 'En service',
-      served: 'Terminé',
-      removed: 'Retiré',
-      expired: 'Expiré'
-    }
-  },
-  ro: {
-    title: 'Programări fără rezervare',
-    statusTitle: 'Starea ta în coadă',
-    closed: 'Înscrierile sunt închise momentan.',
-    empty: 'Nu așteaptă nimeni momentan.',
-    any: 'Orice profesionist',
-    service: 'Serviciu',
-    provider: 'Profesionist',
-    name: 'Nume',
-    email: 'E-mail',
-    phone: 'Telefon',
-    join: 'Intră în coadă',
-    joining: 'Înscriere…',
-    unavailable: 'Înscrierile nu sunt disponibile momentan.',
-    duplicate: 'Ești deja în această coadă.',
-    failed: 'Nu te-am putut adăuga în coadă.',
-    loading: 'Se încarcă starea privată…',
-    position: 'Poziție',
-    wait: 'Timp estimat',
-    minutes: 'minute',
-    queue: 'Persoane care așteaptă',
-    status: {
-      waiting: 'În așteptare',
-      called: 'Chemat',
-      serving: 'În desfășurare',
-      served: 'Finalizat',
-      removed: 'Eliminat',
-      expired: 'Expirat'
-    }
-  }
-} as const
 
 const serviceRouteKey = (value: string) =>
   value
@@ -146,14 +36,40 @@ export function WalkInRouteFlow({
   pathname,
   locale,
   acknowledgment,
-  initialServiceId
+  initialServiceId,
+  embedding = 'standalone'
 }: {
   pathname: string
   locale: BookingLocale
   acknowledgment: boolean
   initialServiceId?: string | undefined
+  embedding?: 'standalone' | 'widget' | 'google'
 }) {
-  const message = copy[locale]
+  return (
+    <BookingLocalizationProvider sessionLocale={locale} onLocaleChange={() => {}}>
+      <WalkInRouteContent
+        pathname={pathname}
+        acknowledgment={acknowledgment}
+        initialServiceId={initialServiceId}
+        embedding={embedding}
+      />
+    </BookingLocalizationProvider>
+  )
+}
+
+function WalkInRouteContent({
+  pathname,
+  acknowledgment,
+  initialServiceId,
+  embedding
+}: {
+  pathname: string
+  acknowledgment: boolean
+  initialServiceId?: string | undefined
+  embedding: 'standalone' | 'widget' | 'google'
+}) {
+  const { locale, message: bookingMessage } = useBookingLocalization()
+  const message = walkInCatalog[locale]
   const [overview, setOverview] = useState<WalkInOverview | null>(null)
   const [current, setCurrent] = useState<WalkInQueueEntry | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -196,7 +112,8 @@ export function WalkInRouteFlow({
     setSubmitting(true)
     setError(null)
     const data = new FormData(event.currentTarget)
-    const providerId = String(data.get('providerId'))
+    const providerEntry = data.get('providerId')
+    const providerId = typeof providerEntry === 'string' ? providerEntry : 'any'
     const response = await fetch(pathname, {
       method: 'POST',
       credentials: 'same-origin',
@@ -227,90 +144,103 @@ export function WalkInRouteFlow({
     }
   }
   return (
-    <BookingViewport>
-      <div className="px-3 py-4 sm:px-8 sm:py-10" data-walk-in-viewport>
-        <BookingStack>
-          <BookingSurface>
-            <BookingText variant="largeTitle">
-              {acknowledgment ? message.statusTitle : message.title}
-            </BookingText>
-            {error ? <p role="alert">{error}</p> : null}
-            {acknowledgment ? (
-              current ? (
-                <div aria-live="polite">
-                  <p>{message.status[current.status]}</p>
+    <BookingViewport embedding={embedding}>
+      <BookingLanguagePicker
+        label={bookingMessage('label.language')}
+        placement="toolbar"
+      />
+      <BookingPageHeader title={acknowledgment ? message.statusTitle : message.title} />
+      <BookingPageContent>
+        <div data-walk-in-viewport>
+          <BookingStack>
+            <BookingSurface>
+              {error ? <BookingStatus tone="danger">{error}</BookingStatus> : null}
+              {acknowledgment ? (
+                current ? (
+                  <BookingStatus live>
+                    <p>{message.status[current.status]}</p>
+                    <p>
+                      {message.position}: {current.position}
+                    </p>
+                    <p>
+                      {message.wait}: {current.projectedWaitMinutes} {message.minutes}
+                    </p>
+                  </BookingStatus>
+                ) : (
+                  <BookingStatus live>{message.loading}</BookingStatus>
+                )
+              ) : overview ? (
+                <>
+                  {overview.state === 'closed' ? (
+                    <p>{message.closed}</p>
+                  ) : overview.services.length === 0 || !selectedServiceId ? (
+                    <p>{message.unavailable}</p>
+                  ) : (
+                    <form onSubmit={submit}>
+                      <BookingStack>
+                        <BookingSelectField
+                          label={message.service}
+                          name="serviceId"
+                          required
+                          defaultValue={selectedServiceId}
+                        >
+                          {overview.services.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.name}
+                            </option>
+                          ))}
+                        </BookingSelectField>
+                        <BookingSelectField label={message.provider} name="providerId">
+                          <option value="any">{message.any}</option>
+                          {overview.providers.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.name}
+                            </option>
+                          ))}
+                        </BookingSelectField>
+                        <BookingField
+                          label={message.name}
+                          name="name"
+                          autoComplete="name"
+                          required
+                        />
+                        <BookingField
+                          label={message.email}
+                          name="email"
+                          type="email"
+                          autoComplete="email"
+                          required
+                        />
+                        <BookingField
+                          label={message.phone}
+                          name="phone"
+                          type="tel"
+                          autoComplete="tel"
+                          required
+                        />
+                        <BookingButton
+                          disabled={submitting}
+                          type="submit"
+                          tone="primary"
+                        >
+                          {submitting ? message.joining : message.join}
+                        </BookingButton>
+                      </BookingStack>
+                    </form>
+                  )}
                   <p>
-                    {message.position}: {current.position}
+                    {overview.queue.length === 0
+                      ? message.empty
+                      : `${message.queue}: ${overview.queue.length}`}
                   </p>
-                  <p>
-                    {message.wait}: {current.projectedWaitMinutes} {message.minutes}
-                  </p>
-                </div>
+                </>
               ) : (
                 <p>{message.loading}</p>
-              )
-            ) : overview ? (
-              <>
-                {overview.state === 'closed' ? (
-                  <p>{message.closed}</p>
-                ) : overview.services.length === 0 || !selectedServiceId ? (
-                  <p>{message.unavailable}</p>
-                ) : (
-                  <form onSubmit={submit}>
-                    <label>
-                      {message.service}
-                      <select
-                        name="serviceId"
-                        required
-                        defaultValue={selectedServiceId}
-                      >
-                        {overview.services.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      {message.provider}
-                      <select name="providerId">
-                        <option value="any">{message.any}</option>
-                        {overview.providers.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      {message.name}
-                      <input name="name" autoComplete="name" required />
-                    </label>
-                    <label>
-                      {message.email}
-                      <input name="email" type="email" autoComplete="email" required />
-                    </label>
-                    <label>
-                      {message.phone}
-                      <input name="phone" type="tel" autoComplete="tel" required />
-                    </label>
-                    <button disabled={submitting} type="submit">
-                      {submitting ? message.joining : message.join}
-                    </button>
-                  </form>
-                )}
-                <p>
-                  {overview.queue.length === 0
-                    ? message.empty
-                    : `${message.queue}: ${overview.queue.length}`}
-                </p>
-              </>
-            ) : (
-              <p>{message.loading}</p>
-            )}
-          </BookingSurface>
-        </BookingStack>
-      </div>
+              )}
+            </BookingSurface>
+          </BookingStack>
+        </div>
+      </BookingPageContent>
     </BookingViewport>
   )
 }

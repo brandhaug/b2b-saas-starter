@@ -136,18 +136,58 @@ const styles = stylex.create({
     backgroundColor: bookingTheme.colorSurface,
     color: bookingTheme.colorText,
     fontSize: bookingTheme.textInput
+  },
+  toolbar: {
+    position: 'fixed',
+    top: `max(${bookingTheme.space3}, env(safe-area-inset-top))`,
+    right: `max(${bookingTheme.space3}, env(safe-area-inset-right))`,
+    zIndex: bookingTheme.layerPopupStack,
+    display: 'flex',
+    alignItems: 'center',
+    gap: bookingTheme.space2,
+    padding: bookingTheme.space2,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: bookingTheme.colorBorder,
+    borderRadius: bookingTheme.radiusMedium,
+    backgroundColor: bookingTheme.whiteA90,
+    boxShadow: bookingTheme.shadowSheet
+  },
+  toolbarLabel: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    overflow: 'hidden',
+    clipPath: 'inset(50%)'
+  },
+  toolbarSelect: {
+    minHeight: bookingTheme.targetMinimum,
+    paddingInline: bookingTheme.space2,
+    borderWidth: 0,
+    backgroundColor: 'transparent'
   }
 })
 
-export function BookingLanguagePicker({ label }: { readonly label: string }) {
+export function BookingLanguagePicker({
+  label,
+  placement = 'inline'
+}: {
+  readonly label: string
+  readonly placement?: 'inline' | 'toolbar'
+}) {
   const { locale, setLocale } = useBookingLocalization()
   return (
-    <label {...stylex.props(styles.label)}>
-      <span>{label}</span>
+    <label {...stylex.props(styles.label, placement === 'toolbar' && styles.toolbar)}>
+      <span {...stylex.props(placement === 'toolbar' && styles.toolbarLabel)}>
+        {label}
+      </span>
       <select
         value={locale}
         onChange={(event) => setLocale(event.currentTarget.value as BookingLocale)}
-        {...stylex.props(styles.select)}
+        {...stylex.props(
+          styles.select,
+          placement === 'toolbar' && styles.toolbarSelect
+        )}
       >
         {BOOKING_LOCALES.map((value) => (
           <option key={value} value={value}>

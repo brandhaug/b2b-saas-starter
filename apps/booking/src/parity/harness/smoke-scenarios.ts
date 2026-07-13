@@ -1,4 +1,5 @@
 import { defineScenario } from './scenario-manifest.ts'
+import { visualParityMotion, visualParityProfiles } from '../visual-parity-contract.ts'
 
 const base = {
   schemaVersion: 1 as const,
@@ -13,7 +14,13 @@ const base = {
   clock: { instant: '2026-07-10T09:30:00.000Z', timezone: 'UTC' },
   locale: 'en' as const,
   embedding: 'standalone' as const,
-  viewport: { width: 375, height: 812 },
+  viewport: visualParityProfiles['mobile-narrow-375x812'].host,
+  input: 'touch' as const,
+  motion: {
+    policy: 'finish-and-freeze' as const,
+    checkpoints: [visualParityMotion.pageMs] as readonly number[]
+  },
+  visual: { mode: 'exact' as const, masks: [] as const },
   providers: {
     email: { 'send-confirmation': { status: 'disabled' } },
     payment: { 'create-payment': { status: 'disabled' } },
@@ -148,6 +155,7 @@ export const smokeScenarios = await Promise.all([
         reducedMotion: true
       }
     },
+    motion: { policy: 'reduced', checkpoints: [0] },
     assertions: [
       'requests can be added reordered and switched by keyboard',
       'assigned and Any Provider requests retain independent selections',
@@ -162,7 +170,8 @@ export const smokeScenarios = await Promise.all([
     console: {
       allow: ['409 (Conflict)', "WebSocket connection to 'ws://localhost"]
     },
-    viewport: { width: 1440, height: 900 },
+    viewport: visualParityProfiles['desktop-1440x900'].host,
+    input: 'mouse-keyboard',
     route: '/mara-booking-studio/booking',
     fixture: {
       schemaVersion: 1,
@@ -272,7 +281,8 @@ export const smokeScenarios = await Promise.all([
     id: 'booking/canonical-shell-standalone-fr',
     journey: 'shell-boundary',
     locale: 'fr',
-    viewport: { width: 1440, height: 900 },
+    viewport: visualParityProfiles['desktop-1440x900'].host,
+    input: 'mouse-keyboard',
     route:
       '/mara-booking-studio/booking?locale=fr&utm_source=parity&utm_campaign=shell',
     assertions: [
@@ -282,13 +292,73 @@ export const smokeScenarios = await Promise.all([
       'canonical back and forward history is deterministic'
     ]
   }),
+  ...(['en', 'es', 'fr', 'ro'] as const).map((locale) =>
+    defineScenario({
+      ...base,
+      id: `booking/canonical-shell-mobile-narrow-${locale}`,
+      journey: 'shell-boundary',
+      locale,
+      route: `/mara-booking-studio/booking?locale=${locale}`,
+      assertions: [
+        'booking shell is visible',
+        'session locale is persisted',
+        'profile preserves the 375 pixel content cap and scroll ownership',
+        'canonical back and forward history is deterministic'
+      ]
+    })
+  ),
+  defineScenario({
+    ...base,
+    id: 'booking/canonical-shell-mobile-wide-en',
+    journey: 'shell-boundary',
+    viewport: visualParityProfiles['mobile-wide-376x812'].host,
+    route: '/mara-booking-studio/booking?locale=en',
+    assertions: [
+      'booking shell is visible',
+      'session locale is persisted',
+      'profile preserves the 375 pixel content cap and scroll ownership',
+      'canonical back and forward history is deterministic'
+    ]
+  }),
+  defineScenario({
+    ...base,
+    id: 'booking/canonical-shell-laptop-en',
+    journey: 'shell-boundary',
+    viewport: visualParityProfiles['laptop-1024x768'].host,
+    input: 'mouse-keyboard',
+    route: '/mara-booking-studio/booking?locale=en',
+    assertions: [
+      'booking shell is visible',
+      'session locale is persisted',
+      'profile preserves the 375 pixel content cap and scroll ownership',
+      'canonical back and forward history is deterministic'
+    ]
+  }),
+  defineScenario({
+    ...base,
+    id: 'booking/canonical-shell-zoom-200-en',
+    journey: 'shell-boundary',
+    viewport: visualParityProfiles['zoom-200'].host,
+    input: 'mouse-keyboard',
+    route: '/mara-booking-studio/booking?locale=en',
+    fixture: {
+      ...base.fixture,
+      data: { ...base.fixture.data, zoom: 2 }
+    },
+    assertions: [
+      'booking shell is visible',
+      'session locale is persisted',
+      'profile preserves the 375 pixel content cap and scroll ownership',
+      'canonical back and forward history is deterministic'
+    ]
+  }),
   defineScenario({
     ...base,
     id: 'booking/canonical-shell-widget-ro',
     journey: 'shell-boundary',
     locale: 'ro',
     embedding: 'widget',
-    viewport: { width: 768, height: 900 },
+    viewport: visualParityProfiles['tablet-widget-768x900-iframe-375x700'].host,
     route: '/mara-booking-studio/booking?locale=ro&embed=widget&rwg_token=parity',
     assertions: [
       'booking shell is visible',

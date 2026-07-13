@@ -8,7 +8,7 @@ const interactiveBackground = {
 export const styles = stylex.create({
   app: {
     minHeight: '100dvh',
-    paddingBottom: 96,
+    paddingBottom: 'max(96px, calc(80px + env(safe-area-inset-bottom)))',
     backgroundColor: '#f7f7f8'
   },
   widget: {
@@ -30,7 +30,8 @@ export const styles = stylex.create({
     minHeight: 68,
     alignItems: 'flex-start',
     gap: 12,
-    paddingBlock: 20,
+    paddingTop: 'max(20px, env(safe-area-inset-top))',
+    paddingBottom: 20,
     paddingInline: 16,
     backgroundColor: 'rgb(247 247 248 / 94%)',
     backdropFilter: 'blur(12px)'
@@ -457,7 +458,7 @@ export const styles = stylex.create({
   },
   orderBar: {
     position: 'fixed',
-    bottom: 16,
+    bottom: 'max(16px, env(safe-area-inset-bottom))',
     left: '50%',
     zIndex: 30,
     display: 'flex',
@@ -488,7 +489,10 @@ export const styles = stylex.create({
     width: '100%',
     maxWidth: 375,
     flexDirection: 'column',
-    padding: 16,
+    paddingTop: 'max(16px, env(safe-area-inset-top))',
+    paddingRight: 'max(16px, env(safe-area-inset-right))',
+    paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+    paddingLeft: 'max(16px, env(safe-area-inset-left))',
     transform: 'translateX(-50%)',
     backgroundColor: '#292929',
     color: '#ffffff',

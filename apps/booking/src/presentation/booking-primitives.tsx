@@ -4,7 +4,6 @@ import {
   LazyMotion,
   domAnimation,
   m,
-  useReducedMotion,
   type Transition,
   type Variants
 } from 'motion/react'
@@ -12,8 +11,11 @@ import {
   useEffect,
   useEffectEvent,
   useId,
+  useRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
+  type SelectHTMLAttributes,
   type ReactNode
 } from 'react'
 import { bookingTheme } from './booking-theme.stylex.ts'
@@ -27,6 +29,7 @@ const styles = stylex.create({
     minHeight: '100dvh',
     backgroundColor: bookingTheme.colorCanvas
   },
+  viewportFrameEmbedded: { minHeight: '100%', backgroundColor: 'transparent' },
   viewport: {
     width: '100%',
     maxWidth: bookingTheme.breakpointWidget,
@@ -38,7 +41,31 @@ const styles = stylex.create({
     fontFamily: bookingTheme.fontText,
     overflowY: 'auto'
   },
+  viewportEmbedded: { minHeight: '100%', maxHeight: '100dvh' },
   viewportDocumentScroll: { overflowY: 'visible' },
+  pageHeader: {
+    position: 'sticky',
+    top: 0,
+    zIndex: bookingTheme.layerChrome,
+    display: 'grid',
+    minHeight: bookingTheme.space17,
+    alignContent: 'center',
+    gap: bookingTheme.space1,
+    paddingTop: `max(${bookingTheme.space4}, env(safe-area-inset-top))`,
+    paddingRight: `max(${bookingTheme.space4}, env(safe-area-inset-right))`,
+    paddingBottom: bookingTheme.space4,
+    paddingLeft: `max(${bookingTheme.space4}, env(safe-area-inset-left))`,
+    backgroundColor: bookingTheme.colorChrome,
+    borderBottomWidth: 1,
+    borderBottomStyle: 'solid',
+    borderBottomColor: bookingTheme.colorBorder
+  },
+  pageContent: {
+    paddingTop: bookingTheme.space4,
+    paddingRight: `max(${bookingTheme.space4}, env(safe-area-inset-right))`,
+    paddingBottom: `max(${bookingTheme.space6}, env(safe-area-inset-bottom))`,
+    paddingLeft: `max(${bookingTheme.space4}, env(safe-area-inset-left))`
+  },
   stack: { display: 'flex', minWidth: 0, flexDirection: 'column' },
   inline: { display: 'flex', minWidth: 0, alignItems: 'center', flexWrap: 'wrap' },
   gapNone: { gap: bookingTheme.space0 },
@@ -123,6 +150,7 @@ const styles = stylex.create({
     color: bookingTheme.colorText,
     fontSize: bookingTheme.textInput
   },
+  select: { appearance: 'auto' },
   inputInvalid: { borderColor: bookingTheme.colorDanger },
   error: {
     margin: 0,
@@ -213,7 +241,24 @@ const styles = stylex.create({
     zIndex: bookingTheme.layerProcessing,
     display: 'grid',
     placeItems: 'center',
-    backgroundColor: bookingTheme.whiteA90
+    backgroundColor: bookingTheme.whiteA90,
+    paddingBottom: 'env(safe-area-inset-bottom)'
+  },
+  status: {
+    padding: bookingTheme.space3,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: bookingTheme.colorBorder,
+    borderRadius: bookingTheme.radiusMedium,
+    backgroundColor: bookingTheme.colorSurface
+  },
+  statusDanger: {
+    borderColor: bookingTheme.colorDanger,
+    color: bookingTheme.colorDanger
+  },
+  statusSuccess: {
+    borderColor: bookingTheme.colorSuccess,
+    color: bookingTheme.colorSuccess
   },
   fallback: {
     display: 'inline-flex',
@@ -224,6 +269,14 @@ const styles = stylex.create({
   fallbackIndicator: {
     color: bookingTheme.colorTextMuted,
     fontSize: bookingTheme.textCaption
+  },
+  visuallyHidden: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    overflow: 'hidden',
+    clipPath: 'inset(50%)',
+    whiteSpace: 'nowrap'
   }
 })
 
@@ -238,17 +291,24 @@ const gapStyle = (gap: Gap) =>
 
 export function BookingViewport({
   children,
-  scrollOwner = 'content'
+  scrollOwner = 'content',
+  embedding = 'standalone'
 }: {
   readonly children: ReactNode
   readonly scrollOwner?: 'content' | 'document'
+  readonly embedding?: 'standalone' | 'widget' | 'google'
 }) {
+  const embedded = embedding !== 'standalone'
   return (
-    <div {...stylex.props(styles.viewportFrame)}>
+    <div
+      data-booking-embedding={embedding}
+      {...stylex.props(styles.viewportFrame, embedded && styles.viewportFrameEmbedded)}
+    >
       <main
         data-scroll-owner={scrollOwner}
         {...stylex.props(
           styles.viewport,
+          embedded && styles.viewportEmbedded,
           scrollOwner === 'document' && styles.viewportDocumentScroll
         )}
       >
@@ -256,6 +316,29 @@ export function BookingViewport({
       </main>
     </div>
   )
+}
+
+export function BookingPageHeader({
+  title,
+  eyebrow
+}: {
+  readonly title: string
+  readonly eyebrow?: string
+}) {
+  return (
+    <header {...stylex.props(styles.pageHeader)}>
+      {eyebrow ? (
+        <BookingText variant="caption" tone="muted">
+          {eyebrow}
+        </BookingText>
+      ) : null}
+      <BookingText variant="title">{title}</BookingText>
+    </header>
+  )
+}
+
+export function BookingPageContent({ children }: { readonly children: ReactNode }) {
+  return <div {...stylex.props(styles.pageContent)}>{children}</div>
 }
 
 export function BookingStack({
@@ -388,6 +471,71 @@ export function BookingField({ label, error, ...input }: BookingFieldProps) {
   )
 }
 
+type BookingSelectFieldProps = Pick<
+  SelectHTMLAttributes<HTMLSelectElement>,
+  'children' | 'defaultValue' | 'disabled' | 'name' | 'onChange' | 'required' | 'value'
+> & {
+  readonly label: string
+  readonly error?: string
+}
+
+export function BookingSelectField({
+  label,
+  error,
+  children,
+  ...select
+}: BookingSelectFieldProps) {
+  const id = useId()
+  const errorId = `${id}-error`
+  return (
+    <label {...stylex.props(styles.field)}>
+      <span {...stylex.props(styles.label)}>{label}</span>
+      <select
+        id={id}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        {...select}
+        {...stylex.props(
+          styles.input,
+          styles.select,
+          Boolean(error) && styles.inputInvalid
+        )}
+      >
+        {children}
+      </select>
+      {error ? (
+        <p id={errorId} role="alert" {...stylex.props(styles.error)}>
+          {error}
+        </p>
+      ) : null}
+    </label>
+  )
+}
+
+export function BookingStatus({
+  children,
+  tone = 'default',
+  live = false
+}: {
+  readonly children: ReactNode
+  readonly tone?: 'default' | 'danger' | 'success'
+  readonly live?: boolean
+}) {
+  return (
+    <div
+      role={tone === 'danger' ? 'alert' : 'status'}
+      aria-live={live ? 'polite' : undefined}
+      {...stylex.props(
+        styles.status,
+        tone === 'danger' && styles.statusDanger,
+        tone === 'success' && styles.statusSuccess
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 export function BookingSelectableCard({
   children,
   selected,
@@ -417,7 +565,11 @@ export function BookingSkeleton({ label = 'Loading' }: { readonly label?: string
 }
 
 export function BookingToast({ children }: { readonly children: ReactNode }) {
-  return <output {...stylex.props(styles.toast)}>{children}</output>
+  return (
+    <output aria-live="polite" {...stylex.props(styles.toast)}>
+      {children}
+    </output>
+  )
 }
 
 export function BookingTooltip({ children }: { readonly children: ReactNode }) {
@@ -432,6 +584,18 @@ export function BookingProcessingOverlay({ label }: { readonly label: string }) 
   return (
     <output aria-live="polite" {...stylex.props(styles.processing)}>
       {label}
+    </output>
+  )
+}
+
+export function BookingAnnouncement({ children }: { readonly children: ReactNode }) {
+  return (
+    <output
+      aria-live="polite"
+      aria-atomic="true"
+      {...stylex.props(styles.visuallyHidden)}
+    >
+      {children}
     </output>
   )
 }
@@ -453,13 +617,15 @@ export function BookingOverlay({
   readonly children: ReactNode
 }) {
   const titleId = useId()
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const reduced = useBookingReducedMotion()
   const closeOverlay = useEffectEvent(onClose)
   useEffect(() => {
     if (!open) return
     const previouslyFocused = document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const dialog = document.querySelector<HTMLElement>(`[aria-labelledby="${titleId}"]`)
+    const dialog = dialogRef.current
     const focusable = () =>
       dialog ? [...dialog.querySelectorAll<HTMLElement>(focusableSelector)] : []
     focusable()[0]?.focus()
@@ -489,31 +655,48 @@ export function BookingOverlay({
       previouslyFocused?.focus()
     }
   }, [open, titleId])
-  if (!open) return null
   return (
-    <div data-layer="popup-stack">
-      <div aria-hidden="true" {...stylex.props(styles.backdrop)} />
-      <dialog
-        open
-        aria-modal="true"
-        aria-labelledby={titleId}
-        data-layer="sheet"
-        {...stylex.props(styles.sheet)}
-      >
-        <h2 id={titleId} {...stylex.props(styles.overlayHeading)}>
-          {title}
-        </h2>
-        <button
-          type="button"
-          aria-label={closeLabel}
-          onClick={onClose}
-          {...stylex.props(styles.button, styles.iconButton, styles.close)}
-        >
-          ×
-        </button>
-        {children}
-      </dialog>
-    </div>
+    <LazyMotion features={domAnimation} strict>
+      <AnimatePresence>
+        {open ? (
+          <div data-layer="popup-stack" data-motion={reduced ? 'reduced' : 'full'}>
+            <m.div
+              aria-hidden="true"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={reduced ? { duration: 0 } : interactionTransition}
+              {...stylex.props(styles.backdrop)}
+            />
+            <m.dialog
+              ref={dialogRef}
+              open
+              aria-modal="true"
+              aria-labelledby={titleId}
+              data-layer="sheet"
+              initial={{ y: reduced ? 0 : '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: reduced ? 0 : '100%' }}
+              transition={reduced ? { duration: 0 } : pageTransition}
+              {...stylex.props(styles.sheet)}
+            >
+              <h2 id={titleId} {...stylex.props(styles.overlayHeading)}>
+                {title}
+              </h2>
+              <button
+                type="button"
+                aria-label={closeLabel}
+                onClick={onClose}
+                {...stylex.props(styles.button, styles.iconButton, styles.close)}
+              >
+                ×
+              </button>
+              {children}
+            </m.dialog>
+          </div>
+        ) : null}
+      </AnimatePresence>
+    </LazyMotion>
   )
 }
 
@@ -550,6 +733,22 @@ const presenceVariants: Record<PresenceVariant, Variants> = {
   }
 }
 
+function useBookingReducedMotion() {
+  const [reduced, setReduced] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+  )
+  useEffect(() => {
+    const media = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (!media) return
+    const update = () => setReduced(media.matches)
+    media.addEventListener?.('change', update)
+    return () => media.removeEventListener?.('change', update)
+  }, [])
+  return reduced
+}
+
 function MotionContent({
   presenceKey,
   variant,
@@ -559,7 +758,7 @@ function MotionContent({
   readonly variant: PresenceVariant
   readonly children: ReactNode
 }) {
-  const reduced = useReducedMotion()
+  const reduced = useBookingReducedMotion()
   const transition =
     reduced || variant === 'fade' || variant === 'height'
       ? reduced

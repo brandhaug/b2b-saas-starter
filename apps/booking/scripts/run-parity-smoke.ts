@@ -9,7 +9,6 @@ import {
 import type { ScenarioManifest } from '../src/parity/harness/scenario-manifest.ts'
 import { smokeScenarios } from '../src/parity/harness/smoke-scenarios.ts'
 import { createSeedHarnessController } from '../src/parity/harness/seed-runtime.ts'
-import { sha256Bytes } from '../src/parity/harness/canonical-json.ts'
 import { translateBookingMessage } from '../src/localization/booking-localization.ts'
 
 const origin = process.env.PARITY_BOOKING_ORIGIN ?? 'http://localhost:3071'
@@ -73,38 +72,6 @@ const openScheduling = async (page: Page) => {
   await page.getByRole('button', { name: 'Choose time' }).click()
 }
 
-const normalizeScreenshotRaster = async (page: Page, screenshot: Uint8Array) => {
-  // Chromium can vary text anti-aliasing by a few channel values between otherwise
-  // identical runs. A fixed palette keeps hashes sensitive to visible layout and
-  // color changes without treating subpixel raster noise as product drift.
-  const normalized = await page.evaluate(
-    async (dataUrl) => {
-      const image = new Image()
-      image.src = dataUrl
-      await image.decode()
-      const canvas = document.createElement('canvas')
-      canvas.width = image.naturalWidth
-      canvas.height = image.naturalHeight
-      const context = canvas.getContext('2d', { willReadFrequently: true })
-      if (!context) throw new Error('Canvas context unavailable')
-      context.drawImage(image, 0, 0)
-      const raster = context.getImageData(0, 0, canvas.width, canvas.height)
-      for (let index = 0; index < raster.data.length; index += 4) {
-        for (let channel = 0; channel < 3; channel += 1) {
-          raster.data[index + channel] = Math.min(
-            255,
-            Math.round(raster.data[index + channel]! / 32) * 32
-          )
-        }
-      }
-      context.putImageData(raster, 0, 0)
-      return canvas.toDataURL('image/png').split(',', 2)[1]!
-    },
-    `data:image/png;base64,${Buffer.from(screenshot).toString('base64')}`
-  )
-  return new Uint8Array(Buffer.from(normalized, 'base64'))
-}
-
 const capture = async (
   context: BrowserContext,
   page: Page,
@@ -124,6 +91,9 @@ const capture = async (
       method: response.request().method(),
       status: response.status()
     })
+  })
+  await page.emulateMedia({
+    reducedMotion: scenario.motion.policy === 'reduced' ? 'reduce' : 'no-preference'
   })
   await page.goto(`${origin}${scenario.route}`)
   const assertionResults = new Map<string, boolean>()
@@ -193,7 +163,11 @@ const capture = async (
         ...document.querySelectorAll<HTMLElement>(
           'button, input, select, h1, h2, p, label, li, a, span'
         )
-      ].filter((element) => element.getClientRects().length > 0)
+      ].filter((element) => {
+        if (element.getClientRects().length === 0) return false
+        const style = getComputedStyle(element)
+        return style.clipPath !== 'inset(50%)' && style.visibility === 'visible'
+      })
       for (const element of textElements) {
         const size = Number.parseFloat(getComputedStyle(element).fontSize)
         element.style.fontSize = `${size * 2}px`
@@ -635,6 +609,27 @@ const capture = async (
       'embedding profile is applied',
       (await shell.getAttribute('data-embedding')) === scenario.embedding
     )
+    assertionResults.set(
+      'profile preserves the 375 pixel content cap and scroll ownership',
+      await shell.evaluate(
+        (element, profile) => {
+          if (profile.zoom === 2) document.documentElement.style.fontSize = '200%'
+          const bounds = element.getBoundingClientRect()
+          const expectedScrollOwner =
+            profile.embedding === 'standalone' ? 'document' : 'content'
+          const passed =
+            bounds.width <= 375 &&
+            element.getAttribute('data-scroll-owner') === expectedScrollOwner &&
+            document.documentElement.scrollWidth <= document.documentElement.clientWidth
+          document.documentElement.style.fontSize = ''
+          return passed
+        },
+        {
+          embedding: scenario.embedding,
+          zoom: scenario.fixture.data.zoom
+        }
+      )
+    )
     const cleanUrl = page.url()
     assertionResults.set(
       'acquisition is removed',
@@ -666,23 +661,13 @@ const capture = async (
     passed: assertionResults.get(assertion) ?? (index === 0 && defaultAssertion)
   }))
   await page.evaluate(() => document.fonts.ready)
-  const screenshotCandidates: Uint8Array[] = []
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    screenshotCandidates.push(
-      await normalizeScreenshotRaster(
-        page,
-        await page.screenshot({ animations: 'disabled', fullPage: true })
-      )
+  const finalCheckpoint = Math.max(0, ...scenario.motion.checkpoints)
+  if (finalCheckpoint > 0) await page.clock.runFor(finalCheckpoint)
+  if (scenario.visual.mode !== 'exact')
+    throw new Error(
+      `Element mask rendering is not implemented for ${scenario.id}; exact capture is required`
     )
-  }
-  const screenshot = (
-    await Promise.all(
-      screenshotCandidates.map(async (candidate) => ({
-        candidate,
-        hash: await sha256Bytes(candidate)
-      }))
-    )
-  ).sort((left, right) => left.hash.localeCompare(right.hash))[0]!.candidate
+  const screenshot = await page.screenshot({ animations: 'disabled', fullPage: true })
   await writeFile(resolve(tracePath, '../screenshot.png'), screenshot)
   const dom = await page.content()
   const accessibility = await body.ariaSnapshot()

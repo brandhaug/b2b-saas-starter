@@ -27,6 +27,25 @@ body {
   color: #292929;
 }
 
+html,
+body {
+  overscroll-behavior-x: none;
+}
+
+[data-booking-embedding='widget'],
+[data-booking-embedding='google'] {
+  height: 100%;
+  overscroll-behavior: contain;
+}
+
+[data-booking-shell='canonical'] {
+  width: 100%;
+  max-width: 375px;
+  min-height: 100dvh;
+  margin-inline: auto;
+  overflow-x: hidden;
+}
+
 button,
 a,
 input,
@@ -51,4 +70,25 @@ summary:focus-visible {
 
 ::selection {
   background: rgb(79 126 232 / 24%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  summary:focus-visible {
+    outline-color: Highlight;
+  }
 }

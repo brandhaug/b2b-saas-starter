@@ -41,6 +41,19 @@ export type ScenarioManifestInput = {
   readonly locale: 'en' | 'es' | 'fr' | 'ro'
   readonly embedding: 'standalone' | 'widget' | 'google'
   readonly viewport: { readonly width: number; readonly height: number }
+  readonly input: 'touch' | 'mouse-keyboard'
+  readonly motion: {
+    readonly policy: 'finish-and-freeze' | 'sample-timeline' | 'reduced'
+    readonly checkpoints: readonly number[]
+  }
+  readonly visual: {
+    readonly mode: 'exact' | 'element-mask'
+    readonly masks: readonly {
+      readonly selector: string
+      readonly renderer: string
+      readonly reason: string
+    }[]
+  }
   readonly providers: Readonly<Record<string, unknown>>
   readonly network: { readonly allow: readonly string[] }
   readonly assertions: readonly string[]
@@ -77,12 +90,15 @@ const isValid = (value: unknown): value is ScenarioManifestInput => {
       'embedding',
       'fixture',
       'id',
+      'input',
       'journey',
       'locale',
+      'motion',
       'network',
       'providers',
       'route',
       'schemaVersion',
+      'visual',
       'viewport'
     ]) &&
     value.schemaVersion === 1 &&
@@ -110,6 +126,33 @@ const isValid = (value: unknown): value is ScenarioManifestInput => {
     Number(viewport.width) > 0 &&
     Number.isInteger(viewport.height) &&
     Number(viewport.height) > 0 &&
+    ['touch', 'mouse-keyboard'].includes(String(value.input)) &&
+    isRecord(value.motion) &&
+    exactKeys(value.motion, ['checkpoints', 'policy']) &&
+    ['finish-and-freeze', 'sample-timeline', 'reduced'].includes(
+      String(value.motion.policy)
+    ) &&
+    Array.isArray(value.motion.checkpoints) &&
+    value.motion.checkpoints.every(
+      (checkpoint) => Number.isInteger(checkpoint) && checkpoint >= 0
+    ) &&
+    isRecord(value.visual) &&
+    exactKeys(value.visual, ['masks', 'mode']) &&
+    ['exact', 'element-mask'].includes(String(value.visual.mode)) &&
+    Array.isArray(value.visual.masks) &&
+    value.visual.masks.every(
+      (mask) =>
+        isRecord(mask) &&
+        exactKeys(mask, ['reason', 'renderer', 'selector']) &&
+        typeof mask.selector === 'string' &&
+        mask.selector.length > 0 &&
+        typeof mask.renderer === 'string' &&
+        mask.renderer.length > 0 &&
+        typeof mask.reason === 'string' &&
+        mask.reason.length > 0
+    ) &&
+    ((value.visual.mode === 'exact' && value.visual.masks.length === 0) ||
+      (value.visual.mode === 'element-mask' && value.visual.masks.length > 0)) &&
     isRecord(value.providers) &&
     isRecord(value.console) &&
     exactKeys(value.console, ['allow']) &&

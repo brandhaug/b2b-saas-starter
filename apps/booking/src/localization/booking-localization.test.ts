@@ -11,7 +11,8 @@ import {
   persistBookingLocale,
   resolveBookingLocale,
   translateBookingError,
-  translateBookingMessage
+  translateBookingMessage,
+  walkInCatalog
 } from './booking-localization.ts'
 
 describe('Booking localization contract', () => {
@@ -23,6 +24,12 @@ describe('Booking localization contract', () => {
     for (const locale of BOOKING_LOCALES) {
       expect(Object.keys(bookingCatalogs[locale]).sort()).toEqual(englishKeys)
       expect(Object.values(bookingCatalogs[locale]).every(Boolean)).toBe(true)
+      expect(Object.keys(walkInCatalog[locale]).sort()).toEqual(
+        Object.keys(walkInCatalog.en).sort()
+      )
+      expect(Object.keys(walkInCatalog[locale].status).sort()).toEqual(
+        Object.keys(walkInCatalog.en.status).sort()
+      )
     }
 
     expect(translateBookingMessage('ro', 'action.continue')).toBe('Continuă')

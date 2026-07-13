@@ -50,7 +50,12 @@ export function CanonicalBookingShell({
   )
 
   return (
-    <div data-booking-shell="canonical" data-embedding={embedding}>
+    <div
+      data-booking-shell="canonical"
+      data-embedding={embedding}
+      data-booking-embedding={embedding}
+      data-scroll-owner={embedding === 'standalone' ? 'document' : 'content'}
+    >
       <BookingLocalizationProvider
         sessionLocale={locale}
         onLocaleChange={persistLocale}
@@ -71,7 +76,7 @@ export function CanonicalBookingShell({
 
 function LocalizedLanguagePicker() {
   const { message } = useBookingLocalization()
-  return <BookingLanguagePicker label={message('label.language')} />
+  return <BookingLanguagePicker label={message('label.language')} placement="toolbar" />
 }
 
 function LocalePersistenceStatus() {

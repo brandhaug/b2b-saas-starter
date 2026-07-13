@@ -5,11 +5,15 @@ import type {
 } from '@b2b-saas-starter/capabilities/gift-cards'
 import type { BookingLocale } from '../localization/booking-localization.ts'
 import {
+  BookingLanguagePicker,
   BookingLocalizationProvider,
   useBookingLocalization
 } from '../localization/booking-localization-provider.tsx'
 import {
+  BookingPageContent,
+  BookingPageHeader,
   BookingStack,
+  BookingStatus,
   BookingSurface,
   BookingSelectableCard,
   BookingText,
@@ -23,19 +27,27 @@ import {
 export function GiftCardRouteFlow({
   pathname,
   kind,
-  locale
+  locale,
+  embedding = 'standalone'
 }: {
   readonly pathname: string
   readonly kind: 'purchase' | 'receipt'
   readonly locale: BookingLocale
+  readonly embedding?: 'standalone' | 'widget' | 'google'
 }) {
   return (
     <BookingLocalizationProvider sessionLocale={locale} onLocaleChange={() => {}}>
-      <BookingViewport>
+      <BookingViewport embedding={embedding}>
+        <LocalizedGiftCardLanguagePicker />
         <LocalizedGiftCardRoute pathname={pathname} kind={kind} />
       </BookingViewport>
     </BookingLocalizationProvider>
   )
+}
+
+function LocalizedGiftCardLanguagePicker() {
+  const { message } = useBookingLocalization()
+  return <BookingLanguagePicker label={message('label.language')} placement="toolbar" />
 }
 
 function LocalizedGiftCardRoute({
@@ -127,33 +139,42 @@ function LocalizedGiftCardRoute({
     }
   }
   if (kind === 'receipt')
-    return receipt ? (
-      <BookingSurface>
-        <BookingStack>
-          <BookingText variant="largeTitle">{message('gift_card.issued')}</BookingText>
-          <BookingText variant="price">
-            {new Intl.NumberFormat(locale, {
-              style: 'currency',
-              currency: receipt.card.currency
-            }).format(receipt.card.balanceMinor / 100)}
-          </BookingText>
-          <BookingText>
-            {receipt.sale.recipient?.name ?? receipt.sale.purchaser.name}
-          </BookingText>
-          <BookingText>{receipt.card.id}</BookingText>
-          <BookingText tone="muted">
-            {message(`gift_card.scope_${receipt.card.scope}`)}
-          </BookingText>
-        </BookingStack>
-      </BookingSurface>
-    ) : (
-      <output>
-        {status === 'failed'
-          ? message('feedback.error_generic')
-          : status === 'processing'
-            ? message('gift_card.processing')
-            : message('feedback.loading')}
-      </output>
+    return (
+      <>
+        <BookingPageHeader title={message('gift_card.issued')} />
+        <BookingPageContent>
+          {receipt ? (
+            <BookingSurface>
+              <BookingStack>
+                <BookingText variant="largeTitle">
+                  {message('gift_card.issued')}
+                </BookingText>
+                <BookingText variant="price">
+                  {new Intl.NumberFormat(locale, {
+                    style: 'currency',
+                    currency: receipt.card.currency
+                  }).format(receipt.card.balanceMinor / 100)}
+                </BookingText>
+                <BookingText>
+                  {receipt.sale.recipient?.name ?? receipt.sale.purchaser.name}
+                </BookingText>
+                <BookingText>{receipt.card.id}</BookingText>
+                <BookingText tone="muted">
+                  {message(`gift_card.scope_${receipt.card.scope}`)}
+                </BookingText>
+              </BookingStack>
+            </BookingSurface>
+          ) : (
+            <BookingStatus tone={status === 'failed' ? 'danger' : 'default'} live>
+              {status === 'failed'
+                ? message('feedback.error_generic')
+                : status === 'processing'
+                  ? message('gift_card.processing')
+                  : message('feedback.loading')}
+            </BookingStatus>
+          )}
+        </BookingPageContent>
+      </>
     )
   const copy = {
     unavailable: message('gift_card.unavailable'),
@@ -179,30 +200,35 @@ function LocalizedGiftCardRoute({
     }
   }
   return (
-    <BookingStack>
-      {products && products.length > 1 ? (
-        <BookingSurface>
-          <BookingStack>
-            {products.map((candidate) => (
-              <BookingSelectableCard
-                key={candidate.id}
-                selected={candidate.id === selectedProductId}
-                onClick={() => setSelectedProductId(candidate.id)}
-              >
-                {candidate.name} — {copy.scope[candidate.scope]}
-              </BookingSelectableCard>
-            ))}
-          </BookingStack>
-        </BookingSurface>
-      ) : null}
-      <GiftCardPurchaseFlow
-        key={product?.id ?? 'unavailable'}
-        product={product}
-        status={products ? status : status === 'failed' ? 'failed' : 'processing'}
-        onPurchase={purchase}
-        copy={copy}
-        locale={locale}
-      />
-    </BookingStack>
+    <>
+      <BookingPageHeader title={message('gift_card.purchaser')} />
+      <BookingPageContent>
+        <BookingStack>
+          {products && products.length > 1 ? (
+            <BookingSurface>
+              <BookingStack>
+                {products.map((candidate) => (
+                  <BookingSelectableCard
+                    key={candidate.id}
+                    selected={candidate.id === selectedProductId}
+                    onClick={() => setSelectedProductId(candidate.id)}
+                  >
+                    {candidate.name} — {copy.scope[candidate.scope]}
+                  </BookingSelectableCard>
+                ))}
+              </BookingStack>
+            </BookingSurface>
+          ) : null}
+          <GiftCardPurchaseFlow
+            key={product?.id ?? 'unavailable'}
+            product={product}
+            status={products ? status : status === 'failed' ? 'failed' : 'processing'}
+            onPurchase={purchase}
+            copy={copy}
+            locale={locale}
+          />
+        </BookingStack>
+      </BookingPageContent>
+    </>
   )
 }

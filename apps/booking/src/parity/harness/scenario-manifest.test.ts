@@ -18,6 +18,9 @@ const validScenario = {
   locale: 'en',
   embedding: 'standalone',
   viewport: { width: 375, height: 812 },
+  input: 'touch',
+  motion: { policy: 'finish-and-freeze', checkpoints: [300] },
+  visual: { mode: 'exact', masks: [] },
   providers: {},
   network: { allow: ['http://booking.test'] },
   assertions: ['booking shell is visible'],
@@ -41,6 +44,31 @@ describe('scenario manifest contract', () => {
         route: 'https://example.com/acme',
         clock: { instant: 'not-a-date', timezone: '' },
         fixture: { ...validScenario.fixture, surprise: true }
+      })
+    ).rejects.toThrow(/invalid scenario manifest/i)
+  })
+
+  it('allows only exact comparison or documented element-scoped masks', async () => {
+    await expect(
+      parseScenarioManifest({
+        ...validScenario,
+        visual: {
+          mode: 'element-mask',
+          masks: [
+            {
+              selector: '[data-merchant-image]',
+              renderer: 'webkit-font-antialiasing',
+              reason: 'One-pixel glyph-edge variation in the fixed renderer'
+            }
+          ]
+        }
+      })
+    ).resolves.toMatchObject({ visual: { mode: 'element-mask' } })
+
+    await expect(
+      parseScenarioManifest({
+        ...validScenario,
+        visual: { mode: 'element-mask', masks: [] }
       })
     ).rejects.toThrow(/invalid scenario manifest/i)
   })

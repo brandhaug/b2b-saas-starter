@@ -4,11 +4,41 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../presentation/booking-primitives.tsx', () => ({
   BookingViewport: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  BookingPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+  BookingPageContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   BookingStack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   BookingSurface: ({ children }: { children: ReactNode }) => (
     <section>{children}</section>
   ),
-  BookingText: ({ children }: { children: ReactNode }) => <h1>{children}</h1>
+  BookingText: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  BookingStatus: ({ children, tone }: { children: ReactNode; tone?: string }) => (
+    <div role={tone === 'danger' ? 'alert' : 'status'}>{children}</div>
+  ),
+  BookingButton: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props} />
+  ),
+  BookingField: ({
+    label,
+    ...props
+  }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) => (
+    <label>
+      {label}
+      <input {...props} />
+    </label>
+  ),
+  BookingSelectField: ({
+    label,
+    children,
+    ...props
+  }: {
+    label: string
+    children: ReactNode
+  } & React.SelectHTMLAttributes<HTMLSelectElement>) => (
+    <label>
+      {label}
+      <select {...props}>{children}</select>
+    </label>
+  )
 }))
 import { WalkInRouteFlow } from './walk-in-route-flow.tsx'
 
@@ -206,7 +236,7 @@ describe('WalkInRouteFlow', () => {
         expect(await screen.findByRole('heading', { name: title })).toBeTruthy()
         expect(await screen.findByRole('button')).toBeTruthy()
         expect(view.container.querySelector('[data-walk-in-viewport]')?.className).toBe(
-          'px-3 py-4 sm:px-8 sm:py-10'
+          ''
         )
         view.unmount()
       }

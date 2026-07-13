@@ -4,11 +4,26 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../presentation/booking-primitives.tsx', () => ({
   BookingViewport: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  BookingPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+  BookingPageContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   BookingStack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   BookingSurface: ({ children }: { children: ReactNode }) => (
     <section>{children}</section>
   ),
-  BookingText: ({ children }: { children: ReactNode }) => <h1>{children}</h1>
+  BookingText: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  BookingStatus: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  BookingButton: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props} />
+  ),
+  BookingField: ({
+    label,
+    ...props
+  }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) => (
+    <label>
+      {label}
+      <input {...props} />
+    </label>
+  )
 }))
 import { WaitingListRouteFlow } from './waiting-list-route-flow.tsx'
 
@@ -57,4 +72,25 @@ describe('WaitingListRouteFlow', () => {
     ).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Decline' })).toBeTruthy()
   })
+
+  it.each([
+    ['en', 'Join the waiting list', 'Email'],
+    ['es', 'Únete a la lista de espera', 'Correo'],
+    ['fr', 'Rejoindre la liste d’attente', 'E-mail'],
+    ['ro', 'Înscrie-te pe lista de așteptare', 'E-mail']
+  ] as const)(
+    'keeps the %s application complete and operable',
+    (locale, title, email) => {
+      render(
+        <WaitingListRouteFlow
+          pathname="/shop/booking/waiting-list"
+          application
+          locale={locale}
+        />
+      )
+      expect(screen.getByRole('heading', { name: title })).toBeTruthy()
+      expect(screen.getByLabelText(email)).toBeTruthy()
+      expect(screen.getByRole('button', { name: title })).toBeTruthy()
+    }
+  )
 })
