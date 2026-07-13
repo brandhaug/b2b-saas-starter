@@ -23,6 +23,9 @@ describe('Booking checkout', () => {
     expect(screen.getByText('Confirm booking').closest('header')?.parentElement).toBe(
       container.firstElementChild
     )
+    expect(container.firstElementChild?.getAttribute('data-booking-shell')).toBe(
+      'canonical'
+    )
     expect(container.querySelector('[aria-busy]')).toBeNull()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mia' } })
     fireEvent.change(screen.getByLabelText('Email'), {

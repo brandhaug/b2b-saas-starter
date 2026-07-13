@@ -10,20 +10,21 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CanonicalBookingShell } from './canonical-booking-shell.tsx'
 
-vi.mock('./server-backed-booking-flow.tsx', () => ({
-  ServerBackedBookingFlow: ({
-    onTitleActionMount,
-    embedding
-  }: {
-    onTitleActionMount: (element: HTMLDivElement | null) => void
-    embedding: string
-  }) => (
-    <div data-booking-shell="canonical" data-embedding={embedding}>
-      <div data-testid="mock-title-actions" ref={onTitleActionMount} />
-      <p>Booking journey</p>
-    </div>
-  )
-}))
+vi.mock('./server-backed-booking-flow.tsx', async () => {
+  const { BookingWidgetShell } = await import('./booking-widget-shell.tsx')
+  return {
+    ServerBackedBookingFlow: ({
+      onTitleActionMount
+    }: {
+      onTitleActionMount: (element: HTMLDivElement | null) => void
+    }) => (
+      <BookingWidgetShell>
+        <div data-testid="mock-title-actions" ref={onTitleActionMount} />
+        <p>Booking journey</p>
+      </BookingWidgetShell>
+    )
+  }
+})
 
 afterEach(() => {
   cleanup()

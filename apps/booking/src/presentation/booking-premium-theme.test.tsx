@@ -52,9 +52,9 @@ describe('Booking premium theme boundary', () => {
 })
 
 function PremiumThemeSurface() {
-  const theme = useBookingPremiumTheme()
+  const style = useBookingPremiumTheme()
   return (
-    <p data-premium={theme.premium ? 'true' : 'false'} style={theme.style}>
+    <p data-premium={style ? 'true' : 'false'} style={style}>
       Premium booking
     </p>
   )

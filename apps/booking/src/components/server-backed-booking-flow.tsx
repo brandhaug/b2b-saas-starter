@@ -39,7 +39,11 @@ import {
   createBrowserCheckoutTelemetry,
   type CheckoutTelemetry
 } from '../lib/checkout-telemetry.ts'
-import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
+import {
+  BookingPremiumThemeBoundary,
+  type BookingPremiumPalette
+} from '../presentation/booking-premium-theme.tsx'
+import { BookingWidgetShell } from './booking-widget-shell.tsx'
 
 type SettlementPaymentEligibility = PaymentMethodEligibility & {
   readonly giftCardMinor: number
@@ -49,7 +53,6 @@ type SettlementPaymentEligibility = PaymentMethodEligibility & {
 export function ServerBackedBookingFlow({
   merchantSlug,
   sessionId,
-  embedding = 'standalone',
   telemetry = createBrowserCheckoutTelemetry(),
   selectionRefreshedMessage = translateBookingMessage(
     'en',
@@ -59,7 +62,6 @@ export function ServerBackedBookingFlow({
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
-  readonly embedding?: BookingEmbedding
   readonly telemetry?: CheckoutTelemetry
   readonly selectionRefreshedMessage?: string
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
@@ -536,6 +538,7 @@ export function ServerBackedBookingFlow({
     onError: (error) => void telemetry.report(error)
   })
   const heldUntil = availability.data?.hold?.expiresAt
+  const premiumPalette = journey.data?.resolvedConfiguration.premiumPalette ?? null
   useEffect(() => {
     if (!holdExpired || !party.data || partyMutation.isPending) return
     const continuation = bookingPartyContinuation(party.data, new Date().toISOString())
@@ -569,6 +572,7 @@ export function ServerBackedBookingFlow({
   if (journey.isError || selectionMutation.isError)
     return (
       <Status
+        premiumPalette={premiumPalette}
         title={message('selection.unavailable_title')}
         copy={message('selection.unavailable_copy')}
       />
@@ -576,6 +580,7 @@ export function ServerBackedBookingFlow({
   if (!journey.data)
     return (
       <Status
+        premiumPalette={premiumPalette}
         title={message('feedback.loading')}
         copy={message('scheduling.finding_copy')}
       />
@@ -584,6 +589,7 @@ export function ServerBackedBookingFlow({
     if (expiredSession) {
       return (
         <Status
+          premiumPalette={premiumPalette}
           title={message('status.session_expired')}
           copy={message('recovery.session_expired_copy')}
           href={`/${encodeURIComponent(merchantSlug)}/booking`}
@@ -595,12 +601,14 @@ export function ServerBackedBookingFlow({
       if (confirmationProcessing)
         return (
           <Status
+            premiumPalette={premiumPalette}
             title={message('confirmation.processing_title')}
             copy={message('confirmation.processing_copy')}
           />
         )
       return (
         <BookingCheckoutFlow
+          premiumPalette={premiumPalette}
           review={review}
           preparation={preparation}
           busy={
@@ -775,6 +783,7 @@ export function ServerBackedBookingFlow({
     if (availability.isError || holdMutation.isError || groupHoldMutation.isError)
       return (
         <Status
+          premiumPalette={premiumPalette}
           title={message('status.times_unavailable')}
           copy={message('scheduling.unavailable_copy')}
         />
@@ -782,12 +791,14 @@ export function ServerBackedBookingFlow({
     if (!availability.data)
       return (
         <Status
+          premiumPalette={premiumPalette}
           title={message('scheduling.finding_title')}
           copy={message('scheduling.finding_copy')}
         />
       )
     return (
       <BookingSchedulingFlow
+        premiumPalette={premiumPalette}
         availability={availability.data}
         busy={
           holdMutation.isPending ||
@@ -873,7 +884,6 @@ export function ServerBackedBookingFlow({
       ) : null}
       <BookingSelectionFlow
         journey={journey.data}
-        embedding={embedding}
         messages={{
           chooseLocation: message('selection.choose_location'),
           chooseProvider: message('selection.choose_provider'),
@@ -926,20 +936,24 @@ function Status({
   title,
   copy,
   href,
-  action
+  action,
+  premiumPalette = null
 }: {
   readonly title: string
   readonly copy: string
   readonly href?: string
   readonly action?: string
+  readonly premiumPalette?: BookingPremiumPalette | null
 }) {
   return (
-    <div {...stylex.props(styles.widget)}>
-      <main {...stylex.props(styles.main, styles.empty)}>
-        <h1 {...stylex.props(styles.emptyTitle)}>{title}</h1>
-        <p {...stylex.props(styles.emptyCopy)}>{copy}</p>
-        {href && action ? <a href={href}>{action}</a> : null}
-      </main>
-    </div>
+    <BookingPremiumThemeBoundary palette={premiumPalette}>
+      <BookingWidgetShell>
+        <main {...stylex.props(styles.main, styles.empty)}>
+          <h1 {...stylex.props(styles.emptyTitle)}>{title}</h1>
+          <p {...stylex.props(styles.emptyCopy)}>{copy}</p>
+          {href && action ? <a href={href}>{action}</a> : null}
+        </main>
+      </BookingWidgetShell>
+    </BookingPremiumThemeBoundary>
   )
 }

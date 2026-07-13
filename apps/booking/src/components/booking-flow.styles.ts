@@ -18,6 +18,16 @@ export const styles = stylex.create({
     overflow: 'hidden',
     backgroundColor: '#f7f7f7'
   },
+  processingOverlay: {
+    position: 'absolute',
+    zIndex: bookingTheme.layerProcessing,
+    inset: 0,
+    display: 'grid',
+    placeItems: 'center',
+    backgroundColor: 'rgb(247 247 247 / 85%)',
+    color: '#000000',
+    backdropFilter: 'blur(4px)'
+  },
   header: {
     position: 'sticky',
     zIndex: bookingTheme.layerChrome,

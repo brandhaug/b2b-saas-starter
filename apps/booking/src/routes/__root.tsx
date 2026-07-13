@@ -1,3 +1,5 @@
+import '@fontsource-variable/geist/index.css'
+import '@fontsource-variable/geist-mono/index.css'
 import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'

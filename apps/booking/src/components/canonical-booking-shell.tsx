@@ -8,6 +8,7 @@ import {
 } from '../localization/booking-localization-provider.tsx'
 import type { BookingLocale } from '../localization/booking-localization.ts'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
+import { BookingShellProvider, BookingWidgetShell } from './booking-widget-shell.tsx'
 
 export function CanonicalBookingShell({
   merchantSlug,
@@ -54,19 +55,23 @@ export function CanonicalBookingShell({
   )
 
   return (
-    <BookingLocalizationProvider sessionLocale={locale} onLocaleChange={persistLocale}>
-      <LocalizedLanguagePicker target={titleActionTarget} />
-      {persistingLocale ? (
-        <LocalePersistenceStatus />
-      ) : (
-        <LocalizedServerBackedBookingFlow
-          merchantSlug={merchantSlug}
-          sessionId={sessionId}
-          embedding={embedding}
-          onTitleActionMount={setTitleActionTarget}
-        />
-      )}
-    </BookingLocalizationProvider>
+    <BookingShellProvider embedding={embedding}>
+      <BookingLocalizationProvider
+        sessionLocale={locale}
+        onLocaleChange={persistLocale}
+      >
+        <LocalizedLanguagePicker target={titleActionTarget} />
+        {persistingLocale ? (
+          <LocalePersistenceStatus />
+        ) : (
+          <LocalizedServerBackedBookingFlow
+            merchantSlug={merchantSlug}
+            sessionId={sessionId}
+            onTitleActionMount={setTitleActionTarget}
+          />
+        )}
+      </BookingLocalizationProvider>
+    </BookingShellProvider>
   )
 }
 
@@ -87,18 +92,20 @@ function LocalizedLanguagePicker({
 
 function LocalePersistenceStatus() {
   const { message } = useBookingLocalization()
-  return <output>{message('feedback.loading')}</output>
+  return (
+    <BookingWidgetShell>
+      <output>{message('feedback.loading')}</output>
+    </BookingWidgetShell>
+  )
 }
 
 function LocalizedServerBackedBookingFlow({
   merchantSlug,
   sessionId,
-  embedding,
   onTitleActionMount
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
-  readonly embedding: BookingEmbedding
   readonly onTitleActionMount: (element: HTMLDivElement | null) => void
 }) {
   const { message } = useBookingLocalization()
@@ -106,7 +113,6 @@ function LocalizedServerBackedBookingFlow({
     <ServerBackedBookingFlow
       merchantSlug={merchantSlug}
       sessionId={sessionId}
-      embedding={embedding}
       onTitleActionMount={onTitleActionMount}
       selectionRefreshedMessage={message('feedback.selection_refreshed')}
     />

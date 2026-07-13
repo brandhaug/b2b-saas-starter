@@ -43,6 +43,9 @@ describe('Booking scheduling flow', () => {
     expect(
       screen.getByText('Choose your appointment').closest('header')?.parentElement
     ).toBe(container.firstElementChild)
+    expect(container.firstElementChild?.getAttribute('data-booking-shell')).toBe(
+      'canonical'
+    )
     expect(container.querySelector('[aria-busy]')).toBeNull()
     expect(screen.getByText('July 2026')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /monday, july 13/i }))

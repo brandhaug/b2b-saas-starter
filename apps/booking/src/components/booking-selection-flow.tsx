@@ -8,17 +8,13 @@ import type {
   ServiceSelection
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
-import {
-  BookingPremiumThemeBoundary,
-  useBookingPremiumTheme
-} from '../presentation/booking-premium-theme.tsx'
+import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
 import { RoutePresence } from '../presentation/booking-primitives.tsx'
-import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
 import { styles } from './booking-flow.styles.ts'
+import { BookingWidgetShell } from './booking-widget-shell.tsx'
 
 type BookingSelectionFlowProps = {
   readonly journey: BookingJourney
-  readonly embedding?: BookingEmbedding
   readonly busy: boolean
   readonly onChooseShop?: (shopId: string) => void
   readonly onChooseProvider: (preference: ProviderPreference) => void
@@ -40,7 +36,6 @@ export function BookingSelectionFlow(props: BookingSelectionFlowProps) {
 
 function BookingSelectionFlowContent({
   journey,
-  embedding = 'standalone',
   busy,
   onChooseShop,
   onChooseProvider,
@@ -49,7 +44,6 @@ function BookingSelectionFlowContent({
   onTitleActionMount,
   messages = defaultMessages
 }: BookingSelectionFlowProps) {
-  const premiumTheme = useBookingPremiumTheme()
   const [editingProvider, setEditingProvider] = useState(false)
   const [pendingShop, setPendingShop] = useState<{
     readonly id: string
@@ -101,14 +95,7 @@ function BookingSelectionFlowContent({
     titleScrollState.presenceKey === routePresenceKey && titleScrollState.scrolled
 
   return (
-    <div
-      data-booking-shell="canonical"
-      data-embedding={embedding}
-      data-booking-embedding={embedding}
-      data-scroll-owner={embedding === 'standalone' ? 'document' : 'content'}
-      style={premiumTheme.style}
-      {...stylex.props(styles.widget)}
-    >
+    <BookingWidgetShell busy={busy}>
       <div
         data-testid="container:title"
         {...stylex.props(styles.header, titleScrolled && styles.headerScrolled)}
@@ -216,7 +203,7 @@ function BookingSelectionFlowContent({
           {...(onContinue ? { onContinue } : {})}
         />
       ) : null}
-    </div>
+    </BookingWidgetShell>
   )
 }
 

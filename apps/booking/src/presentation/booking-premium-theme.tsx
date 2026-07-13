@@ -60,15 +60,7 @@ const premiumStyle = (palette: BookingPremiumPalette) =>
     [customProperty(bookingTheme.colorLink)]: palette.linkColor
   }) as CSSProperties
 
-type BookingPremiumThemeValue = {
-  readonly premium: boolean
-  readonly style: CSSProperties | undefined
-}
-
-const BookingPremiumThemeContext = createContext<BookingPremiumThemeValue>({
-  premium: false,
-  style: undefined
-})
+const BookingPremiumThemeContext = createContext<CSSProperties | undefined>(undefined)
 
 export function useBookingPremiumTheme() {
   return useContext(BookingPremiumThemeContext)
@@ -81,13 +73,7 @@ export function BookingPremiumThemeBoundary({
   readonly palette: BookingPremiumPalette | null
   readonly children: ReactNode
 }) {
-  const value = useMemo<BookingPremiumThemeValue>(
-    () => ({
-      premium: palette !== null,
-      style: palette ? premiumStyle(palette) : undefined
-    }),
-    [palette]
-  )
+  const value = useMemo(() => (palette ? premiumStyle(palette) : undefined), [palette])
 
   return (
     <BookingPremiumThemeContext.Provider value={value}>

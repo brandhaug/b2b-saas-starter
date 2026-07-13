@@ -15,6 +15,11 @@ import {
   type PaymentPresentationStatus
 } from './payment-method-selector.tsx'
 import { BookingButton, BookingField } from '../presentation/booking-primitives.tsx'
+import {
+  BookingPremiumThemeBoundary,
+  type BookingPremiumPalette
+} from '../presentation/booking-premium-theme.tsx'
+import { BookingWidgetShell } from './booking-widget-shell.tsx'
 
 type CheckoutCopy = {
   readonly title: string
@@ -79,7 +84,8 @@ export function BookingCheckoutFlow({
   onEdit,
   payment,
   giftCard,
-  copy = defaultCopy
+  copy = defaultCopy,
+  premiumPalette = null
 }: {
   readonly review: CheckoutReview | null
   readonly preparation: CheckoutPreparation | null
@@ -126,6 +132,7 @@ export function BookingCheckoutFlow({
     readonly onRemove: () => void
   }
   readonly copy?: CheckoutCopy
+  readonly premiumPalette?: BookingPremiumPalette | null
 }) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -142,63 +149,65 @@ export function BookingCheckoutFlow({
     })
   }
   return (
-    <div {...stylex.props(styles.widget)}>
-      <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>{copy.title}</h1>
-      </header>
-      <main {...stylex.props(styles.main, styles.checkoutSurface)}>
-        {!review ? (
-          <form onSubmit={submit} noValidate>
-            <div {...stylex.props(styles.fieldGrid)}>
-              <Field
-                label={copy.name}
-                name="name"
-                type="text"
-                required
-                issues={validationIssues}
-                messages={validationMessages}
-              />
-              <Field
-                label={copy.email}
-                name="email"
-                type="email"
-                required
-                issues={validationIssues}
-                messages={validationMessages}
-              />
-              <Field
-                label={copy.phoneOptional}
-                name="phone"
-                type="tel"
-                issues={validationIssues}
-                messages={validationMessages}
-              />
-            </div>
-            <div {...stylex.props(styles.inlineActions)}>
-              <span />
-              <button
-                type="submit"
-                disabled={busy}
-                {...stylex.props(styles.primaryButton)}
-              >
-                {copy.reviewBooking}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <Review
-            review={review}
-            preparation={preparation}
-            busy={busy}
-            onFinalize={onFinalize}
-            onEdit={onEdit}
-            copy={copy}
-            payment={payment}
-            giftCard={giftCard}
-          />
-        )}
-      </main>
-    </div>
+    <BookingPremiumThemeBoundary palette={premiumPalette}>
+      <BookingWidgetShell busy={busy}>
+        <header {...stylex.props(styles.header)}>
+          <h1 {...stylex.props(styles.title)}>{copy.title}</h1>
+        </header>
+        <main {...stylex.props(styles.main, styles.checkoutSurface)}>
+          {!review ? (
+            <form onSubmit={submit} noValidate>
+              <div {...stylex.props(styles.fieldGrid)}>
+                <Field
+                  label={copy.name}
+                  name="name"
+                  type="text"
+                  required
+                  issues={validationIssues}
+                  messages={validationMessages}
+                />
+                <Field
+                  label={copy.email}
+                  name="email"
+                  type="email"
+                  required
+                  issues={validationIssues}
+                  messages={validationMessages}
+                />
+                <Field
+                  label={copy.phoneOptional}
+                  name="phone"
+                  type="tel"
+                  issues={validationIssues}
+                  messages={validationMessages}
+                />
+              </div>
+              <div {...stylex.props(styles.inlineActions)}>
+                <span />
+                <button
+                  type="submit"
+                  disabled={busy}
+                  {...stylex.props(styles.primaryButton)}
+                >
+                  {copy.reviewBooking}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <Review
+              review={review}
+              preparation={preparation}
+              busy={busy}
+              onFinalize={onFinalize}
+              onEdit={onEdit}
+              copy={copy}
+              payment={payment}
+              giftCard={giftCard}
+            />
+          )}
+        </main>
+      </BookingWidgetShell>
+    </BookingPremiumThemeBoundary>
   )
 }
 
