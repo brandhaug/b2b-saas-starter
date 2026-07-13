@@ -61,7 +61,7 @@ beforeAll(async () => {
     `INSERT INTO providers (id, merchant_id, display_name, status, created_at, updated_at) VALUES ('prv_new', 'mrc_reschedule', 'New Provider', 'active', '${now}', '${now}')`,
     `INSERT INTO booking_sessions (id, merchant_id, capability_hash, checkout_path, lifecycle, created_at, last_activity_at, idle_expires_at, absolute_expires_at) VALUES ('bsn_reschedule', 'mrc_reschedule', 'booking-hash', 'pay_in_person', 'consumed', '${now}', '${now}', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z')`,
     `INSERT INTO booking_parties (id, booking_session_id, shop_id, lifecycle, currency, locale, version, created_at, updated_at) VALUES ('bpt_reschedule', 'bsn_reschedule', 'shp_reschedule', 'confirmed', 'USD', 'en', 1, '${now}', '${now}')`,
-    `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sal_reschedule', 'bpt_reschedule', 'pay_in_person', NULL, 5000, 'USD', '${now}')`,
+    `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sal_reschedule', 'bpt_reschedule', 'external_payment', 'pay_original', 5000, 'USD', '${now}')`,
     `INSERT INTO checkout_policies (id, shop_id, scope, scope_id, kind, version, disclosure, effective_at, created_at) VALUES ('pol_checkout', 'shp_reschedule', 'shop', 'shp_reschedule', 'checkout', 3, 'Current rescheduling policy.', '${now}', '${now}')`,
     `INSERT INTO appointments (id, merchant_id, provider_id, booking_party_id, status, version, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_reschedule', 'mrc_reschedule', 'prv_old', 'bpt_reschedule', 'scheduled', 1, '2026-07-14T10:00:00.000Z', '2026-07-14T11:00:00.000Z', '${snapshot}', '${now}', '${now}')`,
     `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, source_version, deduplication_key, status, available_at, created_at, updated_at) VALUES ('nti_old_reminder', 'shp_reschedule', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_reschedule', 1, 'reminder:apt_reschedule:1:old', 'pending', '2026-07-14T08:00:00.000Z', '${now}', '${now}')`,
@@ -405,8 +405,8 @@ describe('Live Booking rescheduling', () => {
         )
         .first()
     ).toMatchObject({
-      tender: 'pay_in_person',
-      reference_id: null,
+      tender: 'external_payment',
+      reference_id: 'pay_original',
       amount_minor: 1_000
     })
   })

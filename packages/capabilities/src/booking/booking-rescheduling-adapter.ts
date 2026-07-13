@@ -77,7 +77,10 @@ const appointmentAllocationShare = (
         allocationUsed = 0
       }
     }
-    if (record.id === targetId) return remaining === 0 ? share : null
+    if (record.id === targetId)
+      return remaining === 0
+        ? share.filter((allocation) => allocation.tender !== 'pay_in_person')
+        : null
   }
   return null
 }
