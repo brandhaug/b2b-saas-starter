@@ -706,6 +706,7 @@ export type RouteDirection = 'forward' | 'back'
 const interactionTransition: Transition = { duration: 0.15, ease: 'easeInOut' }
 const pageTransition: Transition = { duration: 0.3, ease: 'easeInOut' }
 const routeTransition: Transition = { duration: 0.3, delay: 0.3 }
+const routeTitleTransition: Transition = { duration: 0.3, delay: 0.6 }
 
 const presenceVariants: Record<PresenceVariant, Variants> = {
   fade: {
@@ -874,6 +875,32 @@ export function RoutePresence({
         {children}
       </MotionContent>
     </AnimatePresence>
+  )
+}
+
+export function RouteTitlePresence({
+  presenceKey,
+  children
+}: {
+  readonly presenceKey: string
+  readonly children: ReactNode
+}) {
+  const reduced = useBookingReducedMotion()
+  return (
+    <LazyMotion features={domAnimation} strict>
+      <AnimatePresence initial={false} mode="wait">
+        <m.div
+          key={presenceKey}
+          data-title-presence="wait"
+          initial={{ backgroundColor: 'rgb(0 0 0 / 0%)' }}
+          animate={{ backgroundColor: 'rgb(0 0 0 / 0%)' }}
+          exit={{ backgroundColor: 'rgb(0 0 0 / 0.0001%)' }}
+          transition={reduced ? { duration: 0 } : routeTitleTransition}
+        >
+          {children}
+        </m.div>
+      </AnimatePresence>
+    </LazyMotion>
   )
 }
 

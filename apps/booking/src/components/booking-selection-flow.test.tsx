@@ -131,6 +131,41 @@ describe('Booking selection flow', () => {
     expect(titleContainer.className).toBe(transparentClassName)
   })
 
+  it('waits for the page transition before replacing the title text', async () => {
+    const { rerender } = render(
+      <BookingSelectionFlow
+        journey={teamJourney}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    rerender(
+      <BookingSelectionFlow
+        journey={{ ...teamJourney, providerPreference: { kind: 'any' } }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
+    expect(screen.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
+
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
+    expect(screen.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
+
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText('What can we do for you?', { selector: 'p' })
+        ).toBeTruthy(),
+      { timeout: 1_500 }
+    )
+  })
+
   it('offers Specific Provider and Any Provider choices for Team journeys', () => {
     const chooseProvider = vi.fn()
     render(

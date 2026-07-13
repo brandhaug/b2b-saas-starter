@@ -9,7 +9,10 @@ import type {
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
-import { RoutePresence } from '../presentation/booking-primitives.tsx'
+import {
+  RoutePresence,
+  RouteTitlePresence
+} from '../presentation/booking-primitives.tsx'
 import { styles } from './booking-flow.styles.ts'
 import { BookingWidgetShell } from './booking-widget-shell.tsx'
 
@@ -129,9 +132,9 @@ function BookingSelectionFlowContent({
             ) : null}
           </AnimatePresence>
         </LazyMotion>
-        <div>
+        <RouteTitlePresence presenceKey={pageTitle}>
           <p {...stylex.props(styles.title)}>{pageTitle}</p>
-        </div>
+        </RouteTitlePresence>
         {onTitleActionMount ? (
           <div ref={onTitleActionMount} {...stylex.props(styles.titleActions)} />
         ) : null}
