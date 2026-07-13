@@ -45,6 +45,7 @@ function BookingSelectionFlowContent({
   messages = defaultMessages
 }: BookingSelectionFlowProps) {
   const [editingProvider, setEditingProvider] = useState(false)
+  const [routeDirection, setRouteDirection] = useState<'forward' | 'back'>('forward')
   const [pendingShop, setPendingShop] = useState<{
     readonly id: string
     readonly afterVersion: number
@@ -69,11 +70,13 @@ function BookingSelectionFlowContent({
   )
 
   const chooseProvider = (preference: ProviderPreference) => {
+    setRouteDirection('forward')
     setEditingProvider(false)
     onChooseProvider(preference)
   }
 
   const chooseShop = (shopId: string) => {
+    setRouteDirection('forward')
     setPendingShop({ id: shopId, afterVersion: journey.version })
     onChooseShop?.(shopId)
   }
@@ -111,6 +114,7 @@ function BookingSelectionFlowContent({
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.3, ease: 'easeInOut' }}
                 onClick={() => {
+                  setRouteDirection('back')
                   if (journey.shops.length > 1 && showProviders) setPendingShop(null)
                   else setEditingProvider(true)
                 }}
@@ -124,9 +128,9 @@ function BookingSelectionFlowContent({
             ) : null}
           </AnimatePresence>
         </LazyMotion>
-        <RoutePresence presenceKey={`title:${pageTitle}`}>
+        <div>
           <p {...stylex.props(styles.title)}>{pageTitle}</p>
-        </RoutePresence>
+        </div>
         {onTitleActionMount ? (
           <div ref={onTitleActionMount} {...stylex.props(styles.titleActions)} />
         ) : null}
@@ -134,6 +138,7 @@ function BookingSelectionFlowContent({
 
       <RoutePresence
         presenceKey={routePresenceKey}
+        direction={routeDirection}
         className={stylex.props(styles.routeLayer).className}
       >
         <div {...stylex.props(styles.scrollableFrame)}>

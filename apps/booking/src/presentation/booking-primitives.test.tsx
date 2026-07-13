@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BookingButton,
@@ -124,16 +124,22 @@ describe('Booking presentation primitives', () => {
     calendar.unmount()
 
     const route = render(
-      <RoutePresence presenceKey="first">
+      <RoutePresence presenceKey="first" direction="forward">
         <p>First route</p>
       </RoutePresence>
     )
+    expect(screen.getByText('First route').parentElement?.dataset.routeDirection).toBe(
+      'forward'
+    )
     route.rerender(
-      <RoutePresence presenceKey="second">
+      <RoutePresence presenceKey="second" direction="back">
         <p>Second route</p>
       </RoutePresence>
     )
     expect(await screen.findByText('Second route')).toBeTruthy()
-    expect(screen.queryByText('First route')).toBeNull()
+    expect(screen.getByText('Second route').parentElement?.dataset.routeDirection).toBe(
+      'back'
+    )
+    await waitFor(() => expect(screen.queryByText('First route')).toBeNull())
   })
 })

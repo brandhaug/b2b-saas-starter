@@ -701,9 +701,11 @@ export function BookingOverlay({
 }
 
 type PresenceVariant = 'fade' | 'scale' | 'height' | 'calendar' | 'route'
+export type RouteDirection = 'forward' | 'back'
 
 const interactionTransition: Transition = { duration: 0.15, ease: 'easeInOut' }
 const pageTransition: Transition = { duration: 0.3, ease: 'easeInOut' }
+const routeTransition: Transition = { duration: 0.3, delay: 0.3 }
 
 const presenceVariants: Record<PresenceVariant, Variants> = {
   fade: {
@@ -727,9 +729,13 @@ const presenceVariants: Record<PresenceVariant, Variants> = {
     exit: { opacity: 0, y: -50 }
   },
   route: {
-    hidden: { opacity: 0 },
-    shown: { opacity: 1 },
-    exit: { opacity: 0 }
+    hidden: (direction: RouteDirection = 'forward') => ({
+      x: direction === 'back' ? '-100%' : '100%'
+    }),
+    shown: { x: 0 },
+    exit: (direction: RouteDirection = 'forward') => ({
+      x: direction === 'back' ? '100%' : '-100%'
+    })
   }
 }
 
@@ -752,33 +758,40 @@ function useBookingReducedMotion() {
 function MotionContent({
   presenceKey,
   variant,
+  routeDirection,
   className,
   children
 }: {
   readonly presenceKey: string
   readonly variant: PresenceVariant
+  readonly routeDirection?: RouteDirection | undefined
   readonly className?: string | undefined
   readonly children: ReactNode
 }) {
   const reduced = useBookingReducedMotion()
-  const transition =
-    reduced || variant === 'fade' || variant === 'height'
-      ? reduced
-        ? { duration: 0 }
-        : interactionTransition
-      : pageTransition
+  const transition = reduced
+    ? { duration: 0 }
+    : variant === 'route'
+      ? routeTransition
+      : variant === 'fade' || variant === 'height'
+        ? interactionTransition
+        : pageTransition
   return (
     <LazyMotion features={domAnimation} strict>
       <m.div
         key={presenceKey}
         data-motion={reduced ? 'reduced' : 'full'}
         data-presence-variant={variant}
+        {...(variant === 'route'
+          ? { 'data-route-direction': routeDirection ?? 'forward' }
+          : {})}
         variants={presenceVariants[variant]}
+        custom={routeDirection}
         initial="hidden"
         animate="shown"
         exit="exit"
         transition={transition}
-        layout={variant === 'height' || variant === 'route'}
+        layout={variant === 'height'}
         className={className}
         {...(variant === 'height' ? { style: { overflow: 'hidden' as const } } : {})}
       >
@@ -838,21 +851,24 @@ export function CalendarPresence(props: {
 
 export function RoutePresence({
   presenceKey,
+  direction = 'forward',
   initial = false,
   className,
   children
 }: {
   readonly presenceKey: string
+  readonly direction?: RouteDirection
   readonly initial?: boolean
   readonly className?: string | undefined
   readonly children: ReactNode
 }) {
   return (
-    <AnimatePresence initial={initial} mode="wait">
+    <AnimatePresence initial={initial} custom={direction}>
       <MotionContent
         key={presenceKey}
         presenceKey={presenceKey}
         variant="route"
+        routeDirection={direction}
         {...(className ? { className } : {})}
       >
         {children}
