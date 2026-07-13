@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "17ec2088-6bdf-44d0-94b3-f3158e764476",
-  "prevIds": ["5ce67bd8-5603-40b3-b9b8-1b191b5ea656"],
+  "id": "339e3409-ed16-47ab-bf7a-431b3d5b252f",
+  "prevIds": ["17ec2088-6bdf-44d0-94b3-f3158e764476"],
   "ddl": [
     {
       "name": "account",
@@ -5070,6 +5070,26 @@
       "type": "text",
       "notNull": true,
       "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_session_id",
+      "entityType": "columns",
+      "table": "reschedule_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "booking_party_id",
+      "entityType": "columns",
+      "table": "reschedule_sessions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
       "default": "'appointment_reschedule'",
       "generated": null,
       "name": "purpose",
@@ -7483,6 +7503,17 @@
       "table": "reschedule_sessions"
     },
     {
+      "columns": ["booking_session_id"],
+      "tableTo": "booking_sessions",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_reschedule_sessions_booking_session_id_booking_sessions_id_fk",
+      "entityType": "fks",
+      "table": "reschedule_sessions"
+    },
+    {
       "columns": ["replacement_provider_id"],
       "tableTo": "providers",
       "columnsTo": ["id"],
@@ -9653,6 +9684,20 @@
       "name": "reschedule_commands_reschedule_session_id_unique",
       "entityType": "uniques",
       "table": "reschedule_commands"
+    },
+    {
+      "columns": ["booking_session_id"],
+      "nameExplicit": false,
+      "name": "reschedule_sessions_booking_session_id_unique",
+      "entityType": "uniques",
+      "table": "reschedule_sessions"
+    },
+    {
+      "columns": ["booking_party_id"],
+      "nameExplicit": false,
+      "name": "reschedule_sessions_booking_party_id_unique",
+      "entityType": "uniques",
+      "table": "reschedule_sessions"
     },
     {
       "columns": ["capability_hash"],

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { applyMigrations, provisionUnmigratedTestD1, type TestD1 } from './testing.ts'
 
 const previousMigration = '20260711010952_cooing_thunderbolt_ross'
+const reschedulePreviousMigration = '20260713114311_loving_thunderball'
 let test: TestD1
 
 beforeAll(async () => {
@@ -70,7 +71,28 @@ describe('capability foundation migration', () => {
       )
       .run()
 
-    await applyMigrations(test.d1, { after: previousMigration })
+    await applyMigrations(test.d1, {
+      after: previousMigration,
+      through: reschedulePreviousMigration
+    })
+    await test.d1
+      .prepare(
+        `INSERT INTO notification_intents
+         (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, deduplication_key, status, available_at, created_at, updated_at)
+         VALUES ('nti_legacy_reminder', 'shp_mrc_legacy', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_legacy', 'reminder:apt_legacy:legacy', 'pending', ?, ?, ?)`
+      )
+      .bind(now, now, now)
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO scheduled_work
+         (id, shop_id, kind, payload_json, idempotency_key, status, run_at, attempts, created_at, updated_at)
+         VALUES ('scw_legacy_reminder', 'shp_mrc_legacy', 'appointment.reminder', '{"appointmentId":"apt_legacy"}', 'work:reminder:apt_legacy:legacy', 'pending', ?, 0, ?, ?)`
+      )
+      .bind(now, now, now)
+      .run()
+
+    await applyMigrations(test.d1, { after: reschedulePreviousMigration })
 
     const shop = await test.d1
       .prepare('SELECT merchant_id, slug, currency FROM shops WHERE id = ?')
@@ -107,6 +129,20 @@ describe('capability foundation migration', () => {
         accepted_at: string | null
         expires_at: string
       }>()
+    const reminderIntent = await test.d1
+      .prepare(
+        "SELECT source_version FROM notification_intents WHERE id = 'nti_legacy_reminder'"
+      )
+      .first<{ source_version: number }>()
+    const reminderWork = await test.d1
+      .prepare(
+        "SELECT source_type, source_id, source_version FROM scheduled_work WHERE id = 'scw_legacy_reminder'"
+      )
+      .first<{
+        source_type: string
+        source_id: string
+        source_version: number
+      }>()
 
     expect(shop).toEqual({
       merchant_id: 'mrc_legacy',
@@ -132,6 +168,12 @@ describe('capability foundation migration', () => {
       total_minor: 6000,
       accepted_at: null,
       expires_at: '2026-07-11T12:10:00.000Z'
+    })
+    expect(reminderIntent).toEqual({ source_version: 1 })
+    expect(reminderWork).toEqual({
+      source_type: 'appointment',
+      source_id: 'apt_legacy',
+      source_version: 1
     })
   })
 })

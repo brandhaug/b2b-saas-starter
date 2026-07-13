@@ -544,6 +544,11 @@ export const rescheduleSessions = sqliteTable(
     merchantId: text('merchant_id')
       .notNull()
       .references(() => merchants.id, { onDelete: 'cascade' }),
+    bookingSessionId: text('booking_session_id')
+      .notNull()
+      .unique()
+      .references(() => bookingSessions.id, { onDelete: 'cascade' }),
+    bookingPartyId: text('booking_party_id').notNull().unique(),
     purpose: text('purpose', { enum: ['appointment_reschedule'] })
       .default('appointment_reschedule')
       .notNull(),

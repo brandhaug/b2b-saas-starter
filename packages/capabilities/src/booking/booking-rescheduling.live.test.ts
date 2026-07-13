@@ -5,6 +5,7 @@ import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { LiveBookingRescheduling } from './booking-rescheduling-adapter.ts'
 import {
   BookingRescheduling,
+  type RescheduleSession,
   type RescheduleReplacement
 } from './booking-rescheduling.ts'
 
@@ -60,6 +61,7 @@ beforeAll(async () => {
     `INSERT INTO providers (id, merchant_id, display_name, status, created_at, updated_at) VALUES ('prv_new', 'mrc_reschedule', 'New Provider', 'active', '${now}', '${now}')`,
     `INSERT INTO booking_sessions (id, merchant_id, capability_hash, checkout_path, lifecycle, created_at, last_activity_at, idle_expires_at, absolute_expires_at) VALUES ('bsn_reschedule', 'mrc_reschedule', 'booking-hash', 'pay_in_person', 'consumed', '${now}', '${now}', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z')`,
     `INSERT INTO booking_parties (id, booking_session_id, shop_id, lifecycle, currency, locale, version, created_at, updated_at) VALUES ('bpt_reschedule', 'bsn_reschedule', 'shp_reschedule', 'confirmed', 'USD', 'en', 1, '${now}', '${now}')`,
+    `INSERT INTO checkout_policies (id, shop_id, scope, scope_id, kind, version, disclosure, effective_at, created_at) VALUES ('pol_checkout', 'shp_reschedule', 'shop', 'shp_reschedule', 'checkout', 3, 'Current rescheduling policy.', '${now}', '${now}')`,
     `INSERT INTO appointments (id, merchant_id, provider_id, booking_party_id, status, version, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_reschedule', 'mrc_reschedule', 'prv_old', 'bpt_reschedule', 'scheduled', 1, '2026-07-14T10:00:00.000Z', '2026-07-14T11:00:00.000Z', '${snapshot}', '${now}', '${now}')`,
     `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, source_version, deduplication_key, status, available_at, created_at, updated_at) VALUES ('nti_old_reminder', 'shp_reschedule', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_reschedule', 1, 'reminder:apt_reschedule:1:old', 'pending', '2026-07-14T08:00:00.000Z', '${now}', '${now}')`,
     `INSERT INTO scheduled_work (id, shop_id, kind, source_type, source_id, source_version, payload_json, idempotency_key, status, run_at, attempts, created_at, updated_at) VALUES ('scw_old_reminder', 'shp_reschedule', 'appointment.reminder', 'appointment', 'apt_reschedule', 1, '{}', 'work:reminder:apt_reschedule:1:old', 'pending', '2026-07-14T08:00:00.000Z', 0, '${now}', '${now}')`
@@ -76,6 +78,76 @@ const run = <A>(effect: Effect.Effect<A, unknown, BookingRescheduling>) =>
     )
   )
 
+const persistReplacementFacts = async (
+  session: RescheduleSession,
+  facts: RescheduleReplacement
+) => {
+  const quote = JSON.stringify({
+    startsAt: facts.hold.startsAt,
+    endsAt: facts.hold.endsAt,
+    providerPreference: { kind: 'specific', providerId: facts.hold.providerId },
+    assignedProvider: {
+      id: facts.hold.providerId,
+      displayName: facts.hold.providerDisplayName
+    },
+    services: [],
+    durationMinutes: 60,
+    currency: facts.quote.currency,
+    totalMinor: facts.quote.totalMinor
+  })
+  await test.d1.batch([
+    test.d1
+      .prepare(
+        `INSERT INTO time_slot_holds (id, merchant_id, booking_session_id, provider_id, starts_at, ends_at, created_at, expires_at, quote)
+         VALUES (?, 'mrc_reschedule', ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        facts.hold.id,
+        session.bookingSessionId,
+        facts.hold.providerId,
+        facts.hold.startsAt,
+        facts.hold.endsAt,
+        now,
+        facts.hold.expiresAt,
+        quote
+      ),
+    test.d1
+      .prepare(
+        `INSERT INTO pricing_quotes (id, booking_party_id, version, currency, subtotal_minor, adjustment_minor, tip_minor, total_minor, facts_json, accepted_at, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?, 0, 0, ?, '{}', ?, ?, ?)`
+      )
+      .bind(
+        facts.quote.id,
+        session.bookingPartyId,
+        facts.quote.version,
+        facts.quote.currency,
+        facts.quote.totalMinor,
+        facts.quote.totalMinor,
+        facts.quote.acceptedAt,
+        facts.quote.expiresAt,
+        now
+      ),
+    test.d1
+      .prepare(
+        `INSERT INTO pricing_quote_acceptances (pricing_quote_id, booking_party_id, party_version, accepted_at, created_at)
+         VALUES (?, ?, 1, ?, ?)`
+      )
+      .bind(facts.quote.id, session.bookingPartyId, facts.quote.acceptedAt, now),
+    test.d1
+      .prepare(
+        `INSERT INTO policy_acceptances (id, booking_party_id, checkout_policy_id, disclosure_snapshot, accepted_at)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .bind(
+        `pac_${session.id}`,
+        session.bookingPartyId,
+        facts.policyAcceptance.policyId,
+        facts.policyAcceptance.disclosureSnapshot,
+        facts.policyAcceptance.acceptedAt
+      )
+  ])
+}
+
 describe('Live Booking rescheduling', () => {
   it('commits the replacement and reminder-version swap in one D1 batch', async () => {
     const session = await run(
@@ -89,6 +161,7 @@ describe('Live Booking rescheduling', () => {
         })
       )
     )
+    await persistReplacementFacts(session, replacement())
     await run(
       Effect.flatMap(BookingRescheduling, (service) =>
         service.prepare({
@@ -165,6 +238,7 @@ describe('Live Booking rescheduling', () => {
         })
       )
     )
+    await persistReplacementFacts(stale, replacement('2026-07-16T12:00:00.000Z'))
     await run(
       Effect.flatMap(BookingRescheduling, (service) =>
         service.prepare({
@@ -200,5 +274,68 @@ describe('Live Booking rescheduling', () => {
       starts_at: '2026-07-15T12:00:00.000Z',
       version: 3
     })
+  })
+
+  it('rejects caller-described replacement facts that have no durable records', async () => {
+    const session = await run(
+      Effect.flatMap(BookingRescheduling, (service) =>
+        service.begin({
+          merchantId: 'mrc_reschedule',
+          appointmentId: 'apt_reschedule',
+          capabilityHash: 'reschedule-capability-fabricated',
+          expiresAt: '2026-07-13T10:20:00.000Z',
+          now
+        })
+      )
+    )
+    await expect(
+      run(
+        Effect.flatMap(BookingRescheduling, (service) =>
+          service.prepare({
+            sessionId: session.id,
+            capabilityHash: 'reschedule-capability-fabricated',
+            replacement: replacement('2026-07-17T12:00:00.000Z'),
+            now
+          })
+        )
+      )
+    ).rejects.toMatchObject({ code: 'replacement_not_ready' })
+  })
+
+  it('rejects a price increase without a captured replacement-party Payment', async () => {
+    const session = await run(
+      Effect.flatMap(BookingRescheduling, (service) =>
+        service.begin({
+          merchantId: 'mrc_reschedule',
+          appointmentId: 'apt_reschedule',
+          capabilityHash: 'reschedule-capability-unsettled',
+          expiresAt: '2026-07-13T10:20:00.000Z',
+          now
+        })
+      )
+    )
+    const base = replacement('2026-07-18T12:00:00.000Z')
+    const facts: RescheduleReplacement = {
+      ...base,
+      quote: { ...base.quote, totalMinor: 6_000 },
+      settlement: {
+        kind: 'additional_collection',
+        amountMinor: 1_000,
+        referenceId: 'pay_fabricated'
+      }
+    }
+    await persistReplacementFacts(session, facts)
+    await expect(
+      run(
+        Effect.flatMap(BookingRescheduling, (service) =>
+          service.prepare({
+            sessionId: session.id,
+            capabilityHash: 'reschedule-capability-unsettled',
+            replacement: facts,
+            now
+          })
+        )
+      )
+    ).rejects.toMatchObject({ code: 'settlement_mismatch' })
   })
 })

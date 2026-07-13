@@ -66,6 +66,8 @@ export type RescheduleSession = {
   readonly id: string
   readonly appointmentId: string
   readonly merchantId: string
+  readonly bookingSessionId: string
+  readonly bookingPartyId: string
   readonly purpose: 'appointment_reschedule'
   readonly baseAppointmentVersion: number
   readonly status: 'active' | 'committed' | 'expired' | 'failed'
@@ -276,6 +278,8 @@ export const SeedBookingRescheduling = (
             id,
             appointmentId: appointment.id,
             merchantId: appointment.merchantId,
+            bookingSessionId: `bsn_${id}`,
+            bookingPartyId: `bpt_${id}`,
             purpose: 'appointment_reschedule',
             capabilityHash: input.capabilityHash,
             baseAppointmentVersion: appointment.version,

@@ -4,13 +4,21 @@ import {
   appointments,
   batch,
   bookingParties,
+  bookingSessions,
+  checkoutPolicies,
   Database,
   lifecycleHistory,
   notificationIntents,
+  payments,
+  policyAcceptances,
+  pricingQuoteAcceptances,
+  pricingQuotes,
   providers,
+  refundObligations,
   rescheduleCommands,
   rescheduleSessions,
   scheduledWork,
+  timeSlotHolds,
   type StoredAppointmentSnapshot
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
@@ -171,6 +179,8 @@ export const LiveBookingRescheduling: Layer.Layer<
           id: row.id,
           appointmentId: row.appointmentId,
           merchantId: row.merchantId,
+          bookingSessionId: row.bookingSessionId,
+          bookingPartyId: row.bookingPartyId,
           purpose: row.purpose,
           baseAppointmentVersion: row.baseAppointmentVersion,
           status: row.status,
@@ -201,6 +211,136 @@ export const LiveBookingRescheduling: Layer.Layer<
           .limit(1)
       ).pipe(Effect.map((rows) => rows.length > 0))
 
+    const verifyDurableReplacement = (
+      session: RescheduleSession,
+      appointment: ReschedulableAppointment,
+      replacement: RescheduleReplacement
+    ) =>
+      Effect.gen(function* () {
+        const [hold] = yield* orUnavailable('booking-rescheduling')(
+          db
+            .select({ hold: timeSlotHolds, provider: providers })
+            .from(timeSlotHolds)
+            .innerJoin(providers, eq(providers.id, timeSlotHolds.providerId))
+            .where(
+              and(
+                eq(timeSlotHolds.id, replacement.hold.id),
+                eq(timeSlotHolds.bookingSessionId, session.bookingSessionId),
+                eq(timeSlotHolds.merchantId, session.merchantId)
+              )
+            )
+            .limit(1)
+        )
+        if (
+          !hold ||
+          hold.hold.providerId !== replacement.hold.providerId ||
+          hold.provider.displayName !== replacement.hold.providerDisplayName ||
+          hold.hold.startsAt !== replacement.hold.startsAt ||
+          hold.hold.endsAt !== replacement.hold.endsAt ||
+          hold.hold.expiresAt !== replacement.hold.expiresAt ||
+          hold.hold.quote.totalMinor !== replacement.quote.totalMinor ||
+          hold.hold.quote.currency !== replacement.quote.currency
+        )
+          return yield* rejected('replacement_not_ready')
+
+        const [quote] = yield* orUnavailable('booking-rescheduling')(
+          db
+            .select({ quote: pricingQuotes, acceptance: pricingQuoteAcceptances })
+            .from(pricingQuotes)
+            .innerJoin(
+              pricingQuoteAcceptances,
+              eq(pricingQuoteAcceptances.pricingQuoteId, pricingQuotes.id)
+            )
+            .where(
+              and(
+                eq(pricingQuotes.id, replacement.quote.id),
+                eq(pricingQuotes.bookingPartyId, session.bookingPartyId),
+                eq(pricingQuoteAcceptances.bookingPartyId, session.bookingPartyId)
+              )
+            )
+            .limit(1)
+        )
+        if (
+          !quote ||
+          quote.quote.version !== replacement.quote.version ||
+          quote.quote.totalMinor !== replacement.quote.totalMinor ||
+          quote.quote.currency !== replacement.quote.currency ||
+          quote.quote.acceptedAt !== replacement.quote.acceptedAt ||
+          quote.quote.expiresAt !== replacement.quote.expiresAt
+        )
+          return yield* rejected('quote_invalid')
+
+        const [policy] = yield* orUnavailable('booking-rescheduling')(
+          db
+            .select({ acceptance: policyAcceptances, policy: checkoutPolicies })
+            .from(policyAcceptances)
+            .innerJoin(
+              checkoutPolicies,
+              eq(checkoutPolicies.id, policyAcceptances.checkoutPolicyId)
+            )
+            .where(
+              and(
+                eq(policyAcceptances.bookingPartyId, session.bookingPartyId),
+                eq(
+                  policyAcceptances.checkoutPolicyId,
+                  replacement.policyAcceptance.policyId
+                )
+              )
+            )
+            .limit(1)
+        )
+        if (
+          !policy ||
+          policy.policy.version !== replacement.policyAcceptance.policyVersion ||
+          policy.acceptance.disclosureSnapshot !==
+            replacement.policyAcceptance.disclosureSnapshot ||
+          policy.acceptance.acceptedAt !== replacement.policyAcceptance.acceptedAt
+        )
+          return yield* rejected('policy_required')
+
+        if (replacement.settlement.kind === 'additional_collection') {
+          const [payment] = yield* orUnavailable('booking-rescheduling')(
+            db
+              .select()
+              .from(payments)
+              .where(
+                and(
+                  eq(payments.id, replacement.settlement.referenceId!),
+                  eq(payments.bookingPartyId, session.bookingPartyId),
+                  eq(payments.currency, replacement.quote.currency)
+                )
+              )
+              .limit(1)
+          )
+          if (
+            !payment ||
+            payment.status !== 'captured' ||
+            payment.capturedMinor < replacement.settlement.amountMinor
+          )
+            return yield* rejected('settlement_mismatch')
+        } else if (replacement.settlement.kind === 'refund') {
+          const [obligation] = yield* orUnavailable('booking-rescheduling')(
+            db
+              .select()
+              .from(refundObligations)
+              .where(
+                and(
+                  eq(refundObligations.id, replacement.settlement.referenceId!),
+                  eq(refundObligations.appointmentId, appointment.id),
+                  eq(refundObligations.currency, replacement.quote.currency),
+                  eq(refundObligations.amountMinor, replacement.settlement.amountMinor)
+                )
+              )
+              .limit(1)
+          )
+          if (
+            !obligation ||
+            !['pending', 'failed_retryable'].includes(obligation.status)
+          )
+            return yield* rejected('settlement_mismatch')
+        }
+      })
+
     const readResult = (
       command: typeof rescheduleCommands.$inferSelect,
       replayed: boolean
@@ -230,20 +370,49 @@ export const LiveBookingRescheduling: Layer.Layer<
           if (appointment.status !== 'scheduled')
             return yield* rejected('appointment_not_reschedulable')
           const id = `rsc_${stableSuffix(`${input.appointmentId}:${input.capabilityHash}`)}`
+          const bookingSessionId = `bsn_${id}`
+          const bookingPartyId = `bpt_${id}`
           yield* orUnavailable('booking-rescheduling')(
-            db
-              .insert(rescheduleSessions)
-              .values({
+            batch(db, [
+              db.insert(bookingSessions).values({
+                id: bookingSessionId,
+                merchantId: appointment.merchantId,
+                capabilityHash: `reschedule:${input.capabilityHash}`,
+                checkoutPath: 'pay_in_person',
+                lifecycle: 'active',
+                createdAt: input.now,
+                lastActivityAt: input.now,
+                idleExpiresAt: input.expiresAt,
+                absoluteExpiresAt: input.expiresAt
+              }),
+              db.insert(bookingParties).values({
+                id: bookingPartyId,
+                bookingSessionId,
+                shopId: appointment.shopId,
+                lifecycle: 'active',
+                currency: appointment.snapshot.currency,
+                locale: 'en',
+                version: 1,
+                createdAt: input.now,
+                updatedAt: input.now
+              }),
+              db.insert(rescheduleSessions).values({
                 id,
                 appointmentId: appointment.id,
                 merchantId: appointment.merchantId,
+                bookingSessionId,
+                bookingPartyId,
                 capabilityHash: input.capabilityHash,
                 baseAppointmentVersion: appointment.version,
                 expiresAt: input.expiresAt,
                 createdAt: input.now,
                 updatedAt: input.now
               })
-              .onConflictDoNothing()
+            ])
+          ).pipe(
+            Effect.catchTag('CapabilityUnavailable', () =>
+              readSession(id, input.capabilityHash).pipe(Effect.asVoid)
+            )
           )
           return yield* readSession(id, input.capabilityHash)
         }),
@@ -280,6 +449,7 @@ export const LiveBookingRescheduling: Layer.Layer<
                     reason: 'replacement_validation_failed'
                   })
           })
+          yield* verifyDurableReplacement(session, appointment, input.replacement)
           if (yield* hasSlotConflict(appointment.id, input.replacement))
             return yield* rejected('slot_conflict')
           const replacement = input.replacement
@@ -375,6 +545,7 @@ export const LiveBookingRescheduling: Layer.Layer<
                     reason: 'replacement_validation_failed'
                   })
           })
+          yield* verifyDurableReplacement(session, appointment, session.replacement)
           if (yield* hasSlotConflict(appointment.id, session.replacement))
             return yield* rejected('slot_conflict')
 
@@ -504,6 +675,7 @@ export const LiveBookingRescheduling: Layer.Layer<
                 updatedAt: input.now
               })
               .where(eq(rescheduleSessions.id, session.id)),
+            db.delete(timeSlotHolds).where(eq(timeSlotHolds.id, replacement.hold.id)),
             ...(replacement.reminderAt && reminderKey
               ? [
                   db.insert(notificationIntents).values({
