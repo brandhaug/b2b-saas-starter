@@ -235,6 +235,28 @@ describe('Booking selection flow', () => {
     expect(card.className).not.toBe(defaultClassName)
   })
 
+  it('clears the selected provider card state when navigating back', async () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          providerPreference: { kind: 'specific', providerId: 'prv_ava' }
+        }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('card:barber:prv_ava').getAttribute('aria-pressed')
+      ).toBe('false')
+    )
+  })
+
   it('does not cover provider or service navigation with a processing overlay', async () => {
     const { rerender } = render(
       <BookingSelectionFlow

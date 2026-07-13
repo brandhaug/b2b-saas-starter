@@ -77,11 +77,13 @@ function BookingSelectionFlowContent({
     journey.shopId === pendingShop.id &&
     journey.version > pendingShop.afterVersion
   const showLocations = journey.shops.length > 1 && !shopSelectionConfirmed
+  const providerChoicePending =
+    pendingProviderChoice?.journeyVersion === journey.version
   const showProviders =
     !showLocations &&
     journey.presentation === 'team' &&
     journey.services.length > 0 &&
-    (journey.providerPreference === null || editingProvider)
+    (journey.providerPreference === null || editingProvider || providerChoicePending)
   const selectedPrimary = journey.services.find(
     (service) => service.id === journey.selection.primaryServiceId
   )
@@ -135,6 +137,7 @@ function BookingSelectionFlowContent({
                 transition={{ duration: 0.3, delay: 0.3 }}
                 onClick={() => {
                   setRouteDirection('back')
+                  setPendingProviderChoice(null)
                   if (journey.shops.length > 1 && showProviders) setPendingShop(null)
                   else setEditingProvider(true)
                 }}
@@ -190,9 +193,7 @@ function BookingSelectionFlowContent({
                   journey={journey}
                   busy={busy}
                   selectedPreference={
-                    pendingProviderChoice?.journeyVersion === journey.version
-                      ? pendingProviderChoice.preference
-                      : journey.providerPreference
+                    providerChoicePending ? pendingProviderChoice.preference : null
                   }
                   messages={messages}
                   onChoose={chooseProvider}
