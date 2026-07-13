@@ -898,6 +898,7 @@ export function ServerBackedBookingFlow({
           noLocationMatches: message('selection.no_location_matches'),
           sourceLanguage: message('feedback.source_language'),
           anyProvider: message('selection.any_provider'),
+          providerAvailable: message('selection.provider_available'),
           providerRestricted: message('selection.provider_restricted'),
           noServicesTitle: message('selection.no_services_title'),
           noServicesCopy: message('selection.no_services_copy'),

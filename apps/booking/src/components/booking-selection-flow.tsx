@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type KeyboardEvent } from 'react'
 import type {
   BookingJourney,
   ProviderPreference,
@@ -25,6 +25,16 @@ type BookingSelectionFlowProps = {
   readonly onContinue?: () => void
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
   readonly messages?: BookingSelectionMessages
+}
+
+function activateCard(
+  event: KeyboardEvent<HTMLDivElement>,
+  disabled: boolean,
+  action: () => void
+) {
+  if (disabled || (event.key !== 'Enter' && event.key !== ' ')) return
+  event.preventDefault()
+  action()
 }
 
 export function BookingSelectionFlow(props: BookingSelectionFlowProps) {
@@ -373,48 +383,88 @@ function ProviderGrid({
   const publicProviderAvailable = journey.providers.some(
     (provider) => provider.access === 'public' && provider.eligibleServiceIds.length > 0
   )
+  const anyProviderDisabled = busy || !publicProviderAvailable
   return (
     <div {...stylex.props(styles.gridTwo)}>
-      <button
-        type="button"
-        disabled={busy || !publicProviderAvailable}
+      <div
+        role="button"
+        tabIndex={anyProviderDisabled ? -1 : 0}
+        aria-disabled={anyProviderDisabled}
         aria-label={messages.anyProvider}
-        onClick={() => onChoose({ kind: 'any' })}
-        {...stylex.props(styles.providerCard)}
+        data-testid="card:chooseServiceFirst"
+        onClick={() => {
+          if (!anyProviderDisabled) onChoose({ kind: 'any' })
+        }}
+        onKeyDown={(event) =>
+          activateCard(event, anyProviderDisabled, () => onChoose({ kind: 'any' }))
+        }
+        {...stylex.props(
+          styles.providerCard,
+          anyProviderDisabled && styles.providerCardDisabled
+        )}
       >
-        <span {...stylex.props(styles.avatar)}>
+        <div {...stylex.props(styles.avatar)}>
           <BookingVisualAsset
             assetRole="booking-party"
             {...stylex.props(styles.icon24)}
           />
-        </span>
-        <span {...stylex.props(styles.providerName)}>{messages.chooseService}</span>
-        <span {...stylex.props(styles.mutedSmall)}>{messages.anyProvider}</span>
-      </button>
-      {journey.providers.map((provider) => (
-        <button
-          key={provider.id}
-          type="button"
-          disabled={busy || provider.access === 'restricted'}
-          onClick={() => onChoose({ kind: 'specific', providerId: provider.id })}
-          {...stylex.props(styles.providerCard)}
-        >
-          <span {...stylex.props(styles.avatar)}>
-            {initials(provider.localizedName?.text ?? provider.displayName)}
-          </span>
-          <span {...stylex.props(styles.providerName)}>
-            {provider.localizedName?.text ?? provider.displayName}
-          </span>
-          <span {...stylex.props(styles.mutedSmall)}>
-            {provider.access === 'restricted'
-              ? messages.providerRestricted
-              : messages.chooseProvider}
-          </span>
-          {provider.localizedName?.isSourceLanguageFallback ? (
-            <span {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</span>
-          ) : null}
-        </button>
-      ))}
+        </div>
+        <p {...stylex.props(styles.providerName)}>{messages.chooseService}</p>
+        <p {...stylex.props(styles.providerAvailability)}>{messages.anyProvider}</p>
+      </div>
+      {journey.providers.map((provider) => {
+        const disabled = busy || provider.access === 'restricted'
+        const choose = () =>
+          onChoose({ kind: 'specific' as const, providerId: provider.id })
+        return (
+          <div
+            key={provider.id}
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            aria-disabled={disabled}
+            aria-label={`${provider.localizedName?.text ?? provider.displayName}, ${
+              provider.access === 'restricted'
+                ? messages.providerRestricted
+                : messages.chooseProvider
+            }`}
+            data-testid={`card:barber:${provider.id}`}
+            onClick={() => {
+              if (!disabled) choose()
+            }}
+            onKeyDown={(event) => activateCard(event, disabled, choose)}
+            {...stylex.props(
+              styles.providerCard,
+              disabled && styles.providerCardDisabled
+            )}
+          >
+            <div {...stylex.props(styles.avatar)}>
+              {initials(provider.localizedName?.text ?? provider.displayName)}
+            </div>
+            <p
+              title={provider.localizedName?.text ?? provider.displayName}
+              data-testid={`text:barberName:${provider.id}`}
+              {...stylex.props(styles.providerName)}
+            >
+              {provider.localizedName?.text ?? provider.displayName}
+            </p>
+            <div
+              data-testid={`divider:barber:${provider.id}`}
+              {...stylex.props(styles.providerDivider)}
+            />
+            <p
+              data-testid={`text:barberAvailability:${provider.id}`}
+              {...stylex.props(styles.providerAvailability)}
+            >
+              {provider.access === 'restricted'
+                ? messages.providerRestricted
+                : messages.providerAvailable}
+              {provider.localizedName?.isSourceLanguageFallback
+                ? ` · ${messages.sourceLanguage}`
+                : null}
+            </p>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -577,6 +627,7 @@ export type BookingSelectionMessages = {
   readonly noLocationMatches: string
   readonly sourceLanguage: string
   readonly anyProvider: string
+  readonly providerAvailable: string
   readonly providerRestricted: string
   readonly noServicesTitle: string
   readonly noServicesCopy: string
@@ -597,6 +648,7 @@ const defaultMessages: BookingSelectionMessages = {
   noLocationMatches: 'No locations match your search.',
   sourceLanguage: 'Shown in the merchant’s original language',
   anyProvider: 'Book with any professional',
+  providerAvailable: 'Available',
   providerRestricted: 'This professional requires private access',
   noServicesTitle: 'No services are bookable',
   noServicesCopy:

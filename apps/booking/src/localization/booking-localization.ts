@@ -184,6 +184,7 @@ const en = {
   'selection.no_location_matches': 'No locations match your search.',
   'selection.choose_service': 'What can we do for you?',
   'selection.any_provider': 'Book with any professional',
+  'selection.provider_available': 'Available',
   'selection.provider_restricted': 'This professional requires private access',
   'selection.no_services_title': 'No services are bookable',
   'selection.no_services_copy':
@@ -366,6 +367,7 @@ const es = {
   'selection.no_location_matches': 'Ninguna ubicación coincide con tu búsqueda.',
   'selection.choose_service': '¿Qué podemos hacer por ti?',
   'selection.any_provider': 'Reservar con cualquier profesional',
+  'selection.provider_available': 'Disponible',
   'selection.provider_restricted': 'Este profesional requiere acceso privado',
   'selection.no_services_title': 'No hay servicios disponibles',
   'selection.no_services_copy':
@@ -548,6 +550,7 @@ const fr = {
   'selection.no_location_matches': 'Aucun emplacement ne correspond à votre recherche.',
   'selection.choose_service': 'Que pouvons-nous faire pour vous?',
   'selection.any_provider': 'Réserver avec n’importe quel professionnel',
+  'selection.provider_available': 'Disponible',
   'selection.provider_restricted': 'Ce professionnel nécessite un accès privé',
   'selection.no_services_title': 'Aucun service réservable',
   'selection.no_services_copy':
@@ -731,6 +734,7 @@ const ro = {
   'selection.no_location_matches': 'Nicio locație nu corespunde căutării.',
   'selection.choose_service': 'Cu ce te putem ajuta?',
   'selection.any_provider': 'Rezervă cu orice profesionist',
+  'selection.provider_available': 'Disponibil',
   'selection.provider_restricted': 'Acest profesionist necesită acces privat',
   'selection.no_services_title': 'Nu există servicii disponibile',
   'selection.no_services_copy': 'Nu există servicii active pentru profesionistul ales.',

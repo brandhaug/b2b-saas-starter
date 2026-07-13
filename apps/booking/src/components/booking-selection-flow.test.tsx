@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BookingJourney } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
@@ -140,6 +147,7 @@ describe('Booking selection flow', () => {
         onChooseServices={vi.fn()}
       />
     )
+    const title = within(screen.getByTestId('container:title'))
 
     rerender(
       <BookingSelectionFlow
@@ -150,16 +158,16 @@ describe('Booking selection flow', () => {
       />
     )
 
-    expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
-    expect(screen.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
+    expect(title.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
+    expect(title.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
 
     await new Promise((resolve) => setTimeout(resolve, 400))
-    expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
-    expect(screen.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
+    expect(title.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
+    expect(title.queryByText('What can we do for you?', { selector: 'p' })).toBeNull()
 
     await new Promise((resolve) => setTimeout(resolve, 350))
-    expect(screen.getByText('What can we do for you?', { selector: 'p' })).toBeTruthy()
-    expect(screen.queryByText('Choose a professional', { selector: 'p' })).toBeNull()
+    expect(title.getByText('What can we do for you?', { selector: 'p' })).toBeTruthy()
+    expect(title.queryByText('Choose a professional', { selector: 'p' })).toBeNull()
   })
 
   it('offers Specific Provider and Any Provider choices for Team journeys', () => {
@@ -180,6 +188,26 @@ describe('Booking selection flow', () => {
       kind: 'specific',
       providerId: 'prv_ava'
     })
+  })
+
+  it('uses the legacy NamedBarberCard DOM contract for providers', () => {
+    render(
+      <BookingSelectionFlow
+        journey={teamJourney}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    const card = screen.getByTestId('card:barber:prv_ava')
+    expect(card.tagName).toBe('DIV')
+    expect(card.getAttribute('role')).toBe('button')
+    expect(screen.getByTestId('text:barberName:prv_ava').tagName).toBe('P')
+    expect(screen.getByTestId('divider:barber:prv_ava').tagName).toBe('DIV')
+    const availability = screen.getByTestId('text:barberAvailability:prv_ava')
+    expect(availability.tagName).toBe('P')
+    expect(availability.textContent).toBe('Available')
   })
 
   it('does not cover provider or service navigation with a processing overlay', async () => {
@@ -310,15 +338,16 @@ describe('Booking selection flow', () => {
         onChooseServices={vi.fn()}
       />
     )
+    const title = within(screen.getByTestId('container:title'))
     await waitFor(() =>
-      expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
+      expect(title.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
     )
     await waitFor(() =>
       expect(
         screen
           .getByRole('button', { name: /private pro.*private access/i })
-          .hasAttribute('disabled')
-      ).toBe(true)
+          .getAttribute('aria-disabled')
+      ).toBe('true')
     )
   })
 

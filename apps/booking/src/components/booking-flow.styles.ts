@@ -146,16 +146,22 @@ export const styles = stylex.create({
   gridTwo: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: 10
+    columnGap: 11,
+    rowGap: 12
   },
   providerCard: {
+    position: 'relative',
     display: 'flex',
-    minHeight: 188,
+    width: '100%',
+    boxSizing: 'border-box',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingBlock: 12,
-    paddingInline: 12,
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+    paddingTop: 23,
+    paddingRight: 23,
+    paddingBottom: 22,
+    paddingLeft: 23,
     borderWidth: 1,
     borderStyle: 'solid',
     borderColor: {
@@ -165,8 +171,13 @@ export const styles = stylex.create({
     borderRadius: 16,
     backgroundColor: '#f7f7f7',
     color: '#000000',
-    textAlign: 'center'
+    textAlign: 'center',
+    userSelect: 'none',
+    cursor: 'pointer',
+    transitionProperty: 'border-color, background-color, box-shadow',
+    transitionDuration: '150ms'
   },
+  providerCardDisabled: { opacity: 0.32, pointerEvents: 'none' },
   avatar: {
     display: 'grid',
     width: 64,
@@ -179,10 +190,28 @@ export const styles = stylex.create({
     fontWeight: 400
   },
   providerName: {
-    marginTop: 12,
+    marginTop: 16,
+    marginBottom: 0,
     fontSize: 17,
     fontWeight: 600,
     lineHeight: '22px'
+  },
+  providerDivider: {
+    width: 30,
+    height: 1,
+    marginTop: 18,
+    backgroundColor: '#dadadc'
+  },
+  providerAvailability: {
+    marginTop: 21,
+    marginRight: -24,
+    marginBottom: 0,
+    marginLeft: -24,
+    color: '#616163',
+    fontSize: 13,
+    lineHeight: '18px',
+    textAlign: 'center',
+    textTransform: 'capitalize'
   },
   mutedSmall: {
     marginTop: 4,
