@@ -263,7 +263,11 @@ const fallbackByRole: Record<
     role: 'navigation-back',
     name: 'legacy-back-chevron'
   },
-  'navigation-menu': { kind: 'code-native', role: 'navigation-menu', name: 'menu' },
+  'navigation-menu': {
+    kind: 'code-native',
+    role: 'navigation-menu',
+    name: 'legacy-widget-menu'
+  },
   'location-nearby': {
     kind: 'code-native',
     role: 'location-nearby',

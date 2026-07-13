@@ -68,9 +68,11 @@ export const styles = stylex.create({
   },
   backButton: {
     opacity: 0.3,
+    marginRight: -2,
     borderColor: 'transparent',
     backgroundColor: 'transparent',
-    color: '#747983'
+    color: '#747983',
+    transform: 'translate(-8px, 1px)'
   },
   titleActions: {
     position: 'absolute',

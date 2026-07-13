@@ -2,7 +2,6 @@ import {
   CalendarDays,
   Check,
   CreditCard,
-  Menu,
   MapPin,
   Search,
   Scissors,
@@ -27,7 +26,6 @@ const iconByName: Readonly<Record<string, LucideIcon>> = {
   check: Check,
   'credit-card': CreditCard,
   'group-appointment-motion': UsersRound,
-  menu: Menu,
   'map-pin': MapPin,
   search: Search,
   scissors: Scissors,
@@ -62,6 +60,30 @@ function LegacyBackChevron({
   )
 }
 
+function LegacyWidgetMenu({
+  size: _size,
+  absoluteStrokeWidth: _absoluteStrokeWidth,
+  ...svgProps
+}: LucideProps) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...svgProps}
+    >
+      <g stroke="currentColor" strokeWidth="1.5">
+        <path d="M0 1h10" />
+        <path d="M0 5h10" />
+        <path d="M0 9h10" />
+      </g>
+    </svg>
+  )
+}
+
 export function BookingVisualAsset({
   assetRole,
   enabledProviders = [],
@@ -84,6 +106,9 @@ export function BookingVisualAsset({
   if (asset.kind === 'code-native') {
     if (asset.name === 'legacy-back-chevron') {
       return <LegacyBackChevron {...iconProps} />
+    }
+    if (asset.name === 'legacy-widget-menu') {
+      return <LegacyWidgetMenu {...iconProps} />
     }
     const Icon = iconByName[asset.name]
     if (!Icon) return null

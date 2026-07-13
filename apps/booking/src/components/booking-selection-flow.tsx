@@ -109,6 +109,7 @@ function BookingSelectionFlowContent({
               <m.button
                 type="button"
                 aria-label="Back"
+                data-testid="btn:back"
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 24, opacity: 0.3 }}
                 exit={{ width: 0, opacity: 0 }}

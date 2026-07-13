@@ -177,7 +177,7 @@ const styles = stylex.create({
     backgroundColor: bookingTheme.whiteA100,
     boxShadow: bookingTheme.shadowSheet
   },
-  toolbarIcon: { width: 16, height: 16 }
+  toolbarIcon: { width: 10, height: 10 }
 })
 
 export function BookingLanguagePicker({
@@ -190,12 +190,13 @@ export function BookingLanguagePicker({
   const { locale, setLocale } = useBookingLocalization()
   const [open, setOpen] = useState(false)
   if (placement === 'toolbar' || placement === 'title') {
-    return (
-      <div {...stylex.props(placement === 'toolbar' && styles.toolbar)}>
+    const controls = (
+      <>
         <button
           type="button"
           aria-label="Booking menu"
           aria-expanded={open}
+          data-testid="btn:menu"
           onClick={() => setOpen((value) => !value)}
           {...stylex.props(styles.toolbarButton)}
         >
@@ -222,7 +223,12 @@ export function BookingLanguagePicker({
             </select>
           </label>
         ) : null}
-      </div>
+      </>
+    )
+    return placement === 'title' ? (
+      controls
+    ) : (
+      <div {...stylex.props(styles.toolbar)}>{controls}</div>
     )
   }
   return (

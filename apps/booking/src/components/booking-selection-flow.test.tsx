@@ -190,6 +190,7 @@ describe('Booking selection flow', () => {
     )
 
     const back = screen.getByRole('button', { name: 'Back' })
+    expect(back.getAttribute('data-testid')).toBe('btn:back')
     const chevron = back.querySelector('svg')
     expect(chevron?.getAttribute('viewBox')).toBe('0 0 9 16')
     expect(chevron?.querySelectorAll('path')).toHaveLength(1)

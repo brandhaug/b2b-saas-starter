@@ -87,11 +87,13 @@ describe('Canonical Booking Shell', () => {
     expect(
       container.querySelector('[data-booking-shell="canonical"]')?.getAttribute('style')
     ).toContain('#111111')
-    expect(
-      within(screen.getByTestId('mock-title-actions')).getByRole('button', {
-        name: 'Booking menu'
-      })
-    ).toBeTruthy()
+    const titleActions = screen.getByTestId('mock-title-actions')
+    const menu = within(titleActions).getByRole('button', {
+      name: 'Booking menu'
+    })
+    expect(menu.parentElement).toBe(titleActions)
+    expect(menu.getAttribute('data-testid')).toBe('btn:menu')
+    expect(menu.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 10 10')
     fireEvent.click(screen.getByRole('button', { name: 'Booking menu' }))
     expect(
       (
