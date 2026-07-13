@@ -1,8 +1,8 @@
 import * as stylex from '@stylexjs/stylex'
 
 export const bookingTheme = stylex.defineVars({
-  fontText: 'Geist, ui-sans-serif, sans-serif, system-ui',
-  fontDisplay: 'Geist, ui-sans-serif, sans-serif, system-ui',
+  fontText: '"SF Pro Text", "Roboto", sans-serif',
+  fontDisplay: '"SF Pro Display", "SF Pro Text", "Roboto", sans-serif',
   fontPrice: 'Geist Mono, ui-monospace, monospace',
   textCaption: '12px',
   textFootnote: '13px',

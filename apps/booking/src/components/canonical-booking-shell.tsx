@@ -54,28 +54,19 @@ export function CanonicalBookingShell({
   )
 
   return (
-    <div
-      data-booking-shell="canonical"
-      data-embedding={embedding}
-      data-booking-embedding={embedding}
-      data-scroll-owner={embedding === 'standalone' ? 'document' : 'content'}
-    >
-      <BookingLocalizationProvider
-        sessionLocale={locale}
-        onLocaleChange={persistLocale}
-      >
-        <LocalizedLanguagePicker target={titleActionTarget} />
-        {persistingLocale ? (
-          <LocalePersistenceStatus />
-        ) : (
-          <LocalizedServerBackedBookingFlow
-            merchantSlug={merchantSlug}
-            sessionId={sessionId}
-            onTitleActionMount={setTitleActionTarget}
-          />
-        )}
-      </BookingLocalizationProvider>
-    </div>
+    <BookingLocalizationProvider sessionLocale={locale} onLocaleChange={persistLocale}>
+      <LocalizedLanguagePicker target={titleActionTarget} />
+      {persistingLocale ? (
+        <LocalePersistenceStatus />
+      ) : (
+        <LocalizedServerBackedBookingFlow
+          merchantSlug={merchantSlug}
+          sessionId={sessionId}
+          embedding={embedding}
+          onTitleActionMount={setTitleActionTarget}
+        />
+      )}
+    </BookingLocalizationProvider>
   )
 }
 
@@ -102,10 +93,12 @@ function LocalePersistenceStatus() {
 function LocalizedServerBackedBookingFlow({
   merchantSlug,
   sessionId,
+  embedding,
   onTitleActionMount
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
+  readonly embedding: BookingEmbedding
   readonly onTitleActionMount: (element: HTMLDivElement | null) => void
 }) {
   const { message } = useBookingLocalization()
@@ -113,6 +106,7 @@ function LocalizedServerBackedBookingFlow({
     <ServerBackedBookingFlow
       merchantSlug={merchantSlug}
       sessionId={sessionId}
+      embedding={embedding}
       onTitleActionMount={onTitleActionMount}
       selectionRefreshedMessage={message('feedback.selection_refreshed')}
     />

@@ -8,21 +8,17 @@ import type {
   ServiceSelection
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
-import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
+import {
+  BookingPremiumThemeBoundary,
+  useBookingPremiumTheme
+} from '../presentation/booking-premium-theme.tsx'
 import { RoutePresence } from '../presentation/booking-primitives.tsx'
+import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
 import { styles } from './booking-flow.styles.ts'
 
-export function BookingSelectionFlow({
-  journey,
-  busy,
-  onChooseShop,
-  onChooseProvider,
-  onChooseServices,
-  onContinue,
-  onTitleActionMount,
-  messages = defaultMessages
-}: {
+type BookingSelectionFlowProps = {
   readonly journey: BookingJourney
+  readonly embedding?: BookingEmbedding
   readonly busy: boolean
   readonly onChooseShop?: (shopId: string) => void
   readonly onChooseProvider: (preference: ProviderPreference) => void
@@ -30,7 +26,30 @@ export function BookingSelectionFlow({
   readonly onContinue?: () => void
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
   readonly messages?: BookingSelectionMessages
-}) {
+}
+
+export function BookingSelectionFlow(props: BookingSelectionFlowProps) {
+  return (
+    <BookingPremiumThemeBoundary
+      palette={props.journey.resolvedConfiguration.premiumPalette}
+    >
+      <BookingSelectionFlowContent {...props} />
+    </BookingPremiumThemeBoundary>
+  )
+}
+
+function BookingSelectionFlowContent({
+  journey,
+  embedding = 'standalone',
+  busy,
+  onChooseShop,
+  onChooseProvider,
+  onChooseServices,
+  onContinue,
+  onTitleActionMount,
+  messages = defaultMessages
+}: BookingSelectionFlowProps) {
+  const premiumTheme = useBookingPremiumTheme()
   const [editingProvider, setEditingProvider] = useState(false)
   const [pendingShop, setPendingShop] = useState<{
     readonly id: string
@@ -82,122 +101,122 @@ export function BookingSelectionFlow({
     titleScrollState.presenceKey === routePresenceKey && titleScrollState.scrolled
 
   return (
-    <BookingPremiumThemeBoundary palette={journey.resolvedConfiguration.premiumPalette}>
-      <div {...stylex.props(styles.app)} aria-busy={busy}>
-        <div {...stylex.props(styles.widget)}>
-          <div
-            data-testid="container:title"
-            {...stylex.props(styles.header, titleScrolled && styles.headerScrolled)}
-          >
-            <LazyMotion features={domAnimation} strict>
-              <AnimatePresence initial>
-                {canGoBack ? (
-                  <m.button
-                    type="button"
-                    aria-label="Back"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: 24, opacity: 0.3 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    onClick={() => {
-                      if (journey.shops.length > 1 && showProviders)
-                        setPendingShop(null)
-                      else setEditingProvider(true)
-                    }}
-                    {...stylex.props(styles.iconButton, styles.backButton)}
-                  >
-                    <BookingVisualAsset
-                      assetRole="navigation-back"
-                      {...stylex.props(styles.icon16)}
-                    />
-                  </m.button>
-                ) : null}
-              </AnimatePresence>
-            </LazyMotion>
-            <RoutePresence presenceKey={`title:${pageTitle}`}>
-              <p {...stylex.props(styles.title)}>{pageTitle}</p>
-            </RoutePresence>
-            {onTitleActionMount ? (
-              <div ref={onTitleActionMount} {...stylex.props(styles.titleActions)} />
-            ) : null}
-          </div>
-
-          <RoutePresence
-            presenceKey={routePresenceKey}
-            className={stylex.props(styles.routeLayer).className}
-          >
-            <div {...stylex.props(styles.scrollableFrame)}>
-              <div
-                data-testid="container:scrollable"
-                onScroll={(event) =>
-                  setTitleScrollState({
-                    presenceKey: routePresenceKey,
-                    scrolled: event.currentTarget.scrollTop > 0
-                  })
-                }
-                {...stylex.props(styles.main)}
+    <div
+      data-booking-shell="canonical"
+      data-embedding={embedding}
+      data-booking-embedding={embedding}
+      data-scroll-owner={embedding === 'standalone' ? 'document' : 'content'}
+      style={premiumTheme.style}
+      {...stylex.props(styles.widget)}
+    >
+      <div
+        data-testid="container:title"
+        {...stylex.props(styles.header, titleScrolled && styles.headerScrolled)}
+      >
+        <LazyMotion features={domAnimation} strict>
+          <AnimatePresence initial>
+            {canGoBack ? (
+              <m.button
+                type="button"
+                aria-label="Back"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 24, opacity: 0.3 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                onClick={() => {
+                  if (journey.shops.length > 1 && showProviders) setPendingShop(null)
+                  else setEditingProvider(true)
+                }}
+                {...stylex.props(styles.iconButton, styles.backButton)}
               >
-                <div aria-hidden="true" {...stylex.props(styles.scrollOrigin)} />
-                <div {...stylex.props(styles.contentOffset)}>
-                  {!showLocations &&
-                  journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
-                    <p {...stylex.props(styles.mutedSmall)}>
-                      {messages.sourceLanguage}
-                    </p>
-                  ) : null}
-                  {showLocations ? (
-                    <LocationGrid
-                      journey={journey}
-                      busy={busy || !onChooseShop}
-                      messages={messages}
-                      onChoose={chooseShop}
-                    />
-                  ) : showProviders ? (
-                    <ProviderGrid
-                      journey={journey}
-                      busy={busy}
-                      messages={messages}
-                      onChoose={chooseProvider}
-                    />
-                  ) : (
-                    <ServiceGrid
-                      journey={journey}
-                      busy={busy}
-                      selectedPrimary={selectedPrimary}
-                      onChoose={onChooseServices}
-                      messages={messages}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          </RoutePresence>
-        </div>
-
-        {selectedPrimary && !showProviders ? (
-          <button
-            type="button"
-            aria-label={`View order, ${formatPrice(total(journey), selectedPrimary.currency)}`}
-            onClick={() => setOrderOpen(true)}
-            {...stylex.props(styles.orderBar)}
-          >
-            <span>View order</span>
-            <span {...stylex.props(styles.mono)}>
-              {formatPrice(total(journey), selectedPrimary.currency)}
-            </span>
-          </button>
-        ) : null}
-
-        {orderOpen && selectedPrimary ? (
-          <OrderSummary
-            journey={journey}
-            primary={selectedPrimary}
-            onClose={() => setOrderOpen(false)}
-            {...(onContinue ? { onContinue } : {})}
-          />
+                <BookingVisualAsset
+                  assetRole="navigation-back"
+                  {...stylex.props(styles.icon16)}
+                />
+              </m.button>
+            ) : null}
+          </AnimatePresence>
+        </LazyMotion>
+        <RoutePresence presenceKey={`title:${pageTitle}`}>
+          <p {...stylex.props(styles.title)}>{pageTitle}</p>
+        </RoutePresence>
+        {onTitleActionMount ? (
+          <div ref={onTitleActionMount} {...stylex.props(styles.titleActions)} />
         ) : null}
       </div>
-    </BookingPremiumThemeBoundary>
+
+      <RoutePresence
+        presenceKey={routePresenceKey}
+        className={stylex.props(styles.routeLayer).className}
+      >
+        <div {...stylex.props(styles.scrollableFrame)}>
+          <div
+            data-testid="container:scrollable"
+            onScroll={(event) =>
+              setTitleScrollState({
+                presenceKey: routePresenceKey,
+                scrolled: event.currentTarget.scrollTop > 0
+              })
+            }
+            {...stylex.props(styles.main)}
+          >
+            <div aria-hidden="true" {...stylex.props(styles.scrollOrigin)} />
+            <div {...stylex.props(styles.contentOffset)}>
+              {!showLocations &&
+              journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
+                <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
+              ) : null}
+              {showLocations ? (
+                <LocationGrid
+                  journey={journey}
+                  busy={busy || !onChooseShop}
+                  messages={messages}
+                  onChoose={chooseShop}
+                />
+              ) : showProviders ? (
+                <ProviderGrid
+                  journey={journey}
+                  busy={busy}
+                  messages={messages}
+                  onChoose={chooseProvider}
+                />
+              ) : (
+                <ServiceGrid
+                  journey={journey}
+                  busy={busy}
+                  selectedPrimary={selectedPrimary}
+                  onChoose={onChooseServices}
+                  messages={messages}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </RoutePresence>
+
+      {selectedPrimary && !showProviders ? (
+        <button
+          type="button"
+          aria-label={`View order, ${formatPrice(total(journey), selectedPrimary.currency)}`}
+          onClick={() => setOrderOpen(true)}
+          {...stylex.props(styles.orderBar)}
+        >
+          <span>View order</span>
+          <span {...stylex.props(styles.mono)}>
+            {formatPrice(total(journey), selectedPrimary.currency)}
+          </span>
+        </button>
+      ) : null}
+
+      {orderOpen && selectedPrimary ? (
+        <OrderSummary
+          journey={journey}
+          primary={selectedPrimary}
+          onClose={() => setOrderOpen(false)}
+          {...(onContinue ? { onContinue } : {})}
+        />
+      ) : null}
+    </div>
   )
 }
 

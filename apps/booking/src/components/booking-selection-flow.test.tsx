@@ -96,6 +96,8 @@ describe('Booking selection flow', () => {
     expect(container.querySelector('header')).toBeNull()
     expect(container.querySelector('main')).toBeNull()
     expect(titleContainer.children[0]?.tagName).toBe('DIV')
+    expect(titleContainer.parentElement).toBe(container.firstElementChild)
+    expect(container.querySelector('[aria-busy]')).toBeNull()
     expect(scrollable.parentElement?.parentElement?.parentElement).toBe(
       titleContainer.parentElement
     )
@@ -234,7 +236,7 @@ describe('Booking selection flow', () => {
       ).toBe(true)
     )
     expect(
-      container.querySelector('[data-premium="true"]')?.getAttribute('style')
+      container.querySelector('[data-booking-shell="canonical"]')?.getAttribute('style')
     ).toContain('#111111')
   })
 

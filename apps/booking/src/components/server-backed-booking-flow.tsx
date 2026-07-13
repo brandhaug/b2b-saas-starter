@@ -39,6 +39,7 @@ import {
   createBrowserCheckoutTelemetry,
   type CheckoutTelemetry
 } from '../lib/checkout-telemetry.ts'
+import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
 
 type SettlementPaymentEligibility = PaymentMethodEligibility & {
   readonly giftCardMinor: number
@@ -48,6 +49,7 @@ type SettlementPaymentEligibility = PaymentMethodEligibility & {
 export function ServerBackedBookingFlow({
   merchantSlug,
   sessionId,
+  embedding = 'standalone',
   telemetry = createBrowserCheckoutTelemetry(),
   selectionRefreshedMessage = translateBookingMessage(
     'en',
@@ -57,6 +59,7 @@ export function ServerBackedBookingFlow({
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
+  readonly embedding?: BookingEmbedding
   readonly telemetry?: CheckoutTelemetry
   readonly selectionRefreshedMessage?: string
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
@@ -870,6 +873,7 @@ export function ServerBackedBookingFlow({
       ) : null}
       <BookingSelectionFlow
         journey={journey.data}
+        embedding={embedding}
         messages={{
           chooseLocation: message('selection.choose_location'),
           chooseProvider: message('selection.choose_provider'),
@@ -930,14 +934,12 @@ function Status({
   readonly action?: string
 }) {
   return (
-    <div {...stylex.props(styles.app)}>
-      <div {...stylex.props(styles.widget)}>
-        <main {...stylex.props(styles.main, styles.empty)}>
-          <h1 {...stylex.props(styles.emptyTitle)}>{title}</h1>
-          <p {...stylex.props(styles.emptyCopy)}>{copy}</p>
-          {href && action ? <a href={href}>{action}</a> : null}
-        </main>
-      </div>
+    <div {...stylex.props(styles.widget)}>
+      <main {...stylex.props(styles.main, styles.empty)}>
+        <h1 {...stylex.props(styles.emptyTitle)}>{title}</h1>
+        <p {...stylex.props(styles.emptyCopy)}>{copy}</p>
+        {href && action ? <a href={href}>{action}</a> : null}
+      </main>
     </div>
   )
 }

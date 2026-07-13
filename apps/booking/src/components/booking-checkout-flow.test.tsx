@@ -8,7 +8,7 @@ afterEach(cleanup)
 describe('Booking checkout', () => {
   it('captures minimum details without a consent checkbox', () => {
     const submit = vi.fn()
-    render(
+    const { container } = render(
       <BookingCheckoutFlow
         review={null}
         preparation={null}
@@ -20,6 +20,10 @@ describe('Booking checkout', () => {
         onEdit={vi.fn()}
       />
     )
+    expect(screen.getByText('Confirm booking').closest('header')?.parentElement).toBe(
+      container.firstElementChild
+    )
+    expect(container.querySelector('[aria-busy]')).toBeNull()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mia' } })
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'mia@example.com' }

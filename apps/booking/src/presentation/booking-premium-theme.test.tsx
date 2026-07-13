@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   BookingPremiumThemeBoundary,
+  useBookingPremiumTheme,
   validateBookingPremiumPalette
 } from './booking-premium-theme.tsx'
 
@@ -29,14 +30,15 @@ describe('Booking premium theme boundary', () => {
       linkColor: '#006bd0'
     })
 
-    render(
+    const { container } = render(
       <BookingPremiumThemeBoundary palette={palette}>
-        <p>Premium booking</p>
+        <PremiumThemeSurface />
       </BookingPremiumThemeBoundary>
     )
-    const boundary = screen.getByText('Premium booking').parentElement
-    expect(boundary?.dataset.premium).toBe('true')
-    expect(boundary?.getAttribute('style')).toContain('#0083ff')
+    const surface = screen.getByText('Premium booking')
+    expect(container.childElementCount).toBe(1)
+    expect(surface.dataset.premium).toBe('true')
+    expect(surface.getAttribute('style')).toContain('#0083ff')
   })
 
   it('rejects arbitrary CSS and incomplete palette overrides', () => {
@@ -48,3 +50,12 @@ describe('Booking premium theme boundary', () => {
     ).toBeNull()
   })
 })
+
+function PremiumThemeSurface() {
+  const theme = useBookingPremiumTheme()
+  return (
+    <p data-premium={theme.premium ? 'true' : 'false'} style={theme.style}>
+      Premium booking
+    </p>
+  )
+}

@@ -32,7 +32,7 @@ const availability: BookingAvailability = {
 describe('Booking scheduling flow', () => {
   it('keeps the dense calendar strip and three-column time selection feedback', () => {
     const select = vi.fn()
-    render(
+    const { container } = render(
       <BookingSchedulingFlow
         availability={availability}
         busy={false}
@@ -40,6 +40,10 @@ describe('Booking scheduling flow', () => {
         onSelect={select}
       />
     )
+    expect(
+      screen.getByText('Choose your appointment').closest('header')?.parentElement
+    ).toBe(container.firstElementChild)
+    expect(container.querySelector('[aria-busy]')).toBeNull()
     expect(screen.getByText('July 2026')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /monday, july 13/i }))
     fireEvent.click(screen.getByRole('button', { name: /09:00/ }))

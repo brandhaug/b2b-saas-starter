@@ -1,30 +1,33 @@
 :root {
   color-scheme: light;
-  font-family:
-    'Geist Variable',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
-  background: #f7f7f8;
-  color: #292929;
+  font-family: 'SF Pro Text', 'Roboto', sans-serif;
+  background: rgb(247 247 247);
+  color: #000;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  font-family: inherit;
 }
 
 html {
   min-width: 320px;
-  background: #f7f7f8;
+  width: 100%;
+  height: 100%;
+  background: transparent;
 }
 
 body {
   min-width: 320px;
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  background: #f7f7f8;
-  color: #292929;
+  background: rgb(247 247 247);
+  color: #000;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 html,

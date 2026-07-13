@@ -12,14 +12,16 @@ import { CanonicalBookingShell } from './canonical-booking-shell.tsx'
 
 vi.mock('./server-backed-booking-flow.tsx', () => ({
   ServerBackedBookingFlow: ({
-    onTitleActionMount
+    onTitleActionMount,
+    embedding
   }: {
     onTitleActionMount: (element: HTMLDivElement | null) => void
+    embedding: string
   }) => (
-    <>
+    <div data-booking-shell="canonical" data-embedding={embedding}>
       <div data-testid="mock-title-actions" ref={onTitleActionMount} />
       <p>Booking journey</p>
-    </>
+    </div>
   )
 }))
 
@@ -65,6 +67,9 @@ describe('Canonical Booking Shell', () => {
         .querySelector('[data-booking-shell="canonical"]')
         ?.getAttribute('data-embedding')
     ).toBe('widget')
+    expect(container.querySelectorAll('[data-booking-shell="canonical"]')).toHaveLength(
+      1
+    )
     expect(
       within(screen.getByTestId('mock-title-actions')).getByRole('button', {
         name: 'Booking menu'

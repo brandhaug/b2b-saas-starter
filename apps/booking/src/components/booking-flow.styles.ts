@@ -7,13 +7,6 @@ const interactiveBackground = {
 } as const
 
 export const styles = stylex.create({
-  app: {
-    height: '100dvh',
-    overflow: 'hidden',
-    backgroundColor: '#f7f7f7',
-    color: '#000000',
-    fontFamily: bookingTheme.fontText
-  },
   widget: {
     position: 'relative',
     display: 'flex',

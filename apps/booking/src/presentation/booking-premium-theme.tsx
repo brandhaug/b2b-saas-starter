@@ -1,4 +1,10 @@
-import { type CSSProperties, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useMemo,
+  type CSSProperties,
+  type ReactNode
+} from 'react'
 import { bookingTheme } from './booking-theme.stylex.ts'
 
 export type BookingPremiumPalette = {
@@ -54,6 +60,20 @@ const premiumStyle = (palette: BookingPremiumPalette) =>
     [customProperty(bookingTheme.colorLink)]: palette.linkColor
   }) as CSSProperties
 
+type BookingPremiumThemeValue = {
+  readonly premium: boolean
+  readonly style: CSSProperties | undefined
+}
+
+const BookingPremiumThemeContext = createContext<BookingPremiumThemeValue>({
+  premium: false,
+  style: undefined
+})
+
+export function useBookingPremiumTheme() {
+  return useContext(BookingPremiumThemeContext)
+}
+
 export function BookingPremiumThemeBoundary({
   palette,
   children
@@ -61,12 +81,17 @@ export function BookingPremiumThemeBoundary({
   readonly palette: BookingPremiumPalette | null
   readonly children: ReactNode
 }) {
+  const value = useMemo<BookingPremiumThemeValue>(
+    () => ({
+      premium: palette !== null,
+      style: palette ? premiumStyle(palette) : undefined
+    }),
+    [palette]
+  )
+
   return (
-    <div
-      data-premium={palette ? 'true' : 'false'}
-      style={palette ? premiumStyle(palette) : undefined}
-    >
+    <BookingPremiumThemeContext.Provider value={value}>
       {children}
-    </div>
+    </BookingPremiumThemeContext.Provider>
   )
 }
