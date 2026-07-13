@@ -195,12 +195,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Provider-Free Confirmation and Protected Access; Deliver Online Payment Settlement.
 
-- [ ] Gift Card Product rules enforce permitted amount, currency, and Merchant, Brand, Shop, or Provider scope.
-- [ ] Purchaser and optional recipient details are captured without creating unintended Customer identity.
-- [ ] A captured Gift Card Sale issues exactly one Gift Card under retry, callback, and reconciliation scenarios.
-- [ ] Protected receipts reuse purpose-limited access mechanics and avoid bearer secrets in URLs after exchange.
-- [ ] Sale cancellation, refund, provider failure, and local failure preserve immutable monetary and issuance facts.
-- [ ] Official payment and wallet marks comply with asset provenance controls.
+- [x] Gift Card Product rules enforce permitted amount, currency, and Merchant, Brand, Shop, or Provider scope.
+- [x] Purchaser and optional recipient details are captured without creating unintended Customer identity.
+- [x] A captured Gift Card Sale issues exactly one Gift Card under retry, callback, and reconciliation scenarios.
+- [x] Protected receipts reuse purpose-limited access mechanics and avoid bearer secrets in URLs after exchange.
+- [x] Sale cancellation, refund, provider failure, and local failure preserve immutable monetary and issuance facts.
+- [x] Official payment and wallet marks comply with asset provenance controls.
 
 ## Deliver Gift Card Redemption and Mixed Settlement
 
