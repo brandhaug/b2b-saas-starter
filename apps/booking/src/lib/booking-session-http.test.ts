@@ -1502,4 +1502,100 @@ describe('Booking Session HTTP boundary', () => {
       else expect(await response.text()).toBe('Not found')
     }
   })
+
+  it('cancels only an appointment authorized by the protected confirmation', async () => {
+    const cookieCredential = 'd'.repeat(64)
+    const snapshot = {
+      startsAt: '2026-07-14T09:00:00.000Z',
+      endsAt: '2026-07-14T10:00:00.000Z',
+      providerPreference: { kind: 'any' as const },
+      assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
+      services: [],
+      durationMinutes: 60,
+      currency: 'USD',
+      totalMinor: 5000,
+      merchantTimezone: 'UTC',
+      customerDetails: { name: 'Mia', email: 'mia@example.test', phone: null },
+      checkoutPath: 'online_payment' as const
+    }
+    const appointments = ['apt_one', 'apt_sibling'].map((id) => ({
+      id,
+      status: 'scheduled' as const,
+      startsAt: snapshot.startsAt,
+      endsAt: snapshot.endsAt,
+      snapshot
+    }))
+    let command: unknown
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () => Effect.die(new Error('not called')),
+      confirmation: {
+        confirm: () => Effect.die(new Error('not called')),
+        read: () =>
+          Effect.succeed({
+            kind: 'found' as const,
+            confirmation: {
+              routeId: 'cnf_cancel',
+              status: 'scheduled' as const,
+              startsAt: snapshot.startsAt,
+              endsAt: snapshot.endsAt,
+              locale: 'en' as const,
+              snapshot,
+              appointments,
+              merchant: { publicName: 'Mara Studio' }
+            },
+            cookieCredential
+          })
+      },
+      cancellations: {
+        cancel: (input: unknown) => {
+          command = input
+          return Effect.succeed({
+            commandId: 'ccm_http',
+            scope: { kind: 'appointment' as const, appointmentId: 'apt_one' },
+            appointments: [],
+            refundObligations: [],
+            replayed: false
+          })
+        }
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called')),
+      now: () => '2026-07-13T10:00:00.000Z'
+    }
+    const request = (appointmentId: string) =>
+      new Request(
+        `https://www.example.test/mara-studio/booking/confirmations/cnf_cancel/appointments/${appointmentId}/cancel`,
+        {
+          method: 'POST',
+          headers: {
+            cookie: `confirmation_cnf_cancel=${cookieCredential}`,
+            origin: 'https://www.example.test',
+            'sec-fetch-site': 'same-origin',
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            idempotencyKey: 'cancel-http-once',
+            reason: 'customer_requested'
+          })
+        }
+      )
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(request('apt_one'), dependencies)
+    )
+    expect(response.status).toBe(200)
+    expect(command).toMatchObject({
+      merchantSlug: 'mara-studio',
+      scope: { kind: 'appointment', appointmentId: 'apt_one' },
+      idempotencyKey: 'cancel-http-once',
+      reason: 'customer_requested'
+    })
+    expect(
+      await Effect.runPromise(
+        handleBookingSessionRequest(request('apt_other'), dependencies)
+      )
+    ).toMatchObject({ status: 404 })
+  })
 })

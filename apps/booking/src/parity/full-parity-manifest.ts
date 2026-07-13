@@ -393,11 +393,29 @@ const deliveredSchedulingEntries: Readonly<
   }
 }
 
+const deliveredCancellationEntries: Readonly<
+  Record<string, { readonly status: ParityStatus; readonly scenario: string }>
+> = {
+  'journey:confirmation-management': {
+    status: 'verified',
+    scenario: 'booking/cancellation-refund'
+  },
+  'state:confirmation-cancelled': {
+    status: 'verified',
+    scenario: 'booking/cancellation-refund'
+  },
+  'state:confirmation-management-eligible': {
+    status: 'verified',
+    scenario: 'booking/cancellation-refund'
+  }
+}
+
 export const fullParityLedger: ParityLedger = {
   version: 1,
   inventory,
   entries: entries.map((entry) => ({
     ...entry,
-    ...deliveredSchedulingEntries[entry.inventoryId]
+    ...deliveredSchedulingEntries[entry.inventoryId],
+    ...deliveredCancellationEntries[entry.inventoryId]
   }))
 }

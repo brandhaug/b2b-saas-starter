@@ -26,6 +26,7 @@ export const scenarioJourneys = [
   'quote-expired',
   'checkout-review',
   'online-payment',
+  'cancellation-refund',
   'shell-boundary'
 ] as const
 

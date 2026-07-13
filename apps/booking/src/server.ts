@@ -7,6 +7,8 @@ import {
   BookingCheckout,
   BookingSessions,
   BookingConfirmation,
+  BookingCancellationRejected,
+  BookingCancellations,
   BookingParties,
   enterBookingSession
 } from '@b2b-saas-starter/capabilities/booking'
@@ -875,6 +877,64 @@ export default {
                   )
                   return publishBookingWakeUp(readyEnv.BOOKING_EVENTS_QUEUE, result)
                 })
+            )
+        },
+        cancellations: {
+          cancel: (input) =>
+            Effect.flatMap(
+              Effect.promise(async () => {
+                const merchant = await readyEnv.DB.prepare(
+                  'SELECT id FROM merchants WHERE slug = ? LIMIT 1'
+                )
+                  .bind(input.merchantSlug)
+                  .first<{ id: string }>()
+                if (!merchant) return null
+                if (input.scope.kind === 'appointment')
+                  return {
+                    merchantId: merchant.id,
+                    scope: input.scope
+                  } as const
+                const access = await readyEnv.DB.prepare(
+                  `SELECT confirmation_access.booking_party_id AS bookingPartyId
+                   FROM confirmation_access
+                   JOIN appointments ON appointments.id = confirmation_access.appointment_id
+                   WHERE confirmation_access.route_id = ? AND appointments.merchant_id = ?
+                   LIMIT 1`
+                )
+                  .bind(input.scope.confirmationRouteId, merchant.id)
+                  .first<{ bookingPartyId: string | null }>()
+                return access?.bookingPartyId
+                  ? ({
+                      merchantId: merchant.id,
+                      scope: {
+                        kind: 'party' as const,
+                        bookingPartyId: access.bookingPartyId
+                      }
+                    } as const)
+                  : null
+              }),
+              (resolved) =>
+                resolved
+                  ? Effect.provide(
+                      Effect.flatMap(BookingCancellations, (cancellations) =>
+                        cancellations.cancel({
+                          merchantId: resolved.merchantId,
+                          scope: resolved.scope,
+                          idempotencyKey: input.idempotencyKey,
+                          reason: input.reason,
+                          now: input.now
+                        })
+                      ),
+                      capabilitiesLayer
+                    )
+                  : Effect.fail(
+                      new BookingCancellationRejected({
+                        code:
+                          input.scope.kind === 'appointment'
+                            ? 'appointment_not_found'
+                            : 'party_not_found'
+                      })
+                    )
             )
         },
         takeRead: (key) =>

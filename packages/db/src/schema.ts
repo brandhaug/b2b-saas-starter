@@ -120,6 +120,17 @@ export type StoredAppointmentSnapshot = StoredBookingQuote & {
     readonly disclosure: string
     readonly acceptedAt: string
   } | null
+  readonly cancellationPolicy?: {
+    readonly id: string
+    readonly version: number
+    readonly cancellableUntilMinutesBeforeStart: number
+  }
+  readonly refundPolicy?: {
+    readonly id: string
+    readonly version: number
+    readonly refundableUntilMinutesBeforeStart: number
+    readonly refundBasisPoints: number
+  }
 }
 
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
@@ -1423,6 +1434,109 @@ export const lifecycleHistory = sqliteTable(
       table.aggregateType,
       table.aggregateId,
       table.occurredAt
+    )
+  ]
+)
+
+export const cancellationCommands = sqliteTable(
+  'cancellation_commands',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    scope: text('scope', { enum: ['appointment', 'party'] }).notNull(),
+    targetId: text('target_id').notNull(),
+    idempotencyKey: text('idempotency_key').unique().notNull(),
+    resultJson: text('result_json', { mode: 'json' }).$type<{
+      readonly appointmentIds: readonly string[]
+      readonly refundObligationIds: readonly string[]
+    }>(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('cancellation_commands_target_unique').on(table.scope, table.targetId),
+    index('cancellation_commands_merchant_idx').on(table.merchantId)
+  ]
+)
+
+export const appointmentCancellations = sqliteTable(
+  'appointment_cancellations',
+  {
+    id: id(),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .unique()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    commandId: text('command_id')
+      .notNull()
+      .references(() => cancellationCommands.id, { onDelete: 'restrict' }),
+    reasonCode: text('reason_code').notNull(),
+    cancellationPolicyId: text('cancellation_policy_id').notNull(),
+    cancellationPolicyVersion: integer('cancellation_policy_version').notNull(),
+    refundPolicyId: text('refund_policy_id').notNull(),
+    refundPolicyVersion: integer('refund_policy_version').notNull(),
+    cancelledAt: text('cancelled_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [index('appointment_cancellations_command_idx').on(table.commandId)]
+)
+
+export const refundObligations = sqliteTable(
+  'refund_obligations',
+  {
+    id: id(),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .unique()
+      .references(() => appointments.id, { onDelete: 'restrict' }),
+    bookingPartyId: text('booking_party_id').references(() => bookingParties.id, {
+      onDelete: 'restrict'
+    }),
+    status: text('status', {
+      enum: [
+        'pending',
+        'processing',
+        'succeeded',
+        'failed_retryable',
+        'failed_terminal'
+      ]
+    })
+      .default('pending')
+      .notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text('currency').notNull(),
+    idempotencyKey: text('idempotency_key').unique().notNull(),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    failureCode: text('failure_code'),
+    providerEventId: text('provider_event_id').unique(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('refund_obligations_status_idx').on(table.status, table.updatedAt),
+    check('refund_obligations_positive_amount', sql`${table.amountMinor} > 0`)
+  ]
+)
+
+export const refundObligationAllocations = sqliteTable(
+  'refund_obligation_allocations',
+  {
+    refundObligationId: text('refund_obligation_id')
+      .notNull()
+      .references(() => refundObligations.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    tender: text('tender', {
+      enum: ['gift_card', 'external_payment', 'pay_in_person']
+    }).notNull(),
+    referenceId: text('reference_id'),
+    amountMinor: integer('amount_minor').notNull()
+  },
+  (table) => [
+    primaryKey({ columns: [table.refundObligationId, table.position] }),
+    check(
+      'refund_obligation_allocations_positive_amount',
+      sql`${table.amountMinor} > 0`
     )
   ]
 )

@@ -129,6 +129,25 @@ export {
 } from './appointment-operations.ts'
 export type { AppointmentOperationsShape } from './appointment-operations.ts'
 export {
+  BookingCancellationRejected,
+  BookingCancellations,
+  SeedBookingCancellations,
+  emptySeedBookingCancellationStore,
+  evaluateCancellation
+} from './booking-cancellation.ts'
+export type {
+  AppointmentLifecycleHistory,
+  BookingCancellationsShape,
+  CancellableAppointment,
+  CancellationEvaluation,
+  CancellationPolicySnapshot,
+  CancellationResult,
+  RefundAllocation,
+  RefundObligation,
+  RefundPolicySnapshot,
+  SeedBookingCancellationStore
+} from './booking-cancellation.ts'
+export {
   BookingNotificationOutbox,
   SeedBookingNotificationOutbox
 } from './booking-notifications.ts'

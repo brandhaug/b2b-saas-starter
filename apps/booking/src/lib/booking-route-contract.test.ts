@@ -16,6 +16,11 @@ describe('canonical Booking route contract', () => {
     ['/mara/booking/downtown/ava/services/signature-cut/schedule', 'schedule'],
     ['/mara/booking/session/bsn_123/checkout', 'checkout'],
     ['/mara/booking/confirmations/confirmation_123', 'confirmation'],
+    [
+      '/mara/booking/confirmations/confirmation_123/appointments/appointment_123/cancel',
+      'appointment-cancellation'
+    ],
+    ['/mara/booking/confirmations/confirmation_123/cancel', 'party-cancellation'],
     ['/mara/booking/downtown/any/gift-cards', 'gift-card-purchase'],
     ['/mara/booking/gift-card-sales/sale_123', 'gift-card-receipt'],
     ['/mara/booking/waiting-list/offer_123', 'waiting-list-offer'],

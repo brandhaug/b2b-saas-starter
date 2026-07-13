@@ -40,7 +40,8 @@ import {
   type CustomerDetailsIssue,
   normalizeCustomerDetails,
   type BookingConfirmationResult,
-  type ConfirmationReadResult
+  type ConfirmationReadResult,
+  type CancellationResult
 } from '@b2b-saas-starter/capabilities/booking'
 import {
   InvalidQuoteMaterial,
@@ -405,6 +406,20 @@ export type BookingSessionHttpDependencies = {
       readonly now: string
     }) => BookingSessionEffect<ConfirmationReadResult, CapabilityUnavailable>
   }
+  readonly cancellations?: {
+    readonly cancel: (input: {
+      readonly merchantSlug: string
+      readonly scope:
+        | { readonly kind: 'appointment'; readonly appointmentId: string }
+        | { readonly kind: 'party'; readonly confirmationRouteId: string }
+      readonly idempotencyKey: string
+      readonly reason: string
+      readonly now: string
+    }) => BookingSessionEffect<
+      CancellationResult,
+      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
+    >
+  }
   readonly payments?: {
     readonly status: (
       session: BookingSession
@@ -650,7 +665,24 @@ const confirmationHtml = (
     confirmation.appointments.length > 1
       ? `<section class="merchant"><h2>${message('checkout.guests')}</h2><ul>${partyAppointments}</ul></section>`
       : ''
-  return `<!doctype html><html lang="${confirmation.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${title}</title><style>body{margin:0;background:#f7f7f8;color:#292929;font:14px system-ui,sans-serif}.rail{box-sizing:border-box;max-width:375px;min-height:100vh;margin:auto;padding:24px 16px;background:white;border-inline:1px solid #e2e3e7}h1{font-size:22px;margin:0 0 6px}.status{color:#2caf00;text-transform:capitalize}.card{margin-top:24px;padding:16px;border-radius:8px;background:#eff0f3}.provider{display:flex;justify-content:space-between;border-bottom:1px solid #d7d9df;padding-bottom:16px}.muted,li span{display:block;color:#747983;font-size:12px}ul{list-style:none;padding:0;margin:16px 0}li{display:flex;justify-content:space-between;gap:12px;margin-top:14px}.row{display:flex;justify-content:space-between;gap:16px;margin-top:16px}.merchant{margin-top:24px;padding-top:20px;border-top:1px solid #e2e3e7}a{color:inherit}</style></head><body><main class="rail"><h1>${title}</h1><div class="status">${escapeHtml(status)}</div><section class="card" aria-label="${title}"><div class="provider"><div><strong>${escapeHtml(snapshot.assignedProvider.displayName)}</strong><span class="muted">${message('label.provider')}</span></div><div><strong>${formatBookingCurrency(confirmation.locale, snapshot.totalMinor, snapshot.currency)}</strong><span class="muted">${message('status.pay_in_person')}</span></div></div><ul>${services}</ul><div class="row"><span class="muted">${message('label.time')}</span><time datetime="${escapeHtml(confirmation.startsAt)}">${dateTime}</time></div><div class="row"><span class="muted">${message('label.duration')}</span><span>${snapshot.durationMinutes} min</span></div><div class="row"><span class="muted">${message('label.timezone')}</span><span>${escapeHtml(snapshot.merchantTimezone)}</span></div><div class="row"><span>${message('label.total_price')}</span><strong>${formatBookingCurrency(confirmation.locale, snapshot.totalMinor, snapshot.currency)}</strong></div></section>${party}<section class="merchant"><strong>${escapeHtml(confirmation.merchant.publicName)}</strong><span class="muted">${message('label.merchant')}</span></section><section class="merchant"><strong>${escapeHtml(snapshot.customerDetails.name)}</strong><span class="muted">${escapeHtml(snapshot.customerDetails.email)}${snapshot.customerDetails.phone ? ` · ${escapeHtml(snapshot.customerDetails.phone)}` : ''}</span></section></main></body></html>`
+  const appointmentActions = confirmation.appointments
+    .filter((appointment) => appointment.status === 'scheduled')
+    .map(
+      (appointment) =>
+        `<button type="button" data-cancel-path="/appointments/${encodeURIComponent(appointment.id)}/cancel">${escapeHtml(message('confirmation.cancel_appointment'))}: ${escapeHtml(appointment.snapshot.customerDetails.name)}</button>`
+    )
+    .join('')
+  const partyAction =
+    confirmation.appointments.length > 1 &&
+    confirmation.appointments.every((appointment) => appointment.status === 'scheduled')
+      ? `<button type="button" class="danger" data-cancel-path="/cancel">${escapeHtml(message('confirmation.cancel_party'))}</button>`
+      : ''
+  const actions =
+    appointmentActions || partyAction
+      ? `<section class="actions" aria-label="${escapeHtml(message('confirmation.cancel_appointment'))}">${appointmentActions}${partyAction}<p role="status" aria-live="polite"></p></section>`
+      : ''
+  const script = `<script>document.querySelectorAll('[data-cancel-path]').forEach(function(button){button.addEventListener('click',async function(){button.disabled=true;var status=document.querySelector('[role=status]');try{var response=await fetch(location.pathname+button.dataset.cancelPath,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({idempotencyKey:'cancel-'+crypto.randomUUID(),reason:'customer_requested'})});if(!response.ok)throw new Error();status.textContent=${JSON.stringify(message('confirmation.cancelled'))};location.reload()}catch(error){button.disabled=false;status.textContent=${JSON.stringify(message('confirmation.cancel_failed'))}}})})</script>`
+  return `<!doctype html><html lang="${confirmation.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${title}</title><style>body{margin:0;background:#f7f7f8;color:#292929;font:14px system-ui,sans-serif}.rail{box-sizing:border-box;max-width:375px;min-height:100vh;margin:auto;padding:24px 16px;background:white;border-inline:1px solid #e2e3e7}h1{font-size:22px;margin:0 0 6px}.status{color:#2caf00;text-transform:capitalize}.card{margin-top:24px;padding:16px;border-radius:8px;background:#eff0f3}.provider{display:flex;justify-content:space-between;border-bottom:1px solid #d7d9df;padding-bottom:16px}.muted,li span{display:block;color:#747983;font-size:12px}ul{list-style:none;padding:0;margin:16px 0}li{display:flex;justify-content:space-between;gap:12px;margin-top:14px}.row{display:flex;justify-content:space-between;gap:16px;margin-top:16px}.merchant,.actions{margin-top:24px;padding-top:20px;border-top:1px solid #e2e3e7}.actions{display:grid;gap:10px}.actions button{min-height:44px;border:1px solid #b7bbc3;border-radius:6px;background:white;color:inherit}.actions .danger{border-color:#b42318;color:#b42318}a{color:inherit}</style></head><body><main class="rail"><h1>${title}</h1><div class="status">${escapeHtml(status)}</div><section class="card" aria-label="${title}"><div class="provider"><div><strong>${escapeHtml(snapshot.assignedProvider.displayName)}</strong><span class="muted">${message('label.provider')}</span></div><div><strong>${formatBookingCurrency(confirmation.locale, snapshot.totalMinor, snapshot.currency)}</strong><span class="muted">${message('status.pay_in_person')}</span></div></div><ul>${services}</ul><div class="row"><span class="muted">${message('label.time')}</span><time datetime="${escapeHtml(confirmation.startsAt)}">${dateTime}</time></div><div class="row"><span class="muted">${message('label.duration')}</span><span>${snapshot.durationMinutes} min</span></div><div class="row"><span class="muted">${message('label.timezone')}</span><span>${escapeHtml(snapshot.merchantTimezone)}</span></div><div class="row"><span>${message('label.total_price')}</span><strong>${formatBookingCurrency(confirmation.locale, snapshot.totalMinor, snapshot.currency)}</strong></div></section>${party}${actions}<section class="merchant"><strong>${escapeHtml(confirmation.merchant.publicName)}</strong><span class="muted">${message('label.merchant')}</span></section><section class="merchant"><strong>${escapeHtml(snapshot.customerDetails.name)}</strong><span class="muted">${escapeHtml(snapshot.customerDetails.email)}${snapshot.customerDetails.phone ? ` · ${escapeHtml(snapshot.customerDetails.phone)}` : ''}</span></section></main>${script}</body></html>`
 }
 
 const jsonJourney = (value: BookingJourney): Response =>
@@ -795,6 +827,100 @@ export const handleBookingSessionRequest = (
     if (!merchantSlug) return hiddenNotFound()
     const now = dependencies.now?.() ?? new Date().toISOString()
     const clientKey = request.headers.get('cf-connecting-ip') ?? `path:${url.pathname}`
+
+    const cancellationMatch =
+      segments.length === 7 &&
+      segments[2] === 'confirmations' &&
+      segments[4] === 'appointments' &&
+      segments[6] === 'cancel'
+        ? {
+            routeId: segments[3]!,
+            scope: {
+              kind: 'appointment' as const,
+              appointmentId: segments[5]!
+            }
+          }
+        : segments.length === 5 &&
+            segments[2] === 'confirmations' &&
+            segments[4] === 'cancel'
+          ? {
+              routeId: segments[3]!,
+              scope: {
+                kind: 'party' as const,
+                confirmationRouteId: segments[3]!
+              }
+            }
+          : null
+    if (cancellationMatch) {
+      if (
+        request.method !== 'POST' ||
+        !CONFIRMATION_ID.test(cancellationMatch.routeId) ||
+        !dependencies.confirmation ||
+        !dependencies.cancellations
+      )
+        return withPrivateHeaders(hiddenNotFound())
+      const invalidMutation = validatePrivateMutationRequest(
+        request,
+        dependencies.publicSiteOrigin
+      )
+      if (invalidMutation) return withPrivateHeaders(invalidMutation)
+      if (!(yield* dependencies.takeWrite(`cancellation:${clientKey}`)))
+        return withPrivateHeaders(tooManyRequests())
+      const cookieName = `confirmation_${cancellationMatch.routeId}`
+      const credential = request.headers
+        .get('cookie')
+        ?.split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${cookieName}=`))
+        ?.slice(cookieName.length + 1)
+      if (!credential || !CONFIRMATION_TOKEN.test(credential))
+        return withPrivateHeaders(hiddenNotFound())
+      const access = yield* Effect.result(
+        dependencies.confirmation.read({
+          routeId: cancellationMatch.routeId,
+          merchantSlug,
+          credential,
+          credentialKind: 'cookie',
+          now
+        })
+      )
+      if (access._tag === 'Failure' || access.success.kind !== 'found')
+        return withPrivateHeaders(hiddenNotFound())
+      if (
+        cancellationMatch.scope.kind === 'appointment' &&
+        !access.success.confirmation.appointments.some(
+          (appointment) => appointment.id === cancellationMatch.scope.appointmentId
+        )
+      )
+        return withPrivateHeaders(hiddenNotFound())
+      const body = yield* readJson(request)
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(
+          Schema.Struct({
+            idempotencyKey: Schema.String.check(Schema.isMinLength(8)),
+            reason: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(120))
+          })
+        )(body)
+      )
+      if (decoded._tag === 'Failure') return withPrivateHeaders(hiddenNotFound())
+      const result = yield* Effect.result(
+        dependencies.cancellations.cancel({
+          merchantSlug,
+          scope: cancellationMatch.scope,
+          ...decoded.success,
+          now
+        })
+      )
+      if (result._tag === 'Failure') {
+        const code = 'code' in result.failure ? result.failure.code : undefined
+        return code === 'appointment_not_found' || code === 'party_not_found'
+          ? withPrivateHeaders(hiddenNotFound())
+          : withPrivateHeaders(
+              Response.json({ kind: code ?? 'cancellation_failed' }, { status: 409 })
+            )
+      }
+      return jsonPrivate(result.success)
+    }
 
     if (segments.length === 4 && segments[2] === 'confirmations') {
       const routeId = segments[3]

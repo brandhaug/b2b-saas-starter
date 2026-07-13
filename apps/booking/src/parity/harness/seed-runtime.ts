@@ -7,6 +7,7 @@ import {
   BookingSelection,
   BookingSessions,
   BookingParties,
+  BookingCancellations,
   CapabilityUnavailable,
   SeedBookingCheckout,
   SeedBookingConfirmation,
@@ -14,11 +15,13 @@ import {
   SeedBookingSelection,
   SeedBookingSessions,
   SeedBookingParties,
+  SeedBookingCancellations,
   emptySeedBookingCheckoutStore,
   emptySeedBookingConfirmationStore,
   emptySeedBookingSchedulingStore,
   emptySeedBookingSelectionStore,
   emptySeedBookingSessionStore,
+  emptySeedBookingCancellationStore,
   enterBookingSession,
   seedBookingSelectionEligibilityKey
 } from '@b2b-saas-starter/capabilities/booking'
@@ -148,6 +151,8 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
     currentKeyId: 'parity',
     keys: { parity: 'deterministic-parity-confirmation-key' }
   }).pipe(Layer.provide(paymentLayer))
+  const cancellations = emptySeedBookingCancellationStore()
+  const cancellationLayer = SeedBookingCancellations(cancellations)
 
   const snapshot = () => {
     const value = {
@@ -590,6 +595,72 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
               ),
               confirmationLayer
             )
+        },
+        cancellations: {
+          cancel: (input) =>
+            Effect.gen(function* () {
+              if (input.scope.kind === 'party')
+                return yield* new CapabilityUnavailable({
+                  capability: 'booking-cancellations',
+                  reason: 'party_fixture_unavailable'
+                })
+              const scope = {
+                kind: 'appointment' as const,
+                appointmentId: input.scope.appointmentId
+              }
+              const appointment = confirmation.appointments.get(scope.appointmentId)
+              if (appointment && !cancellations.appointments.has(appointment.id)) {
+                const snapshot = appointment.snapshot as {
+                  readonly totalMinor: number
+                  readonly currency: string
+                }
+                cancellations.appointments.set(appointment.id, {
+                  id: appointment.id,
+                  merchantId: graph.merchant.id,
+                  bookingPartyId: null,
+                  status: appointment.status,
+                  startsAt: appointment.startsAt,
+                  totalMinor: snapshot.totalMinor,
+                  currency: snapshot.currency,
+                  cancellationPolicy: {
+                    id: 'cancellation:parity:v1',
+                    version: 1,
+                    cancellableUntilMinutesBeforeStart: 0
+                  },
+                  refundPolicy: {
+                    id: 'refund:parity:v1',
+                    version: 1,
+                    refundableUntilMinutesBeforeStart: 0,
+                    refundBasisPoints: 10_000
+                  },
+                  settlementAllocations: [
+                    {
+                      tender: 'pay_in_person',
+                      referenceId: null,
+                      amountMinor: snapshot.totalMinor
+                    }
+                  ]
+                })
+              }
+              const result = yield* Effect.flatMap(BookingCancellations, (service) =>
+                service.cancel({
+                  merchantId: graph.merchant.id,
+                  scope,
+                  idempotencyKey: input.idempotencyKey,
+                  reason: input.reason,
+                  now: input.now
+                })
+              ).pipe(Effect.provide(cancellationLayer))
+              for (const cancelled of result.appointments) {
+                const current = confirmation.appointments.get(cancelled.id)
+                if (current)
+                  confirmation.appointments.set(cancelled.id, {
+                    ...current,
+                    status: cancelled.status
+                  })
+              }
+              return result
+            })
         },
         takeRead: () => Effect.succeed(true),
         takeWrite: () => Effect.succeed(true),

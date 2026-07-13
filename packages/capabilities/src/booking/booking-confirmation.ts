@@ -93,6 +93,17 @@ type Failure =
   | BookingConfirmationProcessing
   | CapabilityUnavailable
 const AppointmentSnapshot = Schema.Unknown as Schema.Schema<StoredAppointmentSnapshot>
+const defaultCancellationPolicy = {
+  id: 'cancellation:default:v1',
+  version: 1,
+  cancellableUntilMinutesBeforeStart: 60
+} as const
+const defaultRefundPolicy = {
+  id: 'refund:default:v1',
+  version: 1,
+  refundableUntilMinutesBeforeStart: 24 * 60,
+  refundBasisPoints: 10_000
+} as const
 const CustomerConfirmationAppointment = Schema.Struct({
   id: Schema.String,
   status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
@@ -1044,7 +1055,9 @@ export const LiveBookingConfirmation = (
                         disclosure: acceptedPolicy.disclosureSnapshot,
                         acceptedAt: acceptedPolicy.acceptedAt
                       }
-                    : null
+                    : null,
+                  cancellationPolicy: defaultCancellationPolicy,
+                  refundPolicy: defaultRefundPolicy
                 }
                 return {
                   row,
@@ -1308,7 +1321,9 @@ export const LiveBookingConfirmation = (
                 email: row.session.customerEmail,
                 phone: row.session.customerPhone
               },
-              checkoutPath: 'pay_in_person'
+              checkoutPath: 'pay_in_person',
+              cancellationPolicy: defaultCancellationPolicy,
+              refundPolicy: defaultRefundPolicy
             }
             const accessMetadata = {
               routeId,

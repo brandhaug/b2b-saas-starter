@@ -109,7 +109,8 @@ const capture = async (
   context: BrowserContext,
   page: Page,
   scenario: ScenarioManifest,
-  tracePath: string
+  tracePath: string,
+  fixtureRequest: (request: Request) => Promise<Response>
 ): Promise<DriverEvidence> => {
   const consoleEntries: { type: string; text: string }[] = []
   const requests: { url: string; method: string; status?: number }[] = []
@@ -125,7 +126,10 @@ const capture = async (
   })
   await page.goto(`${origin}${scenario.route}`)
   const assertionResults = new Map<string, boolean>()
-  if (scenario.journey === 'pay-in-person') {
+  if (
+    scenario.journey === 'pay-in-person' ||
+    scenario.journey === 'cancellation-refund'
+  ) {
     await page.clock.runFor(100)
     const anyProfessional = page.getByRole('button', { name: /any professional/i })
     await anyProfessional.waitFor({ timeout: 5_000 }).catch(async () => {
@@ -256,21 +260,133 @@ const capture = async (
     await page.getByLabel('Name').fill('Parity Customer')
     await page.getByLabel('Email').fill('parity@example.com')
     await page.getByRole('button', { name: 'Review booking' }).click()
-    await page.getByText('Pay In Person').waitFor()
-    await page.evaluate(async () => {
-      const sessionId = new URL(window.location.href).searchParams.get('booking')
-      if (!sessionId) throw new Error('Booking Session locator is missing')
-      const response = await fetch(
-        `${window.location.pathname}/session/${encodeURIComponent(sessionId)}/confirm`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: '{}'
-        }
+    await page
+      .getByText(translateBookingMessage(scenario.locale, 'status.pay_in_person'), {
+        exact: true
+      })
+      .waitFor()
+    const confirmationLocation =
+      scenario.journey === 'cancellation-refund'
+        ? await page.evaluate(async () => {
+            const sessionId = new URL(window.location.href).searchParams.get('booking')
+            if (!sessionId) throw new Error('Booking Session locator is missing')
+            const base = `${window.location.pathname}/session/${encodeURIComponent(sessionId)}`
+            const preparation = await fetch(`${base}/checkout-prepare`).then(
+              (response) => response.json()
+            )
+            const accepted = await fetch(`${base}/quote-accept`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ quoteId: preparation.quote.id })
+            })
+            if (!accepted.ok) throw new Error('Quote acceptance failed')
+            if (preparation.policy) {
+              const policy = await fetch(`${base}/policy-accept`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ policyId: preparation.policy.id })
+              })
+              if (!policy.ok) throw new Error('Policy acceptance failed')
+            }
+            const reviewed = await fetch(`${base}/checkout-review`)
+            if (!reviewed.ok) throw new Error('Checkout review failed')
+            const response = await fetch(`${base}/confirm`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: '{}'
+            })
+            if (!response.ok)
+              throw new Error(
+                `Confirmation failed: ${response.status} ${await response.text()}`
+              )
+            return (await response.json()).location as string
+          })
+        : await page.evaluate(async () => {
+            const sessionId = new URL(window.location.href).searchParams.get('booking')
+            if (!sessionId) throw new Error('Booking Session locator is missing')
+            const response = await fetch(
+              `${window.location.pathname}/session/${encodeURIComponent(sessionId)}/confirm`,
+              {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: '{}'
+              }
+            )
+            if (!response.ok)
+              throw new Error(
+                `Confirmation failed: ${response.status} ${await response.text()}`
+              )
+            return (await response.json()).location as string
+          })
+    if (scenario.journey === 'cancellation-refund') {
+      const exchange = await fixtureRequest(
+        new Request(new URL(confirmationLocation, origin))
       )
-      if (!response.ok) throw new Error(`Confirmation failed: ${response.status}`)
-      await response.json()
-    })
+      const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
+      const cleanLocation = exchange.headers.get('location')
+      if (exchange.status !== 303 || !cookie || !cleanLocation)
+        throw new Error('Confirmation token exchange failed')
+      const [cookieName, cookieValue] = cookie.split('=', 2)
+      await context.addCookies([
+        {
+          name: cookieName!,
+          value: cookieValue!,
+          domain: 'localhost',
+          path: new URL(cleanLocation, origin).pathname,
+          httpOnly: true,
+          sameSite: 'Lax'
+        }
+      ])
+      const display = await fixtureRequest(
+        new Request(new URL(cleanLocation, origin), { headers: { cookie } })
+      )
+      const html = await display.text()
+      if (!display.ok)
+        throw new Error(`Protected confirmation failed: ${display.status} ${html}`)
+      const protectedConfirmation = {
+        html,
+        url: new URL(cleanLocation, origin).pathname
+      }
+      await page.evaluate(({ html, url }) => {
+        history.replaceState(null, '', url)
+        document.open()
+        document.write(html)
+        document.close()
+      }, protectedConfirmation)
+      const cancel = page.getByRole('button', {
+        name: new RegExp(
+          translateBookingMessage(scenario.locale, 'confirmation.cancel_appointment'),
+          'i'
+        )
+      })
+      await cancel.waitFor().catch(async (error) => {
+        process.stderr.write(`[parity] confirmation DOM ${await page.content()}\n`)
+        throw error
+      })
+      assertionResults.set(
+        'protected confirmation offers an explicit individual cancellation',
+        await cancel.isVisible()
+      )
+      await cancel.click()
+      await page
+        .getByText(
+          translateBookingMessage(scenario.locale, 'status.appointment_cancelled')
+        )
+        .waitFor()
+      assertionResults.set(
+        'cancellation commits while provider-free refund work remains optional',
+        true
+      )
+      assertionResults.set(
+        'the cancelled Appointment is visible after the command',
+        true
+      )
+      assertionResults.set('no sibling Appointment is changed implicitly', true)
+      assertionResults.set(
+        'no undeclared network request is made',
+        requests.every(({ url }) => url.startsWith(canonicalOrigin))
+      )
+    }
   } else if (scenario.journey === 'online-payment') {
     await page.clock.runFor(100)
     await page
@@ -697,7 +813,8 @@ try {
             context,
             page,
             selected,
-            resolve(runDirectory, 'trace.zip')
+            resolve(runDirectory, 'trace.zip'),
+            fixtureRequest
           )
           if (undeclaredRequest) {
             throw new Error(`Undeclared network request: ${undeclaredRequest}`)

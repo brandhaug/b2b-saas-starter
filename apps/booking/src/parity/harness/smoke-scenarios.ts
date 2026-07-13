@@ -29,6 +29,19 @@ const base = {
 export const smokeScenarios = await Promise.all([
   defineScenario({
     ...base,
+    id: 'booking/cancellation-refund',
+    journey: 'cancellation-refund',
+    route: '/mara-booking-studio/booking',
+    assertions: [
+      'protected confirmation offers an explicit individual cancellation',
+      'cancellation commits while provider-free refund work remains optional',
+      'the cancelled Appointment is visible after the command',
+      'no sibling Appointment is changed implicitly',
+      'no undeclared network request is made'
+    ]
+  }),
+  defineScenario({
+    ...base,
     id: 'booking/checkout-review-party-consent',
     journey: 'checkout-review',
     route: '/mara-booking-studio/booking',

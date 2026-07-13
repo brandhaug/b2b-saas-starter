@@ -221,12 +221,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Provider-Free Confirmation and Protected Access; Deliver Online Payment Settlement; Deliver Gift Card Redemption and Mixed Settlement.
 
-- [ ] Cancellation eligibility and refund entitlement are evaluated separately from Appointment status.
-- [ ] Individual cancellation does not silently affect sibling Appointments; whole-party cancellation is explicit and atomic where required.
-- [ ] Appointment history preserves immutable prior facts and the reason for lifecycle changes.
-- [ ] Cancellation may commit when a refund provider is unavailable, leaving an idempotent retryable refund obligation.
-- [ ] External-payment and Gift Card reversals preserve the original settlement allocations.
-- [ ] Duplicate commands, provider failures, webhook reconciliation, protected access, and cross-merchant scenarios cannot duplicate refunds or leak Appointment existence.
+- [x] Cancellation eligibility and refund entitlement are evaluated separately from Appointment status.
+- [x] Individual cancellation does not silently affect sibling Appointments; whole-party cancellation is explicit and atomic where required.
+- [x] Appointment history preserves immutable prior facts and the reason for lifecycle changes.
+- [x] Cancellation may commit when a refund provider is unavailable, leaving an idempotent retryable refund obligation.
+- [x] External-payment and Gift Card reversals preserve the original settlement allocations.
+- [x] Duplicate commands, provider failures, webhook reconciliation, protected access, and cross-merchant scenarios cannot duplicate refunds or leak Appointment existence.
 
 ## Deliver Atomic Rescheduling and Versioned Reminders
 

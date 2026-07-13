@@ -226,7 +226,18 @@ describe('Live Booking Confirmation', () => {
       ...quote,
       merchantTimezone: 'America/New_York',
       customerDetails: { name: 'Mia', email: 'mia@example.com', phone: '+1 555' },
-      checkoutPath: 'pay_in_person'
+      checkoutPath: 'pay_in_person',
+      cancellationPolicy: {
+        id: 'cancellation:default:v1',
+        version: 1,
+        cancellableUntilMinutesBeforeStart: 60
+      },
+      refundPolicy: {
+        id: 'refund:default:v1',
+        version: 1,
+        refundableUntilMinutesBeforeStart: 24 * 60,
+        refundBasisPoints: 10_000
+      }
     })
     await Effect.runPromise(
       Effect.provide(

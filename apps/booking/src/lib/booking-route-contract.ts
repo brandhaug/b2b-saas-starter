@@ -13,6 +13,8 @@ export type CanonicalBookingRouteKind =
   | 'schedule'
   | 'checkout'
   | 'confirmation'
+  | 'appointment-cancellation'
+  | 'party-cancellation'
   | 'gift-card-purchase'
   | 'gift-card-receipt'
   | 'waiting-list-offer'
@@ -90,6 +92,21 @@ export function matchCanonicalBookingRoute(
   if (segments[2] === 'session') return null
   if (segments.length === 4 && segments[2] === 'confirmations') {
     return route(segments, 'confirmation', true)
+  }
+  if (
+    segments.length === 7 &&
+    segments[2] === 'confirmations' &&
+    segments[4] === 'appointments' &&
+    segments[6] === 'cancel'
+  ) {
+    return route(segments, 'appointment-cancellation', true)
+  }
+  if (
+    segments.length === 5 &&
+    segments[2] === 'confirmations' &&
+    segments[4] === 'cancel'
+  ) {
+    return route(segments, 'party-cancellation', true)
   }
   if (segments.length === 4 && segments[2] === 'gift-card-sales') {
     return route(segments, 'gift-card-receipt', true)

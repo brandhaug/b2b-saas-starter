@@ -91,6 +91,10 @@ const en = {
   'confirmation.expired_title': 'This confirmation link has expired',
   'confirmation.expired_copy':
     'Contact the merchant if you still need these appointment details.',
+  'confirmation.cancel_appointment': 'Cancel this appointment',
+  'confirmation.cancel_party': 'Cancel every appointment',
+  'confirmation.cancelled': 'The appointment was cancelled.',
+  'confirmation.cancel_failed': 'Cancellation could not be completed.',
   'checkout.title': 'Confirm booking',
   'checkout.guests': 'Guests',
   'checkout.edit': 'Edit',
@@ -241,6 +245,10 @@ const es = {
   'confirmation.expired_title': 'Este enlace de confirmación ha caducado',
   'confirmation.expired_copy':
     'Contacta con el comercio si aún necesitas los detalles de la cita.',
+  'confirmation.cancel_appointment': 'Cancelar esta cita',
+  'confirmation.cancel_party': 'Cancelar todas las citas',
+  'confirmation.cancelled': 'La cita se ha cancelado.',
+  'confirmation.cancel_failed': 'No se pudo completar la cancelación.',
   'checkout.title': 'Confirmar reserva',
   'checkout.guests': 'Personas',
   'checkout.edit': 'Editar',
@@ -392,6 +400,10 @@ const fr = {
   'confirmation.expired_title': 'Ce lien de confirmation a expiré',
   'confirmation.expired_copy':
     'Communiquez avec le commerce si vous avez encore besoin des détails.',
+  'confirmation.cancel_appointment': 'Annuler ce rendez-vous',
+  'confirmation.cancel_party': 'Annuler tous les rendez-vous',
+  'confirmation.cancelled': 'Le rendez-vous a été annulé.',
+  'confirmation.cancel_failed': 'L’annulation n’a pas pu être effectuée.',
   'checkout.title': 'Confirmer la réservation',
   'checkout.guests': 'Personnes',
   'checkout.edit': 'Modifier',
@@ -542,6 +554,10 @@ const ro = {
   'confirmation.expired_title': 'Acest link de confirmare a expirat',
   'confirmation.expired_copy':
     'Contactează comerciantul dacă mai ai nevoie de detaliile programării.',
+  'confirmation.cancel_appointment': 'Anulează această programare',
+  'confirmation.cancel_party': 'Anulează toate programările',
+  'confirmation.cancelled': 'Programarea a fost anulată.',
+  'confirmation.cancel_failed': 'Anularea nu a putut fi finalizată.',
   'checkout.title': 'Confirmă rezervarea',
   'checkout.guests': 'Persoane',
   'checkout.edit': 'Editează',
