@@ -1,4 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
+import { bookingTheme } from '../presentation/booking-theme.stylex.ts'
 
 const interactiveBackground = {
   default: '#ffffff',
@@ -9,64 +10,61 @@ export const styles = stylex.create({
   app: {
     minHeight: '100dvh',
     paddingBottom: 'max(96px, calc(80px + env(safe-area-inset-bottom)))',
-    backgroundColor: '#f7f7f8'
+    backgroundColor: '#f7f7f7',
+    color: '#000000',
+    fontFamily: bookingTheme.fontText
   },
   widget: {
     width: '100%',
     maxWidth: 375,
     minHeight: '100dvh',
     marginInline: 'auto',
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderStyle: 'solid',
-    borderColor: '#e2e3e7',
-    backgroundColor: '#f7f7f8'
+    overflow: 'hidden',
+    backgroundColor: '#f7f7f7'
   },
   header: {
     position: 'sticky',
     top: 0,
     zIndex: 20,
     display: 'flex',
-    minHeight: 68,
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingTop: 'max(20px, env(safe-area-inset-top))',
-    paddingBottom: 20,
+    minHeight: 72,
+    alignItems: 'center',
+    gap: 0,
+    paddingTop: 'max(24px, env(safe-area-inset-top))',
+    paddingBottom: 24,
     paddingInline: 16,
-    backgroundColor: 'rgb(247 247 248 / 94%)',
-    backdropFilter: 'blur(12px)'
+    backgroundColor: 'rgb(247 247 247 / 85%)',
+    backdropFilter: 'blur(4px)'
   },
   title: {
     minWidth: 0,
     flex: 1,
     margin: 0,
-    fontSize: 18,
-    fontWeight: 650,
+    fontSize: 20,
+    fontWeight: 600,
     lineHeight: '24px',
-    letterSpacing: '-0.02em'
+    letterSpacing: '0.75px'
   },
   iconButton: {
     display: 'grid',
-    width: 48,
-    height: 48,
+    width: 24,
+    height: 24,
     flexShrink: 0,
     placeItems: 'center',
     padding: 0,
     borderWidth: 1,
     borderStyle: 'solid',
-    borderColor: '#e2e3e7',
+    borderColor: '#dedee2',
     borderRadius: 999,
-    backgroundColor: '#ffffff',
-    color: '#292929'
+    backgroundColor: 'transparent',
+    color: '#000000'
   },
   backButton: {
     borderColor: 'transparent',
     backgroundColor: 'transparent',
     color: '#747983'
   },
-  hidden: {
-    visibility: 'hidden'
-  },
+  headerEnd: { width: 24, height: 24, flexShrink: 0 },
   icon16: {
     width: 16,
     height: 16
@@ -79,8 +77,16 @@ export const styles = stylex.create({
     width: 24,
     height: 24
   },
+  srOnly: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap'
+  },
   main: {
-    paddingTop: 4,
+    paddingTop: 0,
     paddingRight: 16,
     paddingBottom: 32,
     paddingLeft: 16
@@ -97,24 +103,25 @@ export const styles = stylex.create({
   gridTwo: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: 12
+    gap: 10
   },
   providerCard: {
     display: 'flex',
-    minHeight: 184,
+    minHeight: 188,
     flexDirection: 'column',
     alignItems: 'center',
-    paddingBlock: 20,
+    justifyContent: 'center',
+    paddingBlock: 12,
     paddingInline: 12,
     borderWidth: 1,
     borderStyle: 'solid',
     borderColor: {
-      default: '#e2e3e7',
-      ':hover': '#4f7ee8'
+      default: '#dadadc',
+      ':hover': '#e1e1e1'
     },
     borderRadius: 16,
-    backgroundColor: interactiveBackground,
-    color: '#292929',
+    backgroundColor: '#f7f7f7',
+    color: '#000000',
     textAlign: 'center'
   },
   avatar: {
@@ -123,22 +130,144 @@ export const styles = stylex.create({
     height: 64,
     placeItems: 'center',
     borderRadius: 8,
-    backgroundColor: '#eff0f3',
-    color: '#616773',
-    fontSize: 13,
-    fontWeight: 650
+    backgroundColor: '#e0e0e0',
+    color: '#616163',
+    fontSize: 17,
+    fontWeight: 400
   },
   providerName: {
     marginTop: 12,
-    fontSize: 14,
-    fontWeight: 650,
-    lineHeight: '20px'
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px'
   },
   mutedSmall: {
     marginTop: 4,
-    color: '#747983',
+    color: '#616163',
+    fontSize: 13,
+    lineHeight: '18px'
+  },
+  locationActions: {
+    display: 'flex',
+    height: 32,
+    alignItems: 'center'
+  },
+  locationAction: {
+    display: 'inline-flex',
+    height: 32,
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 12,
+    paddingInline: 19,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#dadadc',
+    borderRadius: 15,
+    backgroundColor: 'transparent',
+    color: '#000000',
     fontSize: 12,
-    lineHeight: '16px'
+    fontWeight: 600,
+    lineHeight: '28px',
+    textTransform: 'uppercase'
+  },
+  locationList: { marginTop: 16 },
+  locationSearch: {
+    display: 'flex',
+    height: 40,
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingInline: 12,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#dadadc',
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    color: '#616163'
+  },
+  locationSearchInput: {
+    minWidth: 0,
+    flex: 1,
+    padding: 0,
+    borderWidth: 0,
+    outline: 'none',
+    backgroundColor: 'transparent',
+    color: '#000000',
+    font: 'inherit',
+    fontSize: 16
+  },
+  locationCard: {
+    display: 'flex',
+    width: '100%',
+    minHeight: 147,
+    marginBottom: 12,
+    alignItems: 'flex-start',
+    paddingTop: 19,
+    paddingRight: 23,
+    paddingBottom: 19,
+    paddingLeft: 20,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: { default: '#dadadc', ':hover': '#e1e1e1' },
+    borderRadius: 16,
+    backgroundColor: '#f7f7f7',
+    color: '#616163',
+    textAlign: 'left',
+    transitionProperty: 'border-color, background-color, box-shadow',
+    transitionDuration: '150ms'
+  },
+  locationImage: {
+    display: 'block',
+    width: 107,
+    height: 107,
+    flexShrink: 0,
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#e0e0e0'
+  },
+  locationPlaceholder: {
+    width: 32,
+    height: 32,
+    marginTop: 37,
+    marginLeft: 37,
+    color: '#8e8e93'
+  },
+  locationCopy: {
+    display: 'flex',
+    minWidth: 0,
+    height: 107,
+    flex: 1,
+    flexDirection: 'column',
+    marginLeft: 24
+  },
+  locationName: {
+    overflow: 'hidden',
+    color: '#000000',
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  locationAddress: {
+    color: '#616163',
+    fontSize: 13,
+    lineHeight: '18px'
+  },
+  locationRule: {
+    width: 30,
+    marginTop: 'auto',
+    marginBottom: 10,
+    borderTopWidth: 1,
+    borderTopStyle: 'solid',
+    borderTopColor: '#c7c7cc'
+  },
+  locationEmpty: {
+    marginTop: 48,
+    color: '#616163',
+    fontSize: 13,
+    lineHeight: '18px',
+    textAlign: 'center'
   },
   categoryButton: {
     display: 'flex',

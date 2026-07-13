@@ -11,6 +11,7 @@ import {
   providerServiceEligibility,
   publicBookingPages,
   services,
+  shopAddresses,
   shopProviders,
   shopServices,
   shops
@@ -61,6 +62,20 @@ beforeAll(async () => {
           publicName: 'Selection',
           timezone: 'UTC',
           currency: 'USD',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(shopAddresses).values({
+          id: 'adr_selection',
+          shopId: 'shp_selection',
+          addressJson: JSON.stringify({
+            line1: '21 Mercer Street',
+            city: 'New York',
+            state: 'NY',
+            postalCode: '10013'
+          }),
+          latitude: '40.724',
+          longitude: '-74.001',
           createdAt: now,
           updatedAt: now
         })
@@ -211,6 +226,12 @@ describe('Live Booking Selection', () => {
       primaryServiceId: 'svc_primary',
       additionalServiceIds: ['svc_extra']
     })
+    expect(refreshed.shops).toEqual([
+      expect.objectContaining({
+        addressLines: ['21 Mercer Street', 'New York, NY 10013'],
+        coordinates: { latitude: 40.724, longitude: -74.001 }
+      })
+    ])
 
     const verifierHash = await hashSha256('2468')
     await Effect.runPromise(

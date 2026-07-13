@@ -25,6 +25,7 @@ import {
   type BookingTranslationKey
 } from './booking-localization.ts'
 import { bookingTheme } from '../presentation/booking-theme.stylex.ts'
+import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 
 type BookingLocalization = {
   readonly locale: BookingLocale
@@ -139,33 +140,44 @@ const styles = stylex.create({
   },
   toolbar: {
     position: 'fixed',
-    top: `max(${bookingTheme.space3}, env(safe-area-inset-top))`,
-    right: `max(${bookingTheme.space3}, env(safe-area-inset-right))`,
-    zIndex: bookingTheme.layerPopupStack,
-    display: 'flex',
-    alignItems: 'center',
-    gap: bookingTheme.space2,
-    padding: bookingTheme.space2,
+    top: `max(${bookingTheme.space5}, env(safe-area-inset-top))`,
+    right: 'max(16px, calc((100vw - 375px) / 2 + 16px))',
+    zIndex: bookingTheme.layerPromotion,
+    display: 'block'
+  },
+  toolbarSelect: {
+    minHeight: 42,
+    paddingInline: bookingTheme.space3,
+    backgroundColor: bookingTheme.colorSurface
+  },
+  toolbarButton: {
+    display: 'grid',
+    width: 32,
+    height: 32,
+    marginLeft: 'auto',
+    placeItems: 'center',
+    padding: 0,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: bookingTheme.colorCartAuxBorderLight,
+    borderRadius: bookingTheme.radiusRound,
+    backgroundColor: 'transparent',
+    color: bookingTheme.colorText
+  },
+  toolbarPanel: {
+    position: 'absolute',
+    top: 40,
+    right: 0,
+    width: 154,
+    padding: bookingTheme.space3,
     borderWidth: 1,
     borderStyle: 'solid',
     borderColor: bookingTheme.colorBorder,
     borderRadius: bookingTheme.radiusMedium,
-    backgroundColor: bookingTheme.whiteA90,
+    backgroundColor: bookingTheme.whiteA100,
     boxShadow: bookingTheme.shadowSheet
   },
-  toolbarLabel: {
-    position: 'absolute',
-    width: 1,
-    height: 1,
-    overflow: 'hidden',
-    clipPath: 'inset(50%)'
-  },
-  toolbarSelect: {
-    minHeight: bookingTheme.targetMinimum,
-    paddingInline: bookingTheme.space2,
-    borderWidth: 0,
-    backgroundColor: 'transparent'
-  }
+  toolbarIcon: { width: 16, height: 16 }
 })
 
 export function BookingLanguagePicker({
@@ -176,18 +188,50 @@ export function BookingLanguagePicker({
   readonly placement?: 'inline' | 'toolbar'
 }) {
   const { locale, setLocale } = useBookingLocalization()
+  const [open, setOpen] = useState(false)
+  if (placement === 'toolbar') {
+    return (
+      <div {...stylex.props(styles.toolbar)}>
+        <button
+          type="button"
+          aria-label="Booking menu"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+          {...stylex.props(styles.toolbarButton)}
+        >
+          <BookingVisualAsset
+            assetRole="navigation-menu"
+            {...stylex.props(styles.toolbarIcon)}
+          />
+        </button>
+        {open ? (
+          <label {...stylex.props(styles.label, styles.toolbarPanel)}>
+            <span>{label}</span>
+            <select
+              value={locale}
+              onChange={(event) =>
+                setLocale(event.currentTarget.value as BookingLocale)
+              }
+              {...stylex.props(styles.select, styles.toolbarSelect)}
+            >
+              {BOOKING_LOCALES.map((value) => (
+                <option key={value} value={value}>
+                  {languageNames[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
+    )
+  }
   return (
-    <label {...stylex.props(styles.label, placement === 'toolbar' && styles.toolbar)}>
-      <span {...stylex.props(placement === 'toolbar' && styles.toolbarLabel)}>
-        {label}
-      </span>
+    <label {...stylex.props(styles.label)}>
+      <span>{label}</span>
       <select
         value={locale}
         onChange={(event) => setLocale(event.currentTarget.value as BookingLocale)}
-        {...stylex.props(
-          styles.select,
-          placement === 'toolbar' && styles.toolbarSelect
-        )}
+        {...stylex.props(styles.select)}
       >
         {BOOKING_LOCALES.map((value) => (
           <option key={value} value={value}>

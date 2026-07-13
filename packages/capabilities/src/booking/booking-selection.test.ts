@@ -159,6 +159,8 @@ describe('Booking Selection', () => {
       slug: 'riverside',
       publicName: 'Riverside',
       brandName: 'Mara Studios',
+      addressLines: ['21 Mercer Street', 'New York, NY 10013'],
+      coordinates: { latitude: 40.724, longitude: -74.001 },
       bookingConfiguration: {
         sourceLocale: 'en',
         nameTranslations: { es: 'Ribera' },
@@ -196,7 +198,14 @@ describe('Booking Selection', () => {
       resolvedConfiguration: {
         shopName: { text: 'Ribera', locale: 'es' },
         premiumPalette: { primaryColor: '#111111' }
-      }
+      },
+      shops: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'shp_riverside',
+          addressLines: ['21 Mercer Street', 'New York, NY 10013'],
+          coordinates: { latitude: 40.724, longitude: -74.001 }
+        })
+      ])
     })
     expect(changed.providers.map((provider) => provider.id)).toEqual(['prv_noah'])
     expect(changed.services.map((service) => service.id)).toEqual(['svc_cut'])

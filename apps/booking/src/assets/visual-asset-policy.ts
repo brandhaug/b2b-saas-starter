@@ -3,6 +3,9 @@ import { Schema } from 'effect'
 export const visualAssetRoles = [
   'navigation-back',
   'navigation-menu',
+  'location-nearby',
+  'location-search',
+  'booking-shop',
   'dismiss',
   'selection-check',
   'calendar-scheduling',
@@ -261,6 +264,17 @@ const fallbackByRole: Record<
     name: 'arrow-left'
   },
   'navigation-menu': { kind: 'code-native', role: 'navigation-menu', name: 'menu' },
+  'location-nearby': {
+    kind: 'code-native',
+    role: 'location-nearby',
+    name: 'map-pin'
+  },
+  'location-search': {
+    kind: 'code-native',
+    role: 'location-search',
+    name: 'search'
+  },
+  'booking-shop': { kind: 'code-native', role: 'booking-shop', name: 'store' },
   dismiss: { kind: 'code-native', role: 'dismiss', name: 'x' },
   'selection-check': { kind: 'code-native', role: 'selection-check', name: 'check' },
   'calendar-scheduling': {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   BookingAvailability,
@@ -15,6 +15,88 @@ afterEach(() => {
 })
 
 describe('server-backed Booking scheduling', () => {
+  it('keeps the single-customer shell free of group controls', async () => {
+    const journey: BookingJourney = {
+      version: 1,
+      presentation: 'team',
+      shopId: 'shp_main',
+      shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
+      resolvedConfiguration: {
+        merchantName: {
+          text: 'Merchant',
+          locale: 'en',
+          isSourceLanguageFallback: false
+        },
+        brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
+        shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
+        premiumPalette: null,
+        premiumPaletteSource: null
+      },
+      catalogRecovery: null,
+      reconciliation: [],
+      providerPreference: null,
+      selection: { primaryServiceId: null, additionalServiceIds: [] },
+      compatibleAdditionalServiceIds: [],
+      providers: [],
+      services: []
+    }
+    const party = {
+      id: 'bpt_one',
+      bookingSessionId: 'bsn_one',
+      shopId: 'shp_main',
+      lifecycle: 'active',
+      currency: 'USD',
+      locale: 'en',
+      version: 1,
+      requests: [
+        {
+          id: 'brq_one',
+          bookingPartyId: 'bpt_one',
+          position: 0,
+          providerPreference: null,
+          providerId: null,
+          primaryServiceId: null,
+          serviceIds: [],
+          holdId: null,
+          holdExpiresAt: null,
+          customerAccountId: null,
+          customerDetails: null,
+          startsAt: null,
+          endsAt: null
+        }
+      ]
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
+      if (url.endsWith('/selection')) return Response.json(journey)
+      if (url.endsWith('/party')) return Response.json(party)
+      throw new Error(`unexpected request: ${url}`)
+    })
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } }
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <BookingLocalizationProvider sessionLocale="en">
+          <ServerBackedBookingFlow merchantSlug="mara" sessionId="bsn_one" />
+        </BookingLocalizationProvider>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData(['booking-party', 'mara', 'bsn_one'])
+      ).toBeTruthy()
+    )
+    expect(screen.queryByText('Your group')).toBeNull()
+    queryClient.clear()
+  })
+
   it('invalidates the selected hold at its exact expiry and shows safe recovery', async () => {
     const journey: BookingJourney = {
       version: 1,

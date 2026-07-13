@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BookingJourney } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
@@ -99,7 +99,7 @@ describe('Booking selection flow', () => {
     })
   })
 
-  it('switches Shops, disables restricted Providers, and applies resolved premium color', () => {
+  it('uses the legacy location view before entering a multi-Shop booking', async () => {
     const chooseShop = vi.fn()
     const journey: BookingJourney = {
       ...teamJourney,
@@ -109,6 +109,8 @@ describe('Booking selection flow', () => {
           id: 'shp_river',
           slug: 'river',
           name: 'Riverside',
+          addressLines: ['21 Mercer Street', 'New York, NY 10013'],
+          coordinates: { latitude: 40.724, longitude: -74.001 },
           localizedName: {
             text: 'Riverside',
             locale: 'en',
@@ -140,7 +142,7 @@ describe('Booking selection flow', () => {
         }
       ]
     }
-    const { container } = render(
+    const { container, rerender } = render(
       <BookingSelectionFlow
         journey={journey}
         busy={false}
@@ -149,18 +151,40 @@ describe('Booking selection flow', () => {
         onChooseServices={vi.fn()}
       />
     )
-    fireEvent.change(screen.getByRole('combobox', { name: 'Shop' }), {
-      target: { value: 'shp_river' }
+    expect(screen.getByRole('heading', { name: 'Choose a location' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Nearby' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'Mercer' }
     })
+    expect(screen.queryByRole('button', { name: 'Main Shop' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /riverside/i }))
     expect(chooseShop).toHaveBeenCalledWith('shp_river')
-    expect(
-      screen.getByRole('option', { name: /riverside.*original language/i })
-    ).toBeTruthy()
-    expect(
-      screen
-        .getByRole('button', { name: /private pro.*private access/i })
-        .hasAttribute('disabled')
-    ).toBe(true)
+    expect(screen.getByText('21 Mercer Street')).toBeTruthy()
+    expect(screen.getByText('New York, NY 10013')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Choose a location' })).toBeTruthy()
+    rerender(
+      <BookingSelectionFlow
+        journey={{ ...journey, shopId: 'shp_river', version: journey.version + 1 }}
+        busy={false}
+        onChooseShop={chooseShop}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: 'Choose a professional' })
+      ).toBeTruthy()
+    )
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('button', { name: /private pro.*private access/i })
+          .hasAttribute('disabled')
+      ).toBe(true)
+    )
     expect(
       container.querySelector('[data-premium="true"]')?.getAttribute('style')
     ).toContain('#111111')

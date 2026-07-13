@@ -49,6 +49,7 @@ describe('Canonical Booking Shell', () => {
         .querySelector('[data-booking-shell="canonical"]')
         ?.getAttribute('data-embedding')
     ).toBe('widget')
+    fireEvent.click(screen.getByRole('button', { name: 'Booking menu' }))
     expect(
       (
         screen.getByRole('combobox', {

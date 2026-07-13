@@ -818,7 +818,7 @@ export function ServerBackedBookingFlow({
   return (
     <>
       {selectionRefreshed ? <output>{selectionRefreshedMessage}</output> : null}
-      {party.data?.requests?.length ? (
+      {party.data?.requests && party.data.requests.length > 1 ? (
         <BookingPartyFlow
           party={party.data}
           activeRequestId={party.data.activeRequestId ?? party.data.requests[0]!.id}
@@ -869,9 +869,16 @@ export function ServerBackedBookingFlow({
       <BookingSelectionFlow
         journey={journey.data}
         messages={{
+          chooseLocation: message('selection.choose_location'),
           chooseProvider: message('selection.choose_provider'),
           chooseService: message('selection.choose_service'),
           shop: message('label.shop'),
+          nearby: message('selection.nearby'),
+          search: message('selection.search'),
+          locating: message('selection.locating'),
+          nearbySorted: message('selection.nearby_sorted'),
+          nearbyUnavailable: message('selection.nearby_unavailable'),
+          noLocationMatches: message('selection.no_location_matches'),
           sourceLanguage: message('feedback.source_language'),
           anyProvider: message('selection.any_provider'),
           providerRestricted: message('selection.provider_restricted'),

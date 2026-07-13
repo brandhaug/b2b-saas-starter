@@ -1,4 +1,10 @@
-# Deterministic parity harness
+# Deterministic evidence harness
+
+This harness proves that a target scenario is reproducible. It does **not** prove
+legacy visual parity: the two runs below are both target runs, and no legacy
+screenshot is used as an oracle. Do not treat a green smoke run as visual-parity
+acceptance until a reviewed legacy reference bundle and visual comparison are wired
+into the scenario.
 
 The supported harness exercises named scenarios through the Booking browser entry and
 produces reviewable evidence under `apps/booking/parity-evidence/`.

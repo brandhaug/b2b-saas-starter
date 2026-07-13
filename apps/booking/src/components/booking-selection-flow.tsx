@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type {
   BookingJourney,
   ProviderPreference,
@@ -29,8 +29,18 @@ export function BookingSelectionFlow({
   readonly messages?: BookingSelectionMessages
 }) {
   const [editingProvider, setEditingProvider] = useState(false)
+  const [pendingShop, setPendingShop] = useState<{
+    readonly id: string
+    readonly afterVersion: number
+  } | null>(null)
   const [orderOpen, setOrderOpen] = useState(false)
+  const shopSelectionConfirmed =
+    pendingShop !== null &&
+    journey.shopId === pendingShop.id &&
+    journey.version > pendingShop.afterVersion
+  const showLocations = journey.shops.length > 1 && !shopSelectionConfirmed
   const showProviders =
+    !showLocations &&
     journey.presentation === 'team' &&
     journey.services.length > 0 &&
     (journey.providerPreference === null || editingProvider)
@@ -43,69 +53,63 @@ export function BookingSelectionFlow({
     onChooseProvider(preference)
   }
 
+  const chooseShop = (shopId: string) => {
+    setPendingShop({ id: shopId, afterVersion: journey.version })
+    onChooseShop?.(shopId)
+  }
+
+  const pageTitle = showLocations
+    ? messages.chooseLocation
+    : showProviders
+      ? messages.chooseProvider
+      : messages.chooseService
+  const canGoBack =
+    (showProviders && journey.shops.length > 1) ||
+    (!showLocations && !showProviders && journey.presentation === 'team')
+
   return (
     <BookingPremiumThemeBoundary palette={journey.resolvedConfiguration.premiumPalette}>
       <div {...stylex.props(styles.app)} aria-busy={busy}>
         <div {...stylex.props(styles.widget)}>
           <header {...stylex.props(styles.header)}>
-            <button
-              type="button"
-              aria-label="Back"
-              disabled={showProviders}
-              onClick={() => setEditingProvider(true)}
-              {...stylex.props(
-                styles.iconButton,
-                styles.backButton,
-                showProviders && styles.hidden
-              )}
-            >
-              <BookingVisualAsset
-                assetRole="navigation-back"
-                {...stylex.props(styles.icon16)}
-              />
-            </button>
-            <h1 {...stylex.props(styles.title)}>
-              {showProviders ? messages.chooseProvider : messages.chooseService}
-            </h1>
-            <button
-              type="button"
-              aria-label="Booking menu"
-              {...stylex.props(styles.iconButton)}
-            >
-              <BookingVisualAsset
-                assetRole="navigation-menu"
-                {...stylex.props(styles.icon16)}
-              />
-            </button>
+            {canGoBack ? (
+              <button
+                type="button"
+                aria-label="Back"
+                onClick={() => {
+                  if (journey.shops.length > 1 && showProviders) setPendingShop(null)
+                  else setEditingProvider(true)
+                }}
+                {...stylex.props(styles.iconButton, styles.backButton)}
+              >
+                <BookingVisualAsset
+                  assetRole="navigation-back"
+                  {...stylex.props(styles.icon16)}
+                />
+              </button>
+            ) : null}
+            <h1 {...stylex.props(styles.title)}>{pageTitle}</h1>
+            <span aria-hidden="true" {...stylex.props(styles.headerEnd)} />
           </header>
 
           <main {...stylex.props(styles.main)}>
-            {journey.shops.length > 1 ? (
-              <label>
-                <span>{messages.shop}</span>
-                <select
-                  aria-label={messages.shop}
-                  value={journey.shopId}
-                  disabled={busy || !onChooseShop}
-                  onChange={(event) => onChooseShop?.(event.currentTarget.value)}
-                  {...stylex.props(styles.categoryButton)}
-                >
-                  {journey.shops.map((shop) => (
-                    <option key={shop.id} value={shop.id}>
-                      {shop.name}
-                      {shop.localizedName?.isSourceLanguageFallback
-                        ? ` — ${messages.sourceLanguage}`
-                        : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            {journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
+            {!showLocations &&
+            journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
               <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
             ) : null}
-            <RoutePresence presenceKey={showProviders ? 'providers' : 'services'}>
-              {showProviders ? (
+            <RoutePresence
+              presenceKey={
+                showLocations ? 'locations' : showProviders ? 'providers' : 'services'
+              }
+            >
+              {showLocations ? (
+                <LocationGrid
+                  journey={journey}
+                  busy={busy || !onChooseShop}
+                  messages={messages}
+                  onChoose={chooseShop}
+                />
+              ) : showProviders ? (
                 <ProviderGrid
                   journey={journey}
                   busy={busy}
@@ -149,6 +153,149 @@ export function BookingSelectionFlow({
         ) : null}
       </div>
     </BookingPremiumThemeBoundary>
+  )
+}
+
+function LocationGrid({
+  journey,
+  busy,
+  messages,
+  onChoose
+}: {
+  readonly journey: BookingJourney
+  readonly busy: boolean
+  readonly messages: BookingSelectionMessages
+  readonly onChoose: (shopId: string) => void
+}) {
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [nearbyOrder, setNearbyOrder] = useState<readonly string[] | null>(null)
+  const [locationStatus, setLocationStatus] = useState('')
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const visibleShops = useMemo(() => {
+    const matches = journey.shops.filter((shop) =>
+      [shop.name, ...(shop.addressLines ?? [])]
+        .join(' ')
+        .toLocaleLowerCase()
+        .includes(normalizedQuery)
+    )
+    if (!nearbyOrder) return matches
+    const position = new Map(nearbyOrder.map((id, index) => [id, index]))
+    return [...matches].sort(
+      (left, right) =>
+        (position.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+        (position.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+    )
+  }, [journey.shops, nearbyOrder, normalizedQuery])
+
+  const findNearby = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus(messages.nearbyUnavailable)
+      return
+    }
+    setLocationStatus(messages.locating)
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const ordered = journey.shops
+          .filter((shop) => shop.coordinates)
+          .map((shop) => ({
+            id: shop.id,
+            distance: distanceBetween(coords, shop.coordinates!)
+          }))
+          .sort((left, right) => left.distance - right.distance)
+          .map(({ id }) => id)
+        setNearbyOrder(ordered)
+        setLocationStatus(
+          ordered.length > 0 ? messages.nearbySorted : messages.nearbyUnavailable
+        )
+      },
+      () => setLocationStatus(messages.nearbyUnavailable)
+    )
+  }
+
+  return (
+    <div>
+      <div {...stylex.props(styles.locationActions)}>
+        <button
+          type="button"
+          aria-label={messages.nearby}
+          onClick={findNearby}
+          {...stylex.props(styles.locationAction)}
+        >
+          <span>{messages.nearby}</span>
+          <BookingVisualAsset
+            assetRole="location-nearby"
+            {...stylex.props(styles.icon16)}
+          />
+        </button>
+        <button
+          type="button"
+          aria-label={messages.search}
+          aria-expanded={searchOpen}
+          onClick={() => setSearchOpen((open) => !open)}
+          {...stylex.props(styles.locationAction)}
+        >
+          <span>{messages.search}</span>
+          <BookingVisualAsset
+            assetRole="location-search"
+            {...stylex.props(styles.icon16)}
+          />
+        </button>
+      </div>
+      {searchOpen ? (
+        <label {...stylex.props(styles.locationSearch)}>
+          <span {...stylex.props(styles.srOnly)}>{messages.search}</span>
+          <BookingVisualAsset
+            assetRole="location-search"
+            {...stylex.props(styles.icon16)}
+          />
+          <input
+            type="search"
+            value={query}
+            placeholder={messages.search}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            {...stylex.props(styles.locationSearchInput)}
+          />
+        </label>
+      ) : null}
+      <output {...stylex.props(styles.srOnly)}>{locationStatus}</output>
+      <div {...stylex.props(styles.locationList)}>
+        {visibleShops.map((shop) => (
+          <button
+            key={shop.id}
+            type="button"
+            disabled={busy}
+            aria-label={`${shop.name}${shop.addressLines?.length ? `, ${shop.addressLines.join(', ')}` : ''}`}
+            onClick={() => onChoose(shop.id)}
+            {...stylex.props(styles.locationCard)}
+          >
+            <span {...stylex.props(styles.locationImage)}>
+              <BookingVisualAsset
+                assetRole="booking-shop"
+                {...stylex.props(styles.locationPlaceholder)}
+              />
+            </span>
+            <span {...stylex.props(styles.locationCopy)}>
+              <span {...stylex.props(styles.locationName)}>{shop.name}</span>
+              {shop.addressLines?.map((line) => (
+                <span key={line} {...stylex.props(styles.locationAddress)}>
+                  {line}
+                </span>
+              ))}
+              <span aria-hidden="true" {...stylex.props(styles.locationRule)} />
+              {shop.localizedName?.isSourceLanguageFallback ? (
+                <span {...stylex.props(styles.locationAddress)}>
+                  {messages.sourceLanguage}
+                </span>
+              ) : null}
+            </span>
+          </button>
+        ))}
+        {visibleShops.length === 0 ? (
+          <p {...stylex.props(styles.locationEmpty)}>{messages.noLocationMatches}</p>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -358,9 +505,16 @@ function ServiceGrid({
 }
 
 export type BookingSelectionMessages = {
+  readonly chooseLocation: string
   readonly chooseProvider: string
   readonly chooseService: string
   readonly shop: string
+  readonly nearby: string
+  readonly search: string
+  readonly locating: string
+  readonly nearbySorted: string
+  readonly nearbyUnavailable: string
+  readonly noLocationMatches: string
   readonly sourceLanguage: string
   readonly anyProvider: string
   readonly providerRestricted: string
@@ -371,9 +525,16 @@ export type BookingSelectionMessages = {
 }
 
 const defaultMessages: BookingSelectionMessages = {
+  chooseLocation: 'Choose a location',
   chooseProvider: 'Choose a professional',
   chooseService: 'What can we do for you?',
   shop: 'Shop',
+  nearby: 'Nearby',
+  search: 'Search',
+  locating: 'Finding nearby locations…',
+  nearbySorted: 'Locations are sorted by distance.',
+  nearbyUnavailable: 'Nearby locations are unavailable.',
+  noLocationMatches: 'No locations match your search.',
   sourceLanguage: 'Shown in the merchant’s original language',
   anyProvider: 'Book with any professional',
   providerRestricted: 'This professional requires private access',
@@ -538,3 +699,18 @@ const initials = (name: string) =>
     .join('')
     .slice(0, 2)
     .toUpperCase()
+
+const distanceBetween = (
+  origin: Pick<GeolocationCoordinates, 'latitude' | 'longitude'>,
+  destination: { readonly latitude: number; readonly longitude: number }
+) => {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180
+  const latitudeDelta = radians(destination.latitude - origin.latitude)
+  const longitudeDelta = radians(destination.longitude - origin.longitude)
+  const latitude1 = radians(origin.latitude)
+  const latitude2 = radians(destination.latitude)
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(longitudeDelta / 2) ** 2
+  return 2 * 6_371 * Math.asin(Math.sqrt(haversine))
+}

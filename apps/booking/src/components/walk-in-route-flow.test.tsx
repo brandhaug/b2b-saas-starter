@@ -41,6 +41,7 @@ vi.mock('../presentation/booking-primitives.tsx', () => ({
   )
 }))
 import { WalkInRouteFlow } from './walk-in-route-flow.tsx'
+import { walkInCatalog } from '../localization/booking-localization.ts'
 
 afterEach(() => {
   cleanup()
@@ -234,7 +235,9 @@ describe('WalkInRouteFlow', () => {
           />
         )
         expect(await screen.findByRole('heading', { name: title })).toBeTruthy()
-        expect(await screen.findByRole('button')).toBeTruthy()
+        expect(
+          await screen.findByRole('button', { name: walkInCatalog[locale].join })
+        ).toBeTruthy()
         expect(view.container.querySelector('[data-walk-in-viewport]')?.className).toBe(
           ''
         )

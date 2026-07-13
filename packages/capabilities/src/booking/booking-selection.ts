@@ -15,6 +15,7 @@ import {
   providerServiceEligibility,
   services,
   shopProviders,
+  shopAddresses,
   shops,
   shopServices
 } from '@b2b-saas-starter/db'
@@ -83,6 +84,10 @@ export const BookingJourney = Schema.Struct({
       id: Schema.String,
       slug: Schema.String,
       name: Schema.String,
+      addressLines: Schema.optional(Schema.Array(Schema.String)),
+      coordinates: Schema.optional(
+        Schema.Struct({ latitude: Schema.Number, longitude: Schema.Number })
+      ),
       localizedName: Schema.optional(ResolvedCatalogText)
     })
   ),
@@ -201,6 +206,8 @@ export type SeedBookingSelectionStore = {
       readonly publicName: string
       readonly brandName: string
       readonly timezone?: string
+      readonly addressLines?: readonly string[]
+      readonly coordinates?: { readonly latitude: number; readonly longitude: number }
       readonly bookingConfiguration?: BookingConfiguration | null
       readonly brandBookingConfiguration?: BookingConfiguration | null
     }
@@ -250,6 +257,8 @@ export const emptySeedBookingSelectionStore = (
       readonly publicName: string
       readonly brandName: string
       readonly timezone?: string
+      readonly addressLines?: readonly string[]
+      readonly coordinates?: { readonly latitude: number; readonly longitude: number }
       readonly bookingConfiguration?: BookingConfiguration | null
       readonly brandBookingConfiguration?: BookingConfiguration | null
     }[]
@@ -318,6 +327,8 @@ type Catalog = {
     readonly id: string
     readonly slug: string
     readonly name: string
+    readonly addressLines?: readonly string[]
+    readonly coordinates?: { readonly latitude: number; readonly longitude: number }
     readonly localizedName?: ResolvedCatalogText
   }[]
   readonly resolvedConfiguration: ResolvedBookingConfiguration
@@ -328,6 +339,43 @@ type Catalog = {
 
 const rejected = () =>
   new BookingSelectionRejected({ message: 'Selection could not be accepted' })
+
+const parseCoordinate = (value: string | null) => {
+  if (value === null || value.trim() === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const parseAddressLines = (value: string | null): readonly string[] | undefined => {
+  if (!value) return undefined
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      const lines = parsed.filter((line): line is string => typeof line === 'string')
+      return lines.length > 0 ? lines : undefined
+    }
+    if (!parsed || typeof parsed !== 'object') return undefined
+    const address = parsed as Record<string, unknown>
+    const first = address.line1 ?? address.address1 ?? address.street
+    const second = address.line2 ?? address.address2
+    const city = address.city ?? address.locality
+    const regionPostal = [
+      address.state ?? address.region,
+      address.postalCode ?? address.postal_code ?? address.zip
+    ]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+      .join(' ')
+    const locality = [city, regionPostal]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+      .join(', ')
+    const lines = [first, second, locality].filter(
+      (line): line is string => typeof line === 'string' && line.length > 0
+    )
+    return lines.length > 0 ? lines : undefined
+  } catch {
+    return undefined
+  }
+}
 
 const emptySelection = (): StoredSelection => ({
   version: 1,
@@ -502,6 +550,8 @@ const seedCatalog = (
     shops: merchantShops.map((candidate) => ({
       id: candidate.id,
       slug: candidate.slug,
+      ...(candidate.addressLines ? { addressLines: [...candidate.addressLines] } : {}),
+      ...(candidate.coordinates ? { coordinates: candidate.coordinates } : {}),
       ...localizedName(candidate.publicName, candidate.bookingConfiguration)
     })),
     resolvedConfiguration: resolveBookingConfiguration({
@@ -881,10 +931,14 @@ const readLiveState = (
             publicName: shops.publicName,
             bookingConfiguration: shops.bookingConfigJson,
             brandName: brands.name,
-            brandBookingConfiguration: brands.bookingConfigJson
+            brandBookingConfiguration: brands.bookingConfigJson,
+            addressJson: shopAddresses.addressJson,
+            latitude: shopAddresses.latitude,
+            longitude: shopAddresses.longitude
           })
           .from(shops)
           .innerJoin(brands, eq(brands.id, shops.brandId))
+          .leftJoin(shopAddresses, eq(shopAddresses.shopId, shops.id))
           .where(eq(shops.merchantId, row.merchantId))
           .orderBy(asc(shops.id))
       ),
@@ -941,6 +995,17 @@ const readLiveState = (
       shops: shopRows.map((shop) => ({
         id: shop.id,
         slug: shop.slug,
+        ...(() => {
+          const addressLines = parseAddressLines(shop.addressJson)
+          return addressLines ? { addressLines } : {}
+        })(),
+        ...(() => {
+          const latitude = parseCoordinate(shop.latitude)
+          const longitude = parseCoordinate(shop.longitude)
+          return latitude === null || longitude === null
+            ? {}
+            : { coordinates: { latitude, longitude } }
+        })(),
         ...(() => {
           const resolved = resolveCatalogText({
             sourceText: shop.publicName,
