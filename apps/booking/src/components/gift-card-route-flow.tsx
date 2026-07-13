@@ -140,6 +140,7 @@ function LocalizedGiftCardRoute({
           <BookingText>
             {receipt.sale.recipient?.name ?? receipt.sale.purchaser.name}
           </BookingText>
+          <BookingText>{receipt.card.id}</BookingText>
           <BookingText tone="muted">
             {message(`gift_card.scope_${receipt.card.scope}`)}
           </BookingText>

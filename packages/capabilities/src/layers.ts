@@ -136,6 +136,7 @@ import {
 import { ScheduledWorkQueue } from './scheduled-work/index.ts'
 import {
   LiveGiftCards,
+  LiveGiftCardRedemptions,
   LiveGiftCardPayment,
   LiveGiftCardSales,
   SeedGiftCards
@@ -148,6 +149,11 @@ import {
   SeedGiftCardSales
 } from './gift-cards/gift-card-sales.ts'
 import { GiftCards } from './gift-cards/index.ts'
+import {
+  emptySeedGiftCardRedemptionStore,
+  GiftCardRedemptions,
+  SeedGiftCardRedemptions
+} from './gift-cards/gift-card-redemption.ts'
 import { LiveWalkIns, SeedWalkIns } from './walk-ins/adapters.ts'
 import { WalkIns } from './walk-ins/index.ts'
 import {
@@ -189,6 +195,7 @@ export type CapabilityServices =
   | NotificationIntents
   | ScheduledWorkQueue
   | GiftCards
+  | GiftCardRedemptions
   | GiftCardSales
   | GiftCardPayment
   | WalkIns
@@ -358,6 +365,7 @@ const seedBookingPartiesLayer = SeedBookingParties(
 )
 const seedPricingQuotesLayer = SeedPricingQuotes()
 const seedGiftCardSalesStore = emptySeedGiftCardSalesStore()
+const seedGiftCardRedemptionStore = emptySeedGiftCardRedemptionStore()
 const seedWaitingListLayer = SeedWaitingList(emptySeedWaitingListStore()).pipe(
   Layer.provide(SeedOfferBooking)
 )
@@ -374,6 +382,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedNotificationIntents(),
   SeedScheduledWorkQueue(),
   SeedGiftCards(),
+  SeedGiftCardRedemptions(seedGiftCardRedemptionStore),
   SeedGiftCardSales(seedGiftCardSalesStore),
   SeedGiftCardPayment(seedGiftCardSalesStore),
   SeedWalkIns(),
@@ -443,6 +452,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveNotificationIntents,
     LiveScheduledWorkQueue,
     LiveGiftCards,
+    LiveGiftCardRedemptions,
     LiveGiftCardSales,
     LiveGiftCardPayment,
     LiveWalkIns,

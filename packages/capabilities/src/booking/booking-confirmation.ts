@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, eq, gt, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import {
   appointments,
   batch,
@@ -10,6 +10,9 @@ import {
   bookingSessions,
   confirmationAccess,
   Database,
+  giftCards,
+  giftCardLedgerEntries,
+  giftCardReservations,
   merchants,
   notificationIntents,
   payments,
@@ -839,6 +842,7 @@ export const LiveBookingConfirmation = (
                     quoteId: pricingQuotes.id,
                     version: pricingQuotes.version,
                     totalMinor: pricingQuotes.totalMinor,
+                    factsJson: pricingQuotes.factsJson,
                     acceptedAt: pricingQuoteAcceptances.acceptedAt
                   })
                   .from(pricingQuotes)
@@ -859,24 +863,152 @@ export const LiveBookingConfirmation = (
               )
               if (!accepted[0]) return yield* rejected('conflict')
               const acceptedQuote = accepted[0]
+              const giftReservations = yield* orUnavailable('booking-confirmation')(
+                db
+                  .select()
+                  .from(giftCardReservations)
+                  .where(eq(giftCardReservations.bookingPartyId, party.id))
+              )
+              if (
+                giftReservations.some(
+                  (reservation) =>
+                    reservation.status === 'active' &&
+                    reservation.expiresAt <= input.now
+                )
+              )
+                return yield* new BookingConfirmationProcessing({
+                  reason: 'commitment_unknown'
+                })
+              const activeGiftReservations = giftReservations.filter(
+                (reservation) =>
+                  reservation.status === 'active' && reservation.expiresAt > input.now
+              )
+              const acceptedGiftReservationIds =
+                (
+                  JSON.parse(acceptedQuote.factsJson) as {
+                    readonly giftCardReservationIds?: readonly string[]
+                  }
+                ).giftCardReservationIds ?? []
+              if (
+                [...acceptedGiftReservationIds].sort().join('|') !==
+                activeGiftReservations
+                  .map((reservation) => reservation.id)
+                  .sort()
+                  .join('|')
+              )
+                return yield* new BookingConfirmationProcessing({
+                  reason: 'commitment_unknown'
+                })
+              const giftCardMinor = activeGiftReservations.reduce(
+                (sum, reservation) => sum + reservation.amountMinor,
+                0
+              )
+              if (
+                activeGiftReservations.some(
+                  (reservation) => reservation.currency !== party.currency
+                ) ||
+                giftCardMinor > acceptedQuote.totalMinor
+              )
+                return yield* new BookingConfirmationProcessing({
+                  reason: 'commitment_unknown'
+                })
+              const activeCards =
+                activeGiftReservations.length === 0
+                  ? []
+                  : yield* orUnavailable('booking-confirmation')(
+                      db
+                        .select()
+                        .from(giftCards)
+                        .where(
+                          inArray(
+                            giftCards.id,
+                            activeGiftReservations.map(
+                              (reservation) => reservation.giftCardId
+                            )
+                          )
+                        )
+                    )
+              const [partyShop] = yield* orUnavailable('booking-confirmation')(
+                db.select().from(shops).where(eq(shops.id, party.shopId)).limit(1)
+              )
+              const giftScopeIsValid = activeCards.every(
+                (card) =>
+                  card.status === 'active' &&
+                  (card.expiresAt === null || card.expiresAt > input.now) &&
+                  (card.scope === 'merchant'
+                    ? card.scopeId === partyShop?.merchantId
+                    : card.scope === 'brand'
+                      ? card.scopeId === partyShop?.brandId
+                      : card.scope === 'shop'
+                        ? card.scopeId === partyShop?.id
+                        : partyRows.every(
+                            ({ request }) => request.providerId === card.scopeId
+                          ))
+              )
+              if (
+                activeCards.length !== activeGiftReservations.length ||
+                !giftScopeIsValid
+              ) {
+                return yield* new BookingConfirmationProcessing({
+                  reason: 'commitment_unknown'
+                })
+              }
+              const externalPaymentMinor = acceptedQuote.totalMinor - giftCardMinor
               const settlement = yield* paymentSettlements.settlementForConfirmation(
                 party.id
               )
               if (
                 settlement.kind === 'processing' ||
-                (settlement.kind === 'captured' &&
-                  (settlement.amountMinor < acceptedQuote.totalMinor ||
-                    settlement.currency !== party.currency))
+                (giftCardMinor === 0 &&
+                  settlement.kind === 'captured' &&
+                  (settlement.amountMinor !== externalPaymentMinor ||
+                    settlement.currency !== party.currency)) ||
+                (giftCardMinor > 0 &&
+                  externalPaymentMinor > 0 &&
+                  (settlement.kind !== 'captured' ||
+                    settlement.amountMinor !== externalPaymentMinor ||
+                    settlement.currency !== party.currency)) ||
+                (giftCardMinor > 0 &&
+                  externalPaymentMinor === 0 &&
+                  settlement.kind !== 'pay_in_person')
               )
                 return yield* new BookingConfirmationProcessing({
                   reason: 'commitment_unknown'
                 })
               const checkoutPath =
-                settlement.kind === 'captured' ? 'online_payment' : 'pay_in_person'
-              const settlementGuard =
+                giftCardMinor > 0 || settlement.kind === 'captured'
+                  ? 'online_payment'
+                  : 'pay_in_person'
+              const paymentGuard =
                 settlement.kind === 'captured'
-                  ? sql`exists (select 1 from ${payments} where ${payments.id} = ${settlement.paymentId} and ${payments.bookingPartyId} = ${party.id} and ${payments.status} = 'captured' and ${payments.capturedMinor} >= ${acceptedQuote.totalMinor} and ${payments.currency} = ${party.currency})`
+                  ? sql`exists (select 1 from ${payments} where ${payments.id} = ${settlement.paymentId} and ${payments.bookingPartyId} = ${party.id} and ${payments.status} = 'captured' and ${payments.amountMinor} = ${externalPaymentMinor} and ${payments.capturedMinor} = ${externalPaymentMinor} and ${payments.currency} = ${party.currency})`
                   : sql`not exists (select 1 from ${payments} where ${payments.bookingPartyId} = ${party.id})`
+              const giftCardAggregateGuard =
+                activeGiftReservations.length > 0
+                  ? sql`(select coalesce(sum(${giftCardReservations.amountMinor}), 0) from ${giftCardReservations} where ${giftCardReservations.bookingPartyId} = ${party.id} and ${giftCardReservations.status} = 'active' and ${giftCardReservations.expiresAt} > ${input.now} and ${giftCardReservations.currency} = ${party.currency}) = ${giftCardMinor}`
+                  : sql`not exists (select 1 from ${giftCardReservations} where ${giftCardReservations.bookingPartyId} = ${party.id} and ${giftCardReservations.status} = 'active')`
+              const giftCardGuard = and(
+                giftCardAggregateGuard,
+                ...activeGiftReservations.map((reservation) => {
+                  const card = activeCards.find(
+                    (candidate) => candidate.id === reservation.giftCardId
+                  )!
+                  const scopeGuard =
+                    card.scope === 'provider'
+                      ? sql`not exists (select 1 from ${bookingRequests} where ${bookingRequests.bookingPartyId} = ${party.id} and (${bookingRequests.providerId} is null or ${bookingRequests.providerId} <> ${card.scopeId}))`
+                      : card.scope === 'shop'
+                        ? sql`${party.shopId} = ${card.scopeId}`
+                        : card.scope === 'brand'
+                          ? sql`exists (select 1 from ${shops} where ${shops.id} = ${party.shopId} and ${shops.brandId} = ${card.scopeId})`
+                          : sql`exists (select 1 from ${shops} where ${shops.id} = ${party.shopId} and ${shops.merchantId} = ${card.scopeId})`
+                  return and(
+                    sql`exists (select 1 from ${giftCardReservations} where ${giftCardReservations.id} = ${reservation.id} and ${giftCardReservations.giftCardId} = ${reservation.giftCardId} and ${giftCardReservations.bookingPartyId} = ${party.id} and ${giftCardReservations.amountMinor} = ${reservation.amountMinor} and ${giftCardReservations.currency} = ${party.currency} and ${giftCardReservations.status} = 'active' and ${giftCardReservations.expiresAt} > ${input.now})`,
+                    sql`exists (select 1 from ${giftCards} where ${giftCards.id} = ${card.id} and ${giftCards.status} = 'active' and (${giftCards.expiresAt} is null or ${giftCards.expiresAt} > ${input.now}) and ${giftCards.scope} = ${card.scope} and ${giftCards.scopeId} = ${card.scopeId})`,
+                    scopeGuard
+                  )!
+                })
+              )!
+              const settlementGuard = and(paymentGuard, giftCardGuard)!
               const acceptedPolicy = (yield* orUnavailable('booking-confirmation')(
                 db
                   .select({ acceptance: policyAcceptances })
@@ -1008,19 +1140,6 @@ export const LiveBookingConfirmation = (
                   .where(
                     eq(promotionReservations.pricingQuoteId, acceptedQuote.quoteId)
                   ),
-                db.insert(settlementAllocations).values({
-                  id: `sta_${randomHex(16)}`,
-                  bookingPartyId: party.id,
-                  tender:
-                    settlement.kind === 'captured'
-                      ? 'external_payment'
-                      : 'pay_in_person',
-                  referenceId:
-                    settlement.kind === 'captured' ? settlement.paymentId : null,
-                  amountMinor: acceptedQuote.totalMinor,
-                  currency: party.currency,
-                  createdAt: input.now
-                }),
                 db
                   .update(bookingParties)
                   .set({ lifecycle: 'confirmed', updatedAt: input.now })
@@ -1044,6 +1163,74 @@ export const LiveBookingConfirmation = (
                       eq(bookingSessions.lifecycle, 'active')
                     )
                   )
+              )
+              statements.push(
+                ...activeGiftReservations.flatMap((reservation) => [
+                  db.insert(giftCardLedgerEntries).values({
+                    id: `gcl_${reservation.id}_release`,
+                    giftCardId: reservation.giftCardId,
+                    bookingPartyId: party.id,
+                    kind: 'release',
+                    amountMinor: reservation.amountMinor,
+                    idempotencyKey: `confirmation:${party.id}:${reservation.id}:release`,
+                    occurredAt: input.now,
+                    createdAt: input.now
+                  }),
+                  db.insert(giftCardLedgerEntries).values({
+                    id: `gcl_${reservation.id}_redemption`,
+                    giftCardId: reservation.giftCardId,
+                    bookingPartyId: party.id,
+                    kind: 'redemption',
+                    amountMinor: -reservation.amountMinor,
+                    idempotencyKey: `confirmation:${party.id}:${reservation.id}:redemption`,
+                    occurredAt: input.now,
+                    createdAt: input.now
+                  }),
+                  db
+                    .update(giftCardReservations)
+                    .set({ status: 'committed', updatedAt: input.now })
+                    .where(
+                      and(
+                        eq(giftCardReservations.id, reservation.id),
+                        eq(giftCardReservations.status, 'active'),
+                        gt(giftCardReservations.expiresAt, input.now)
+                      )
+                    ),
+                  db.insert(settlementAllocations).values({
+                    id: `sta_${reservation.id}`,
+                    bookingPartyId: party.id,
+                    tender: 'gift_card',
+                    referenceId: reservation.giftCardId,
+                    amountMinor: reservation.amountMinor,
+                    currency: party.currency,
+                    createdAt: input.now
+                  })
+                ]),
+                ...(settlement.kind === 'captured'
+                  ? [
+                      db.insert(settlementAllocations).values({
+                        id: `sta_${randomHex(16)}`,
+                        bookingPartyId: party.id,
+                        tender: 'external_payment',
+                        referenceId: settlement.paymentId,
+                        amountMinor: externalPaymentMinor,
+                        currency: party.currency,
+                        createdAt: input.now
+                      })
+                    ]
+                  : giftCardMinor === 0
+                    ? [
+                        db.insert(settlementAllocations).values({
+                          id: `sta_${randomHex(16)}`,
+                          bookingPartyId: party.id,
+                          tender: 'pay_in_person',
+                          referenceId: null,
+                          amountMinor: acceptedQuote.totalMinor,
+                          currency: party.currency,
+                          createdAt: input.now
+                        })
+                      ]
+                    : [])
               )
               const committed = yield* Effect.result(batch(db, statements))
               if (committed._tag === 'Failure') {

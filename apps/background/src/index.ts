@@ -15,6 +15,7 @@ import { processBookingOutbox, recoverBookingOutbox } from './booking-notificati
 import { WaitingList } from '@b2b-saas-starter/capabilities/waiting-list'
 import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
 import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
+import { GiftCardRedemptions } from '@b2b-saas-starter/capabilities/gift-cards'
 
 type Env = {
   readonly DB: D1Database
@@ -124,6 +125,9 @@ export default {
             Effect.all(
               [
                 recoverBookingNotificationOutbox(now, env),
+                Effect.flatMap(GiftCardRedemptions, (giftCards) =>
+                  giftCards.releaseExpired({ now })
+                ).pipe(Effect.provide(capabilityLayer), Effect.asVoid),
                 Effect.gen(function* () {
                   const waitingList = yield* WaitingList
                   const email = yield* EmailDispatcher

@@ -1,10 +1,13 @@
 import { Effect, Layer } from 'effect'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, lte, ne, sql } from 'drizzle-orm'
 import {
   batch,
+  bookingParties,
+  bookingRequests,
   Database,
   giftCardLedgerEntries,
   giftCardProducts,
+  giftCardReservations,
   giftCardSales,
   giftCards,
   merchants,
@@ -12,6 +15,7 @@ import {
   paymentTransactions,
   payments,
   providers,
+  settlementAllocations,
   shops,
   shopProviders
 } from '@b2b-saas-starter/db'
@@ -26,6 +30,14 @@ import {
   type GiftCardSalesShape
 } from './gift-card-sales.ts'
 import { PaymentProvider } from '../payments/payment-settlement.ts'
+import {
+  GiftCardRedemptionConflict,
+  GiftCardRedemptions,
+  hashGiftCardRedemptionCode,
+  type GiftCardReservation,
+  type GiftCardSettlementPlan,
+  type GiftCardRedemptionsShape
+} from './gift-card-redemption.ts'
 
 type GiftCard = typeof import('./index.ts').GiftCard.Type
 export const SeedGiftCards = (
@@ -71,6 +83,529 @@ const stableSuffix = (value: string) => {
     hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
   return (hash >>> 0).toString(36)
 }
+
+export const LiveGiftCardRedemptions: Layer.Layer<
+  GiftCardRedemptions,
+  never,
+  Database
+> = Layer.effect(
+  GiftCardRedemptions,
+  Effect.gen(function* () {
+    const db = yield* Database
+    const readBalance = (giftCardId: string) =>
+      Effect.gen(function* () {
+        const [card] = yield* orUnavailable('gift-card-redemptions')(
+          db.select().from(giftCards).where(eq(giftCards.id, giftCardId)).limit(1)
+        )
+        if (!card)
+          return yield* new GiftCardRedemptionConflict({
+            code: 'gift_card_not_found'
+          })
+        const [{ balanceMinor } = { balanceMinor: 0 }] = yield* orUnavailable(
+          'gift-card-redemptions'
+        )(
+          db
+            .select({
+              balanceMinor: sql<number>`coalesce(sum(${giftCardLedgerEntries.amountMinor}), 0)`
+            })
+            .from(giftCardLedgerEntries)
+            .where(eq(giftCardLedgerEntries.giftCardId, giftCardId))
+        )
+        return {
+          giftCardId,
+          currency: card.currency,
+          availableMinor: Number(balanceMinor)
+        }
+      })
+
+    const reservationFrom = (
+      row: typeof giftCardReservations.$inferSelect
+    ): GiftCardReservation => ({ ...row })
+
+    const readPlan = (input: {
+      readonly bookingPartyId: string
+      readonly quoteTotalMinor: number
+      readonly currency: string
+      readonly now: string
+    }) =>
+      Effect.gen(function* () {
+        if (!Number.isSafeInteger(input.quoteTotalMinor) || input.quoteTotalMinor < 0)
+          return yield* new GiftCardRedemptionConflict({
+            code: 'invalid_quote_total'
+          })
+        const rows = yield* orUnavailable('gift-card-redemptions')(
+          db
+            .select()
+            .from(giftCardReservations)
+            .where(
+              and(
+                eq(giftCardReservations.bookingPartyId, input.bookingPartyId),
+                eq(giftCardReservations.status, 'active'),
+                gt(giftCardReservations.expiresAt, input.now)
+              )
+            )
+        )
+        if (rows.some((row) => row.currency !== input.currency))
+          return yield* new GiftCardRedemptionConflict({ code: 'currency_mismatch' })
+        const giftCardMinor = rows.reduce((sum, row) => sum + row.amountMinor, 0)
+        if (giftCardMinor > input.quoteTotalMinor)
+          return yield* new GiftCardRedemptionConflict({
+            code: 'reservation_exceeds_quote'
+          })
+        return {
+          bookingPartyId: input.bookingPartyId,
+          quoteTotalMinor: input.quoteTotalMinor,
+          giftCardMinor,
+          externalPaymentMinor: input.quoteTotalMinor - giftCardMinor,
+          currency: input.currency,
+          allocations: rows.map((row) => ({
+            tender: 'gift_card' as const,
+            referenceId: row.giftCardId,
+            reservationId: row.id,
+            amountMinor: row.amountMinor,
+            currency: row.currency
+          }))
+        } satisfies GiftCardSettlementPlan
+      })
+
+    const releaseRows = (
+      rows: readonly (typeof giftCardReservations.$inferSelect)[],
+      status: 'released' | 'expired',
+      keyPrefix: string,
+      now: string
+    ) =>
+      Effect.gen(function* () {
+        if (rows.length === 0) return 0
+        yield* orUnavailable('gift-card-redemptions')(
+          batch(
+            db,
+            rows.flatMap((row) => [
+              db
+                .insert(giftCardLedgerEntries)
+                .select(
+                  db
+                    .select({
+                      id: sql<string>`${`gcl_${stableSuffix(`${keyPrefix}:${row.id}`)}`}`.as(
+                        'id'
+                      ),
+                      giftCardId: giftCardReservations.giftCardId,
+                      kind: sql<'release'>`'release'`.as('kind'),
+                      amountMinor: giftCardReservations.amountMinor,
+                      bookingPartyId: giftCardReservations.bookingPartyId,
+                      idempotencyKey: sql<string>`${`${keyPrefix}:${row.id}`}`.as(
+                        'idempotency_key'
+                      ),
+                      occurredAt: sql<string>`${now}`.as('occurred_at'),
+                      createdAt: sql<string>`${now}`.as('created_at')
+                    })
+                    .from(giftCardReservations)
+                    .where(
+                      and(
+                        eq(giftCardReservations.id, row.id),
+                        eq(giftCardReservations.status, 'active')
+                      )
+                    )
+                )
+                .onConflictDoNothing(),
+              db
+                .update(giftCardReservations)
+                .set({ status, updatedAt: now })
+                .where(
+                  and(
+                    eq(giftCardReservations.id, row.id),
+                    eq(giftCardReservations.status, 'active')
+                  )
+                )
+            ])
+          )
+        )
+        return rows.length
+      })
+
+    const expireReservations = (now: string) =>
+      Effect.gen(function* () {
+        const rows = yield* orUnavailable('gift-card-redemptions')(
+          db
+            .select()
+            .from(giftCardReservations)
+            .where(
+              and(
+                eq(giftCardReservations.status, 'active'),
+                lte(giftCardReservations.expiresAt, now)
+              )
+            )
+        )
+        return yield* releaseRows(rows, 'expired', `expiry:${now}`, now)
+      })
+
+    const service: GiftCardRedemptionsShape = {
+      balance: readBalance,
+      reserve: (input) =>
+        Effect.gen(function* () {
+          yield* expireReservations(input.now)
+          const codeHash = yield* hashGiftCardRedemptionCode(input.giftCardCode)
+          const id = `gcr_${stableSuffix(input.idempotencyKey)}`
+          const [replay] = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select()
+              .from(giftCardReservations)
+              .where(eq(giftCardReservations.id, id))
+              .limit(1)
+          )
+          if (replay) {
+            const [replayCard] = yield* orUnavailable('gift-card-redemptions')(
+              db
+                .select({ codeHash: giftCards.codeHash })
+                .from(giftCards)
+                .where(eq(giftCards.id, replay.giftCardId))
+                .limit(1)
+            )
+            if (
+              replayCard?.codeHash !== codeHash ||
+              replay.bookingPartyId !== input.bookingPartyId ||
+              replay.amountMinor !== input.amountMinor
+            )
+              return yield* new GiftCardRedemptionConflict({
+                code: 'idempotency_key_reused'
+              })
+            return reservationFrom(replay)
+          }
+          if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0)
+            return yield* new GiftCardRedemptionConflict({ code: 'invalid_amount' })
+          if (input.amountMinor > input.maximumAmountMinor)
+            return yield* new GiftCardRedemptionConflict({
+              code: 'reservation_exceeds_quote'
+            })
+          if (input.expiresAt <= input.now)
+            return yield* new GiftCardRedemptionConflict({
+              code: 'reservation_expired'
+            })
+          const [card] = yield* orUnavailable('gift-card-redemptions')(
+            db.select().from(giftCards).where(eq(giftCards.codeHash, codeHash)).limit(1)
+          )
+          if (!card)
+            return yield* new GiftCardRedemptionConflict({
+              code: 'gift_card_not_found'
+            })
+          if (
+            card.status !== 'active' ||
+            (card.expiresAt !== null && card.expiresAt <= input.now)
+          )
+            return yield* new GiftCardRedemptionConflict({
+              code: 'gift_card_unavailable'
+            })
+          const [party] = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select()
+              .from(bookingParties)
+              .where(eq(bookingParties.id, input.bookingPartyId))
+              .limit(1)
+          )
+          if (
+            !party ||
+            party.lifecycle !== 'active' ||
+            party.currency !== card.currency
+          )
+            return yield* new GiftCardRedemptionConflict({
+              code: 'booking_party_unavailable'
+            })
+          const [shop] = yield* orUnavailable('gift-card-redemptions')(
+            db.select().from(shops).where(eq(shops.id, party.shopId)).limit(1)
+          )
+          const requests = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select({ providerId: bookingRequests.providerId })
+              .from(bookingRequests)
+              .where(eq(bookingRequests.bookingPartyId, party.id))
+          )
+          const scopeMatches =
+            !!shop &&
+            (card.scope === 'merchant'
+              ? card.scopeId === shop.merchantId
+              : card.scope === 'brand'
+                ? card.scopeId === shop.brandId
+                : card.scope === 'shop'
+                  ? card.scopeId === shop.id
+                  : requests.length > 0 &&
+                    requests.every(({ providerId }) => providerId === card.scopeId))
+          if (!scopeMatches)
+            return yield* new GiftCardRedemptionConflict({ code: 'scope_mismatch' })
+          const [terminalReservation] = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select()
+              .from(giftCardReservations)
+              .where(
+                and(
+                  eq(giftCardReservations.giftCardId, card.id),
+                  eq(giftCardReservations.bookingPartyId, input.bookingPartyId)
+                )
+              )
+              .limit(1)
+          )
+          if (
+            terminalReservation?.status === 'active' ||
+            terminalReservation?.status === 'committed'
+          )
+            return yield* new GiftCardRedemptionConflict({
+              code: 'reservation_exists'
+            })
+          const makeLedgerInsert = () =>
+            db.insert(giftCardLedgerEntries).select(
+              db
+                .select({
+                  id: sql<string>`${`gcl_${stableSuffix(`reservation:${input.idempotencyKey}`)}`}`.as(
+                    'id'
+                  ),
+                  giftCardId: giftCardReservations.giftCardId,
+                  kind: sql<'reservation'>`'reservation'`.as('kind'),
+                  amountMinor: sql<number>`${-input.amountMinor}`.as('amount_minor'),
+                  bookingPartyId: giftCardReservations.bookingPartyId,
+                  idempotencyKey:
+                    sql<string>`${`reservation:${input.idempotencyKey}`}`.as(
+                      'idempotency_key'
+                    ),
+                  occurredAt: sql<string>`${input.now}`.as('occurred_at'),
+                  createdAt: sql<string>`${input.now}`.as('created_at')
+                })
+                .from(giftCardReservations)
+                .where(
+                  and(
+                    eq(giftCardReservations.id, id),
+                    eq(giftCardReservations.status, 'active')
+                  )
+                )
+            )
+          if (terminalReservation) {
+            const balance = yield* readBalance(card.id)
+            if (balance.availableMinor < input.amountMinor)
+              return yield* new GiftCardRedemptionConflict({
+                code: 'insufficient_balance'
+              })
+            yield* orUnavailable('gift-card-redemptions')(
+              batch(db, [
+                db
+                  .update(giftCardReservations)
+                  .set({
+                    id,
+                    amountMinor: input.amountMinor,
+                    currency: card.currency,
+                    status: 'active',
+                    expiresAt: input.expiresAt,
+                    createdAt: input.now,
+                    updatedAt: input.now
+                  })
+                  .where(
+                    and(
+                      eq(giftCardReservations.id, terminalReservation.id),
+                      ne(giftCardReservations.status, 'active'),
+                      ne(giftCardReservations.status, 'committed'),
+                      sql`(select coalesce(sum(${giftCardLedgerEntries.amountMinor}), 0) from ${giftCardLedgerEntries} where ${giftCardLedgerEntries.giftCardId} = ${card.id}) >= ${input.amountMinor}`,
+                      sql`(select coalesce(sum(${giftCardReservations.amountMinor}), 0) from ${giftCardReservations} where ${giftCardReservations.bookingPartyId} = ${input.bookingPartyId} and ${giftCardReservations.status} = 'active' and ${giftCardReservations.expiresAt} > ${input.now}) + ${input.amountMinor} <= ${input.maximumAmountMinor}`
+                    )
+                  ),
+                makeLedgerInsert()
+              ])
+            )
+            const [reactivated] = yield* orUnavailable('gift-card-redemptions')(
+              db
+                .select()
+                .from(giftCardReservations)
+                .where(eq(giftCardReservations.id, id))
+                .limit(1)
+            )
+            if (!reactivated)
+              return yield* new GiftCardRedemptionConflict({
+                code: 'reservation_exists'
+              })
+            return reservationFrom(reactivated)
+          }
+          const reservationInsert = db.insert(giftCardReservations).select(
+            db
+              .select({
+                id: sql<string>`${id}`.as('id'),
+                giftCardId: giftCards.id,
+                bookingPartyId: sql<string>`${input.bookingPartyId}`.as(
+                  'booking_party_id'
+                ),
+                amountMinor: sql<number>`${input.amountMinor}`.as('amount_minor'),
+                currency: giftCards.currency,
+                status: sql<'active'>`'active'`.as('status'),
+                expiresAt: sql<string>`${input.expiresAt}`.as('expires_at'),
+                createdAt: sql<string>`${input.now}`.as('created_at'),
+                updatedAt: sql<string>`${input.now}`.as('updated_at')
+              })
+              .from(giftCards)
+              .where(
+                and(
+                  eq(giftCards.id, card.id),
+                  eq(giftCards.status, 'active'),
+                  eq(giftCards.currency, card.currency),
+                  sql`(${giftCards.expiresAt} is null or ${giftCards.expiresAt} > ${input.now})`,
+                  sql`(select coalesce(sum(${giftCardLedgerEntries.amountMinor}), 0) from ${giftCardLedgerEntries} where ${giftCardLedgerEntries.giftCardId} = ${card.id}) >= ${input.amountMinor}`,
+                  sql`(select coalesce(sum(${giftCardReservations.amountMinor}), 0) from ${giftCardReservations} where ${giftCardReservations.bookingPartyId} = ${input.bookingPartyId} and ${giftCardReservations.status} = 'active' and ${giftCardReservations.expiresAt} > ${input.now}) + ${input.amountMinor} <= ${input.maximumAmountMinor}`,
+                  sql`not exists (select 1 from ${giftCardReservations} where ${giftCardReservations.giftCardId} = ${card.id} and ${giftCardReservations.bookingPartyId} = ${input.bookingPartyId})`
+                )
+              )
+          )
+          const ledgerInsert = makeLedgerInsert()
+          yield* orUnavailable('gift-card-redemptions')(
+            batch(db, [reservationInsert, ledgerInsert])
+          )
+          const [created] = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select()
+              .from(giftCardReservations)
+              .where(eq(giftCardReservations.id, id))
+              .limit(1)
+          )
+          if (!created) {
+            const balance = yield* readBalance(card.id)
+            return yield* new GiftCardRedemptionConflict({
+              code:
+                balance.availableMinor < input.amountMinor
+                  ? 'insufficient_balance'
+                  : 'reservation_exists'
+            })
+          }
+          return reservationFrom(created)
+        }),
+      release: (input) =>
+        Effect.gen(function* () {
+          const rows = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select()
+              .from(giftCardReservations)
+              .where(
+                and(
+                  eq(giftCardReservations.bookingPartyId, input.bookingPartyId),
+                  eq(giftCardReservations.status, 'active')
+                )
+              )
+          )
+          return yield* releaseRows(
+            rows,
+            'released',
+            `release:${input.idempotencyKey}`,
+            input.now
+          )
+        }),
+      releaseExpired: (input) => expireReservations(input.now),
+      planSettlement: (input) =>
+        Effect.gen(function* () {
+          yield* expireReservations(input.now)
+          return yield* readPlan(input)
+        }),
+      refund: (input) =>
+        Effect.gen(function* () {
+          const allocations = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select()
+              .from(settlementAllocations)
+              .where(eq(settlementAllocations.bookingPartyId, input.bookingPartyId))
+          )
+          if (allocations.length === 0)
+            return yield* new GiftCardRedemptionConflict({
+              code: 'settlement_not_found'
+            })
+          const giftRows = allocations.filter(
+            (allocation) => allocation.tender === 'gift_card'
+          )
+          const refundResult = {
+            bookingPartyId: input.bookingPartyId,
+            restoredGiftCardMinor: giftRows.reduce(
+              (sum, allocation) => sum + allocation.amountMinor,
+              0
+            ),
+            externalPaymentMinor: allocations
+              .filter((allocation) => allocation.tender === 'external_payment')
+              .reduce((sum, allocation) => sum + allocation.amountMinor, 0),
+            currency: allocations[0]!.currency
+          }
+          const existingRefunds = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select({ idempotencyKey: giftCardLedgerEntries.idempotencyKey })
+              .from(giftCardLedgerEntries)
+              .where(
+                and(
+                  eq(giftCardLedgerEntries.bookingPartyId, input.bookingPartyId),
+                  eq(giftCardLedgerEntries.kind, 'refund')
+                )
+              )
+          )
+          if (
+            existingRefunds.length === giftRows.length &&
+            existingRefunds.every(({ idempotencyKey }) =>
+              idempotencyKey.startsWith(`refund:${input.idempotencyKey}:`)
+            )
+          )
+            return refundResult
+          if (existingRefunds.length > 0)
+            return yield* new GiftCardRedemptionConflict({
+              code: 'settlement_already_refunded'
+            })
+          yield* orUnavailable('gift-card-redemptions')(
+            batch(
+              db,
+              giftRows.map((allocation) =>
+                db
+                  .insert(giftCardLedgerEntries)
+                  .select(
+                    db
+                      .select({
+                        id: sql<string>`${`gcl_${stableSuffix(`refund:${input.idempotencyKey}:${allocation.id}`)}`}`.as(
+                          'id'
+                        ),
+                        giftCardId: sql<string>`${allocation.referenceId!}`.as(
+                          'gift_card_id'
+                        ),
+                        kind: sql<'refund'>`'refund'`.as('kind'),
+                        amountMinor: settlementAllocations.amountMinor,
+                        bookingPartyId: settlementAllocations.bookingPartyId,
+                        idempotencyKey:
+                          sql<string>`${`refund:${input.idempotencyKey}:${allocation.id}`}`.as(
+                            'idempotency_key'
+                          ),
+                        occurredAt: sql<string>`${input.now}`.as('occurred_at'),
+                        createdAt: sql<string>`${input.now}`.as('created_at')
+                      })
+                      .from(settlementAllocations)
+                      .where(
+                        and(
+                          eq(settlementAllocations.id, allocation.id),
+                          sql`not exists (select 1 from ${giftCardLedgerEntries} where ${giftCardLedgerEntries.bookingPartyId} = ${input.bookingPartyId} and ${giftCardLedgerEntries.giftCardId} = ${allocation.referenceId!} and ${giftCardLedgerEntries.kind} = 'refund')`
+                        )
+                      )
+                  )
+                  .onConflictDoNothing()
+              )
+            )
+          )
+          const storedRefunds = yield* orUnavailable('gift-card-redemptions')(
+            db
+              .select({ idempotencyKey: giftCardLedgerEntries.idempotencyKey })
+              .from(giftCardLedgerEntries)
+              .where(
+                and(
+                  eq(giftCardLedgerEntries.bookingPartyId, input.bookingPartyId),
+                  eq(giftCardLedgerEntries.kind, 'refund')
+                )
+              )
+          )
+          if (
+            storedRefunds.length !== giftRows.length ||
+            !storedRefunds.every(({ idempotencyKey }) =>
+              idempotencyKey.startsWith(`refund:${input.idempotencyKey}:`)
+            )
+          )
+            return yield* new GiftCardRedemptionConflict({
+              code: 'settlement_already_refunded'
+            })
+          return refundResult
+        })
+    }
+    return service
+  })
+)
 
 export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
   Layer.effect(
@@ -388,6 +923,7 @@ export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
             if (!product)
               return yield* new GiftCardSaleConflict({ code: 'product_unavailable' })
             const cardId = `gcd_${stableSuffix(sale.id)}`
+            const codeHash = yield* hashGiftCardRedemptionCode(cardId)
             const issuanceKey = `gift-card-issuance:${sale.id}`
             yield* orUnavailable('gift-card-sales')(
               batch(db, [
@@ -396,7 +932,7 @@ export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
                   .values({
                     id: cardId,
                     giftCardSaleId: sale.id,
-                    codeHash: `gch_${stableSuffix(`${sale.id}:code`)}`,
+                    codeHash,
                     currency: sale.currency,
                     scope: product.scope,
                     scopeId: product.scopeId,
@@ -547,21 +1083,46 @@ export const LiveGiftCardSales: Layer.Layer<GiftCardSales, never, Database> =
                   .limit(1)
               )
               if (!card) return null
+              const [{ balanceMinor } = { balanceMinor: 0 }] = yield* orUnavailable(
+                'gift-card-sales'
+              )(
+                db
+                  .select({
+                    balanceMinor: sql<number>`coalesce(sum(${giftCardLedgerEntries.amountMinor}), 0)`
+                  })
+                  .from(giftCardLedgerEntries)
+                  .where(eq(giftCardLedgerEntries.giftCardId, card.id))
+              )
+              const remainingMinor = Number(balanceMinor)
+              if (
+                remainingMinor !== card.initialValueMinor &&
+                input.spentValueAdjustment !== 'merchant_liability'
+              )
+                return yield* new GiftCardSaleConflict({
+                  code: 'spent_value_requires_adjustment'
+                })
               const refundKey = `gift-card-refund:${sale.id}`
               yield* orUnavailable('gift-card-sales')(
                 batch(db, [
-                  db
-                    .insert(giftCardLedgerEntries)
-                    .values({
-                      id: `gcl_${stableSuffix(refundKey)}`,
-                      giftCardId: card.id,
-                      kind: 'refund',
-                      amountMinor: -sale.amountMinor,
-                      idempotencyKey: refundKey,
-                      occurredAt: input.now,
-                      createdAt: input.now
-                    })
-                    .onConflictDoNothing(),
+                  ...(remainingMinor > 0
+                    ? [
+                        db
+                          .insert(giftCardLedgerEntries)
+                          .values({
+                            id: `gcl_${stableSuffix(refundKey)}`,
+                            giftCardId: card.id,
+                            kind: 'refund',
+                            amountMinor: -remainingMinor,
+                            idempotencyKey:
+                              input.spentValueAdjustment === 'merchant_liability'
+                                ? `${refundKey}:merchant-liability`
+                                : refundKey,
+                            occurredAt: input.now,
+                            createdAt: input.now
+                          })
+                          .onConflictDoNothing()
+                      ]
+                    : []),
                   db
                     .update(giftCards)
                     .set({ status: 'voided', updatedAt: input.now })

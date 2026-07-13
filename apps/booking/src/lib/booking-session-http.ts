@@ -52,6 +52,7 @@ import type {
   PaymentMethodEligibility,
   PaymentView
 } from '@b2b-saas-starter/capabilities/payments'
+import type { GiftCardReservation } from '@b2b-saas-starter/capabilities/gift-cards'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 import {
   canonicalizeBookingRequest,
@@ -422,8 +423,13 @@ export type BookingSessionHttpDependencies = {
         }
       }
     ) => BookingSessionEffect<
-      PaymentMethodEligibility,
-      CapabilityUnavailable | BookingCheckoutFailure
+      PaymentMethodEligibility & {
+        readonly giftCardMinor: number
+        readonly externalPaymentMinor: number
+      },
+      | CapabilityUnavailable
+      | BookingCheckoutFailure
+      | { readonly _tag: string; readonly code?: string }
     >
     readonly settle: (
       session: BookingSession,
@@ -435,6 +441,30 @@ export type BookingSessionHttpDependencies = {
       }
     ) => BookingSessionEffect<
       { readonly view: PaymentView; readonly nextActionUrl: string | null },
+      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
+    >
+  }
+  readonly giftCards?: {
+    readonly reserve: (
+      session: BookingSession,
+      input: {
+        readonly giftCardCode: string
+        readonly amountMinor: number
+        readonly idempotencyKey: string
+        readonly now: string
+      }
+    ) => BookingSessionEffect<
+      GiftCardReservation,
+      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
+    >
+    readonly release: (
+      session: BookingSession,
+      input: {
+        readonly idempotencyKey: string
+        readonly now: string
+      }
+    ) => BookingSessionEffect<
+      number,
       CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
     >
   }
@@ -458,6 +488,12 @@ const unavailable = (): Response =>
     status: 503,
     headers: { 'cache-control': 'private, no-store', 'retry-after': '60' }
   })
+
+const GiftCardReservationInput = Schema.Struct({
+  giftCardCode: Schema.String.check(Schema.isMinLength(1)),
+  amountMinor: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
+  idempotencyKey: Schema.String.check(Schema.isMinLength(8))
+})
 
 const expired = (
   merchantSlug: string,
@@ -1247,6 +1283,15 @@ export const handleBookingSessionRequest = (
       const result = yield* Effect.result(
         dependencies.scheduling.release(authorization.success)
       )
+      if (result._tag === 'Success' && dependencies.giftCards) {
+        const giftCardRelease = yield* Effect.result(
+          dependencies.giftCards.release(authorization.success, {
+            idempotencyKey: `hold-abandon:${authorization.success.id}`,
+            now
+          })
+        )
+        if (giftCardRelease._tag === 'Failure') return unavailable()
+      }
       return result._tag === 'Success'
         ? withPrivateHeaders(new Response(null, { status: 204 }))
         : mapSessionFailure(result.failure, merchantSlug)
@@ -1360,6 +1405,43 @@ export const handleBookingSessionRequest = (
       return result._tag === 'Success'
         ? jsonPrivate(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'gift-card-reserve' && request.method === 'POST') {
+      if (!dependencies.giftCards) return unavailable()
+      const body = yield* readJson(request)
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(GiftCardReservationInput)(body)
+      )
+      if (decoded._tag === 'Failure') return hiddenNotFound()
+      const result = yield* Effect.result(
+        dependencies.giftCards.reserve(authorization.success, {
+          ...decoded.success,
+          now
+        })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : withPrivateHeaders(
+            Response.json(
+              {
+                kind:
+                  'code' in result.failure
+                    ? result.failure.code
+                    : 'gift_card_unavailable'
+              },
+              { status: 409 }
+            )
+          )
+    }
+    if (endpoint === 'gift-card-release' && request.method === 'DELETE') {
+      if (!dependencies.giftCards) return unavailable()
+      const result = yield* Effect.result(
+        dependencies.giftCards.release(authorization.success, {
+          idempotencyKey: request.headers.get('idempotency-key') ?? crypto.randomUUID(),
+          now
+        })
+      )
+      return result._tag === 'Success' ? jsonPrivate(result.success) : unavailable()
     }
     if (endpoint === 'payment-methods' && request.method === 'GET') {
       if (!dependencies.payments) return unavailable()

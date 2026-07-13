@@ -14,6 +14,7 @@ import {
   PaymentMethodSelector,
   type PaymentPresentationStatus
 } from './payment-method-selector.tsx'
+import { BookingButton, BookingField } from '../presentation/booking-primitives.tsx'
 
 type CheckoutCopy = {
   readonly title: string
@@ -32,6 +33,13 @@ type CheckoutCopy = {
   readonly phoneOptional: string
   readonly reviewBooking: string
   readonly total: string
+  readonly giftCard: string
+  readonly giftCardCode: string
+  readonly giftCardAmount: string
+  readonly applyGiftCard: string
+  readonly removeGiftCard: string
+  readonly giftCardApplied: string
+  readonly giftCardUnavailable: string
 }
 const defaultCopy: CheckoutCopy = {
   title: 'Confirm booking',
@@ -42,7 +50,7 @@ const defaultCopy: CheckoutCopy = {
     'Operational booking notifications are sent regardless of marketing consent.',
   acceptPolicy: (version) => `Accept Checkout Policy version ${version}`,
   priceProposal: (version) => `Price proposal ${version}`,
-  payInPerson: 'Pay In Person',
+  payInPerson: 'Pay in person',
   book: 'Book',
   privacy: 'Customer Details are used for this booking.',
   privacyLink: 'See the Privacy Policy',
@@ -50,7 +58,14 @@ const defaultCopy: CheckoutCopy = {
   email: 'Email',
   phoneOptional: 'Phone (optional)',
   reviewBooking: 'Review booking',
-  total: 'Total'
+  total: 'Total',
+  giftCard: 'Gift card',
+  giftCardCode: 'Gift card code',
+  giftCardAmount: 'Amount to apply',
+  applyGiftCard: 'Apply gift card',
+  removeGiftCard: 'Remove gift card',
+  giftCardApplied: 'Gift card applied',
+  giftCardUnavailable: 'Gift card unavailable'
 }
 
 export function BookingCheckoutFlow({
@@ -63,6 +78,7 @@ export function BookingCheckoutFlow({
   onFinalize,
   onEdit,
   payment,
+  giftCard,
   copy = defaultCopy
 }: {
   readonly review: CheckoutReview | null
@@ -85,20 +101,29 @@ export function BookingCheckoutFlow({
     }[]
   }) => void
   readonly onEdit: (requestId: string) => void
-  readonly payment?: {
-    readonly eligibility: PaymentMethodEligibility
-    readonly selected: PaymentMethod
-    readonly status: PaymentPresentationStatus
-    readonly onSelect: (method: PaymentMethod) => void
-    readonly legend: string
-    readonly labels: Record<PaymentMethod, string>
-    readonly messages: {
-      readonly disabled: string
-      readonly needs_configuration: string
-      readonly processing: string
-      readonly failed: string
-      readonly succeeded: string
-    }
+  readonly payment?:
+    | {
+        readonly eligibility: PaymentMethodEligibility
+        readonly selected: PaymentMethod
+        readonly status: PaymentPresentationStatus
+        readonly allowPayInPerson?: boolean
+        readonly onSelect: (method: PaymentMethod) => void
+        readonly legend: string
+        readonly labels: Record<PaymentMethod, string>
+        readonly messages: {
+          readonly disabled: string
+          readonly needs_configuration: string
+          readonly processing: string
+          readonly failed: string
+          readonly succeeded: string
+        }
+      }
+    | undefined
+  readonly giftCard?: {
+    readonly appliedMinor: number
+    readonly status: 'idle' | 'applying' | 'applied' | 'failed'
+    readonly onApply: (giftCardCode: string, amountMinor: number) => void
+    readonly onRemove: () => void
   }
   readonly copy?: CheckoutCopy
 }) {
@@ -170,6 +195,7 @@ export function BookingCheckoutFlow({
               onEdit={onEdit}
               copy={copy}
               payment={payment}
+              giftCard={giftCard}
             />
           )}
         </main>
@@ -217,7 +243,8 @@ function Review({
   onFinalize,
   onEdit,
   copy,
-  payment
+  payment,
+  giftCard
 }: {
   readonly review: CheckoutReview
   readonly preparation: CheckoutPreparation | null
@@ -226,6 +253,7 @@ function Review({
   readonly onEdit: (requestId: string) => void
   readonly copy: CheckoutCopy
   readonly payment: Parameters<typeof BookingCheckoutFlow>[0]['payment']
+  readonly giftCard: Parameters<typeof BookingCheckoutFlow>[0]['giftCard']
 }) {
   const [policyAccepted, setPolicyAccepted] = useState(false)
   const [marketing, setMarketing] = useState<Record<string, boolean>>({})
@@ -267,7 +295,53 @@ function Review({
         {copy.total}: {currency.format(review.quote.totalMinor / 100)}{' '}
         {review.quote.currency}
       </p>
-      {payment ? <PaymentMethodSelector {...payment} /> : <p>{copy.payInPerson}</p>}
+      {giftCard ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const data = new FormData(event.currentTarget)
+            const giftCardEntry = data.get('gift-card-code')
+            const giftCardCode =
+              typeof giftCardEntry === 'string' ? giftCardEntry.trim() : ''
+            const amount = Number(data.get('gift-card-amount'))
+            if (giftCardCode && Number.isFinite(amount) && amount > 0)
+              giftCard.onApply(giftCardCode, Math.round(amount * 100))
+          }}
+        >
+          <fieldset disabled={busy || giftCard.status === 'applying'}>
+            <legend>{copy.giftCard}</legend>
+            <BookingField label={copy.giftCardCode} name="gift-card-code" required />
+            <BookingField
+              label={copy.giftCardAmount}
+              name="gift-card-amount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+            />
+            <BookingButton type="submit" tone="primary">
+              {copy.applyGiftCard}
+            </BookingButton>
+            {giftCard.appliedMinor > 0 ? (
+              <BookingButton type="button" onClick={giftCard.onRemove}>
+                {copy.removeGiftCard}
+              </BookingButton>
+            ) : null}
+            <output>
+              {giftCard.status === 'applied'
+                ? `${copy.giftCardApplied}: ${currency.format(giftCard.appliedMinor / 100)}`
+                : giftCard.status === 'failed'
+                  ? copy.giftCardUnavailable
+                  : null}
+            </output>
+          </fieldset>
+        </form>
+      ) : null}
+      {payment ? (
+        <PaymentMethodSelector {...payment} />
+      ) : giftCard?.appliedMinor ? null : (
+        <p>{copy.payInPerson}</p>
+      )}
       {preparation ? (
         <>
           <h2>{copy.guests}</h2>

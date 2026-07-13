@@ -102,7 +102,9 @@ describe('Booking Session HTTP boundary', () => {
         methods: () =>
           Effect.succeed({
             state: 'ready' as const,
-            methods: ['card', 'apple_pay'] as const
+            methods: ['card', 'apple_pay'] as const,
+            giftCardMinor: 0,
+            externalPaymentMinor: 2500
           }),
         settle: (_session: unknown, input: unknown) => {
           settlementInput = input
@@ -131,7 +133,9 @@ describe('Booking Session HTTP boundary', () => {
     )
     expect(await methods.json()).toEqual({
       state: 'ready',
-      methods: ['card', 'apple_pay']
+      methods: ['card', 'apple_pay'],
+      giftCardMinor: 0,
+      externalPaymentMinor: 2500
     })
     const response = await Effect.runPromise(
       handleBookingSessionRequest(
@@ -1018,6 +1022,7 @@ describe('Booking Session HTTP boundary', () => {
       totalMinor: 5000
     }
     let received: unknown
+    let receivedGiftCard: unknown
     const checkoutCommands: string[] = []
     let checkoutReady = true
     const dependencies = {
@@ -1074,6 +1079,23 @@ describe('Booking Session HTTP boundary', () => {
                 new CheckoutReviewUnavailable({ reason: 'policy_unaccepted' })
               )
         }
+      },
+      giftCards: {
+        reserve: (_session: unknown, input: unknown) => {
+          receivedGiftCard = input
+          return Effect.succeed({
+            id: 'gcr_one',
+            giftCardId: 'gcd_one',
+            bookingPartyId: 'bpt_one',
+            amountMinor: 2500,
+            currency: 'USD',
+            status: 'active' as const,
+            expiresAt: '2026-07-10T09:40:00.000Z',
+            createdAt: '2026-07-10T09:30:00.000Z',
+            updatedAt: '2026-07-10T09:30:00.000Z'
+          })
+        },
+        release: () => Effect.succeed(1)
       },
       confirmation: {
         read: () => Effect.die(new Error('not called')),
@@ -1193,6 +1215,27 @@ describe('Booking Session HTTP boundary', () => {
       'consent',
       'review'
     ])
+    const giftCard = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/gift-card-reserve`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            giftCardCode: 'CODE-ONE',
+            amountMinor: 2500,
+            idempotencyKey: 'gift-card-one'
+          })
+        }),
+        dependencies
+      )
+    )
+    expect(giftCard.status).toBe(200)
+    expect(receivedGiftCard).toEqual({
+      giftCardCode: 'CODE-ONE',
+      amountMinor: 2500,
+      idempotencyKey: 'gift-card-one',
+      now: '2026-07-10T09:30:00.000Z'
+    })
 
     const invalid = await Effect.runPromise(
       handleBookingSessionRequest(

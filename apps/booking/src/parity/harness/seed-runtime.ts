@@ -525,12 +525,19 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
               return yield* payments.findForParty(party.id)
             }).pipe(Effect.provide(partiesLayer), Effect.provide(paymentLayer)),
           methods: (_session, input) =>
-            eligiblePaymentMethods({
-              currency: graph.merchant.currency,
-              amountMinor: 5000,
-              savedMethodCount: 0,
-              wallets: input.wallets
-            }).pipe(Effect.provide(paymentProviderLayer)),
+            Effect.map(
+              eligiblePaymentMethods({
+                currency: graph.merchant.currency,
+                amountMinor: 5000,
+                savedMethodCount: 0,
+                wallets: input.wallets
+              }).pipe(Effect.provide(paymentProviderLayer)),
+              (eligibility) => ({
+                ...eligibility,
+                giftCardMinor: 0,
+                externalPaymentMinor: 5000
+              })
+            ),
           settle: (session, input) =>
             Effect.gen(function* () {
               const checkoutService = yield* BookingCheckout

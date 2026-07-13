@@ -9,6 +9,7 @@ import {
   bookingSessions,
   checkoutPolicies,
   Database,
+  giftCardReservations,
   marketingConsents,
   policyAcceptances,
   shops,
@@ -393,14 +394,17 @@ const partyCheckoutWorkflow = (
         .findLatest(party.id)
         .pipe(Effect.catchTag('PricingQuoteNotFound', () => Effect.succeed(null)))
       const policyVersions = policy ? [`${policy.kind}:${policy.version}`] : []
+      const material = yield* repository.quoteMaterial(party, policy, now)
       const quoteIsCurrent =
         quote &&
+        material &&
         quote.expiresAt > now &&
         quote.facts.partyVersion === party.version &&
         [...quote.facts.policyVersions].sort().join('|') ===
-          [...policyVersions].sort().join('|')
+          [...policyVersions].sort().join('|') &&
+        [...quote.facts.giftCardReservationIds].sort().join('|') ===
+          [...material.giftCardReservationIds].sort().join('|')
       if (!quoteIsCurrent) {
-        const material = yield* repository.quoteMaterial(party, policy, now)
         quote = material ? yield* pricing.quote(material) : null
       }
       const [policyAcceptance, marketingConsents, requestReviews] = yield* Effect.all([
@@ -925,6 +929,22 @@ export const LiveBookingCheckout: Layer.Layer<
             holds.map((hold) => [hold.bookingRequestId, hold] as const)
           )
           if (party.requests.some((request) => !byRequest.get(request.id))) return null
+          const giftReservations = yield* orUnavailable('booking-checkout')(
+            db
+              .select({
+                id: giftCardReservations.id,
+                expiresAt: giftCardReservations.expiresAt
+              })
+              .from(giftCardReservations)
+              .where(
+                and(
+                  eq(giftCardReservations.bookingPartyId, party.id),
+                  eq(giftCardReservations.currency, party.currency),
+                  eq(giftCardReservations.status, 'active'),
+                  gt(giftCardReservations.expiresAt, now)
+                )
+              )
+          )
           return {
             bookingPartyId: party.id,
             partyVersion: party.version,
@@ -939,9 +959,12 @@ export const LiveBookingCheckout: Layer.Layer<
               }
             }),
             policyVersions: policy ? [`${policy.kind}:${policy.version}`] : [],
-            giftCardReservationIds: [],
+            giftCardReservationIds: giftReservations.map(({ id }) => id),
             tipMinor: 0,
-            expiresAt: holds.map((hold) => hold.expiresAt).sort()[0]!,
+            expiresAt: [
+              ...holds.map((hold) => hold.expiresAt),
+              ...giftReservations.map((reservation) => reservation.expiresAt)
+            ].sort()[0]!,
             now
           }
         })

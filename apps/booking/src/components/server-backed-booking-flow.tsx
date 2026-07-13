@@ -27,6 +27,7 @@ import type {
   PaymentMethodEligibility,
   PaymentView
 } from '@b2b-saas-starter/capabilities/payments'
+
 import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
@@ -38,6 +39,11 @@ import {
   createBrowserCheckoutTelemetry,
   type CheckoutTelemetry
 } from '../lib/checkout-telemetry.ts'
+
+type SettlementPaymentEligibility = PaymentMethodEligibility & {
+  readonly giftCardMinor: number
+  readonly externalPaymentMinor: number
+}
 
 export function ServerBackedBookingFlow({
   merchantSlug,
@@ -80,6 +86,11 @@ export function ServerBackedBookingFlow({
   const [paymentStatus, setPaymentStatus] = useState<
     'idle' | 'processing' | 'failed' | 'succeeded'
   >('idle')
+  const [giftCardStatus, setGiftCardStatus] = useState<
+    'idle' | 'applying' | 'applied' | 'failed'
+  >('idle')
+  const [giftCardMinor, setGiftCardMinor] = useState(0)
+  const [externalPaymentMinor, setExternalPaymentMinor] = useState<number | null>(null)
   const paymentIdempotencyKey = useRef(`payment-${crypto.randomUUID()}`)
   const paymentReturnConfirmed = useRef(false)
   const [selectionRefreshed, setSelectionRefreshed] = useState(false)
@@ -397,8 +408,21 @@ export function ServerBackedBookingFlow({
       const methods = await fetch(`${base}/payment-methods?${walletQuery}`, {
         credentials: 'same-origin'
       })
-      if (methods.ok)
-        setPaymentEligibility((await methods.json()) as PaymentMethodEligibility)
+      if (methods.ok) {
+        const {
+          giftCardMinor: appliedMinor,
+          externalPaymentMinor: remainingMinor,
+          ...eligibility
+        } = (await methods.json()) as SettlementPaymentEligibility
+        setPaymentEligibility(eligibility)
+        setGiftCardMinor(appliedMinor)
+        setExternalPaymentMinor(remainingMinor)
+        setPaymentMethod(
+          remainingMinor > 0 && eligibility.methods[0]
+            ? eligibility.methods[0]
+            : 'pay_in_person'
+        )
+      }
     },
     onError: (error) => void telemetry.report(error)
   })
@@ -574,7 +598,11 @@ export function ServerBackedBookingFlow({
         <BookingCheckoutFlow
           review={review}
           preparation={preparation}
-          busy={detailsMutation.isPending || finalizeMutation.isPending}
+          busy={
+            detailsMutation.isPending ||
+            finalizeMutation.isPending ||
+            giftCardStatus === 'applying'
+          }
           validationIssues={validationIssues}
           validationMessages={{
             name_required: message('validation.name_required'),
@@ -600,34 +628,124 @@ export function ServerBackedBookingFlow({
             email: message('checkout.email'),
             phoneOptional: message('checkout.phone_optional'),
             reviewBooking: message('checkout.review_booking'),
-            total: message('checkout.total')
+            total: message('checkout.total'),
+            giftCard: message('checkout.gift_card'),
+            giftCardCode: message('checkout.gift_card_id'),
+            giftCardAmount: message('checkout.gift_card_amount'),
+            applyGiftCard: message('checkout.apply_gift_card'),
+            removeGiftCard: message('checkout.remove_gift_card'),
+            giftCardApplied: message('checkout.gift_card_applied'),
+            giftCardUnavailable: message('checkout.gift_card_unavailable')
           }}
-          payment={{
-            eligibility: paymentEligibility,
-            selected: paymentMethod,
-            status: paymentStatus,
-            legend: message('payment.method'),
-            onSelect: (method) => {
-              setPaymentMethod(method)
-              setPaymentStatus('idle')
+          giftCard={{
+            appliedMinor: giftCardMinor,
+            status: giftCardStatus,
+            onApply: (giftCardCode, amountMinor) => {
+              setGiftCardStatus('applying')
+              void (async () => {
+                const response = await fetch(`${base}/gift-card-reserve`, {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({
+                    giftCardCode,
+                    amountMinor,
+                    idempotencyKey: `gift-card-${crypto.randomUUID()}`
+                  })
+                })
+                if (!response.ok) throw new Error('gift card unavailable')
+                const prepared = await fetch(`${base}/checkout-prepare`, {
+                  credentials: 'same-origin'
+                })
+                if (!prepared.ok) throw new Error('checkout preparation unavailable')
+                const nextPreparation = Schema.decodeUnknownSync(
+                  CheckoutPreparationSchema
+                )(await prepared.json())
+                setPreparation(nextPreparation)
+                const methods = await fetch(`${base}/payment-methods`, {
+                  credentials: 'same-origin'
+                })
+                const settlementEligibility = methods.ok
+                  ? ((await methods.json()) as SettlementPaymentEligibility)
+                  : ({
+                      state: 'disabled',
+                      methods: [],
+                      giftCardMinor: 0,
+                      externalPaymentMinor: 0
+                    } as const)
+                const {
+                  giftCardMinor: appliedMinor,
+                  externalPaymentMinor: remainingMinor,
+                  ...eligibility
+                } = settlementEligibility
+                setPaymentEligibility(eligibility)
+                setGiftCardMinor(appliedMinor)
+                setExternalPaymentMinor(remainingMinor)
+                setPaymentMethod(
+                  remainingMinor > 0 && eligibility.methods[0]
+                    ? eligibility.methods[0]
+                    : 'pay_in_person'
+                )
+                setGiftCardStatus('applied')
+              })().catch(() => setGiftCardStatus('failed'))
             },
-            labels: {
-              pay_in_person: message('status.pay_in_person'),
-              card: message('payment.card'),
-              saved_card: message('payment.saved_card'),
-              apple_pay: message('payment.apple_pay'),
-              google_pay: message('payment.google_pay'),
-              cash_app_pay: message('payment.cash_app_pay'),
-              klarna: message('payment.klarna')
-            },
-            messages: {
-              disabled: message('payment.disabled'),
-              needs_configuration: message('payment.needs_configuration'),
-              processing: message('payment.processing'),
-              failed: message('payment.failed'),
-              succeeded: message('payment.succeeded')
+            onRemove: () => {
+              setGiftCardStatus('applying')
+              void fetch(`${base}/gift-card-release`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: { 'idempotency-key': `gift-card-${crypto.randomUUID()}` }
+              })
+                .then(async (response) => {
+                  if (!response.ok) throw new Error('gift card release unavailable')
+                  const prepared = await fetch(`${base}/checkout-prepare`, {
+                    credentials: 'same-origin'
+                  })
+                  if (!prepared.ok) throw new Error('checkout preparation unavailable')
+                  setPreparation(
+                    Schema.decodeUnknownSync(CheckoutPreparationSchema)(
+                      await prepared.json()
+                    )
+                  )
+                  setGiftCardMinor(0)
+                  setExternalPaymentMinor(null)
+                  setPaymentMethod('pay_in_person')
+                  setGiftCardStatus('idle')
+                })
+                .catch(() => setGiftCardStatus('failed'))
             }
           }}
+          payment={
+            externalPaymentMinor === 0 && giftCardMinor > 0
+              ? undefined
+              : {
+                  eligibility: paymentEligibility,
+                  selected: paymentMethod,
+                  status: paymentStatus,
+                  allowPayInPerson: giftCardMinor === 0,
+                  legend: message('payment.method'),
+                  onSelect: (method) => {
+                    setPaymentMethod(method)
+                    setPaymentStatus('idle')
+                  },
+                  labels: {
+                    pay_in_person: message('status.pay_in_person'),
+                    card: message('payment.card'),
+                    saved_card: message('payment.saved_card'),
+                    apple_pay: message('payment.apple_pay'),
+                    google_pay: message('payment.google_pay'),
+                    cash_app_pay: message('payment.cash_app_pay'),
+                    klarna: message('payment.klarna')
+                  },
+                  messages: {
+                    disabled: message('payment.disabled'),
+                    needs_configuration: message('payment.needs_configuration'),
+                    processing: message('payment.processing'),
+                    failed: message('payment.failed'),
+                    succeeded: message('payment.succeeded')
+                  }
+                }
+          }
           onSubmit={(details) => detailsMutation.mutate(details)}
           onFinalize={(input) => finalizeMutation.mutate(input)}
           onEdit={(requestId) =>

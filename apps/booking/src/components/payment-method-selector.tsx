@@ -13,7 +13,8 @@ export function PaymentMethodSelector({
   onSelect,
   legend,
   labels,
-  messages
+  messages,
+  allowPayInPerson = true
 }: {
   readonly eligibility: PaymentMethodEligibility
   readonly selected: PaymentMethod
@@ -26,8 +27,12 @@ export function PaymentMethodSelector({
     | Exclude<PaymentPresentationStatus, 'idle'>,
     string
   >
+  readonly allowPayInPerson?: boolean
 }) {
-  const methods: readonly PaymentMethod[] = ['pay_in_person', ...eligibility.methods]
+  const methods: readonly PaymentMethod[] = [
+    ...(allowPayInPerson ? (['pay_in_person'] as const) : []),
+    ...eligibility.methods
+  ]
   const message =
     status !== 'idle'
       ? messages[status]

@@ -55,7 +55,8 @@ export class GiftCardSaleConflict extends Schema.TaggedErrorClass<GiftCardSaleCo
       'purchase_route_not_found',
       'idempotency_mismatch',
       'receipt_key_unavailable',
-      'receipt_not_found'
+      'receipt_not_found',
+      'spent_value_requires_adjustment'
     ])
   }
 ) {}
@@ -220,6 +221,7 @@ export type GiftCardSalesShape = {
   readonly resumeIssuanceForPayment: (input: {
     readonly paymentId: string
     readonly now: string
+    readonly spentValueAdjustment?: 'merchant_liability'
   }) => Effect.Effect<
     GiftCardReceipt | null,
     GiftCardSaleConflict | CapabilityUnavailable

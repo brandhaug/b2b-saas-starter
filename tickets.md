@@ -208,12 +208,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Pricing, Promotions, and Quote Acceptance; Deliver Online Payment Settlement; Deliver Gift Card Purchase and Issuance.
 
-- [ ] Gift Card value uses an immutable ledger and cannot exceed available balance or cross fixed currency and scope.
-- [ ] Checkout reservations prevent concurrent overspend and release on expiry or abandonment.
-- [ ] Partial, full, and mixed settlement allocations equal the accepted Pricing Quote total without changing its price.
-- [ ] Confirmation commits gift-card and external-payment allocations exactly once with the Booking Party.
-- [ ] Refunds reverse original settlement allocations and cannot void already-spent value without an explicit adjustment rule.
-- [ ] Concurrency, expiry, overspend, mixed-settlement, refund, and retry scenarios prove the invariants.
+- [x] Gift Card value uses an immutable ledger and cannot exceed available balance or cross fixed currency and scope.
+- [x] Checkout reservations prevent concurrent overspend and release on expiry or abandonment.
+- [x] Partial, full, and mixed settlement allocations equal the accepted Pricing Quote total without changing its price.
+- [x] Confirmation commits gift-card and external-payment allocations exactly once with the Booking Party.
+- [x] Refunds reverse original settlement allocations and cannot void already-spent value without an explicit adjustment rule.
+- [x] Concurrency, expiry, overspend, mixed-settlement, refund, and retry scenarios prove the invariants.
 
 ## Deliver Cancellation and Refund Obligations
 

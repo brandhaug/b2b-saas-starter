@@ -81,6 +81,7 @@ describe('Booking checkout', () => {
   it('renders only the server review and settled Pay In Person copy', () => {
     const finalize = vi.fn()
     const edit = vi.fn()
+    const applyGiftCard = vi.fn()
     render(
       <BookingCheckoutFlow
         busy={false}
@@ -89,6 +90,12 @@ describe('Booking checkout', () => {
         onSubmit={vi.fn()}
         onFinalize={finalize}
         onEdit={edit}
+        giftCard={{
+          appliedMinor: 0,
+          status: 'idle',
+          onApply: applyGiftCard,
+          onRemove: vi.fn()
+        }}
         preparation={{
           requestReviews: [],
           party: {
@@ -196,8 +203,16 @@ describe('Booking checkout', () => {
       />
     )
     expect(screen.getByRole('heading', { name: 'Confirm booking' })).toBeTruthy()
-    expect(screen.getByText('Pay In Person')).toBeTruthy()
+    expect(screen.getByText('Pay in person')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Book' })).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Gift card code'), {
+      target: { value: 'gcd_one' }
+    })
+    fireEvent.change(screen.getByLabelText('Amount to apply'), {
+      target: { value: '25.00' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply gift card' }))
+    expect(applyGiftCard).toHaveBeenCalledWith('gcd_one', 2500)
     expect(
       screen.getByText('Cancel up to 24 hours before the appointment.')
     ).toBeTruthy()

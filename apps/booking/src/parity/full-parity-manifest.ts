@@ -69,7 +69,6 @@ accept(
     'assigned-gift-card': 'Provider-scoped Gift Card purchase and issuance.',
     'unassigned-gift-card': 'Merchant, Brand, or Shop Gift Card purchase and issuance.',
     'pay-in-person': 'Provider-free confirmation with no Payment.',
-    'gift-card-redemption': 'Full, partial, and mixed settlement.',
     'confirmation-management': 'Protected view, cancel, and reschedule actions.',
     'waiting-list-offer': 'Application, offer, acceptance, decline, and expiry.',
     'waiting-list-reschedule': 'Offer-driven protected Appointment rescheduling.',
@@ -77,6 +76,14 @@ accept(
     'verified-continuation': 'Optional identity recovery with anonymous equivalence.'
   },
   'research/reproducible-legacy-parity-baseline.md'
+)
+
+accept(
+  'journey',
+  'capabilities/gift-cards',
+  'verified',
+  { 'gift-card-redemption': 'Full, partial, and mixed settlement.' },
+  'tickets.md'
 )
 
 accept(

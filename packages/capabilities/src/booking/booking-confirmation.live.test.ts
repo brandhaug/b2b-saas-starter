@@ -521,9 +521,22 @@ describe('Live Booking Confirmation', () => {
 
     await test.d1
       .prepare(
-        "INSERT INTO payments (id, booking_party_id, pricing_quote_id, amount_minor, status, currency, captured_minor, created_at, updated_at) VALUES ('pay_group', 'bpt_group', 'pqt_group', 15000, 'captured', 'USD', 15000, ?, ?)"
+        "INSERT INTO gift_card_sales (id, shop_id, status, amount_minor, currency, recipient_json, purchaser_json, created_at, updated_at) VALUES ('gcs_group', 'shp_confirm', 'issued', 4000, 'USD', 'null', '{}', ?, ?)"
       )
       .bind(now, now)
+      .run()
+    for (const statement of [
+      "INSERT INTO gift_cards (id, gift_card_sale_id, code_hash, status, currency, scope, scope_id, initial_value_minor, created_at, updated_at) VALUES ('gcd_group', 'gcs_group', 'group-code', 'active', 'USD', 'merchant', 'mer_confirm', 4000, ?, ?)",
+      "INSERT INTO gift_card_ledger_entries (id, gift_card_id, kind, amount_minor, idempotency_key, occurred_at, created_at) VALUES ('gcl_group_issue', 'gcd_group', 'issuance', 4000, 'issuance:gcd_group', ?, ?)",
+      "INSERT INTO gift_card_reservations (id, gift_card_id, booking_party_id, amount_minor, currency, status, expires_at, created_at, updated_at) VALUES ('gcr_group', 'gcd_group', 'bpt_group', 4000, 'USD', 'active', '2026-07-10T09:40:00.000Z', ?, ?)",
+      "INSERT INTO gift_card_ledger_entries (id, gift_card_id, kind, amount_minor, booking_party_id, idempotency_key, occurred_at, created_at) VALUES ('gcl_group_reserve', 'gcd_group', 'reservation', -4000, 'bpt_group', 'reservation:gcr_group', ?, ?)",
+      "INSERT INTO payments (id, booking_party_id, pricing_quote_id, amount_minor, status, currency, captured_minor, created_at, updated_at) VALUES ('pay_group', 'bpt_group', 'pqt_group', 11000, 'captured', 'USD', 11000, ?, ?)"
+    ])
+      await test.d1.prepare(statement).bind(now, now).run()
+    await test.d1
+      .prepare(
+        `UPDATE pricing_quotes SET facts_json = '{"giftCardReservationIds":["gcr_group"]}' WHERE id = 'pqt_group'`
+      )
       .run()
 
     const first = await confirm('bsn_group')
@@ -560,13 +573,22 @@ describe('Live Booking Confirmation', () => {
     )
     expect(stored.appointments).toHaveLength(2)
     expect(stored.holds).toHaveLength(0)
-    expect(stored.settlement).toEqual([
-      expect.objectContaining({
-        tender: 'external_payment',
-        referenceId: 'pay_group',
-        amountMinor: 15000
-      })
+    expect(
+      stored.settlement.map(({ tender, referenceId, amountMinor }) => ({
+        tender,
+        referenceId,
+        amountMinor
+      }))
+    ).toEqual([
+      { tender: 'gift_card', referenceId: 'gcd_group', amountMinor: 4000 },
+      { tender: 'external_payment', referenceId: 'pay_group', amountMinor: 11000 }
     ])
+    const giftCardCommit = await test.d1
+      .prepare(
+        "SELECT status, (SELECT coalesce(sum(amount_minor), 0) FROM gift_card_ledger_entries WHERE gift_card_id = 'gcd_group') balance FROM gift_card_reservations WHERE id = 'gcr_group'"
+      )
+      .first<{ status: string; balance: number }>()
+    expect(giftCardCommit).toEqual({ status: 'committed', balance: 0 })
     expect(stored.appointments[0]?.snapshot?.checkoutPath).toBe('online_payment')
     expect(stored.access.map((access) => access.purpose).sort()).toEqual([
       'appointment_confirmation',

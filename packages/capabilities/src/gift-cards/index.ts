@@ -51,3 +51,19 @@ export type {
   GiftCardSalesShape,
   GiftCardProductOffer
 } from './gift-card-sales.ts'
+export {
+  GiftCardRedemptionConflict,
+  GiftCardRedemptions,
+  SeedGiftCardRedemptions,
+  emptySeedGiftCardRedemptionStore,
+  hashGiftCardRedemptionCode
+} from './gift-card-redemption.ts'
+export type {
+  GiftCardLedgerEntry,
+  GiftCardReservation,
+  GiftCardSettlementPlan,
+  GiftCardRedemptionsShape,
+  RedeemableGiftCard,
+  SeedGiftCardRedemptionStore,
+  GiftCardSettlementAllocation
+} from './gift-card-redemption.ts'

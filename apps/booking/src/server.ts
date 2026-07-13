@@ -16,6 +16,7 @@ import {
 } from '@b2b-saas-starter/capabilities/customer-identity'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
+  GiftCardRedemptions,
   GiftCardSales,
   hashGiftCardReceiptToken,
   purchaseAndIssueGiftCard
@@ -722,6 +723,40 @@ export default {
               capabilitiesLayer
             )
         },
+        giftCards: {
+          reserve: (session, input) =>
+            Effect.gen(function* () {
+              const parties = yield* BookingParties
+              const party = yield* parties.findForSession(session.id)
+              const checkout = yield* BookingCheckout
+              const preparation = yield* checkout.prepare(session, { now: input.now })
+              if (!preparation.quote)
+                return yield* new PaymentSettlementConflict({
+                  code: 'quote_unconfirmable'
+                })
+              const cards = yield* GiftCardRedemptions
+              return yield* cards.reserve({
+                giftCardCode: input.giftCardCode,
+                bookingPartyId: party.id,
+                amountMinor: input.amountMinor,
+                maximumAmountMinor: preparation.quote.totalMinor,
+                expiresAt: preparation.quote.expiresAt,
+                idempotencyKey: input.idempotencyKey,
+                now: input.now
+              })
+            }).pipe(Effect.provide(capabilitiesLayer)),
+          release: (session, input) =>
+            Effect.gen(function* () {
+              const parties = yield* BookingParties
+              const party = yield* parties.findForSession(session.id)
+              const cards = yield* GiftCardRedemptions
+              return yield* cards.release({
+                bookingPartyId: party.id,
+                idempotencyKey: input.idempotencyKey,
+                now: input.now
+              })
+            }).pipe(Effect.provide(capabilitiesLayer))
+        },
         payments: {
           status: (session) =>
             Effect.gen(function* () {
@@ -736,13 +771,40 @@ export default {
               const preparation = yield* checkout.prepare(session, {
                 now: input.now
               })
-              if (!preparation.quote) return { state: 'disabled' as const, methods: [] }
-              return yield* eligiblePaymentMethods({
+              if (!preparation.quote)
+                return {
+                  state: 'disabled' as const,
+                  methods: [],
+                  giftCardMinor: 0,
+                  externalPaymentMinor: 0
+                }
+              const parties = yield* BookingParties
+              const party = yield* parties.findForSession(session.id)
+              const cards = yield* GiftCardRedemptions
+              const plan = yield* cards.planSettlement({
+                bookingPartyId: party.id,
+                quoteTotalMinor: preparation.quote.totalMinor,
                 currency: preparation.quote.currency,
-                amountMinor: preparation.quote.totalMinor,
+                now: input.now
+              })
+              if (plan.externalPaymentMinor === 0)
+                return {
+                  state: 'disabled' as const,
+                  methods: [],
+                  giftCardMinor: plan.giftCardMinor,
+                  externalPaymentMinor: 0
+                }
+              const eligibility = yield* eligiblePaymentMethods({
+                currency: preparation.quote.currency,
+                amountMinor: plan.externalPaymentMinor,
                 savedMethodCount: 0,
                 wallets: input.wallets
               })
+              return {
+                ...eligibility,
+                giftCardMinor: plan.giftCardMinor,
+                externalPaymentMinor: plan.externalPaymentMinor
+              }
             }).pipe(
               Effect.provide(paymentProviderLayer),
               Effect.provide(capabilitiesLayer)
@@ -757,11 +819,22 @@ export default {
                 })
               const party = yield* BookingParties
               const currentParty = yield* party.findForSession(session.id)
+              const cards = yield* GiftCardRedemptions
+              const plan = yield* cards.planSettlement({
+                bookingPartyId: currentParty.id,
+                quoteTotalMinor: preparation.quote.totalMinor,
+                currency: preparation.quote.currency,
+                now: input.now
+              })
+              if (plan.externalPaymentMinor === 0)
+                return yield* new PaymentSettlementConflict({
+                  code: 'external_payment_unexpected'
+                })
               return yield* settleAcceptedPricingQuote({
                 bookingPartyId: currentParty.id,
                 bookingPartyVersion: currentParty.version,
                 pricingQuoteId: preparation.quote.id,
-                amountMinor: preparation.quote.totalMinor,
+                amountMinor: plan.externalPaymentMinor,
                 currency: preparation.quote.currency,
                 method: input.method,
                 idempotencyKey: input.idempotencyKey,
