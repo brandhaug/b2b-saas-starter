@@ -7,12 +7,14 @@ import {
   cancellationCommands,
   Database,
   lifecycleHistory,
+  notificationIntents,
   giftCardLedgerEntries,
   paymentTransactions,
   payments,
   refundObligationEvents,
   refundObligationAllocations,
   refundObligations,
+  scheduledWork,
   settlementAllocations,
   type StoredAppointmentSnapshot
 } from '@b2b-saas-starter/db'
@@ -147,6 +149,7 @@ export const LiveBookingCancellations: Layer.Layer<
               merchantId: row.merchantId,
               bookingPartyId: row.bookingPartyId,
               status: row.status,
+              version: row.version,
               startsAt: row.startsAt,
               totalMinor: snapshot.totalMinor,
               currency: snapshot.currency,
@@ -334,6 +337,7 @@ export const LiveBookingCancellations: Layer.Layer<
                     id: `acn_${stableSuffix(`${input.idempotencyKey}:${record.id}`)}`,
                     appointmentId: record.id,
                     commandId,
+                    appointmentVersion: record.version,
                     reasonCode: input.reason,
                     cancellationPolicyId: evaluation.cancellation.policyId,
                     cancellationPolicyVersion: evaluation.cancellation.policyVersion,
@@ -360,11 +364,40 @@ export const LiveBookingCancellations: Layer.Layer<
                   }),
                   db
                     .update(appointments)
-                    .set({ status: 'cancelled', updatedAt: input.now })
+                    .set({
+                      status: 'cancelled',
+                      version: record.version + 1,
+                      updatedAt: input.now
+                    })
                     .where(
                       and(
                         eq(appointments.id, record.id),
-                        eq(appointments.status, 'scheduled')
+                        eq(appointments.status, 'scheduled'),
+                        eq(appointments.version, record.version)
+                      )
+                    ),
+                  db
+                    .update(notificationIntents)
+                    .set({ status: 'cancelled', updatedAt: input.now })
+                    .where(
+                      and(
+                        eq(notificationIntents.sourceType, 'appointment'),
+                        eq(notificationIntents.sourceId, record.id),
+                        inArray(notificationIntents.status, [
+                          'pending',
+                          'processing',
+                          'failed'
+                        ])
+                      )
+                    ),
+                  db
+                    .update(scheduledWork)
+                    .set({ status: 'cancelled', updatedAt: input.now })
+                    .where(
+                      and(
+                        eq(scheduledWork.sourceType, 'appointment'),
+                        eq(scheduledWork.sourceId, record.id),
+                        inArray(scheduledWork.status, ['pending', 'running', 'failed'])
                       )
                     )
                 ]

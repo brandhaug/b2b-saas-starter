@@ -8,6 +8,7 @@ export const NotificationIntent = Schema.Struct({
   topic: Schema.String,
   sourceType: Schema.String,
   sourceId: Schema.String,
+  sourceVersion: Schema.optional(Schema.Number),
   deduplicationKey: Schema.String,
   status: Schema.Literals([
     'pending',

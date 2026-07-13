@@ -148,6 +148,29 @@ export type {
   SeedBookingCancellationStore
 } from './booking-cancellation.ts'
 export {
+  BookingRescheduleRejected,
+  BookingRescheduling,
+  SeedBookingRescheduling,
+  emptySeedBookingReschedulingStore,
+  validateRescheduleReplacement
+} from './booking-rescheduling.ts'
+export type {
+  AppointmentRescheduleHistory,
+  AppointmentRescheduleSnapshot,
+  BookingReschedulingShape,
+  ReschedulableAppointment,
+  ReschedulePolicyAcceptance,
+  ReschedulePricingQuote,
+  RescheduleReplacement,
+  RescheduleResult,
+  RescheduleSession,
+  RescheduleSettlement,
+  RescheduleTimeSlotHold,
+  SeedBookingReschedulingStore,
+  VersionedReminderIntent,
+  VersionedReminderWork
+} from './booking-rescheduling.ts'
+export {
   BookingNotificationOutbox,
   SeedBookingNotificationOutbox
 } from './booking-notifications.ts'

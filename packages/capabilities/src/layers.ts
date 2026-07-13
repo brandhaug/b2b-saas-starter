@@ -45,6 +45,12 @@ import {
 } from './booking/booking-cancellation.ts'
 import { LiveBookingCancellations } from './booking/booking-cancellation-adapter.ts'
 import {
+  BookingRescheduling,
+  emptySeedBookingReschedulingStore,
+  SeedBookingRescheduling
+} from './booking/booking-rescheduling.ts'
+import { LiveBookingRescheduling } from './booking/booking-rescheduling-adapter.ts'
+import {
   BookingNotificationOutbox,
   LiveBookingNotificationOutbox,
   SeedBookingNotificationOutbox
@@ -193,6 +199,7 @@ export type CapabilityServices =
   | BookingConfirmation
   | AppointmentOperations
   | BookingCancellations
+  | BookingRescheduling
   | BookingNotificationOutbox
   | BookingParties
   | PricingQuotes
@@ -423,6 +430,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   ),
   SeedAppointmentOperations(seedOperationalAppointments),
   SeedBookingCancellations(emptySeedBookingCancellationStore()),
+  SeedBookingRescheduling(emptySeedBookingReschedulingStore()),
   SeedBookingNotificationOutbox
 )
 
@@ -484,6 +492,7 @@ export const makeLiveCapabilitiesLayer = (
     ).pipe(Layer.provide(LivePaymentSettlement)),
     LiveAppointmentOperations,
     LiveBookingCancellations,
+    LiveBookingRescheduling,
     LiveBookingNotificationOutbox
   )
 }

@@ -54,7 +54,9 @@ beforeAll(async () => {
     `INSERT INTO appointments (id, merchant_id, provider_id, booking_party_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_two', 'mrc_cancel', 'prv_cancel', 'bpt_cancel', 'scheduled', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
     `INSERT INTO appointments (id, merchant_id, provider_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_other', 'mrc_other', 'prv_other', 'scheduled', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
     `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_gift', 'bpt_cancel', 'gift_card', 'gcd_cancel', 4000, 'USD', '${now}')`,
-    `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_pay', 'bpt_cancel', 'external_payment', 'pay_cancel', 6000, 'USD', '${now}')`
+    `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_pay', 'bpt_cancel', 'external_payment', 'pay_cancel', 6000, 'USD', '${now}')`,
+    `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, source_version, deduplication_key, status, available_at, created_at, updated_at) VALUES ('nti_cancel_reminder', 'shp_cancel', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_cancel_one', 1, 'reminder:apt_cancel_one:1', 'pending', '2026-07-14T08:00:00.000Z', '${now}', '${now}')`,
+    `INSERT INTO scheduled_work (id, shop_id, kind, source_type, source_id, source_version, payload_json, idempotency_key, status, run_at, attempts, created_at, updated_at) VALUES ('scw_cancel_reminder', 'shp_cancel', 'appointment.reminder', 'appointment', 'apt_cancel_one', 1, '{}', 'work:reminder:apt_cancel_one:1', 'pending', '2026-07-14T08:00:00.000Z', 0, '${now}', '${now}')`
   ])
     await test.d1.prepare(statement).run()
 }, 60_000)
@@ -89,19 +91,29 @@ describe('Live Booking cancellation', () => {
     ])
     expect((await cancel()).replayed).toBe(true)
     const rows = await test.d1.batch([
-      test.d1.prepare("SELECT status FROM appointments WHERE id = 'apt_cancel_one'"),
+      test.d1.prepare(
+        "SELECT status, version FROM appointments WHERE id = 'apt_cancel_one'"
+      ),
       test.d1.prepare("SELECT status FROM appointments WHERE id = 'apt_cancel_two'"),
       test.d1.prepare(
         "SELECT * FROM lifecycle_history WHERE aggregate_id = 'apt_cancel_one'"
       ),
       test.d1.prepare('SELECT * FROM refund_obligations'),
-      test.d1.prepare('SELECT * FROM refund_obligation_allocations ORDER BY position')
+      test.d1.prepare('SELECT * FROM refund_obligation_allocations ORDER BY position'),
+      test.d1.prepare(
+        "SELECT status FROM notification_intents WHERE id = 'nti_cancel_reminder'"
+      ),
+      test.d1.prepare(
+        "SELECT status FROM scheduled_work WHERE id = 'scw_cancel_reminder'"
+      )
     ])
-    expect(rows[0]!.results[0]).toMatchObject({ status: 'cancelled' })
+    expect(rows[0]!.results[0]).toMatchObject({ status: 'cancelled', version: 2 })
     expect(rows[1]!.results[0]).toMatchObject({ status: 'scheduled' })
     expect(rows[2]!.results).toHaveLength(1)
     expect(rows[3]!.results).toHaveLength(1)
     expect(rows[4]!.results).toHaveLength(2)
+    expect(rows[5]!.results[0]).toMatchObject({ status: 'cancelled' })
+    expect(rows[6]!.results[0]).toMatchObject({ status: 'cancelled' })
 
     const failed = await run(
       Effect.flatMap(BookingCancellations, (service) =>

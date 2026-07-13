@@ -131,6 +131,21 @@ export type StoredAppointmentSnapshot = StoredBookingQuote & {
     readonly refundableUntilMinutesBeforeStart: number
     readonly refundBasisPoints: number
   }
+  readonly acceptedRescheduleQuote?: {
+    readonly id: string
+    readonly version: number
+  }
+  readonly acceptedReschedulePolicy?: {
+    readonly id: string
+    readonly version: number
+    readonly disclosureSnapshot: string
+    readonly acceptedAt: string
+  }
+  readonly rescheduleSettlement?: {
+    readonly kind: 'unchanged' | 'refund' | 'additional_collection'
+    readonly amountMinor: number
+    readonly referenceId: string | null
+  }
 }
 
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
@@ -495,6 +510,7 @@ export const appointments = sqliteTable(
     status: text('status', { enum: appointmentStatuses })
       .default('scheduled')
       .notNull(),
+    version: integer('version').default(1).notNull(),
     startsAt: text('starts_at').notNull(),
     endsAt: text('ends_at').notNull(),
     snapshot: text('snapshot', { mode: 'json' }).$type<StoredAppointmentSnapshot>(),
@@ -515,6 +531,99 @@ export const appointments = sqliteTable(
       sql`${table.status} in ('scheduled', 'completed', 'cancelled', 'no_show')`
     ),
     check('appointments_valid_interval', sql`${table.startsAt} < ${table.endsAt}`)
+  ]
+)
+
+export const rescheduleSessions = sqliteTable(
+  'reschedule_sessions',
+  {
+    id: id(),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    purpose: text('purpose', { enum: ['appointment_reschedule'] })
+      .default('appointment_reschedule')
+      .notNull(),
+    capabilityHash: text('capability_hash').unique().notNull(),
+    baseAppointmentVersion: integer('base_appointment_version').notNull(),
+    status: text('status', {
+      enum: ['active', 'committed', 'expired', 'failed']
+    })
+      .default('active')
+      .notNull(),
+    holdId: text('hold_id').unique(),
+    replacementProviderId: text('replacement_provider_id').references(
+      () => providers.id,
+      { onDelete: 'restrict' }
+    ),
+    replacementStartsAt: text('replacement_starts_at'),
+    replacementEndsAt: text('replacement_ends_at'),
+    holdExpiresAt: text('hold_expires_at'),
+    pricingQuoteId: text('pricing_quote_id'),
+    pricingQuoteVersion: integer('pricing_quote_version'),
+    replacementTotalMinor: integer('replacement_total_minor'),
+    replacementCurrency: text('replacement_currency'),
+    quoteAcceptedAt: text('quote_accepted_at'),
+    quoteExpiresAt: text('quote_expires_at'),
+    policyId: text('policy_id'),
+    policyVersion: integer('policy_version'),
+    policyDisclosureSnapshot: text('policy_disclosure_snapshot'),
+    policyAcceptedAt: text('policy_accepted_at'),
+    settlementKind: text('settlement_kind', {
+      enum: ['unchanged', 'refund', 'additional_collection']
+    }),
+    settlementAmountMinor: integer('settlement_amount_minor'),
+    settlementReferenceId: text('settlement_reference_id'),
+    reminderAt: text('reminder_at'),
+    expiresAt: text('expires_at').notNull(),
+    committedAt: text('committed_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('reschedule_sessions_appointment_status_idx').on(
+      table.appointmentId,
+      table.status
+    ),
+    check(
+      'reschedule_sessions_positive_base_version',
+      sql`${table.baseAppointmentVersion} > 0`
+    )
+  ]
+)
+
+export const rescheduleCommands = sqliteTable(
+  'reschedule_commands',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    rescheduleSessionId: text('reschedule_session_id')
+      .notNull()
+      .unique()
+      .references(() => rescheduleSessions.id, { onDelete: 'restrict' }),
+    fromVersion: integer('from_version').notNull(),
+    toVersion: integer('to_version').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    committedAt: text('committed_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('reschedule_commands_idempotency_unique').on(
+      table.merchantId,
+      table.idempotencyKey
+    ),
+    uniqueIndex('reschedule_commands_appointment_version_unique').on(
+      table.appointmentId,
+      table.fromVersion
+    )
   ]
 )
 
@@ -1479,6 +1588,7 @@ export const appointmentCancellations = sqliteTable(
     commandId: text('command_id')
       .notNull()
       .references(() => cancellationCommands.id, { onDelete: 'restrict' }),
+    appointmentVersion: integer('appointment_version').default(1).notNull(),
     reasonCode: text('reason_code').notNull(),
     cancellationPolicyId: text('cancellation_policy_id').notNull(),
     cancellationPolicyVersion: integer('cancellation_policy_version').notNull(),
@@ -1608,6 +1718,7 @@ export const notificationIntents = sqliteTable(
     payloadJson: text('payload_json').notNull(),
     sourceType: text('source_type').notNull(),
     sourceId: text('source_id').notNull(),
+    sourceVersion: integer('source_version'),
     deduplicationKey: text('deduplication_key').unique().notNull(),
     status: text('status', {
       enum: ['pending', 'processing', 'delivered', 'failed', 'cancelled']
@@ -1632,6 +1743,9 @@ export const scheduledWork = sqliteTable(
     id: id(),
     shopId: text('shop_id').references(() => shops.id, { onDelete: 'cascade' }),
     kind: text('kind').notNull(),
+    sourceType: text('source_type'),
+    sourceId: text('source_id'),
+    sourceVersion: integer('source_version'),
     payloadJson: text('payload_json').notNull(),
     idempotencyKey: text('idempotency_key').unique().notNull(),
     status: text('status', {

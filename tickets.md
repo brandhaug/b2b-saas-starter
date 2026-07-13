@@ -234,12 +234,12 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Deliver Durable Operational Notifications; Deliver Cancellation and Refund Obligations.
 
-- [ ] Rescheduling uses a purpose-bound replacement session, Time Slot Hold, Pricing Quote, and required policy facts.
-- [ ] The original Appointment remains Scheduled and unchanged while replacement work is incomplete, expired, or failed.
-- [ ] Commit swaps the time, Provider, price facts, and history atomically under concurrency.
-- [ ] Material price or settlement changes follow the accepted quote and refund rules rather than mutating history.
-- [ ] Reminder intents are bound to an Appointment version and obsolete pending reminders are invalidated.
-- [ ] Conflict, expiry, retry, failure, success, duplicate command, and stale-reminder scenarios prove preservation and deduplication.
+- [x] Rescheduling uses a purpose-bound replacement session, Time Slot Hold, Pricing Quote, and required policy facts.
+- [x] The original Appointment remains Scheduled and unchanged while replacement work is incomplete, expired, or failed.
+- [x] Commit swaps the time, Provider, price facts, and history atomically under concurrency.
+- [x] Material price or settlement changes follow the accepted quote and refund rules rather than mutating history.
+- [x] Reminder intents are bound to an Appointment version and obsolete pending reminders are invalidated.
+- [x] Conflict, expiry, retry, failure, success, duplicate command, and stale-reminder scenarios prove preservation and deduplication.
 
 ## Deliver Waiting List Applications and Availability Offers
 

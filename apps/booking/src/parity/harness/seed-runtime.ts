@@ -624,6 +624,7 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
                   merchantId: graph.merchant.id,
                   bookingPartyId: `bpt_cancellation_${appointment.id}`,
                   status: appointment.status,
+                  version: 1,
                   startsAt: appointment.startsAt,
                   totalMinor: snapshot.totalMinor,
                   currency: snapshot.currency,

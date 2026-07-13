@@ -44,6 +44,9 @@ export const LiveNotificationIntents: Layer.Layer<
                   topic: intent.topic,
                   sourceType: intent.sourceType,
                   sourceId: intent.sourceId,
+                  ...(intent.sourceVersion === null
+                    ? {}
+                    : { sourceVersion: intent.sourceVersion }),
                   deduplicationKey: intent.deduplicationKey,
                   status: intent.status,
                   availableAt: intent.availableAt

@@ -17,6 +17,7 @@ const appointment = (
   merchantId: 'mrc_one',
   bookingPartyId: 'bpt_group',
   status: 'scheduled',
+  version: 1,
   startsAt: '2026-07-14T10:00:00.000Z',
   totalMinor: 5_000,
   currency: 'USD',

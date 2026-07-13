@@ -25,6 +25,7 @@ export type CancellableAppointment = {
   readonly merchantId: string
   readonly bookingPartyId: string | null
   readonly status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+  readonly version: number
   readonly startsAt: string
   readonly totalMinor: number
   readonly currency: string
@@ -287,7 +288,8 @@ export const SeedBookingCancellations = (
 
           const cancelled = records.map((record) => ({
             ...record,
-            status: 'cancelled' as const
+            status: 'cancelled' as const,
+            version: record.version + 1
           }))
           const obligations = evaluations.flatMap((evaluation, index) => {
             if (!evaluation.refund.entitled) return []

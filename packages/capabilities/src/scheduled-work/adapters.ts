@@ -39,6 +39,13 @@ export const LiveScheduledWorkQueue: Layer.Layer<ScheduledWorkQueue, never, Data
                     id: work.id,
                     shopId: work.shopId,
                     kind: work.kind,
+                    ...(work.sourceType === null
+                      ? {}
+                      : { sourceType: work.sourceType }),
+                    ...(work.sourceId === null ? {} : { sourceId: work.sourceId }),
+                    ...(work.sourceVersion === null
+                      ? {}
+                      : { sourceVersion: work.sourceVersion }),
                     idempotencyKey: work.idempotencyKey,
                     status: work.status,
                     runAt: work.runAt,
