@@ -46,6 +46,42 @@ const rejected = (
   code: ConstructorParameters<typeof BookingRescheduleRejected>[0]['code']
 ) => new BookingRescheduleRejected({ code })
 
+const appointmentAllocationShare = (
+  records: readonly (typeof appointments.$inferSelect)[],
+  allocations: readonly (typeof settlementAllocations.$inferSelect)[],
+  targetId: string
+) => {
+  let allocationIndex = 0
+  let allocationUsed = 0
+  for (const record of records) {
+    const snapshot = record.snapshot as StoredAppointmentSnapshot
+    let remaining = snapshot.totalMinor
+    const share: Array<{
+      tender: (typeof settlementAllocations.$inferSelect)['tender']
+      referenceId: string | null
+      amountMinor: number
+    }> = []
+    while (remaining > 0 && allocationIndex < allocations.length) {
+      const source = allocations[allocationIndex]!
+      const amountMinor = Math.min(source.amountMinor - allocationUsed, remaining)
+      if (amountMinor > 0)
+        share.push({
+          tender: source.tender,
+          referenceId: source.referenceId,
+          amountMinor
+        })
+      remaining -= amountMinor
+      allocationUsed += amountMinor
+      if (allocationUsed === source.amountMinor) {
+        allocationIndex += 1
+        allocationUsed = 0
+      }
+    }
+    if (record.id === targetId) return remaining === 0 ? share : null
+  }
+  return null
+}
+
 const mapAppointment = (
   row: typeof appointments.$inferSelect,
   shopId: string
@@ -577,7 +613,17 @@ export const LiveBookingRescheduling: Layer.Layer<
           const reminderKey = replacement.reminderAt
             ? `reminder:${appointment.id}:${toVersion}:${replacement.reminderAt}`
             : null
-          const refundAllocations =
+          const partyAppointments =
+            replacement.settlement.kind === 'refund' && appointment.bookingPartyId
+              ? yield* orUnavailable('booking-rescheduling')(
+                  db
+                    .select()
+                    .from(appointments)
+                    .where(eq(appointments.bookingPartyId, appointment.bookingPartyId))
+                    .orderBy(asc(appointments.createdAt), asc(appointments.id))
+                )
+              : []
+          const partyAllocations =
             replacement.settlement.kind === 'refund' && appointment.bookingPartyId
               ? yield* orUnavailable('booking-rescheduling')(
                   db
@@ -595,29 +641,32 @@ export const LiveBookingRescheduling: Layer.Layer<
                     )
                 )
               : []
+          const refundAllocations = appointmentAllocationShare(
+            partyAppointments,
+            partyAllocations,
+            appointment.id
+          )
+          if (replacement.settlement.kind === 'refund' && !refundAllocations)
+            return yield* rejected('settlement_mismatch')
           let remainingRefund =
             replacement.settlement.kind === 'refund'
               ? replacement.settlement.amountMinor
               : 0
-          const refundAllocationRows = refundAllocations.flatMap((allocation) => {
-            if (remainingRefund <= 0) return []
-            const amountMinor = Math.min(remainingRefund, allocation.amountMinor)
-            remainingRefund -= amountMinor
-            return [
-              {
-                tender: allocation.tender,
-                referenceId: allocation.referenceId,
-                amountMinor
-              }
-            ]
-          })
-          if (remainingRefund > 0) {
-            refundAllocationRows.push({
-              tender: 'pay_in_person',
-              referenceId: null,
-              amountMinor: remainingRefund
-            })
-          }
+          const refundAllocationRows = (refundAllocations ?? []).flatMap(
+            (allocation) => {
+              if (remainingRefund <= 0) return []
+              const amountMinor = Math.min(remainingRefund, allocation.amountMinor)
+              remainingRefund -= amountMinor
+              return [
+                {
+                  tender: allocation.tender,
+                  referenceId: allocation.referenceId,
+                  amountMinor
+                }
+              ]
+            }
+          )
+          if (remainingRefund > 0) return yield* rejected('settlement_mismatch')
           const statements = [
             ...(replacement.settlement.kind === 'refund'
               ? [
