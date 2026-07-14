@@ -219,8 +219,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'flex-end',
-    paddingTop: 44,
-    pointerEvents: 'none'
+    paddingTop: 44
   },
   popupSheet: {
     position: 'relative',
@@ -228,13 +227,11 @@ const styles = stylex.create({
     maxHeight: '100%',
     margin: 0,
     overflowY: 'auto',
-    overscrollBehavior: 'contain',
     padding: 0,
     borderWidth: 0,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    backgroundColor: bookingTheme.colorSurface,
-    boxShadow: bookingTheme.shadowSheet,
+    backgroundColor: bookingTheme.colorChrome,
     outline: 'none',
     pointerEvents: 'auto',
     scrollbarWidth: 'none'
@@ -654,7 +651,7 @@ const focusableSelector =
 
 function useBookingModalLifecycle(
   open: boolean,
-  dialogRef: React.RefObject<HTMLDialogElement | null>,
+  dialogRef: React.RefObject<HTMLElement | null>,
   onClose: () => void,
   { lockBodyScroll = true }: { readonly lockBodyScroll?: boolean } = {}
 ) {
@@ -775,7 +772,7 @@ export function BookingPopupSheet({
   readonly header: ReactNode
   readonly children: ReactNode
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const [scrolled, setScrolled] = useState(false)
   const reduced = useBookingReducedMotion()
   const closePopup = () => {
@@ -806,12 +803,13 @@ export function BookingPopupSheet({
                 transition={reduced ? { duration: 0 } : popupInteractionTransition}
                 {...stylex.props(styles.popupWrapper)}
               >
-                <dialog
+                <div
                   ref={dialogRef}
-                  open
+                  role="dialog"
                   aria-modal="true"
                   aria-label={label}
                   data-testid={testId}
+                  data-booking-popup-scrollable=""
                   tabIndex={-1}
                   onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
                   {...stylex.props(styles.popupSheet)}
@@ -825,7 +823,7 @@ export function BookingPopupSheet({
                     {header}
                   </div>
                   {children}
-                </dialog>
+                </div>
               </m.div>
             ]
           : null}

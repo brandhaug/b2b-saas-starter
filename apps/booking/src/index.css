@@ -75,6 +75,10 @@ summary:focus-visible {
   background: rgb(79 126 232 / 24%);
 }
 
+[data-booking-popup-scrollable]::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
