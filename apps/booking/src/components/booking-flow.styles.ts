@@ -634,7 +634,7 @@ export const styles = stylex.create({
   },
   selectedService: {
     borderColor: bookingTheme.colorPrimary,
-    backgroundColor: bookingTheme.colorViewOrderBackground,
+    backgroundColor: bookingTheme.colorPrimary,
     backgroundImage: {
       default: 'linear-gradient(transparent, transparent)',
       ':hover': 'linear-gradient(rgb(255 255 255 / 8%), rgb(255 255 255 / 8%))',
