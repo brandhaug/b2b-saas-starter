@@ -270,6 +270,7 @@ export const bookingTheme = stylex.defineVars({
   layerContent: 1,
   layerChrome: 2,
   layerPopupStack: 5,
+  layerSignInStack: 100,
   layerProcessing: 10,
   layerPromotion: 100,
   layerToast: 9999,

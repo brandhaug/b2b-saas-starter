@@ -6,6 +6,7 @@ import {
   BookingField,
   BookingMerchantContent,
   BookingOverlay,
+  BookingPopupSheet,
   BookingSelectableCard,
   BookingViewport,
   CalendarPresence,
@@ -91,6 +92,30 @@ describe('Booking presentation primitives', () => {
     )
     expect(document.activeElement).toBe(trigger)
     expect(document.body.style.overflow).toBe('')
+  })
+
+  it('keeps the legacy popup fade decorative and separate from dismissal', () => {
+    const close = vi.fn()
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    render(
+      <BookingPopupSheet
+        target={target}
+        open
+        label="Booking menu"
+        onClose={close}
+        header={<button type="button">Close menu</button>}
+      >
+        Menu body
+      </BookingPopupSheet>
+    )
+
+    const fade = target.children.item(0) as HTMLElement
+    expect(fade).toBeTruthy()
+    expect(fade.hasAttribute('aria-hidden')).toBe(false)
+    fireEvent.click(fade)
+    expect(close).not.toHaveBeenCalled()
+    target.remove()
   })
 
   it('collapses presence choreography when reduced motion is requested', () => {

@@ -205,14 +205,16 @@ const styles = stylex.create({
   },
   popupBackdrop: {
     position: 'absolute',
-    zIndex: bookingTheme.layerChrome,
-    inset: 0,
-    backgroundColor: '#000000',
-    pointerEvents: 'auto'
+    top: 0,
+    left: 0,
+    zIndex: bookingTheme.layerSignInStack,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000000'
   },
   popupWrapper: {
     position: 'absolute',
-    zIndex: bookingTheme.layerPopupStack,
+    zIndex: bookingTheme.layerSignInStack,
     inset: 0,
     display: 'flex',
     flexDirection: 'column',
@@ -690,7 +692,7 @@ function useBookingModalLifecycle(
       document.body.style.overflow = previousOverflow
       previouslyFocused?.focus()
     }
-  }, [open])
+  }, [dialogRef, open])
 }
 
 export function BookingOverlay({
@@ -788,21 +790,19 @@ export function BookingPopupSheet({
         {open
           ? [
               <m.div
-                key="booking-popup-backdrop"
-                aria-hidden="true"
+                key="popup-fade"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.25 }}
                 exit={{ opacity: 0 }}
-                transition={reduced ? { duration: 0 } : interactionTransition}
-                onClick={closePopup}
+                transition={reduced ? { duration: 0 } : popupInteractionTransition}
                 {...stylex.props(styles.popupBackdrop)}
               />,
               <m.div
-                key="booking-popup-sheet"
+                key="popup-body"
                 initial={{ y: reduced ? 0 : '100%' }}
                 animate={{ y: 0 }}
                 exit={{ y: reduced ? 0 : '100%' }}
-                transition={reduced ? { duration: 0 } : interactionTransition}
+                transition={reduced ? { duration: 0 } : popupInteractionTransition}
                 {...stylex.props(styles.popupWrapper)}
               >
                 <dialog
@@ -838,6 +838,7 @@ type PresenceVariant = 'fade' | 'scale' | 'height' | 'calendar' | 'route'
 export type RouteDirection = 'forward' | 'back'
 
 const interactionTransition: Transition = { duration: 0.15, ease: 'easeInOut' }
+const popupInteractionTransition: Transition = { duration: 0.15 }
 const pageTransition: Transition = { duration: 0.3, ease: 'easeInOut' }
 const routeTransition: Transition = { duration: 0.3, delay: 0.3 }
 const routeTitleTransition: Transition = { duration: 0, delay: 0.6 }
