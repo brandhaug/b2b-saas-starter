@@ -118,6 +118,9 @@ export const styles = stylex.create({
     msOverflowStyle: 'none',
     '::-webkit-scrollbar': { display: 'none' }
   },
+  scheduleMain: {
+    paddingTop: bookingTheme.space20
+  },
   routeLayer: {
     position: 'absolute',
     zIndex: bookingTheme.layerContent,
@@ -730,14 +733,59 @@ export const styles = stylex.create({
   },
   month: {
     margin: 0,
-    fontSize: 14,
+    minHeight: 28,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 17,
+    fontWeight: 400,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
+  },
+  scheduleCalendar: {
+    minHeight: 64,
+    marginBottom: 28
+  },
+  calendarHeader: {
+    display: 'flex',
+    minHeight: 28,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 16
+  },
+  fullCalendarControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4
+  },
+  calendarTextControl: {
+    height: 28,
+    paddingInline: 8,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: bookingTheme.colorPrimaryFont,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 13,
     fontWeight: 600
   },
-  dateGrid: {
+  calendarArrowControl: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-    gap: 8,
-    marginTop: 16
+    width: 28,
+    height: 28,
+    placeItems: 'center',
+    padding: 0,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: bookingTheme.colorOutlinedBorder,
+    borderRadius: 999,
+    backgroundColor: 'transparent',
+    color: bookingTheme.colorPrimaryFont,
+    fontSize: 20,
+    ':disabled': { opacity: 0.3 }
+  },
+  dateGrid: {
+    display: 'flex',
+    minHeight: 64,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between'
   },
   calendarControls: {
     display: 'flex',
@@ -755,61 +803,194 @@ export const styles = stylex.create({
   },
   dateCircle: {
     display: 'grid',
-    width: 36,
-    height: 36,
+    position: 'relative',
+    width: 33,
+    height: 33,
     marginInline: 'auto',
     placeItems: 'center',
     borderRadius: 999,
-    backgroundColor: '#eff0f3',
-    fontSize: 12,
-    fontWeight: 650
+    backgroundImage:
+      'repeating-linear-gradient(-45deg, #e6e6e6 0, #e6e6e6 4px, #d4d4d4 5px, #d4d4d4 6px)',
+    color: 'rgb(0 0 0 / 30%)',
+    fontFamily: bookingTheme.fontText,
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
+  },
+  dateCircleBorder: {
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: 999
+  },
+  availableDate: {
+    backgroundColor: '#000000',
+    backgroundImage: 'none',
+    color: '#ffffff'
   },
   activeDate: {
-    backgroundColor: '#292929',
+    backgroundColor: '#000000',
     color: '#ffffff',
-    outlineWidth: 1,
-    outlineStyle: 'solid',
-    outlineColor: '#292929',
-    outlineOffset: 2
+    '::after': {
+      content: '',
+      position: 'absolute',
+      inset: -3,
+      borderWidth: 1.5,
+      borderStyle: 'solid',
+      borderColor: '#000000',
+      borderRadius: 999
+    }
   },
   dayLabel: {
     display: 'block',
-    marginTop: 8,
-    color: '#747983',
-    fontSize: 12
+    width: 33,
+    marginTop: 13,
+    color: 'rgb(0 0 0 / 50%)',
+    fontFamily: bookingTheme.fontText,
+    fontSize: 15,
+    fontWeight: 400,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px',
+    textTransform: 'capitalize'
+  },
+  activeDayLabel: {
+    color: '#000000',
+    fontWeight: 600
+  },
+  expandCircle: {
+    display: 'grid',
+    width: 33,
+    height: 33,
+    marginInline: 'auto',
+    placeItems: 'center',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: 'rgb(218 218 220)',
+    borderRadius: 999,
+    backgroundColor: 'transparent',
+    color: '#000000'
+  },
+  monthGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+    rowGap: 8
+  },
+  expandedCalendar: {
+    position: 'relative',
+    overflow: 'visible'
+  },
+  weekdayGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+    marginLeft: 32,
+    marginBottom: 8,
+    color: bookingTheme.colorTextMuted,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 12,
+    lineHeight: '16px',
+    textAlign: 'center'
+  },
+  monthSlideViewport: {
+    position: 'relative',
+    minHeight: 208,
+    marginLeft: 32,
+    overflow: 'hidden'
+  },
+  monthSlide: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    width: '100%'
+  },
+  monthDay: {
+    width: 28,
+    height: 28,
+    marginInline: 'auto',
+    borderRadius: 999,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 13,
+    fontWeight: 600,
+    ':disabled': {
+      opacity: 0.25
+    }
+  },
+  selectedMonthDay: {
+    backgroundColor: '#000000',
+    color: '#ffffff'
+  },
+  availableMonthDay: {
+    backgroundColor: 'rgb(0 138 229)',
+    color: '#ffffff'
+  },
+  outsideMonthDay: {
+    opacity: 0.25
+  },
+  expandedMonthName: {
+    position: 'absolute',
+    top: 112,
+    left: 0,
+    margin: 0,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 15,
+    fontWeight: 400,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    transform: 'translate(-50%, -50%) rotate(-90deg)'
   },
   dayHeading: {
-    marginTop: 32,
-    marginBottom: 0,
-    fontSize: 14,
-    fontWeight: 600
+    marginTop: 4,
+    marginBottom: 16,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 17,
+    fontWeight: 400,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
   },
   timeGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    gap: 8,
-    marginTop: 16
+    gridTemplateColumns: 'repeat(3, minmax(0, 109px))',
+    columnGap: 8,
+    rowGap: 10,
+    justifyContent: 'space-between'
   },
   timeButton: {
     height: 48,
     paddingInline: 8,
     borderWidth: 1,
     borderStyle: 'solid',
-    borderColor: {
-      default: '#e2e3e7',
-      ':hover': '#4f7ee8'
-    },
+    borderColor: 'rgb(218 218 220)',
     borderRadius: 12,
-    backgroundColor: interactiveBackground,
-    color: '#292929',
-    fontFamily: 'Geist Mono, ui-monospace, monospace',
-    fontSize: 12,
-    fontWeight: 650
+    backgroundColor: {
+      default: '#ffffff',
+      ':hover': 'rgb(255 255 255)'
+    },
+    color: '#000000',
+    fontFamily: bookingTheme.fontText,
+    fontSize: 15,
+    fontWeight: 600,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px',
+    boxShadow: {
+      default: 'none',
+      ':hover': '0 8px 16px -5px rgb(0 0 0 / 10%)'
+    }
+  },
+  nextTimeButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  nextTimeIcon: {
+    width: 13,
+    height: 12,
+    flexShrink: 0,
+    marginRight: 5
   },
   selectedTime: {
-    borderColor: '#4f7ee8',
-    backgroundColor: '#4f7ee8',
-    color: '#ffffff'
+    borderColor: bookingTheme.colorPrimary,
+    backgroundColor: bookingTheme.colorPrimary,
+    color: bookingTheme.colorPrimaryFont
   },
   selectedTimeFeedback: {
     marginTop: 20,
@@ -981,8 +1162,8 @@ export const styles = stylex.create({
     paddingLeft: 16,
     borderWidth: 0,
     borderRadius: 16,
-    backgroundColor: bookingTheme.colorPrimary,
-    color: bookingTheme.colorPrimaryFont,
+    backgroundColor: bookingTheme.colorViewOrderBackground,
+    color: bookingTheme.colorViewOrderText,
     boxShadow: '0 8px 16px -5px rgb(0 0 0 / 10%)',
     fontFamily: bookingTheme.fontText,
     fontSize: 17,

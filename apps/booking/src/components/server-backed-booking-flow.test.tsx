@@ -202,7 +202,9 @@ describe('server-backed Booking scheduling', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /view order/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
-    expect(await screen.findByText(/held for checkout/i)).toBeTruthy()
+    expect(
+      await screen.findByRole('button', { name: /view order, \$50\.00/i })
+    ).toBeTruthy()
     expect(await screen.findByText('Your held time expired')).toBeTruthy()
     expect(availabilityReads).toBeGreaterThanOrEqual(2)
     queryClient.clear()
@@ -309,7 +311,9 @@ describe('server-backed Booking scheduling', () => {
     )
     fireEvent.click(await screen.findByRole('button', { name: /view order/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Go to checkout' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: /view order, \$50\.00/i })
+    )
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mia' } })
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'mia@example.com' }

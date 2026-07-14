@@ -29,31 +29,74 @@ const availability: BookingAvailability = {
   hold: null
 }
 
+const hold: NonNullable<BookingAvailability['hold']> = {
+  id: 'hld_one',
+  bookingSessionId: 'bsn_one',
+  createdAt: '2026-07-10T09:30:00.000Z',
+  expiresAt: '2026-07-10T09:40:00.000Z',
+  quote: {
+    startsAt: '2026-07-13T09:00:00.000Z',
+    endsAt: '2026-07-13T10:00:00.000Z',
+    providerPreference: { kind: 'any' },
+    assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
+    services: [
+      {
+        id: 'svc_cut',
+        role: 'primary',
+        name: 'Cut',
+        durationMinutes: 60,
+        priceMinor: 5000,
+        currency: 'USD'
+      }
+    ],
+    durationMinutes: 60,
+    currency: 'USD',
+    totalMinor: 5000
+  }
+}
+
 describe('Booking scheduling flow', () => {
-  it('keeps the dense calendar strip and three-column time selection feedback', () => {
+  it('matches the legacy title, calendar line, and three-column timetable contract', async () => {
     const select = vi.fn()
+    const back = vi.fn()
     const { container } = render(
       <BookingSchedulingFlow
         availability={availability}
         busy={false}
         slotLost={false}
+        onBack={back}
         onSelect={select}
       />
     )
     expect(
-      screen.getByText('Choose your appointment').closest('header')?.parentElement
+      screen.getByText('Choose a time').closest('[data-testid="container:title"]')
+        ?.parentElement
     ).toBe(container.firstElementChild)
     expect(container.firstElementChild?.getAttribute('data-booking-shell')).toBe(
       'canonical'
     )
     expect(container.querySelector('[aria-busy]')).toBeNull()
     expect(screen.getByText('July 2026')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Next dates' })).toBeNull()
+    expect(
+      (
+        screen.getByRole('button', {
+          name: /wednesday, july 15/i
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true)
+    fireEvent.click(screen.getByTestId('btn:back'))
+    expect(back).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: /monday, july 13/i }))
-    fireEvent.click(screen.getByRole('button', { name: /09:00/ }))
+    fireEvent.click(screen.getByRole('button', { name: /9:00/ }))
     expect(select).toHaveBeenCalledWith('2026-07-13T09:00:00.000Z')
-    fireEvent.click(screen.getByRole('button', { name: 'Next dates' }))
-    fireEvent.click(screen.getByRole('button', { name: /monday, july 20/i }))
-    fireEvent.click(screen.getByRole('button', { name: /09:00/ }))
+    expect(screen.queryByRole('button', { name: /monday, july 20/i })).toBeNull()
+    fireEvent.click(screen.getByTestId('btn:expandCalendar'))
+    fireEvent.click(await screen.findByRole('button', { name: /monday, july 20/i }))
+    fireEvent.click(
+      await screen.findByTestId('btn:chooseTime:time:2026-07-20T09:00:00.000Z')
+    )
     expect(select).toHaveBeenLastCalledWith('2026-07-20T09:00:00.000Z')
   })
 
@@ -63,6 +106,7 @@ describe('Booking scheduling flow', () => {
         availability={{ ...availability, slots: [] }}
         busy={false}
         slotLost={false}
+        onBack={vi.fn()}
         onSelect={vi.fn()}
       />
     )
@@ -72,6 +116,7 @@ describe('Booking scheduling flow', () => {
         availability={availability}
         busy={false}
         slotLost
+        onBack={vi.fn()}
         onSelect={vi.fn()}
       />
     )
@@ -84,6 +129,7 @@ describe('Booking scheduling flow', () => {
         busy={false}
         slotLost={false}
         holdExpired
+        onBack={vi.fn()}
         onSelect={vi.fn()}
       />
     )
@@ -95,6 +141,7 @@ describe('Booking scheduling flow', () => {
         busy={false}
         slotLost={false}
         locale="ro"
+        onBack={vi.fn()}
         onSelect={vi.fn()}
       />
     )
@@ -108,34 +155,11 @@ describe('Booking scheduling flow', () => {
         availability={{
           timezone: 'UTC',
           slots: [],
-          hold: {
-            id: 'hld_one',
-            bookingSessionId: 'bsn_one',
-            createdAt: '2026-07-10T09:30:00.000Z',
-            expiresAt: '2026-07-10T09:40:00.000Z',
-            quote: {
-              startsAt: '2026-07-13T09:00:00.000Z',
-              endsAt: '2026-07-13T10:00:00.000Z',
-              providerPreference: { kind: 'any' },
-              assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
-              services: [
-                {
-                  id: 'svc_cut',
-                  role: 'primary',
-                  name: 'Cut',
-                  durationMinutes: 60,
-                  priceMinor: 5000,
-                  currency: 'USD'
-                }
-              ],
-              durationMinutes: 60,
-              currency: 'USD',
-              totalMinor: 5000
-            }
-          }
+          hold
         }}
         busy={false}
         slotLost={false}
+        onBack={vi.fn()}
         onSelect={vi.fn()}
         onRelease={release}
         onCheckout={vi.fn()}
@@ -145,5 +169,64 @@ describe('Booking scheduling flow', () => {
     expect(screen.getByText(/frozen quote remains held/i)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Choose another time' }))
     expect(release).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the selected time visible when fresh Availability omits the held slot', () => {
+    render(
+      <BookingSchedulingFlow
+        availability={{
+          ...availability,
+          slots: availability.slots.filter(
+            (slot) => slot.startsAt !== hold.quote.startsAt
+          ),
+          hold
+        }}
+        busy={false}
+        slotLost={false}
+        onBack={vi.fn()}
+        onSelect={vi.fn()}
+        onCheckout={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByTestId('btn:chooseTime:time:2026-07-13T09:00:00.000Z:selected')
+    ).toBeTruthy()
+    expect(screen.getByTestId('btn:viewOrder')).toBeTruthy()
+  })
+
+  it('offers the legacy next-time card when Today has no availability', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const tomorrowValue = new Date(`${today}T12:00:00.000Z`)
+    tomorrowValue.setUTCDate(tomorrowValue.getUTCDate() + 1)
+    const tomorrow = tomorrowValue.toISOString().slice(0, 10)
+    render(
+      <BookingSchedulingFlow
+        availability={{
+          timezone: 'UTC',
+          hold: null,
+          slots: [
+            {
+              startsAt: `${tomorrow}T09:00:00.000Z`,
+              endsAt: `${tomorrow}T10:00:00.000Z`
+            }
+          ]
+        }}
+        busy={false}
+        slotLost={false}
+        onBack={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByTestId('btn:expandCalendar'))
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }))
+    fireEvent.click(await screen.findByTestId('btn:chooseTime:nextTime'))
+    expect((await screen.findByTestId('text:selectedDate')).textContent).toBe(
+      new Intl.DateTimeFormat('en', {
+        timeZone: 'UTC',
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      }).format(tomorrowValue)
+    )
   })
 })

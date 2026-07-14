@@ -809,6 +809,8 @@ export function ServerBackedBookingFlow({
         slotLost={slotLost}
         holdExpired={holdExpired}
         locale={locale}
+        onBack={() => setScheduling(false)}
+        {...(onTitleActionMount ? { onTitleActionMount } : {})}
         onSelect={(startsAt) => holdMutation.mutate(startsAt)}
         onRelease={() => releaseMutation.mutate()}
         {...(party.data?.requests.some(
