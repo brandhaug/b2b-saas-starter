@@ -655,14 +655,15 @@ const focusableSelector =
 function useBookingModalLifecycle(
   open: boolean,
   dialogRef: React.RefObject<HTMLDialogElement | null>,
-  onClose: () => void
+  onClose: () => void,
+  { lockBodyScroll = true }: { readonly lockBodyScroll?: boolean } = {}
 ) {
   const closeModal = useEffectEvent(onClose)
   useEffect(() => {
     if (!open) return
     const previouslyFocused = document.activeElement as HTMLElement | null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const previousOverflow = lockBodyScroll ? document.body.style.overflow : null
+    if (lockBodyScroll) document.body.style.overflow = 'hidden'
     const dialog = dialogRef.current
     const focusable = () =>
       dialog ? [...dialog.querySelectorAll<HTMLElement>(focusableSelector)] : []
@@ -689,10 +690,10 @@ function useBookingModalLifecycle(
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
+      if (previousOverflow !== null) document.body.style.overflow = previousOverflow
       previouslyFocused?.focus()
     }
-  }, [dialogRef, open])
+  }, [dialogRef, lockBodyScroll, open])
 }
 
 export function BookingOverlay({
@@ -781,7 +782,7 @@ export function BookingPopupSheet({
     setScrolled(false)
     onClose()
   }
-  useBookingModalLifecycle(open, dialogRef, closePopup)
+  useBookingModalLifecycle(open, dialogRef, closePopup, { lockBodyScroll: false })
 
   if (!target) return null
   return createPortal(

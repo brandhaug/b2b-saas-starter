@@ -98,7 +98,8 @@ describe('Booking presentation primitives', () => {
     const close = vi.fn()
     const target = document.createElement('div')
     document.body.appendChild(target)
-    render(
+    document.body.style.overflow = 'scroll'
+    const { unmount } = render(
       <BookingPopupSheet
         target={target}
         open
@@ -115,6 +116,9 @@ describe('Booking presentation primitives', () => {
     expect(fade.hasAttribute('aria-hidden')).toBe(false)
     fireEvent.click(fade)
     expect(close).not.toHaveBeenCalled()
+    expect(document.body.style.overflow).toBe('scroll')
+    unmount()
+    expect(document.body.style.overflow).toBe('scroll')
     target.remove()
   })
 
