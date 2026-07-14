@@ -23,6 +23,17 @@ const session: BookingSession = {
 const fixture = (presentation: 'solo' | 'team' = 'team') => {
   const store = emptySeedBookingSelectionStore({
     merchants: [{ id: 'mer_mara', slug: 'mara-studio', presentation }],
+    shops: [
+      {
+        id: 'shp_mer_mara',
+        merchantId: 'mer_mara',
+        brandId: 'brd_mara',
+        slug: 'mara-studio',
+        publicName: 'Mara Studio',
+        brandName: 'Mara Studio',
+        timezone: 'UTC'
+      }
+    ],
     providers: [
       {
         id: 'prv_ava',
@@ -118,7 +129,18 @@ const fixture = (presentation: 'solo' | 'team' = 'team') => {
         providerId: providerId!,
         serviceId: serviceId!
       })
-    )
+    ),
+    scheduleRules: [
+      {
+        id: 'sch_ava_saturday',
+        merchantId: 'mer_mara',
+        providerId: 'prv_ava',
+        weekday: 6,
+        startTime: '09:00',
+        endTime: '10:00'
+      }
+    ],
+    canSellUnassignedGiftCard: true
   })
   const layer = SeedBookingSelection(store)
   const run = <A, E>(effect: Effect.Effect<A, E, BookingSelection>) =>
@@ -127,6 +149,19 @@ const fixture = (presentation: 'solo' | 'team' = 'team') => {
 }
 
 describe('Booking Selection', () => {
+  it('derives professional availability and unassigned gift-card eligibility from catalog facts', async () => {
+    const { run } = fixture()
+    const loaded = await run(
+      Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+    )
+
+    expect(loaded.canSellUnassignedGiftCard).toBe(true)
+    expect(loaded.shops[0]?.timezone).toBe('UTC')
+    expect(
+      loaded.providers.find((provider) => provider.id === 'prv_ava')?.nextAvailableAt
+    ).toBe('2026-07-11T09:00:00.000Z')
+  })
+
   it('exposes an authoritative legacy provider short name for compound names', async () => {
     const { store, run } = fixture()
     store.providers.set('prv_ava', {

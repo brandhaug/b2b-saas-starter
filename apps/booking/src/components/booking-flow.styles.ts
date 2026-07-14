@@ -166,10 +166,20 @@ export const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: {
       default: '#dadadc',
-      ':hover': '#e1e1e1'
+      '@media (hover: hover)': { default: '#dadadc', ':hover': '#e1e1e1' }
     },
     borderRadius: 16,
-    backgroundColor: '#f7f7f7',
+    backgroundColor: {
+      default: '#f7f7f7',
+      '@media (hover: hover)': { default: '#f7f7f7', ':hover': '#ffffff' }
+    },
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': {
+        default: 'none',
+        ':hover': '0 8px 16px -5px rgba(0, 0, 0, 0.1)'
+      }
+    },
     color: '#000000',
     textAlign: 'center',
     userSelect: 'none',
@@ -178,22 +188,83 @@ export const styles = stylex.create({
     transitionDuration: '150ms'
   },
   providerCardSelected: {
-    borderColor: bookingTheme.colorPrimary,
-    backgroundColor: bookingTheme.colorPrimary,
+    borderColor: {
+      default: bookingTheme.colorPrimary,
+      '@media (hover: hover)': {
+        default: bookingTheme.colorPrimary,
+        ':hover': bookingTheme.colorPrimary
+      }
+    },
+    backgroundColor: {
+      default: bookingTheme.colorPrimary,
+      '@media (hover: hover)': {
+        default: bookingTheme.colorPrimary,
+        ':hover': bookingTheme.colorPrimary
+      }
+    },
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': { default: 'none', ':hover': 'none' }
+    },
     color: bookingTheme.colorPrimaryFont
   },
+  providerCardVisible: { overflow: 'visible' },
   providerCardBusy: { pointerEvents: 'none' },
   providerCardDisabled: { opacity: 0.32, pointerEvents: 'none' },
   avatar: {
-    display: 'grid',
+    position: 'relative',
     width: 64,
     height: 64,
-    placeItems: 'center',
+    lineHeight: 0
+  },
+  avatarReplacement: {
+    display: 'flex',
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 8,
-    backgroundColor: '#e0e0e0',
-    color: '#616163',
+    backgroundColor: '#e1e1e6',
+    color: 'rgba(60, 60, 67, 0.6)'
+  },
+  avatarReplacementSelected: { color: 'inherit' },
+  avatarInitials: {
+    display: 'flex',
+    margin: 0,
+    fontFamily: bookingTheme.fontDisplay,
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px'
+  },
+  anyProviderIcon: {
+    width: 38,
+    height: 37,
+    marginTop: 14
+  },
+  anyProviderTitle: {
+    marginTop: 29,
+    marginBottom: 0,
+    fontFamily: bookingTheme.fontText,
     fontSize: 17,
-    fontWeight: 400
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px',
+    textAlign: 'center'
+  },
+  anyProviderSubtitle: {
+    marginTop: 9,
+    marginBottom: 0
+  },
+  cardSmallText: {
+    marginRight: 0,
+    marginLeft: 0,
+    color: '#616163',
+    fontFamily: bookingTheme.fontText,
+    fontSize: 13,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px',
+    textAlign: 'center'
   },
   providerName: {
     marginTop: 16,
@@ -217,17 +288,33 @@ export const styles = stylex.create({
     backgroundColor: '#dadadc'
   },
   providerAvailability: {
+    minHeight: 36,
     marginTop: 21,
     marginRight: -24,
     marginBottom: 0,
     marginLeft: -24,
     color: '#616163',
+    fontFamily: bookingTheme.fontText,
     fontSize: 13,
     lineHeight: '18px',
+    letterSpacing: '-0.078px',
     textAlign: 'center',
     textTransform: 'capitalize'
   },
   providerAvailabilitySelected: { color: 'inherit' },
+  giftCardIcon: { width: 48, height: 30, marginTop: 17 },
+  giftCardTitle: {
+    marginTop: 33,
+    marginBottom: 0,
+    marginLeft: -2,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '20px',
+    letterSpacing: '-0.408px',
+    textAlign: 'center'
+  },
+  giftCardSubtitle: { marginTop: 9, marginBottom: 12 },
   mutedSmall: {
     marginTop: 4,
     color: '#616163',

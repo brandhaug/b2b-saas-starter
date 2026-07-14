@@ -36,6 +36,7 @@ const teamJourney: BookingJourney = {
   providerPreference: null,
   selection: { primaryServiceId: null, additionalServiceIds: [] },
   compatibleAdditionalServiceIds: [],
+  canSellUnassignedGiftCard: true,
   providers: [
     {
       id: 'prv_ava',
@@ -210,7 +211,46 @@ describe('Booking selection flow', () => {
     const availability = screen.getByTestId('text:barberAvailability:prv_ava')
     expect(availability.tagName).toBe('P')
     expect(availability.textContent).toBe('Available')
-    expect(screen.getByText('Choose a service first', { selector: 'p' })).toBeTruthy()
+    expect(screen.getByTestId('text:chooseServiceFirst:mainText').textContent).toBe(
+      'Choose aservice first'
+    )
+  })
+
+  it('recreates the complete legacy professional-card grid structure', () => {
+    vi.useFakeTimers()
+    const onChooseGiftCard = vi.fn()
+    render(
+      <BookingSelectionFlow
+        journey={teamJourney}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+        onChooseGiftCard={onChooseGiftCard}
+      />
+    )
+
+    const anyProvider = screen.getByTestId('card:chooseServiceFirst')
+    expect(
+      screen.getByTestId('text:chooseServiceFirst:mainText').querySelector('br')
+    ).toBeTruthy()
+    expect(
+      screen.getByTestId('text:chooseServiceFirst:subText').querySelector('br')
+    ).toBeTruthy()
+    expect(anyProvider.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 38 37')
+
+    const avatar = screen.getByTestId('avatar:barber:prv_ava')
+    expect(avatar.querySelector('p')?.textContent).toBe('AS')
+
+    const giftCard = screen.getByTestId('card:buyGiftCard')
+    expect(giftCard.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 48 30')
+    expect(screen.getByTestId('text:title').querySelector('br')).toBeTruthy()
+    expect(screen.getByTestId('text:subtitle').querySelector('br')).toBeTruthy()
+    fireEvent.click(giftCard)
+    expect(giftCard.getAttribute('aria-pressed')).toBe('true')
+    expect(onChooseGiftCard).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(300)
+    expect(onChooseGiftCard).toHaveBeenCalledOnce()
+    vi.useRealTimers()
   })
 
   it('renders the legacy short provider name instead of the full catalog name', () => {
@@ -237,6 +277,31 @@ describe('Booking selection flow', () => {
     const name = screen.getByTestId('text:barberName:prv_ava')
     expect(name.textContent).toBe('Mara I.')
     expect(name.getAttribute('title')).toBe('Mara I.')
+  })
+
+  it('disables a professional with no derived availability', () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          providers: teamJourney.providers.map((provider) =>
+            provider.id === 'prv_ava'
+              ? { ...provider, nextAvailableAt: null }
+              : provider
+          )
+        }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByTestId('card:barber:prv_ava').getAttribute('aria-disabled')
+    ).toBe('true')
+    expect(screen.getByTestId('text:barberAvailability:prv_ava').textContent).toBe(
+      'Not available'
+    )
   })
 
   it('shows the legacy selected provider card state before route advancement', () => {

@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
-import { useMemo, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type {
   BookingJourney,
   ProviderPreference,
@@ -9,6 +9,8 @@ import type {
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
+import type { BookingLocale } from '../localization/booking-localization.ts'
+import { formatProviderAvailability } from '../presentation/provider-availability-format.ts'
 import {
   RoutePresence,
   RouteTitlePresence
@@ -22,6 +24,8 @@ type BookingSelectionFlowProps = {
   readonly onChooseShop?: (shopId: string) => void
   readonly onChooseProvider: (preference: ProviderPreference) => void
   readonly onChooseServices: (selection: ServiceSelection) => void
+  readonly onChooseGiftCard?: () => void
+  readonly locale?: BookingLocale
   readonly onContinue?: () => void
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
   readonly messages?: BookingSelectionMessages
@@ -53,8 +57,10 @@ function BookingSelectionFlowContent({
   onChooseShop,
   onChooseProvider,
   onChooseServices,
+  onChooseGiftCard,
   onContinue,
   onTitleActionMount,
+  locale = 'en',
   messages = defaultMessages
 }: BookingSelectionFlowProps) {
   const [editingProvider, setEditingProvider] = useState(false)
@@ -68,6 +74,8 @@ function BookingSelectionFlowContent({
     readonly afterVersion: number
   } | null>(null)
   const [orderOpen, setOrderOpen] = useState(false)
+  const [giftCardSelected, setGiftCardSelected] = useState(false)
+  const giftCardTimer = useRef<number | null>(null)
   const [titleScrollState, setTitleScrollState] = useState({
     presenceKey: '',
     scrolled: false
@@ -87,6 +95,19 @@ function BookingSelectionFlowContent({
   const selectedPrimary = journey.services.find(
     (service) => service.id === journey.selection.primaryServiceId
   )
+
+  useEffect(
+    () => () => {
+      if (giftCardTimer.current !== null) window.clearTimeout(giftCardTimer.current)
+    },
+    []
+  )
+
+  const chooseGiftCard = () => {
+    if (!onChooseGiftCard || giftCardSelected) return
+    setGiftCardSelected(true)
+    giftCardTimer.current = window.setTimeout(onChooseGiftCard, 300)
+  }
 
   const chooseProvider = (preference: ProviderPreference) => {
     setRouteDirection('forward')
@@ -197,6 +218,9 @@ function BookingSelectionFlowContent({
                   }
                   messages={messages}
                   onChoose={chooseProvider}
+                  locale={locale}
+                  giftCardSelected={giftCardSelected}
+                  {...(onChooseGiftCard ? { onChooseGiftCard: chooseGiftCard } : {})}
                 />
               ) : (
                 <ServiceGrid
@@ -386,13 +410,19 @@ function ProviderGrid({
   busy,
   selectedPreference,
   onChoose,
-  messages
+  onChooseGiftCard,
+  messages,
+  locale,
+  giftCardSelected
 }: {
   readonly journey: BookingJourney
   readonly busy: boolean
   readonly selectedPreference: ProviderPreference | null
   readonly onChoose: (preference: ProviderPreference) => void
+  readonly onChooseGiftCard?: () => void
   readonly messages: BookingSelectionMessages
+  readonly locale: BookingLocale
+  readonly giftCardSelected: boolean
 }) {
   const publicProviderAvailable = journey.providers.some(
     (provider) => provider.access === 'public' && provider.eligibleServiceIds.length > 0
@@ -421,24 +451,34 @@ function ProviderGrid({
           !publicProviderAvailable && styles.providerCardDisabled
         )}
       >
-        <div {...stylex.props(styles.avatar)}>
-          <BookingVisualAsset
-            assetRole="booking-party"
-            {...stylex.props(styles.icon24)}
-          />
-        </div>
-        <p {...stylex.props(styles.providerName)}>{messages.chooseServiceFirst}</p>
+        <BookingVisualAsset
+          assetRole="any-provider-selection"
+          {...stylex.props(styles.anyProviderIcon)}
+        />
         <p
+          data-testid="text:chooseServiceFirst:mainText"
+          {...stylex.props(styles.anyProviderTitle)}
+        >
+          {messages.providerCards.anyProvider.titleLines[0]}
+          <br />
+          {messages.providerCards.anyProvider.titleLines[1]}
+        </p>
+        <p
+          data-testid="text:chooseServiceFirst:subText"
           {...stylex.props(
-            styles.providerAvailability,
+            styles.cardSmallText,
+            styles.anyProviderSubtitle,
             anyProviderSelected && styles.providerAvailabilitySelected
           )}
         >
-          {messages.anyProvider}
+          {messages.providerCards.anyProvider.subtitleLines[0]}
+          <br />
+          {messages.providerCards.anyProvider.subtitleLines[1]}
         </p>
       </div>
       {journey.providers.map((provider) => {
-        const disabled = busy || provider.access === 'restricted'
+        const disabled =
+          busy || provider.access === 'restricted' || provider.nextAvailableAt === null
         const displayName = provider.localizedName?.text ?? provider.displayName
         const shortName = provider.shortName
         const selected =
@@ -456,7 +496,9 @@ function ProviderGrid({
             aria-label={`${shortName}, ${
               provider.access === 'restricted'
                 ? messages.providerRestricted
-                : messages.chooseProvider
+                : provider.nextAvailableAt === null
+                  ? messages.providerNotAvailable
+                  : messages.chooseProvider
             }`}
             data-testid={`card:barber:${provider.id}`}
             onClick={() => {
@@ -467,10 +509,23 @@ function ProviderGrid({
               styles.providerCard,
               selected && styles.providerCardSelected,
               busy && styles.providerCardBusy,
-              provider.access === 'restricted' && styles.providerCardDisabled
+              (provider.access === 'restricted' || provider.nextAvailableAt === null) &&
+                styles.providerCardDisabled
             )}
           >
-            <div {...stylex.props(styles.avatar)}>{initials(displayName)}</div>
+            <div
+              data-testid={`avatar:barber:${provider.id}`}
+              {...stylex.props(styles.avatar)}
+            >
+              <div
+                {...stylex.props(
+                  styles.avatarReplacement,
+                  selected && styles.avatarReplacementSelected
+                )}
+              >
+                <p {...stylex.props(styles.avatarInitials)}>{initials(displayName)}</p>
+              </div>
+            </div>
             <p
               title={shortName}
               data-testid={`text:barberName:${provider.id}`}
@@ -491,7 +546,20 @@ function ProviderGrid({
             >
               {provider.access === 'restricted'
                 ? messages.providerRestricted
-                : messages.providerAvailable}
+                : provider.nextAvailableAt === null
+                  ? messages.providerNotAvailable
+                  : messages.providerAvailable}
+              {provider.access === 'restricted' || !provider.nextAvailableAt ? null : (
+                <>
+                  <br />
+                  {formatProviderAvailability(
+                    provider.nextAvailableAt,
+                    journey.shops.find((shop) => shop.id === journey.shopId)
+                      ?.timezone ?? 'UTC',
+                    locale
+                  )}
+                </>
+              )}
               {provider.localizedName?.isSourceLanguageFallback
                 ? ` · ${messages.sourceLanguage}`
                 : null}
@@ -499,6 +567,48 @@ function ProviderGrid({
           </div>
         )
       })}
+      {journey.canSellUnassignedGiftCard && onChooseGiftCard ? (
+        <div
+          role="button"
+          tabIndex={busy ? -1 : 0}
+          aria-disabled={busy}
+          aria-pressed={giftCardSelected}
+          aria-label={messages.providerCards.giftCard.titleLines.join(' ')}
+          data-testid="card:buyGiftCard"
+          onClick={() => {
+            if (!busy) onChooseGiftCard()
+          }}
+          onKeyDown={(event) => activateCard(event, busy, onChooseGiftCard)}
+          {...stylex.props(
+            styles.providerCard,
+            styles.providerCardVisible,
+            giftCardSelected && styles.providerCardSelected,
+            busy && styles.providerCardBusy
+          )}
+        >
+          <BookingVisualAsset
+            assetRole="gift-card-selection"
+            {...stylex.props(styles.giftCardIcon)}
+          />
+          <p data-testid="text:title" {...stylex.props(styles.giftCardTitle)}>
+            {messages.providerCards.giftCard.titleLines[0]}
+            <br />
+            {messages.providerCards.giftCard.titleLines[1]}
+          </p>
+          <p
+            data-testid="text:subtitle"
+            {...stylex.props(
+              styles.cardSmallText,
+              styles.giftCardSubtitle,
+              giftCardSelected && styles.providerAvailabilitySelected
+            )}
+          >
+            {messages.providerCards.giftCard.subtitleLines[0]}
+            <br />
+            {messages.providerCards.giftCard.subtitleLines[1]}
+          </p>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -648,6 +758,11 @@ function ServiceGrid({
   )
 }
 
+type LegacyCardCopy = {
+  readonly titleLines: readonly [string, string]
+  readonly subtitleLines: readonly [string, string]
+}
+
 export type BookingSelectionMessages = {
   readonly chooseLocation: string
   readonly chooseProvider: string
@@ -663,7 +778,12 @@ export type BookingSelectionMessages = {
   readonly sourceLanguage: string
   readonly anyProvider: string
   readonly providerAvailable: string
+  readonly providerNotAvailable: string
   readonly providerRestricted: string
+  readonly providerCards: {
+    readonly anyProvider: LegacyCardCopy
+    readonly giftCard: LegacyCardCopy
+  }
   readonly noServicesTitle: string
   readonly noServicesCopy: string
   readonly inactiveEntitiesCopy: string
@@ -685,7 +805,18 @@ const defaultMessages: BookingSelectionMessages = {
   sourceLanguage: 'Shown in the merchant’s original language',
   anyProvider: 'Book with any professional',
   providerAvailable: 'Available',
+  providerNotAvailable: 'Not available',
   providerRestricted: 'This professional requires private access',
+  providerCards: {
+    anyProvider: {
+      titleLines: ['Choose a', 'service first'],
+      subtitleLines: ['Book with any', 'professional']
+    },
+    giftCard: {
+      titleLines: ['Buy a gift', 'card instead'],
+      subtitleLines: ['Give the gift', 'of grooming']
+    }
+  },
   noServicesTitle: 'No services are bookable',
   noServicesCopy:
     'There are no active services available for your professional choice.',

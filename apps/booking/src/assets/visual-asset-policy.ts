@@ -12,6 +12,8 @@ export const visualAssetRoles = [
   'calendar-scheduling',
   'service-category',
   'booking-party',
+  'any-provider-selection',
+  'gift-card-selection',
   'sign-in-cta',
   'typography-body',
   'typography-mono',
@@ -299,6 +301,16 @@ const fallbackByRole: Record<
     name: 'scissors'
   },
   'booking-party': { kind: 'code-native', role: 'booking-party', name: 'users-round' },
+  'any-provider-selection': {
+    kind: 'code-native',
+    role: 'any-provider-selection',
+    name: 'legacy-any-provider-arrows'
+  },
+  'gift-card-selection': {
+    kind: 'code-native',
+    role: 'gift-card-selection',
+    name: 'legacy-gift-card'
+  },
   'sign-in-cta': {
     kind: 'code-native',
     role: 'sign-in-cta',

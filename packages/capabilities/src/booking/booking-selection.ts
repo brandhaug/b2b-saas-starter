@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import {
+  appointments,
   batchQueries,
   brands,
   bookingParties,
@@ -9,15 +10,18 @@ import {
   bookingSessionAdditionalServices,
   bookingSessions,
   Database,
+  giftCardProducts,
   merchants,
   providers,
   providerAccessProofs,
   providerServiceEligibility,
+  scheduleRules,
   services,
   shopProviders,
   shopAddresses,
   shops,
-  shopServices
+  shopServices,
+  timeSlotHolds
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -25,6 +29,7 @@ import { hashSha256, randomHex } from '../internal/crypto.ts'
 import type { BookingSession } from './booking-sessions.ts'
 import { BookingPartyConflict } from './foundations.ts'
 import { deleteTimeSlotHoldsForSelectionChange } from './booking-scheduling.ts'
+import { deriveSlots, type ScheduleRule } from '../scheduling/scheduling.ts'
 import {
   resolveBookingConfiguration,
   resolveCatalogText,
@@ -54,6 +59,7 @@ export const PublicBookableProvider = Schema.Struct({
       isSourceLanguageFallback: Schema.Boolean
     })
   ),
+  nextAvailableAt: Schema.optional(Schema.NullOr(Schema.String)),
   eligibleServiceIds: Schema.Array(Schema.String)
 })
 export type PublicBookableProvider = typeof PublicBookableProvider.Type
@@ -85,6 +91,7 @@ export const BookingJourney = Schema.Struct({
       id: Schema.String,
       slug: Schema.String,
       name: Schema.String,
+      timezone: Schema.optional(Schema.String),
       addressLines: Schema.optional(Schema.Array(Schema.String)),
       coordinates: Schema.optional(
         Schema.Struct({ latitude: Schema.Number, longitude: Schema.Number })
@@ -107,6 +114,7 @@ export const BookingJourney = Schema.Struct({
   providerPreference: Schema.NullOr(ProviderPreference),
   selection: ServiceSelection,
   compatibleAdditionalServiceIds: Schema.Array(Schema.String),
+  canSellUnassignedGiftCard: Schema.optional(Schema.Boolean),
   providers: Schema.Array(PublicBookableProvider),
   services: Schema.Array(PublicBookableService)
 })
@@ -218,6 +226,14 @@ export type SeedBookingSelectionStore = {
   readonly providers: Map<string, StoredProvider>
   readonly services: Map<string, StoredService>
   readonly eligibility: Set<SeedBookingSelectionEligibilityKey>
+  readonly scheduleRules: readonly (ScheduleRule & { readonly merchantId: string })[]
+  readonly appointments: readonly {
+    readonly providerId: string
+    readonly status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+    readonly startsAt: string
+    readonly endsAt: string
+  }[]
+  readonly canSellUnassignedGiftCard: boolean
   readonly selections: Map<string, StoredSelection>
   readonly providerProofs: Map<
     string,
@@ -266,6 +282,16 @@ export const emptySeedBookingSelectionStore = (
     readonly providers?: readonly StoredProvider[]
     readonly services?: readonly StoredService[]
     readonly eligibility?: readonly SeedBookingSelectionEligibilityKey[]
+    readonly scheduleRules?: readonly (ScheduleRule & {
+      readonly merchantId: string
+    })[]
+    readonly appointments?: readonly {
+      readonly providerId: string
+      readonly status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+      readonly startsAt: string
+      readonly endsAt: string
+    }[]
+    readonly canSellUnassignedGiftCard?: boolean
   } = {}
 ): SeedBookingSelectionStore => ({
   merchants: new Map(
@@ -316,6 +342,9 @@ export const emptySeedBookingSelectionStore = (
   ),
   services: new Map((input.services ?? []).map((service) => [service.id, service])),
   eligibility: new Set(input.eligibility ?? []),
+  scheduleRules: input.scheduleRules ?? [],
+  appointments: input.appointments ?? [],
+  canSellUnassignedGiftCard: input.canSellUnassignedGiftCard ?? false,
   selections: new Map(),
   providerProofs: new Map()
 })
@@ -328,12 +357,14 @@ type Catalog = {
     readonly id: string
     readonly slug: string
     readonly name: string
+    readonly timezone?: string
     readonly addressLines?: readonly string[]
     readonly coordinates?: { readonly latitude: number; readonly longitude: number }
     readonly localizedName?: ResolvedCatalogText
   }[]
   readonly resolvedConfiguration: ResolvedBookingConfiguration
   readonly catalogRecovery: BookingJourney['catalogRecovery']
+  readonly canSellUnassignedGiftCard: boolean
   readonly providers: readonly PublicBookableProvider[]
   readonly services: readonly PublicBookableService[]
 }
@@ -423,6 +454,7 @@ const journey = (
     additionalServiceIds: [...selection.additionalServiceIds]
   },
   compatibleAdditionalServiceIds: compatibleAdditionalServices(catalog, selection),
+  canSellUnassignedGiftCard: catalog.canSellUnassignedGiftCard,
   providers: [...catalog.providers],
   services: [...catalog.services]
 })
@@ -513,11 +545,49 @@ const validateServices = (
   })
 }
 
+type BusyInterval = {
+  readonly providerId: string
+  readonly startsAt: string
+  readonly endsAt: string
+}
+
+const firstAvailableAt = (input: {
+  readonly providerId: string
+  readonly eligibleServiceIds: readonly string[]
+  readonly services: readonly {
+    readonly id: string
+    readonly durationMinutes: number
+  }[]
+  readonly rules: readonly ScheduleRule[]
+  readonly busyIntervals: readonly BusyInterval[]
+  readonly timezone: string
+  readonly now: string
+}) => {
+  const durationMinutes = Math.min(
+    ...input.services
+      .filter((service) => input.eligibleServiceIds.includes(service.id))
+      .map((service) => service.durationMinutes)
+  )
+  if (!Number.isFinite(durationMinutes)) return null
+  return (
+    deriveSlots(input.rules, input.timezone, durationMinutes, input.now, 14).slots.find(
+      (slot) =>
+        !input.busyIntervals.some(
+          (busy) =>
+            busy.providerId === input.providerId &&
+            busy.startsAt < slot.endsAt &&
+            busy.endsAt > slot.startsAt
+        )
+    )?.startsAt ?? null
+  )
+}
+
 const seedCatalog = (
   store: SeedBookingSelectionStore,
   merchantSlug: string,
   requestedShopId: string | undefined,
-  locale: CatalogLocale
+  locale: CatalogLocale,
+  now: string
 ): Effect.Effect<Catalog, BookingSelectionRejected> => {
   const merchant = store.merchants.get(merchantSlug)
   if (!merchant) return Effect.fail(rejected())
@@ -571,6 +641,7 @@ const seedCatalog = (
     shops: merchantShops.map((candidate) => ({
       id: candidate.id,
       slug: candidate.slug,
+      ...(candidate.timezone ? { timezone: candidate.timezone } : {}),
       ...(candidate.addressLines ? { addressLines: [...candidate.addressLines] } : {}),
       ...(candidate.coordinates ? { coordinates: candidate.coordinates } : {}),
       ...localizedName(candidate.publicName, candidate.bookingConfiguration)
@@ -596,6 +667,7 @@ const seedCatalog = (
           : activeProviders.length > 0 && activeServices.length > 0
             ? 'invalid_associations'
             : 'empty',
+    canSellUnassignedGiftCard: store.canSellUnassignedGiftCard,
     providers: activeProviders
       .map(
         ({
@@ -610,6 +682,14 @@ const seedCatalog = (
             configuration: bookingConfiguration,
             locale
           })
+          const eligibleServiceIds = pairs
+            .filter(
+              ([merchantId, providerId, serviceId]) =>
+                merchantId === merchant.id &&
+                providerId === provider.id &&
+                activeServices.some((service) => service.id === serviceId)
+            )
+            .map(([, , serviceId]) => serviceId!)
           return {
             ...provider,
             shortName: resolveProviderShortName({
@@ -619,14 +699,21 @@ const seedCatalog = (
             }),
             access: bookingAccess ?? 'public',
             localizedName,
-            eligibleServiceIds: pairs
-              .filter(
-                ([merchantId, providerId, serviceId]) =>
-                  merchantId === merchant.id &&
-                  providerId === provider.id &&
-                  activeServices.some((service) => service.id === serviceId)
-              )
-              .map(([, , serviceId]) => serviceId!)
+            nextAvailableAt: firstAvailableAt({
+              providerId: provider.id,
+              eligibleServiceIds,
+              services: activeServices,
+              rules: store.scheduleRules.filter(
+                (rule) =>
+                  rule.merchantId === merchant.id && rule.providerId === provider.id
+              ),
+              busyIntervals: store.appointments.filter(
+                (appointment) => appointment.status === 'scheduled'
+              ),
+              timezone: shop.timezone ?? 'UTC',
+              now
+            }),
+            eligibleServiceIds
           }
         }
       )
@@ -746,7 +833,8 @@ export const SeedBookingSelection = (
           store,
           session.merchantSlug,
           current.shopId,
-          session.locale ?? 'en'
+          session.locale ?? 'en',
+          now
         )
         const providerId =
           current.providerPreference?.kind === 'specific'
@@ -796,7 +884,8 @@ export const SeedBookingSelection = (
           store,
           session.merchantSlug,
           shopId,
-          session.locale ?? 'en'
+          session.locale ?? 'en',
+          session.lastActivityAt
         )
         return journey(catalog, selected, ['shop_changed'])
       }),
@@ -813,7 +902,8 @@ export const SeedBookingSelection = (
           store,
           session.merchantSlug,
           current.shopId,
-          session.locale ?? 'en'
+          session.locale ?? 'en',
+          now
         )
         if ((current.version ?? 1) !== expectedVersion) {
           return yield* new BookingPartyConflict({
@@ -858,7 +948,8 @@ export const SeedBookingSelection = (
           store,
           session.merchantSlug,
           stored.shopId,
-          session.locale ?? 'en'
+          session.locale ?? 'en',
+          session.lastActivityAt
         )
         if ((stored.version ?? 1) !== expectedVersion) {
           return yield* new BookingPartyConflict({
@@ -890,7 +981,8 @@ type LiveState = {
 const readLiveState = (
   db: typeof Database.Service,
   session: BookingSession,
-  requestedShopId?: string
+  requestedShopId?: string,
+  now = session.lastActivityAt
 ): Effect.Effect<LiveState, BookingSelectionRejected | CapabilityUnavailable> =>
   Effect.gen(function* () {
     const sessionRows = yield* orUnavailable('booking-selection')(
@@ -931,7 +1023,11 @@ const readLiveState = (
       additionalRows,
       shopRows,
       shopProviderRows,
-      shopServiceRows
+      shopServiceRows,
+      scheduleRuleRows,
+      appointmentRows,
+      holdRows,
+      giftCardProductRows
     ] = yield* Effect.all([
       orUnavailable('booking-selection')(
         db.select().from(providers).where(eq(providers.merchantId, row.merchantId))
@@ -959,6 +1055,8 @@ const readLiveState = (
             slug: shops.slug,
             publicName: shops.publicName,
             bookingConfiguration: shops.bookingConfigJson,
+            timezone: shops.timezone,
+            brandId: shops.brandId,
             brandName: brands.name,
             brandBookingConfiguration: brands.bookingConfigJson,
             addressJson: shopAddresses.addressJson,
@@ -984,6 +1082,35 @@ const readLiveState = (
           .from(shopServices)
           .innerJoin(shops, eq(shops.id, shopServices.shopId))
           .where(eq(shops.merchantId, row.merchantId))
+      ),
+      orUnavailable('booking-selection')(
+        db
+          .select()
+          .from(scheduleRules)
+          .where(eq(scheduleRules.merchantId, row.merchantId))
+      ),
+      orUnavailable('booking-selection')(
+        db
+          .select()
+          .from(appointments)
+          .where(eq(appointments.merchantId, row.merchantId))
+      ),
+      orUnavailable('booking-selection')(
+        db
+          .select()
+          .from(timeSlotHolds)
+          .where(eq(timeSlotHolds.merchantId, row.merchantId))
+      ),
+      orUnavailable('booking-selection')(
+        db
+          .select()
+          .from(giftCardProducts)
+          .where(
+            and(
+              eq(giftCardProducts.merchantId, row.merchantId),
+              eq(giftCardProducts.active, true)
+            )
+          )
       )
     ])
     const selectedShopId = requestedShopId ?? row.shopId
@@ -1024,6 +1151,7 @@ const readLiveState = (
       shops: shopRows.map((shop) => ({
         id: shop.id,
         slug: shop.slug,
+        timezone: shop.timezone,
         ...(() => {
           const addressLines = parseAddressLines(shop.addressJson)
           return addressLines ? { addressLines } : {}
@@ -1072,6 +1200,12 @@ const readLiveState = (
             : scopedProviders.length > 0 && scopedServices.length > 0
               ? 'invalid_associations'
               : 'empty',
+      canSellUnassignedGiftCard: giftCardProductRows.some(
+        (product) =>
+          (product.scope === 'merchant' && product.scopeId === row.merchantId) ||
+          (product.scope === 'brand' && product.scopeId === selectedShop.brandId) ||
+          (product.scope === 'shop' && product.scopeId === selectedShopId)
+      ),
       providers: scopedProviders
         .map((provider) => {
           const configuration = decodeBookingConfiguration(provider.bookingConfigJson)
@@ -1081,6 +1215,9 @@ const readLiveState = (
             configuration,
             locale
           })
+          const eligibleServiceIds = validEligibility
+            .filter((pair) => pair.providerId === provider.id)
+            .map((pair) => pair.serviceId)
           return {
             id: provider.id,
             displayName: provider.displayName,
@@ -1092,9 +1229,29 @@ const readLiveState = (
             isDefault: provider.isDefault,
             access: provider.bookingAccess,
             localizedName,
-            eligibleServiceIds: validEligibility
-              .filter((pair) => pair.providerId === provider.id)
-              .map((pair) => pair.serviceId)
+            nextAvailableAt: firstAvailableAt({
+              providerId: provider.id,
+              eligibleServiceIds,
+              services: scopedServices,
+              rules: scheduleRuleRows
+                .filter((rule) => rule.providerId === provider.id)
+                .map(({ id, providerId, weekday, startTime, endTime }) => ({
+                  id,
+                  providerId,
+                  weekday,
+                  startTime,
+                  endTime
+                })),
+              busyIntervals: [
+                ...appointmentRows.filter(
+                  (appointment) => appointment.status === 'scheduled'
+                ),
+                ...holdRows.filter((hold) => hold.expiresAt > now)
+              ],
+              timezone: selectedShop.timezone,
+              now
+            }),
+            eligibleServiceIds
           }
         })
         .filter((provider) => provider.eligibleServiceIds.length > 0),
@@ -1300,7 +1457,7 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
       }
       const load = (session: BookingSession, now = session.lastActivityAt) =>
         Effect.gen(function* () {
-          const state = yield* readLiveState(db, session)
+          const state = yield* readLiveState(db, session, undefined, now)
           const providerId =
             state.selection.providerPreference?.kind === 'specific'
               ? state.selection.providerPreference.providerId
@@ -1388,7 +1545,12 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
         load,
         chooseShop: (session, shopId, expectedVersion) =>
           Effect.gen(function* () {
-            const state = yield* readLiveState(db, session, shopId)
+            const state = yield* readLiveState(
+              db,
+              session,
+              shopId,
+              session.lastActivityAt
+            )
             if (state.partyLifecycle !== 'active') return yield* rejected()
             const selected: StoredSelection = {
               version: expectedVersion,
@@ -1413,7 +1575,7 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
           now = session.lastActivityAt
         ) =>
           Effect.gen(function* () {
-            const state = yield* readLiveState(db, session)
+            const state = yield* readLiveState(db, session, undefined, now)
             if (state.partyLifecycle !== 'active') return yield* rejected()
             if (!preferenceAccepts(state.catalog, preference, [], true)) {
               return yield* rejected()
@@ -1461,7 +1623,12 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
           }),
         chooseServices: (session, input, expectedVersion) =>
           Effect.gen(function* () {
-            const state = yield* readLiveState(db, session)
+            const state = yield* readLiveState(
+              db,
+              session,
+              undefined,
+              session.lastActivityAt
+            )
             if (state.partyLifecycle !== 'active') return yield* rejected()
             const current = yield* withSoloDefault(state.catalog, state.selection)
             const selected = yield* validateServices(state.catalog, current, input)

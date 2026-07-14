@@ -60,9 +60,23 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
         presentation: graph.merchant.plan
       }
     ],
+    shops: [
+      {
+        id: `shp_${graph.merchant.id}`,
+        merchantId: graph.merchant.id,
+        brandId: `brd_${graph.merchant.id}`,
+        slug: graph.merchant.slug,
+        publicName: graph.merchant.publicName,
+        brandName: graph.merchant.publicName,
+        timezone: graph.merchant.timezone
+      }
+    ],
     providers: graph.providers,
     services: graph.services,
-    eligibility: graph.eligibility.map(seedBookingSelectionEligibilityKey)
+    eligibility: graph.eligibility.map(seedBookingSelectionEligibilityKey),
+    scheduleRules: graph.scheduleRules,
+    appointments: graph.appointments,
+    canSellUnassignedGiftCard: true
   })
   const scheduling = emptySeedBookingSchedulingStore(graph, selection)
   const checkout = emptySeedBookingCheckoutStore(scheduling)

@@ -885,6 +885,7 @@ export function ServerBackedBookingFlow({
       ) : null}
       <BookingSelectionFlow
         journey={journey.data}
+        locale={locale}
         messages={{
           chooseLocation: message('selection.choose_location'),
           chooseProvider: message('selection.choose_provider'),
@@ -900,7 +901,30 @@ export function ServerBackedBookingFlow({
           sourceLanguage: message('feedback.source_language'),
           anyProvider: message('selection.any_provider'),
           providerAvailable: message('selection.provider_available'),
+          providerNotAvailable: message('selection.provider_not_available'),
           providerRestricted: message('selection.provider_restricted'),
+          providerCards: {
+            anyProvider: {
+              titleLines: [
+                message('selection.choose_service_first_line_1'),
+                message('selection.choose_service_first_line_2')
+              ],
+              subtitleLines: [
+                message('selection.any_provider_line_1'),
+                message('selection.any_provider_line_2')
+              ]
+            },
+            giftCard: {
+              titleLines: [
+                message('selection.gift_card_title_line_1'),
+                message('selection.gift_card_title_line_2')
+              ],
+              subtitleLines: [
+                message('selection.gift_card_subtitle_line_1'),
+                message('selection.gift_card_subtitle_line_2')
+              ]
+            }
+          },
           noServicesTitle: message('selection.no_services_title'),
           noServicesCopy: message('selection.no_services_copy'),
           inactiveEntitiesCopy: message('selection.inactive_entities_copy'),
@@ -922,6 +946,15 @@ export function ServerBackedBookingFlow({
             expectedVersion: journey.data.version
           })
         }
+        onChooseGiftCard={() => {
+          const shop = journey.data.shops.find(
+            (candidate) => candidate.id === journey.data.shopId
+          )
+          if (shop)
+            window.location.assign(
+              `/${encodeURIComponent(merchantSlug)}/booking/${encodeURIComponent(shop.slug)}/any/gift-cards`
+            )
+        }}
         onChooseServices={(selection) =>
           selectionMutation.mutate({
             endpoint: 'services',

@@ -236,6 +236,17 @@ const seedBookingSelection = emptySeedBookingSelectionStore({
       presentation: seedBookingScenario.merchant.plan
     }
   ],
+  shops: [
+    {
+      id: `shp_${seedBookingScenario.merchant.id}`,
+      merchantId: seedBookingScenario.merchant.id,
+      brandId: `brd_${seedBookingScenario.merchant.id}`,
+      slug: seedBookingScenario.merchant.slug,
+      publicName: seedBookingScenario.merchant.publicName,
+      brandName: seedBookingScenario.merchant.publicName,
+      timezone: seedBookingScenario.merchant.timezone
+    }
+  ],
   providers: seedBookingScenario.providers.map(
     ({ bookingConfigJson, ...provider }) => ({
       ...provider,
@@ -243,7 +254,10 @@ const seedBookingSelection = emptySeedBookingSelectionStore({
     })
   ),
   services: seedBookingScenario.services,
-  eligibility: seedBookingScenario.eligibility.map(seedBookingSelectionEligibilityKey)
+  eligibility: seedBookingScenario.eligibility.map(seedBookingSelectionEligibilityKey),
+  scheduleRules: seedBookingScenario.scheduleRules,
+  appointments: seedBookingScenario.appointments,
+  canSellUnassignedGiftCard: true
 })
 const seedBookingScheduling = emptySeedBookingSchedulingStore(
   seedBookingScenario,
