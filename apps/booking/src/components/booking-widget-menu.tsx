@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 import {
   BOOKING_LANGUAGE_NAMES,
@@ -58,7 +58,7 @@ const styles = stylex.create({
     paddingBottom: 24,
     paddingLeft: 16
   },
-  languageControl: { position: 'relative' },
+  languageControl: { position: 'relative', width: 57, height: 26 },
   languageButton: {
     display: 'flex',
     height: 28,
@@ -66,22 +66,43 @@ const styles = stylex.create({
     gap: 4,
     paddingRight: 12,
     paddingLeft: 12,
-    borderWidth: 1,
+    borderWidth: {
+      default: 1,
+      '@media (hover: hover)': { default: 1, ':hover': 0.5 }
+    },
     borderStyle: 'solid',
-    borderColor: bookingTheme.colorCartAuxBorderLight,
+    borderColor: {
+      default: bookingTheme.colorCartAuxBorderLight,
+      '@media (hover: hover)': {
+        default: bookingTheme.colorCartAuxBorderLight,
+        ':hover': 'rgb(225 225 225)'
+      }
+    },
     borderRadius: 16,
-    backgroundColor: bookingTheme.colorSurface,
-    color: bookingTheme.colorText,
+    backgroundColor: {
+      default: 'transparent',
+      '@media (hover: hover)': { default: 'transparent', ':hover': '#ffffff' }
+    },
+    color: bookingTheme.secondaryFontA100,
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': {
+        default: 'none',
+        ':hover': '0 8px 16px -5px rgb(0 0 0 / 10%)'
+      }
+    },
+    fontFamily: bookingTheme.fontText,
     fontSize: 12,
     fontWeight: 600,
     lineHeight: '16px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color, box-shadow',
+    transitionDuration: '300ms'
   },
-  globe: { width: 12, height: 12 },
+  globe: { width: 12, height: 12, color: '#000000' },
   languageList: {
     position: 'absolute',
-    zIndex: 2,
-    top: 32,
+    top: 30,
     left: 0,
     minWidth: 96,
     overflow: 'hidden',
@@ -89,28 +110,37 @@ const styles = stylex.create({
     paddingBottom: 8,
     borderWidth: 0.5,
     borderStyle: 'solid',
-    borderColor: bookingTheme.colorCartAuxBorderLight,
+    borderColor: 'rgb(225 225 225)',
     borderRadius: 16,
     backgroundColor: bookingTheme.colorSurface,
     boxShadow: '0 8px 16px rgb(0 0 0 / 10%)'
   },
   languageOption: {
+    position: 'relative',
+    top: 0,
+    zIndex: 1,
+    display: 'flex',
     width: '100%',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 20,
     paddingTop: 8,
     paddingRight: 16,
     paddingBottom: 8,
     paddingLeft: 16,
     borderWidth: 0,
-    backgroundColor: { default: 'transparent', ':hover': bookingTheme.blackA10 },
+    backgroundColor: { default: '#ffffff', ':hover': '#f7f7f7' },
     color: bookingTheme.colorText,
     fontFamily: bookingTheme.fontText,
     fontSize: 15,
     lineHeight: '18px',
     letterSpacing: '-0.24px',
     textAlign: 'left',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transitionProperty: 'all',
+    transitionDuration: '150ms',
+    transitionTimingFunction: 'linear'
   },
-  languageOptionSelected: { fontWeight: bookingTheme.fontWeightSemibold },
   closeButton: {
     display: 'grid',
     width: 28,
@@ -240,6 +270,18 @@ export function BookingWidgetMenu() {
   const [languageOpen, setLanguageOpen] = useState(false)
   const [popupTarget, setPopupTarget] = useState<HTMLElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const languagePickerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const closeLanguagePicker = (event: MouseEvent) => {
+      if (
+        languagePickerRef.current &&
+        !event.composedPath().includes(languagePickerRef.current)
+      )
+        setLanguageOpen(false)
+    }
+    document.addEventListener('click', closeLanguagePicker)
+    return () => document.removeEventListener('click', closeLanguagePicker)
+  }, [])
   const close = () => {
     setLanguageOpen(false)
     setOpen(false)
@@ -247,7 +289,7 @@ export function BookingWidgetMenu() {
 
   const header = (
     <div {...stylex.props(styles.header)}>
-      <div {...stylex.props(styles.languageControl)}>
+      <div ref={languagePickerRef} {...stylex.props(styles.languageControl)}>
         <button
           type="button"
           aria-label={`${message('label.language')}: ${BOOKING_LANGUAGE_NAMES[locale]}`}
@@ -260,7 +302,7 @@ export function BookingWidgetMenu() {
             assetRole="language-selector"
             {...stylex.props(styles.globe)}
           />
-          <span>{locale.toUpperCase()}</span>
+          {locale.toUpperCase()}
         </button>
         {languageOpen ? (
           <div
@@ -279,10 +321,7 @@ export function BookingWidgetMenu() {
                   setLocale(value as BookingLocale)
                   setLanguageOpen(false)
                 }}
-                {...stylex.props(
-                  styles.languageOption,
-                  value === locale && styles.languageOptionSelected
-                )}
+                {...stylex.props(styles.languageOption)}
               >
                 {BOOKING_LANGUAGE_NAMES[value]}
               </button>

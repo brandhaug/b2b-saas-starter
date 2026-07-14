@@ -49,12 +49,14 @@ body {
   overflow-x: hidden;
 }
 
-button,
-a,
-input,
-select {
-  font: inherit;
-  touch-action: manipulation;
+@layer priority1 {
+  button,
+  a,
+  input,
+  select {
+    font: inherit;
+    touch-action: manipulation;
+  }
 }
 
 button:not(:disabled),

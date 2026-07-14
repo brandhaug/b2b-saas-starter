@@ -63,9 +63,14 @@ describe('Canonical Booking Shell', () => {
     const popup = screen.getByRole('dialog', { name: 'Booking menu' })
     expect(popup.getAttribute('data-testid')).toBe('popup:booking-menu')
     expect(menu.getAttribute('aria-expanded')).toBe('true')
-    expect(
-      within(popup).getByRole('button', { name: 'Language: English' })
-    ).toBeTruthy()
+    const languageSelector = within(popup).getByRole('button', {
+      name: 'Language: English'
+    })
+    expect(languageSelector.querySelector('span')).toBeNull()
+    fireEvent.click(languageSelector)
+    expect(within(popup).getByRole('menu', { name: 'Language' })).toBeTruthy()
+    fireEvent.click(within(popup).getByText('Sign in'))
+    expect(within(popup).queryByRole('menu', { name: 'Language' })).toBeNull()
     expect(
       (
         within(popup).getByRole('button', {
