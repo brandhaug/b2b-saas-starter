@@ -157,12 +157,9 @@ export function BookingSchedulingFlow({
             <div ref={onTitleActionMount} {...stylex.props(styles.titleActions)} />
           ) : null}
         </div>
-        <main
-          data-testid="container:scrollable"
-          {...stylex.props(styles.main, styles.scheduleMain)}
-        >
+        <main data-testid="container:scrollable" {...stylex.props(styles.main)}>
           {slotLost || holdExpired ? (
-            <div {...stylex.props(styles.alert)}>
+            <div {...stylex.props(styles.alert, styles.scheduleTopOffset)}>
               <p {...stylex.props(styles.alertTitle)}>
                 {holdExpired
                   ? message('scheduling.expired_title')
@@ -174,7 +171,12 @@ export function BookingSchedulingFlow({
             </div>
           ) : null}
           {availability.slots.length === 0 && availability.hold ? (
-            <div {...stylex.props(styles.empty)}>
+            <div
+              {...stylex.props(
+                styles.empty,
+                !slotLost && !holdExpired && styles.scheduleTopOffset
+              )}
+            >
               <span {...stylex.props(styles.emptyIcon)}>
                 <BookingVisualAsset
                   assetRole="calendar-scheduling"
@@ -195,7 +197,12 @@ export function BookingSchedulingFlow({
               </p>
             </div>
           ) : availability.slots.length === 0 ? (
-            <div {...stylex.props(styles.empty)}>
+            <div
+              {...stylex.props(
+                styles.empty,
+                !slotLost && !holdExpired && styles.scheduleTopOffset
+              )}
+            >
               <span {...stylex.props(styles.emptyIcon)}>
                 <BookingVisualAsset
                   assetRole="calendar-scheduling"
@@ -211,7 +218,12 @@ export function BookingSchedulingFlow({
             </div>
           ) : (
             <>
-              <div {...stylex.props(styles.scheduleCalendar)}>
+              <div
+                {...stylex.props(
+                  styles.scheduleCalendar,
+                  !slotLost && !holdExpired && styles.scheduleTopOffset
+                )}
+              >
                 <div {...stylex.props(styles.calendarHeader)}>
                   <p data-testid="text:currentMonth" {...stylex.props(styles.month)}>
                     {formatters.month.format(

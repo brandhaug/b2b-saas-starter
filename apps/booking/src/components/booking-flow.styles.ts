@@ -118,9 +118,6 @@ export const styles = stylex.create({
     msOverflowStyle: 'none',
     '::-webkit-scrollbar': { display: 'none' }
   },
-  scheduleMain: {
-    paddingTop: bookingTheme.space20
-  },
   routeLayer: {
     position: 'absolute',
     zIndex: bookingTheme.layerContent,
@@ -743,6 +740,9 @@ export const styles = stylex.create({
   scheduleCalendar: {
     minHeight: 64,
     marginBottom: 28
+  },
+  scheduleTopOffset: {
+    marginTop: bookingTheme.space20
   },
   calendarHeader: {
     display: 'flex',
