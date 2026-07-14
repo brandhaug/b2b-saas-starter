@@ -44,6 +44,7 @@ export type ProviderPreference = typeof ProviderPreference.Type
 export const PublicBookableProvider = Schema.Struct({
   id: Schema.String,
   displayName: Schema.String,
+  shortName: Schema.String,
   isDefault: Schema.Boolean,
   access: Schema.Literals(['public', 'restricted']),
   localizedName: Schema.optional(
@@ -337,6 +338,26 @@ type Catalog = {
   readonly services: readonly PublicBookableService[]
 }
 
+const legacyProviderShortName = (displayName: string) => {
+  const normalizedName = displayName.trim().replace(/\s+/g, ' ')
+  const lastSpaceIndex = normalizedName.lastIndexOf(' ')
+  if (lastSpaceIndex < 0) return normalizedName
+
+  const firstName = normalizedName.slice(0, lastSpaceIndex)
+  const lastName = normalizedName.slice(lastSpaceIndex + 1).replace(/\.$/, '')
+  const lastInitial = Array.from(lastName)[0]
+  return lastInitial ? `${firstName} ${lastInitial}.` : firstName
+}
+
+const resolveProviderShortName = (input: {
+  readonly localizedDisplayName: string
+  readonly configuration: BookingConfiguration | null | undefined
+  readonly locale: CatalogLocale
+}) =>
+  input.configuration?.shortNameTranslations?.[input.locale]?.trim() ||
+  input.configuration?.shortName?.trim() ||
+  legacyProviderShortName(input.localizedDisplayName)
+
 const rejected = () =>
   new BookingSelectionRejected({ message: 'Selection could not be accepted' })
 
@@ -583,23 +604,31 @@ const seedCatalog = (
           bookingAccess,
           bookingConfiguration,
           ...provider
-        }) => ({
-          ...provider,
-          access: bookingAccess ?? 'public',
-          localizedName: resolveCatalogText({
+        }) => {
+          const localizedName = resolveCatalogText({
             sourceText: provider.displayName,
             configuration: bookingConfiguration,
             locale
-          }),
-          eligibleServiceIds: pairs
-            .filter(
-              ([merchantId, providerId, serviceId]) =>
-                merchantId === merchant.id &&
-                providerId === provider.id &&
-                activeServices.some((service) => service.id === serviceId)
-            )
-            .map(([, , serviceId]) => serviceId!)
-        })
+          })
+          return {
+            ...provider,
+            shortName: resolveProviderShortName({
+              localizedDisplayName: localizedName.text,
+              configuration: bookingConfiguration,
+              locale
+            }),
+            access: bookingAccess ?? 'public',
+            localizedName,
+            eligibleServiceIds: pairs
+              .filter(
+                ([merchantId, providerId, serviceId]) =>
+                  merchantId === merchant.id &&
+                  providerId === provider.id &&
+                  activeServices.some((service) => service.id === serviceId)
+              )
+              .map(([, , serviceId]) => serviceId!)
+          }
+        }
       )
       .filter((provider) => provider.eligibleServiceIds.length > 0),
     services: activeServices
@@ -1044,20 +1073,30 @@ const readLiveState = (
               ? 'invalid_associations'
               : 'empty',
       providers: scopedProviders
-        .map((provider) => ({
-          id: provider.id,
-          displayName: provider.displayName,
-          isDefault: provider.isDefault,
-          access: provider.bookingAccess,
-          localizedName: resolveCatalogText({
+        .map((provider) => {
+          const configuration = decodeBookingConfiguration(provider.bookingConfigJson)
+          const locale = session.locale ?? 'en'
+          const localizedName = resolveCatalogText({
             sourceText: provider.displayName,
-            configuration: decodeBookingConfiguration(provider.bookingConfigJson),
-            locale: session.locale ?? 'en'
-          }),
-          eligibleServiceIds: validEligibility
-            .filter((pair) => pair.providerId === provider.id)
-            .map((pair) => pair.serviceId)
-        }))
+            configuration,
+            locale
+          })
+          return {
+            id: provider.id,
+            displayName: provider.displayName,
+            shortName: resolveProviderShortName({
+              localizedDisplayName: localizedName.text,
+              configuration,
+              locale
+            }),
+            isDefault: provider.isDefault,
+            access: provider.bookingAccess,
+            localizedName,
+            eligibleServiceIds: validEligibility
+              .filter((pair) => pair.providerId === provider.id)
+              .map((pair) => pair.serviceId)
+          }
+        })
         .filter((provider) => provider.eligibleServiceIds.length > 0),
       services: scopedServices
         .map((service) => {

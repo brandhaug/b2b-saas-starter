@@ -127,6 +127,26 @@ const fixture = (presentation: 'solo' | 'team' = 'team') => {
 }
 
 describe('Booking Selection', () => {
+  it('exposes an authoritative legacy provider short name for compound names', async () => {
+    const { store, run } = fixture()
+    store.providers.set('prv_ava', {
+      ...store.providers.get('prv_ava')!,
+      displayName: 'Maria de la Cruz',
+      bookingConfiguration: { shortName: 'Maria d.' }
+    })
+
+    const loaded = await run(
+      Effect.flatMap(BookingSelection, (selection) => selection.load(session))
+    )
+
+    expect(
+      loaded.providers.find((provider) => provider.id === 'prv_ava')
+    ).toMatchObject({
+      displayName: 'Maria de la Cruz',
+      shortName: 'Maria d.'
+    })
+  })
+
   it('distinguishes inactive catalog facts from invalid associations', async () => {
     const invalid = fixture()
     invalid.store.eligibility.clear()

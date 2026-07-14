@@ -439,6 +439,8 @@ function ProviderGrid({
       </div>
       {journey.providers.map((provider) => {
         const disabled = busy || provider.access === 'restricted'
+        const displayName = provider.localizedName?.text ?? provider.displayName
+        const shortName = provider.shortName
         const selected =
           selectedPreference?.kind === 'specific' &&
           selectedPreference.providerId === provider.id
@@ -451,7 +453,7 @@ function ProviderGrid({
             tabIndex={disabled ? -1 : 0}
             aria-disabled={disabled}
             aria-pressed={selected}
-            aria-label={`${provider.localizedName?.text ?? provider.displayName}, ${
+            aria-label={`${shortName}, ${
               provider.access === 'restricted'
                 ? messages.providerRestricted
                 : messages.chooseProvider
@@ -468,15 +470,13 @@ function ProviderGrid({
               provider.access === 'restricted' && styles.providerCardDisabled
             )}
           >
-            <div {...stylex.props(styles.avatar)}>
-              {initials(provider.localizedName?.text ?? provider.displayName)}
-            </div>
+            <div {...stylex.props(styles.avatar)}>{initials(displayName)}</div>
             <p
-              title={provider.localizedName?.text ?? provider.displayName}
+              title={shortName}
               data-testid={`text:barberName:${provider.id}`}
-              {...stylex.props(styles.providerName)}
+              {...stylex.props(styles.providerName, styles.providerNameEllipsis)}
             >
-              {provider.localizedName?.text ?? provider.displayName}
+              {shortName}
             </p>
             <div
               data-testid={`divider:barber:${provider.id}`}

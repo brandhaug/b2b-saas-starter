@@ -236,7 +236,12 @@ const seedBookingSelection = emptySeedBookingSelectionStore({
       presentation: seedBookingScenario.merchant.plan
     }
   ],
-  providers: seedBookingScenario.providers,
+  providers: seedBookingScenario.providers.map(
+    ({ bookingConfigJson, ...provider }) => ({
+      ...provider,
+      bookingConfiguration: bookingConfigJson
+    })
+  ),
   services: seedBookingScenario.services,
   eligibility: seedBookingScenario.eligibility.map(seedBookingSelectionEligibilityKey)
 })

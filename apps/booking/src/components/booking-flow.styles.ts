@@ -198,9 +198,17 @@ export const styles = stylex.create({
   providerName: {
     marginTop: 16,
     marginBottom: 0,
+    fontFamily: bookingTheme.fontText,
     fontSize: 17,
     fontWeight: 600,
-    lineHeight: '22px'
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
+  },
+  providerNameEllipsis: {
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
   },
   providerDivider: {
     width: 30,

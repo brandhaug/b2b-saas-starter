@@ -38,6 +38,7 @@ describe('protected Booking Session route', () => {
         {
           id: 'prv_ava',
           displayName: 'Ava S.',
+          shortName: 'Ava S.',
           isDefault: true,
           access: 'public',
           eligibleServiceIds: ['svc_cut']

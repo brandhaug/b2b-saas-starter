@@ -40,6 +40,7 @@ const teamJourney: BookingJourney = {
     {
       id: 'prv_ava',
       displayName: 'Ava S.',
+      shortName: 'Ava S.',
       isDefault: true,
       access: 'public',
       eligibleServiceIds: ['svc_cut', 'svc_beard']
@@ -47,6 +48,7 @@ const teamJourney: BookingJourney = {
     {
       id: 'prv_noah',
       displayName: 'Noah B.',
+      shortName: 'Noah B.',
       isDefault: false,
       access: 'public',
       eligibleServiceIds: ['svc_cut']
@@ -211,6 +213,32 @@ describe('Booking selection flow', () => {
     expect(screen.getByText('Choose a service first', { selector: 'p' })).toBeTruthy()
   })
 
+  it('renders the legacy short provider name instead of the full catalog name', () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          providers: teamJourney.providers.map((provider) =>
+            provider.id === 'prv_ava'
+              ? {
+                  ...provider,
+                  displayName: 'Mara Ionescu',
+                  shortName: 'Mara I.'
+                }
+              : provider
+          )
+        }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    const name = screen.getByTestId('text:barberName:prv_ava')
+    expect(name.textContent).toBe('Mara I.')
+    expect(name.getAttribute('title')).toBe('Mara I.')
+  })
+
   it('shows the legacy selected provider card state before route advancement', () => {
     const chooseProvider = vi.fn()
     render(
@@ -349,6 +377,7 @@ describe('Booking selection flow', () => {
         {
           id: 'prv_private',
           displayName: 'Private Pro',
+          shortName: 'Private P.',
           isDefault: false,
           access: 'restricted',
           eligibleServiceIds: ['svc_cut']
@@ -393,7 +422,7 @@ describe('Booking selection flow', () => {
     await waitFor(() =>
       expect(
         screen
-          .getByRole('button', { name: /private pro.*private access/i })
+          .getByRole('button', { name: /private p\..*private access/i })
           .getAttribute('aria-disabled')
       ).toBe('true')
     )
@@ -474,6 +503,7 @@ describe('Booking selection flow', () => {
             {
               id: 'prv_private',
               displayName: 'Private Pro',
+              shortName: 'Private P.',
               isDefault: true,
               access: 'restricted',
               eligibleServiceIds: ['svc_private']

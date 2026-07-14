@@ -34,6 +34,8 @@ const PartialBookingPremiumPalette = Schema.Struct({
 export const BookingConfiguration = Schema.Struct({
   sourceLocale: Schema.optional(CatalogLocale),
   nameTranslations: Schema.optional(OptionalCatalogTranslations),
+  shortName: Schema.optional(Schema.String),
+  shortNameTranslations: Schema.optional(OptionalCatalogTranslations),
   premiumPalette: Schema.optional(Schema.NullOr(PartialBookingPremiumPalette))
 })
 export type BookingConfiguration = typeof BookingConfiguration.Type

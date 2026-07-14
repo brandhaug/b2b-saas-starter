@@ -39,6 +39,7 @@ describe('Booking Session HTTP boundary', () => {
       {
         id: 'prv_ava',
         displayName: 'Ava S.',
+        shortName: 'Ava S.',
         isDefault: true,
         access: 'public',
         eligibleServiceIds: ['svc_cut']

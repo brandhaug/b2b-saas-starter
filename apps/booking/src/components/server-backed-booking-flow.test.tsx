@@ -123,6 +123,7 @@ describe('server-backed Booking scheduling', () => {
         {
           id: 'prv_ava',
           displayName: 'Ava',
+          shortName: 'Ava',
           isDefault: true,
           access: 'public',
           eligibleServiceIds: ['svc_cut']
@@ -233,6 +234,7 @@ describe('server-backed Booking scheduling', () => {
         {
           id: 'prv_ava',
           displayName: 'Ava',
+          shortName: 'Ava',
           isDefault: true,
           access: 'public',
           eligibleServiceIds: ['svc_cut']

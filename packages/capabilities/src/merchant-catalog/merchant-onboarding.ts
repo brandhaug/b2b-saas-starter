@@ -15,6 +15,7 @@ import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { isSupportedCurrency } from './currency.ts'
+import type { BookingConfiguration } from './booking-configuration.ts'
 
 export const RESERVED_MERCHANT_SLUGS = [
   'admin',
@@ -499,12 +500,14 @@ export type SeedBookingScenario = {
     readonly merchantId: string
     readonly linkedUserId: string
     readonly isDefault: true
+    readonly bookingConfigJson: BookingConfiguration
   }
   readonly providers: ReadonlyArray<{
     readonly id: string
     readonly merchantId: string
     readonly linkedUserId: string | null
     readonly displayName: string
+    readonly bookingConfigJson: BookingConfiguration
     readonly status: 'active' | 'inactive'
     readonly isDefault: boolean
   }>
@@ -587,6 +590,7 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     merchantId: merchant.id,
     linkedUserId: owner.id,
     displayName: owner.name,
+    bookingConfigJson: { shortName: 'Mara I.' },
     status: 'active',
     isDefault: true
   } as const
@@ -595,6 +599,7 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     merchantId: merchant.id,
     linkedUserId: null,
     displayName: 'Elena Pop',
+    bookingConfigJson: { shortName: 'Elena P.' },
     status: 'active',
     isDefault: false
   } as const
