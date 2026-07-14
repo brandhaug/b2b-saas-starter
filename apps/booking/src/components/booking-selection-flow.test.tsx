@@ -86,7 +86,10 @@ const teamJourney: BookingJourney = {
   ]
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  vi.useRealTimers()
+  cleanup()
+})
 
 describe('Booking selection flow', () => {
   it('uses the legacy WidgetTitleContainer DOM contract', () => {
@@ -374,9 +377,7 @@ describe('Booking selection flow', () => {
     )
 
     expect(screen.queryByRole('status')).toBeNull()
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /signature cut/i })).toBeTruthy()
-    )
+    await waitFor(() => expect(screen.getByTestId('service:svc_cut')).toBeTruthy())
   })
 
   it('uses the legacy delayed page transition when the Back chevron appears', async () => {
@@ -515,21 +516,132 @@ describe('Booking selection flow', () => {
 
     expect(screen.queryByText('Choose a professional')).toBeNull()
     expect(screen.getByText('Anything you wish to add?')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /remove signature cut/i }))
+    fireEvent.click(screen.getByTestId('service:svc_cut'))
     expect(chooseServices).toHaveBeenCalledWith({
       primaryServiceId: null,
       additionalServiceIds: []
     })
-    fireEvent.click(screen.getByRole('button', { name: /beard trim/i }))
+    fireEvent.click(screen.getByTestId('service:svc_beard'))
     expect(chooseServices).toHaveBeenCalledWith({
       primaryServiceId: 'svc_cut',
       additionalServiceIds: ['svc_beard']
     })
-    fireEvent.click(screen.getByRole('button', { name: /view order/i }))
-    expect(screen.getByRole('dialog', { name: /order summary/i })).toBeTruthy()
+    const viewOrder = screen.getByTestId('btn:viewOrder')
+    expect(viewOrder.parentElement?.getAttribute('data-testid')).toBe(
+      'container:viewOrderSafeArea'
+    )
+    fireEvent.click(viewOrder)
+    const cart = screen.getByTestId('cart:booking')
+    expect(cart.tagName).toBe('DIV')
+    expect(cart.getAttribute('data-cart-state')).toBe('expanded')
+    expect(screen.getByRole('dialog', { name: /order summary/i })).toBe(cart)
     expect(screen.getAllByText('$45.00').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
     expect(continueToTime).toHaveBeenCalledOnce()
+  })
+
+  it('uses the legacy service-card contract and waits through its selected transition before add-ons', async () => {
+    vi.useFakeTimers()
+    const chooseServices = vi.fn()
+    const serviceJourney: BookingJourney = {
+      ...teamJourney,
+      providerPreference: { kind: 'specific', providerId: 'prv_ava' }
+    }
+    const view = render(
+      <BookingSelectionFlow
+        journey={serviceJourney}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={chooseServices}
+      />
+    )
+
+    const serviceCard = screen.getByTestId('service:svc_cut')
+    expect(serviceCard.tagName).toBe('DIV')
+    expect(serviceCard.getAttribute('data-auto-selected')).toBe('false')
+    expect(within(serviceCard).getByTestId('text:name').textContent).toBe(
+      'Signature Cut'
+    )
+    expect(within(serviceCard).getByTestId('text:duration').textContent).toBe('45 min')
+    expect(within(serviceCard).getByTestId('text:price').textContent).toBe('$45.00')
+    expect(serviceCard.getAttribute('role')).toBe('button')
+    expect(serviceCard.getAttribute('tabindex')).toBe('0')
+
+    fireEvent.keyDown(serviceCard, { key: 'Enter' })
+    expect(chooseServices).toHaveBeenCalledWith({
+      primaryServiceId: 'svc_cut',
+      additionalServiceIds: []
+    })
+    chooseServices.mockClear()
+
+    fireEvent.click(serviceCard)
+    expect(chooseServices).toHaveBeenCalledWith({
+      primaryServiceId: 'svc_cut',
+      additionalServiceIds: []
+    })
+    view.rerender(
+      <BookingSelectionFlow
+        journey={{
+          ...serviceJourney,
+          version: serviceJourney.version + 1,
+          selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] },
+          compatibleAdditionalServiceIds: ['svc_beard']
+        }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={chooseServices}
+      />
+    )
+
+    expect(
+      screen.getByTestId('service:svc_cut').getAttribute('data-auto-selected')
+    ).toBe('true')
+    expect(screen.queryByText('Anything you wish to add?')).toBeNull()
+    await vi.advanceTimersByTimeAsync(249)
+    expect(screen.queryByText('Anything you wish to add?')).toBeNull()
+    await vi.advanceTimersByTimeAsync(251)
+    expect(screen.getByText('Anything you wish to add?')).toBeTruthy()
+    vi.useRealTimers()
+  })
+
+  it('clears a pending service highlight when a newer journey rejects the selection', async () => {
+    const chooseServices = vi.fn()
+    const serviceJourney: BookingJourney = {
+      ...teamJourney,
+      providerPreference: { kind: 'specific', providerId: 'prv_ava' }
+    }
+    const view = render(
+      <BookingSelectionFlow
+        journey={serviceJourney}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={chooseServices}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('service:svc_cut'))
+    view.rerender(
+      <BookingSelectionFlow
+        journey={serviceJourney}
+        busy
+        onChooseProvider={vi.fn()}
+        onChooseServices={chooseServices}
+      />
+    )
+    view.rerender(
+      <BookingSelectionFlow
+        journey={{ ...serviceJourney, version: serviceJourney.version + 1 }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={chooseServices}
+      />
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('service:svc_cut').getAttribute('data-auto-selected')
+      ).toBe('false')
+    )
   })
 
   it('renders the no-services path without advancing', () => {
@@ -611,8 +723,8 @@ describe('Booking selection flow', () => {
     fireEvent.change(screen.getByRole('combobox', { name: /service category/i }), {
       target: { value: 'category:1' }
     })
-    expect(screen.getByRole('button', { name: 'Beard Trim' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Signature Cut' })).toBeNull()
+    expect(screen.getByTestId('service:svc_beard')).toBeTruthy()
+    expect(screen.queryByTestId('service:svc_cut')).toBeNull()
 
     rerender(
       <BookingSelectionFlow

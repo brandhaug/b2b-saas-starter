@@ -76,6 +76,13 @@ function BookingSelectionFlowContent({
   const [orderOpen, setOrderOpen] = useState(false)
   const [giftCardSelected, setGiftCardSelected] = useState(false)
   const giftCardTimer = useRef<number | null>(null)
+  const [pendingServiceSelection, setPendingServiceSelection] = useState<{
+    readonly serviceId: string
+    readonly journeyVersion: number
+  } | null>(null)
+  const serviceTransitionTimer = useRef<number | null>(null)
+  const serviceMutationBusySeen = useRef(false)
+  const viewOrderButton = useRef<HTMLButtonElement | null>(null)
   const [titleScrollState, setTitleScrollState] = useState({
     presenceKey: '',
     scrolled: false
@@ -99,9 +106,61 @@ function BookingSelectionFlowContent({
   useEffect(
     () => () => {
       if (giftCardTimer.current !== null) window.clearTimeout(giftCardTimer.current)
+      if (serviceTransitionTimer.current !== null)
+        window.clearTimeout(serviceTransitionTimer.current)
     },
     []
   )
+
+  useEffect(() => {
+    if (
+      !pendingServiceSelection ||
+      journey.version <= pendingServiceSelection.journeyVersion ||
+      journey.selection.primaryServiceId !== pendingServiceSelection.serviceId
+    )
+      return
+    if (serviceTransitionTimer.current !== null)
+      window.clearTimeout(serviceTransitionTimer.current)
+    serviceTransitionTimer.current = window.setTimeout(() => {
+      setPendingServiceSelection(null)
+      serviceTransitionTimer.current = null
+    }, 100)
+    return () => {
+      if (serviceTransitionTimer.current !== null) {
+        window.clearTimeout(serviceTransitionTimer.current)
+        serviceTransitionTimer.current = null
+      }
+    }
+  }, [journey.selection.primaryServiceId, journey.version, pendingServiceSelection])
+
+  useEffect(() => {
+    if (!pendingServiceSelection) {
+      serviceMutationBusySeen.current = false
+      return
+    }
+    if (busy) {
+      serviceMutationBusySeen.current = true
+      return
+    }
+    if (
+      serviceMutationBusySeen.current &&
+      !(
+        journey.version > pendingServiceSelection.journeyVersion &&
+        journey.selection.primaryServiceId === pendingServiceSelection.serviceId
+      )
+    )
+      setPendingServiceSelection(null)
+  }, [
+    busy,
+    journey.selection.primaryServiceId,
+    journey.version,
+    pendingServiceSelection
+  ])
+
+  const closeOrder = () => {
+    setOrderOpen(false)
+    window.setTimeout(() => viewOrderButton.current?.focus(), 0)
+  }
 
   const chooseGiftCard = () => {
     if (!onChooseGiftCard || giftCardSelected) return
@@ -223,41 +282,89 @@ function BookingSelectionFlowContent({
                   {...(onChooseGiftCard ? { onChooseGiftCard: chooseGiftCard } : {})}
                 />
               ) : (
-                <ServiceGrid
-                  journey={journey}
-                  busy={busy}
-                  selectedPrimary={selectedPrimary}
-                  onChoose={onChooseServices}
-                  messages={messages}
-                />
+                <AnimatePresence mode="wait" initial={false}>
+                  <ServiceGrid
+                    key={
+                      selectedPrimary && !pendingServiceSelection
+                        ? 'addonsFade'
+                        : 'servicesFade'
+                    }
+                    journey={journey}
+                    busy={busy}
+                    selectedPrimary={selectedPrimary}
+                    transitioningServiceId={pendingServiceSelection?.serviceId ?? null}
+                    onChoose={(selection) => {
+                      if (
+                        selection.primaryServiceId &&
+                        journey.selection.primaryServiceId === null
+                      )
+                        setPendingServiceSelection({
+                          serviceId: selection.primaryServiceId,
+                          journeyVersion: journey.version
+                        })
+                      onChooseServices(selection)
+                    }}
+                    messages={messages}
+                  />
+                </AnimatePresence>
               )}
             </div>
           </div>
         </div>
       </RoutePresence>
 
-      {selectedPrimary && !showProviders ? (
-        <button
-          type="button"
-          aria-label={`View order, ${formatPrice(total(journey), selectedPrimary.currency)}`}
-          onClick={() => setOrderOpen(true)}
-          {...stylex.props(styles.orderBar)}
-        >
-          <span>View order</span>
-          <span {...stylex.props(styles.mono)}>
-            {formatPrice(total(journey), selectedPrimary.currency)}
-          </span>
-        </button>
-      ) : null}
-
-      {orderOpen && selectedPrimary ? (
-        <OrderSummary
-          journey={journey}
-          primary={selectedPrimary}
-          onClose={() => setOrderOpen(false)}
-          {...(onContinue ? { onContinue } : {})}
-        />
-      ) : null}
+      <LazyMotion features={domAnimation} strict>
+        <div {...stylex.props(styles.orderBarFixed)}>
+          <AnimatePresence>
+            {selectedPrimary && !showProviders && !orderOpen ? (
+              <m.div
+                key="viewOrderSafeArea"
+                data-testid="container:viewOrderSafeArea"
+                role="button"
+                aria-label="Open order"
+                onClick={() => setOrderOpen(true)}
+                initial={{ scale: 0.8, bottom: -88 }}
+                animate={{ scale: 1, bottom: 0 }}
+                exit={{
+                  scale: 0.8,
+                  bottom: -88,
+                  transition: { duration: 0.15, delay: 0.15, ease: 'easeInOut' }
+                }}
+                transition={{
+                  duration: 0.2,
+                  delay: 0.2,
+                  ease: 'easeInOut'
+                }}
+                {...stylex.props(styles.orderBarSafeArea)}
+              >
+                <button
+                  ref={viewOrderButton}
+                  type="button"
+                  data-testid="btn:viewOrder"
+                  aria-label={`View order, ${formatPrice(total(journey), selectedPrimary.currency)}`}
+                  {...stylex.props(styles.orderBar)}
+                >
+                  <span>View order</span>
+                  <span {...stylex.props(styles.orderBarTotal)}>
+                    {formatPrice(total(journey), selectedPrimary.currency)}
+                  </span>
+                </button>
+              </m.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
+        <AnimatePresence>
+          {orderOpen && selectedPrimary ? (
+            <OrderSummary
+              key="styledBookingCart"
+              journey={journey}
+              primary={selectedPrimary}
+              onClose={closeOrder}
+              {...(onContinue ? { onContinue } : {})}
+            />
+          ) : null}
+        </AnimatePresence>
+      </LazyMotion>
     </BookingWidgetShell>
   )
 }
@@ -617,12 +724,14 @@ function ServiceGrid({
   journey,
   busy,
   selectedPrimary,
+  transitioningServiceId,
   onChoose,
   messages
 }: {
   readonly journey: BookingJourney
   readonly busy: boolean
   readonly selectedPrimary: PublicBookableService | undefined
+  readonly transitioningServiceId: string | null
   readonly onChoose: (selection: ServiceSelection) => void
   readonly messages: BookingSelectionMessages
 }) {
@@ -649,7 +758,7 @@ function ServiceGrid({
     )
   }
 
-  if (selectedPrimary) {
+  if (selectedPrimary && !transitioningServiceId) {
     const additionalIds = new Set(journey.selection.additionalServiceIds)
     const compatibleAdditionalIds = new Set(journey.compatibleAdditionalServiceIds)
     const compatibleAdditions = eligible.filter(
@@ -657,32 +766,33 @@ function ServiceGrid({
         service.id !== selectedPrimary.id && compatibleAdditionalIds.has(service.id)
     )
     return (
-      <div>
-        <button
-          type="button"
-          disabled={busy}
-          aria-label={`Remove ${selectedPrimary.name}`}
+      <m.div
+        key="addonsFade"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+      >
+        <LegacyServiceCard
+          service={selectedPrimary}
+          selected
+          confirmed
+          busy={busy}
+          messages={messages}
           onClick={() => onChoose({ primaryServiceId: null, additionalServiceIds: [] })}
-          {...stylex.props(styles.serviceCard, styles.selectedService)}
-        >
-          <ServiceContents service={selectedPrimary} selected messages={messages} />
-          <span {...stylex.props(styles.selectionMark)}>
-            <BookingVisualAsset
-              assetRole="selection-check"
-              {...stylex.props(styles.icon16)}
-            />
-          </span>
-        </button>
+        />
         <h2 {...stylex.props(styles.sectionTitle)}>Anything you wish to add?</h2>
         <div {...stylex.props(styles.serviceGrid)}>
           {compatibleAdditions.map((service) => {
             const selected = additionalIds.has(service.id)
             return (
-              <button
+              <LegacyServiceCard
                 key={service.id}
-                type="button"
-                disabled={busy}
-                aria-label={`${service.name}${selected ? ', selected' : ''}`}
+                service={service}
+                selected={selected}
+                addon
+                busy={busy}
+                messages={messages}
                 onClick={() =>
                   onChoose({
                     primaryServiceId: selectedPrimary.id,
@@ -693,14 +803,11 @@ function ServiceGrid({
                       : [...journey.selection.additionalServiceIds, service.id]
                   })
                 }
-                {...stylex.props(styles.serviceCard, selected && styles.selectedAddon)}
-              >
-                <ServiceContents service={service} messages={messages} />
-              </button>
+              />
             )
           })}
         </div>
-      </div>
+      </m.div>
     )
   }
 
@@ -717,7 +824,13 @@ function ServiceGrid({
     category === null ? 'all' : `category:${categories.indexOf(category)}`
 
   return (
-    <div>
+    <m.div
+      key="servicesFade"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+    >
       <select
         aria-label="Service category"
         value={categoryValue}
@@ -740,21 +853,19 @@ function ServiceGrid({
       </select>
       <div {...stylex.props(styles.serviceGrid)}>
         {visibleServices.map((service) => (
-          <button
+          <LegacyServiceCard
             key={service.id}
-            type="button"
-            disabled={busy}
-            aria-label={service.name}
+            service={service}
+            selected={transitioningServiceId === service.id}
+            busy={busy}
+            messages={messages}
             onClick={() =>
               onChoose({ primaryServiceId: service.id, additionalServiceIds: [] })
             }
-            {...stylex.props(styles.serviceCard)}
-          >
-            <ServiceContents service={service} messages={messages} />
-          </button>
+          />
         ))}
       </div>
-    </div>
+    </m.div>
   )
 }
 
@@ -826,33 +937,102 @@ const defaultMessages: BookingSelectionMessages = {
     'The available professionals and services cannot currently be booked together.'
 }
 
-function ServiceContents({
+function LegacyServiceCard({
   service,
   selected = false,
+  confirmed = false,
+  addon = false,
+  busy,
+  onClick,
   messages
 }: {
   readonly service: PublicBookableService
   readonly selected?: boolean
+  readonly confirmed?: boolean
+  readonly addon?: boolean
+  readonly busy: boolean
+  readonly onClick: () => void
   readonly messages: BookingSelectionMessages
 }) {
   return (
-    <>
-      <span {...stylex.props(styles.serviceName)}>{service.name}</span>
-      {service.localizedName?.isSourceLanguageFallback ? (
-        <span {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</span>
-      ) : null}
-      <span
+    <m.div
+      initial={confirmed ? { opacity: 0, scale: 0.8 } : false}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: confirmed ? 0.3 : 0 }}
+      {...(confirmed ? { exit: { opacity: 0, scale: 0.8 } } : {})}
+      {...stylex.props(
+        styles.serviceCardSpace,
+        confirmed && styles.confirmedServiceCardSpace
+      )}
+    >
+      <div
+        role="button"
+        tabIndex={busy ? -1 : 0}
+        data-testid={`service:${service.id}`}
+        data-auto-selected={selected}
+        aria-disabled={busy}
+        aria-pressed={selected}
+        aria-label={
+          selected && (confirmed || addon) ? `Remove ${service.name}` : service.name
+        }
+        onClick={() => {
+          if (!busy) onClick()
+        }}
+        onKeyDown={(event) => activateCard(event, busy, onClick)}
         {...stylex.props(
-          styles.serviceDuration,
-          selected && styles.selectedServiceDuration
+          styles.serviceCard,
+          selected && styles.selectedService,
+          addon && selected && styles.selectedAddon,
+          busy && styles.serviceCardBusy
         )}
       >
-        {service.durationMinutes} min
-      </span>
-      <span {...stylex.props(styles.pricePill, selected && styles.selectedPricePill)}>
-        {formatPrice(service.priceMinor, service.currency)}
-      </span>
-    </>
+        <p
+          data-testid="text:name"
+          {...stylex.props(
+            styles.serviceName,
+            selected && !addon && styles.selectedServiceName
+          )}
+        >
+          {service.name}
+        </p>
+        {service.localizedName?.isSourceLanguageFallback ? (
+          <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
+        ) : null}
+        <p
+          data-testid="text:duration"
+          {...stylex.props(
+            styles.serviceDuration,
+            selected && !addon && styles.selectedServiceDuration
+          )}
+        >
+          {service.durationMinutes} min
+        </p>
+        <m.div
+          data-testid="text:description"
+          initial={false}
+          animate={{ height: 0, opacity: 0 }}
+          {...stylex.props(styles.serviceDescription)}
+        />
+        <p
+          data-testid="text:price"
+          {...stylex.props(
+            styles.pricePill,
+            selected && !addon && styles.selectedPricePill,
+            selected && addon && styles.selectedAddonPricePill
+          )}
+        >
+          {formatPrice(service.priceMinor, service.currency)}
+        </p>
+        {confirmed ? (
+          <span data-testid="icon:confirmed" {...stylex.props(styles.selectionMark)}>
+            <BookingVisualAsset
+              assetRole="selection-check"
+              {...stylex.props(styles.confirmedCheck)}
+            />
+          </span>
+        ) : null}
+      </div>
+    </m.div>
   )
 }
 
@@ -871,39 +1051,106 @@ function OrderSummary({
     .map((id) => journey.services.find((service) => service.id === id))
     .filter((service): service is PublicBookableService => service !== undefined)
   return (
-    <dialog open aria-label="Order summary" {...stylex.props(styles.drawer)}>
+    <m.div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Order summary"
+      data-testid="cart:booking"
+      data-cart-state="expanded"
+      tabIndex={-1}
+      initial={{ y: '100%' }}
+      animate={{ y: 0, height: 'calc(100% - 36px)' }}
+      exit={{ y: '100%', transition: { duration: 0.15, ease: 'easeInOut' } }}
+      transition={{ duration: 0.2, ease: 'easeInOut' }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onClose()
+          return
+        }
+        if (event.key !== 'Tab') return
+        const controls = Array.from(
+          event.currentTarget.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        )
+        if (controls.length === 0) return
+        const first = controls[0]!
+        const last = controls.at(-1)!
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }}
+      {...stylex.props(styles.drawer)}
+    >
       <div {...stylex.props(styles.drawerHeader)}>
         <div>
           <h2 {...stylex.props(styles.drawerTitle)}>Your order</h2>
-          <p {...stylex.props(styles.drawerSubtitle)}>Booking Session</p>
+          <p {...stylex.props(styles.drawerSubtitle)}>
+            {journey.resolvedConfiguration.shopName.text}
+          </p>
         </div>
         <button
           type="button"
+          data-testid="btn:close"
+          autoFocus
           aria-label="Close order summary"
           onClick={onClose}
-          {...stylex.props(styles.iconButton, styles.darkIconButton)}
+          {...stylex.props(
+            styles.iconButton,
+            styles.darkIconButton,
+            styles.drawerClose
+          )}
         >
-          <BookingVisualAsset assetRole="dismiss" {...stylex.props(styles.icon16)} />
+          <svg
+            aria-hidden="true"
+            width="32"
+            height="32"
+            viewBox="0 0 32 32"
+            fill="none"
+          >
+            <rect
+              x="0.75"
+              y="0.75"
+              width="30.5"
+              height="30.5"
+              rx="15.25"
+              {...stylex.props(styles.drawerCloseBorder)}
+              strokeWidth="1.5"
+            />
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M16.0015 17.4145L19.5884 21.0009L21.0028 19.5868L17.4158 16.0004L21.0025 12.4143L19.5882 11.0002L16.0015 14.5863L12.4146 11L11.0002 12.4141L14.5871 16.0004L11 19.587L12.4143 21.0011L16.0015 17.4145Z"
+              {...stylex.props(styles.drawerCloseContent)}
+            />
+          </svg>
         </button>
       </div>
-      <div {...stylex.props(styles.orderCard)}>
-        <div {...stylex.props(styles.rowBetween)}>
-          <div>
-            <p {...stylex.props(styles.orderProvider)}>{providerLabel(journey)}</p>
-            <p {...stylex.props(styles.orderMuted)}>{primary.name}</p>
+      <div {...stylex.props(styles.drawerBody)}>
+        <div {...stylex.props(styles.orderCard)}>
+          <div {...stylex.props(styles.rowBetween)}>
+            <div>
+              <p {...stylex.props(styles.orderProvider)}>{providerLabel(journey)}</p>
+              <p {...stylex.props(styles.orderMuted)}>{primary.name}</p>
+            </div>
+            <strong {...stylex.props(styles.mono)}>
+              {formatPrice(primary.priceMinor, primary.currency)}
+            </strong>
           </div>
-          <strong {...stylex.props(styles.mono)}>
-            {formatPrice(primary.priceMinor, primary.currency)}
-          </strong>
+          {additions.map((service) => (
+            <div key={service.id} {...stylex.props(styles.orderLine)}>
+              <span>{service.name}</span>
+              <span {...stylex.props(styles.mono)}>
+                {formatPrice(service.priceMinor, service.currency)}
+              </span>
+            </div>
+          ))}
         </div>
-        {additions.map((service) => (
-          <div key={service.id} {...stylex.props(styles.orderLine)}>
-            <span>{service.name}</span>
-            <span {...stylex.props(styles.mono)}>
-              {formatPrice(service.priceMinor, service.currency)}
-            </span>
-          </div>
-        ))}
       </div>
       <div {...stylex.props(styles.drawerFooter)}>
         <div {...stylex.props(styles.subtotal)}>
@@ -924,7 +1171,7 @@ function OrderSummary({
           Choose time
         </button>
       </div>
-    </dialog>
+    </m.div>
   )
 }
 

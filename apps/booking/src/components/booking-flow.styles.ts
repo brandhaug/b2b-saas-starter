@@ -461,82 +461,148 @@ export const styles = stylex.create({
   serviceGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: 12,
+    columnGap: 10,
+    rowGap: 10,
     marginTop: 16
   },
-  serviceCard: {
+  serviceCardSpace: {
     position: 'relative',
-    minHeight: 124,
-    padding: 16,
+    width: '100%',
+    height: 125,
+    minHeight: 125
+  },
+  confirmedServiceCardSpace: { width: 166 },
+  serviceCard: {
+    position: 'absolute',
+    zIndex: 1,
+    width: '100%',
+    minHeight: 125,
+    boxSizing: 'border-box',
+    overflow: 'visible',
+    paddingTop: 15,
+    paddingRight: 15,
+    paddingBottom: 49,
+    paddingLeft: 15,
     borderWidth: 1,
     borderStyle: 'solid',
     borderColor: {
-      default: '#e2e3e7',
-      ':hover': '#4f7ee8'
+      default: '#dadadc',
+      '@media (hover: hover)': { default: '#dadadc', ':hover': '#e1e1e1' }
     },
     borderRadius: 16,
-    backgroundColor: interactiveBackground,
-    color: '#292929',
-    textAlign: 'left'
+    backgroundColor: {
+      default: '#f7f7f7',
+      '@media (hover: hover)': { default: '#f7f7f7', ':hover': '#ffffff' }
+    },
+    color: '#616163',
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': {
+        default: 'none',
+        ':hover': '0 8px 16px -5px rgba(0, 0, 0, 0.1)'
+      }
+    },
+    textAlign: 'left',
+    userSelect: 'none',
+    cursor: 'pointer',
+    transitionProperty: 'border-color, background-color, box-shadow',
+    transitionDuration: '150ms'
   },
   selectedService: {
-    width: 'calc(50% - 6px)',
-    borderColor: '#4f7ee8',
-    backgroundColor: '#4f7ee8',
-    color: '#ffffff'
+    borderColor: bookingTheme.colorPrimary,
+    backgroundColor: bookingTheme.colorViewOrderBackground,
+    backgroundImage: {
+      default: 'linear-gradient(transparent, transparent)',
+      ':hover': 'linear-gradient(rgb(255 255 255 / 8%), rgb(255 255 255 / 8%))',
+      ':active': 'linear-gradient(rgb(255 255 255 / 8%), rgb(255 255 255 / 8%))'
+    },
+    color: bookingTheme.colorViewOrderText,
+    boxShadow: 'none'
   },
   selectedAddon: {
-    borderColor: '#4f7ee8',
-    backgroundColor: '#edf3ff'
+    borderColor: '#e1e1e1',
+    backgroundColor: '#ffffff',
+    color: '#616163'
   },
+  serviceCardBusy: { pointerEvents: 'none' },
   serviceName: {
-    display: 'block',
-    fontSize: 14,
-    fontWeight: 650,
-    lineHeight: '20px'
+    width: '100%',
+    overflow: 'hidden',
+    margin: 0,
+    color: '#000000',
+    fontFamily: bookingTheme.fontText,
+    fontSize: 15,
+    fontWeight: 600,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px',
+    overflowWrap: 'break-word',
+    maxHeight: 40
   },
+  selectedServiceName: { color: bookingTheme.colorPrimaryFont },
   serviceDuration: {
-    display: 'block',
-    marginTop: 4,
-    color: '#747983',
-    fontSize: 12
+    marginTop: 3,
+    marginBottom: 0,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 13,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
   },
   selectedServiceDuration: {
-    color: 'rgb(255 255 255 / 76%)'
+    color: bookingTheme.colorPrimaryFont
+  },
+  serviceDescription: {
+    width: '100%',
+    height: 0,
+    overflow: 'hidden',
+    opacity: 0
   },
   pricePill: {
     position: 'absolute',
-    right: 0,
-    bottom: 12,
-    paddingBlock: 4,
-    paddingInline: 12,
-    borderTopLeftRadius: 6,
-    borderBottomLeftRadius: 6,
-    backgroundColor: '#eff0f3',
-    fontFamily: 'Geist Mono, ui-monospace, monospace',
-    fontSize: 12
+    right: -1,
+    bottom: 15,
+    margin: 0,
+    paddingTop: 4,
+    paddingRight: 12,
+    paddingBottom: 4,
+    paddingLeft: 12,
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+    backgroundColor: '#ebebeb',
+    color: '#000000',
+    fontFamily: bookingTheme.fontText,
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
   },
   selectedPricePill: {
     backgroundColor: 'rgb(255 255 255 / 16%)'
+  },
+  selectedAddonPricePill: {
+    backgroundColor: 'rgb(186 186 186 / 50%)',
+    color: '#000000'
   },
   selectionMark: {
     position: 'absolute',
     top: -8,
     right: -8,
     display: 'grid',
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     placeItems: 'center',
     borderRadius: 999,
-    backgroundColor: '#292929',
+    backgroundColor: '#000000',
     color: '#ffffff'
   },
+  confirmedCheck: { width: 11, height: 8 },
   sectionTitle: {
-    marginTop: 28,
-    marginBottom: 0,
+    marginTop: 24,
+    marginBottom: 24,
+    fontFamily: bookingTheme.fontDisplay,
     fontSize: 20,
-    fontWeight: 650,
-    letterSpacing: '-0.02em'
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px'
   },
   month: {
     margin: 0,
@@ -759,47 +825,74 @@ export const styles = stylex.create({
     fontSize: 14,
     fontWeight: 650
   },
-  orderBar: {
-    position: 'fixed',
-    bottom: 'max(16px, env(safe-area-inset-bottom))',
-    left: '50%',
+  orderBarFixed: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
     zIndex: 30,
+    width: '100%'
+  },
+  orderBarSafeArea: {
+    position: 'absolute',
+    bottom: 0,
     display: 'flex',
-    width: 'calc(100% - 24px)',
-    maxWidth: 351,
+    width: '100%',
+    height: 88,
+    boxSizing: 'border-box',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 12,
+    paddingRight: 12,
+    paddingBottom: 16,
+    paddingLeft: 12
+  },
+  orderBar: {
+    display: 'flex',
+    width: '100%',
     height: 60,
+    boxSizing: 'border-box',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingInline: 20,
-    transform: 'translateX(-50%)',
+    paddingRight: 20,
+    paddingLeft: 16,
     borderWidth: 0,
     borderRadius: 16,
-    backgroundColor: '#292929',
-    color: '#ffffff',
-    boxShadow: '0 14px 30px rgb(0 0 0 / 20%)',
-    fontSize: 14,
-    fontWeight: 650
+    backgroundColor: bookingTheme.colorPrimary,
+    color: bookingTheme.colorPrimaryFont,
+    boxShadow: '0 8px 16px -5px rgb(0 0 0 / 10%)',
+    fontFamily: bookingTheme.fontText,
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
+  },
+  orderBarTotal: {
+    opacity: 0.5,
+    fontWeight: 400
   },
   mono: {
     fontFamily: 'Geist Mono, ui-monospace, monospace'
   },
   drawer: {
-    position: 'fixed',
-    insetBlock: 0,
-    left: '50%',
+    position: 'absolute',
+    right: 0,
+    bottom: -1,
+    left: 0,
     zIndex: 40,
     display: 'flex',
     width: '100%',
-    maxWidth: 375,
+    boxSizing: 'border-box',
     flexDirection: 'column',
-    paddingTop: 'max(16px, env(safe-area-inset-top))',
-    paddingRight: 'max(16px, env(safe-area-inset-right))',
-    paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-    paddingLeft: 'max(16px, env(safe-area-inset-left))',
-    transform: 'translateX(-50%)',
-    backgroundColor: '#292929',
+    overflow: 'hidden',
+    paddingTop: 24,
+    paddingRight: 16,
+    paddingBottom: 16,
+    paddingLeft: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    backgroundColor: bookingTheme.colorCart,
     color: '#ffffff',
-    boxShadow: '0 20px 50px rgb(0 0 0 / 28%)'
+    boxShadow: '0 -8px 16px rgb(0 0 0 / 3%)'
   },
   drawerHeader: {
     display: 'flex',
@@ -809,25 +902,53 @@ export const styles = stylex.create({
   },
   drawerTitle: {
     margin: 0,
-    fontSize: 18,
-    fontWeight: 650
+    fontFamily: bookingTheme.fontDisplay,
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px'
   },
   drawerSubtitle: {
     marginTop: 4,
     marginBottom: 0,
-    color: 'rgb(255 255 255 / 56%)',
-    fontSize: 12
+    color: bookingTheme.colorCartAuxText,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 13,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
   },
   darkIconButton: {
     borderColor: 'rgb(255 255 255 / 20%)',
     backgroundColor: 'transparent',
     color: '#ffffff'
   },
+  drawerClose: {
+    position: 'absolute',
+    top: 24,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderWidth: 0,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': '#161616',
+      ':active': '#161616'
+    },
+    color: bookingTheme.colorCartAuxText
+  },
+  drawerCloseBorder: { stroke: bookingTheme.colorCartCloseBorder },
+  drawerCloseContent: { fill: bookingTheme.colorCartCloseContent },
+  drawerBody: {
+    minHeight: 0,
+    flex: 1,
+    overflowY: 'auto',
+    scrollbarWidth: 'none'
+  },
   orderCard: {
     marginTop: 24,
     padding: 16,
     borderRadius: 16,
-    backgroundColor: 'rgb(255 255 255 / 10%)'
+    backgroundColor: bookingTheme.colorCartAppointment
   },
   rowBetween: {
     display: 'flex',

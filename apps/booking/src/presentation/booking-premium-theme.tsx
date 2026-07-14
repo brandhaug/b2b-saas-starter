@@ -56,6 +56,9 @@ const premiumStyle = (palette: BookingPremiumPalette) =>
     [customProperty(bookingTheme.colorPrimaryDarker)]: palette.primaryDarker,
     [customProperty(bookingTheme.colorPrimaryLight)]: palette.primaryLight,
     [customProperty(bookingTheme.colorPrimaryFont)]: palette.primaryFontColor,
+    [customProperty(bookingTheme.colorViewOrderBackground)]: palette.primaryColor,
+    [customProperty(bookingTheme.colorViewOrderText)]: palette.primaryFontColor,
+    [customProperty(bookingTheme.colorCartCloseContent)]: palette.primaryFontColor,
     [customProperty(bookingTheme.colorSecondary)]: palette.secondaryColor,
     [customProperty(bookingTheme.colorLink)]: palette.linkColor
   }) as CSSProperties
