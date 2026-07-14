@@ -94,10 +94,13 @@ describe('Booking presentation primitives', () => {
     expect(document.body.style.overflow).toBe('')
   })
 
-  it('keeps the legacy popup fade decorative and separate from dismissal', () => {
+  it('keeps the legacy popup fade decorative and preserves trigger focus', () => {
     const close = vi.fn()
+    const trigger = document.createElement('button')
     const target = document.createElement('div')
+    document.body.appendChild(trigger)
     document.body.appendChild(target)
+    trigger.focus()
     document.body.style.overflow = 'scroll'
     const { unmount } = render(
       <BookingPopupSheet
@@ -116,6 +119,7 @@ describe('Booking presentation primitives', () => {
     expect(fade).toBeTruthy()
     expect(popup.tagName).toBe('DIV')
     expect(popup.hasAttribute('data-booking-popup-scrollable')).toBe(true)
+    expect(document.activeElement).toBe(trigger)
     expect(fade.hasAttribute('aria-hidden')).toBe(false)
     fireEvent.click(fade)
     expect(close).not.toHaveBeenCalled()
@@ -123,6 +127,7 @@ describe('Booking presentation primitives', () => {
     unmount()
     expect(document.body.style.overflow).toBe('scroll')
     target.remove()
+    trigger.remove()
   })
 
   it('collapses presence choreography when reduced motion is requested', () => {
