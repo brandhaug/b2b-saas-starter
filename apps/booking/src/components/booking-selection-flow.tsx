@@ -1,6 +1,12 @@
 import * as stylex from '@stylexjs/stylex'
-import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  AnimatePresence,
+  LazyMotion,
+  domAnimation,
+  m,
+  useReducedMotion
+} from 'motion/react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type {
   BookingJourney,
   ProviderPreference,
@@ -720,6 +726,11 @@ function ProviderGrid({
   )
 }
 
+type ServiceCategoryFilter =
+  | { readonly kind: 'all' }
+  | { readonly kind: 'uncategorized' }
+  | { readonly kind: 'category'; readonly value: string }
+
 function ServiceGrid({
   journey,
   busy,
@@ -735,8 +746,13 @@ function ServiceGrid({
   readonly onChoose: (selection: ServiceSelection) => void
   readonly messages: BookingSelectionMessages
 }) {
-  const [category, setCategory] = useState<string | null>(null)
+  const [category, setCategory] = useState<ServiceCategoryFilter>({ kind: 'all' })
   const eligible = eligibleServices(journey)
+  const categories = [
+    ...new Set(
+      eligible.map((service) => service.category).filter((value) => value !== null)
+    )
+  ]
   if (eligible.length === 0) {
     return (
       <div {...stylex.props(styles.empty)}>
@@ -811,18 +827,12 @@ function ServiceGrid({
     )
   }
 
-  const categories = [
-    ...new Set(
-      eligible.map((service) => service.category).filter((value) => value !== null)
-    )
-  ]
   const visibleServices =
-    category === null
+    category.kind === 'all'
       ? eligible
-      : eligible.filter((service) => service.category === category)
-  const categoryValue =
-    category === null ? 'all' : `category:${categories.indexOf(category)}`
-
+      : category.kind === 'uncategorized'
+        ? eligible.filter((service) => service.category === null)
+        : eligible.filter((service) => service.category === category.value)
   return (
     <m.div
       key="servicesFade"
@@ -831,27 +841,20 @@ function ServiceGrid({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
     >
-      <select
-        aria-label="Service category"
-        value={categoryValue}
-        onChange={(event) => {
-          const value = event.currentTarget.value
-          setCategory(
-            value === 'all'
-              ? null
-              : (categories[Number(value.slice('category:'.length))] ?? null)
-          )
-        }}
-        {...stylex.props(styles.categoryButton)}
+      {categories.length > 0 ? (
+        <ServiceCategorySelect
+          categories={categories}
+          value={category}
+          onChange={setCategory}
+          messages={messages}
+        />
+      ) : null}
+      <div
+        {...stylex.props(
+          styles.serviceGrid,
+          categories.length === 0 && styles.serviceGridWithoutCategory
+        )}
       >
-        <option value="all">All categories</option>
-        {categories.map((item, index) => (
-          <option key={item} value={`category:${index}`}>
-            {item}
-          </option>
-        ))}
-      </select>
-      <div {...stylex.props(styles.serviceGrid)}>
         {visibleServices.map((service) => (
           <LegacyServiceCard
             key={service.id}
@@ -869,6 +872,141 @@ function ServiceGrid({
   )
 }
 
+function ServiceCategorySelect({
+  categories,
+  value,
+  onChange,
+  messages
+}: {
+  readonly categories: readonly string[]
+  readonly value: ServiceCategoryFilter
+  readonly onChange: (value: ServiceCategoryFilter) => void
+  readonly messages: BookingSelectionMessages
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const optionsId = useId()
+  const reduceMotion = useReducedMotion()
+  const selectedLabel =
+    value.kind === 'all'
+      ? messages.allCategories
+      : value.kind === 'uncategorized'
+        ? messages.uncategorized
+        : value.value
+  const options: readonly {
+    readonly key: string
+    readonly value: ServiceCategoryFilter
+    readonly label: string
+  }[] = [
+    { key: 'category:all', value: { kind: 'all' }, label: messages.allCategories },
+    ...categories.map((category) => ({
+      key: `category:${category}`,
+      value: { kind: 'category' as const, value: category },
+      label: category
+    })),
+    {
+      key: 'category:uncategorized',
+      value: { kind: 'uncategorized' },
+      label: messages.uncategorized
+    }
+  ]
+  const toggle = () => setExpanded((current) => !current)
+  const closeAndFocus = () => {
+    setExpanded(false)
+    triggerRef.current?.focus()
+  }
+
+  return (
+    <div {...stylex.props(styles.categorySpaceTaker)}>
+      <svg
+        aria-hidden="true"
+        width="12"
+        height="6"
+        viewBox="0 0 12 6"
+        onClick={toggle}
+        {...stylex.props(
+          styles.categoryStateArrow,
+          expanded && styles.categoryStateArrowExpanded
+        )}
+      >
+        <path
+          d="M6 5.992a.75.75 0 0 0 .545-.246l4.453-4.559a.667.667 0 0 0 .2-.486.69.69 0 0 0-.692-.697.715.715 0 0 0-.504.21L6.006 4.323 1.998.215a.73.73 0 0 0-.504-.211A.69.69 0 0 0 .803.7c0 .194.07.358.199.487L5.46 5.745A.725.725 0 0 0 6 5.992Z"
+          fill="currentColor"
+        />
+      </svg>
+      <m.div
+        data-testid="select:categories"
+        initial={false}
+        animate={{ height: expanded ? 'auto' : 46 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.15 }}
+        onClick={toggle}
+        {...stylex.props(
+          styles.categorySelect,
+          !expanded && styles.categorySelectCollapsed,
+          value.kind !== 'all' && !expanded && styles.categorySelectChosen,
+          expanded && styles.categorySelectExpanded
+        )}
+      >
+        <div
+          ref={triggerRef}
+          role="button"
+          tabIndex={0}
+          aria-label={messages.serviceCategory}
+          aria-expanded={expanded}
+          aria-controls={optionsId}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setExpanded(false)
+              return
+            }
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            toggle()
+          }}
+        >
+          <p
+            data-testid="text:category"
+            {...stylex.props(
+              styles.categorySelectedText,
+              value.kind !== 'all' && styles.categorySelectedTextChosen
+            )}
+          >
+            {selectedLabel}
+          </p>
+        </div>
+        <div
+          id={optionsId}
+          aria-hidden={!expanded}
+          {...(!expanded ? { inert: true } : {})}
+        >
+          {options.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              tabIndex={expanded ? 0 : -1}
+              data-testid={option.key}
+              onClick={(event) => {
+                event.stopPropagation()
+                onChange(option.value)
+                closeAndFocus()
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') return
+                event.preventDefault()
+                closeAndFocus()
+              }}
+              {...stylex.props(styles.categoryOption)}
+            >
+              <p {...stylex.props(styles.categoryOptionText)}>{option.label}</p>
+            </button>
+          ))}
+        </div>
+      </m.div>
+    </div>
+  )
+}
+
 type LegacyCardCopy = {
   readonly titleLines: readonly [string, string]
   readonly subtitleLines: readonly [string, string]
@@ -878,6 +1016,9 @@ export type BookingSelectionMessages = {
   readonly chooseLocation: string
   readonly chooseProvider: string
   readonly chooseService: string
+  readonly allCategories: string
+  readonly uncategorized: string
+  readonly serviceCategory: string
   readonly chooseServiceFirst: string
   readonly shop: string
   readonly nearby: string
@@ -905,6 +1046,9 @@ const defaultMessages: BookingSelectionMessages = {
   chooseLocation: 'Choose a location',
   chooseProvider: 'Choose a professional',
   chooseService: 'Choose a service',
+  allCategories: 'All categories',
+  uncategorized: 'Uncategorized',
+  serviceCategory: 'Service category',
   chooseServiceFirst: 'Choose a service first',
   shop: 'Shop',
   nearby: 'Nearby',

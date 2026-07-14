@@ -710,7 +710,19 @@ describe('Booking selection flow', () => {
   it('filters by category and hides Additional Services incompatible with Any Provider', () => {
     const anyJourney: BookingJourney = {
       ...teamJourney,
-      providerPreference: { kind: 'any' }
+      providerPreference: { kind: 'any' },
+      services: [
+        ...teamJourney.services,
+        {
+          id: 'svc_misc',
+          name: 'Consultation',
+          category: null,
+          priceMinor: 1000,
+          currency: 'USD',
+          durationMinutes: 15,
+          eligibleProviderIds: ['prv_ava']
+        }
+      ]
     }
     const { rerender } = render(
       <BookingSelectionFlow
@@ -720,9 +732,34 @@ describe('Booking selection flow', () => {
         onChooseServices={vi.fn()}
       />
     )
-    fireEvent.change(screen.getByRole('combobox', { name: /service category/i }), {
-      target: { value: 'category:1' }
-    })
+    const categorySelect = screen.getByTestId('select:categories')
+    expect(categorySelect.tagName).toBe('DIV')
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(within(categorySelect).getByTestId('text:category').textContent).toBe(
+      'All categories'
+    )
+    const categoryTrigger = screen.getByRole('button', { name: 'Service category' })
+    expect(categoryTrigger.getAttribute('aria-controls')).toBeTruthy()
+    expect(
+      document.getElementById(categoryTrigger.getAttribute('aria-controls')!)
+    ).toBeTruthy()
+    expect(categoryTrigger.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByTestId('category:Grooming').getAttribute('tabindex')).toBe('-1')
+    fireEvent.keyDown(categoryTrigger, { key: 'Enter' })
+    expect(categoryTrigger.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('category:Grooming').getAttribute('tabindex')).toBe('0')
+    fireEvent.keyDown(screen.getByTestId('category:Grooming'), { key: 'Escape' })
+    expect(categoryTrigger.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(categoryTrigger)
+    fireEvent.click(categorySelect)
+    fireEvent.click(screen.getByTestId('category:uncategorized'))
+    expect(screen.getByTestId('service:svc_misc')).toBeTruthy()
+    expect(screen.queryByTestId('service:svc_cut')).toBeNull()
+    fireEvent.click(categoryTrigger)
+    fireEvent.click(screen.getByTestId('category:Grooming'))
+    expect(within(categorySelect).getByTestId('text:category').textContent).toBe(
+      'Grooming'
+    )
     expect(screen.getByTestId('service:svc_beard')).toBeTruthy()
     expect(screen.queryByTestId('service:svc_cut')).toBeNull()
 

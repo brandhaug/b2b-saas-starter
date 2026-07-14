@@ -384,7 +384,7 @@ export const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: { default: '#dadadc', ':hover': '#e1e1e1' },
     borderRadius: 16,
-    backgroundColor: '#f7f7f7',
+    backgroundColor: 'transparent',
     color: '#616163',
     textAlign: 'left',
     transitionProperty: 'border-color, background-color, box-shadow',
@@ -443,21 +443,144 @@ export const styles = stylex.create({
     lineHeight: '18px',
     textAlign: 'center'
   },
-  categoryButton: {
-    display: 'flex',
+  categorySpaceTaker: {
+    position: 'relative',
     width: '100%',
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingInline: 16,
+    height: 46
+  },
+  categorySelect: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 999,
+    width: '100%',
+    height: 46,
+    boxSizing: 'border-box',
+    overflow: 'hidden',
+    padding: 0,
     borderWidth: 1,
     borderStyle: 'solid',
-    borderColor: '#e2e3e7',
+    borderColor: '#dadadc',
     borderRadius: 8,
-    backgroundColor: interactiveBackground,
-    color: '#292929',
-    fontSize: 14
+    backgroundColor: 'transparent',
+    color: 'rgb(28 28 30)',
+    outline: 'none',
+    textAlign: 'left',
+    userSelect: 'none',
+    cursor: 'pointer',
+    transitionProperty: 'background-color',
+    transitionDuration: '100ms',
+    transitionTimingFunction: 'linear',
+    transitionDelay: '100ms'
   },
+  categorySelectCollapsed: {
+    backgroundColor: {
+      default: 'transparent',
+      '@media (hover: hover)': {
+        default: 'transparent',
+        ':hover': '#ffffff'
+      }
+    },
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': {
+        default: 'none',
+        ':hover': '0 8px 16px -5px rgb(0 0 0 / 10%)'
+      }
+    }
+  },
+  categorySelectChosen: {
+    borderColor: {
+      default: '#ebebeb',
+      '@media (hover: hover)': {
+        default: '#ebebeb',
+        ':hover': '#dadadc'
+      }
+    },
+    backgroundColor: {
+      default: '#ebebeb',
+      '@media (hover: hover)': {
+        default: '#ebebeb',
+        ':hover': '#ffffff'
+      }
+    },
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': {
+        default: 'none',
+        ':hover': '0 8px 16px -5px rgb(0 0 0 / 10%)'
+      }
+    }
+  },
+  categorySelectExpanded: {
+    borderColor: '#e1e1e1',
+    backgroundColor: '#ffffff',
+    boxShadow: '0 12px 24px 0 rgb(0 0 0 / 10%)',
+    transitionDuration: '0ms',
+    transitionDelay: '0ms'
+  },
+  categorySelectedText: {
+    overflow: 'hidden',
+    margin: 0,
+    paddingTop: 13,
+    paddingRight: 16,
+    paddingBottom: 13,
+    paddingLeft: 16,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 15,
+    fontWeight: 400,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  categorySelectedTextChosen: { fontWeight: 600 },
+  categoryOption: {
+    display: 'block',
+    width: '100%',
+    paddingTop: 10,
+    paddingRight: 15,
+    paddingBottom: 10,
+    paddingLeft: 15,
+    borderWidth: 0,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'rgb(242 242 245)',
+      ':focus': 'rgb(242 242 245)'
+    },
+    textAlign: 'left',
+    cursor: 'pointer'
+  },
+  categoryOptionText: {
+    display: 'block',
+    overflow: 'hidden',
+    margin: 0,
+    color: '#616163',
+    fontFamily: bookingTheme.fontText,
+    fontSize: 15,
+    fontWeight: 400,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  categoryStateArrow: {
+    position: 'absolute',
+    top: 21,
+    right: 17,
+    zIndex: 1000,
+    width: 12,
+    height: 6,
+    color: 'rgb(28 28 30)',
+    opacity: 0.6,
+    cursor: 'pointer',
+    transitionProperty: 'transform',
+    transitionDuration: {
+      default: '150ms',
+      '@media (prefers-reduced-motion: reduce)': '0ms'
+    }
+  },
+  categoryStateArrowExpanded: { transform: 'rotate(180deg)' },
   serviceGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
@@ -465,6 +588,7 @@ export const styles = stylex.create({
     rowGap: 10,
     marginTop: 16
   },
+  serviceGridWithoutCategory: { marginTop: 0 },
   serviceCardSpace: {
     position: 'relative',
     width: '100%',
