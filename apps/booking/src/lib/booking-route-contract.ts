@@ -32,6 +32,45 @@ export type CanonicalBookingRoute = {
   readonly serviceSlug?: string | undefined
 }
 
+export type CanonicalBookingPathInput =
+  | { readonly kind: 'shop-selection'; readonly merchantSlug: string }
+  | {
+      readonly kind: 'provider-selection'
+      readonly merchantSlug: string
+      readonly shopSlug: string
+    }
+  | {
+      readonly kind: 'service-selection'
+      readonly merchantSlug: string
+      readonly shopSlug: string
+      readonly providerSlug: string
+    }
+  | {
+      readonly kind: 'additional-service-selection' | 'schedule'
+      readonly merchantSlug: string
+      readonly shopSlug: string
+      readonly providerSlug: string
+      readonly serviceSlug: string
+    }
+  | {
+      readonly kind: 'checkout'
+      readonly merchantSlug: string
+      readonly sessionId: string
+    }
+
+export function buildCanonicalBookingPath(input: CanonicalBookingPathInput): string {
+  const merchant = encodeURIComponent(input.merchantSlug)
+  if (input.kind === 'shop-selection') return `/${merchant}/booking`
+  if (input.kind === 'checkout')
+    return `/${merchant}/booking/session/${encodeURIComponent(input.sessionId)}/checkout`
+  const shop = encodeURIComponent(input.shopSlug)
+  if (input.kind === 'provider-selection') return `/${merchant}/booking/${shop}`
+  const services = `/${merchant}/booking/${shop}/${encodeURIComponent(input.providerSlug)}/services`
+  if (input.kind === 'service-selection') return services
+  const selected = `${services}/${encodeURIComponent(input.serviceSlug)}`
+  return input.kind === 'schedule' ? `${selected}/schedule` : selected
+}
+
 const SAFE_SEGMENT = /^[a-z0-9](?:[a-z0-9_-]{0,126}[a-z0-9])?$/
 const BOOKING_LOCATOR = /^[A-Za-z0-9_-]{1,128}$/
 const ACQUISITION_KEY = /^(?:utm_[a-z0-9_]+|gclid|rwg_token)$/

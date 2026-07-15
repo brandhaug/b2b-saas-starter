@@ -82,6 +82,7 @@ function CanonicalNestedBookingRoute() {
       sessionId={route.bookingLocator}
       locale={route.locale ?? 'en'}
       embedding={route.embedding}
+      {...(matched ? { initialRouteKind: matched.kind } : {})}
     />
   )
 }

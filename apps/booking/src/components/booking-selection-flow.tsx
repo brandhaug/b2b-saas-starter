@@ -36,6 +36,8 @@ import { BookingWidgetShell } from './booking-widget-shell.tsx'
 type BookingSelectionFlowProps = {
   readonly journey: BookingJourney
   readonly busy: boolean
+  readonly initialPage?: 'locations' | 'providers' | 'services'
+  readonly onNavigateBack?: (page: 'locations' | 'providers') => void
   readonly onChooseShop?: (shopId: string) => void
   readonly onChooseProvider: (preference: ProviderPreference) => void
   readonly onChooseServices: (selection: ServiceSelection) => void
@@ -88,12 +90,17 @@ function BookingSelectionFlowContent({
   onChooseServices,
   onChooseGiftCard,
   onContinue,
+  initialPage,
+  onNavigateBack,
   onTitleActionMount,
   continuation,
   locale = 'en',
   messages = defaultMessages
 }: BookingSelectionFlowProps) {
-  const [editingProvider, setEditingProvider] = useState(false)
+  const [editingProvider, setEditingProvider] = useState(initialPage === 'providers')
+  const [editingLocation, setEditingLocation] = useState(
+    initialPage === undefined || initialPage === 'locations'
+  )
   const [pendingProviderChoice, setPendingProviderChoice] = useState<{
     readonly preference: ProviderPreference
     readonly journeyVersion: number
@@ -121,7 +128,8 @@ function BookingSelectionFlowContent({
     pendingShop !== null &&
     journey.shopId === pendingShop.id &&
     journey.version > pendingShop.afterVersion
-  const showLocations = journey.shops.length > 1 && !shopSelectionConfirmed
+  const showLocations =
+    journey.shops.length > 1 && editingLocation && !shopSelectionConfirmed
   const providerChoicePending =
     pendingProviderChoice?.journeyVersion === journey.version
   const showProviders =
@@ -216,6 +224,7 @@ function BookingSelectionFlowContent({
 
   const chooseShop = (shopId: string) => {
     setRouteDirection('forward')
+    setEditingLocation(false)
     setPendingProviderChoice(null)
     setPendingShop({ id: shopId, afterVersion: journey.version })
     onChooseShop?.(shopId)
@@ -269,8 +278,14 @@ function BookingSelectionFlowContent({
                     return
                   }
                   setPendingProviderChoice(null)
-                  if (journey.shops.length > 1 && showProviders) setPendingShop(null)
-                  else setEditingProvider(true)
+                  if (journey.shops.length > 1 && showProviders) {
+                    setPendingShop(null)
+                    setEditingLocation(true)
+                    onNavigateBack?.('locations')
+                  } else {
+                    setEditingProvider(true)
+                    onNavigateBack?.('providers')
+                  }
                 }}
                 {...stylex.props(styles.iconButton, styles.backButton)}
               >

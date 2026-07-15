@@ -7,7 +7,10 @@ import {
   useBookingLocalization
 } from '../localization/booking-localization-provider.tsx'
 import type { BookingLocale } from '../localization/booking-localization.ts'
-import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
+import type {
+  BookingEmbedding,
+  CanonicalBookingRouteKind
+} from '../lib/booking-route-contract.ts'
 import { BookingShellProvider } from './booking-widget-shell.tsx'
 import { styles } from './booking-flow.styles.ts'
 import { BookingWidgetMenu } from './booking-widget-menu.tsx'
@@ -16,12 +19,14 @@ export function CanonicalBookingShell({
   merchantSlug,
   sessionId,
   locale,
-  embedding
+  embedding,
+  initialRouteKind
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
   readonly locale: BookingLocale
   readonly embedding: BookingEmbedding
+  readonly initialRouteKind?: CanonicalBookingRouteKind
 }) {
   const [persistingLocale, setPersistingLocale] = useState(false)
   const [titleActionTarget, setTitleActionTarget] = useState<HTMLDivElement | null>(
@@ -66,6 +71,7 @@ export function CanonicalBookingShell({
         <LocalizedServerBackedBookingFlow
           merchantSlug={merchantSlug}
           sessionId={sessionId}
+          {...(initialRouteKind ? { initialRouteKind } : {})}
           onTitleActionMount={setTitleActionTarget}
         />
         {persistingLocale ? (
@@ -99,10 +105,12 @@ function LocalePersistenceStatus({ target }: { readonly target: HTMLElement | nu
 function LocalizedServerBackedBookingFlow({
   merchantSlug,
   sessionId,
+  initialRouteKind,
   onTitleActionMount
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
+  readonly initialRouteKind?: CanonicalBookingRouteKind
   readonly onTitleActionMount: (element: HTMLDivElement | null) => void
 }) {
   const { message } = useBookingLocalization()
@@ -110,6 +118,7 @@ function LocalizedServerBackedBookingFlow({
     <ServerBackedBookingFlow
       merchantSlug={merchantSlug}
       sessionId={sessionId}
+      {...(initialRouteKind ? { initialRouteKind } : {})}
       onTitleActionMount={onTitleActionMount}
       selectionRefreshedMessage={message('feedback.selection_refreshed')}
     />

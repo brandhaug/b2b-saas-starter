@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router'
 import { CanonicalBookingShell } from '../components/canonical-booking-shell.tsx'
 import { parseBookingLocale } from '../localization/booking-localization.ts'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
@@ -23,7 +23,10 @@ export const Route = createFileRoute('/$merchantSlug/booking')({
 
 function CanonicalBookingRoute() {
   const { merchantSlug } = Route.useParams()
+  const location = useLocation()
   const { booking, locale, embed } = Route.useSearch()
+  if (location.pathname !== `/${encodeURIComponent(merchantSlug)}/booking`)
+    return <Outlet />
   if (!booking) return null
   return (
     <CanonicalBookingShell
@@ -31,6 +34,7 @@ function CanonicalBookingRoute() {
       sessionId={booking}
       locale={locale ?? 'en'}
       embedding={embed ?? 'standalone'}
+      initialRouteKind="shop-selection"
     />
   )
 }

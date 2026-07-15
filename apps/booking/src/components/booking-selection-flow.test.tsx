@@ -196,6 +196,49 @@ describe('Booking selection flow', () => {
     })
   })
 
+  it('restores the provider route even when the Session already has a provider', () => {
+    render(
+      <BookingSelectionFlow
+        journey={{ ...teamJourney, providerPreference: { kind: 'any' } }}
+        busy={false}
+        initialPage="providers"
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
+    expect(screen.queryByText('Choose a service', { selector: 'p' })).toBeNull()
+  })
+
+  it('restores a progressed provider route and can return to locations for a multi-shop Session', async () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          shops: [
+            ...teamJourney.shops,
+            { id: 'shp_other', slug: 'other', name: 'Other Shop' }
+          ],
+          providerPreference: { kind: 'any' }
+        }}
+        busy={false}
+        initialPage="providers"
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Choose a professional', { selector: 'p' })).toBeTruthy()
+    expect(screen.queryByText('Choose a location', { selector: 'p' })).toBeNull()
+
+    fireEvent.click(screen.getByTestId('btn:back'))
+
+    await waitFor(() =>
+      expect(screen.getByText('Choose a location', { selector: 'p' })).toBeTruthy()
+    )
+  })
+
   it('uses the legacy NamedBarberCard DOM contract for providers', () => {
     render(
       <BookingSelectionFlow

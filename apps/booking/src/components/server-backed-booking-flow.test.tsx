@@ -19,10 +19,16 @@ import { BookingLocalizationProvider } from '../localization/booking-localizatio
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  window.history.replaceState(null, '', '/')
 })
 
 describe('server-backed Booking scheduling', () => {
   it('slides between Services and Schedule inside the same canonical shell', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/mara/booking/main/prv_ava/services/svc_cut?booking=bsn_transition'
+    )
     const journey: BookingJourney = {
       version: 1,
       presentation: 'solo',
@@ -157,6 +163,9 @@ describe('server-backed Booking scheduling', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
 
     const schedulingTitle = await screen.findByText('Choose a time')
+    expect(window.location.pathname).toBe(
+      '/mara/booking/main/prv_ava/services/svc_cut/schedule'
+    )
     expect(schedulingTitle.closest('[data-booking-shell="canonical"]')).toBe(
       canonicalShell
     )

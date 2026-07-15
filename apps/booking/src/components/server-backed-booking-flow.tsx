@@ -44,10 +44,67 @@ import {
   BookingPremiumThemeBoundary,
   type BookingPremiumPalette
 } from '../presentation/booking-premium-theme.tsx'
+import type { CanonicalBookingRouteKind } from '../lib/booking-route-contract.ts'
+import { buildCanonicalBookingPath } from '../lib/booking-route-contract.ts'
 
 type SettlementPaymentEligibility = PaymentMethodEligibility & {
   readonly giftCardMinor: number
   readonly externalPaymentMinor: number
+}
+
+type SelectionPage = 'locations' | 'providers' | 'services' | 'additional-services'
+
+const selectionPath = (
+  merchantSlug: string,
+  journey: BookingJourney,
+  page: SelectionPage | 'schedule'
+): string | null => {
+  if (page === 'locations')
+    return buildCanonicalBookingPath({ kind: 'shop-selection', merchantSlug })
+  const shop = journey.shops.find((candidate) => candidate.id === journey.shopId)
+  if (!shop) return null
+  if (page === 'providers')
+    return buildCanonicalBookingPath({
+      kind: 'provider-selection',
+      merchantSlug,
+      shopSlug: shop.slug
+    })
+  const preference = journey.providerPreference
+  if (!preference)
+    return buildCanonicalBookingPath({
+      kind: 'provider-selection',
+      merchantSlug,
+      shopSlug: shop.slug
+    })
+  if (page === 'services')
+    return buildCanonicalBookingPath({
+      kind: 'service-selection',
+      merchantSlug,
+      shopSlug: shop.slug,
+      providerSlug: preference.kind === 'specific' ? preference.providerId : 'any'
+    })
+  const serviceId = journey.selection.primaryServiceId
+  if (!serviceId)
+    return buildCanonicalBookingPath({
+      kind: 'service-selection',
+      merchantSlug,
+      shopSlug: shop.slug,
+      providerSlug: preference.kind === 'specific' ? preference.providerId : 'any'
+    })
+  return buildCanonicalBookingPath({
+    kind: page === 'schedule' ? 'schedule' : 'additional-service-selection',
+    merchantSlug,
+    shopSlug: shop.slug,
+    providerSlug: preference.kind === 'specific' ? preference.providerId : 'any',
+    serviceSlug: serviceId
+  })
+}
+
+const replaceBookingPath = (pathname: string | null) => {
+  if (!pathname || typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  url.pathname = pathname
+  window.history.replaceState(window.history.state, '', url)
 }
 
 export function ServerBackedBookingFlow({
@@ -58,12 +115,14 @@ export function ServerBackedBookingFlow({
     'en',
     'feedback.selection_refreshed'
   ),
+  initialRouteKind,
   onTitleActionMount
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
   readonly telemetry?: CheckoutTelemetry
   readonly selectionRefreshedMessage?: string
+  readonly initialRouteKind?: CanonicalBookingRouteKind
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
 }) {
   const { locale, message } = useBookingLocalization()
@@ -74,10 +133,14 @@ export function ServerBackedBookingFlow({
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('payment_cancel') === '1'
   const queryClient = useQueryClient()
-  const [scheduling, setScheduling] = useState(paymentReturn)
+  const routeStartsScheduling =
+    initialRouteKind === 'schedule' || initialRouteKind === 'checkout'
+  const [scheduling, setScheduling] = useState(paymentReturn || routeStartsScheduling)
   const [slotLost, setSlotLost] = useState(false)
   const [holdExpired, setHoldExpired] = useState(false)
-  const [checkout, setCheckout] = useState(paymentReturn)
+  const [checkout, setCheckout] = useState(
+    paymentReturn || initialRouteKind === 'checkout'
+  )
   const [review, setReview] = useState<CheckoutReview | null>(null)
   const [preparation, setPreparation] = useState<CheckoutPreparation | null>(null)
   const [validationIssues, setValidationIssues] = useState<
@@ -234,10 +297,19 @@ export function ServerBackedBookingFlow({
         refreshed: false as const
       }
     },
-    onSuccess: (value) => {
+    onSuccess: (value, mutation) => {
       queryClient.setQueryData(queryKey, value.journey)
       setSelectionRefreshed(value.refreshed)
       void queryClient.invalidateQueries({ queryKey: partyKey })
+      const page =
+        mutation.endpoint === 'shop'
+          ? 'providers'
+          : mutation.endpoint === 'provider'
+            ? 'services'
+            : value.journey.selection.primaryServiceId
+              ? 'additional-services'
+              : 'services'
+      replaceBookingPath(selectionPath(merchantSlug, value.journey, page))
     }
   })
   const availabilityKey = useMemo(
@@ -599,7 +671,12 @@ export function ServerBackedBookingFlow({
         body: { version: party.data.version, requestId: nextPartyRequest.id }
       })
     } else if (party.data && party.data.requests.length > 1) groupHoldMutation.mutate()
-    else setCheckout(true)
+    else {
+      setCheckout(true)
+      replaceBookingPath(
+        buildCanonicalBookingPath({ kind: 'checkout', merchantSlug, sessionId })
+      )
+    }
   }
   if (scheduling) {
     if (expiredSession) {
@@ -826,7 +903,12 @@ export function ServerBackedBookingFlow({
           slotLost={slotLost}
           holdExpired={holdExpired}
           locale={locale}
-          onBack={() => setScheduling(false)}
+          onBack={() => {
+            setScheduling(false)
+            replaceBookingPath(
+              selectionPath(merchantSlug, journey.data, 'additional-services')
+            )
+          }}
           onSelect={(startsAt) => holdMutation.mutate(startsAt)}
           onRelease={() => releaseMutation.mutate()}
           {...(nextPartyRequest ? { checkoutLabel: schedulingCheckoutLabel } : {})}
@@ -888,6 +970,16 @@ export function ServerBackedBookingFlow({
       ) : null}
       <BookingSelectionFlow
         journey={journey.data}
+        {...(initialRouteKind
+          ? {
+              initialPage:
+                initialRouteKind === 'shop-selection'
+                  ? ('locations' as const)
+                  : initialRouteKind === 'provider-selection'
+                    ? ('providers' as const)
+                    : ('services' as const)
+            }
+          : {})}
         locale={locale}
         messages={{
           chooseLocation: message('selection.choose_location'),
@@ -949,7 +1041,12 @@ export function ServerBackedBookingFlow({
                   releaseMutation.isPending ||
                   groupHoldMutation.isPending,
                 busyLabel: message('feedback.loading'),
-                onBack: () => setScheduling(false),
+                onBack: () => {
+                  setScheduling(false)
+                  replaceBookingPath(
+                    selectionPath(merchantSlug, journey.data, 'additional-services')
+                  )
+                },
                 ...(availability.data?.hold
                   ? {
                       heldOrder: {
@@ -965,6 +1062,9 @@ export function ServerBackedBookingFlow({
             }
           : {})}
         {...(onTitleActionMount ? { onTitleActionMount } : {})}
+        onNavigateBack={(page) =>
+          replaceBookingPath(selectionPath(merchantSlug, journey.data, page))
+        }
         onChooseShop={(shopId) =>
           selectionMutation.mutate({
             endpoint: 'shop',
@@ -995,7 +1095,10 @@ export function ServerBackedBookingFlow({
             expectedVersion: journey.data.version
           })
         }
-        onContinue={() => setScheduling(true)}
+        onContinue={() => {
+          setScheduling(true)
+          replaceBookingPath(selectionPath(merchantSlug, journey.data, 'schedule'))
+        }}
       />
     </>
   )

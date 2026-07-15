@@ -1,8 +1,54 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildCanonicalBookingPath,
   canonicalizeBookingRequest,
   matchCanonicalBookingRoute
 } from './booking-route-contract.ts'
+
+describe('canonical Booking path building', () => {
+  it.each([
+    [{ kind: 'shop-selection', merchantSlug: 'mara' } as const, '/mara/booking'],
+    [
+      { kind: 'provider-selection', merchantSlug: 'mara', shopSlug: 'main' } as const,
+      '/mara/booking/main'
+    ],
+    [
+      {
+        kind: 'service-selection',
+        merchantSlug: 'mara',
+        shopSlug: 'main',
+        providerSlug: 'ava'
+      } as const,
+      '/mara/booking/main/ava/services'
+    ],
+    [
+      {
+        kind: 'additional-service-selection',
+        merchantSlug: 'mara',
+        shopSlug: 'main',
+        providerSlug: 'ava',
+        serviceSlug: 'cut'
+      } as const,
+      '/mara/booking/main/ava/services/cut'
+    ],
+    [
+      {
+        kind: 'schedule',
+        merchantSlug: 'mara',
+        shopSlug: 'main',
+        providerSlug: 'ava',
+        serviceSlug: 'cut'
+      } as const,
+      '/mara/booking/main/ava/services/cut/schedule'
+    ],
+    [
+      { kind: 'checkout', merchantSlug: 'mara', sessionId: 'bsn_123' } as const,
+      '/mara/booking/session/bsn_123/checkout'
+    ]
+  ])('builds $kind', (input, expected) => {
+    expect(buildCanonicalBookingPath(input)).toBe(expected)
+  })
+})
 
 describe('canonical Booking route contract', () => {
   it.each([
