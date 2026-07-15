@@ -1,11 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import {
-  AnimatePresence,
-  LazyMotion,
-  domAnimation,
-  m,
-  type Variants
-} from 'motion/react'
+import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
 import {
   useEffect,
   useLayoutEffect,
@@ -31,6 +25,7 @@ import {
 } from '../presentation/booking-premium-theme.tsx'
 import { BookingWidgetShell } from './booking-widget-shell.tsx'
 import { RouteTitlePresence } from '../presentation/booking-primitives.tsx'
+import { calendarSlideVariants } from '../presentation/booking-calendar-motion.ts'
 
 export function BookingSchedulingFlow({
   availability,
@@ -833,9 +828,3 @@ const calendarWeekdays = (formatter: Intl.DateTimeFormat) =>
 
 const formatMoney = (amountMinor: number, currency: string, locale: BookingLocale) =>
   (amountMinor / 100).toLocaleString(locale, { style: 'currency', currency })
-
-const calendarSlideVariants = {
-  enter: (direction: -1 | 1) => ({ x: `${direction * -120}%` }),
-  center: { x: 0 },
-  exit: (direction: -1 | 1) => ({ x: `${direction * 120}%` })
-} satisfies Variants

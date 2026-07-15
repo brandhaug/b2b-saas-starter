@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BookingAvailability } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
+import { calendarSlideVariants } from '../presentation/booking-calendar-motion.ts'
 
 afterEach(cleanup)
 
@@ -57,6 +58,13 @@ const hold: NonNullable<BookingAvailability['hold']> = {
 }
 
 describe('Booking scheduling flow', () => {
+  it('slides forward months from right to left and previous months from left to right', () => {
+    expect(calendarSlideVariants.enter(1)).toEqual({ x: '120%' })
+    expect(calendarSlideVariants.exit(1)).toEqual({ x: '-120%' })
+    expect(calendarSlideVariants.enter(-1)).toEqual({ x: '-120%' })
+    expect(calendarSlideVariants.exit(-1)).toEqual({ x: '120%' })
+  })
+
   it('matches the legacy title, calendar line, and three-column timetable contract', async () => {
     const select = vi.fn()
     const back = vi.fn()
