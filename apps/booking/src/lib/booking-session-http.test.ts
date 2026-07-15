@@ -924,10 +924,14 @@ describe('Booking Session HTTP boundary', () => {
       enter: () => Effect.die(new Error('not called')),
       authorize: () => Effect.succeed(session),
       scheduling: {
-        availability: (_session: unknown, input: { readonly days?: number }) => {
+        availability: (
+          _session: unknown,
+          input: { readonly from: string; readonly days?: number }
+        ) => {
           requestedDays = input.days
           return Effect.succeed({
             timezone: 'UTC',
+            range: { from: input.from, days: input.days ?? 14 },
             slots: [
               {
                 startsAt: '2026-07-13T09:00:00.000Z',

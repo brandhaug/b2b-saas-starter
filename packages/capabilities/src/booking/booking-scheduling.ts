@@ -75,10 +75,16 @@ export type TimeSlotHold = typeof TimeSlotHold.Type
 
 export const BookingAvailability = Schema.Struct({
   timezone: Schema.String,
+  range: Schema.Struct({
+    from: Schema.String,
+    days: Schema.Number
+  }),
   slots: Schema.Array(BookingTimeSlot),
   hold: Schema.NullOr(TimeSlotHold)
 })
 export type BookingAvailability = typeof BookingAvailability.Type
+
+export const BOOKING_AVAILABILITY_HORIZON_DAYS = 60
 
 export const HoldTimeSlotInput = Schema.Struct({ startsAt: Schema.String })
 export type HoldTimeSlotInput = typeof HoldTimeSlotInput.Type
@@ -109,10 +115,15 @@ export class BookingSchedulingRejected extends Schema.TaggedErrorClass<BookingSc
 ) {}
 
 type Failure = BookingSchedulingRejected | CapabilityUnavailable
+type AvailabilityRange = {
+  readonly from: string
+  readonly days?: number
+  readonly now: string
+}
 export type BookingSchedulingShape = {
   readonly availability: (
     session: BookingSession,
-    input: { readonly from: string; readonly days?: number; readonly now: string }
+    input: AvailabilityRange
   ) => Effect.Effect<BookingAvailability, Failure>
   readonly hold: (
     session: BookingSession,
@@ -297,7 +308,14 @@ const failure = (reason: BookingSchedulingRejected['reason']) =>
         : 'Booking time could not be accepted'
   })
 const validRange = (from: string, days: number) =>
-  Number.isFinite(Date.parse(from)) && Number.isInteger(days) && days >= 1 && days <= 31
+  Number.isFinite(Date.parse(from)) &&
+  Number.isInteger(days) &&
+  days >= 1 &&
+  days <= BOOKING_AVAILABILITY_HORIZON_DAYS
+const resolveAvailabilityRange = (range: AvailabilityRange) => {
+  const days = range.days ?? 14
+  return validRange(range.from, days) ? { from: range.from, days } : null
+}
 const toPublicHold = (hold: StoredHold): TimeSlotHold => ({
   id: hold.id,
   bookingSessionId: hold.bookingSessionId,
@@ -602,8 +620,9 @@ export const SeedBookingScheduling = (
       }),
     availability: (session, range) =>
       Effect.gen(function* () {
-        const days = range.days ?? 14
-        if (!validRange(range.from, days)) return yield* failure('invalid_range')
+        const resolvedRange = resolveAvailabilityRange(range)
+        if (!resolvedRange) return yield* failure('invalid_range')
+        const { days } = resolvedRange
         const hold = [...store.holds.values()].find(
           (item) =>
             item.bookingSessionId === session.id &&
@@ -619,6 +638,7 @@ export const SeedBookingScheduling = (
                 store.selections.shops.get(
                   store.selections.selections.get(session.id)?.shopId ?? ''
                 )?.timezone ?? store.scenario.merchant.timezone,
+              range: resolvedRange,
               slots: [],
               hold: toPublicHold(hold)
             }
@@ -630,6 +650,7 @@ export const SeedBookingScheduling = (
           if (hold)
             return {
               timezone: input.timezone,
+              range: resolvedRange,
               slots: [],
               hold: toPublicHold(hold)
             }
@@ -637,6 +658,7 @@ export const SeedBookingScheduling = (
         }
         return {
           timezone: input.timezone,
+          range: resolvedRange,
           slots: generated.slots,
           hold: hold ? toPublicHold(hold) : null
         }
@@ -1066,14 +1088,16 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
         holdParty: (session, command) => liveHoldParty(db, session, command),
         availability: (session, range) =>
           Effect.gen(function* () {
-            const days = range.days ?? 14
-            if (!validRange(range.from, days)) return yield* failure('invalid_range')
+            const resolvedRange = resolveAvailabilityRange(range)
+            if (!resolvedRange) return yield* failure('invalid_range')
+            const { days } = resolvedRange
             const hold = yield* currentHold(session, range.now)
             const inputResult = yield* Effect.result(liveInputs(db, session))
             if (inputResult._tag === 'Failure') {
               if (hold && inputResult.failure instanceof BookingSchedulingRejected) {
                 return {
                   timezone: yield* liveTimezone(db, session),
+                  range: resolvedRange,
                   slots: [],
                   hold
                 }
@@ -1083,11 +1107,18 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
             const input = inputResult.success
             const generated = candidates(input, { ...range, days }, session.id)
             if (!generated.selected.length || !generated.providers.length) {
-              if (hold) return { timezone: input.timezone, slots: [], hold }
+              if (hold)
+                return {
+                  timezone: input.timezone,
+                  range: resolvedRange,
+                  slots: [],
+                  hold
+                }
               return yield* failure('not_ready')
             }
             return {
               timezone: input.timezone,
+              range: resolvedRange,
               slots: generated.slots,
               hold
             }

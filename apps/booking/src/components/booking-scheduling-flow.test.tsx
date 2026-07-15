@@ -8,6 +8,7 @@ afterEach(cleanup)
 
 const availability: BookingAvailability = {
   timezone: 'UTC',
+  range: { from: '2026-07-13T00:00:00.000Z', days: 60 },
   slots: [
     {
       startsAt: '2026-07-13T09:00:00.000Z',
@@ -168,6 +169,27 @@ describe('Booking scheduling flow', () => {
     ).toBeTruthy()
   })
 
+  it('keeps month navigation available across the 60-day booking horizon', () => {
+    render(
+      <BookingSchedulingFlow
+        availability={availability}
+        busy={false}
+        slotLost={false}
+        onBack={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('btn:expandCalendar'))
+    const nextMonth = screen.getByTestId('btn:nextMonth') as HTMLButtonElement
+    expect(nextMonth.disabled).toBe(false)
+    fireEvent.click(nextMonth)
+    expect(screen.getByText('August 2026')).toBeTruthy()
+    fireEvent.click(nextMonth)
+    expect(screen.getByText('September 2026')).toBeTruthy()
+    expect(nextMonth.disabled).toBe(true)
+  })
+
   it('renders no-times and safe slot-lost recovery without hiding saved selections', () => {
     const { rerender } = render(
       <BookingSchedulingFlow
@@ -178,7 +200,7 @@ describe('Booking scheduling flow', () => {
         onSelect={vi.fn()}
       />
     )
-    expect(screen.getByText('No times in the next 14 days')).toBeTruthy()
+    expect(screen.getByText('No times in the next 60 days')).toBeTruthy()
     rerender(
       <BookingSchedulingFlow
         availability={availability}
@@ -213,7 +235,7 @@ describe('Booking scheduling flow', () => {
         onSelect={vi.fn()}
       />
     )
-    expect(screen.getByText('Nu sunt intervale în următoarele 14 zile')).toBeTruthy()
+    expect(screen.getByText('Nu sunt intervale în următoarele 60 de zile')).toBeTruthy()
   })
 
   it('keeps a valid frozen hold visible when current Availability has no slots', () => {
@@ -222,6 +244,7 @@ describe('Booking scheduling flow', () => {
       <BookingSchedulingFlow
         availability={{
           timezone: 'UTC',
+          range: { from: '2026-07-13T00:00:00.000Z', days: 60 },
           slots: [],
           hold
         }}
@@ -271,6 +294,7 @@ describe('Booking scheduling flow', () => {
       <BookingSchedulingFlow
         availability={{
           timezone: 'UTC',
+          range: { from: `${today}T00:00:00.000Z`, days: 60 },
           hold: null,
           slots: [
             {

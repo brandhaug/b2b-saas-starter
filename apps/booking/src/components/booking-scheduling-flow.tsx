@@ -111,8 +111,8 @@ export function BookingSchedulingFlow({
     ].sort((left, right) => left.startsAt.localeCompare(right.startsAt))
   }, [availability.hold, availability.slots])
   const days = useMemo(
-    () => calendarDays(scheduleSlots, formatters.date, today),
-    [scheduleSlots, formatters.date, today]
+    () => calendarDays(scheduleSlots, formatters.date, availability.range),
+    [scheduleSlots, formatters.date, availability.range]
   )
   const calendarRangeDaySet = useMemo(() => new Set(days), [days])
   const availableDaySet = useMemo(
@@ -224,7 +224,10 @@ export function BookingSchedulingFlow({
               />
             </span>
             <h2 {...stylex.props(styles.emptyTitle)}>
-              {message('scheduling.empty_title')}
+              {message('scheduling.empty_title').replace(
+                '{days}',
+                String(availability.range.days)
+              )}
             </h2>
             <p {...stylex.props(styles.emptyCopy)}>
               {message('scheduling.empty_copy')}
@@ -530,14 +533,15 @@ const addDay = (date: string, offset: number) => {
 const calendarDays = (
   slots: readonly BookingTimeSlot[],
   formatter: Intl.DateTimeFormat,
-  today: string
+  range: BookingAvailability['range']
 ) => {
   if (!slots[0]) return []
   const firstSlot = formatter.format(new Date(slots[0].startsAt))
-  const first = firstSlot < today ? firstSlot : today
+  const rangeStart = formatter.format(new Date(range.from))
+  const first = firstSlot < rangeStart ? firstSlot : rangeStart
   const lastSlot = formatter.format(new Date(slots.at(-1)!.startsAt))
-  const minimumLastDay = addDay(first, 13)
-  const last = lastSlot > minimumLastDay ? lastSlot : minimumLastDay
+  const rangeEnd = addDay(rangeStart, range.days - 1)
+  const last = lastSlot > rangeEnd ? lastSlot : rangeEnd
   const length =
     Math.round(
       (asLocalNoon(last).getTime() - asLocalNoon(first).getTime()) / 86_400_000

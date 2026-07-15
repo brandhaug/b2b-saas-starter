@@ -71,6 +71,39 @@ const fixture = async () => {
 }
 
 describe('Booking Scheduling', () => {
+  it('supports the 60-day legacy booking horizon and rejects longer ranges', async () => {
+    const { run } = await fixture()
+    const bookingSession = session('bsn_one')
+    const withinHorizon = await run(
+      Effect.result(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.availability(bookingSession, {
+            from: '2026-07-10T00:00:00.000Z',
+            days: 60,
+            now
+          })
+        )
+      )
+    )
+    const beyondHorizon = await run(
+      Effect.result(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.availability(bookingSession, {
+            from: '2026-07-10T00:00:00.000Z',
+            days: 61,
+            now
+          })
+        )
+      )
+    )
+
+    expect(withinHorizon._tag).toBe('Success')
+    expect(beyondHorizon).toMatchObject({
+      _tag: 'Failure',
+      failure: { reason: 'invalid_range' }
+    })
+  })
+
   it('acquires every group interval or leaves the complete set untouched', () => {
     const base = {
       merchantId: 'mer_one',

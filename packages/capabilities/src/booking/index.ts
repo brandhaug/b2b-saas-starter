@@ -52,6 +52,7 @@ export type {
   SeedBookingSelectionStore
 } from './booking-selection.ts'
 export {
+  BOOKING_AVAILABILITY_HORIZON_DAYS,
   BookingAvailability,
   BookingQuote,
   BookingScheduling,

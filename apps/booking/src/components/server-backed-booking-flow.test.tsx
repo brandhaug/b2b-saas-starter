@@ -100,6 +100,7 @@ describe('server-backed Booking scheduling', () => {
     }
     const availability: BookingAvailability = {
       timezone: 'UTC',
+      range: { from: '2026-07-15T00:00:00.000Z', days: 60 },
       slots: [
         {
           startsAt: '2026-07-15T14:00:00.000Z',
@@ -133,6 +134,7 @@ describe('server-backed Booking scheduling', () => {
         totalMinor: 5500
       }
     }
+    let requestedAvailabilityDays: string | null = null
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url =
         typeof input === 'string'
@@ -142,7 +144,12 @@ describe('server-backed Booking scheduling', () => {
             : input.url
       if (url.endsWith('/selection')) return Response.json(journey)
       if (url.endsWith('/party')) return Response.json(party)
-      if (url.endsWith('/availability')) return Response.json(availability)
+      if (new URL(url, 'http://localhost').pathname.endsWith('/availability')) {
+        requestedAvailabilityDays = new URL(url, 'http://localhost').searchParams.get(
+          'days'
+        )
+        return Response.json(availability)
+      }
       if (url.endsWith('/hold') && init?.method === 'POST') return Response.json(hold)
       throw new Error(`unexpected request: ${url}`)
     })
@@ -163,6 +170,7 @@ describe('server-backed Booking scheduling', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
 
     const schedulingTitle = await screen.findByText('Choose a time')
+    expect(requestedAvailabilityDays).toBe('60')
     expect(window.location.pathname).toBe(
       '/mara/booking/main/prv_ava/services/svc_cut/schedule'
     )
@@ -351,6 +359,7 @@ describe('server-backed Booking scheduling', () => {
     const expiresAt = new Date(Date.now() + 400).toISOString()
     const held: BookingAvailability = {
       timezone: 'UTC',
+      range: { from: '2026-07-15T00:00:00.000Z', days: 60 },
       slots: [slot],
       hold: {
         id: 'hld_expiring',
@@ -386,7 +395,7 @@ describe('server-backed Booking scheduling', () => {
             ? input.href
             : input.url
       if (url.endsWith('/selection')) return Response.json(journey)
-      if (url.endsWith('/availability')) {
+      if (new URL(url, 'http://localhost').pathname.endsWith('/availability')) {
         availabilityReads += 1
         return Response.json(availabilityReads === 1 ? held : { ...held, hold: null })
       }
@@ -463,6 +472,7 @@ describe('server-backed Booking scheduling', () => {
     }
     const availability: BookingAvailability = {
       timezone: 'UTC',
+      range: { from: '2026-07-15T00:00:00.000Z', days: 60 },
       slots: [slot],
       hold: {
         id: 'hld_live',
@@ -497,7 +507,8 @@ describe('server-backed Booking scheduling', () => {
             ? input.href
             : input.url
       if (url.endsWith('/selection')) return Response.json(journey)
-      if (url.endsWith('/availability')) return Response.json(availability)
+      if (new URL(url, 'http://localhost').pathname.endsWith('/availability'))
+        return Response.json(availability)
       if (url.endsWith('/customer-details'))
         return new Response('expired', { status: 410 })
       throw new Error(`unexpected request: ${url}`)

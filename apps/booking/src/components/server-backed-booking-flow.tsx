@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Schema } from 'effect'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  BOOKING_AVAILABILITY_HORIZON_DAYS,
   BookingAvailability as BookingAvailabilitySchema,
   BookingJourney as BookingJourneySchema,
   BookingParty as BookingPartySchema,
@@ -320,9 +321,10 @@ export function ServerBackedBookingFlow({
     queryKey: availabilityKey,
     enabled: scheduling,
     queryFn: async () => {
-      const response = await fetch(`${base}/availability`, {
-        credentials: 'same-origin'
-      })
+      const response = await fetch(
+        `${base}/availability?days=${BOOKING_AVAILABILITY_HORIZON_DAYS}`,
+        { credentials: 'same-origin' }
+      )
       if (!response.ok) throw new Error('availability unavailable')
       return Schema.decodeUnknownSync(BookingAvailabilitySchema)(await response.json())
     }
