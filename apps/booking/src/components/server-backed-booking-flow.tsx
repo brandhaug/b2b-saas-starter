@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Schema } from 'effect'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BookingAvailability as BookingAvailabilitySchema,
   BookingJourney as BookingJourneySchema,
@@ -585,6 +585,7 @@ export function ServerBackedBookingFlow({
         copy={message('scheduling.finding_copy')}
       />
     )
+  let schedulingContent: ReactNode = null
   if (scheduling) {
     if (expiredSession) {
       return (
@@ -781,63 +782,64 @@ export function ServerBackedBookingFlow({
         />
       )
     }
-    if (availability.isError || holdMutation.isError || groupHoldMutation.isError)
-      return (
-        <Status
-          premiumPalette={premiumPalette}
+    if (availability.isError || holdMutation.isError || groupHoldMutation.isError) {
+      schedulingContent = (
+        <SchedulingStatusContent
           title={message('status.times_unavailable')}
           copy={message('scheduling.unavailable_copy')}
         />
       )
-    if (!availability.data)
-      return (
-        <Status
-          premiumPalette={premiumPalette}
+    } else if (!availability.data) {
+      schedulingContent = (
+        <SchedulingStatusContent
           title={message('scheduling.finding_title')}
           copy={message('scheduling.finding_copy')}
         />
       )
-    return (
-      <BookingSchedulingFlow
-        premiumPalette={premiumPalette}
-        availability={availability.data}
-        busy={
-          holdMutation.isPending ||
-          releaseMutation.isPending ||
-          groupHoldMutation.isPending
-        }
-        slotLost={slotLost}
-        holdExpired={holdExpired}
-        locale={locale}
-        onBack={() => setScheduling(false)}
-        {...(onTitleActionMount ? { onTitleActionMount } : {})}
-        onSelect={(startsAt) => holdMutation.mutate(startsAt)}
-        onRelease={() => releaseMutation.mutate()}
-        {...(party.data?.requests.some(
-          (request) => request.id !== party.data.activeRequestId && !request.startsAt
-        )
-          ? { checkoutLabel: message('action.continue') }
-          : {})}
-        onCheckout={() => {
-          const next = party.data?.requests.find(
+    } else {
+      schedulingContent = (
+        <BookingSchedulingFlow
+          embedded
+          premiumPalette={premiumPalette}
+          availability={availability.data}
+          busy={
+            holdMutation.isPending ||
+            releaseMutation.isPending ||
+            groupHoldMutation.isPending
+          }
+          slotLost={slotLost}
+          holdExpired={holdExpired}
+          locale={locale}
+          onBack={() => setScheduling(false)}
+          onSelect={(startsAt) => holdMutation.mutate(startsAt)}
+          onRelease={() => releaseMutation.mutate()}
+          {...(party.data?.requests.some(
             (request) => request.id !== party.data.activeRequestId && !request.startsAt
           )
-          if (party.data && next) {
-            partyMutation.mutate({
-              endpoint: 'activate',
-              body: { version: party.data.version, requestId: next.id }
-            })
-          } else if (party.data && party.data.requests.length > 1)
-            groupHoldMutation.mutate()
-          else setCheckout(true)
-        }}
-      />
-    )
+            ? { checkoutLabel: message('action.continue') }
+            : {})}
+          onCheckout={() => {
+            const next = party.data?.requests.find(
+              (request) =>
+                request.id !== party.data.activeRequestId && !request.startsAt
+            )
+            if (party.data && next) {
+              partyMutation.mutate({
+                endpoint: 'activate',
+                body: { version: party.data.version, requestId: next.id }
+              })
+            } else if (party.data && party.data.requests.length > 1)
+              groupHoldMutation.mutate()
+            else setCheckout(true)
+          }}
+        />
+      )
+    }
   }
   return (
     <>
       {selectionRefreshed ? <output>{selectionRefreshedMessage}</output> : null}
-      {party.data?.requests && party.data.requests.length > 1 ? (
+      {!scheduling && party.data?.requests && party.data.requests.length > 1 ? (
         <BookingPartyFlow
           party={party.data}
           activeRequestId={party.data.activeRequestId ?? party.data.requests[0]!.id}
@@ -936,6 +938,20 @@ export function ServerBackedBookingFlow({
           invalidAssociationsCopy: message('selection.invalid_associations_copy')
         }}
         busy={selectionMutation.isPending}
+        {...(scheduling
+          ? {
+              continuation: {
+                title: message('scheduling.choose_title'),
+                content: schedulingContent,
+                busy:
+                  holdMutation.isPending ||
+                  releaseMutation.isPending ||
+                  groupHoldMutation.isPending,
+                busyLabel: message('feedback.loading'),
+                onBack: () => setScheduling(false)
+              }
+            }
+          : {})}
         {...(onTitleActionMount ? { onTitleActionMount } : {})}
         onChooseShop={(shopId) =>
           selectionMutation.mutate({
@@ -996,5 +1012,23 @@ function Status({
         </main>
       </BookingWidgetShell>
     </BookingPremiumThemeBoundary>
+  )
+}
+
+function SchedulingStatusContent({
+  title,
+  copy
+}: {
+  readonly title: string
+  readonly copy: string
+}) {
+  return (
+    <main
+      data-testid="container:scrollable"
+      {...stylex.props(styles.main, styles.embeddedSchedulingMain, styles.empty)}
+    >
+      <h1 {...stylex.props(styles.emptyTitle)}>{title}</h1>
+      <p {...stylex.props(styles.emptyCopy)}>{copy}</p>
+    </main>
   )
 }

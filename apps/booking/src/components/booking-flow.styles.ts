@@ -118,6 +118,10 @@ export const styles = stylex.create({
     msOverflowStyle: 'none',
     '::-webkit-scrollbar': { display: 'none' }
   },
+  embeddedSchedulingMain: {
+    boxSizing: 'border-box',
+    paddingTop: bookingTheme.space18
+  },
   routeLayer: {
     position: 'absolute',
     zIndex: bookingTheme.layerContent,

@@ -6,7 +6,15 @@ import {
   m,
   useReducedMotion
 } from 'motion/react'
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode
+} from 'react'
 import type {
   BookingJourney,
   ProviderPreference,
@@ -35,6 +43,13 @@ type BookingSelectionFlowProps = {
   readonly onContinue?: () => void
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
   readonly messages?: BookingSelectionMessages
+  readonly continuation?: {
+    readonly title: string
+    readonly content: ReactNode
+    readonly busy: boolean
+    readonly busyLabel: string
+    readonly onBack: () => void
+  }
 }
 
 function activateCard(
@@ -66,6 +81,7 @@ function BookingSelectionFlowContent({
   onChooseGiftCard,
   onContinue,
   onTitleActionMount,
+  continuation,
   locale = 'en',
   messages = defaultMessages
 }: BookingSelectionFlowProps) {
@@ -108,6 +124,7 @@ function BookingSelectionFlowContent({
   const selectedPrimary = journey.services.find(
     (service) => service.id === journey.selection.primaryServiceId
   )
+  const showContinuation = continuation !== undefined
 
   useEffect(
     () => () => {
@@ -168,6 +185,11 @@ function BookingSelectionFlowContent({
     window.setTimeout(() => viewOrderButton.current?.focus({ preventScroll: true }), 0)
   }
 
+  const continueToScheduling = () => {
+    setRouteDirection('forward')
+    onContinue?.()
+  }
+
   const chooseGiftCard = () => {
     if (!onChooseGiftCard || giftCardSelected) return
     setGiftCardSelected(true)
@@ -188,24 +210,32 @@ function BookingSelectionFlowContent({
     onChooseShop?.(shopId)
   }
 
-  const pageTitle = showLocations
-    ? messages.chooseLocation
-    : showProviders
-      ? messages.chooseProvider
-      : messages.chooseService
+  const pageTitle = showContinuation
+    ? continuation.title
+    : showLocations
+      ? messages.chooseLocation
+      : showProviders
+        ? messages.chooseProvider
+        : messages.chooseService
   const canGoBack =
+    showContinuation ||
     (showProviders && journey.shops.length > 1) ||
     (!showLocations && !showProviders && journey.presentation === 'team')
-  const routePresenceKey = showLocations
-    ? 'locations'
-    : showProviders
-      ? 'providers'
-      : 'services'
+  const routePresenceKey = showContinuation
+    ? 'scheduling'
+    : showLocations
+      ? 'locations'
+      : showProviders
+        ? 'providers'
+        : 'services'
   const titleScrolled =
     titleScrollState.presenceKey === routePresenceKey && titleScrollState.scrolled
 
   return (
-    <BookingWidgetShell>
+    <BookingWidgetShell
+      busy={continuation?.busy ?? false}
+      {...(continuation ? { busyLabel: continuation.busyLabel } : {})}
+    >
       <div
         data-testid="container:title"
         {...stylex.props(styles.header, titleScrolled && styles.headerScrolled)}
@@ -223,6 +253,10 @@ function BookingSelectionFlowContent({
                 transition={{ duration: 0.3, delay: 0.3 }}
                 onClick={() => {
                   setRouteDirection('back')
+                  if (continuation) {
+                    continuation.onBack()
+                    return
+                  }
                   setPendingProviderChoice(null)
                   if (journey.shops.length > 1 && showProviders) setPendingShop(null)
                   else setEditingProvider(true)
@@ -250,79 +284,85 @@ function BookingSelectionFlowContent({
         direction={routeDirection}
         className={stylex.props(styles.routeLayer).className}
       >
-        <div {...stylex.props(styles.scrollableFrame)}>
-          <div
-            data-testid="container:scrollable"
-            onScroll={(event) =>
-              setTitleScrollState({
-                presenceKey: routePresenceKey,
-                scrolled: event.currentTarget.scrollTop > 0
-              })
-            }
-            {...stylex.props(styles.main)}
-          >
-            <div aria-hidden="true" {...stylex.props(styles.scrollOrigin)} />
-            <div {...stylex.props(styles.contentOffset)}>
-              {!showLocations &&
-              journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
-                <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
-              ) : null}
-              {showLocations ? (
-                <LocationGrid
-                  journey={journey}
-                  busy={busy || !onChooseShop}
-                  messages={messages}
-                  onChoose={chooseShop}
-                />
-              ) : showProviders ? (
-                <ProviderGrid
-                  journey={journey}
-                  busy={busy}
-                  selectedPreference={
-                    providerChoicePending ? pendingProviderChoice.preference : null
-                  }
-                  messages={messages}
-                  onChoose={chooseProvider}
-                  locale={locale}
-                  giftCardSelected={giftCardSelected}
-                  {...(onChooseGiftCard ? { onChooseGiftCard: chooseGiftCard } : {})}
-                />
-              ) : (
-                <AnimatePresence mode="wait" initial={false}>
-                  <ServiceGrid
-                    key={
-                      selectedPrimary && !pendingServiceSelection
-                        ? 'addonsFade'
-                        : 'servicesFade'
-                    }
+        {showContinuation ? (
+          continuation.content
+        ) : (
+          <div {...stylex.props(styles.scrollableFrame)}>
+            <div
+              data-testid="container:scrollable"
+              onScroll={(event) =>
+                setTitleScrollState({
+                  presenceKey: routePresenceKey,
+                  scrolled: event.currentTarget.scrollTop > 0
+                })
+              }
+              {...stylex.props(styles.main)}
+            >
+              <div aria-hidden="true" {...stylex.props(styles.scrollOrigin)} />
+              <div {...stylex.props(styles.contentOffset)}>
+                {!showLocations &&
+                journey.resolvedConfiguration.shopName.isSourceLanguageFallback ? (
+                  <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
+                ) : null}
+                {showLocations ? (
+                  <LocationGrid
+                    journey={journey}
+                    busy={busy || !onChooseShop}
+                    messages={messages}
+                    onChoose={chooseShop}
+                  />
+                ) : showProviders ? (
+                  <ProviderGrid
                     journey={journey}
                     busy={busy}
-                    selectedPrimary={selectedPrimary}
-                    transitioningServiceId={pendingServiceSelection?.serviceId ?? null}
-                    onChoose={(selection) => {
-                      if (
-                        selection.primaryServiceId &&
-                        journey.selection.primaryServiceId === null
-                      )
-                        setPendingServiceSelection({
-                          serviceId: selection.primaryServiceId,
-                          journeyVersion: journey.version
-                        })
-                      onChooseServices(selection)
-                    }}
+                    selectedPreference={
+                      providerChoicePending ? pendingProviderChoice.preference : null
+                    }
                     messages={messages}
+                    onChoose={chooseProvider}
+                    locale={locale}
+                    giftCardSelected={giftCardSelected}
+                    {...(onChooseGiftCard ? { onChooseGiftCard: chooseGiftCard } : {})}
                   />
-                </AnimatePresence>
-              )}
+                ) : (
+                  <AnimatePresence mode="wait" initial={false}>
+                    <ServiceGrid
+                      key={
+                        selectedPrimary && !pendingServiceSelection
+                          ? 'addonsFade'
+                          : 'servicesFade'
+                      }
+                      journey={journey}
+                      busy={busy}
+                      selectedPrimary={selectedPrimary}
+                      transitioningServiceId={
+                        pendingServiceSelection?.serviceId ?? null
+                      }
+                      onChoose={(selection) => {
+                        if (
+                          selection.primaryServiceId &&
+                          journey.selection.primaryServiceId === null
+                        )
+                          setPendingServiceSelection({
+                            serviceId: selection.primaryServiceId,
+                            journeyVersion: journey.version
+                          })
+                        onChooseServices(selection)
+                      }}
+                      messages={messages}
+                    />
+                  </AnimatePresence>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </RoutePresence>
 
       <LazyMotion features={domAnimation} strict>
         <div {...stylex.props(styles.orderBarFixed)}>
           <AnimatePresence>
-            {selectedPrimary && !showProviders && !orderOpen ? (
+            {selectedPrimary && !showProviders && !showContinuation && !orderOpen ? (
               <m.div
                 key="viewOrderSafeArea"
                 data-testid="container:viewOrderSafeArea"
@@ -366,7 +406,7 @@ function BookingSelectionFlowContent({
               journey={journey}
               primary={selectedPrimary}
               onClose={closeOrder}
-              {...(onContinue ? { onContinue } : {})}
+              {...(onContinue ? { onContinue: continueToScheduling } : {})}
             />
           ) : null}
         </AnimatePresence>

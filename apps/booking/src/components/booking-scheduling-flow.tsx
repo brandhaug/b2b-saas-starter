@@ -6,7 +6,7 @@ import {
   m,
   type Variants
 } from 'motion/react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type {
   BookingAvailability,
   BookingTimeSlot
@@ -37,7 +37,8 @@ export function BookingSchedulingFlow({
   onCheckout,
   checkoutLabel,
   onTitleActionMount,
-  premiumPalette = null
+  premiumPalette = null,
+  embedded = false
 }: {
   readonly availability: BookingAvailability
   readonly busy: boolean
@@ -51,6 +52,7 @@ export function BookingSchedulingFlow({
   readonly checkoutLabel?: string
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
   readonly premiumPalette?: BookingPremiumPalette | null
+  readonly embedded?: boolean
 }) {
   const message = (key: BookingTranslationKey) => translateBookingMessage(locale, key)
   const formatters = useMemo(
@@ -135,8 +137,13 @@ export function BookingSchedulingFlow({
   const lastMonth = days.at(-1)?.slice(0, 7) ?? displayMonth
 
   return (
-    <BookingPremiumThemeBoundary palette={premiumPalette}>
-      <BookingWidgetShell busy={busy} busyLabel={message('feedback.loading')}>
+    <BookingSchedulingFrame
+      embedded={embedded}
+      busy={busy}
+      busyLabel={message('feedback.loading')}
+      premiumPalette={premiumPalette}
+    >
+      {!embedded ? (
         <div data-testid="container:title" {...stylex.props(styles.header)}>
           <button
             type="button"
@@ -157,361 +164,383 @@ export function BookingSchedulingFlow({
             <div ref={onTitleActionMount} {...stylex.props(styles.titleActions)} />
           ) : null}
         </div>
-        <main data-testid="container:scrollable" {...stylex.props(styles.main)}>
-          {slotLost || holdExpired ? (
-            <div {...stylex.props(styles.alert)}>
-              <p {...stylex.props(styles.alertTitle)}>
-                {holdExpired
-                  ? message('scheduling.expired_title')
-                  : message('status.slot_lost')}
-              </p>
-              <p {...stylex.props(styles.alertCopy)}>
-                {message('scheduling.saved_copy')}
-              </p>
-            </div>
-          ) : null}
-          {availability.slots.length === 0 && availability.hold ? (
-            <div {...stylex.props(styles.empty)}>
-              <span {...stylex.props(styles.emptyIcon)}>
-                <BookingVisualAsset
-                  assetRole="calendar-scheduling"
-                  {...stylex.props(styles.icon20)}
-                />
-              </span>
-              <h2 {...stylex.props(styles.emptyTitle)}>
-                {message('scheduling.held_title')}
-              </h2>
-              <p {...stylex.props(styles.emptyCopy)}>
-                {formatters.longDate.format(new Date(availability.hold.quote.startsAt))}{' '}
-                at {formatters.time.format(new Date(availability.hold.quote.startsAt))}
-                {' · '}
-                {availability.hold.quote.assignedProvider.displayName}
-              </p>
-              <p {...stylex.props(styles.selectedTimeFeedback)}>
-                {message('scheduling.held_copy')}
-              </p>
-            </div>
-          ) : availability.slots.length === 0 ? (
-            <div {...stylex.props(styles.empty)}>
-              <span {...stylex.props(styles.emptyIcon)}>
-                <BookingVisualAsset
-                  assetRole="calendar-scheduling"
-                  {...stylex.props(styles.icon20)}
-                />
-              </span>
-              <h2 {...stylex.props(styles.emptyTitle)}>
-                {message('scheduling.empty_title')}
-              </h2>
-              <p {...stylex.props(styles.emptyCopy)}>
-                {message('scheduling.empty_copy')}
-              </p>
-            </div>
-          ) : (
-            <>
-              <div {...stylex.props(styles.scheduleCalendar)}>
-                <div {...stylex.props(styles.calendarHeader)}>
-                  <p data-testid="text:currentMonth" {...stylex.props(styles.month)}>
-                    {formatters.month.format(
-                      asLocalNoon(
-                        `${calendarExpanded ? displayMonth : activeDate!.slice(0, 7)}-01`
-                      )
-                    )}
-                  </p>
-                  {calendarExpanded ? (
-                    <div {...stylex.props(styles.fullCalendarControls)}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setChosenDate(daySet.has(today) ? today : (days[0] ?? null))
-                          setCalendarExpanded(false)
-                        }}
-                        {...stylex.props(styles.calendarTextControl)}
-                      >
-                        {message('scheduling.today')}
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={message('scheduling.previous_month')}
-                        disabled={displayMonth <= firstMonth}
-                        onClick={() => {
-                          setMonthDirection(-1)
-                          setDisplayMonth(addMonth(displayMonth, -1))
-                        }}
-                        {...stylex.props(styles.calendarArrowControl)}
-                      >
-                        ‹
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={message('scheduling.next_month')}
-                        disabled={displayMonth >= lastMonth}
-                        onClick={() => {
-                          setMonthDirection(1)
-                          setDisplayMonth(addMonth(displayMonth, 1))
-                        }}
-                        {...stylex.props(styles.calendarArrowControl)}
-                      >
-                        ›
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-                <LazyMotion features={domAnimation} strict>
-                  <m.div layout="size" transition={{ duration: 0.3 }}>
-                    <AnimatePresence initial={false} mode="wait">
-                      {calendarExpanded ? (
-                        <m.div
-                          key="calendar"
-                          data-testid="calendarMonth"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          {...stylex.props(styles.expandedCalendar)}
-                        >
-                          <div {...stylex.props(styles.weekdayGrid)}>
-                            {calendarWeekdays(formatters.weekday).map((label) => (
-                              <span key={label}>{label}</span>
-                            ))}
-                          </div>
-                          <div {...stylex.props(styles.monthSlideViewport)}>
-                            <AnimatePresence
-                              initial={false}
-                              custom={monthDirection}
-                              mode="sync"
-                            >
-                              <m.div
-                                key={displayMonth}
-                                custom={monthDirection}
-                                variants={calendarSlideVariants}
-                                initial="enter"
-                                animate="center"
-                                exit="exit"
-                                transition={{ duration: 0.6 }}
-                                {...stylex.props(styles.monthSlide)}
-                              >
-                                <div {...stylex.props(styles.monthGrid)}>
-                                  {calendarMonthDays(`${displayMonth}-01`).map(
-                                    (date) => {
-                                      const enabled =
-                                        daySet.has(date) && availableDaySet.has(date)
-                                      return (
-                                        <button
-                                          key={date}
-                                          type="button"
-                                          disabled={!enabled}
-                                          aria-label={formatters.longDate.format(
-                                            asLocalNoon(date)
-                                          )}
-                                          aria-pressed={date === activeDate}
-                                          onClick={() => {
-                                            setChosenDate(date)
-                                            setCalendarExpanded(false)
-                                          }}
-                                          {...stylex.props(
-                                            styles.monthDay,
-                                            styles.dateButton,
-                                            date.slice(0, 7) !== displayMonth &&
-                                              styles.outsideMonthDay,
-                                            enabled && styles.availableMonthDay,
-                                            date === activeDate &&
-                                              styles.selectedMonthDay
-                                          )}
-                                        >
-                                          {date.slice(-2).replace(/^0/, '')}
-                                        </button>
-                                      )
-                                    }
-                                  )}
-                                </div>
-                              </m.div>
-                            </AnimatePresence>
-                          </div>
-                          <p {...stylex.props(styles.expandedMonthName)}>
-                            {formatters.month
-                              .format(asLocalNoon(`${displayMonth}-01`))
-                              .replace(/\s+\d{4}$/, '')}
-                          </p>
-                        </m.div>
-                      ) : (
-                        <m.div
-                          key="line"
-                          data-testid="calendarLine"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          {...stylex.props(styles.dateGrid)}
-                        >
-                          {visibleDays.map((date) => (
-                            <CalendarLineDay
-                              key={date}
-                              date={date}
-                              activeDate={activeDate}
-                              available={availableDaySet.has(date)}
-                              longDate={formatters.longDate}
-                              weekday={formatters.weekday}
-                              onChoose={setChosenDate}
-                            />
-                          ))}
-                          <button
-                            type="button"
-                            aria-label={message('scheduling.show_full_calendar')}
-                            data-testid="btn:expandCalendar"
-                            onClick={() => {
-                              setDisplayMonth(activeDate!.slice(0, 7))
-                              setCalendarExpanded(true)
-                            }}
-                            {...stylex.props(styles.dateCell, styles.dateButton)}
-                          >
-                            <span {...stylex.props(styles.expandCircle)}>
-                              <svg
-                                width="12"
-                                height="6"
-                                viewBox="0 0 12 6"
-                                aria-hidden="true"
-                              >
-                                <path
-                                  d="M6 5.992a.75.75 0 0 0 .545-.246l4.453-4.559a.667.667 0 0 0 .2-.486.69.69 0 0 0-.692-.697.715.715 0 0 0-.504.21L6.006 4.323 1.998.215a.73.73 0 0 0-.504-.211A.69.69 0 0 0 .803.7c0 .194.07.358.199.487L5.46 5.745A.725.725 0 0 0 6 5.992Z"
-                                  fill="currentColor"
-                                />
-                              </svg>
-                            </span>
-                          </button>
-                        </m.div>
-                      )}
-                    </AnimatePresence>
-                  </m.div>
-                </LazyMotion>
+      ) : null}
+      <main
+        data-testid="container:scrollable"
+        {...stylex.props(styles.main, embedded && styles.embeddedSchedulingMain)}
+      >
+        {slotLost || holdExpired ? (
+          <div {...stylex.props(styles.alert)}>
+            <p {...stylex.props(styles.alertTitle)}>
+              {holdExpired
+                ? message('scheduling.expired_title')
+                : message('status.slot_lost')}
+            </p>
+            <p {...stylex.props(styles.alertCopy)}>
+              {message('scheduling.saved_copy')}
+            </p>
+          </div>
+        ) : null}
+        {availability.slots.length === 0 && availability.hold ? (
+          <div {...stylex.props(styles.empty)}>
+            <span {...stylex.props(styles.emptyIcon)}>
+              <BookingVisualAsset
+                assetRole="calendar-scheduling"
+                {...stylex.props(styles.icon20)}
+              />
+            </span>
+            <h2 {...stylex.props(styles.emptyTitle)}>
+              {message('scheduling.held_title')}
+            </h2>
+            <p {...stylex.props(styles.emptyCopy)}>
+              {formatters.longDate.format(new Date(availability.hold.quote.startsAt))}{' '}
+              at {formatters.time.format(new Date(availability.hold.quote.startsAt))}
+              {' · '}
+              {availability.hold.quote.assignedProvider.displayName}
+            </p>
+            <p {...stylex.props(styles.selectedTimeFeedback)}>
+              {message('scheduling.held_copy')}
+            </p>
+          </div>
+        ) : availability.slots.length === 0 ? (
+          <div {...stylex.props(styles.empty)}>
+            <span {...stylex.props(styles.emptyIcon)}>
+              <BookingVisualAsset
+                assetRole="calendar-scheduling"
+                {...stylex.props(styles.icon20)}
+              />
+            </span>
+            <h2 {...stylex.props(styles.emptyTitle)}>
+              {message('scheduling.empty_title')}
+            </h2>
+            <p {...stylex.props(styles.emptyCopy)}>
+              {message('scheduling.empty_copy')}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div {...stylex.props(styles.scheduleCalendar)}>
+              <div {...stylex.props(styles.calendarHeader)}>
+                <p data-testid="text:currentMonth" {...stylex.props(styles.month)}>
+                  {formatters.month.format(
+                    asLocalNoon(
+                      `${calendarExpanded ? displayMonth : activeDate!.slice(0, 7)}-01`
+                    )
+                  )}
+                </p>
+                {calendarExpanded ? (
+                  <div {...stylex.props(styles.fullCalendarControls)}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChosenDate(daySet.has(today) ? today : (days[0] ?? null))
+                        setCalendarExpanded(false)
+                      }}
+                      {...stylex.props(styles.calendarTextControl)}
+                    >
+                      {message('scheduling.today')}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={message('scheduling.previous_month')}
+                      disabled={displayMonth <= firstMonth}
+                      onClick={() => {
+                        setMonthDirection(-1)
+                        setDisplayMonth(addMonth(displayMonth, -1))
+                      }}
+                      {...stylex.props(styles.calendarArrowControl)}
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={message('scheduling.next_month')}
+                      disabled={displayMonth >= lastMonth}
+                      onClick={() => {
+                        setMonthDirection(1)
+                        setDisplayMonth(addMonth(displayMonth, 1))
+                      }}
+                      {...stylex.props(styles.calendarArrowControl)}
+                    >
+                      ›
+                    </button>
+                  </div>
+                ) : null}
               </div>
-              <p data-testid="text:selectedDate" {...stylex.props(styles.dayHeading)}>
-                {formatters.longDate.format(asLocalNoon(activeDate!))}
-              </p>
               <LazyMotion features={domAnimation} strict>
-                <AnimatePresence initial={false} mode="wait">
-                  <m.div
-                    key={activeDate}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    {...stylex.props(styles.timeGrid)}
-                  >
-                    {visible.length === 0 && nextAvailableDate ? (
-                      <button
-                        type="button"
-                        data-testid="btn:chooseTime:nextTime"
-                        aria-label={message('scheduling.next_time')}
-                        onClick={() => setChosenDate(nextAvailableDate)}
-                        {...stylex.props(styles.timeButton, styles.nextTimeButton)}
+                <m.div layout="size" transition={{ duration: 0.3 }}>
+                  <AnimatePresence initial={false} mode="wait">
+                    {calendarExpanded ? (
+                      <m.div
+                        key="calendar"
+                        data-testid="calendarMonth"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        {...stylex.props(styles.expandedCalendar)}
                       >
-                        <svg
-                          width="15"
-                          height="13"
-                          viewBox="0 0 15 13"
-                          aria-hidden="true"
-                          {...stylex.props(styles.nextTimeIcon)}
-                        >
-                          <path
-                            fill="currentColor"
-                            d="M14.938 6.697c0-.256-.11-.52-.293-.696l-4.79-4.79c-.206-.205-.44-.3-.674-.3-.542 0-.923.388-.923.894 0 .278.117.498.285.674l1.663 1.67 1.853 1.699-1.648-.088H1.834c-.578 0-.966.38-.966.937s.388.938.966.938h8.577l1.648-.096-1.853 1.707-1.663 1.663c-.168.175-.285.395-.285.673 0 .513.38.894.923.894.234 0 .461-.095.659-.293l4.805-4.79c.183-.183.293-.44.293-.696Z"
+                        <div {...stylex.props(styles.weekdayGrid)}>
+                          {calendarWeekdays(formatters.weekday).map((label) => (
+                            <span key={label}>{label}</span>
+                          ))}
+                        </div>
+                        <div {...stylex.props(styles.monthSlideViewport)}>
+                          <AnimatePresence
+                            initial={false}
+                            custom={monthDirection}
+                            mode="sync"
+                          >
+                            <m.div
+                              key={displayMonth}
+                              custom={monthDirection}
+                              variants={calendarSlideVariants}
+                              initial="enter"
+                              animate="center"
+                              exit="exit"
+                              transition={{ duration: 0.6 }}
+                              {...stylex.props(styles.monthSlide)}
+                            >
+                              <div {...stylex.props(styles.monthGrid)}>
+                                {calendarMonthDays(`${displayMonth}-01`).map((date) => {
+                                  const enabled =
+                                    daySet.has(date) && availableDaySet.has(date)
+                                  return (
+                                    <button
+                                      key={date}
+                                      type="button"
+                                      disabled={!enabled}
+                                      aria-label={formatters.longDate.format(
+                                        asLocalNoon(date)
+                                      )}
+                                      aria-pressed={date === activeDate}
+                                      onClick={() => {
+                                        setChosenDate(date)
+                                        setCalendarExpanded(false)
+                                      }}
+                                      {...stylex.props(
+                                        styles.monthDay,
+                                        styles.dateButton,
+                                        date.slice(0, 7) !== displayMonth &&
+                                          styles.outsideMonthDay,
+                                        enabled && styles.availableMonthDay,
+                                        date === activeDate && styles.selectedMonthDay
+                                      )}
+                                    >
+                                      {date.slice(-2).replace(/^0/, '')}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </m.div>
+                          </AnimatePresence>
+                        </div>
+                        <p {...stylex.props(styles.expandedMonthName)}>
+                          {formatters.month
+                            .format(asLocalNoon(`${displayMonth}-01`))
+                            .replace(/\s+\d{4}$/, '')}
+                        </p>
+                      </m.div>
+                    ) : (
+                      <m.div
+                        key="line"
+                        data-testid="calendarLine"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        {...stylex.props(styles.dateGrid)}
+                      >
+                        {visibleDays.map((date) => (
+                          <CalendarLineDay
+                            key={date}
+                            date={date}
+                            activeDate={activeDate}
+                            available={availableDaySet.has(date)}
+                            longDate={formatters.longDate}
+                            weekday={formatters.weekday}
+                            onChoose={setChosenDate}
                           />
-                        </svg>
-                        {message('scheduling.next_time')}
-                      </button>
-                    ) : null}
-                    {visible.map((slot) => {
-                      const selected =
-                        availability.hold?.quote.startsAt === slot.startsAt
-                      return (
+                        ))}
                         <button
-                          key={slot.startsAt}
                           type="button"
-                          disabled={busy}
-                          aria-label={formatters.time.format(new Date(slot.startsAt))}
-                          data-testid={`btn:chooseTime:time:${slot.startsAt}${selected ? ':selected' : ''}`}
-                          onClick={() => onSelect(slot.startsAt)}
-                          {...stylex.props(
-                            styles.timeButton,
-                            selected && styles.selectedTime
-                          )}
+                          aria-label={message('scheduling.show_full_calendar')}
+                          data-testid="btn:expandCalendar"
+                          onClick={() => {
+                            setDisplayMonth(activeDate!.slice(0, 7))
+                            setCalendarExpanded(true)
+                          }}
+                          {...stylex.props(styles.dateCell, styles.dateButton)}
                         >
-                          {formatters.time
-                            .format(new Date(slot.startsAt))
-                            .toLocaleLowerCase(locale)}
+                          <span {...stylex.props(styles.expandCircle)}>
+                            <svg
+                              width="12"
+                              height="6"
+                              viewBox="0 0 12 6"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M6 5.992a.75.75 0 0 0 .545-.246l4.453-4.559a.667.667 0 0 0 .2-.486.69.69 0 0 0-.692-.697.715.715 0 0 0-.504.21L6.006 4.323 1.998.215a.73.73 0 0 0-.504-.211A.69.69 0 0 0 .803.7c0 .194.07.358.199.487L5.46 5.745A.725.725 0 0 0 6 5.992Z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </span>
                         </button>
-                      )
-                    })}
-                  </m.div>
-                </AnimatePresence>
+                      </m.div>
+                    )}
+                  </AnimatePresence>
+                </m.div>
               </LazyMotion>
-            </>
-          )}
-          {availability.slots.length === 0 && availability.hold && onCheckout ? (
-            <div {...stylex.props(styles.inlineActions)}>
-              {onRelease ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={onRelease}
-                  {...stylex.props(styles.textButton)}
+            </div>
+            <p data-testid="text:selectedDate" {...stylex.props(styles.dayHeading)}>
+              {formatters.longDate.format(asLocalNoon(activeDate!))}
+            </p>
+            <LazyMotion features={domAnimation} strict>
+              <AnimatePresence initial={false} mode="wait">
+                <m.div
+                  key={activeDate}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  {...stylex.props(styles.timeGrid)}
                 >
-                  {message('action.release_time')}
-                </button>
-              ) : (
-                <span />
-              )}
+                  {visible.length === 0 && nextAvailableDate ? (
+                    <button
+                      type="button"
+                      data-testid="btn:chooseTime:nextTime"
+                      aria-label={message('scheduling.next_time')}
+                      onClick={() => setChosenDate(nextAvailableDate)}
+                      {...stylex.props(styles.timeButton, styles.nextTimeButton)}
+                    >
+                      <svg
+                        width="15"
+                        height="13"
+                        viewBox="0 0 15 13"
+                        aria-hidden="true"
+                        {...stylex.props(styles.nextTimeIcon)}
+                      >
+                        <path
+                          fill="currentColor"
+                          d="M14.938 6.697c0-.256-.11-.52-.293-.696l-4.79-4.79c-.206-.205-.44-.3-.674-.3-.542 0-.923.388-.923.894 0 .278.117.498.285.674l1.663 1.67 1.853 1.699-1.648-.088H1.834c-.578 0-.966.38-.966.937s.388.938.966.938h8.577l1.648-.096-1.853 1.707-1.663 1.663c-.168.175-.285.395-.285.673 0 .513.38.894.923.894.234 0 .461-.095.659-.293l4.805-4.79c.183-.183.293-.44.293-.696Z"
+                        />
+                      </svg>
+                      {message('scheduling.next_time')}
+                    </button>
+                  ) : null}
+                  {visible.map((slot) => {
+                    const selected = availability.hold?.quote.startsAt === slot.startsAt
+                    return (
+                      <button
+                        key={slot.startsAt}
+                        type="button"
+                        disabled={busy}
+                        aria-label={formatters.time.format(new Date(slot.startsAt))}
+                        data-testid={`btn:chooseTime:time:${slot.startsAt}${selected ? ':selected' : ''}`}
+                        onClick={() => onSelect(slot.startsAt)}
+                        {...stylex.props(
+                          styles.timeButton,
+                          selected && styles.selectedTime
+                        )}
+                      >
+                        {formatters.time
+                          .format(new Date(slot.startsAt))
+                          .toLocaleLowerCase(locale)}
+                      </button>
+                    )
+                  })}
+                </m.div>
+              </AnimatePresence>
+            </LazyMotion>
+          </>
+        )}
+        {availability.slots.length === 0 && availability.hold && onCheckout ? (
+          <div {...stylex.props(styles.inlineActions)}>
+            {onRelease ? (
               <button
                 type="button"
                 disabled={busy}
-                onClick={onCheckout}
-                {...stylex.props(styles.primaryButton)}
+                onClick={onRelease}
+                {...stylex.props(styles.textButton)}
               >
-                {checkoutLabel ?? message('action.checkout')}
+                {message('action.release_time')}
               </button>
-            </div>
-          ) : null}
-        </main>
-        <LazyMotion features={domAnimation} strict>
-          <AnimatePresence>
-            {availability.slots.length > 0 && availability.hold && onCheckout ? (
-              <m.div
-                key="viewOrderSafeArea"
-                data-testid="container:viewOrderSafeArea"
-                initial={{ scale: 0.8, y: 88 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{
-                  scale: 0.8,
-                  y: 88,
-                  transition: { duration: 0.15, delay: 0.15, ease: 'easeInOut' }
-                }}
-                transition={{ duration: 0.2, delay: 0.2, ease: 'easeInOut' }}
-                {...stylex.props(styles.orderBarSafeArea)}
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onCheckout}
+              {...stylex.props(styles.primaryButton)}
+            >
+              {checkoutLabel ?? message('action.checkout')}
+            </button>
+          </div>
+        ) : null}
+      </main>
+      <LazyMotion features={domAnimation} strict>
+        <AnimatePresence>
+          {availability.slots.length > 0 && availability.hold && onCheckout ? (
+            <m.div
+              key="viewOrderSafeArea"
+              data-testid="container:viewOrderSafeArea"
+              initial={{ scale: 0.8, y: 88 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{
+                scale: 0.8,
+                y: 88,
+                transition: { duration: 0.15, delay: 0.15, ease: 'easeInOut' }
+              }}
+              transition={{ duration: 0.2, delay: 0.2, ease: 'easeInOut' }}
+              {...stylex.props(styles.orderBarSafeArea)}
+            >
+              <button
+                type="button"
+                data-testid="btn:viewOrder"
+                aria-label={`${message('action.view_order')}, ${formatMoney(
+                  availability.hold.quote.totalMinor,
+                  availability.hold.quote.currency,
+                  locale
+                )}`}
+                onClick={onCheckout}
+                {...stylex.props(styles.orderBar)}
               >
-                <button
-                  type="button"
-                  data-testid="btn:viewOrder"
-                  aria-label={`${message('action.view_order')}, ${formatMoney(
+                <span>{message('action.view_order')}</span>
+                <span {...stylex.props(styles.orderBarTotal)}>
+                  {formatMoney(
                     availability.hold.quote.totalMinor,
                     availability.hold.quote.currency,
                     locale
-                  )}`}
-                  onClick={onCheckout}
-                  {...stylex.props(styles.orderBar)}
-                >
-                  <span>{message('action.view_order')}</span>
-                  <span {...stylex.props(styles.orderBarTotal)}>
-                    {formatMoney(
-                      availability.hold.quote.totalMinor,
-                      availability.hold.quote.currency,
-                      locale
-                    )}
-                  </span>
-                </button>
-              </m.div>
-            ) : null}
-          </AnimatePresence>
-        </LazyMotion>
+                  )}
+                </span>
+              </button>
+            </m.div>
+          ) : null}
+        </AnimatePresence>
+      </LazyMotion>
+    </BookingSchedulingFrame>
+  )
+}
+
+function BookingSchedulingFrame({
+  embedded,
+  busy,
+  busyLabel,
+  premiumPalette,
+  children
+}: {
+  readonly embedded: boolean
+  readonly busy: boolean
+  readonly busyLabel: string
+  readonly premiumPalette: BookingPremiumPalette | null
+  readonly children: ReactNode
+}) {
+  if (embedded) return children
+  return (
+    <BookingPremiumThemeBoundary palette={premiumPalette}>
+      <BookingWidgetShell busy={busy} busyLabel={busyLabel}>
+        {children}
       </BookingWidgetShell>
     </BookingPremiumThemeBoundary>
   )

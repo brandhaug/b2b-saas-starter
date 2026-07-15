@@ -15,6 +15,142 @@ afterEach(() => {
 })
 
 describe('server-backed Booking scheduling', () => {
+  it('slides between Services and Schedule inside the same canonical shell', async () => {
+    const journey: BookingJourney = {
+      version: 1,
+      presentation: 'solo',
+      shopId: 'shp_main',
+      shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
+      resolvedConfiguration: {
+        merchantName: {
+          text: 'Merchant',
+          locale: 'en',
+          isSourceLanguageFallback: false
+        },
+        brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
+        shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
+        premiumPalette: null,
+        premiumPaletteSource: null
+      },
+      catalogRecovery: null,
+      reconciliation: [],
+      providerPreference: { kind: 'specific', providerId: 'prv_ava' },
+      selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] },
+      compatibleAdditionalServiceIds: [],
+      providers: [
+        {
+          id: 'prv_ava',
+          displayName: 'Ava',
+          shortName: 'Ava',
+          isDefault: true,
+          access: 'public',
+          eligibleServiceIds: ['svc_cut']
+        }
+      ],
+      services: [
+        {
+          id: 'svc_cut',
+          name: 'Cut',
+          category: 'Hair',
+          priceMinor: 5000,
+          currency: 'USD',
+          durationMinutes: 60,
+          eligibleProviderIds: ['prv_ava']
+        }
+      ]
+    }
+    const party = {
+      id: 'bpt_one',
+      bookingSessionId: 'bsn_transition',
+      shopId: 'shp_main',
+      lifecycle: 'active',
+      currency: 'USD',
+      locale: 'en',
+      version: 1,
+      requests: [
+        {
+          id: 'brq_one',
+          bookingPartyId: 'bpt_one',
+          position: 0,
+          providerPreference: { kind: 'specific', providerId: 'prv_ava' },
+          providerId: 'prv_ava',
+          primaryServiceId: 'svc_cut',
+          serviceIds: ['svc_cut'],
+          holdId: null,
+          holdExpiresAt: null,
+          customerAccountId: null,
+          customerDetails: null,
+          startsAt: null,
+          endsAt: null
+        }
+      ]
+    }
+    const availability: BookingAvailability = {
+      timezone: 'UTC',
+      slots: [
+        {
+          startsAt: '2026-07-15T14:00:00.000Z',
+          endsAt: '2026-07-15T15:00:00.000Z'
+        }
+      ],
+      hold: null
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
+      if (url.endsWith('/selection')) return Response.json(journey)
+      if (url.endsWith('/party')) return Response.json(party)
+      if (url.endsWith('/availability')) return Response.json(availability)
+      throw new Error(`unexpected request: ${url}`)
+    })
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } }
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <BookingLocalizationProvider sessionLocale="en">
+          <ServerBackedBookingFlow merchantSlug="mara" sessionId="bsn_transition" />
+        </BookingLocalizationProvider>
+      </QueryClientProvider>
+    )
+
+    const viewOrder = await screen.findByRole('button', { name: /view order/i })
+    const canonicalShell = viewOrder.closest('[data-booking-shell="canonical"]')
+    fireEvent.click(viewOrder)
+    fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
+
+    const schedulingTitle = await screen.findByText('Choose a time')
+    expect(schedulingTitle.closest('[data-booking-shell="canonical"]')).toBe(
+      canonicalShell
+    )
+    const forwardRoute = canonicalShell?.querySelector(
+      '[data-presence-variant="route"][data-route-direction="forward"]'
+    )
+    expect(forwardRoute?.querySelector('[data-testid="calendarLine"]')).toBeTruthy()
+
+    fireEvent.click(screen.getByTestId('btn:back'))
+    await screen.findByText('Choose a service')
+    const backRoute = canonicalShell?.querySelector(
+      '[data-presence-variant="route"][data-route-direction="back"]'
+    )
+    expect(backRoute?.querySelector('[data-testid="service:svc_cut"]')).toBeTruthy()
+
+    fireEvent.click(await screen.findByRole('button', { name: /view order/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
+    await screen.findByText('Choose a time')
+    const reopenedForwardRoute = canonicalShell?.querySelector(
+      '[data-presence-variant="route"][data-route-direction="forward"]'
+    )
+    expect(
+      reopenedForwardRoute?.querySelector('[data-testid="calendarLine"]')
+    ).toBeTruthy()
+    queryClient.clear()
+  })
+
   it('keeps the single-customer shell free of group controls', async () => {
     const journey: BookingJourney = {
       version: 1,
@@ -311,6 +447,7 @@ describe('server-backed Booking scheduling', () => {
     )
     fireEvent.click(await screen.findByRole('button', { name: /view order/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
+    await screen.findByText('Choose a time')
     fireEvent.click(
       await screen.findByRole('button', { name: /view order, \$50\.00/i })
     )
