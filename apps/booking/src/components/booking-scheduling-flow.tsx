@@ -90,6 +90,11 @@ export function BookingSchedulingFlow({
         timeZone: availability.timezone,
         hour: 'numeric',
         minute: '2-digit'
+      }),
+      hour: new Intl.DateTimeFormat('en-US', {
+        timeZone: availability.timezone,
+        hour: 'numeric',
+        hourCycle: 'h23'
       })
     }),
     [availability.timezone, locale]
@@ -120,6 +125,11 @@ export function BookingSchedulingFlow({
   const heldDate = availability.hold
     ? localDate(availability.hold.quote.startsAt)
     : null
+  const heldStartsAt = availability.hold?.quote.startsAt ?? null
+  const [selectedStartsAt, setSelectedStartsAt] = useState<string | null>(heldStartsAt)
+  useEffect(() => {
+    setSelectedStartsAt(slotLost || holdExpired ? null : heldStartsAt)
+  }, [heldStartsAt, holdExpired, slotLost])
   const [chosenDate, setChosenDate] = useState<string | null>(
     heldDate ?? (scheduleSlots[0] ? localDate(scheduleSlots[0].startsAt) : null)
   )
@@ -400,7 +410,7 @@ export function BookingSchedulingFlow({
                     </button>
                   ) : null}
                   {visible.map((slot) => {
-                    const selected = availability.hold?.quote.startsAt === slot.startsAt
+                    const selected = selectedStartsAt === slot.startsAt
                     return (
                       <TimeButtonAvailable
                         key={slot.startsAt}
@@ -409,7 +419,13 @@ export function BookingSchedulingFlow({
                         disabled={busy}
                         locale={locale}
                         formatter={formatters.time}
-                        onChoose={onSelect}
+                        dayPart={dayPartForHour(
+                          Number(formatters.hour.format(new Date(slot.startsAt)))
+                        )}
+                        onChoose={(startsAt) => {
+                          setSelectedStartsAt(startsAt)
+                          onSelect(startsAt)
+                        }}
                       />
                     )
                   })}
@@ -603,6 +619,7 @@ function TimeButtonAvailable({
   disabled,
   locale,
   formatter,
+  dayPart,
   onChoose
 }: {
   readonly startsAt: string
@@ -610,6 +627,7 @@ function TimeButtonAvailable({
   readonly disabled: boolean
   readonly locale: BookingLocale
   readonly formatter: Intl.DateTimeFormat
+  readonly dayPart: TimeButtonDayPart
   readonly onChoose: (startsAt: string) => void
 }) {
   const formattedTime = formatter.format(new Date(startsAt))
@@ -629,12 +647,110 @@ function TimeButtonAvailable({
         selected && disabled && styles.selectedDisabledTime
       )}
     >
+      <DayPartIcon dayPart={dayPart} selected={selected} disabled={disabled} />
       <p {...stylex.props(styles.timeButtonText)}>
         {formattedTime.toLocaleLowerCase(locale)}
       </p>
     </button>
   )
 }
+
+type TimeButtonDayPart = 'morning' | 'afternoon' | 'evening'
+
+const dayPartForHour = (hour: number): TimeButtonDayPart => {
+  if (hour < 12) return 'morning'
+  if (hour < 17) return 'afternoon'
+  return 'evening'
+}
+
+function DayPartIcon({
+  dayPart,
+  selected,
+  disabled
+}: {
+  readonly dayPart: TimeButtonDayPart
+  readonly selected: boolean
+  readonly disabled: boolean
+}) {
+  const size = dayPart === 'evening' ? 14 : 16
+  return (
+    <p {...stylex.props(styles.timeButtonDayPart)}>
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        data-testid={`icon:day-part:${dayPart}`}
+        data-day-part-icon-state={selected ? 'selected' : 'available'}
+        {...stylex.props(
+          styles.timeButtonDayPartIcon,
+          selected && styles.selectedTimeDayPartIcon,
+          selected && disabled && styles.disabledTimeDayPartIcon
+        )}
+      >
+        {dayPart === 'morning' ? <MorningDayPartPath /> : null}
+        {dayPart === 'morning' ? (
+          <path
+            fill="currentColor"
+            data-testid="icon:day-part:morning-fill"
+            data-day-part-fill-state={selected ? 'selected' : 'available'}
+            d="M8.00011 6.10553C5.95972 6.10553 4.30566 7.75959 4.30566 9.79997C4.30566 10.5026 4.50119 11.1581 4.84099 11.7167L11.1592 11.7167C11.499 11.7167 11.6946 10.5026 11.6946 9.79997C11.6946 7.75959 10.0405 6.10553 8.00011 6.10553Z"
+            {...stylex.props(
+              styles.timeButtonMorningFill,
+              selected && styles.selectedTimeMorningFill,
+              selected && disabled && styles.disabledTimeMorningFill
+            )}
+          />
+        ) : null}
+        {dayPart === 'afternoon' ? <AfternoonDayPartPath /> : null}
+        {dayPart === 'evening' ? <EveningDayPartPath /> : null}
+      </svg>
+    </p>
+  )
+}
+
+const MorningDayPartPath = () => (
+  <>
+    <path fill="currentColor" d="M16 9.66111H14.2222V8.16111H16V9.66111Z" />
+    <path fill="currentColor" d="M8.75 1.8V3.57778H7.25V1.8L8.75 1.8Z" />
+    <path
+      fill="currentColor"
+      d="M0 9.66111H1.77778L1.77778 8.16111H6.55664e-08L0 9.66111Z"
+    />
+    <path
+      fill="currentColor"
+      d="M3.06993 5.93016L1.81285 4.67308L2.87351 3.61242L4.13059 4.8695L3.06993 5.93016Z"
+    />
+    <path
+      fill="currentColor"
+      d="M13.1269 3.61329L11.8698 4.87037L12.9305 5.93103L14.1876 4.67395L13.1269 3.61329Z"
+    />
+    <path
+      fill="currentColor"
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M12.8292 11.7167C13.0648 11.1234 13.1944 10.4764 13.1944 9.79998C13.1944 6.93116 10.8688 4.60553 8 4.60553C5.13119 4.60553 2.80556 6.93116 2.80556 9.79998C2.80556 10.4764 2.93516 11.1234 3.17084 11.7167H0.888889L0.888889 13.2167H4.06954L4.44444 13.2171L15.1111 13.2167V11.7167H12.8292ZM8 6.10553C5.95961 6.10553 4.30556 7.75959 4.30556 9.79998C4.30556 10.5026 4.50108 11.1581 4.84088 11.7167L11.1591 11.7167C11.4989 11.1581 11.6944 10.5026 11.6944 9.79998C11.6944 7.75959 10.0404 6.10553 8 6.10553Z"
+    />
+  </>
+)
+
+const AfternoonDayPartPath = () => (
+  <path
+    fill="currentColor"
+    fillRule="evenodd"
+    clipRule="evenodd"
+    d="M16 8.75L14.2222 8.75L14.2222 7.25L16 7.25L16 8.75ZM8.75 -3.16908e-07L8.75 1.77778L7.25 1.77778L7.25 -3.82475e-07L8.75 -3.16908e-07ZM11.8693 12.9304L13.1264 14.1874L14.187 13.1268L12.9299 11.8697L11.8693 12.9304ZM1.81255 13.1268L3.06963 11.8697L4.13029 12.9304L2.87321 14.1874L1.81255 13.1268ZM8.75 16L8.75 14.2222L7.25 14.2222L7.25 16L8.75 16ZM1.77778 8.75L5.712e-07 8.75L6.36767e-07 7.25L1.77778 7.25L1.77778 8.75ZM1.81285 2.87308L3.06993 4.13016L4.13059 3.0695L2.87351 1.81242L1.81285 2.87308ZM11.8698 3.07036L13.1269 1.81329L14.1876 2.87395L12.9305 4.13102L11.8698 3.07036ZM4.30556 8C4.30556 5.95961 5.95962 4.30556 8 4.30556C10.0404 4.30556 11.6944 5.95961 11.6944 8C11.6944 10.0404 10.0404 11.6944 8 11.6944C5.95962 11.6944 4.30556 10.0404 4.30556 8ZM8 2.80556C5.13119 2.80556 2.80556 5.13119 2.80556 8C2.80556 10.8688 5.13119 13.1944 8 13.1944C10.8688 13.1944 13.1944 10.8688 13.1944 8C13.1944 5.13119 10.8688 2.80556 8 2.80556Z"
+  />
+)
+
+const EveningDayPartPath = () => (
+  <path
+    fill="currentColor"
+    fillRule="evenodd"
+    clipRule="evenodd"
+    d="M15 7.43816L14.8719 8.73706C14.525 12.2535 11.5602 15 7.95287 15C4.11291 15 1 11.8871 1 8.04717C1 4.44017 3.74607 1.47551 7.26215 1.12827L8.56103 1L8.04629 2.19942C7.81942 2.72805 7.6934 3.31099 7.6934 3.92536C7.6934 6.34479 9.65475 8.30614 12.0742 8.30614C12.6888 8.30614 13.2719 8.18004 13.8006 7.95304L15 7.43816ZM13.087 9.76148C12.7576 9.81829 12.4192 9.84786 12.0742 9.84786C8.80328 9.84786 6.15167 7.19627 6.15167 3.92536C6.15167 3.58062 6.1812 3.24243 6.23793 2.91329C4.09023 3.63035 2.54172 5.65827 2.54172 8.04717C2.54172 11.0356 4.96437 13.4583 7.95287 13.4583C10.342 13.4583 12.3701 11.9095 13.087 9.76148Z"
+  />
+)
 
 function LegacyCalendarMonth({
   displayMonth,

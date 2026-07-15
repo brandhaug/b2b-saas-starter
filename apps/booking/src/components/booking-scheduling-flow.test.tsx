@@ -103,8 +103,25 @@ describe('Booking scheduling flow', () => {
     const availableTime = screen.getByTestId('btn:chooseTime:time:9:00AM')
     expect(availableTime.firstElementChild?.tagName).toBe('P')
     expect(availableTime.getAttribute('data-time-button-state')).toBe('available')
+    expect(
+      availableTime
+        .querySelector('[data-testid="icon:day-part:morning"]')
+        ?.getAttribute('data-day-part-icon-state')
+    ).toBe('available')
     fireEvent.click(availableTime)
     expect(select).toHaveBeenCalledWith('2026-07-13T09:00:00.000Z')
+    const selectedTime = screen.getByTestId('btn:chooseTime:time:9:00AM:selected')
+    expect(selectedTime.getAttribute('data-time-button-state')).toBe('selected')
+    expect(
+      selectedTime
+        .querySelector('[data-testid="icon:day-part:morning"]')
+        ?.getAttribute('data-day-part-icon-state')
+    ).toBe('selected')
+    expect(
+      selectedTime
+        .querySelector('[data-testid="icon:day-part:morning-fill"]')
+        ?.getAttribute('data-day-part-fill-state')
+    ).toBe('selected')
     expect(screen.queryByRole('button', { name: /monday, july 20/i })).toBeNull()
     fireEvent.click(screen.getByTestId('btn:expandCalendar'))
     const monthCalendar = await screen.findByTestId('calendarMonth')
@@ -146,7 +163,7 @@ describe('Booking scheduling flow', () => {
     expect(monthCalendar.querySelectorAll('[data-calendar-cell]')).toHaveLength(35)
     fireEvent.click(monthCalendar.querySelector('[aria-label="Monday, July 13"]')!)
     expect(screen.getByTestId('calendarMonth')).toBe(monthCalendar)
-    const previousTimeButton = screen.getByTestId('btn:chooseTime:time:9:00AM')
+    const previousTimeButton = screen.getByRole('button', { name: /9:00/i })
     fireEvent.click(monthCalendar.querySelector('[aria-label="Monday, July 20"]')!)
     await waitFor(() => {
       expect(screen.getByTestId('text:selectedDate').textContent).toBe(

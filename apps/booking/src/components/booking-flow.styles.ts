@@ -1092,10 +1092,11 @@ export const styles = stylex.create({
     borderColor: 'rgb(218 218 220)',
     borderRadius: 12,
     backgroundColor: {
-      default: '#ffffff',
+      default: 'rgb(255 255 255 / 0%)',
       ':hover': 'rgb(255 255 255)'
     },
     color: '#000000',
+    cursor: 'pointer',
     fontFamily: bookingTheme.fontText,
     fontSize: 15,
     fontWeight: 600,
@@ -1147,6 +1148,30 @@ export const styles = stylex.create({
     font: 'inherit',
     lineHeight: '18px',
     textTransform: 'lowercase'
+  },
+  timeButtonDayPart: {
+    margin: 0,
+    marginRight: 8,
+    lineHeight: 0
+  },
+  timeButtonDayPartIcon: {
+    display: 'block',
+    color: 'rgb(142 142 147)'
+  },
+  selectedTimeDayPartIcon: {
+    color: bookingTheme.colorPrimaryFontOnPrimary
+  },
+  disabledTimeDayPartIcon: {
+    color: '#c6c6c8'
+  },
+  timeButtonMorningFill: {
+    color: 'transparent'
+  },
+  selectedTimeMorningFill: {
+    color: bookingTheme.colorPrimaryFontOnPrimary
+  },
+  disabledTimeMorningFill: {
+    color: '#c6c6c8'
   },
   selectedTimeFeedback: {
     marginTop: 20,

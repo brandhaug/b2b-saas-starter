@@ -121,6 +121,7 @@ export const bookingTheme = stylex.defineVars({
   colorPrimaryDarker: '#044107',
   colorPrimaryLight: '#1a721f',
   colorPrimaryFont: '#000000',
+  colorPrimaryFontOnPrimary: '#ffffff',
   colorViewOrderBackground: '#000000',
   colorViewOrderText: '#ffffff',
   colorSecondary: '#ffffff',
