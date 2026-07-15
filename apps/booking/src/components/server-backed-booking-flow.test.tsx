@@ -105,6 +105,10 @@ describe('server-backed Booking scheduling', () => {
         {
           startsAt: '2026-07-15T14:00:00.000Z',
           endsAt: '2026-07-15T15:00:00.000Z'
+        },
+        {
+          startsAt: '2026-07-15T15:00:00.000Z',
+          endsAt: '2026-07-15T16:00:00.000Z'
         }
       ],
       hold: null
@@ -134,7 +138,25 @@ describe('server-backed Booking scheduling', () => {
         totalMinor: 5500
       }
     }
+    const replacementHold: NonNullable<BookingAvailability['hold']> = {
+      ...hold,
+      id: 'hld_transition_replacement',
+      quote: {
+        ...hold.quote,
+        startsAt: '2026-07-15T15:00:00.000Z',
+        endsAt: '2026-07-15T16:00:00.000Z'
+      }
+    }
     let requestedAvailabilityDays: string | null = null
+    let resolveHold!: (response: Response) => void
+    const holdResponse = new Promise<Response>((resolve) => {
+      resolveHold = resolve
+    })
+    let resolveReplacementHold!: (response: Response) => void
+    const replacementHoldResponse = new Promise<Response>((resolve) => {
+      resolveReplacementHold = resolve
+    })
+    let holdRequestCount = 0
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url =
         typeof input === 'string'
@@ -150,7 +172,8 @@ describe('server-backed Booking scheduling', () => {
         )
         return Response.json(availability)
       }
-      if (url.endsWith('/hold') && init?.method === 'POST') return Response.json(hold)
+      if (url.endsWith('/hold') && init?.method === 'POST')
+        return holdRequestCount++ === 0 ? holdResponse : replacementHoldResponse
       throw new Error(`unexpected request: ${url}`)
     })
     const queryClient = new QueryClient({
@@ -186,6 +209,18 @@ describe('server-backed Booking scheduling', () => {
 
     fireEvent.click(screen.getByTestId('btn:chooseTime:time:2:00PM'))
     await screen.findByTestId('btn:chooseTime:time:2:00PM:selected')
+    const pendingCheckoutOrder = screen.getByRole('button', {
+      name: /go to checkout, \$50\.00/i
+    })
+    expect(pendingCheckoutOrder.getAttribute('data-order-state')).toBe('checkout')
+    expect(pendingCheckoutOrder).toHaveProperty('disabled', true)
+    resolveHold(Response.json(hold))
+    await waitFor(() => expect(pendingCheckoutOrder).toHaveProperty('disabled', false))
+    fireEvent.click(screen.getByTestId('btn:chooseTime:time:3:00PM'))
+    await screen.findByTestId('btn:chooseTime:time:3:00PM:selected')
+    expect(pendingCheckoutOrder).toHaveProperty('disabled', true)
+    resolveReplacementHold(Response.json(replacementHold))
+    await waitFor(() => expect(pendingCheckoutOrder).toHaveProperty('disabled', false))
     expect(screen.getAllByTestId('btn:viewOrder')).toHaveLength(1)
     const checkoutOrder = screen.getByRole('button', {
       name: /go to checkout, \$55\.00/i
@@ -197,11 +232,26 @@ describe('server-backed Booking scheduling', () => {
     expect(within(heldOrderSummary).getByText('$50.00')).toBeTruthy()
     expect(within(heldOrderSummary).getByText('$55.00')).toBeTruthy()
     expect(within(heldOrderSummary).getByTestId('text:aptDate').textContent).toMatch(
-      /Jul 15 at 2:00 PM/i
+      /Jul 15 at 3:00 PM/i
     )
     expect(within(heldOrderSummary).getByText('60 min')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Close order summary' }))
+    const schedulingScroll = screen.getByTestId('container:scrollable')
+    schedulingScroll.scrollTop = 72
+    const bodyOverflow = document.body.style.overflow
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    const policy = screen.getByRole('dialog', { name: 'Cancellation policy' })
+    expect(screen.getByTestId('calendarLine')).toBeTruthy()
+    expect(schedulingScroll.scrollTop).toBe(72)
+    expect(document.body.style.overflow).toBe(bodyOverflow)
+    expect(window.location.pathname).toBe(
+      '/mara/booking/main/prv_ava/services/svc_cut/schedule'
+    )
+    fireEvent.click(within(policy).getByRole('button', { name: 'I agree' }))
+    const checkout = screen.getByRole('dialog', { name: 'Confirm booking' })
+    expect(checkout).not.toBe(policy)
+    expect(await within(checkout).findByLabelText('Name')).toBeTruthy()
+    expect(screen.getByTestId('calendarLine')).toBeTruthy()
+    fireEvent.click(within(checkout).getByRole('button', { name: 'Close' }))
     const forwardRoute = canonicalShell?.querySelector(
       '[data-presence-variant="route"][data-route-direction="forward"]'
     )
@@ -530,8 +580,11 @@ describe('server-backed Booking scheduling', () => {
       await screen.findByRole('button', { name: /go to checkout, \$50\.00/i })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mia' } })
-    fireEvent.change(screen.getByLabelText('Email'), {
+    fireEvent.click(screen.getByRole('button', { name: 'I agree' }))
+    fireEvent.change(await screen.findByLabelText('Name'), {
+      target: { value: 'Mia' }
+    })
+    fireEvent.change(await screen.findByLabelText('Email'), {
       target: { value: 'mia@example.com' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Review booking' }))

@@ -767,6 +767,7 @@ export function BookingPopupSheet({
   label,
   onClose,
   testId,
+  presenceKey = 'booking-popup',
   header,
   children
 }: {
@@ -775,7 +776,8 @@ export function BookingPopupSheet({
   readonly label: string
   readonly onClose: () => void
   readonly testId?: string
-  readonly header: ReactNode
+  readonly presenceKey?: string
+  readonly header?: ReactNode
   readonly children: ReactNode
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -797,7 +799,7 @@ export function BookingPopupSheet({
         {open
           ? [
               <m.div
-                key="popup-fade"
+                key={`popup-fade:${presenceKey}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.25 }}
                 exit={{ opacity: 0 }}
@@ -805,7 +807,7 @@ export function BookingPopupSheet({
                 {...stylex.props(styles.popupBackdrop)}
               />,
               <m.div
-                key="popup-body"
+                key={`popup-body:${presenceKey}`}
                 initial={{ y: reduced ? 0 : '100%' }}
                 animate={{ y: 0 }}
                 exit={{ y: reduced ? 0 : '100%' }}
@@ -823,14 +825,16 @@ export function BookingPopupSheet({
                   onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
                   {...stylex.props(styles.popupSheet)}
                 >
-                  <div
-                    {...stylex.props(
-                      styles.popupStickyHeader,
-                      scrolled && styles.popupStickyHeaderScrolled
-                    )}
-                  >
-                    {header}
-                  </div>
+                  {header ? (
+                    <div
+                      {...stylex.props(
+                        styles.popupStickyHeader,
+                        scrolled && styles.popupStickyHeaderScrolled
+                      )}
+                    >
+                      {header}
+                    </div>
+                  ) : null}
                   {children}
                 </div>
               </m.div>

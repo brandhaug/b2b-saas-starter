@@ -4,6 +4,7 @@ import { Schema } from 'effect'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BOOKING_AVAILABILITY_HORIZON_DAYS,
+  defaultBookingCancellationWindow,
   BookingAvailability as BookingAvailabilitySchema,
   BookingJourney as BookingJourneySchema,
   BookingParty as BookingPartySchema,
@@ -33,6 +34,10 @@ import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
 import { BookingPartyFlow } from './booking-party-flow.tsx'
+import {
+  BookingLegacyCheckoutPopup,
+  type LegacyCheckoutPhase
+} from './booking-legacy-checkout-popup.tsx'
 import { styles } from './booking-flow.styles.ts'
 import { translateBookingMessage } from '../localization/booking-localization.ts'
 import { useBookingLocalization } from '../localization/booking-localization-provider.tsx'
@@ -142,6 +147,8 @@ export function ServerBackedBookingFlow({
   const [checkout, setCheckout] = useState(
     paymentReturn || initialRouteKind === 'checkout'
   )
+  const [legacyCheckoutPhase, setLegacyCheckoutPhase] =
+    useState<LegacyCheckoutPhase>('policies')
   const [review, setReview] = useState<CheckoutReview | null>(null)
   const [preparation, setPreparation] = useState<CheckoutPreparation | null>(null)
   const [validationIssues, setValidationIssues] = useState<
@@ -660,12 +667,18 @@ export function ServerBackedBookingFlow({
       />
     )
   let schedulingContent: ReactNode = null
+  let checkoutOverlay: ((target: HTMLElement | null) => ReactNode) | null = null
   const nextPartyRequest = party.data?.requests.find(
     (request) => request.id !== party.data.activeRequestId && !request.startsAt
   )
   const schedulingCheckoutLabel = nextPartyRequest
     ? message('action.continue')
     : message('action.checkout')
+  const heldStartsAt = availability.data?.hold?.quote.startsAt ?? null
+  const pendingStartsAt = holdMutation.isPending ? holdMutation.variables : null
+  const pendingReplacement = Boolean(
+    pendingStartsAt && pendingStartsAt !== heldStartsAt
+  )
   const continueFromScheduling = () => {
     if (party.data && nextPartyRequest) {
       partyMutation.mutate({
@@ -675,9 +688,7 @@ export function ServerBackedBookingFlow({
     } else if (party.data && party.data.requests.length > 1) groupHoldMutation.mutate()
     else {
       setCheckout(true)
-      replaceBookingPath(
-        buildCanonicalBookingPath({ kind: 'checkout', merchantSlug, sessionId })
-      )
+      setLegacyCheckoutPhase('policies')
     }
   }
   if (scheduling) {
@@ -692,17 +703,17 @@ export function ServerBackedBookingFlow({
         />
       )
     }
-    if (checkout) {
-      if (confirmationProcessing)
-        return (
-          <Status
-            premiumPalette={premiumPalette}
-            title={message('confirmation.processing_title')}
-            copy={message('confirmation.processing_copy')}
-          />
-        )
-      return (
+    const checkoutFlow = (presentation: 'standalone' | 'withinBookingShell') =>
+      confirmationProcessing ? (
+        <Status
+          premiumPalette={premiumPalette}
+          title={message('confirmation.processing_title')}
+          copy={message('confirmation.processing_copy')}
+        />
+      ) : (
         <BookingCheckoutFlow
+          presentation={presentation}
+          shopName={journey.data.resolvedConfiguration.shopName.text}
           premiumPalette={premiumPalette}
           review={review}
           preparation={preparation}
@@ -875,7 +886,44 @@ export function ServerBackedBookingFlow({
           }
         />
       )
-    }
+    if (checkout && (paymentReturn || initialRouteKind === 'checkout'))
+      return checkoutFlow('standalone')
+    checkoutOverlay = (target) => (
+      <BookingLegacyCheckoutPopup
+        open={checkout}
+        target={target}
+        phase={legacyCheckoutPhase}
+        onClose={() => {
+          setCheckout(false)
+          setLegacyCheckoutPhase('policies')
+        }}
+        onPolicyComplete={() => setLegacyCheckoutPhase('userInfo')}
+        cancellation={
+          availability.data?.hold
+            ? {
+                ...defaultBookingCancellationWindow(
+                  availability.data.hold.quote.startsAt,
+                  partyNow
+                ),
+                timeZone: availability.data.timezone,
+                locale
+              }
+            : null
+        }
+        copy={{
+          cancellationPolicy: message('checkout.cancellation_policy'),
+          cancellationPolicyCopy: message('checkout.cancellation_policy_copy'),
+          noCancellation: message('checkout.no_cancellation'),
+          now: message('checkout.now'),
+          appointment: message('checkout.appointment'),
+          confirmBooking: message('checkout.title'),
+          agree: message('checkout.agree'),
+          close: message('action.close')
+        }}
+      >
+        {checkoutFlow('withinBookingShell')}
+      </BookingLegacyCheckoutPopup>
+    )
     if (availability.isError || holdMutation.isError || groupHoldMutation.isError) {
       schedulingContent = (
         <SchedulingStatusContent
@@ -912,6 +960,7 @@ export function ServerBackedBookingFlow({
             )
           }}
           onSelect={(startsAt) => holdMutation.mutate(startsAt)}
+          selectedStartsAt={pendingStartsAt ?? heldStartsAt}
           onRelease={() => releaseMutation.mutate()}
           {...(nextPartyRequest ? { checkoutLabel: schedulingCheckoutLabel } : {})}
           onCheckout={continueFromScheduling}
@@ -1049,7 +1098,12 @@ export function ServerBackedBookingFlow({
                     selectionPath(merchantSlug, journey.data, 'additional-services')
                   )
                 },
-                ...(availability.data?.hold
+                ...(checkoutOverlay
+                  ? {
+                      overlay: checkoutOverlay
+                    }
+                  : {}),
+                ...(availability.data?.hold && !pendingReplacement
                   ? {
                       heldOrder: {
                         action: continueFromScheduling,
@@ -1057,6 +1111,13 @@ export function ServerBackedBookingFlow({
                         continueLabel: message('action.continue'),
                         quote: availability.data.hold.quote,
                         timeZone: availability.data.timezone
+                      }
+                    }
+                  : {}),
+                ...(pendingReplacement
+                  ? {
+                      pendingCheckout: {
+                        ctaLabel: schedulingCheckoutLabel
                       }
                     }
                   : {})

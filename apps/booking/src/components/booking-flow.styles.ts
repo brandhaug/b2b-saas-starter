@@ -147,6 +147,29 @@ export const styles = stylex.create({
     borderTopRightRadius: 24,
     backgroundColor: '#ffffff'
   },
+  checkoutPopupHeader: {
+    position: 'sticky',
+    zIndex: bookingTheme.layerChrome,
+    top: -16,
+    margin: -16,
+    marginBottom: 0,
+    padding: '18px 48px 16px 16px',
+    backgroundColor: 'rgb(247 247 247 / 88%)',
+    backdropFilter: 'blur(5px)'
+  },
+  checkoutPopupSurface: {
+    height: 'auto',
+    paddingTop: 24,
+    paddingBottom: 4,
+    overflow: 'visible'
+  },
+  checkoutShopName: {
+    margin: '0 0 24px',
+    color: bookingTheme.colorPrimaryFont,
+    fontSize: 16,
+    fontWeight: 650,
+    lineHeight: '20px'
+  },
   gridTwo: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',

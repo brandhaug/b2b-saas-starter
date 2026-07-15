@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BookingCancellations,
   SeedBookingCancellations,
+  defaultBookingCancellationWindow,
   emptySeedBookingCancellationStore,
   type CancellableAppointment
 } from './booking-cancellation.ts'
@@ -45,6 +46,24 @@ const run = <A, E>(
 ) => Effect.runPromise(effect.pipe(Effect.provide(SeedBookingCancellations(store))))
 
 describe('Booking cancellation contract', () => {
+  it('presents the default cancellation window without leaking eligibility math', () => {
+    expect(
+      defaultBookingCancellationWindow(
+        '2026-07-13T12:00:00.000Z',
+        '2026-07-13T10:00:00.000Z'
+      )
+    ).toEqual({
+      eligible: true,
+      cancellableUntil: '2026-07-13T11:00:00.000Z'
+    })
+    expect(
+      defaultBookingCancellationWindow(
+        '2026-07-13T12:00:00.000Z',
+        '2026-07-13T11:00:00.001Z'
+      ).eligible
+    ).toBe(false)
+  })
+
   it('evaluates cancellation eligibility separately from refund entitlement', async () => {
     const record = appointment('apt_policy', {
       startsAt: '2026-07-13T11:30:00.000Z'

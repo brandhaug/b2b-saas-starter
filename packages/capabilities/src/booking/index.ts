@@ -114,6 +114,11 @@ export {
   emptySeedBookingConfirmationStore,
   verifyConfirmationToken
 } from './booking-confirmation.ts'
+export {
+  DEFAULT_BOOKING_CANCELLATION_POLICY,
+  defaultBookingCancellationWindow
+} from './booking-cancellation.ts'
+export type { BookingCancellationWindow } from './booking-cancellation.ts'
 export type {
   BookingConfirmationShape,
   ConfirmationSigningKeyring,

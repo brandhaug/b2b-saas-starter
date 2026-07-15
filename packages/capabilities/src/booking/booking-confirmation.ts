@@ -27,6 +27,7 @@ import {
   type StoredAppointmentSnapshot
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
+import { DEFAULT_BOOKING_CANCELLATION_POLICY } from './booking-cancellation.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import type { BookingSession } from './booking-sessions.ts'
@@ -93,11 +94,6 @@ type Failure =
   | BookingConfirmationProcessing
   | CapabilityUnavailable
 const AppointmentSnapshot = Schema.Unknown as Schema.Schema<StoredAppointmentSnapshot>
-const defaultCancellationPolicy = {
-  id: 'cancellation:default:v1',
-  version: 1,
-  cancellableUntilMinutesBeforeStart: 60
-} as const
 const defaultRefundPolicy = {
   id: 'refund:default:v1',
   version: 1,
@@ -1056,7 +1052,7 @@ export const LiveBookingConfirmation = (
                         acceptedAt: acceptedPolicy.acceptedAt
                       }
                     : null,
-                  cancellationPolicy: defaultCancellationPolicy,
+                  cancellationPolicy: DEFAULT_BOOKING_CANCELLATION_POLICY,
                   refundPolicy: defaultRefundPolicy
                 }
                 return {
@@ -1322,7 +1318,7 @@ export const LiveBookingConfirmation = (
                 phone: row.session.customerPhone
               },
               checkoutPath: 'pay_in_person',
-              cancellationPolicy: defaultCancellationPolicy,
+              cancellationPolicy: DEFAULT_BOOKING_CANCELLATION_POLICY,
               refundPolicy: defaultRefundPolicy
             }
             const accessMetadata = {

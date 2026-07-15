@@ -7,6 +7,28 @@ export type CancellationPolicySnapshot = {
   readonly cancellableUntilMinutesBeforeStart: number
 }
 
+export const DEFAULT_BOOKING_CANCELLATION_POLICY = {
+  id: 'cancellation:default:v1',
+  version: 1,
+  cancellableUntilMinutesBeforeStart: 60
+} as const satisfies CancellationPolicySnapshot
+
+export type BookingCancellationWindow = {
+  readonly eligible: boolean
+  readonly cancellableUntil: string
+}
+
+export const defaultBookingCancellationWindow = (
+  startsAt: string,
+  now: string
+): BookingCancellationWindow => {
+  const cancellableUntil = new Date(
+    Date.parse(startsAt) -
+      DEFAULT_BOOKING_CANCELLATION_POLICY.cancellableUntilMinutesBeforeStart * 60_000
+  ).toISOString()
+  return { eligible: Date.parse(now) <= Date.parse(cancellableUntil), cancellableUntil }
+}
+
 export type RefundPolicySnapshot = {
   readonly id: string
   readonly version: number

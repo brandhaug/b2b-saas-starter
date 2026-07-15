@@ -34,6 +34,7 @@ export function BookingSchedulingFlow({
   holdExpired = false,
   locale = 'en',
   onSelect,
+  selectedStartsAt: controlledStartsAt,
   onBack,
   onRelease,
   onCheckout,
@@ -49,6 +50,7 @@ export function BookingSchedulingFlow({
   readonly holdExpired?: boolean
   readonly locale?: BookingLocale
   readonly onSelect: (startsAt: string) => void
+  readonly selectedStartsAt?: string | null
   readonly onBack: () => void
   readonly onRelease?: () => void
   readonly onCheckout?: () => void
@@ -126,10 +128,14 @@ export function BookingSchedulingFlow({
     ? localDate(availability.hold.quote.startsAt)
     : null
   const heldStartsAt = availability.hold?.quote.startsAt ?? null
-  const [selectedStartsAt, setSelectedStartsAt] = useState<string | null>(heldStartsAt)
+  const [uncontrolledStartsAt, setUncontrolledStartsAt] = useState<string | null>(
+    heldStartsAt
+  )
   useEffect(() => {
-    setSelectedStartsAt(slotLost || holdExpired ? null : heldStartsAt)
+    setUncontrolledStartsAt(slotLost || holdExpired ? null : heldStartsAt)
   }, [heldStartsAt, holdExpired, slotLost])
+  const selectedStartsAt =
+    controlledStartsAt === undefined ? uncontrolledStartsAt : controlledStartsAt
   const [chosenDate, setChosenDate] = useState<string | null>(
     heldDate ?? (scheduleSlots[0] ? localDate(scheduleSlots[0].startsAt) : null)
   )
@@ -423,7 +429,7 @@ export function BookingSchedulingFlow({
                           Number(formatters.hour.format(new Date(slot.startsAt)))
                         )}
                         onChoose={(startsAt) => {
-                          setSelectedStartsAt(startsAt)
+                          setUncontrolledStartsAt(startsAt)
                           onSelect(startsAt)
                         }}
                       />

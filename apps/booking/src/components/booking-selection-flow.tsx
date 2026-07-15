@@ -52,6 +52,10 @@ type BookingSelectionFlowProps = {
     readonly busy: boolean
     readonly busyLabel: string
     readonly onBack: () => void
+    readonly overlay?: (target: HTMLElement | null) => ReactNode
+    readonly pendingCheckout?: {
+      readonly ctaLabel: string
+    }
     readonly heldOrder?: {
       readonly action: () => void
       readonly ctaLabel: string
@@ -111,6 +115,7 @@ function BookingSelectionFlowContent({
     readonly afterVersion: number
   } | null>(null)
   const [orderOpen, setOrderOpen] = useState(false)
+  const [overlayTarget, setOverlayTarget] = useState<HTMLDivElement | null>(null)
   const [giftCardSelected, setGiftCardSelected] = useState(false)
   const giftCardTimer = useRef<number | null>(null)
   const [pendingServiceSelection, setPendingServiceSelection] = useState<{
@@ -142,7 +147,10 @@ function BookingSelectionFlowContent({
   )
   const showContinuation = continuation !== undefined
   const heldOrder = continuation?.heldOrder
-  const orderCtaLabel = heldOrder?.ctaLabel ?? 'View order'
+  const checkoutOrder = Boolean(heldOrder || continuation?.pendingCheckout)
+  const pendingCheckout = Boolean(continuation?.pendingCheckout && !heldOrder)
+  const orderCtaLabel =
+    heldOrder?.ctaLabel ?? continuation?.pendingCheckout?.ctaLabel ?? 'View order'
   const displayedOrderTotal = heldOrder?.quote.totalMinor ?? total(journey)
 
   useEffect(
@@ -394,7 +402,10 @@ function BookingSelectionFlowContent({
                 data-testid="container:viewOrderSafeArea"
                 role="button"
                 aria-label="Open order"
-                onClick={() => setOrderOpen(true)}
+                aria-disabled={pendingCheckout}
+                onClick={() => {
+                  if (!pendingCheckout) setOrderOpen(true)
+                }}
                 initial={{ scale: 0.8, bottom: -88 }}
                 animate={{ scale: 1, bottom: 0 }}
                 exit={{
@@ -412,15 +423,16 @@ function BookingSelectionFlowContent({
                 <button
                   ref={viewOrderButton}
                   type="button"
+                  disabled={pendingCheckout}
                   data-testid="btn:viewOrder"
-                  data-order-state={heldOrder ? 'checkout' : 'viewOrder'}
+                  data-order-state={checkoutOrder ? 'checkout' : 'viewOrder'}
                   aria-label={`${orderCtaLabel}, ${formatPrice(
                     displayedOrderTotal,
                     heldOrder?.quote.currency ?? selectedPrimary.currency
                   )}`}
                   {...stylex.props(
                     styles.orderBar,
-                    heldOrder && styles.orderBarCheckout
+                    checkoutOrder && styles.orderBarCheckout
                   )}
                 >
                   <span>{orderCtaLabel}</span>
@@ -455,6 +467,8 @@ function BookingSelectionFlowContent({
             />
           ) : null}
         </AnimatePresence>
+        <div ref={setOverlayTarget} />
+        {continuation?.overlay?.(overlayTarget)}
       </LazyMotion>
     </BookingWidgetShell>
   )
