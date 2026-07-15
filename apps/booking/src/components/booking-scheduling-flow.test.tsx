@@ -93,11 +93,73 @@ describe('Booking scheduling flow', () => {
     expect(select).toHaveBeenCalledWith('2026-07-13T09:00:00.000Z')
     expect(screen.queryByRole('button', { name: /monday, july 20/i })).toBeNull()
     fireEvent.click(screen.getByTestId('btn:expandCalendar'))
-    fireEvent.click(await screen.findByRole('button', { name: /monday, july 20/i }))
+    const monthCalendar = await screen.findByTestId('calendarMonth')
+    expect(monthCalendar.getAttribute('data-calendar-contract')).toBe(
+      'legacy-calendar-month'
+    )
+    expect(
+      monthCalendar.querySelector(
+        '[aria-pressed="true"] [data-calendar-day-border="inner"]'
+      )
+    ).toBeTruthy()
+    expect(
+      monthCalendar
+        .querySelector('[aria-label="Wednesday, July 15"]')
+        ?.getAttribute('data-calendar-day-state')
+    ).toBe('day-off')
+    expect(
+      monthCalendar
+        .querySelector('[aria-label="Monday, July 13"]')
+        ?.getAttribute('data-calendar-day-state')
+    ).toBe('selected')
+    expect(
+      monthCalendar
+        .querySelector('[aria-label="Tuesday, July 14"]')
+        ?.getAttribute('data-calendar-day-state')
+    ).toBe('available')
+    expect(
+      Array.from(
+        monthCalendar.querySelectorAll('[data-calendar-layer="header"] span')
+      ).map((element) => element.textContent)
+    ).toEqual(['S', 'M', 'T', 'W', 'T', 'F', 'S'])
+    expect(monthCalendar.querySelector('[aria-label="Sunday, June 28"]')).toBeNull()
+    expect(monthCalendar.querySelectorAll('[data-calendar-cell]')).toHaveLength(35)
+    fireEvent.click(monthCalendar.querySelector('[aria-label="Monday, July 13"]')!)
+    expect(screen.getByTestId('calendarMonth')).toBe(monthCalendar)
+    fireEvent.click(monthCalendar.querySelector('[aria-label="Monday, July 20"]')!)
     fireEvent.click(
       await screen.findByTestId('btn:chooseTime:time:2026-07-20T09:00:00.000Z')
     )
     expect(select).toHaveBeenLastCalledWith('2026-07-20T09:00:00.000Z')
+  })
+
+  it('keeps month navigation available through the last returned slot', async () => {
+    render(
+      <BookingSchedulingFlow
+        availability={{
+          ...availability,
+          slots: [
+            ...availability.slots,
+            {
+              startsAt: '2026-08-20T09:00:00.000Z',
+              endsAt: '2026-08-20T10:00:00.000Z'
+            }
+          ]
+        }}
+        busy={false}
+        slotLost={false}
+        onBack={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('btn:expandCalendar'))
+    const nextMonth = screen.getByRole('button', { name: 'Next month' })
+    expect((nextMonth as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(nextMonth)
+    expect(
+      await screen.findByRole('button', { name: /thursday, august 20/i })
+    ).toBeTruthy()
   })
 
   it('renders no-times and safe slot-lost recovery without hiding saved selections', () => {

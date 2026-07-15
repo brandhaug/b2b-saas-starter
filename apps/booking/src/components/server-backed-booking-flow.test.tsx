@@ -112,7 +112,7 @@ describe('server-backed Booking scheduling', () => {
       id: 'hld_transition',
       bookingSessionId: 'bsn_transition',
       createdAt: '2026-07-15T13:55:00.000Z',
-      expiresAt: '2026-07-15T14:05:00.000Z',
+      expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
       quote: {
         startsAt: '2026-07-15T14:00:00.000Z',
         endsAt: '2026-07-15T15:00:00.000Z',

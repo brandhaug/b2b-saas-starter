@@ -6,7 +6,14 @@ import {
   m,
   type Variants
 } from 'motion/react'
-import { useMemo, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 import type {
   BookingAvailability,
   BookingTimeSlot
@@ -80,6 +87,10 @@ export function BookingSchedulingFlow({
         timeZone: availability.timezone,
         weekday: 'short'
       }),
+      weekdayNarrow: new Intl.DateTimeFormat(locale, {
+        timeZone: availability.timezone,
+        weekday: 'narrow'
+      }),
       time: new Intl.DateTimeFormat(locale, {
         timeZone: availability.timezone,
         hour: 'numeric',
@@ -103,7 +114,7 @@ export function BookingSchedulingFlow({
     () => calendarDays(scheduleSlots, formatters.date, today),
     [scheduleSlots, formatters.date, today]
   )
-  const daySet = useMemo(() => new Set(days), [days])
+  const calendarRangeDaySet = useMemo(() => new Set(days), [days])
   const availableDaySet = useMemo(
     () =>
       new Set(
@@ -235,7 +246,9 @@ export function BookingSchedulingFlow({
                     <button
                       type="button"
                       onClick={() => {
-                        setChosenDate(daySet.has(today) ? today : (days[0] ?? null))
+                        setChosenDate(
+                          calendarRangeDaySet.has(today) ? today : (days[0] ?? null)
+                        )
                         setCalendarExpanded(false)
                       }}
                       {...stylex.props(styles.calendarTextControl)}
@@ -270,128 +283,79 @@ export function BookingSchedulingFlow({
                 ) : null}
               </div>
               <LazyMotion features={domAnimation} strict>
-                <m.div layout="size" transition={{ duration: 0.3 }}>
-                  <AnimatePresence initial={false} mode="wait">
-                    {calendarExpanded ? (
-                      <m.div
-                        key="calendar"
-                        data-testid="calendarMonth"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        {...stylex.props(styles.expandedCalendar)}
-                      >
-                        <div {...stylex.props(styles.weekdayGrid)}>
-                          {calendarWeekdays(formatters.weekday).map((label) => (
-                            <span key={label}>{label}</span>
-                          ))}
-                        </div>
-                        <div {...stylex.props(styles.monthSlideViewport)}>
-                          <AnimatePresence
-                            initial={false}
-                            custom={monthDirection}
-                            mode="sync"
-                          >
-                            <m.div
-                              key={displayMonth}
-                              custom={monthDirection}
-                              variants={calendarSlideVariants}
-                              initial="enter"
-                              animate="center"
-                              exit="exit"
-                              transition={{ duration: 0.6 }}
-                              {...stylex.props(styles.monthSlide)}
-                            >
-                              <div {...stylex.props(styles.monthGrid)}>
-                                {calendarMonthDays(`${displayMonth}-01`).map((date) => {
-                                  const enabled =
-                                    daySet.has(date) && availableDaySet.has(date)
-                                  return (
-                                    <button
-                                      key={date}
-                                      type="button"
-                                      disabled={!enabled}
-                                      aria-label={formatters.longDate.format(
-                                        asLocalNoon(date)
-                                      )}
-                                      aria-pressed={date === activeDate}
-                                      onClick={() => {
-                                        setChosenDate(date)
-                                        setCalendarExpanded(false)
-                                      }}
-                                      {...stylex.props(
-                                        styles.monthDay,
-                                        styles.dateButton,
-                                        date.slice(0, 7) !== displayMonth &&
-                                          styles.outsideMonthDay,
-                                        enabled && styles.availableMonthDay,
-                                        date === activeDate && styles.selectedMonthDay
-                                      )}
-                                    >
-                                      {date.slice(-2).replace(/^0/, '')}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </m.div>
-                          </AnimatePresence>
-                        </div>
-                        <p {...stylex.props(styles.expandedMonthName)}>
-                          {formatters.month
-                            .format(asLocalNoon(`${displayMonth}-01`))
-                            .replace(/\s+\d{4}$/, '')}
-                        </p>
-                      </m.div>
-                    ) : (
-                      <m.div
-                        key="line"
-                        data-testid="calendarLine"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        {...stylex.props(styles.dateGrid)}
-                      >
-                        {visibleDays.map((date) => (
-                          <CalendarLineDay
-                            key={date}
-                            date={date}
-                            activeDate={activeDate}
-                            available={availableDaySet.has(date)}
-                            longDate={formatters.longDate}
-                            weekday={formatters.weekday}
-                            onChoose={setChosenDate}
-                          />
-                        ))}
-                        <button
-                          type="button"
-                          aria-label={message('scheduling.show_full_calendar')}
-                          data-testid="btn:expandCalendar"
-                          onClick={() => {
-                            setDisplayMonth(activeDate!.slice(0, 7))
-                            setCalendarExpanded(true)
-                          }}
-                          {...stylex.props(styles.dateCell, styles.dateButton)}
+                <div {...stylex.props(styles.calendarTransitionContainer)}>
+                  <div {...stylex.props(styles.lineCalendarContainer)}>
+                    <AnimatePresence initial={false}>
+                      {!calendarExpanded ? (
+                        <m.div
+                          key="line"
+                          data-testid="calendarLine"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          {...stylex.props(styles.dateGrid)}
                         >
-                          <span {...stylex.props(styles.expandCircle)}>
-                            <svg
-                              width="12"
-                              height="6"
-                              viewBox="0 0 12 6"
-                              aria-hidden="true"
-                            >
-                              <path
-                                d="M6 5.992a.75.75 0 0 0 .545-.246l4.453-4.559a.667.667 0 0 0 .2-.486.69.69 0 0 0-.692-.697.715.715 0 0 0-.504.21L6.006 4.323 1.998.215a.73.73 0 0 0-.504-.211A.69.69 0 0 0 .803.7c0 .194.07.358.199.487L5.46 5.745A.725.725 0 0 0 6 5.992Z"
-                                fill="currentColor"
-                              />
-                            </svg>
-                          </span>
-                        </button>
-                      </m.div>
-                    )}
+                          {visibleDays.map((date) => (
+                            <CalendarLineDay
+                              key={date}
+                              date={date}
+                              activeDate={activeDate}
+                              available={availableDaySet.has(date)}
+                              longDate={formatters.longDate}
+                              weekday={formatters.weekday}
+                              onChoose={setChosenDate}
+                            />
+                          ))}
+                          <button
+                            type="button"
+                            aria-label={message('scheduling.show_full_calendar')}
+                            data-testid="btn:expandCalendar"
+                            onClick={() => {
+                              setDisplayMonth(activeDate!.slice(0, 7))
+                              setCalendarExpanded(true)
+                            }}
+                            {...stylex.props(styles.dateCell, styles.dateButton)}
+                          >
+                            <span {...stylex.props(styles.expandCircle)}>
+                              <svg
+                                width="12"
+                                height="6"
+                                viewBox="0 0 12 6"
+                                aria-hidden="true"
+                              >
+                                <path
+                                  d="M6 5.992a.75.75 0 0 0 .545-.246l4.453-4.559a.667.667 0 0 0 .2-.486.69.69 0 0 0-.692-.697.715.715 0 0 0-.504.21L6.006 4.323 1.998.215a.73.73 0 0 0-.504-.211A.69.69 0 0 0 .803.7c0 .194.07.358.199.487L5.46 5.745A.725.725 0 0 0 6 5.992Z"
+                                  fill="currentColor"
+                                />
+                              </svg>
+                            </span>
+                          </button>
+                        </m.div>
+                      ) : null}
+                    </AnimatePresence>
+                  </div>
+                  <AnimatePresence initial={false}>
+                    {calendarExpanded ? (
+                      <LegacyCalendarMonth
+                        key="calendar"
+                        displayMonth={displayMonth}
+                        direction={monthDirection}
+                        activeDate={activeDate}
+                        today={today}
+                        calendarRangeDaySet={calendarRangeDaySet}
+                        availableDaySet={availableDaySet}
+                        longDate={formatters.longDate}
+                        weekday={formatters.weekdayNarrow}
+                        month={formatters.month}
+                        onChoose={(date) => {
+                          setChosenDate(date)
+                          setCalendarExpanded(false)
+                        }}
+                      />
+                    ) : null}
                   </AnimatePresence>
-                </m.div>
+                </div>
               </LazyMotion>
             </div>
             <p data-testid="text:selectedDate" {...stylex.props(styles.dayHeading)}>
@@ -565,7 +529,14 @@ const calendarDays = (
   if (!slots[0]) return []
   const firstSlot = formatter.format(new Date(slots[0].startsAt))
   const first = firstSlot < today ? firstSlot : today
-  return Array.from({ length: 14 }, (_, index) => addDay(first, index))
+  const lastSlot = formatter.format(new Date(slots.at(-1)!.startsAt))
+  const minimumLastDay = addDay(first, 13)
+  const last = lastSlot > minimumLastDay ? lastSlot : minimumLastDay
+  const length =
+    Math.round(
+      (asLocalNoon(last).getTime() - asLocalNoon(first).getTime()) / 86_400_000
+    ) + 1
+  return Array.from({ length }, (_, index) => addDay(first, index))
 }
 
 const asLocalNoon = (date: string) => new Date(`${date}T12:00:00.000Z`)
@@ -614,12 +585,205 @@ function CalendarLineDay({
   )
 }
 
+function LegacyCalendarMonth({
+  displayMonth,
+  direction,
+  activeDate,
+  today,
+  calendarRangeDaySet,
+  availableDaySet,
+  longDate,
+  weekday,
+  month,
+  onChoose
+}: {
+  readonly displayMonth: string
+  readonly direction: -1 | 1
+  readonly activeDate: string | null
+  readonly today: string
+  readonly calendarRangeDaySet: ReadonlySet<string>
+  readonly availableDaySet: ReadonlySet<string>
+  readonly longDate: Intl.DateTimeFormat
+  readonly weekday: Intl.DateTimeFormat
+  readonly month: Intl.DateTimeFormat
+  readonly onChoose: (date: string) => void
+}) {
+  const [renderedMonth, setRenderedMonth] = useState(displayMonth)
+  const monthBody = useRef<HTMLDivElement | null>(null)
+  const monthDays = useMemo(
+    () => calendarMonthDays(`${renderedMonth}-01`),
+    [renderedMonth]
+  )
+  const fallbackHeight = (monthDays.length / 7) * 40
+  const [bodyHeight, setBodyHeight] = useState(fallbackHeight)
+
+  useEffect(() => {
+    if (displayMonth === renderedMonth) return
+    const timer = window.setTimeout(() => setRenderedMonth(displayMonth), 150)
+    return () => window.clearTimeout(timer)
+  }, [displayMonth, renderedMonth])
+
+  useLayoutEffect(() => {
+    const measured = monthBody.current?.scrollHeight ?? 0
+    setBodyHeight(measured || fallbackHeight)
+  }, [fallbackHeight, renderedMonth])
+
+  return (
+    <m.div
+      layout
+      data-testid="calendarMonth"
+      data-calendar-contract="legacy-calendar-month"
+      initial={{
+        y: -50,
+        height: 0,
+        opacity: 0,
+        overflow: 'hidden',
+        position: 'relative',
+        top: -50
+      }}
+      animate={{
+        y: 0,
+        height: 'auto',
+        opacity: [0, 0, 1],
+        overflow: 'visible',
+        position: 'relative',
+        top: [-50, -50, 0]
+      }}
+      exit={{
+        y: -50,
+        height: 0,
+        opacity: [1, 0, 0],
+        overflow: 'visible',
+        top: 0
+      }}
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      {...stylex.props(styles.expandedCalendar)}
+    >
+      <div data-calendar-layer="header" {...stylex.props(styles.weekdayGrid)}>
+        {calendarWeekdays(weekday).map((label, index) => (
+          <span key={`${label}-${index}`} {...stylex.props(styles.monthWeekday)}>
+            {label}
+          </span>
+        ))}
+      </div>
+      <div
+        data-calendar-layer="body-positioner"
+        style={{ minHeight: bodyHeight }}
+        {...stylex.props(styles.monthSlideViewport)}
+      >
+        <AnimatePresence initial={false} custom={direction} mode="sync">
+          <m.div
+            key={renderedMonth}
+            custom={direction}
+            variants={calendarSlideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.6 }}
+            {...stylex.props(styles.monthSlide)}
+          >
+            <div
+              ref={monthBody}
+              data-calendar-layer="body"
+              {...stylex.props(styles.monthGrid)}
+            >
+              {monthDays.map((date) => {
+                const selected = date === activeDate
+                const outsideMonth = date.slice(0, 7) !== renderedMonth
+                if (outsideMonth) {
+                  return (
+                    <span
+                      key={date}
+                      aria-hidden="true"
+                      data-calendar-cell
+                      data-calendar-day-state="outside-month"
+                      {...stylex.props(styles.monthDayCell)}
+                    />
+                  )
+                }
+                const outsideRange = !calendarRangeDaySet.has(date)
+                const available = availableDaySet.has(date)
+                const state = selected
+                  ? 'selected'
+                  : outsideRange
+                    ? 'outside-range'
+                    : available
+                      ? 'available'
+                      : 'day-off'
+                const enabled = !outsideRange && (available || date === today)
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    disabled={!enabled}
+                    aria-label={longDate.format(asLocalNoon(date))}
+                    aria-pressed={selected}
+                    data-calendar-cell
+                    data-calendar-day-state={state}
+                    onClick={() => {
+                      if (selected && date !== today) return
+                      onChoose(date)
+                    }}
+                    {...stylex.props(styles.monthDayCell, styles.dateButton)}
+                  >
+                    <span
+                      {...stylex.props(
+                        styles.monthDay,
+                        outsideRange && styles.outsideMonthDay,
+                        !outsideRange && !available && styles.monthDayOff,
+                        !outsideRange && available && styles.availableMonthDay,
+                        selected && styles.selectedMonthDay
+                      )}
+                    >
+                      <span
+                        data-calendar-day-border="inner"
+                        {...stylex.props(
+                          styles.monthDayBorder,
+                          selected && styles.selectedMonthDayBorder
+                        )}
+                      >
+                        {date.slice(-2).replace(/^0/, '')}
+                      </span>
+                      {date === today ? (
+                        <span
+                          aria-hidden="true"
+                          {...stylex.props(
+                            styles.monthTodayDot,
+                            !available && !outsideRange && styles.monthDayOffTodayDot,
+                            selected && styles.selectedMonthTodayDot
+                          )}
+                        />
+                      ) : null}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </m.div>
+        </AnimatePresence>
+      </div>
+      <div aria-hidden="true" {...stylex.props(styles.monthNamesContainer)}>
+        <p {...stylex.props(styles.expandedMonthName)}>
+          {month.format(asLocalNoon(`${renderedMonth}-01`)).replace(/\s+\d{4}$/, '')}
+        </p>
+      </div>
+    </m.div>
+  )
+}
+
 const calendarMonthDays = (date: string) => {
   const month = date.slice(0, 7)
   const first = `${month}-01`
   const startWeekday = asLocalNoon(first).getUTCDay()
   const firstCell = addDay(first, -startWeekday)
-  return Array.from({ length: 42 }, (_, index) => addDay(firstCell, index))
+  const monthStart = asLocalNoon(first)
+  const nextMonth = new Date(monthStart)
+  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1)
+  const daysInMonth = Math.round(
+    (nextMonth.getTime() - monthStart.getTime()) / 86_400_000
+  )
+  const cellCount = Math.ceil((startWeekday + daysInMonth) / 7) * 7
+  return Array.from({ length: cellCount }, (_, index) => addDay(firstCell, index))
 }
 
 const addMonth = (month: string, offset: number) => {

@@ -745,6 +745,18 @@ export const styles = stylex.create({
     minHeight: 64,
     marginBottom: 28
   },
+  calendarTransitionContainer: {
+    position: 'relative',
+    top: 0,
+    minHeight: 64
+  },
+  lineCalendarContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    backgroundColor: bookingTheme.colorChrome
+  },
   calendarHeader: {
     display: 'flex',
     minHeight: 28,
@@ -874,28 +886,41 @@ export const styles = stylex.create({
   monthGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-    rowGap: 8
+    rowGap: 0
   },
   expandedCalendar: {
     position: 'relative',
-    overflow: 'visible'
+    top: 0,
+    zIndex: 10,
+    paddingBottom: 12,
+    overflow: 'visible',
+    backgroundColor: bookingTheme.colorChrome,
+    outlineWidth: 5,
+    outlineStyle: 'solid',
+    outlineColor: bookingTheme.colorChrome
   },
   weekdayGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
     marginLeft: 32,
-    marginBottom: 8,
     color: bookingTheme.colorTextMuted,
     fontFamily: bookingTheme.fontText,
     fontSize: 12,
-    lineHeight: '16px',
+    fontWeight: 600,
+    lineHeight: '20px',
     textAlign: 'center'
+  },
+  monthWeekday: {
+    paddingTop: 8,
+    paddingBottom: 2
   },
   monthSlideViewport: {
     position: 'relative',
-    minHeight: 208,
     marginLeft: 32,
-    overflow: 'hidden'
+    overflow: 'hidden',
+    transitionProperty: 'min-height',
+    transitionDuration: '0.6s',
+    transitionTimingFunction: 'ease-in-out'
   },
   monthSlide: {
     position: 'absolute',
@@ -904,33 +929,99 @@ export const styles = stylex.create({
     left: 0,
     width: '100%'
   },
+  monthDayCell: {
+    display: 'grid',
+    width: '100%',
+    height: 40,
+    padding: 0,
+    placeItems: 'center',
+    ':disabled': {
+      opacity: 1
+    }
+  },
   monthDay: {
+    position: 'relative',
+    display: 'grid',
     width: 28,
     height: 28,
     marginInline: 'auto',
+    placeItems: 'center',
     borderRadius: 999,
+    backgroundColor: 'transparent',
+    color: '#000000',
     fontFamily: bookingTheme.fontText,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 600,
-    ':disabled': {
-      opacity: 0.25
-    }
+    lineHeight: '28px',
+    userSelect: 'none'
+  },
+  monthDayBorder: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999
   },
   selectedMonthDay: {
     backgroundColor: '#000000',
     color: '#ffffff'
   },
+  selectedMonthDayBorder: {
+    position: 'absolute',
+    top: -3,
+    left: -3,
+    width: 34,
+    height: 34,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#000000'
+  },
+  monthDayOff: {
+    backgroundColor: '#e6e6e6',
+    backgroundImage:
+      'repeating-linear-gradient(-45deg, #e6e6e6 0, #e6e6e6 4px, #d4d4d4 5px, #d4d4d4 6px)',
+    color: 'rgb(0 0 0 / 30%)',
+    fontWeight: 400,
+    lineHeight: '13px'
+  },
   availableMonthDay: {
-    backgroundColor: 'rgb(0 138 229)',
+    backgroundColor: bookingTheme.colorPrimaryLabel,
     color: '#ffffff'
   },
   outsideMonthDay: {
-    opacity: 0.25
+    backgroundColor: 'transparent',
+    color: 'rgb(97 97 99 / 40%)'
+  },
+  monthTodayDot: {
+    position: 'absolute',
+    bottom: 3,
+    left: '50%',
+    width: 2,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: '#000000',
+    transform: 'translateX(-50%)'
+  },
+  selectedMonthTodayDot: {
+    backgroundColor: '#ffffff'
+  },
+  monthDayOffTodayDot: {
+    bottom: 2,
+    width: 4,
+    height: 4,
+    backgroundColor: 'rgb(0 0 0 / 50%)'
+  },
+  monthNamesContainer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: -15,
+    width: 47,
+    pointerEvents: 'none'
   },
   expandedMonthName: {
     position: 'absolute',
-    top: 112,
-    left: 0,
+    top: '50%',
+    left: '50%',
     margin: 0,
     fontFamily: bookingTheme.fontText,
     fontSize: 15,
