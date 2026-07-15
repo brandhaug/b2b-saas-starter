@@ -1,7 +1,8 @@
-import { createFileRoute, notFound } from '@tanstack/react-router'
+import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
 import { runCapabilities } from '@/lib/capabilities'
 import { resolvePublicBookingPage } from '@/lib/public-booking-page'
 import { RoutePending } from '@/components/route-pending'
+import { MerchantPwaRegistration } from '@/components/merchant-pwa-registration'
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>()
 const formatMoney = (priceMinor: number, currency: string): string => {
@@ -14,10 +15,39 @@ const formatMoney = (priceMinor: number, currency: string): string => {
 }
 
 export const Route = createFileRoute('/$merchantSlug')({
+  beforeLoad: ({ location, params }) => {
+    if (location.pathname === `/${params.merchantSlug}`) {
+      throw redirect({ href: `/${params.merchantSlug}/`, statusCode: 308 })
+    }
+  },
   loader: async ({ params }) => {
     const result = await runCapabilities(resolvePublicBookingPage(params.merchantSlug))
     if (result.kind !== 'published') throw notFound({ data: { reason: result.kind } })
     return result.page
+  },
+  head: ({ loaderData, params }) => {
+    if (!loaderData) return {}
+
+    return {
+      meta: [
+        { title: `${loaderData.publicName} | Book online` },
+        { name: 'application-name', content: loaderData.publicName },
+        {
+          name: 'viewport',
+          content: 'width=device-width, initial-scale=1, viewport-fit=cover'
+        },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+        { name: 'apple-mobile-web-app-title', content: loaderData.publicName }
+      ],
+      links: [
+        {
+          rel: 'manifest',
+          href: `/merchant-manifest.webmanifest?merchant=${encodeURIComponent(params.merchantSlug)}`
+        },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }
+      ]
+    }
   },
   pendingComponent: RoutePending,
   component: PublicMerchantPage,
@@ -34,7 +64,8 @@ export const Route = createFileRoute('/$merchantSlug')({
 
 function PublicMerchantPage() {
   const page = Route.useLoaderData()
-  return <PublishedMerchantPage page={page} />
+  const { merchantSlug } = Route.useParams()
+  return <PublishedMerchantPage page={page} merchantSlug={merchantSlug} />
 }
 
 export function UnavailableMerchantPage() {
@@ -58,12 +89,15 @@ export function GenericNotFoundPage() {
 }
 
 export function PublishedMerchantPage({
-  page
+  page,
+  merchantSlug
 }: {
   readonly page: import('@b2b-saas-starter/capabilities/scheduling').PublicBookingPage
+  readonly merchantSlug: string
 }) {
   return (
     <main className="min-h-dvh bg-background text-foreground">
+      <MerchantPwaRegistration scope={`/${merchantSlug}/`} />
       <section className="mx-auto max-w-5xl px-6 py-20">
         <p className="text-sm font-medium text-primary">Public Booking Page</p>
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">

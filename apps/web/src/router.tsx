@@ -46,6 +46,7 @@ export function getRouter() {
   const queryClient = new QueryClient()
   const router = createRouter({
     routeTree,
+    trailingSlash: 'preserve',
     defaultPreload: 'intent',
     defaultNotFoundComponent: NotFound,
     defaultErrorComponent: RouteError,

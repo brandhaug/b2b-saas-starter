@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as MerchantManifestDotwebmanifestRouteImport } from './routes/merchant-manifest[.]webmanifest'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as ChangelogRouteImport } from './routes/changelog'
@@ -38,6 +39,12 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MerchantManifestDotwebmanifestRoute =
+  MerchantManifestDotwebmanifestRouteImport.update({
+    id: '/merchant-manifest.webmanifest',
+    path: '/merchant-manifest.webmanifest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const FaqRoute = FaqRouteImport.update({
   id: '/faq',
   path: '/faq',
@@ -95,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof ChangelogRoute
   '/docs': typeof DocsRouteWithChildren
   '/faq': typeof FaqRoute
+  '/merchant-manifest.webmanifest': typeof MerchantManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
@@ -109,6 +117,7 @@ export interface FileRoutesByTo {
   '/$merchantSlug': typeof MerchantSlugRoute
   '/changelog': typeof ChangelogRoute
   '/faq': typeof FaqRoute
+  '/merchant-manifest.webmanifest': typeof MerchantManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
@@ -125,6 +134,7 @@ export interface FileRoutesById {
   '/changelog': typeof ChangelogRoute
   '/docs': typeof DocsRouteWithChildren
   '/faq': typeof FaqRoute
+  '/merchant-manifest.webmanifest': typeof MerchantManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/docs'
     | '/faq'
+    | '/merchant-manifest.webmanifest'
     | '/pricing'
     | '/privacy'
     | '/terms'
@@ -156,6 +167,7 @@ export interface FileRouteTypes {
     | '/$merchantSlug'
     | '/changelog'
     | '/faq'
+    | '/merchant-manifest.webmanifest'
     | '/pricing'
     | '/privacy'
     | '/terms'
@@ -171,6 +183,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/docs'
     | '/faq'
+    | '/merchant-manifest.webmanifest'
     | '/pricing'
     | '/privacy'
     | '/terms'
@@ -187,6 +200,7 @@ export interface RootRouteChildren {
   ChangelogRoute: typeof ChangelogRoute
   DocsRoute: typeof DocsRouteWithChildren
   FaqRoute: typeof FaqRoute
+  MerchantManifestDotwebmanifestRoute: typeof MerchantManifestDotwebmanifestRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
@@ -216,6 +230,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/merchant-manifest.webmanifest': {
+      id: '/merchant-manifest.webmanifest'
+      path: '/merchant-manifest.webmanifest'
+      fullPath: '/merchant-manifest.webmanifest'
+      preLoaderRoute: typeof MerchantManifestDotwebmanifestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/faq': {
@@ -309,6 +330,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChangelogRoute: ChangelogRoute,
   DocsRoute: DocsRouteWithChildren,
   FaqRoute: FaqRoute,
+  MerchantManifestDotwebmanifestRoute: MerchantManifestDotwebmanifestRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,

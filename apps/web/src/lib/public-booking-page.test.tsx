@@ -36,7 +36,12 @@ describe('Public Booking Page resolution', () => {
     expect(unknown).toEqual({ kind: 'unknown' })
 
     if (published.kind !== 'published') throw new Error('expected published page')
-    render(<PublishedMerchantPage page={published.page} />)
+    render(
+      <PublishedMerchantPage
+        page={published.page}
+        merchantSlug={scenario.merchant.slug}
+      />
+    )
     const cta = screen.getByRole('link', { name: 'Book an appointment' })
     expect(cta.getAttribute('href')).toBe('/mara-booking-studio/booking')
     expect(
