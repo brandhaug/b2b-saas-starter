@@ -170,11 +170,20 @@ describe('server-backed Booking scheduling', () => {
     fireEvent.click(screen.getByTestId('btn:chooseTime:time:2026-07-15T14:00:00.000Z'))
     await screen.findByTestId('btn:chooseTime:time:2026-07-15T14:00:00.000Z:selected')
     expect(screen.getAllByTestId('btn:viewOrder')).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: /view order, \$55\.00/i }))
+    const checkoutOrder = screen.getByRole('button', {
+      name: /go to checkout, \$55\.00/i
+    })
+    expect(checkoutOrder.getAttribute('data-order-state')).toBe('checkout')
+    fireEvent.click(checkoutOrder)
     const heldOrderSummary = screen.getByRole('dialog', { name: 'Order summary' })
+    expect(heldOrderSummary.getAttribute('data-cart-mode')).toBe('scheduleChosen')
     expect(within(heldOrderSummary).getByText('$50.00')).toBeTruthy()
     expect(within(heldOrderSummary).getByText('$55.00')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Go to checkout' })).toBeTruthy()
+    expect(within(heldOrderSummary).getByTestId('text:aptDate').textContent).toMatch(
+      /Jul 15 at 2:00 PM/i
+    )
+    expect(within(heldOrderSummary).getByText('60 min')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close order summary' }))
     const forwardRoute = canonicalShell?.querySelector(
       '[data-presence-variant="route"][data-route-direction="forward"]'
@@ -498,9 +507,9 @@ describe('server-backed Booking scheduling', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
     await screen.findByText('Choose a time')
     fireEvent.click(
-      await screen.findByRole('button', { name: /view order, \$50\.00/i })
+      await screen.findByRole('button', { name: /go to checkout, \$50\.00/i })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Go to checkout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mia' } })
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'mia@example.com' }

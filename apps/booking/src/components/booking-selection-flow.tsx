@@ -50,9 +50,13 @@ type BookingSelectionFlowProps = {
     readonly busy: boolean
     readonly busyLabel: string
     readonly onBack: () => void
-    readonly orderAction?: () => void
-    readonly orderActionLabel?: string
-    readonly orderQuote?: TimeSlotHold['quote']
+    readonly heldOrder?: {
+      readonly action: () => void
+      readonly ctaLabel: string
+      readonly continueLabel: string
+      readonly quote: TimeSlotHold['quote']
+      readonly timeZone: string
+    }
   }
 }
 
@@ -129,7 +133,9 @@ function BookingSelectionFlowContent({
     (service) => service.id === journey.selection.primaryServiceId
   )
   const showContinuation = continuation !== undefined
-  const displayedOrderTotal = continuation?.orderQuote?.totalMinor ?? total(journey)
+  const heldOrder = continuation?.heldOrder
+  const orderCtaLabel = heldOrder?.ctaLabel ?? 'View order'
+  const displayedOrderTotal = heldOrder?.quote.totalMinor ?? total(journey)
 
   useEffect(
     () => () => {
@@ -392,17 +398,21 @@ function BookingSelectionFlowContent({
                   ref={viewOrderButton}
                   type="button"
                   data-testid="btn:viewOrder"
-                  aria-label={`View order, ${formatPrice(
+                  data-order-state={heldOrder ? 'checkout' : 'viewOrder'}
+                  aria-label={`${orderCtaLabel}, ${formatPrice(
                     displayedOrderTotal,
-                    continuation?.orderQuote?.currency ?? selectedPrimary.currency
+                    heldOrder?.quote.currency ?? selectedPrimary.currency
                   )}`}
-                  {...stylex.props(styles.orderBar)}
+                  {...stylex.props(
+                    styles.orderBar,
+                    heldOrder && styles.orderBarCheckout
+                  )}
                 >
-                  <span>View order</span>
+                  <span>{orderCtaLabel}</span>
                   <span {...stylex.props(styles.orderBarTotal)}>
                     {formatPrice(
                       displayedOrderTotal,
-                      continuation?.orderQuote?.currency ?? selectedPrimary.currency
+                      heldOrder?.quote.currency ?? selectedPrimary.currency
                     )}
                   </span>
                 </button>
@@ -416,16 +426,17 @@ function BookingSelectionFlowContent({
               key="styledBookingCart"
               journey={journey}
               primary={selectedPrimary}
+              locale={locale}
+              messages={messages}
               onClose={closeOrder}
-              {...(continuation?.orderQuote ? { quote: continuation.orderQuote } : {})}
-              {...(continuation?.orderAction
-                ? { onContinue: continuation.orderAction }
+              {...(heldOrder ? { quote: heldOrder.quote } : {})}
+              {...(heldOrder ? { timeZone: heldOrder.timeZone } : {})}
+              {...(heldOrder
+                ? { onContinue: heldOrder.action }
                 : onContinue
                   ? { onContinue: continueToScheduling }
                   : {})}
-              {...(continuation?.orderActionLabel
-                ? { continueLabel: continuation.orderActionLabel }
-                : {})}
+              {...(heldOrder ? { continueLabel: heldOrder.continueLabel } : {})}
             />
           ) : null}
         </AnimatePresence>
@@ -1091,6 +1102,8 @@ export type BookingSelectionMessages = {
   readonly providerAvailable: string
   readonly providerNotAvailable: string
   readonly providerRestricted: string
+  readonly appointmentAt: string
+  readonly durationMinutesShort: string
   readonly providerCards: {
     readonly anyProvider: LegacyCardCopy
     readonly giftCard: LegacyCardCopy
@@ -1121,6 +1134,8 @@ const defaultMessages: BookingSelectionMessages = {
   providerAvailable: 'Available',
   providerNotAvailable: 'Not available',
   providerRestricted: 'This professional requires private access',
+  appointmentAt: 'at',
+  durationMinutesShort: 'min',
   providerCards: {
     anyProvider: {
       titleLines: ['Choose a', 'service first'],
@@ -1242,17 +1257,23 @@ function LegacyServiceCard({
 function OrderSummary({
   journey,
   primary,
+  locale,
+  messages,
   onClose,
   onContinue,
   continueLabel = 'Choose time',
-  quote
+  quote,
+  timeZone = 'UTC'
 }: {
   readonly journey: BookingJourney
   readonly primary: PublicBookableService
+  readonly locale: BookingLocale
+  readonly messages: BookingSelectionMessages
   readonly onClose: () => void
   readonly onContinue?: () => void
   readonly continueLabel?: string
   readonly quote?: TimeSlotHold['quote']
+  readonly timeZone?: string
 }) {
   const quotedPrimary = quote?.services.find((service) => service.role === 'primary')
   const additions = quote
@@ -1265,6 +1286,21 @@ function OrderSummary({
     quote?.assignedProvider.displayName ?? providerLabel(journey)
   const displayedTotal = quote?.totalMinor ?? total(journey)
   const displayedCurrency = quote?.currency ?? primary.currency
+  const displayedAppointment = useMemo(() => {
+    if (!quote) return null
+    const instant = new Date(quote.startsAt)
+    const date = new Intl.DateTimeFormat(locale, {
+      month: 'short',
+      day: 'numeric',
+      timeZone
+    }).format(instant)
+    const time = new Intl.DateTimeFormat(locale, {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone
+    }).format(instant)
+    return `${date} ${messages.appointmentAt} ${time}`
+  }, [locale, messages.appointmentAt, quote, timeZone])
   return (
     <m.div
       role="dialog"
@@ -1272,6 +1308,7 @@ function OrderSummary({
       aria-label="Order summary"
       data-testid="cart:booking"
       data-cart-state="expanded"
+      data-cart-mode={quote ? 'scheduleChosen' : undefined}
       tabIndex={-1}
       initial={{ y: '100%' }}
       animate={{ y: 0, height: 'calc(100% - 36px)' }}
@@ -1356,6 +1393,14 @@ function OrderSummary({
               {formatPrice(displayedPrimary.priceMinor, displayedPrimary.currency)}
             </strong>
           </div>
+          {quote ? (
+            <div {...stylex.props(styles.orderAppointment)}>
+              <span data-testid="text:aptDate">{displayedAppointment}</span>
+              <span>
+                {quote.durationMinutes} {messages.durationMinutesShort}
+              </span>
+            </div>
+          ) : null}
           {additions.map((service) => (
             <div key={service.id} {...stylex.props(styles.orderLine)}>
               <span>{service.name}</span>

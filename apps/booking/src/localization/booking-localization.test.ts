@@ -33,6 +33,8 @@ describe('Booking localization contract', () => {
     }
 
     expect(translateBookingMessage('ro', 'action.continue')).toBe('Continuă')
+    expect(translateBookingMessage('ro', 'label.appointment_at')).toBe('la')
+    expect(translateBookingMessage('ro', 'label.duration_minutes_short')).toBe('min')
     expect(translateBookingError('fr', 'validation.email_invalid')).toBe(
       'Saisissez une adresse courriel valide.'
     )

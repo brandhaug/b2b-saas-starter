@@ -1172,6 +1172,10 @@ export const styles = stylex.create({
     lineHeight: '22px',
     letterSpacing: '-0.408px'
   },
+  orderBarCheckout: {
+    justifyContent: 'center',
+    gap: 6
+  },
   orderBarTotal: {
     opacity: 0.5,
     fontWeight: 400
@@ -1272,6 +1276,18 @@ export const styles = stylex.create({
     marginBottom: 0,
     color: 'rgb(255 255 255 / 56%)',
     fontSize: 12
+  },
+  orderAppointment: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 4,
+    color: bookingTheme.colorCartAuxText,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 13,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
   },
   orderLine: {
     display: 'flex',

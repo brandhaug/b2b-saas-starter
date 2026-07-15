@@ -909,6 +909,8 @@ export function ServerBackedBookingFlow({
           providerAvailable: message('selection.provider_available'),
           providerNotAvailable: message('selection.provider_not_available'),
           providerRestricted: message('selection.provider_restricted'),
+          appointmentAt: message('label.appointment_at'),
+          durationMinutesShort: message('label.duration_minutes_short'),
           providerCards: {
             anyProvider: {
               titleLines: [
@@ -950,9 +952,13 @@ export function ServerBackedBookingFlow({
                 onBack: () => setScheduling(false),
                 ...(availability.data?.hold
                   ? {
-                      orderAction: continueFromScheduling,
-                      orderActionLabel: schedulingCheckoutLabel,
-                      orderQuote: availability.data.hold.quote
+                      heldOrder: {
+                        action: continueFromScheduling,
+                        ctaLabel: schedulingCheckoutLabel,
+                        continueLabel: message('action.continue'),
+                        quote: availability.data.hold.quote,
+                        timeZone: availability.data.timezone
+                      }
                     }
                   : {})
               }
