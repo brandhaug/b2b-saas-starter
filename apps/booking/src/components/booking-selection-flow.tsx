@@ -1241,7 +1241,6 @@ function OrderSummary({
         <button
           type="button"
           data-testid="btn:close"
-          autoFocus
           aria-label="Close order summary"
           onClick={onClose}
           {...stylex.props(

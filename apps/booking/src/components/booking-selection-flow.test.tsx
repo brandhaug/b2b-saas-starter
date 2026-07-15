@@ -494,7 +494,7 @@ describe('Booking selection flow', () => {
     )
   })
 
-  it('skips Provider choice for Solo, hands off to Additional Services, and opens the full order summary', () => {
+  it('skips Provider choice for Solo, hands off to Additional Services, and opens the full order summary without moving the page behind it', () => {
     const chooseServices = vi.fn()
     const continueToTime = vi.fn()
     const selected: BookingJourney = {
@@ -530,11 +530,31 @@ describe('Booking selection flow', () => {
     expect(viewOrder.parentElement?.getAttribute('data-testid')).toBe(
       'container:viewOrderSafeArea'
     )
+    const scrollable = screen.getByTestId('container:scrollable')
+    Object.defineProperty(scrollable, 'scrollTop', {
+      configurable: true,
+      value: 0,
+      writable: true
+    })
+    viewOrder.focus()
+    const emulateBrowserFocusScroll = (event: FocusEvent) => {
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        target.closest('[data-testid="cart:booking"]')
+      ) {
+        scrollable.scrollTop = 120
+      }
+    }
+    document.addEventListener('focusin', emulateBrowserFocusScroll)
     fireEvent.click(viewOrder)
+    document.removeEventListener('focusin', emulateBrowserFocusScroll)
     const cart = screen.getByTestId('cart:booking')
     expect(cart.tagName).toBe('DIV')
     expect(cart.getAttribute('data-cart-state')).toBe('expanded')
     expect(screen.getByRole('dialog', { name: /order summary/i })).toBe(cart)
+    expect(document.activeElement).toBe(viewOrder)
+    expect(scrollable.scrollTop).toBe(0)
     expect(screen.getAllByText('$45.00').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
     expect(continueToTime).toHaveBeenCalledOnce()
