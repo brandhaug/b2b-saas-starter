@@ -230,6 +230,10 @@ describe('Booking checkout', () => {
             effectiveAt: '2026-01-01T00:00:00.000Z',
             retiredAt: null
           },
+          policyEligibility: {
+            bookingKind: 'appointment',
+            depositRequired: false
+          },
           marketingPolicy: {
             id: 'pol_marketing',
             scope: 'shop',

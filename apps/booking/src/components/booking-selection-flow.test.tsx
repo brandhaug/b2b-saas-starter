@@ -29,7 +29,8 @@ const teamJourney: BookingJourney = {
       isSourceLanguageFallback: false
     },
     premiumPalette: null,
-    premiumPaletteSource: null
+    premiumPaletteSource: null,
+    adultsOnly: false
   },
   catalogRecovery: null,
   reconciliation: [],
@@ -479,7 +480,8 @@ describe('Booking selection flow', () => {
           secondaryColor: '#151515',
           linkColor: '#161616'
         },
-        premiumPaletteSource: 'shop'
+        premiumPaletteSource: 'shop',
+        adultsOnly: false
       },
       providers: [
         ...teamJourney.providers,

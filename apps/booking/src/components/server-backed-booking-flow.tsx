@@ -22,7 +22,9 @@ import {
   type CheckoutPreparation,
   type CustomerDetails,
   type CustomerDetailsIssue,
-  bookingPartyContinuation
+  bookingPartyContinuation,
+  legacyBookingPolicySteps,
+  pendingMarketingConsentTargets
 } from '@b2b-saas-starter/capabilities/booking'
 import type {
   PaymentMethod,
@@ -36,6 +38,7 @@ import { BookingSelectionFlow } from './booking-selection-flow.tsx'
 import { BookingPartyFlow } from './booking-party-flow.tsx'
 import {
   BookingLegacyCheckoutPopup,
+  BookingLegacyNotificationPolicies,
   type LegacyCheckoutPhase
 } from './booking-legacy-checkout-popup.tsx'
 import { styles } from './booking-flow.styles.ts'
@@ -149,6 +152,8 @@ export function ServerBackedBookingFlow({
   )
   const [legacyCheckoutPhase, setLegacyCheckoutPhase] =
     useState<LegacyCheckoutPhase>('policies')
+  const legacyBookPending = useRef(false)
+  const [notificationPoliciesOpen, setNotificationPoliciesOpen] = useState(false)
   const [review, setReview] = useState<CheckoutReview | null>(null)
   const [preparation, setPreparation] = useState<CheckoutPreparation | null>(null)
   const [validationIssues, setValidationIssues] = useState<
@@ -180,6 +185,24 @@ export function ServerBackedBookingFlow({
     return () => window.clearInterval(timer)
   }, [])
   const base = `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(sessionId)}`
+  const checkoutPreparationKey = [
+    'booking-checkout-preparation',
+    merchantSlug,
+    sessionId
+  ] as const
+  const initialPreparation = useQuery({
+    queryKey: checkoutPreparationKey,
+    enabled: checkout,
+    retry: false,
+    queryFn: async () => {
+      const response = await fetch(`${base}/checkout-prepare`, {
+        credentials: 'same-origin'
+      })
+      if (!response.ok) throw new Error('checkout preparation unavailable')
+      return Schema.decodeUnknownSync(CheckoutPreparationSchema)(await response.json())
+    }
+  })
+  const preparationForCheckout = preparation ?? initialPreparation.data ?? null
   const queryKey = ['booking-selection', merchantSlug, sessionId] as const
   const journey = useQuery({
     queryKey,
@@ -439,14 +462,17 @@ export function ServerBackedBookingFlow({
     },
     onSuccess: async (result) => {
       if (result.kind === 'invalid') {
+        legacyBookPending.current = false
         setValidationIssues(result.issues)
         return
       }
       if (result.kind === 'session_expired') {
+        legacyBookPending.current = false
         setExpiredSession(true)
         return
       }
       if (result.kind === 'expired') {
+        legacyBookPending.current = false
         setCheckout(false)
         setHoldExpired(true)
         setReview(null)
@@ -484,9 +510,10 @@ export function ServerBackedBookingFlow({
         credentials: 'same-origin'
       })
       if (!prepared.ok) throw new Error('checkout preparation unavailable')
-      setPreparation(
-        Schema.decodeUnknownSync(CheckoutPreparationSchema)(await prepared.json())
+      const nextPreparation = Schema.decodeUnknownSync(CheckoutPreparationSchema)(
+        await prepared.json()
       )
+      setPreparation(nextPreparation)
       const supportsPaymentRequest = 'PaymentRequest' in window
       const walletQuery = new URLSearchParams({
         applePay: 'ApplePaySession' in window ? '1' : '0',
@@ -511,8 +538,26 @@ export function ServerBackedBookingFlow({
             : 'pay_in_person'
         )
       }
+      if (legacyBookPending.current && nextPreparation.quote) {
+        legacyBookPending.current = false
+        const consentTargets = pendingMarketingConsentTargets({
+          marketingPolicy: nextPreparation.marketingPolicy,
+          requests: nextPreparation.party.requests,
+          consents: nextPreparation.marketingConsents
+        })
+        if (consentTargets.length > 0) setNotificationPoliciesOpen(true)
+        else
+          finalizeMutation.mutate({
+            acceptQuote: !nextPreparation.quote.acceptedAt,
+            acceptPolicy: Boolean(nextPreparation.policy),
+            marketingConsents: []
+          })
+      }
     },
-    onError: (error) => void telemetry.report(error)
+    onError: (error) => {
+      legacyBookPending.current = false
+      void telemetry.report(error)
+    }
   })
   const finalizeMutation = useMutation({
     mutationFn: async (input: {
@@ -520,26 +565,26 @@ export function ServerBackedBookingFlow({
       readonly acceptPolicy: boolean
       readonly marketingConsents: readonly {
         readonly bookingRequestId: string
-        readonly channel: 'email'
+        readonly channel: 'email' | 'sms'
         readonly granted: boolean
       }[]
     }) => {
-      if (!preparation?.quote) throw new Error('quote unavailable')
+      if (!preparationForCheckout?.quote) throw new Error('quote unavailable')
       if (input.acceptQuote) {
         const response = await fetch(`${base}/quote-accept`, {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ quoteId: preparation.quote.id })
+          body: JSON.stringify({ quoteId: preparationForCheckout.quote.id })
         })
         if (!response.ok) throw new Error('quote acceptance unavailable')
       }
-      if (input.acceptPolicy && preparation.policy) {
+      if (input.acceptPolicy && preparationForCheckout.policy) {
         const response = await fetch(`${base}/policy-accept`, {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ policyId: preparation.policy.id })
+          body: JSON.stringify({ policyId: preparationForCheckout.policy.id })
         })
         if (!response.ok) throw new Error('policy acceptance unavailable')
         void telemetry.track('policy_accepted')
@@ -618,6 +663,17 @@ export function ServerBackedBookingFlow({
     },
     onError: (error) => void telemetry.report(error)
   })
+  const pendingConsentTargets = useMemo(
+    () =>
+      preparationForCheckout
+        ? pendingMarketingConsentTargets({
+            marketingPolicy: preparationForCheckout.marketingPolicy,
+            requests: preparationForCheckout.party.requests,
+            consents: preparationForCheckout.marketingConsents
+          })
+        : [],
+    [preparationForCheckout]
+  )
   const heldUntil = availability.data?.hold?.expiresAt
   const premiumPalette = journey.data?.resolvedConfiguration.premiumPalette ?? null
   useEffect(() => {
@@ -731,7 +787,7 @@ export function ServerBackedBookingFlow({
             : {})}
           premiumPalette={premiumPalette}
           review={review}
-          preparation={preparation}
+          preparation={preparationForCheckout}
           busy={
             detailsMutation.isPending ||
             finalizeMutation.isPending ||
@@ -881,7 +937,10 @@ export function ServerBackedBookingFlow({
                   }
                 }
           }
-          onSubmit={(details) => detailsMutation.mutate(details)}
+          onSubmit={(details) => {
+            if (presentation === 'withinBookingShell') legacyBookPending.current = true
+            detailsMutation.mutate(details)
+          }}
           onFinalize={(input) => finalizeMutation.mutate(input)}
           onEdit={(requestId) =>
             party.data &&
@@ -901,43 +960,95 @@ export function ServerBackedBookingFlow({
           }
         />
       )
+    const applicableLegacyPolicyKinds = preparationForCheckout
+      ? legacyBookingPolicySteps({
+          adultsOnly: journey.data.resolvedConfiguration.adultsOnly,
+          checkoutPolicyRequired: Boolean(preparationForCheckout.policy),
+          ...preparationForCheckout.policyEligibility
+        })
+      : []
     if (checkout && (paymentReturn || initialRouteKind === 'checkout'))
       return checkoutFlow('standalone')
     checkoutOverlay = (target) => (
-      <BookingLegacyCheckoutPopup
-        open={checkout}
-        target={target}
-        phase={legacyCheckoutPhase}
-        onClose={() => {
-          setCheckout(false)
-          setLegacyCheckoutPhase('policies')
-        }}
-        onPolicyComplete={() => setLegacyCheckoutPhase('userInfo')}
-        cancellation={
-          availability.data?.hold
-            ? {
-                ...defaultBookingCancellationWindow(
-                  availability.data.hold.quote.startsAt,
-                  partyNow
-                ),
-                timeZone: availability.data.timezone,
-                locale
-              }
-            : null
-        }
-        copy={{
-          cancellationPolicy: message('checkout.cancellation_policy'),
-          cancellationPolicyCopy: message('checkout.cancellation_policy_copy'),
-          noCancellation: message('checkout.no_cancellation'),
-          now: message('checkout.now'),
-          appointment: message('checkout.appointment'),
-          confirmBooking: message('checkout.title'),
-          agree: message('checkout.agree'),
-          close: message('action.close')
-        }}
-      >
-        {checkoutFlow('withinBookingShell')}
-      </BookingLegacyCheckoutPopup>
+      <>
+        <BookingLegacyCheckoutPopup
+          open={checkout && Boolean(preparationForCheckout)}
+          target={target}
+          phase={
+            applicableLegacyPolicyKinds.length === 0 ? 'userInfo' : legacyCheckoutPhase
+          }
+          policyKinds={applicableLegacyPolicyKinds}
+          onClose={() => {
+            setCheckout(false)
+            setLegacyCheckoutPhase('policies')
+            legacyBookPending.current = false
+            setNotificationPoliciesOpen(false)
+            setPreparation(null)
+            queryClient.removeQueries({ queryKey: checkoutPreparationKey })
+          }}
+          onPolicyComplete={() => setLegacyCheckoutPhase('userInfo')}
+          cancellation={
+            availability.data?.hold
+              ? {
+                  ...defaultBookingCancellationWindow(
+                    availability.data.hold.quote.startsAt,
+                    partyNow
+                  ),
+                  timeZone: availability.data.timezone,
+                  locale
+                }
+              : null
+          }
+          {...(preparationForCheckout?.policy
+            ? { checkoutPolicy: preparationForCheckout.policy }
+            : {})}
+          copy={{
+            cancellationPolicy: message('checkout.cancellation_policy'),
+            cancellationPolicyCopy: message('checkout.cancellation_policy_copy'),
+            noCancellation: message('checkout.no_cancellation'),
+            now: message('checkout.now'),
+            appointment: message('checkout.appointment'),
+            confirmBooking: message('checkout.title'),
+            agree: message('checkout.agree'),
+            close: message('action.close'),
+            adultsTitle: message('checkout.adults_title'),
+            adultsCopy: message('checkout.adults_copy'),
+            adultsConfirm: message('checkout.adults_confirm'),
+            policiesLabel: message('checkout.policies_label'),
+            policyProgress: message('checkout.policy_progress'),
+            checkoutPolicyVersion: message('checkout.policy_version')
+          }}
+        >
+          {checkoutFlow('withinBookingShell')}
+        </BookingLegacyCheckoutPopup>
+        <BookingLegacyNotificationPolicies
+          open={checkout && notificationPoliciesOpen}
+          target={target}
+          targets={pendingConsentTargets}
+          shopName={journey.data.resolvedConfiguration.shopName.text}
+          onClose={() => setNotificationPoliciesOpen(false)}
+          onComplete={(marketingConsents) => {
+            setNotificationPoliciesOpen(false)
+            if (!preparationForCheckout?.quote) return
+            finalizeMutation.mutate({
+              acceptQuote: !preparationForCheckout.quote.acceptedAt,
+              acceptPolicy: Boolean(preparationForCheckout.policy),
+              marketingConsents
+            })
+          }}
+          copy={{
+            smsTitle: message('checkout.sms_consent_title'),
+            emailTitle: message('checkout.email_consent_title'),
+            smsCopy: message('checkout.sms_consent_copy'),
+            emailCopy: message('checkout.email_consent_copy'),
+            yes: message('checkout.consent_yes'),
+            skip: message('checkout.consent_skip'),
+            close: message('action.close'),
+            notificationPreferences: message('checkout.notification_preferences'),
+            policyProgress: message('checkout.policy_progress')
+          }}
+        />
+      </>
     )
     if (availability.isError || holdMutation.isError || groupHoldMutation.isError) {
       schedulingContent = (

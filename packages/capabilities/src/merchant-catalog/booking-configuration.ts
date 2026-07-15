@@ -36,6 +36,7 @@ export const BookingConfiguration = Schema.Struct({
   nameTranslations: Schema.optional(OptionalCatalogTranslations),
   shortName: Schema.optional(Schema.String),
   shortNameTranslations: Schema.optional(OptionalCatalogTranslations),
+  adultsOnly: Schema.optional(Schema.Boolean),
   premiumPalette: Schema.optional(Schema.NullOr(PartialBookingPremiumPalette))
 })
 export type BookingConfiguration = typeof BookingConfiguration.Type
@@ -61,6 +62,7 @@ export const ResolvedBookingConfiguration = Schema.Struct({
   merchantName: ResolvedCatalogText,
   brandName: ResolvedCatalogText,
   shopName: ResolvedCatalogText,
+  adultsOnly: Schema.Boolean,
   premiumPalette: Schema.NullOr(BookingPremiumPalette),
   premiumPaletteSource: Schema.NullOr(Schema.Literals(['merchant', 'brand', 'shop']))
 })
@@ -152,6 +154,11 @@ export function resolveBookingConfiguration(input: {
       configuration: input.shop.configuration,
       locale: input.locale
     }),
+    adultsOnly:
+      input.shop.configuration?.adultsOnly ??
+      input.brand.configuration?.adultsOnly ??
+      input.merchant.configuration?.adultsOnly ??
+      false,
     premiumPalette: shopPalette ?? brandPalette ?? merchantPalette,
     premiumPaletteSource: shopPalette
       ? 'shop'

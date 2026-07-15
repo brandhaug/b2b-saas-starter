@@ -91,6 +91,7 @@ export const BookingJourney = Schema.Struct({
       id: Schema.String,
       slug: Schema.String,
       name: Schema.String,
+      adultsOnly: Schema.optional(Schema.Boolean),
       timezone: Schema.optional(Schema.String),
       addressLines: Schema.optional(Schema.Array(Schema.String)),
       coordinates: Schema.optional(
@@ -1148,30 +1149,43 @@ const readLiveState = (
       merchantId: row.merchantId,
       presentation: row.presentation,
       shopId: selectedShopId,
-      shops: shopRows.map((shop) => ({
-        id: shop.id,
-        slug: shop.slug,
-        timezone: shop.timezone,
-        ...(() => {
-          const addressLines = parseAddressLines(shop.addressJson)
-          return addressLines ? { addressLines } : {}
-        })(),
-        ...(() => {
-          const latitude = parseCoordinate(shop.latitude)
-          const longitude = parseCoordinate(shop.longitude)
-          return latitude === null || longitude === null
+      shops: shopRows.map((shop) => {
+        const configuration = decodeBookingConfiguration(shop.bookingConfiguration)
+        const brandConfiguration = decodeBookingConfiguration(
+          shop.brandBookingConfiguration
+        )
+        const merchantConfiguration = decodeBookingConfiguration(
+          row.merchantBookingConfiguration
+        )
+        const addressLines = parseAddressLines(shop.addressJson)
+        const latitude = parseCoordinate(shop.latitude)
+        const longitude = parseCoordinate(shop.longitude)
+        const resolved = resolveCatalogText({
+          sourceText: shop.publicName,
+          configuration,
+          locale: session.locale ?? 'en'
+        })
+        return {
+          id: shop.id,
+          slug: shop.slug,
+          timezone: shop.timezone,
+          adultsOnly: resolveBookingConfiguration({
+            locale: session.locale ?? 'en',
+            merchant: {
+              name: row.merchantName,
+              configuration: merchantConfiguration
+            },
+            brand: { name: shop.brandName, configuration: brandConfiguration },
+            shop: { name: shop.publicName, configuration }
+          }).adultsOnly,
+          ...(addressLines ? { addressLines } : {}),
+          ...(latitude === null || longitude === null
             ? {}
-            : { coordinates: { latitude, longitude } }
-        })(),
-        ...(() => {
-          const resolved = resolveCatalogText({
-            sourceText: shop.publicName,
-            configuration: decodeBookingConfiguration(shop.bookingConfiguration),
-            locale: session.locale ?? 'en'
-          })
-          return { name: resolved.text, localizedName: resolved }
-        })()
-      })),
+            : { coordinates: { latitude, longitude } }),
+          name: resolved.text,
+          localizedName: resolved
+        }
+      }),
       resolvedConfiguration: resolveBookingConfiguration({
         locale: session.locale ?? 'en',
         merchant: {

@@ -6,10 +6,42 @@ it('proxies local Booking pages, mutations, and assets before Web SSR', async ()
   const resolved = config({ command: 'serve', mode: 'development' })
 
   expect(resolved.server?.proxy).toEqual({
-    '^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)': {
-      target: 'http://localhost:3073'
-    },
-    '^/_booking/': { target: 'http://localhost:3073' },
-    '^/virtual:stylex\\.css$': { target: 'http://localhost:3073' }
+    '^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)': expect.objectContaining({
+      target: 'http://localhost:3073',
+      changeOrigin: true,
+      configure: expect.any(Function)
+    }),
+    '^/_booking/': { target: 'http://localhost:3073', changeOrigin: true },
+    '^/virtual:stylex\\.css$': {
+      target: 'http://localhost:3073',
+      changeOrigin: true
+    }
+  })
+  expect(resolved.server?.allowedHosts).toEqual(['.trycloudflare.com'])
+
+  const routeProxy =
+    resolved.server?.proxy?.['^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)']
+  if (typeof routeProxy === 'string' || !routeProxy?.configure)
+    throw new Error('Booking route proxy is not configurable')
+  let rewrite:
+    | ((
+        proxyRequest: { setHeader(name: string, value: string): void },
+        request: { method?: string }
+      ) => void)
+    | undefined
+  routeProxy.configure({
+    on: (event: string, callback: typeof rewrite) => {
+      if (event === 'proxyReq') rewrite = callback
+    }
+  } as never)
+  const headers = new Map<string, string>()
+  rewrite?.(
+    { setHeader: (name, value) => headers.set(name, value) },
+    { method: 'POST' }
+  )
+  expect(Object.fromEntries(headers)).toEqual({
+    host: 'localhost:3071',
+    origin: 'http://localhost:3071',
+    'sec-fetch-site': 'same-origin'
   })
 })

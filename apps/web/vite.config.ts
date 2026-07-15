@@ -9,7 +9,7 @@ import rehypeSlug from 'rehype-slug'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
 
 function remarkMermaid() {
   return (tree: { children: Array<Record<string, unknown>> }) => {
@@ -41,6 +41,17 @@ function remarkMermaid() {
   }
 }
 
+const configureBookingProxy =
+  (publicSite: URL): NonNullable<ProxyOptions['configure']> =>
+  (proxy) => {
+    proxy.on('proxyReq', (proxyRequest, request) => {
+      if (request.method === 'GET' || request.method === 'HEAD') return
+      proxyRequest.setHeader('host', publicSite.host)
+      proxyRequest.setHeader('origin', publicSite.origin)
+      proxyRequest.setHeader('sec-fetch-site', 'same-origin')
+    })
+  }
+
 // Which `cloudflare:workers` shim to alias, or null to leave the specifier
 // alone (the deployed worker resolves it natively). `vite dev` gets the dev
 // shim, which attaches the persisted local D1 when packages/db has migrated
@@ -58,20 +69,27 @@ function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | 
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
   const bookingDevOrigin = process.env.BOOKING_DEV_ORIGIN ?? 'http://localhost:3073'
+  const publicSiteOrigin = process.env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071'
+  const publicSite = new URL(publicSiteOrigin)
   const bookingProxy =
     command === 'serve' && mode !== 'test'
       ? {
           '^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)': {
-            target: bookingDevOrigin
+            target: bookingDevOrigin,
+            changeOrigin: true,
+            configure: configureBookingProxy(publicSite)
           },
-          '^/_booking/': { target: bookingDevOrigin },
-          '^/virtual:stylex\\.css$': { target: bookingDevOrigin }
+          '^/_booking/': { target: bookingDevOrigin, changeOrigin: true },
+          '^/virtual:stylex\\.css$': { target: bookingDevOrigin, changeOrigin: true }
         }
       : undefined
   return {
     server: {
       port: 3071,
       host: 'localhost',
+      // Quick Tunnels use a random subdomain. Restricting the suffix keeps
+      // Vite's DNS-rebinding protection while allowing Cloudflare ingress.
+      allowedHosts: ['.trycloudflare.com'],
       ...(bookingProxy ? { proxy: bookingProxy } : {})
     },
     preview: { port: 3071, host: 'localhost' },

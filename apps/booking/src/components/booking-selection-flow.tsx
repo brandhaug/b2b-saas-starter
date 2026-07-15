@@ -464,6 +464,7 @@ function BookingSelectionFlowContent({
                   ? { onContinue: continueToScheduling }
                   : {})}
               {...(heldOrder ? { continueLabel: heldOrder.continueLabel } : {})}
+              keepOpenOnContinue={Boolean(heldOrder)}
             />
           ) : null}
         </AnimatePresence>
@@ -1290,6 +1291,7 @@ function OrderSummary({
   messages,
   onClose,
   onContinue,
+  keepOpenOnContinue = false,
   continueLabel = 'Choose time',
   quote,
   timeZone = 'UTC'
@@ -1300,6 +1302,7 @@ function OrderSummary({
   readonly messages: BookingSelectionMessages
   readonly onClose: () => void
   readonly onContinue?: () => void
+  readonly keepOpenOnContinue?: boolean
   readonly continueLabel?: string
   readonly quote?: TimeSlotHold['quote']
   readonly timeZone?: string
@@ -1451,7 +1454,7 @@ function OrderSummary({
           type="button"
           disabled={!onContinue}
           onClick={() => {
-            onClose()
+            if (!keepOpenOnContinue) onClose()
             onContinue?.()
           }}
           {...stylex.props(styles.primaryButton, styles.drawerButton)}

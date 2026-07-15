@@ -171,6 +171,10 @@ describe('Booking Checkout', () => {
       )
     )
     expect(result.quoted.acceptedAt).toBe(now)
+    expect(result.rebuilt.policyEligibility).toEqual({
+      bookingKind: 'appointment',
+      depositRequired: false
+    })
     expect(result.review).toMatchObject({
       readyToConfirm: true,
       policyAcceptance: { policyId: 'pol_shop', version: 3 },

@@ -1,12 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent
-} from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import type {
   CheckoutPreparation,
   CheckoutReview,
@@ -125,7 +118,7 @@ export function BookingCheckoutFlow({
     readonly acceptPolicy: boolean
     readonly marketingConsents: readonly {
       readonly bookingRequestId: string
-      readonly channel: 'email'
+      readonly channel: 'email' | 'sms'
       readonly granted: boolean
     }[]
   }) => void
@@ -165,26 +158,6 @@ export function BookingCheckoutFlow({
     readonly currency: string
   }
 }) {
-  const pendingLegacySubmission = useRef(false)
-  const finalizeLegacyCheckout = useCallback(() => {
-    if (!preparation?.quote) return
-    onFinalize({
-      acceptQuote: !preparation.quote.acceptedAt,
-      acceptPolicy: Boolean(preparation.policy),
-      marketingConsents: preparation.marketingPolicy
-        ? preparation.party.requests.map((request) => ({
-            bookingRequestId: request.id,
-            channel: 'email' as const,
-            granted: false
-          }))
-        : []
-    })
-  }, [onFinalize, preparation])
-  useEffect(() => {
-    if (!pendingLegacySubmission.current || !review || !preparation?.quote) return
-    pendingLegacySubmission.current = false
-    finalizeLegacyCheckout()
-  }, [finalizeLegacyCheckout, review, preparation])
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -197,11 +170,6 @@ export function BookingCheckoutFlow({
       .map((part) => part.trim())
       .filter(Boolean)
       .join(' ')
-    if (withinBookingShell && review && preparation?.quote) {
-      finalizeLegacyCheckout()
-      return
-    }
-    if (withinBookingShell) pendingLegacySubmission.current = true
     onSubmit({
       name: value('name') || legacyName,
       email: value('email'),

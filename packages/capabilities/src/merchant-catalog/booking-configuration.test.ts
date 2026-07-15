@@ -33,7 +33,8 @@ describe('Booking catalog configuration', () => {
         configuration: {
           sourceLocale: 'en',
           nameTranslations: { es: 'Estrella del Norte' },
-          premiumPalette: merchantPalette
+          premiumPalette: merchantPalette,
+          adultsOnly: true
         }
       },
       brand: {
@@ -41,7 +42,8 @@ describe('Booking catalog configuration', () => {
         configuration: {
           sourceLocale: 'en',
           nameTranslations: { es: 'Peluquería Northstar' },
-          premiumPalette: { ...merchantPalette, primaryColor: '#222222' }
+          premiumPalette: { ...merchantPalette, primaryColor: '#222222' },
+          adultsOnly: false
         }
       },
       shop: {
@@ -66,6 +68,7 @@ describe('Booking catalog configuration', () => {
     })
     expect(resolved.premiumPalette?.primaryColor).toBe('#333333')
     expect(resolved.premiumPaletteSource).toBe('shop')
+    expect(resolved.adultsOnly).toBe(false)
   })
 
   it('rejects incomplete or unsafe palette overrides and falls back by scope', () => {

@@ -189,11 +189,68 @@ export const CheckoutPreparation = Schema.Struct({
   ),
   quote: Schema.NullOr(PricingQuote),
   policy: Schema.NullOr(CheckoutPolicy),
+  policyEligibility: Schema.Struct({
+    bookingKind: Schema.Literals(['appointment', 'waiting_list']),
+    depositRequired: Schema.Boolean
+  }),
   marketingPolicy: Schema.NullOr(CheckoutPolicy),
   policyAcceptance: Schema.NullOr(CheckoutPolicyAcceptance),
   marketingConsents: Schema.Array(MarketingConsent)
 })
 export type CheckoutPreparation = typeof CheckoutPreparation.Type
+
+export type PendingMarketingConsentTarget = {
+  readonly bookingRequestId: string
+  readonly channel: 'email' | 'sms'
+}
+
+export type LegacyBookingPolicyStep = 'adults' | 'cancellation'
+
+export const legacyBookingPolicySteps = (input: {
+  readonly adultsOnly: boolean
+  readonly checkoutPolicyRequired: boolean
+  readonly bookingKind: 'appointment' | 'waiting_list'
+  readonly depositRequired: boolean
+}): readonly LegacyBookingPolicyStep[] => {
+  const steps: LegacyBookingPolicyStep[] = []
+  if (input.adultsOnly) steps.push('adults')
+  if (
+    input.checkoutPolicyRequired &&
+    input.bookingKind === 'appointment' &&
+    !input.depositRequired
+  )
+    steps.push('cancellation')
+  return steps
+}
+
+export const pendingMarketingConsentTargets = (input: {
+  readonly marketingPolicy: CheckoutPolicy | null
+  readonly requests: readonly {
+    readonly id: string
+    readonly customerDetails: CustomerDetails | null
+  }[]
+  readonly consents: readonly (typeof MarketingConsent.Type)[]
+}): readonly PendingMarketingConsentTarget[] => {
+  if (!input.marketingPolicy) return []
+  const policyVersion = String(input.marketingPolicy.version)
+  const isCurrent = (requestId: string, channel: 'email' | 'sms') =>
+    input.consents.some(
+      (consent) =>
+        consent.bookingRequestId === requestId &&
+        consent.channel === channel &&
+        consent.policyVersion === policyVersion &&
+        consent.disclosure === input.marketingPolicy?.disclosure
+    )
+  const targets: PendingMarketingConsentTarget[] = []
+  for (const request of input.requests) {
+    if (!request.customerDetails) continue
+    if (request.customerDetails.phone && !isCurrent(request.id, 'sms'))
+      targets.push({ bookingRequestId: request.id, channel: 'sms' })
+    if (request.customerDetails.email && !isCurrent(request.id, 'email'))
+      targets.push({ bookingRequestId: request.id, channel: 'email' })
+  }
+  return targets
+}
 
 export class CheckoutReviewUnavailable extends Schema.TaggedErrorClass<CheckoutReviewUnavailable>()(
   'CheckoutReviewUnavailable',
@@ -417,6 +474,10 @@ const partyCheckoutWorkflow = (
         requestReviews: [...requestReviews],
         quote,
         policy,
+        policyEligibility: {
+          bookingKind: 'appointment' as const,
+          depositRequired: false
+        },
         marketingPolicy,
         policyAcceptance,
         marketingConsents: [...marketingConsents]

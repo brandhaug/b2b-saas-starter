@@ -16,6 +16,46 @@ import type {
 import { ServerBackedBookingFlow } from './server-backed-booking-flow.tsx'
 import { BookingLocalizationProvider } from '../localization/booking-localization-provider.tsx'
 
+const checkoutPreparation = (
+  party: Record<string, unknown> & {
+    readonly requests: readonly (Record<string, unknown> & {
+      readonly providerPreference: unknown
+    })[]
+  }
+) => ({
+  party: {
+    ...party,
+    requests: party.requests.map((request) => ({
+      ...request,
+      providerPreference:
+        typeof request.providerPreference === 'object' &&
+        request.providerPreference !== null &&
+        'kind' in request.providerPreference
+          ? request.providerPreference.kind
+          : request.providerPreference
+    }))
+  },
+  requestReviews: [],
+  quote: null,
+  policy: {
+    id: 'pol_checkout',
+    scope: 'shop',
+    scopeId: 'shp_main',
+    kind: 'checkout',
+    version: 1,
+    disclosure: 'Cancel up to 24 hours before the appointment.',
+    effectiveAt: '2026-01-01T00:00:00.000Z',
+    retiredAt: null
+  },
+  policyEligibility: {
+    bookingKind: 'appointment',
+    depositRequired: false
+  },
+  marketingPolicy: null,
+  policyAcceptance: null,
+  marketingConsents: []
+})
+
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
@@ -43,7 +83,8 @@ describe('server-backed Booking scheduling', () => {
         brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
         shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
         premiumPalette: null,
-        premiumPaletteSource: null
+        premiumPaletteSource: null,
+        adultsOnly: false
       },
       catalogRecovery: null,
       reconciliation: [],
@@ -166,6 +207,8 @@ describe('server-backed Booking scheduling', () => {
             : input.url
       if (url.endsWith('/selection')) return Response.json(journey)
       if (url.endsWith('/party')) return Response.json(party)
+      if (url.endsWith('/checkout-prepare'))
+        return Response.json(checkoutPreparation(party))
       if (new URL(url, 'http://localhost').pathname.endsWith('/availability')) {
         requestedAvailabilityDays = new URL(url, 'http://localhost').searchParams.get(
           'days'
@@ -239,7 +282,9 @@ describe('server-backed Booking scheduling', () => {
     schedulingScroll.scrollTop = 72
     const bodyOverflow = document.body.style.overflow
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    const policy = screen.getByRole('dialog', { name: 'Cancellation policy' })
+    const policy = await screen.findByRole('dialog', { name: 'Cancellation policy' })
+    await new Promise((resolve) => window.setTimeout(resolve, 250))
+    expect(screen.getByRole('dialog', { name: 'Order summary' })).toBeTruthy()
     expect(
       within(policy).getByText('This appointment cannot be cancelled.')
     ).toBeTruthy()
@@ -256,6 +301,12 @@ describe('server-backed Booking scheduling', () => {
     expect(await within(checkout).findByLabelText('First name')).toBeTruthy()
     expect(screen.getByTestId('calendarLine')).toBeTruthy()
     fireEvent.click(within(checkout).getByRole('button', { name: 'Close' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Order summary' })).getByRole(
+        'button',
+        { name: 'Close order summary' }
+      )
+    )
     const forwardRoute = canonicalShell?.querySelector(
       '[data-presence-variant="route"][data-route-direction="forward"]'
     )
@@ -295,7 +346,8 @@ describe('server-backed Booking scheduling', () => {
         brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
         shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
         premiumPalette: null,
-        premiumPaletteSource: null
+        premiumPaletteSource: null,
+        adultsOnly: false
       },
       catalogRecovery: null,
       reconciliation: [],
@@ -377,7 +429,8 @@ describe('server-backed Booking scheduling', () => {
         brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
         shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
         premiumPalette: null,
-        premiumPaletteSource: null
+        premiumPaletteSource: null,
+        adultsOnly: false
       },
       catalogRecovery: null,
       reconciliation: [],
@@ -491,7 +544,8 @@ describe('server-backed Booking scheduling', () => {
         brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
         shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
         premiumPalette: null,
-        premiumPaletteSource: null
+        premiumPaletteSource: null,
+        adultsOnly: false
       },
       catalogRecovery: null,
       reconciliation: [],
@@ -553,6 +607,38 @@ describe('server-backed Booking scheduling', () => {
         }
       }
     }
+    const checkoutParty = {
+      id: 'bpt_expiring',
+      bookingSessionId: 'bsn_expiring',
+      shopId: 'shp_main',
+      activeRequestId: 'brq_expiring',
+      lifecycle: 'active',
+      currency: 'USD',
+      locale: 'en',
+      version: 1,
+      requests: [
+        {
+          id: 'brq_expiring',
+          bookingPartyId: 'bpt_expiring',
+          position: 0,
+          providerPreference: 'specific',
+          providerId: 'prv_ava',
+          primaryServiceId: 'svc_cut',
+          serviceIds: ['svc_cut'],
+          holdId: 'hld_live',
+          holdExpiresAt: availability.hold?.expiresAt ?? null,
+          customerAccountId: null,
+          customerDetails: null,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          durationMinutes: 60,
+          priceMinor: 5000,
+          currency: 'USD'
+        }
+      ],
+      durationMinutes: 60,
+      totalMinor: 5000
+    }
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url =
         typeof input === 'string'
@@ -561,6 +647,8 @@ describe('server-backed Booking scheduling', () => {
             ? input.href
             : input.url
       if (url.endsWith('/selection')) return Response.json(journey)
+      if (url.endsWith('/checkout-prepare'))
+        return Response.json(checkoutPreparation(checkoutParty))
       if (new URL(url, 'http://localhost').pathname.endsWith('/availability'))
         return Response.json(availability)
       if (url.endsWith('/customer-details'))
@@ -584,7 +672,7 @@ describe('server-backed Booking scheduling', () => {
       await screen.findByRole('button', { name: /go to checkout, \$50\.00/i })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    fireEvent.click(screen.getByRole('button', { name: 'I agree' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'I agree' }))
     fireEvent.change(await screen.findByLabelText('First name'), {
       target: { value: 'Mia' }
     })

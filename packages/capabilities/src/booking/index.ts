@@ -92,11 +92,15 @@ export {
   buildCheckoutReview,
   emptySeedBookingCheckoutStore,
   normalizeCustomerDetails,
+  pendingMarketingConsentTargets,
+  legacyBookingPolicySteps,
+  type LegacyBookingPolicyStep,
   resolveCheckoutPolicy
 } from './booking-checkout.ts'
 export type {
   BookingCheckoutShape,
   BookingCheckoutFailure,
+  PendingMarketingConsentTarget,
   SeedBookingCheckoutStore
 } from './booking-checkout.ts'
 export {

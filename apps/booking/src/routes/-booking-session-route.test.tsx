@@ -27,7 +27,8 @@ describe('protected Booking Session route', () => {
         brandName: { text: 'Brand', locale: 'en', isSourceLanguageFallback: false },
         shopName: { text: 'Main Shop', locale: 'en', isSourceLanguageFallback: false },
         premiumPalette: null,
-        premiumPaletteSource: null
+        premiumPaletteSource: null,
+        adultsOnly: false
       },
       catalogRecovery: null,
       reconciliation: [],
