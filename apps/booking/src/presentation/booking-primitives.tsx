@@ -245,6 +245,11 @@ const styles = stylex.create({
     boxShadow: '0 12px 32px rgb(0 0 0 / 16%)',
     backgroundColor: bookingTheme.colorChrome
   },
+  popupSheetLegacyCheckout: {
+    display: 'flex',
+    height: '100%',
+    overflow: 'hidden'
+  },
   popupStickyHeader: {
     position: 'sticky',
     zIndex: 1,
@@ -778,6 +783,7 @@ export function BookingPopupSheet({
   testId,
   presenceKey = 'booking-popup',
   legacyGeometry = false,
+  layout = 'content',
   header,
   children
 }: {
@@ -788,6 +794,7 @@ export function BookingPopupSheet({
   readonly testId?: string
   readonly presenceKey?: string
   readonly legacyGeometry?: boolean
+  readonly layout?: 'content' | 'legacyCheckout'
   readonly header?: ReactNode
   readonly children: ReactNode
 }) {
@@ -835,11 +842,13 @@ export function BookingPopupSheet({
                   aria-label={label}
                   data-testid={testId}
                   data-booking-popup-scrollable=""
+                  data-popup-layout={layout}
                   tabIndex={-1}
                   onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
                   {...stylex.props(
                     styles.popupSheet,
-                    legacyGeometry && styles.legacyPopupSheet
+                    legacyGeometry && styles.legacyPopupSheet,
+                    layout === 'legacyCheckout' && styles.popupSheetLegacyCheckout
                   )}
                 >
                   {header ? (

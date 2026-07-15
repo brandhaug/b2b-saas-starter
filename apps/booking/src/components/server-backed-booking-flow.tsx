@@ -747,6 +747,14 @@ export function ServerBackedBookingFlow({
       setLegacyCheckoutPhase('policies')
     }
   }
+  const closeCheckout = () => {
+    setCheckout(false)
+    setLegacyCheckoutPhase('policies')
+    legacyBookPending.current = false
+    setNotificationPoliciesOpen(false)
+    setPreparation(null)
+    queryClient.removeQueries({ queryKey: checkoutPreparationKey })
+  }
   if (scheduling) {
     if (expiredSession) {
       return (
@@ -803,6 +811,7 @@ export function ServerBackedBookingFlow({
           copy={{
             processing: message('feedback.loading'),
             title: message('checkout.title'),
+            close: message('action.close'),
             guests: message('checkout.guests'),
             edit: message('checkout.edit'),
             emailOffers: (name) => `${message('checkout.email_offers')} ${name}`,
@@ -958,6 +967,7 @@ export function ServerBackedBookingFlow({
               }
             )
           }
+          {...(presentation === 'withinBookingShell' ? { onClose: closeCheckout } : {})}
         />
       )
     const applicableLegacyPolicyKinds = preparationForCheckout
@@ -978,14 +988,7 @@ export function ServerBackedBookingFlow({
             applicableLegacyPolicyKinds.length === 0 ? 'userInfo' : legacyCheckoutPhase
           }
           policyKinds={applicableLegacyPolicyKinds}
-          onClose={() => {
-            setCheckout(false)
-            setLegacyCheckoutPhase('policies')
-            legacyBookPending.current = false
-            setNotificationPoliciesOpen(false)
-            setPreparation(null)
-            queryClient.removeQueries({ queryKey: checkoutPreparationKey })
-          }}
+          onClose={closeCheckout}
           onPolicyComplete={() => setLegacyCheckoutPhase('userInfo')}
           cancellation={
             availability.data?.hold

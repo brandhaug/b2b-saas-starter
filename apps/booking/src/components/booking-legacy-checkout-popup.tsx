@@ -138,21 +138,21 @@ export function BookingLegacyCheckoutPopup({
       presenceKey={effectivePhase}
       testId={effectivePhase === 'policies' ? 'popup:policies' : 'popup:checkout'}
       legacyGeometry
+      layout={effectivePhase === 'userInfo' ? 'legacyCheckout' : 'content'}
       onClose={onClose}
     >
-      <div {...stylex.props(styles.content)}>
-        <button
-          type="button"
-          aria-label={copy.close}
-          onClick={onClose}
-          {...stylex.props(styles.close)}
-        >
-          <span aria-hidden="true">×</span>
-        </button>
-        <AnimatePresence mode="wait" initial={false}>
-          {effectivePhase === 'policies' ? (
+      <AnimatePresence mode="wait" initial={false}>
+        {effectivePhase === 'policies' ? (
+          <m.div key={`policy:${activePolicy}`} {...stylex.props(styles.content)}>
+            <button
+              type="button"
+              aria-label={copy.close}
+              onClick={onClose}
+              {...stylex.props(styles.close)}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
             <m.div
-              key={`policy:${activePolicy}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -282,19 +282,17 @@ export function BookingLegacyCheckoutPopup({
                 </div>
               ) : null}
             </m.div>
-          ) : (
-            <m.div
-              key="user-info"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              {children}
-            </m.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </m.div>
+        ) : (
+          <div
+            key="user-info"
+            data-testid="checkout-popup-root"
+            {...stylex.props(styles.checkoutPopupBase)}
+          >
+            {children}
+          </div>
+        )}
+      </AnimatePresence>
     </BookingPopupSheet>
   )
 }
@@ -438,6 +436,15 @@ const styles = stylex.create({
     width: '100%',
     padding: 16,
     boxSizing: 'border-box'
+  },
+  checkoutPopupBase: {
+    position: 'relative',
+    width: '100%',
+    height: 'auto',
+    padding: 16,
+    overflow: 'auto',
+    boxSizing: 'border-box',
+    fontFamily: 'SF Pro Text, Roboto, sans-serif'
   },
   close: {
     position: 'absolute',

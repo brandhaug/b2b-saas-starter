@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 
@@ -7,6 +7,7 @@ afterEach(cleanup)
 
 describe('Booking checkout', () => {
   it('uses the legacy checkout form hierarchy inside the booking popup', () => {
+    const close = vi.fn()
     render(
       <BookingCheckoutFlow
         presentation="withinBookingShell"
@@ -20,6 +21,7 @@ describe('Booking checkout', () => {
         onSubmit={vi.fn()}
         onFinalize={vi.fn()}
         onEdit={vi.fn()}
+        onClose={close}
         payment={{
           eligibility: { state: 'ready', methods: [] },
           selected: 'pay_in_person',
@@ -48,11 +50,24 @@ describe('Booking checkout', () => {
     )
 
     const popup = screen.getByTestId('checkout-form')
-    const sections = Array.from(popup.querySelectorAll('[data-checkout-section]')).map(
-      (element) => element.getAttribute('data-checkout-section')
+    const sectionElements = Array.from(
+      popup.querySelectorAll('[data-checkout-section]')
+    )
+    const sections = sectionElements.map((element) =>
+      element.getAttribute('data-checkout-section')
     )
     expect(sections).toEqual(['shop', 'payment', 'customer', 'summary', 'action'])
-    expect(screen.getByRole('heading', { name: 'Confirm booking' })).toBeTruthy()
+    expect(sectionElements[0]?.parentElement).toBe(sectionElements[2]?.parentElement)
+    expect(sectionElements[3]?.parentElement).toBe(sectionElements[4]?.parentElement)
+    expect(sectionElements[0]?.parentElement).not.toBe(
+      sectionElements[3]?.parentElement
+    )
+    const title = screen.getByTestId('container:checkout-title')
+    expect(title.tagName).toBe('DIV')
+    expect(within(title).getByText('Confirm booking').tagName).toBe('P')
+    const closeButton = within(title).getByTestId('btn:closeCheckout')
+    fireEvent.click(closeButton)
+    expect(close).toHaveBeenCalledOnce()
     expect(screen.getByText('Main Shop')).toBeTruthy()
     expect(screen.getByText('21 Mercer Street New York, NY 10013')).toBeTruthy()
     expect(screen.getByText('Payment method')).toBeTruthy()

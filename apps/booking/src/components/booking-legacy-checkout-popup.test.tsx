@@ -136,11 +136,15 @@ describe('BookingLegacyCheckoutPopup', () => {
           checkoutPolicyVersion: 'Checkout policy version {version}'
         }}
       >
-        <div>Customer details</div>
+        <div data-testid="checkout-form">Customer details</div>
       </BookingLegacyCheckoutPopup>
     )
 
     const checkout = screen.getByRole('dialog', { name: 'Confirm booking' })
+    const popupRoot = within(checkout).getByTestId('checkout-popup-root')
+    expect(checkout.firstElementChild).toBe(popupRoot)
+    expect(popupRoot.getAttribute('style')).toBeNull()
+    expect(checkout.getAttribute('data-popup-layout')).toBe('legacyCheckout')
     expect(within(checkout).getByText('Customer details')).toBeTruthy()
     expect(within(checkout).queryByText('Cancellation policy')).toBeNull()
   })

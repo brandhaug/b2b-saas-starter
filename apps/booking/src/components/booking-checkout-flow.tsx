@@ -24,6 +24,7 @@ import {
 type CheckoutCopy = {
   readonly processing: string
   readonly title: string
+  readonly close: string
   readonly guests: string
   readonly edit: string
   readonly emailOffers: (name: string) => string
@@ -50,6 +51,7 @@ type CheckoutCopy = {
 const defaultCopy: CheckoutCopy = {
   processing: 'Processing…',
   title: 'Confirm booking',
+  close: 'Close',
   guests: 'Guests',
   edit: 'Edit',
   emailOffers: (name) => `Email offers for ${name}`,
@@ -94,6 +96,7 @@ export function BookingCheckoutFlow({
   onSubmit,
   onFinalize,
   onEdit,
+  onClose,
   payment,
   giftCard,
   copy = defaultCopy,
@@ -123,6 +126,7 @@ export function BookingCheckoutFlow({
     }[]
   }) => void
   readonly onEdit: (requestId: string) => void
+  readonly onClose?: () => void
   readonly payment?:
     | {
         readonly eligibility: PaymentMethodEligibility
@@ -189,11 +193,44 @@ export function BookingCheckoutFlow({
       ? formatCurrency(summary.currency, summary.totalMinor)
       : null
     return (
-      <div data-testid="checkout-form" {...stylex.props(styles.legacyCheckoutForm)}>
-        <header {...stylex.props(styles.checkoutPopupHeader)}>
-          <h1 {...stylex.props(styles.title)}>{copy.title}</h1>
-        </header>
-        <form onSubmit={submit} noValidate {...stylex.props(styles.legacyCheckoutBody)}>
+      <form
+        data-testid="checkout-form"
+        onSubmit={submit}
+        noValidate
+        {...stylex.props(styles.legacyCheckoutForm)}
+      >
+        <div {...stylex.props(styles.legacyCheckoutTop)}>
+          <div
+            data-testid="container:checkout-title"
+            {...stylex.props(styles.checkoutPopupHeader)}
+          >
+            <p {...stylex.props(styles.checkoutPopupTitle)}>{copy.title}</p>
+            {onClose ? (
+              <button
+                type="button"
+                aria-label={copy.close}
+                data-testid="btn:closeCheckout"
+                onClick={onClose}
+                {...stylex.props(styles.checkoutPopupClose)}
+              >
+                <svg
+                  aria-hidden="true"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  {...stylex.props(styles.checkoutPopupCloseIcon)}
+                >
+                  <circle cx="12" cy="12" r="12" fill="#ebebeb" />
+                  <path
+                    fill="currentColor"
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M7.176 15.971a.6.6 0 1 0 .849.849L12 12.846l3.975 3.974a.6.6 0 0 0 .849-.849l-3.975-3.973 3.975-3.974a.6.6 0 1 0-.849-.848L12 11.149 8.025 7.176a.6.6 0 0 0-.849.848l3.975 3.974-3.975 3.973z"
+                  />
+                </svg>
+              </button>
+            ) : null}
+          </div>
           <section
             data-checkout-section="shop"
             {...stylex.props(styles.legacyCheckoutShop)}
@@ -269,6 +306,8 @@ export function BookingCheckoutFlow({
               />
             </div>
           </section>
+        </div>
+        <div {...stylex.props(styles.legacyCheckoutBottom)}>
           <section
             data-checkout-section="summary"
             {...stylex.props(styles.legacyCheckoutSummary)}
@@ -313,8 +352,8 @@ export function BookingCheckoutFlow({
               <a href="/privacy">{copy.privacyLink}</a>.
             </p>
           </section>
-        </form>
-      </div>
+        </div>
+      </form>
     )
   }
   const content = (

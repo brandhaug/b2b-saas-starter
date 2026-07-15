@@ -151,23 +151,62 @@ export const styles = stylex.create({
     position: 'sticky',
     zIndex: bookingTheme.layerChrome,
     top: -16,
+    display: 'flex',
+    flexDirection: 'column',
     margin: -16,
-    marginBottom: 0,
-    padding: '18px 48px 16px 16px',
+    padding: 16,
     backgroundColor: 'rgb(247 247 247 / 88%)',
     backdropFilter: 'blur(5px)',
-    boxShadow: '0 2px 8px rgb(0 0 0 / 0%)'
+    transitionProperty: 'background-color',
+    transitionDuration: '300ms'
+  },
+  checkoutPopupTitle: {
+    marginTop: 8,
+    marginRight: 0,
+    marginBottom: 0,
+    marginLeft: 0,
+    color: bookingTheme.colorPrimaryFont,
+    fontFamily: 'SF Pro Display, Roboto, sans-serif',
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px'
+  },
+  checkoutPopupClose: {
+    position: 'absolute',
+    top: 14,
+    right: 6,
+    zIndex: 2,
+    display: 'grid',
+    width: 44,
+    height: 44,
+    padding: 0,
+    placeItems: 'center',
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: bookingTheme.colorPrimaryFont,
+    cursor: 'pointer',
+    touchAction: 'manipulation'
+  },
+  checkoutPopupCloseIcon: {
+    display: 'block',
+    width: 24,
+    height: 24
   },
   legacyCheckoutForm: {
-    minHeight: '100%',
-    backgroundColor: '#f7f7f7'
-  },
-  legacyCheckoutBody: {
     display: 'flex',
-    minHeight: 'calc(100% - 58px)',
-    boxSizing: 'border-box',
+    minHeight: '100%',
     flexDirection: 'column',
-    padding: '0 16px 16px'
+    justifyContent: 'space-between',
+    backgroundColor: 'transparent'
+  },
+  legacyCheckoutTop: {
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  legacyCheckoutBottom: {
+    display: 'flex',
+    flexDirection: 'column'
   },
   legacyCheckoutShop: {
     display: 'flex',
@@ -176,8 +215,10 @@ export const styles = stylex.create({
     marginBlock: 24
   },
   legacyCheckoutShopImage: {
+    position: 'relative',
     width: 120,
     height: 88,
+    overflow: 'hidden',
     flexShrink: 0,
     borderRadius: 12,
     backgroundColor: 'transparent'
@@ -241,7 +282,7 @@ export const styles = stylex.create({
     letterSpacing: '-0.408px'
   },
   legacyCheckoutSummary: {
-    marginTop: 'auto',
+    marginTop: 0,
     marginBottom: 24,
     paddingTop: 16,
     borderTopWidth: 1,
