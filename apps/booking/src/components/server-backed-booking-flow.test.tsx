@@ -240,6 +240,10 @@ describe('server-backed Booking scheduling', () => {
     const bodyOverflow = document.body.style.overflow
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     const policy = screen.getByRole('dialog', { name: 'Cancellation policy' })
+    expect(
+      within(policy).getByText('This appointment cannot be cancelled.')
+    ).toBeTruthy()
+    expect(within(policy).getByTestId('btn:confirm').textContent).toBe('I agree')
     expect(screen.getByTestId('calendarLine')).toBeTruthy()
     expect(schedulingScroll.scrollTop).toBe(72)
     expect(document.body.style.overflow).toBe(bodyOverflow)
@@ -249,7 +253,7 @@ describe('server-backed Booking scheduling', () => {
     fireEvent.click(within(policy).getByRole('button', { name: 'I agree' }))
     const checkout = screen.getByRole('dialog', { name: 'Confirm booking' })
     expect(checkout).not.toBe(policy)
-    expect(await within(checkout).findByLabelText('Name')).toBeTruthy()
+    expect(await within(checkout).findByLabelText('First name')).toBeTruthy()
     expect(screen.getByTestId('calendarLine')).toBeTruthy()
     fireEvent.click(within(checkout).getByRole('button', { name: 'Close' }))
     const forwardRoute = canonicalShell?.querySelector(
@@ -581,13 +585,13 @@ describe('server-backed Booking scheduling', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     fireEvent.click(screen.getByRole('button', { name: 'I agree' }))
-    fireEvent.change(await screen.findByLabelText('Name'), {
+    fireEvent.change(await screen.findByLabelText('First name'), {
       target: { value: 'Mia' }
     })
     fireEvent.change(await screen.findByLabelText('Email'), {
       target: { value: 'mia@example.com' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Review booking' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }))
     expect(await screen.findByRole('link', { name: 'Start again' })).toHaveProperty(
       'pathname',
       '/mara/booking'

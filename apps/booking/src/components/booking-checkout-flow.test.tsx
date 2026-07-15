@@ -6,6 +6,66 @@ import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 afterEach(cleanup)
 
 describe('Booking checkout', () => {
+  it('uses the legacy checkout form hierarchy inside the booking popup', () => {
+    render(
+      <BookingCheckoutFlow
+        presentation="withinBookingShell"
+        shopName="Main Shop"
+        shopAddressLines={['21 Mercer Street', 'New York, NY 10013']}
+        review={null}
+        preparation={null}
+        busy={false}
+        validationIssues={[]}
+        validationMessages={{}}
+        onSubmit={vi.fn()}
+        onFinalize={vi.fn()}
+        onEdit={vi.fn()}
+        payment={{
+          eligibility: { state: 'ready', methods: [] },
+          selected: 'pay_in_person',
+          status: 'idle',
+          allowPayInPerson: true,
+          onSelect: vi.fn(),
+          legend: 'Payment method',
+          labels: {
+            pay_in_person: 'Pay in person',
+            card: 'Card',
+            saved_card: 'Saved card',
+            apple_pay: 'Apple Pay',
+            google_pay: 'Google Pay',
+            cash_app_pay: 'Cash App Pay',
+            klarna: 'Buy now, pay later'
+          },
+          messages: {
+            disabled: 'Disabled',
+            needs_configuration: 'Needs configuration',
+            processing: 'Processing',
+            failed: 'Failed',
+            succeeded: 'Succeeded'
+          }
+        }}
+      />
+    )
+
+    const popup = screen.getByTestId('checkout-form')
+    const sections = Array.from(popup.querySelectorAll('[data-checkout-section]')).map(
+      (element) => element.getAttribute('data-checkout-section')
+    )
+    expect(sections).toEqual(['shop', 'payment', 'customer', 'summary', 'action'])
+    expect(screen.getByRole('heading', { name: 'Confirm booking' })).toBeTruthy()
+    expect(screen.getByText('Main Shop')).toBeTruthy()
+    expect(screen.getByText('21 Mercer Street New York, NY 10013')).toBeTruthy()
+    expect(screen.getByText('Payment method')).toBeTruthy()
+    expect(screen.getByTestId('button:paymentMethod:pay_in_person')).toBeTruthy()
+    expect(screen.queryByRole('radio')).toBeNull()
+    expect(screen.getByText('Your information')).toBeTruthy()
+    expect(screen.getByLabelText('First name')).toBeTruthy()
+    expect(screen.getByLabelText('Last name')).toBeTruthy()
+    expect(screen.getByLabelText('Phone')).toBeTruthy()
+    expect(screen.getByText('Summary')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Book' })).toBeTruthy()
+  })
+
   it('captures minimum details without a consent checkbox', () => {
     const submit = vi.fn()
     const { container } = render(

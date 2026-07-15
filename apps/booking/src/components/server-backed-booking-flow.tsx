@@ -714,6 +714,21 @@ export function ServerBackedBookingFlow({
         <BookingCheckoutFlow
           presentation={presentation}
           shopName={journey.data.resolvedConfiguration.shopName.text}
+          {...(() => {
+            const addressLines = journey.data.shops.find(
+              (shop) => shop.id === journey.data.shopId
+            )?.addressLines
+            return addressLines ? { shopAddressLines: addressLines } : {}
+          })()}
+          {...(availability.data?.hold
+            ? {
+                draftSummary: {
+                  services: availability.data.hold.quote.services,
+                  totalMinor: availability.data.hold.quote.totalMinor,
+                  currency: availability.data.hold.quote.currency
+                }
+              }
+            : {})}
           premiumPalette={premiumPalette}
           review={review}
           preparation={preparation}

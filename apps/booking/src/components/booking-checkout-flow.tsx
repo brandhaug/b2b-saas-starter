@@ -1,5 +1,12 @@
 import * as stylex from '@stylexjs/stylex'
-import { useMemo, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent
+} from 'react'
 import type {
   CheckoutPreparation,
   CheckoutReview,
@@ -75,6 +82,16 @@ const defaultCopy: CheckoutCopy = {
   giftCardUnavailable: 'Gift card unavailable'
 }
 
+const currencyFormatters = new Map<string, Intl.NumberFormat>()
+const formatCurrency = (currency: string, amountMinor: number) => {
+  let formatter = currencyFormatters.get(currency)
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency })
+    currencyFormatters.set(currency, formatter)
+  }
+  return formatter.format(amountMinor / 100)
+}
+
 export function BookingCheckoutFlow({
   review,
   preparation,
@@ -89,7 +106,9 @@ export function BookingCheckoutFlow({
   copy = defaultCopy,
   premiumPalette = null,
   presentation = 'standalone',
-  shopName
+  shopName,
+  shopAddressLines,
+  draftSummary
 }: {
   readonly review: CheckoutReview | null
   readonly preparation: CheckoutPreparation | null
@@ -139,7 +158,33 @@ export function BookingCheckoutFlow({
   readonly premiumPalette?: BookingPremiumPalette | null
   readonly presentation?: 'standalone' | 'withinBookingShell'
   readonly shopName?: string
+  readonly shopAddressLines?: readonly string[]
+  readonly draftSummary?: {
+    readonly services: readonly { readonly id: string; readonly name: string }[]
+    readonly totalMinor: number
+    readonly currency: string
+  }
 }) {
+  const pendingLegacySubmission = useRef(false)
+  const finalizeLegacyCheckout = useCallback(() => {
+    if (!preparation?.quote) return
+    onFinalize({
+      acceptQuote: !preparation.quote.acceptedAt,
+      acceptPolicy: Boolean(preparation.policy),
+      marketingConsents: preparation.marketingPolicy
+        ? preparation.party.requests.map((request) => ({
+            bookingRequestId: request.id,
+            channel: 'email' as const,
+            granted: false
+          }))
+        : []
+    })
+  }, [onFinalize, preparation])
+  useEffect(() => {
+    if (!pendingLegacySubmission.current || !review || !preparation?.quote) return
+    pendingLegacySubmission.current = false
+    finalizeLegacyCheckout()
+  }, [finalizeLegacyCheckout, review, preparation])
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -148,13 +193,162 @@ export function BookingCheckoutFlow({
       return typeof entry === 'string' ? entry : ''
     }
     const phone = value('phone').trim()
+    const legacyName = [value('firstName'), value('lastName')]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(' ')
+    if (withinBookingShell && review && preparation?.quote) {
+      finalizeLegacyCheckout()
+      return
+    }
+    if (withinBookingShell) pendingLegacySubmission.current = true
     onSubmit({
-      name: value('name'),
+      name: value('name') || legacyName,
       email: value('email'),
       phone: phone || null
     })
   }
   const withinBookingShell = presentation === 'withinBookingShell'
+  if (withinBookingShell) {
+    const summary = review
+      ? {
+          services: review.quote.services,
+          totalMinor: review.quote.totalMinor,
+          currency: review.quote.currency
+        }
+      : draftSummary
+    const formattedTotal = summary
+      ? formatCurrency(summary.currency, summary.totalMinor)
+      : null
+    return (
+      <div data-testid="checkout-form" {...stylex.props(styles.legacyCheckoutForm)}>
+        <header {...stylex.props(styles.checkoutPopupHeader)}>
+          <h1 {...stylex.props(styles.title)}>{copy.title}</h1>
+        </header>
+        <form onSubmit={submit} noValidate {...stylex.props(styles.legacyCheckoutBody)}>
+          <section
+            data-checkout-section="shop"
+            {...stylex.props(styles.legacyCheckoutShop)}
+          >
+            <span
+              aria-hidden="true"
+              {...stylex.props(styles.legacyCheckoutShopImage)}
+            />
+            <div {...stylex.props(styles.legacyCheckoutShopDetails)}>
+              <p {...stylex.props(styles.checkoutShopName)}>{shopName}</p>
+              {shopAddressLines?.length ? (
+                <p {...stylex.props(styles.legacyCheckoutShopAddress)}>
+                  {shopAddressLines.join(' ')}
+                </p>
+              ) : null}
+            </div>
+          </section>
+          <section
+            data-checkout-section="payment"
+            {...stylex.props(styles.legacyCheckoutSection)}
+          >
+            {payment ? (
+              <PaymentMethodSelector {...payment} presentation="legacyCheckout" />
+            ) : (
+              <p {...stylex.props(styles.legacyCheckoutSectionTitle)}>
+                {copy.payInPerson}
+              </p>
+            )}
+          </section>
+          <section
+            data-checkout-section="customer"
+            {...stylex.props(styles.legacyCheckoutSection)}
+          >
+            <h2 {...stylex.props(styles.legacyCheckoutSectionTitle)}>
+              Your information
+            </h2>
+            <div {...stylex.props(styles.fieldGrid)}>
+              <div {...stylex.props(styles.legacyCheckoutNameRow)}>
+                <LegacyField
+                  label="First name"
+                  name="firstName"
+                  type="text"
+                  autoComplete="given-name"
+                  issueField="name"
+                  issues={validationIssues}
+                  messages={validationMessages}
+                />
+                <LegacyField
+                  label="Last name"
+                  name="lastName"
+                  type="text"
+                  autoComplete="family-name"
+                  issues={validationIssues}
+                  messages={validationMessages}
+                />
+              </div>
+              <LegacyField
+                label={copy.phoneOptional.replace(' (optional)', '')}
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                issues={validationIssues}
+                messages={validationMessages}
+              />
+              <LegacyField
+                label={copy.email}
+                name="email"
+                type="email"
+                autoComplete="email"
+                issueField="email"
+                issues={validationIssues}
+                messages={validationMessages}
+              />
+            </div>
+          </section>
+          <section
+            data-checkout-section="summary"
+            {...stylex.props(styles.legacyCheckoutSummary)}
+          >
+            <h2 {...stylex.props(styles.legacyCheckoutSectionTitle)}>Summary</h2>
+            {summary ? (
+              <div {...stylex.props(styles.legacyCheckoutSummaryLines)}>
+                {summary.services.map((service) => (
+                  <div
+                    key={service.id}
+                    {...stylex.props(styles.legacyCheckoutSummaryLine)}
+                  >
+                    <span>{service.name}</span>
+                  </div>
+                ))}
+                <div {...stylex.props(styles.legacyCheckoutTotal)}>
+                  <strong>{copy.total}</strong>
+                  <strong>{formattedTotal}</strong>
+                </div>
+              </div>
+            ) : null}
+            {preparation?.policy ? (
+              <p {...stylex.props(styles.legacyCheckoutDisclosure)}>
+                {preparation.policy.disclosure}
+              </p>
+            ) : null}
+          </section>
+          <section
+            data-checkout-section="action"
+            {...stylex.props(styles.legacyCheckoutAction)}
+          >
+            <button
+              type="submit"
+              disabled={busy}
+              data-testid="btn:book"
+              {...stylex.props(styles.primaryButton, styles.legacyCheckoutBook)}
+            >
+              {copy.book}
+            </button>
+            <p {...stylex.props(styles.legacyCheckoutDisclaimer)}>
+              By booking, you agree to the shop's policies.{' '}
+              <a href="/privacy">{copy.privacyLink}</a>.
+            </p>
+          </section>
+        </form>
+      </div>
+    )
+  }
   const content = (
     <>
       <header
@@ -227,13 +421,49 @@ export function BookingCheckoutFlow({
       </main>
     </>
   )
-  if (withinBookingShell) return content
   return (
     <BookingPremiumThemeBoundary palette={premiumPalette}>
       <BookingWidgetShell busy={busy} busyLabel={copy.processing}>
         {content}
       </BookingWidgetShell>
     </BookingPremiumThemeBoundary>
+  )
+}
+
+function LegacyField(props: {
+  readonly label: string
+  readonly name: string
+  readonly type: string
+  readonly autoComplete: string
+  readonly issueField?: string
+  readonly issues: readonly CustomerDetailsIssue[]
+  readonly messages: Partial<Record<CustomerDetailsIssue['code'], string>>
+}) {
+  const issue = props.issues.find(
+    (candidate) => candidate.field === (props.issueField ?? props.name)
+  )
+  const errorId = issue ? `${props.name}-error` : undefined
+  return (
+    <div {...stylex.props(styles.legacyCheckoutField)}>
+      <input
+        name={props.name}
+        type={props.type}
+        autoComplete={props.autoComplete}
+        aria-label={props.label}
+        aria-invalid={Boolean(issue)}
+        aria-describedby={errorId}
+        placeholder={props.label}
+        {...stylex.props(
+          styles.legacyCheckoutInput,
+          issue && styles.legacyCheckoutInputError
+        )}
+      />
+      {issue ? (
+        <span id={errorId} role="alert" {...stylex.props(styles.alert)}>
+          {props.messages[issue.code] ?? issue.code}
+        </span>
+      ) : null}
+    </div>
   )
 }
 

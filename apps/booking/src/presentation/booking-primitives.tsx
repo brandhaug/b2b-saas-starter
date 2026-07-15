@@ -221,6 +221,9 @@ const styles = stylex.create({
     justifyContent: 'flex-end',
     paddingTop: 44
   },
+  legacyPopupWrapper: {
+    paddingTop: 36
+  },
   popupSheet: {
     position: 'relative',
     width: '100%',
@@ -235,6 +238,12 @@ const styles = stylex.create({
     outline: 'none',
     pointerEvents: 'auto',
     scrollbarWidth: 'none'
+  },
+  legacyPopupSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    boxShadow: '0 12px 32px rgb(0 0 0 / 16%)',
+    backgroundColor: bookingTheme.colorChrome
   },
   popupStickyHeader: {
     position: 'sticky',
@@ -768,6 +777,7 @@ export function BookingPopupSheet({
   onClose,
   testId,
   presenceKey = 'booking-popup',
+  legacyGeometry = false,
   header,
   children
 }: {
@@ -777,6 +787,7 @@ export function BookingPopupSheet({
   readonly onClose: () => void
   readonly testId?: string
   readonly presenceKey?: string
+  readonly legacyGeometry?: boolean
   readonly header?: ReactNode
   readonly children: ReactNode
 }) {
@@ -812,7 +823,10 @@ export function BookingPopupSheet({
                 animate={{ y: 0 }}
                 exit={{ y: reduced ? 0 : '100%' }}
                 transition={reduced ? { duration: 0 } : popupInteractionTransition}
-                {...stylex.props(styles.popupWrapper)}
+                {...stylex.props(
+                  styles.popupWrapper,
+                  legacyGeometry && styles.legacyPopupWrapper
+                )}
               >
                 <div
                   ref={dialogRef}
@@ -823,7 +837,10 @@ export function BookingPopupSheet({
                   data-booking-popup-scrollable=""
                   tabIndex={-1}
                   onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
-                  {...stylex.props(styles.popupSheet)}
+                  {...stylex.props(
+                    styles.popupSheet,
+                    legacyGeometry && styles.legacyPopupSheet
+                  )}
                 >
                   {header ? (
                     <div

@@ -155,7 +155,139 @@ export const styles = stylex.create({
     marginBottom: 0,
     padding: '18px 48px 16px 16px',
     backgroundColor: 'rgb(247 247 247 / 88%)',
-    backdropFilter: 'blur(5px)'
+    backdropFilter: 'blur(5px)',
+    boxShadow: '0 2px 8px rgb(0 0 0 / 0%)'
+  },
+  legacyCheckoutForm: {
+    minHeight: '100%',
+    backgroundColor: '#f7f7f7'
+  },
+  legacyCheckoutBody: {
+    display: 'flex',
+    minHeight: 'calc(100% - 58px)',
+    boxSizing: 'border-box',
+    flexDirection: 'column',
+    padding: '0 16px 16px'
+  },
+  legacyCheckoutShop: {
+    display: 'flex',
+    gap: 24,
+    alignItems: 'center',
+    marginBlock: 24
+  },
+  legacyCheckoutShopImage: {
+    width: 120,
+    height: 88,
+    flexShrink: 0,
+    borderRadius: 12,
+    backgroundColor: 'transparent'
+  },
+  legacyCheckoutShopDetails: {
+    minWidth: 0,
+    flex: 1
+  },
+  legacyCheckoutShopAddress: {
+    display: '-webkit-box',
+    overflow: 'hidden',
+    margin: '6px 0 0',
+    color: '#8e8e93',
+    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    fontSize: 13,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: 2
+  },
+  legacyCheckoutSection: {
+    marginBottom: 24
+  },
+  legacyCheckoutNameRow: {
+    display: 'flex',
+    columnGap: 9
+  },
+  legacyCheckoutField: {
+    minWidth: 0,
+    flex: 1
+  },
+  legacyCheckoutInput: {
+    width: '100%',
+    height: 46,
+    boxSizing: 'border-box',
+    paddingInline: 16,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: {
+      default: 'transparent',
+      ':focus': '#0083ff'
+    },
+    borderRadius: 8,
+    outline: 'none',
+    backgroundColor: '#e5e5ea',
+    color: '#000000',
+    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px'
+  },
+  legacyCheckoutInputError: {
+    borderColor: '#ff3b30'
+  },
+  legacyCheckoutSectionTitle: {
+    margin: '0 0 12px',
+    color: '#1c1c1e',
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
+  },
+  legacyCheckoutSummary: {
+    marginTop: 'auto',
+    marginBottom: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopStyle: 'solid',
+    borderTopColor: '#dddddd'
+  },
+  legacyCheckoutSummaryLines: {
+    display: 'grid',
+    gap: 8
+  },
+  legacyCheckoutSummaryLine: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    color: '#1c1c1e',
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px'
+  },
+  legacyCheckoutTotal: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    color: '#1c1c1e',
+    fontSize: 16,
+    lineHeight: '20px'
+  },
+  legacyCheckoutDisclosure: {
+    margin: '12px 0 0',
+    color: '#747983',
+    fontSize: 12,
+    lineHeight: '18px'
+  },
+  legacyCheckoutAction: {
+    minHeight: 100,
+    marginBottom: 4
+  },
+  legacyCheckoutBook: {
+    width: '100%',
+    height: 48
+  },
+  legacyCheckoutDisclaimer: {
+    margin: '12px 8px 0',
+    color: '#747983',
+    fontSize: 11,
+    lineHeight: '16px',
+    textAlign: 'center'
   },
   checkoutPopupSurface: {
     height: 'auto',
@@ -164,11 +296,12 @@ export const styles = stylex.create({
     overflow: 'visible'
   },
   checkoutShopName: {
-    margin: '0 0 24px',
+    margin: 0,
     color: bookingTheme.colorPrimaryFont,
-    fontSize: 16,
-    fontWeight: 650,
-    lineHeight: '20px'
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
   },
   gridTwo: {
     display: 'grid',
