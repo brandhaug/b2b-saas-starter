@@ -245,6 +245,8 @@ export function BookingSchedulingFlow({
                   <div {...stylex.props(styles.fullCalendarControls)}>
                     <button
                       type="button"
+                      data-testid="btn:today"
+                      data-calendar-control-variant="outlined"
                       onClick={() => {
                         setChosenDate(
                           calendarRangeDaySet.has(today) ? today : (days[0] ?? null)
@@ -255,30 +257,34 @@ export function BookingSchedulingFlow({
                     >
                       {message('scheduling.today')}
                     </button>
-                    <button
-                      type="button"
-                      aria-label={message('scheduling.previous_month')}
-                      disabled={displayMonth <= firstMonth}
-                      onClick={() => {
-                        setMonthDirection(-1)
-                        setDisplayMonth(addMonth(displayMonth, -1))
-                      }}
-                      {...stylex.props(styles.calendarArrowControl)}
-                    >
-                      ‹
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={message('scheduling.next_month')}
-                      disabled={displayMonth >= lastMonth}
-                      onClick={() => {
-                        setMonthDirection(1)
-                        setDisplayMonth(addMonth(displayMonth, 1))
-                      }}
-                      {...stylex.props(styles.calendarArrowControl)}
-                    >
-                      ›
-                    </button>
+                    <div {...stylex.props(styles.calendarArrowControls)}>
+                      <button
+                        type="button"
+                        data-testid="btn:prevMonth"
+                        aria-label={message('scheduling.previous_month')}
+                        disabled={displayMonth <= firstMonth}
+                        onClick={() => {
+                          setMonthDirection(-1)
+                          setDisplayMonth(addMonth(displayMonth, -1))
+                        }}
+                        {...stylex.props(styles.calendarArrowControl)}
+                      >
+                        <CalendarMonthArrow />
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="btn:nextMonth"
+                        aria-label={message('scheduling.next_month')}
+                        disabled={displayMonth >= lastMonth}
+                        onClick={() => {
+                          setMonthDirection(1)
+                          setDisplayMonth(addMonth(displayMonth, 1))
+                        }}
+                        {...stylex.props(styles.calendarArrowControl)}
+                      >
+                        <CalendarMonthArrow right />
+                      </button>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -633,6 +639,7 @@ function LegacyCalendarMonth({
       layout
       data-testid="calendarMonth"
       data-calendar-contract="legacy-calendar-month"
+      data-calendar-grid-alignment="full-width"
       initial={{
         y: -50,
         height: 0,
@@ -762,12 +769,35 @@ function LegacyCalendarMonth({
           </m.div>
         </AnimatePresence>
       </div>
-      <div aria-hidden="true" {...stylex.props(styles.monthNamesContainer)}>
+      <div
+        aria-hidden="true"
+        data-calendar-layer="month-names"
+        {...stylex.props(styles.monthNamesContainer)}
+      >
         <p {...stylex.props(styles.expandedMonthName)}>
           {month.format(asLocalNoon(`${renderedMonth}-01`)).replace(/\s+\d{4}$/, '')}
         </p>
       </div>
     </m.div>
+  )
+}
+
+function CalendarMonthArrow({ right = false }: { readonly right?: boolean }) {
+  return (
+    <svg
+      width="26"
+      height="26"
+      viewBox="0 0 26 26"
+      fill="none"
+      aria-hidden="true"
+      {...stylex.props(styles.calendarArrowIcon, right && styles.rightCalendarArrow)}
+    >
+      <rect x="0.5" y="0.5" width="25" height="25" rx="12.5" stroke="#dadadc" />
+      <path
+        d="M8.89 12.77c0 .146.053.275.165.386l4.646 4.541c.1.106.229.159.381.159.305 0 .54-.229.54-.534a.55.55 0 0 0-.16-.38l-4.265-4.172 4.266-4.172a.562.562 0 0 0 .158-.381.526.526 0 0 0-.539-.533.521.521 0 0 0-.38.152l-4.647 4.547a.519.519 0 0 0-.164.387Z"
+        fill="currentColor"
+      />
+    </svg>
   )
 }
 

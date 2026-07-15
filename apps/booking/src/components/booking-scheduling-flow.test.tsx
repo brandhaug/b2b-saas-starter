@@ -94,8 +94,14 @@ describe('Booking scheduling flow', () => {
     expect(screen.queryByRole('button', { name: /monday, july 20/i })).toBeNull()
     fireEvent.click(screen.getByTestId('btn:expandCalendar'))
     const monthCalendar = await screen.findByTestId('calendarMonth')
+    expect(
+      screen.getByTestId('btn:today').getAttribute('data-calendar-control-variant')
+    ).toBe('outlined')
     expect(monthCalendar.getAttribute('data-calendar-contract')).toBe(
       'legacy-calendar-month'
+    )
+    expect(monthCalendar.getAttribute('data-calendar-grid-alignment')).toBe(
+      'full-width'
     )
     expect(
       monthCalendar.querySelector(

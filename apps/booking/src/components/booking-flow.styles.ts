@@ -760,39 +760,56 @@ export const styles = stylex.create({
   calendarHeader: {
     display: 'flex',
     minHeight: 28,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16
   },
   fullCalendarControls: {
     display: 'flex',
-    alignItems: 'center',
-    gap: 4
+    alignItems: 'center'
   },
   calendarTextControl: {
-    height: 28,
-    paddingInline: 8,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    color: bookingTheme.colorPrimaryFont,
-    fontFamily: bookingTheme.fontText,
-    fontSize: 13,
-    fontWeight: 600
-  },
-  calendarArrowControl: {
-    display: 'grid',
-    width: 28,
-    height: 28,
-    placeItems: 'center',
-    padding: 0,
+    height: 26,
+    paddingInline: 11,
     borderWidth: 1,
     borderStyle: 'solid',
     borderColor: bookingTheme.colorOutlinedBorder,
-    borderRadius: 999,
+    borderRadius: 32,
     backgroundColor: 'transparent',
-    color: bookingTheme.colorPrimaryFont,
-    fontSize: 20,
-    ':disabled': { opacity: 0.3 }
+    color: bookingTheme.blackA50,
+    fontFamily: bookingTheme.fontText,
+    fontSize: 12,
+    fontWeight: 400,
+    lineHeight: '24px'
+  },
+  calendarArrowControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 16
+  },
+  calendarArrowControl: {
+    display: 'flex',
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: bookingTheme.blackA50,
+    ':disabled': {
+      color: bookingTheme.blackA30,
+      opacity: 1
+    }
+  },
+  calendarArrowIcon: {
+    display: 'block',
+    width: 26,
+    height: 26
+  },
+  rightCalendarArrow: {
+    transform: 'scaleX(-1)'
   },
   dateGrid: {
     display: 'flex',
@@ -902,7 +919,7 @@ export const styles = stylex.create({
   weekdayGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-    marginLeft: 32,
+    marginTop: 16,
     color: bookingTheme.colorTextMuted,
     fontFamily: bookingTheme.fontText,
     fontSize: 12,
@@ -912,11 +929,12 @@ export const styles = stylex.create({
   },
   monthWeekday: {
     paddingTop: 8,
-    paddingBottom: 2
+    paddingRight: 10,
+    paddingBottom: 2,
+    paddingLeft: 10
   },
   monthSlideViewport: {
     position: 'relative',
-    marginLeft: 32,
     overflow: 'hidden',
     transitionProperty: 'min-height',
     transitionDuration: '0.6s',
@@ -1014,7 +1032,7 @@ export const styles = stylex.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    left: -15,
+    left: -47,
     width: 47,
     pointerEvents: 'none'
   },
