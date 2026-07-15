@@ -38,7 +38,8 @@ export function BookingSchedulingFlow({
   checkoutLabel,
   onTitleActionMount,
   premiumPalette = null,
-  embedded = false
+  embedded = false,
+  showOrderBar = true
 }: {
   readonly availability: BookingAvailability
   readonly busy: boolean
@@ -53,6 +54,7 @@ export function BookingSchedulingFlow({
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
   readonly premiumPalette?: BookingPremiumPalette | null
   readonly embedded?: boolean
+  readonly showOrderBar?: boolean
 }) {
   const message = (key: BookingTranslationKey) => translateBookingMessage(locale, key)
   const formatters = useMemo(
@@ -481,7 +483,10 @@ export function BookingSchedulingFlow({
       </main>
       <LazyMotion features={domAnimation} strict>
         <AnimatePresence>
-          {availability.slots.length > 0 && availability.hold && onCheckout ? (
+          {showOrderBar &&
+          availability.slots.length > 0 &&
+          availability.hold &&
+          onCheckout ? (
             <m.div
               key="viewOrderSafeArea"
               data-testid="container:viewOrderSafeArea"

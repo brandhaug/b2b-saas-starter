@@ -19,7 +19,8 @@ import type {
   BookingJourney,
   ProviderPreference,
   PublicBookableService,
-  ServiceSelection
+  ServiceSelection,
+  TimeSlotHold
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
@@ -49,6 +50,9 @@ type BookingSelectionFlowProps = {
     readonly busy: boolean
     readonly busyLabel: string
     readonly onBack: () => void
+    readonly orderAction?: () => void
+    readonly orderActionLabel?: string
+    readonly orderQuote?: TimeSlotHold['quote']
   }
 }
 
@@ -125,6 +129,7 @@ function BookingSelectionFlowContent({
     (service) => service.id === journey.selection.primaryServiceId
   )
   const showContinuation = continuation !== undefined
+  const displayedOrderTotal = continuation?.orderQuote?.totalMinor ?? total(journey)
 
   useEffect(
     () => () => {
@@ -362,7 +367,7 @@ function BookingSelectionFlowContent({
       <LazyMotion features={domAnimation} strict>
         <div {...stylex.props(styles.orderBarFixed)}>
           <AnimatePresence>
-            {selectedPrimary && !showProviders && !showContinuation && !orderOpen ? (
+            {selectedPrimary && !showProviders && !orderOpen ? (
               <m.div
                 key="viewOrderSafeArea"
                 data-testid="container:viewOrderSafeArea"
@@ -387,12 +392,18 @@ function BookingSelectionFlowContent({
                   ref={viewOrderButton}
                   type="button"
                   data-testid="btn:viewOrder"
-                  aria-label={`View order, ${formatPrice(total(journey), selectedPrimary.currency)}`}
+                  aria-label={`View order, ${formatPrice(
+                    displayedOrderTotal,
+                    continuation?.orderQuote?.currency ?? selectedPrimary.currency
+                  )}`}
                   {...stylex.props(styles.orderBar)}
                 >
                   <span>View order</span>
                   <span {...stylex.props(styles.orderBarTotal)}>
-                    {formatPrice(total(journey), selectedPrimary.currency)}
+                    {formatPrice(
+                      displayedOrderTotal,
+                      continuation?.orderQuote?.currency ?? selectedPrimary.currency
+                    )}
                   </span>
                 </button>
               </m.div>
@@ -406,7 +417,15 @@ function BookingSelectionFlowContent({
               journey={journey}
               primary={selectedPrimary}
               onClose={closeOrder}
-              {...(onContinue ? { onContinue: continueToScheduling } : {})}
+              {...(continuation?.orderQuote ? { quote: continuation.orderQuote } : {})}
+              {...(continuation?.orderAction
+                ? { onContinue: continuation.orderAction }
+                : onContinue
+                  ? { onContinue: continueToScheduling }
+                  : {})}
+              {...(continuation?.orderActionLabel
+                ? { continueLabel: continuation.orderActionLabel }
+                : {})}
             />
           ) : null}
         </AnimatePresence>
@@ -1224,16 +1243,28 @@ function OrderSummary({
   journey,
   primary,
   onClose,
-  onContinue
+  onContinue,
+  continueLabel = 'Choose time',
+  quote
 }: {
   readonly journey: BookingJourney
   readonly primary: PublicBookableService
   readonly onClose: () => void
   readonly onContinue?: () => void
+  readonly continueLabel?: string
+  readonly quote?: TimeSlotHold['quote']
 }) {
-  const additions = journey.selection.additionalServiceIds
-    .map((id) => journey.services.find((service) => service.id === id))
-    .filter((service): service is PublicBookableService => service !== undefined)
+  const quotedPrimary = quote?.services.find((service) => service.role === 'primary')
+  const additions = quote
+    ? quote.services.filter((service) => service.role !== 'primary')
+    : journey.selection.additionalServiceIds
+        .map((id) => journey.services.find((service) => service.id === id))
+        .filter((service): service is PublicBookableService => service !== undefined)
+  const displayedPrimary = quotedPrimary ?? primary
+  const displayedProvider =
+    quote?.assignedProvider.displayName ?? providerLabel(journey)
+  const displayedTotal = quote?.totalMinor ?? total(journey)
+  const displayedCurrency = quote?.currency ?? primary.currency
   return (
     <m.div
       role="dialog"
@@ -1318,11 +1349,11 @@ function OrderSummary({
         <div {...stylex.props(styles.orderCard)}>
           <div {...stylex.props(styles.rowBetween)}>
             <div>
-              <p {...stylex.props(styles.orderProvider)}>{providerLabel(journey)}</p>
-              <p {...stylex.props(styles.orderMuted)}>{primary.name}</p>
+              <p {...stylex.props(styles.orderProvider)}>{displayedProvider}</p>
+              <p {...stylex.props(styles.orderMuted)}>{displayedPrimary.name}</p>
             </div>
             <strong {...stylex.props(styles.mono)}>
-              {formatPrice(primary.priceMinor, primary.currency)}
+              {formatPrice(displayedPrimary.priceMinor, displayedPrimary.currency)}
             </strong>
           </div>
           {additions.map((service) => (
@@ -1339,7 +1370,7 @@ function OrderSummary({
         <div {...stylex.props(styles.subtotal)}>
           <span>Subtotal</span>
           <span {...stylex.props(styles.mono)}>
-            {formatPrice(total(journey), primary.currency)}
+            {formatPrice(displayedTotal, displayedCurrency)}
           </span>
         </div>
         <button
@@ -1351,7 +1382,7 @@ function OrderSummary({
           }}
           {...stylex.props(styles.primaryButton, styles.drawerButton)}
         >
-          Choose time
+          {continueLabel}
         </button>
       </div>
     </m.div>

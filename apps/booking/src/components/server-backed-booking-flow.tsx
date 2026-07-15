@@ -586,6 +586,21 @@ export function ServerBackedBookingFlow({
       />
     )
   let schedulingContent: ReactNode = null
+  const nextPartyRequest = party.data?.requests.find(
+    (request) => request.id !== party.data.activeRequestId && !request.startsAt
+  )
+  const schedulingCheckoutLabel = nextPartyRequest
+    ? message('action.continue')
+    : message('action.checkout')
+  const continueFromScheduling = () => {
+    if (party.data && nextPartyRequest) {
+      partyMutation.mutate({
+        endpoint: 'activate',
+        body: { version: party.data.version, requestId: nextPartyRequest.id }
+      })
+    } else if (party.data && party.data.requests.length > 1) groupHoldMutation.mutate()
+    else setCheckout(true)
+  }
   if (scheduling) {
     if (expiredSession) {
       return (
@@ -800,6 +815,7 @@ export function ServerBackedBookingFlow({
       schedulingContent = (
         <BookingSchedulingFlow
           embedded
+          showOrderBar={false}
           premiumPalette={premiumPalette}
           availability={availability.data}
           busy={
@@ -813,25 +829,8 @@ export function ServerBackedBookingFlow({
           onBack={() => setScheduling(false)}
           onSelect={(startsAt) => holdMutation.mutate(startsAt)}
           onRelease={() => releaseMutation.mutate()}
-          {...(party.data?.requests.some(
-            (request) => request.id !== party.data.activeRequestId && !request.startsAt
-          )
-            ? { checkoutLabel: message('action.continue') }
-            : {})}
-          onCheckout={() => {
-            const next = party.data?.requests.find(
-              (request) =>
-                request.id !== party.data.activeRequestId && !request.startsAt
-            )
-            if (party.data && next) {
-              partyMutation.mutate({
-                endpoint: 'activate',
-                body: { version: party.data.version, requestId: next.id }
-              })
-            } else if (party.data && party.data.requests.length > 1)
-              groupHoldMutation.mutate()
-            else setCheckout(true)
-          }}
+          {...(nextPartyRequest ? { checkoutLabel: schedulingCheckoutLabel } : {})}
+          onCheckout={continueFromScheduling}
         />
       )
     }
@@ -948,7 +947,14 @@ export function ServerBackedBookingFlow({
                   releaseMutation.isPending ||
                   groupHoldMutation.isPending,
                 busyLabel: message('feedback.loading'),
-                onBack: () => setScheduling(false)
+                onBack: () => setScheduling(false),
+                ...(availability.data?.hold
+                  ? {
+                      orderAction: continueFromScheduling,
+                      orderActionLabel: schedulingCheckoutLabel,
+                      orderQuote: availability.data.hold.quote
+                    }
+                  : {})
               }
             }
           : {})}

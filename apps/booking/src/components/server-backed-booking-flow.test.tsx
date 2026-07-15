@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   BookingAvailability,
@@ -95,7 +102,32 @@ describe('server-backed Booking scheduling', () => {
       ],
       hold: null
     }
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const hold: NonNullable<BookingAvailability['hold']> = {
+      id: 'hld_transition',
+      bookingSessionId: 'bsn_transition',
+      createdAt: '2026-07-15T13:55:00.000Z',
+      expiresAt: '2026-07-15T14:05:00.000Z',
+      quote: {
+        startsAt: '2026-07-15T14:00:00.000Z',
+        endsAt: '2026-07-15T15:00:00.000Z',
+        providerPreference: { kind: 'specific', providerId: 'prv_ava' },
+        assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
+        services: [
+          {
+            id: 'svc_cut',
+            role: 'primary',
+            name: 'Cut',
+            durationMinutes: 60,
+            priceMinor: 5000,
+            currency: 'USD'
+          }
+        ],
+        durationMinutes: 60,
+        currency: 'USD',
+        totalMinor: 5500
+      }
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url =
         typeof input === 'string'
           ? input
@@ -105,6 +137,7 @@ describe('server-backed Booking scheduling', () => {
       if (url.endsWith('/selection')) return Response.json(journey)
       if (url.endsWith('/party')) return Response.json(party)
       if (url.endsWith('/availability')) return Response.json(availability)
+      if (url.endsWith('/hold') && init?.method === 'POST') return Response.json(hold)
       throw new Error(`unexpected request: ${url}`)
     })
     const queryClient = new QueryClient({
@@ -127,6 +160,22 @@ describe('server-backed Booking scheduling', () => {
     expect(schedulingTitle.closest('[data-booking-shell="canonical"]')).toBe(
       canonicalShell
     )
+    const schedulingViewOrder = screen.getByRole('button', {
+      name: /view order, \$50\.00/i
+    })
+    fireEvent.click(schedulingViewOrder)
+    expect(screen.getByRole('dialog', { name: 'Order summary' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close order summary' }))
+
+    fireEvent.click(screen.getByTestId('btn:chooseTime:time:2026-07-15T14:00:00.000Z'))
+    await screen.findByTestId('btn:chooseTime:time:2026-07-15T14:00:00.000Z:selected')
+    expect(screen.getAllByTestId('btn:viewOrder')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: /view order, \$55\.00/i }))
+    const heldOrderSummary = screen.getByRole('dialog', { name: 'Order summary' })
+    expect(within(heldOrderSummary).getByText('$50.00')).toBeTruthy()
+    expect(within(heldOrderSummary).getByText('$55.00')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Go to checkout' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close order summary' }))
     const forwardRoute = canonicalShell?.querySelector(
       '[data-presence-variant="route"][data-route-direction="forward"]'
     )
@@ -451,6 +500,7 @@ describe('server-backed Booking scheduling', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: /view order, \$50\.00/i })
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Go to checkout' }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mia' } })
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'mia@example.com' }
