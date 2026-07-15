@@ -560,6 +560,55 @@ describe('Booking selection flow', () => {
     expect(continueToTime).toHaveBeenCalledOnce()
   })
 
+  it('closes the order summary without moving the page behind it', async () => {
+    const selected: BookingJourney = {
+      ...teamJourney,
+      presentation: 'solo',
+      providerPreference: { kind: 'specific', providerId: 'prv_ava' },
+      selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] },
+      compatibleAdditionalServiceIds: ['svc_beard']
+    }
+    render(
+      <BookingSelectionFlow
+        journey={selected}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('btn:viewOrder'))
+    await new Promise((resolve) => setTimeout(resolve, 400))
+
+    const scrollable = screen.getByTestId('container:scrollable')
+    Object.defineProperty(scrollable, 'scrollTop', {
+      configurable: true,
+      value: 0,
+      writable: true
+    })
+    const originalFocus = HTMLElement.prototype.focus
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
+      this: HTMLElement,
+      options?: FocusOptions
+    ) {
+      if (this.dataset.testid === 'btn:viewOrder' && options?.preventScroll !== true) {
+        scrollable.scrollTop = 120
+      }
+      originalFocus.call(this, options)
+    })
+    try {
+      const close = screen.getByTestId('btn:close')
+      close.focus()
+      fireEvent.click(close)
+      await new Promise((resolve) => setTimeout(resolve, 25))
+      expect(document.activeElement).toBe(screen.getByTestId('btn:viewOrder'))
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+      expect(scrollable.scrollTop).toBe(0)
+    } finally {
+      focus.mockRestore()
+    }
+  })
+
   it('uses the legacy service-card contract and waits through its selected transition before add-ons', async () => {
     vi.useFakeTimers()
     const chooseServices = vi.fn()

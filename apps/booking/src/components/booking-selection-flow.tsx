@@ -165,7 +165,7 @@ function BookingSelectionFlowContent({
 
   const closeOrder = () => {
     setOrderOpen(false)
-    window.setTimeout(() => viewOrderButton.current?.focus(), 0)
+    window.setTimeout(() => viewOrderButton.current?.focus({ preventScroll: true }), 0)
   }
 
   const chooseGiftCard = () => {
