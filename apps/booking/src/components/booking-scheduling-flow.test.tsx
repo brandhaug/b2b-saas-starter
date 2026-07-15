@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BookingAvailability } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
@@ -88,17 +88,22 @@ describe('Booking scheduling flow', () => {
     expect(screen.getByText('July 2026')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Next dates' })).toBeNull()
+    const todayButton = screen.getByRole('button', {
+      name: /wednesday, july 15/i
+    }) as HTMLButtonElement
+    expect(todayButton.disabled).toBe(true)
     expect(
-      (
-        screen.getByRole('button', {
-          name: /wednesday, july 15/i
-        }) as HTMLButtonElement
-      ).disabled
-    ).toBe(true)
+      todayButton
+        .querySelector('[data-calendar-today-dot]')
+        ?.getAttribute('data-calendar-today-variant')
+    ).toBe('day-off')
     fireEvent.click(screen.getByTestId('btn:back'))
     expect(back).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: /monday, july 13/i }))
-    fireEvent.click(screen.getByRole('button', { name: /9:00/ }))
+    const availableTime = screen.getByTestId('btn:chooseTime:time:9:00AM')
+    expect(availableTime.firstElementChild?.tagName).toBe('P')
+    expect(availableTime.getAttribute('data-time-button-state')).toBe('available')
+    fireEvent.click(availableTime)
     expect(select).toHaveBeenCalledWith('2026-07-13T09:00:00.000Z')
     expect(screen.queryByRole('button', { name: /monday, july 20/i })).toBeNull()
     fireEvent.click(screen.getByTestId('btn:expandCalendar'))
@@ -141,10 +146,18 @@ describe('Booking scheduling flow', () => {
     expect(monthCalendar.querySelectorAll('[data-calendar-cell]')).toHaveLength(35)
     fireEvent.click(monthCalendar.querySelector('[aria-label="Monday, July 13"]')!)
     expect(screen.getByTestId('calendarMonth')).toBe(monthCalendar)
+    const previousTimeButton = screen.getByTestId('btn:chooseTime:time:9:00AM')
     fireEvent.click(monthCalendar.querySelector('[aria-label="Monday, July 20"]')!)
-    fireEvent.click(
-      await screen.findByTestId('btn:chooseTime:time:2026-07-20T09:00:00.000Z')
-    )
+    await waitFor(() => {
+      expect(screen.getByTestId('text:selectedDate').textContent).toBe(
+        'Monday, July 20'
+      )
+      expect(screen.getAllByTestId('btn:chooseTime:time:9:00AM')).toHaveLength(1)
+      expect(screen.getByTestId('btn:chooseTime:time:9:00AM')).not.toBe(
+        previousTimeButton
+      )
+    })
+    fireEvent.click(screen.getByTestId('btn:chooseTime:time:9:00AM'))
     expect(select).toHaveBeenLastCalledWith('2026-07-20T09:00:00.000Z')
   })
 
@@ -287,9 +300,9 @@ describe('Booking scheduling flow', () => {
         onCheckout={vi.fn()}
       />
     )
-    expect(
-      screen.getByTestId('btn:chooseTime:time:2026-07-13T09:00:00.000Z:selected')
-    ).toBeTruthy()
+    const selectedTime = screen.getByTestId('btn:chooseTime:time:9:00AM:selected')
+    expect(selectedTime.getAttribute('data-time-button-state')).toBe('selected')
+    expect(selectedTime.firstElementChild?.tagName).toBe('P')
     expect(screen.getByTestId('btn:viewOrder')).toBeTruthy()
   })
 

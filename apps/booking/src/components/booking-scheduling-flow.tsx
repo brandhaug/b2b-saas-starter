@@ -306,6 +306,7 @@ export function BookingSchedulingFlow({
                               date={date}
                               activeDate={activeDate}
                               available={availableDaySet.has(date)}
+                              today={date === today}
                               longDate={formatters.longDate}
                               weekday={formatters.weekday}
                               onChoose={setChosenDate}
@@ -401,22 +402,15 @@ export function BookingSchedulingFlow({
                   {visible.map((slot) => {
                     const selected = availability.hold?.quote.startsAt === slot.startsAt
                     return (
-                      <button
+                      <TimeButtonAvailable
                         key={slot.startsAt}
-                        type="button"
+                        startsAt={slot.startsAt}
+                        selected={selected}
                         disabled={busy}
-                        aria-label={formatters.time.format(new Date(slot.startsAt))}
-                        data-testid={`btn:chooseTime:time:${slot.startsAt}${selected ? ':selected' : ''}`}
-                        onClick={() => onSelect(slot.startsAt)}
-                        {...stylex.props(
-                          styles.timeButton,
-                          selected && styles.selectedTime
-                        )}
-                      >
-                        {formatters.time
-                          .format(new Date(slot.startsAt))
-                          .toLocaleLowerCase(locale)}
-                      </button>
+                        locale={locale}
+                        formatter={formatters.time}
+                        onChoose={onSelect}
+                      />
                     )
                   })}
                 </m.div>
@@ -550,6 +544,7 @@ function CalendarLineDay({
   date,
   activeDate,
   available,
+  today,
   longDate,
   weekday,
   onChoose
@@ -557,6 +552,7 @@ function CalendarLineDay({
   readonly date: string
   readonly activeDate: string | null
   readonly available: boolean
+  readonly today: boolean
   readonly longDate: Intl.DateTimeFormat
   readonly weekday: Intl.DateTimeFormat
   readonly onChoose: (date: string) => void
@@ -582,10 +578,60 @@ function CalendarLineDay({
         <span {...stylex.props(styles.dateCircleBorder)}>
           {date.slice(-2).replace(/^0/, '')}
         </span>
+        {today ? (
+          <span
+            aria-hidden="true"
+            data-calendar-today-dot
+            data-calendar-today-variant={available ? 'available' : 'day-off'}
+            {...stylex.props(
+              styles.calendarTodayDot,
+              available && styles.availableCalendarTodayDot
+            )}
+          />
+        ) : null}
       </span>
       <span {...stylex.props(styles.dayLabel, selected && styles.activeDayLabel)}>
         {weekday.format(asLocalNoon(date)).replace('.', '')}
       </span>
+    </button>
+  )
+}
+
+function TimeButtonAvailable({
+  startsAt,
+  selected,
+  disabled,
+  locale,
+  formatter,
+  onChoose
+}: {
+  readonly startsAt: string
+  readonly selected: boolean
+  readonly disabled: boolean
+  readonly locale: BookingLocale
+  readonly formatter: Intl.DateTimeFormat
+  readonly onChoose: (startsAt: string) => void
+}) {
+  const formattedTime = formatter.format(new Date(startsAt))
+  const legacyTimeToken = formattedTime.replace(/\s+/g, '')
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-label={formattedTime}
+      data-testid={`btn:chooseTime:time:${legacyTimeToken}${selected ? ':selected' : ''}`}
+      data-time-button-state={selected ? 'selected' : 'available'}
+      onClick={() => onChoose(startsAt)}
+      {...stylex.props(
+        styles.timeButton,
+        selected && styles.selectedTime,
+        selected && disabled && styles.selectedDisabledTime
+      )}
+    >
+      <p {...stylex.props(styles.timeButtonText)}>
+        {formattedTime.toLocaleLowerCase(locale)}
+      </p>
     </button>
   )
 }

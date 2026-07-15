@@ -853,6 +853,22 @@ export const styles = stylex.create({
     placeItems: 'center',
     borderRadius: 999
   },
+  calendarTodayDot: {
+    position: 'absolute',
+    bottom: 4,
+    left: '50%',
+    width: 4,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgb(0 0 0 / 50%)',
+    pointerEvents: 'none',
+    transform: 'translateX(-50%)'
+  },
+  availableCalendarTodayDot: {
+    width: 2,
+    height: 2,
+    backgroundColor: '#ffffff'
+  },
   availableDate: {
     backgroundColor: '#000000',
     backgroundImage: 'none',
@@ -1065,7 +1081,11 @@ export const styles = stylex.create({
     justifyContent: 'space-between'
   },
   timeButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     height: 48,
+    paddingBlock: 0,
     paddingInline: 8,
     borderWidth: 1,
     borderStyle: 'solid',
@@ -1081,6 +1101,8 @@ export const styles = stylex.create({
     fontWeight: 600,
     lineHeight: '20px',
     letterSpacing: '-0.24px',
+    transitionDuration: '0.15s',
+    transitionProperty: 'border-color, background-color, box-shadow, color',
     boxShadow: {
       default: 'none',
       ':hover': '0 8px 16px -5px rgb(0 0 0 / 10%)'
@@ -1098,9 +1120,33 @@ export const styles = stylex.create({
     marginRight: 5
   },
   selectedTime: {
-    borderColor: bookingTheme.colorPrimary,
-    backgroundColor: bookingTheme.colorPrimary,
+    borderColor: {
+      default: bookingTheme.colorPrimary,
+      ':hover': bookingTheme.colorPrimary
+    },
+    backgroundColor: {
+      default: bookingTheme.colorPrimary,
+      ':hover': bookingTheme.colorPrimary
+    },
     color: bookingTheme.colorPrimaryFont
+  },
+  selectedDisabledTime: {
+    borderColor: {
+      default: '#8e8d92',
+      ':hover': '#8e8d92'
+    },
+    backgroundColor: {
+      default: '#8e8d92',
+      ':hover': '#8e8d92'
+    },
+    color: '#c6c6c8',
+    opacity: 1
+  },
+  timeButtonText: {
+    margin: 0,
+    font: 'inherit',
+    lineHeight: '18px',
+    textTransform: 'lowercase'
   },
   selectedTimeFeedback: {
     marginTop: 20,

@@ -184,8 +184,8 @@ describe('server-backed Booking scheduling', () => {
     expect(screen.getByRole('dialog', { name: 'Order summary' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close order summary' }))
 
-    fireEvent.click(screen.getByTestId('btn:chooseTime:time:2026-07-15T14:00:00.000Z'))
-    await screen.findByTestId('btn:chooseTime:time:2026-07-15T14:00:00.000Z:selected')
+    fireEvent.click(screen.getByTestId('btn:chooseTime:time:2:00PM'))
+    await screen.findByTestId('btn:chooseTime:time:2:00PM:selected')
     expect(screen.getAllByTestId('btn:viewOrder')).toHaveLength(1)
     const checkoutOrder = screen.getByRole('button', {
       name: /go to checkout, \$55\.00/i
