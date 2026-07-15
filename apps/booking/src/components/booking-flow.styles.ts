@@ -741,9 +741,6 @@ export const styles = stylex.create({
     minHeight: 64,
     marginBottom: 28
   },
-  scheduleTopOffset: {
-    marginTop: bookingTheme.space20
-  },
   calendarHeader: {
     display: 'flex',
     minHeight: 28,
