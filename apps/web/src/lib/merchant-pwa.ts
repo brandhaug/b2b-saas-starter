@@ -33,8 +33,8 @@ export const createMerchantPwaManifest = ({
     start_url: merchantPath,
     scope: merchantPath,
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#1d1d1d',
+    background_color: '#000000',
+    theme_color: '#000000',
     icons: [
       {
         src: '/pwa-icon-192.png',
@@ -57,7 +57,7 @@ export const merchantPwaManifestResponse = (
 ): Response =>
   Response.json(createMerchantPwaManifest(merchant), {
     headers: {
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
       'Content-Type': 'application/manifest+json'
     }
   })

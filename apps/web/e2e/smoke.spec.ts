@@ -38,6 +38,27 @@ test('published Merchant pages own a standalone PWA manifest', async ({ page }) 
   expect(unknownResponse.status()).toBe(404)
 })
 
+test('canonical Booking ingress keeps the Merchant PWA identity and scope', async ({
+  page
+}) => {
+  await page.goto('/mara-booking-studio/booking')
+
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
+    'href',
+    '/merchant-manifest.webmanifest?merchant=mara-booking-studio'
+  )
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const registration = await navigator.serviceWorker.getRegistration(
+          '/mara-booking-studio/'
+        )
+        return registration?.scope
+      })
+    )
+    .toBe('http://localhost:3071/mara-booking-studio/')
+})
+
 test('superseded authenticated routes are absent', async ({ page }) => {
   await page.goto('/workspaces/starter-lab')
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()

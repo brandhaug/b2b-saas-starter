@@ -23,6 +23,7 @@ export const Route = createFileRoute('/$merchantSlug')({
       meta: [
         { title: `${loaderData.publicName} | Book online` },
         { name: 'application-name', content: loaderData.publicName },
+        { name: 'theme-color', content: '#000000' },
         {
           name: 'viewport',
           content: 'width=device-width, initial-scale=1, viewport-fit=cover'

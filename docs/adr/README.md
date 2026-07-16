@@ -63,6 +63,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0041 — TanStack Form for mutation forms](./0041-tanstack-form-for-mutation-forms.md)
 - [0042 — TanStack Table for dense lists](./0042-tanstack-table-for-dense-lists.md)
 - [0045 — Build-time syntax highlighting with Shiki](./0045-build-time-syntax-highlighting-with-shiki.md)
+- [0055 — Merchant-scoped, network-fresh PWA](./0055-merchant-scoped-network-fresh-pwa.md)
 
 ## Content and documentation
 
@@ -81,7 +82,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 
 ## Deferred by default
 
-- [0021 — No initial PWA](./0021-no-initial-pwa.md)
+- [0021 — No initial PWA](./0021-no-initial-pwa.md) (superseded by 0055)
 - [0028 — No initial file storage](./0028-no-initial-file-storage.md)
 - [0029 — No initial i18n](./0029-no-initial-i18n.md)
 - [0034 — No initial realtime transport](./0034-no-initial-realtime-transport.md)

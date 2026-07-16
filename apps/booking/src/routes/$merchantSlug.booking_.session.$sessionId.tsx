@@ -1,7 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ServerBackedBookingFlow } from '../components/server-backed-booking-flow'
+import { MerchantPwaRegistration } from '../components/merchant-pwa-registration'
+import { createMerchantBookingPwaConfig } from '../lib/merchant-pwa'
 
 export const Route = createFileRoute('/$merchantSlug/booking_/session/$sessionId')({
+  head: ({ params }) => createMerchantBookingPwaConfig(params.merchantSlug).head,
   component: ProtectedBookingSessionRoute
 })
 
@@ -17,5 +20,11 @@ export function BookingSessionRouteView({
   readonly merchantSlug: string
   readonly sessionId: string
 }) {
-  return <ServerBackedBookingFlow merchantSlug={merchantSlug} sessionId={sessionId} />
+  const pwa = createMerchantBookingPwaConfig(merchantSlug)
+  return (
+    <>
+      <MerchantPwaRegistration scope={pwa.scope} />
+      <ServerBackedBookingFlow merchantSlug={merchantSlug} sessionId={sessionId} />
+    </>
+  )
 }

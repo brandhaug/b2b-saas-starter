@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { NotFoundPage } from '../components/not-found-page'
 import { BookingLocalizationProvider } from '../localization/booking-localization-provider'
+import { BOOKING_PWA_THEME_COLOR, BOOKING_PWA_VIEWPORT } from '../lib/merchant-pwa'
 import appCss from '../index.css?url'
 
 export const Route = createRootRoute({
@@ -13,8 +14,9 @@ export const Route = createRootRoute({
       { charSet: 'utf-8' },
       {
         name: 'viewport',
-        content: 'width=device-width, initial-scale=1, viewport-fit=cover'
+        content: BOOKING_PWA_VIEWPORT
       },
+      { name: 'theme-color', content: BOOKING_PWA_THEME_COLOR },
       { title: 'Book an appointment' },
       {
         name: 'description',

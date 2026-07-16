@@ -8,12 +8,20 @@ export default defineConfig({
     baseURL: 'http://localhost:3071',
     trace: 'on-first-retry'
   },
-  webServer: {
-    command: 'bun run dev',
-    url: 'http://localhost:3071',
-    reuseExistingServer: true,
-    timeout: 120_000
-  },
+  webServer: [
+    {
+      command: 'bun --cwd ../booking dev',
+      url: 'http://localhost:3073',
+      reuseExistingServer: true,
+      timeout: 120_000
+    },
+    {
+      command: 'bun run dev',
+      url: 'http://localhost:3071',
+      reuseExistingServer: true,
+      timeout: 120_000
+    }
+  ],
   projects: [
     {
       name: 'chromium',
