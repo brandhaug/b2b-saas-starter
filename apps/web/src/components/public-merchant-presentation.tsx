@@ -23,7 +23,14 @@ export function PublicMerchantPresentation({
 }: {
   readonly page: PublicBookingPage
 }) {
-  const hasMaraStudioArtwork = page.merchantSlug === MARA_STUDIO_SLUG
+  if (page.merchantSlug !== MARA_STUDIO_SLUG) {
+    return <DefaultMerchantPresentation page={page} />
+  }
+
+  return <MaraMerchantPresentation page={page} />
+}
+
+function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }) {
   const categoryCount = new Set(
     page.services.flatMap((service) => (service.category ? [service.category] : []))
   ).size
@@ -32,16 +39,12 @@ export function PublicMerchantPresentation({
     <main className="min-h-dvh bg-black text-white sm:px-5 sm:py-8">
       <div className="relative mx-auto min-h-dvh w-full max-w-[480px] overflow-hidden bg-[#050505] sm:min-h-[calc(100dvh-4rem)] sm:rounded-[2.5rem] sm:shadow-2xl sm:shadow-black/50">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[62dvh] max-h-[670px]">
-          {hasMaraStudioArtwork ? (
-            <img
-              alt="Barber at work in Mara Booking Studio"
-              className="size-full object-cover object-center"
-              fetchPriority="high"
-              src="/images/merchant/mara-hero.png"
-            />
-          ) : (
-            <div className="size-full bg-[radial-gradient(circle_at_65%_25%,#525252_0%,#171717_40%,#050505_75%)]" />
-          )}
+          <img
+            alt="Barber at work in Mara Booking Studio"
+            className="size-full object-cover object-center"
+            fetchPriority="high"
+            src="/images/merchant/mara-hero.png"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/25 to-black/45" />
         </div>
 
@@ -60,9 +63,7 @@ export function PublicMerchantPresentation({
 
           <div className="px-6">
             <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-white/65 uppercase">
-              {hasMaraStudioArtwork
-                ? "Mara's chair · Bucharest"
-                : `${page.publicName} · Public studio`}
+              Mara&apos;s chair · Bucharest
             </p>
             <h1 className="max-w-[390px] text-balance text-[2.65rem] leading-[0.98] font-bold tracking-[-0.045em] text-white">
               Precision grooming, made personal
@@ -89,16 +90,12 @@ export function PublicMerchantPresentation({
               </article>
 
               <figure className="relative h-60 overflow-hidden rounded-3xl bg-neutral-800">
-                {hasMaraStudioArtwork ? (
-                  <img
-                    alt="Precision haircut detail"
-                    className="size-full object-cover transition-transform duration-500 hover:scale-105"
-                    loading="lazy"
-                    src="/images/merchant/mara-haircut.png"
-                  />
-                ) : (
-                  <div className="size-full bg-[linear-gradient(145deg,#404040,#171717)]" />
-                )}
+                <img
+                  alt="Precision haircut detail"
+                  className="size-full object-cover transition-transform duration-500 hover:scale-105"
+                  loading="lazy"
+                  src="/images/merchant/mara-haircut.png"
+                />
                 <figcaption className="sr-only">Precision haircut detail</figcaption>
               </figure>
             </section>
@@ -153,16 +150,12 @@ export function PublicMerchantPresentation({
 
             <section aria-label="Studio gallery" className="grid grid-cols-2 gap-4">
               <figure className="relative h-60 overflow-hidden rounded-3xl bg-neutral-800">
-                {hasMaraStudioArtwork ? (
-                  <img
-                    alt="Client with a fresh cut"
-                    className="size-full object-cover transition-transform duration-500 hover:scale-105"
-                    loading="lazy"
-                    src="/images/merchant/mara-client.png"
-                  />
-                ) : (
-                  <div className="size-full bg-[linear-gradient(35deg,#171717,#525252)]" />
-                )}
+                <img
+                  alt="Client with a fresh cut"
+                  className="size-full object-cover transition-transform duration-500 hover:scale-105"
+                  loading="lazy"
+                  src="/images/merchant/mara-client.png"
+                />
                 <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pt-12 pb-4 text-sm font-semibold">
                   Made for you
                 </figcaption>
@@ -200,6 +193,47 @@ export function PublicMerchantPresentation({
           </div>
         </div>
       </div>
+    </main>
+  )
+}
+
+function DefaultMerchantPresentation({ page }: { readonly page: PublicBookingPage }) {
+  return (
+    <main className="min-h-dvh bg-background text-foreground">
+      <section className="mx-auto max-w-5xl px-6 py-20">
+        <p className="text-sm font-medium text-primary">Public Booking Page</p>
+        <h1 className="mt-4 text-5xl font-semibold tracking-tight">
+          {page.publicName}
+        </h1>
+        <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+          Choose a service and find a time that works for you.
+        </p>
+        <a
+          href={page.bookingPath}
+          className="mt-8 inline-flex h-11 items-center bg-primary px-5 text-sm font-medium text-primary-foreground"
+        >
+          Book an appointment
+        </a>
+        <div className="mt-16 grid gap-4 sm:grid-cols-2">
+          {page.services.map((service) => (
+            <article key={service.id} className="border border-border bg-card p-5">
+              <p className="text-xs text-muted-foreground">
+                {service.category ?? 'Service'}
+              </p>
+              <h2 className="mt-2 text-xl font-semibold">{service.name}</h2>
+              {service.description ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {service.description}
+                </p>
+              ) : null}
+              <p className="mt-4 text-sm">
+                {service.durationMinutes} min ·{' '}
+                {formatMoney(service.priceMinor, service.currency)}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
     </main>
   )
 }

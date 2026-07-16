@@ -36,7 +36,7 @@ describe('Public Booking Page resolution', () => {
     expect(unknown).toEqual({ kind: 'unknown' })
 
     if (published.kind !== 'published') throw new Error('expected published page')
-    render(
+    const presentation = render(
       <PublishedMerchantPage
         page={published.page}
         merchantSlug={scenario.merchant.slug}
@@ -54,6 +54,22 @@ describe('Public Booking Page resolution', () => {
       isBookingRequest(new URL(cta.getAttribute('href')!, 'https://public.test'))
     ).toBe(true)
     expect(cta).toBeInstanceOf(HTMLAnchorElement)
+
+    presentation.unmount()
+    render(
+      <PublishedMerchantPage
+        page={{
+          ...published.page,
+          merchantSlug: 'another-studio',
+          bookingPath: '/another-studio/booking'
+        }}
+        merchantSlug="another-studio"
+      />
+    )
+    expect(
+      screen.getByRole('heading', { name: scenario.merchant.publicName })
+    ).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Book an appointment' })).toBeTruthy()
   })
 
   it('renders unavailable noindex and generic 404 variants', () => {
