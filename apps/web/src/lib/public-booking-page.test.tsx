@@ -84,6 +84,9 @@ describe('Public Booking Page resolution', () => {
     expect(cta).toBeInstanceOf(HTMLAnchorElement)
     expect(screen.queryByRole('dialog', { name: 'Book an appointment' })).toBeNull()
     expect(screen.queryByTitle('Booking app')).toBeNull()
+    fireEvent.click(cta)
+    expect(screen.getByRole('status', { name: 'Opening booking' })).toBeTruthy()
+    expect(screen.queryByTitle('Booking app')).toBeNull()
 
     presentation.unmount()
     render(

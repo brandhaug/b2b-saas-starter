@@ -8,7 +8,14 @@ import {
   Star,
   X
 } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useCallback,
+  type MouseEvent as ReactMouseEvent
+} from 'react'
 import type { PublicBookingPage } from '@b2b-saas-starter/capabilities/scheduling'
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>()
@@ -27,6 +34,7 @@ const formatMoney = (priceMinor: number, currency: string): string => {
 }
 
 const MARA_STUDIO_SLUG = 'mara-booking-studio'
+const BOOKING_TRANSITION_FALLBACK_MS = 1_200
 
 const maraGallery = [
   {
@@ -89,6 +97,23 @@ export function PublicMerchantPresentation({
 function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }) {
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
   const [locationOpen, setLocationOpen] = useState(false)
+  const bookingTransition = useBookingPageTransition(page.bookingPath)
+
+  const openBooking = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      bookingTransition.active
+    ) {
+      return
+    }
+
+    event.preventDefault()
+    bookingTransition.start()
+  }
 
   return (
     <main className="dark min-h-dvh bg-background text-foreground sm:px-5 sm:py-8">
@@ -145,6 +170,7 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
             <a
               className="mt-2 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-primary px-5 text-base font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               href={page.bookingPath}
+              onClick={openBooking}
             >
               <CalendarDays aria-hidden="true" className="size-6" />
               Book an appointment
@@ -171,8 +197,67 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
             onClose={() => setLocationOpen(false)}
           />
         ) : null}
+
+        {bookingTransition.active ? (
+          <BookingPageTransition onComplete={bookingTransition.complete} />
+        ) : null}
       </div>
     </main>
+  )
+}
+
+type BookingTransitionState = 'idle' | 'animating' | 'navigating'
+
+function useBookingPageTransition(bookingPath: string) {
+  const [state, setState] = useState<BookingTransitionState>('idle')
+  const started = useRef(false)
+  const navigationStarted = useRef(false)
+  const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const complete = useCallback(() => {
+    if (!started.current || navigationStarted.current) return
+    navigationStarted.current = true
+    setState('navigating')
+    window.location.assign(bookingPath)
+  }, [bookingPath])
+
+  const start = useCallback(() => {
+    if (started.current) return
+    started.current = true
+    setState('animating')
+    fallbackTimer.current = setTimeout(complete, BOOKING_TRANSITION_FALLBACK_MS)
+  }, [complete])
+
+  useEffect(
+    () => () => {
+      if (fallbackTimer.current) clearTimeout(fallbackTimer.current)
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (state === 'idle') return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [state])
+
+  return { active: state !== 'idle', complete, start } as const
+}
+
+function BookingPageTransition({ onComplete }: { readonly onComplete: () => void }) {
+  return (
+    <div
+      aria-label="Opening booking"
+      aria-live="polite"
+      className="booking-page-transition fixed inset-0 z-50 min-h-dvh bg-neutral-100"
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) onComplete()
+      }}
+      role="status"
+    />
   )
 }
 

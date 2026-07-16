@@ -19,6 +19,26 @@
   }
 }
 
+.booking-page-transition {
+  animation: booking-page-transition-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes booking-page-transition-in {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-page-transition {
+    animation-duration: 320ms;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
