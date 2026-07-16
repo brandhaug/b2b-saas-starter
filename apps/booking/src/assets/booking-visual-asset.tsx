@@ -145,6 +145,51 @@ function LegacyGiftCard(props: LucideProps) {
   )
 }
 
+function LegacyPopupClose(props: LucideProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="12" fill="#ebebeb" />
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M7.176 15.971a.6.6 0 1 0 .849.849L12 12.846l3.975 3.974a.6.6 0 0 0 .849-.849l-3.975-3.973 3.975-3.974a.6.6 0 1 0-.849-.848L12 11.149 8.025 7.176a.6.6 0 0 0-.849.848l3.975 3.974-3.975 3.973z"
+      />
+    </svg>
+  )
+}
+
+function LegacyPolicyCancellation(props: LucideProps) {
+  return (
+    <svg viewBox="0 0 81 80" fill="none" aria-hidden="true" {...props}>
+      <path
+        fill="#000"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="m35.9733 28c.575 0 1.0411.4611 1.0411 1.0299v1.2089h6.9712v-1.2089c0-.5688.4661-1.0299 1.0411-1.0299.5751 0 1.0412.4611 1.0412 1.0299v1.2089h.7696c2.575 0 4.6625 2.0648 4.6625 4.6119v12.5373c0 2.5472-2.0875 4.612-4.6625 4.612h-12.6749c-2.5751 0-4.6626-2.0648-4.6626-4.612v-12.5373c0-2.5471 2.0875-4.6119 4.6626-4.6119h.7695v-1.2089c0-.5688.4661-1.0299 1.0412-1.0299zm8.0123 4.2985v1.209c0 .5687.4661 1.0298 1.0411 1.0298.5751 0 1.0412-.4611 1.0412-1.0298v-1.209h.7696c1.425 0 2.5802 1.1427 2.5802 2.5522v1.6568h-17.8354v-1.6568c0-1.4095 1.1552-2.5522 2.5803-2.5522h.7695v1.209c0 .5687.4661 1.0298 1.0412 1.0298.575 0 1.0411-.4611 1.0411-1.0298v-1.209zm-12.4033 6.2687v8.8208c0 1.4096 1.1552 2.5523 2.5803 2.5523h12.6749c1.425 0 2.5802-1.1427 2.5802-2.5523v-8.8208z"
+      />
+      <g stroke="#dadadc" strokeWidth="2">
+        <path d="m13 12 55.5 55.5" />
+        <rect width="78" height="78" x="1.5" y="1" rx="39" />
+      </g>
+    </svg>
+  )
+}
+
+function LegacyPolicyStatusCheck(props: LucideProps) {
+  return (
+    <svg viewBox="0 0 11 8" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="m1 4.693 2.333 2.215L9.366 1"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 const codeNativeIconByName: Readonly<Record<string, ComponentType<LucideProps>>> = {
   ...iconByName,
   'legacy-back-chevron': LegacyBackChevron,
@@ -152,7 +197,10 @@ const codeNativeIconByName: Readonly<Record<string, ComponentType<LucideProps>>>
   'legacy-language-globe': LegacyLanguageGlobe,
   'legacy-sign-in-cta': LegacySignInCta,
   'legacy-any-provider-arrows': LegacyAnyProviderArrows,
-  'legacy-gift-card': LegacyGiftCard
+  'legacy-gift-card': LegacyGiftCard,
+  'legacy-popup-close': LegacyPopupClose,
+  'legacy-policy-cancellation': LegacyPolicyCancellation,
+  'legacy-policy-status-check': LegacyPolicyStatusCheck
 }
 
 export function BookingVisualAsset({

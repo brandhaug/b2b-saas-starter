@@ -265,13 +265,19 @@ const en = {
   'confirmation.cancelled': 'The appointment was cancelled.',
   'confirmation.cancel_failed': 'Cancellation could not be completed.',
   'checkout.title': 'Confirm booking',
-  'checkout.cancellation_policy': 'Cancellation policy',
+  'checkout.cancellation_policy': 'Cancelation policy',
   'checkout.cancellation_policy_copy':
-    'You’ll have until {time} on {date} to cancel this appointment without being charged.',
-  'checkout.no_cancellation': 'This appointment cannot be cancelled.',
+    'You’ll have until {time} on {date} to cancel this appointment without being charged.',
+  'checkout.cancellation_policy_copy_plural':
+    'You’ll have until {time} on {date} to cancel this order without being charged.',
+  'checkout.no_cancellation':
+    'According to the cancelation policy, you cannot cancel this appointment.',
+  'checkout.no_cancellation_plural':
+    'According to the cancelation policy, you cannot cancel this order.',
   'checkout.now': 'Now',
   'checkout.appointment': 'Appointment',
-  'checkout.agree': 'I agree',
+  'checkout.appointments': 'Appointments',
+  'checkout.agree': 'OK',
   'checkout.adults_title': 'Adults only',
   'checkout.adults_copy': 'Guests must be 21 or older.',
   'checkout.adults_confirm': 'I am 21 or older',
@@ -516,11 +522,17 @@ const es = {
   'checkout.title': 'Confirmar reserva',
   'checkout.cancellation_policy': 'Política de cancelación',
   'checkout.cancellation_policy_copy':
-    'Tendrás hasta las {time} del {date} para cancelar esta cita sin cargos.',
-  'checkout.no_cancellation': 'Esta cita no se puede cancelar.',
+    'Tendrás hasta las {time} del {date} para cancelar esta cita sin ser cobrado.',
+  'checkout.cancellation_policy_copy_plural':
+    'Tendrás hasta las {time} del {date} para cancelar este pedido sin ser cobrado.',
+  'checkout.no_cancellation':
+    'Según la política de cancelación, no puedes cancelar esta cita.',
+  'checkout.no_cancellation_plural':
+    'Según la política de cancelación, no puedes cancelar este pedido.',
   'checkout.now': 'Ahora',
   'checkout.appointment': 'Cita',
-  'checkout.agree': 'Acepto',
+  'checkout.appointments': 'Citas',
+  'checkout.agree': 'OK',
   'checkout.adults_title': 'Solo para adultos',
   'checkout.adults_copy': 'Los clientes deben tener al menos 21 años.',
   'checkout.adults_confirm': 'Tengo 21 años o más',
@@ -765,13 +777,19 @@ const fr = {
   'confirmation.cancelled': 'Le rendez-vous a été annulé.',
   'confirmation.cancel_failed': 'L’annulation n’a pas pu être effectuée.',
   'checkout.title': 'Confirmer la réservation',
-  'checkout.cancellation_policy': 'Politique d’annulation',
+  'checkout.cancellation_policy': "Politique d'annulation",
   'checkout.cancellation_policy_copy':
-    'Vous aurez jusqu’à {time} le {date} pour annuler ce rendez-vous sans frais.',
-  'checkout.no_cancellation': 'Ce rendez-vous ne peut pas être annulé.',
+    "Vous aurez jusqu'à {time} le {date} pour annuler ce rendez-vous sans frais.",
+  'checkout.cancellation_policy_copy_plural':
+    "Vous aurez jusqu'à {time} le {date} pour annuler cette commande sans frais.",
+  'checkout.no_cancellation':
+    "Selon la politique d'annulation, vous ne pouvez pas annuler ce rendez-vous.",
+  'checkout.no_cancellation_plural':
+    "Selon la politique d'annulation, vous ne pouvez pas annuler cette commande.",
   'checkout.now': 'Maintenant',
   'checkout.appointment': 'Rendez-vous',
-  'checkout.agree': 'J’accepte',
+  'checkout.appointments': 'Rendez-vous',
+  'checkout.agree': 'OK',
   'checkout.adults_title': 'Réservé aux adultes',
   'checkout.adults_copy': 'Les clients doivent avoir au moins 21 ans.',
   'checkout.adults_confirm': 'J’ai 21 ans ou plus',
@@ -1017,10 +1035,16 @@ const ro = {
   'checkout.cancellation_policy': 'Politica de anulare',
   'checkout.cancellation_policy_copy':
     'Poți anula această programare fără costuri până la {time}, pe {date}.',
-  'checkout.no_cancellation': 'Această programare nu poate fi anulată.',
+  'checkout.cancellation_policy_copy_plural':
+    'Poți anula această comandă fără costuri până la {time}, pe {date}.',
+  'checkout.no_cancellation':
+    'Conform politicii de anulare, nu poți anula această programare.',
+  'checkout.no_cancellation_plural':
+    'Conform politicii de anulare, nu poți anula această comandă.',
   'checkout.now': 'Acum',
   'checkout.appointment': 'Programare',
-  'checkout.agree': 'Sunt de acord',
+  'checkout.appointments': 'Programări',
+  'checkout.agree': 'OK',
   'checkout.adults_title': 'Doar pentru adulți',
   'checkout.adults_copy': 'Clienții trebuie să aibă cel puțin 21 de ani.',
   'checkout.adults_confirm': 'Am cel puțin 21 de ani',

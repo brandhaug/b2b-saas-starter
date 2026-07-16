@@ -9,13 +9,14 @@ import {
 afterEach(cleanup)
 
 describe('BookingLegacyCheckoutPopup', () => {
-  it('matches the cancellable legacy policy anatomy', () => {
+  it('matches the cancellable legacy policy contract', () => {
     render(
       <BookingLegacyCheckoutPopup
         open
         target={document.body}
         phase="policies"
         policyKinds={['cancellation']}
+        appointmentCount={1}
         onClose={vi.fn()}
         onPolicyComplete={vi.fn()}
         cancellation={{
@@ -24,23 +25,24 @@ describe('BookingLegacyCheckoutPopup', () => {
           timeZone: 'Europe/Bucharest',
           locale: 'en'
         }}
-        checkoutPolicy={{
-          version: 4,
-          disclosure: 'Cancel up to 24 hours before the appointment.'
-        }}
         copy={{
-          cancellationPolicy: 'Cancellation policy',
+          cancellationPolicy: 'Cancelation policy',
           cancellationPolicyCopy:
             'You’ll have until {time} on {date} to cancel this appointment without being charged.',
-          noCancellation: 'This appointment cannot be cancelled.',
+          cancellationPolicyCopyPlural:
+            'You’ll have until {time} on {date} to cancel this order without being charged.',
+          noCancellation:
+            'According to the cancelation policy, you cannot cancel this appointment.',
+          noCancellationPlural:
+            'According to the cancelation policy, you cannot cancel this order.',
           now: 'Now',
           appointment: 'Appointment',
+          appointments: 'Appointments',
           confirmBooking: 'Confirm booking',
-          agree: 'I agree',
+          agree: 'OK',
           close: 'Close',
           policiesLabel: 'Policies',
           policyProgress: 'Policy progress',
-          checkoutPolicyVersion: 'Checkout policy version {version}',
           adultsTitle: 'Adults only',
           adultsCopy: 'Guests must be 21 or older.',
           adultsConfirm: 'I am 21 or older'
@@ -50,16 +52,20 @@ describe('BookingLegacyCheckoutPopup', () => {
       </BookingLegacyCheckoutPopup>
     )
 
-    const policy = screen.getByRole('dialog', { name: 'Cancellation policy' })
+    const policy = screen.getByRole('dialog', { name: 'Cancelation policy' })
+    const close = within(policy).getByTestId('btn:close')
+    expect(policy.getAttribute('data-popup-layout')).toBe('legacyPolicy')
+    expect(close.textContent).toBe('')
+    expect(close.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 24 24')
     expect(within(policy).getByTestId('policy:tooltip')).toBeTruthy()
     expect(within(policy).getByTestId('policy:cancellation-bar')).toBeTruthy()
     expect(within(policy).getByTestId('text:cancellationTime')).toBeTruthy()
     expect(within(policy).getByTestId('text:cancellationDate')).toBeTruthy()
-    expect(within(policy).getByText('Checkout policy version 4')).toBeTruthy()
-    expect(
-      within(policy).getByText('Cancel up to 24 hours before the appointment.')
-    ).toBeTruthy()
-    expect(within(policy).getByTestId('btn:confirm').textContent).toBe('I agree')
+    expect(within(policy).getByTestId('text:cancellationDate').textContent).toBe(
+      'July 16, 2026'
+    )
+    expect(within(policy).queryByTestId('policy:checkout-disclosure')).toBeNull()
+    expect(within(policy).getByTestId('btn:confirm').textContent).toBe('OK')
   })
 
   it('runs the adults policy before cancellation and shows policy progress', async () => {
@@ -70,6 +76,7 @@ describe('BookingLegacyCheckoutPopup', () => {
         target={document.body}
         phase="policies"
         policyKinds={['adults', 'cancellation']}
+        appointmentCount={1}
         onClose={vi.fn()}
         onPolicyComplete={complete}
         cancellation={{
@@ -81,9 +88,12 @@ describe('BookingLegacyCheckoutPopup', () => {
         copy={{
           cancellationPolicy: 'Cancellation policy',
           cancellationPolicyCopy: 'Cancel by {time} on {date}.',
+          cancellationPolicyCopyPlural: 'Cancel order by {time} on {date}.',
           noCancellation: 'This appointment cannot be cancelled.',
+          noCancellationPlural: 'This order cannot be cancelled.',
           now: 'Now',
           appointment: 'Appointment',
+          appointments: 'Appointments',
           confirmBooking: 'Confirm booking',
           agree: 'I agree',
           close: 'Close',
@@ -91,8 +101,7 @@ describe('BookingLegacyCheckoutPopup', () => {
           adultsCopy: 'Guests must be 21 or older.',
           adultsConfirm: 'I am 21 or older',
           policiesLabel: 'Policies',
-          policyProgress: 'Policy progress',
-          checkoutPolicyVersion: 'Checkout policy version {version}'
+          policyProgress: 'Policy progress'
         }}
       >
         <div />
@@ -116,15 +125,19 @@ describe('BookingLegacyCheckoutPopup', () => {
         target={document.body}
         phase="policies"
         policyKinds={[]}
+        appointmentCount={1}
         onClose={vi.fn()}
         onPolicyComplete={vi.fn()}
         cancellation={null}
         copy={{
           cancellationPolicy: 'Cancellation policy',
           cancellationPolicyCopy: 'Cancel by {time} on {date}.',
+          cancellationPolicyCopyPlural: 'Cancel order by {time} on {date}.',
           noCancellation: 'This appointment cannot be cancelled.',
+          noCancellationPlural: 'This order cannot be cancelled.',
           now: 'Now',
           appointment: 'Appointment',
+          appointments: 'Appointments',
           confirmBooking: 'Confirm booking',
           agree: 'I agree',
           close: 'Close',
@@ -132,8 +145,7 @@ describe('BookingLegacyCheckoutPopup', () => {
           adultsCopy: 'Guests must be 21 or older.',
           adultsConfirm: 'I am 21 or older',
           policiesLabel: 'Policies',
-          policyProgress: 'Policy progress',
-          checkoutPolicyVersion: 'Checkout policy version {version}'
+          policyProgress: 'Policy progress'
         }}
       >
         <div data-testid="checkout-form">Customer details</div>

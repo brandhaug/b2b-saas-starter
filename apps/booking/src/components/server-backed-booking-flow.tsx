@@ -4,7 +4,6 @@ import { Schema } from 'effect'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BOOKING_AVAILABILITY_HORIZON_DAYS,
-  defaultBookingCancellationWindow,
   BookingAvailability as BookingAvailabilitySchema,
   BookingJourney as BookingJourneySchema,
   BookingParty as BookingPartySchema,
@@ -1012,29 +1011,29 @@ export function ServerBackedBookingFlow({
             applicableLegacyPolicyKinds.length === 0 ? 'userInfo' : legacyCheckoutPhase
           }
           policyKinds={applicableLegacyPolicyKinds}
+          appointmentCount={party.data?.requests.length ?? 1}
           onClose={closeCheckout}
           onPolicyComplete={() => setLegacyCheckoutPhase('userInfo')}
           cancellation={
-            availability.data?.hold
+            preparationForCheckout?.cancellationWindow && availability.data
               ? {
-                  ...defaultBookingCancellationWindow(
-                    availability.data.hold.quote.startsAt,
-                    partyNow
-                  ),
+                  ...preparationForCheckout.cancellationWindow,
                   timeZone: availability.data.timezone,
                   locale
                 }
               : null
           }
-          {...(preparationForCheckout?.policy
-            ? { checkoutPolicy: preparationForCheckout.policy }
-            : {})}
           copy={{
             cancellationPolicy: message('checkout.cancellation_policy'),
             cancellationPolicyCopy: message('checkout.cancellation_policy_copy'),
+            cancellationPolicyCopyPlural: message(
+              'checkout.cancellation_policy_copy_plural'
+            ),
             noCancellation: message('checkout.no_cancellation'),
+            noCancellationPlural: message('checkout.no_cancellation_plural'),
             now: message('checkout.now'),
             appointment: message('checkout.appointment'),
+            appointments: message('checkout.appointments'),
             confirmBooking: message('checkout.title'),
             agree: message('checkout.agree'),
             close: message('action.close'),
@@ -1042,8 +1041,7 @@ export function ServerBackedBookingFlow({
             adultsCopy: message('checkout.adults_copy'),
             adultsConfirm: message('checkout.adults_confirm'),
             policiesLabel: message('checkout.policies_label'),
-            policyProgress: message('checkout.policy_progress'),
-            checkoutPolicyVersion: message('checkout.policy_version')
+            policyProgress: message('checkout.policy_progress')
           }}
         >
           {checkoutFlow('withinBookingShell', target)}

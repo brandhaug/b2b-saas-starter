@@ -248,7 +248,13 @@ const styles = stylex.create({
   popupSheetLegacyCheckout: {
     display: 'flex',
     height: '100%',
-    overflow: 'hidden'
+    overflowX: 'hidden',
+    overflowY: 'hidden'
+  },
+  popupSheetLegacyPolicy: {
+    display: 'flex',
+    overflowX: 'hidden',
+    overflowY: 'hidden'
   },
   popupStickyHeader: {
     position: 'sticky',
@@ -794,7 +800,7 @@ export function BookingPopupSheet({
   readonly testId?: string
   readonly presenceKey?: string
   readonly legacyGeometry?: boolean
-  readonly layout?: 'content' | 'legacyCheckout'
+  readonly layout?: 'content' | 'legacyCheckout' | 'legacyPolicy'
   readonly header?: ReactNode
   readonly children: ReactNode
 }) {
@@ -848,7 +854,8 @@ export function BookingPopupSheet({
                   {...stylex.props(
                     styles.popupSheet,
                     legacyGeometry && styles.legacyPopupSheet,
-                    layout === 'legacyCheckout' && styles.popupSheetLegacyCheckout
+                    layout === 'legacyCheckout' && styles.popupSheetLegacyCheckout,
+                    layout === 'legacyPolicy' && styles.popupSheetLegacyPolicy
                   )}
                 >
                   {header ? (

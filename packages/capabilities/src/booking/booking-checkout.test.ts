@@ -176,6 +176,10 @@ describe('Booking Checkout', () => {
       bookingKind: 'appointment',
       depositRequired: false
     })
+    expect(result.rebuilt.cancellationWindow).toEqual({
+      eligible: true,
+      cancellableUntil: '2026-07-13T08:00:00.000Z'
+    })
     expect(result.review).toMatchObject({
       readyToConfirm: true,
       policyAcceptance: { policyId: 'pol_shop', version: 3 },

@@ -15,6 +15,9 @@ export const visualAssetRoles = [
   'any-provider-selection',
   'gift-card-selection',
   'sign-in-cta',
+  'popup-close',
+  'policy-cancellation',
+  'policy-status-check',
   'typography-body',
   'typography-mono',
   'password-mask',
@@ -315,6 +318,21 @@ const fallbackByRole: Record<
     kind: 'code-native',
     role: 'sign-in-cta',
     name: 'legacy-sign-in-cta'
+  },
+  'popup-close': {
+    kind: 'code-native',
+    role: 'popup-close',
+    name: 'legacy-popup-close'
+  },
+  'policy-cancellation': {
+    kind: 'code-native',
+    role: 'policy-cancellation',
+    name: 'legacy-policy-cancellation'
+  },
+  'policy-status-check': {
+    kind: 'code-native',
+    role: 'policy-status-check',
+    name: 'legacy-policy-status-check'
   },
   'typography-body': {
     kind: 'text',

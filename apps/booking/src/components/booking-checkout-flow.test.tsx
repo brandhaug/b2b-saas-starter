@@ -309,6 +309,10 @@ describe('Booking checkout', () => {
             bookingKind: 'appointment',
             depositRequired: false
           },
+          cancellationWindow: {
+            eligible: true,
+            cancellableUntil: '2026-07-13T08:00:00.000Z'
+          },
           marketingPolicy: {
             id: 'pol_marketing',
             scope: 'shop',

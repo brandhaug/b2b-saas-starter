@@ -4,6 +4,7 @@ export const bookingTheme = stylex.defineVars({
   fontText: '"Geist Variable", ui-sans-serif, sans-serif, system-ui',
   fontDisplay: '"Geist Variable", ui-sans-serif, sans-serif, system-ui',
   fontLegacyText: 'SF Pro Text, Roboto, sans-serif',
+  fontLegacyDisplay: 'SF Pro Display, Roboto, sans-serif',
   fontPrice: 'Geist Mono, ui-monospace, monospace',
   textCaption: '12px',
   textFootnote: '13px',

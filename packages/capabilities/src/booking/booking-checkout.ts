@@ -36,6 +36,7 @@ import {
 import type { SeedBookingSchedulingStore } from './booking-scheduling.ts'
 import { BookingQuote } from './booking-scheduling.ts'
 import type { BookingSession } from './booking-sessions.ts'
+import { defaultBookingCancellationWindow } from './booking-cancellation.ts'
 
 export const CustomerDetails = Schema.Struct({
   name: Schema.String.check(
@@ -226,6 +227,12 @@ export const CheckoutPreparation = Schema.Struct({
     bookingKind: Schema.Literals(['appointment', 'waiting_list']),
     depositRequired: Schema.Boolean
   }),
+  cancellationWindow: Schema.NullOr(
+    Schema.Struct({
+      eligible: Schema.Boolean,
+      cancellableUntil: Schema.String
+    })
+  ),
   marketingPolicy: Schema.NullOr(CheckoutPolicy),
   policyAcceptance: Schema.NullOr(CheckoutPolicyAcceptance),
   marketingConsents: Schema.Array(MarketingConsent)
@@ -502,6 +509,7 @@ const partyCheckoutWorkflow = (
         repository.consents(party.id),
         repository.requestReviews(party)
       ])
+      const earliestStart = requestReviews.map(({ quote }) => quote.startsAt).sort()[0]
       return {
         party,
         requestReviews: [...requestReviews],
@@ -511,6 +519,9 @@ const partyCheckoutWorkflow = (
           bookingKind: 'appointment' as const,
           depositRequired: false
         },
+        cancellationWindow: earliestStart
+          ? defaultBookingCancellationWindow(earliestStart, now)
+          : null,
         marketingPolicy,
         policyAcceptance,
         marketingConsents: [...marketingConsents]

@@ -3,6 +3,7 @@ import { AnimatePresence, m } from 'motion/react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { bookingTheme } from '../presentation/booking-theme.stylex.ts'
 import { BookingPopupSheet } from '../presentation/booking-primitives.tsx'
+import { BookingVisualAsset } from '../assets/index.ts'
 import type {
   LegacyBookingPolicyStep,
   PendingMarketingConsentTarget
@@ -10,15 +11,85 @@ import type {
 
 export type LegacyCheckoutPhase = 'policies' | 'userInfo'
 
+function LegacyCloseButton({ label, onClose }: { label: string; onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      data-testid="btn:close"
+      onClick={onClose}
+      {...stylex.props(styles.close)}
+    >
+      <BookingVisualAsset assetRole="popup-close" width={24} height={24} />
+    </button>
+  )
+}
+
+function LegacyPolicyStatus({
+  active,
+  complete,
+  policyStatus
+}: {
+  active: boolean
+  complete: boolean
+  policyStatus?: 'complete' | 'active' | 'pending'
+}) {
+  return (
+    <span
+      data-testid="policy:status"
+      {...(policyStatus ? { 'data-policy-status': policyStatus } : {})}
+      {...stylex.props(styles.status, active && styles.statusActive)}
+    >
+      {complete ? (
+        <BookingVisualAsset assetRole="policy-status-check" width={6} height={5} />
+      ) : null}
+    </span>
+  )
+}
+
+function LegacyCancellationCopy({
+  template,
+  time,
+  date
+}: {
+  template: string
+  time: string
+  date: string
+}) {
+  return template.split(/(\{time\}|\{date\})/).map((part, index) => {
+    if (part === '{time}')
+      return (
+        <strong
+          key={`time:${index}`}
+          data-testid="text:cancellationTime"
+          {...stylex.props(styles.copyStrong)}
+        >
+          {time}
+        </strong>
+      )
+    if (part === '{date}')
+      return (
+        <strong
+          key={`date:${index}`}
+          data-testid="text:cancellationDate"
+          {...stylex.props(styles.copyStrong, styles.copyDate)}
+        >
+          {date}
+        </strong>
+      )
+    return part
+  })
+}
+
 export function BookingLegacyCheckoutPopup({
   open,
   target,
   phase,
   policyKinds,
+  appointmentCount,
   onClose,
   onPolicyComplete,
   cancellation,
-  checkoutPolicy,
   copy,
   children
 }: {
@@ -26,6 +97,7 @@ export function BookingLegacyCheckoutPopup({
   readonly target: HTMLElement | null
   readonly phase: LegacyCheckoutPhase
   readonly policyKinds: readonly LegacyBookingPolicyStep[]
+  readonly appointmentCount: number
   readonly onClose: () => void
   readonly onPolicyComplete: () => void
   readonly cancellation: {
@@ -34,22 +106,20 @@ export function BookingLegacyCheckoutPopup({
     readonly timeZone: string
     readonly locale: string
   } | null
-  readonly checkoutPolicy?: {
-    readonly version: number
-    readonly disclosure: string
-  } | null
   readonly copy: {
     readonly cancellationPolicy: string
     readonly cancellationPolicyCopy: string
+    readonly cancellationPolicyCopyPlural: string
     readonly noCancellation: string
+    readonly noCancellationPlural: string
     readonly now: string
     readonly appointment: string
+    readonly appointments: string
     readonly confirmBooking: string
     readonly agree: string
     readonly close: string
     readonly policiesLabel: string
     readonly policyProgress: string
-    readonly checkoutPolicyVersion: string
     readonly adultsTitle: string
     readonly adultsCopy: string
     readonly adultsConfirm: string
@@ -94,13 +164,14 @@ export function BookingLegacyCheckoutPopup({
         : null,
     [cancellationLocale, cancellationTimeZone]
   )
-  const deadlineDateFormatter = useMemo(
+  const deadlineLongDateFormatter = useMemo(
     () =>
       cancellationLocale && cancellationTimeZone
         ? new Intl.DateTimeFormat(cancellationLocale, {
             timeZone: cancellationTimeZone,
             month: 'long',
-            day: 'numeric'
+            day: 'numeric',
+            year: 'numeric'
           })
         : null,
     [cancellationLocale, cancellationTimeZone]
@@ -125,10 +196,29 @@ export function BookingLegacyCheckoutPopup({
     deadlineParts.find((part) => part.type === 'dayPeriod')?.value ?? ''
   const tooltipTimezone =
     deadlineParts.find((part) => part.type === 'timeZoneName')?.value ?? ''
-  const deadlineDate =
-    deadlineDateFormatter && cancellationDeadline
-      ? deadlineDateFormatter.format(cancellationDeadline)
-      : ''
+  const deadlineDateParts =
+    deadlineLongDateFormatter && cancellationDeadline
+      ? deadlineLongDateFormatter.formatToParts(cancellationDeadline)
+      : []
+  const deadlineMonth =
+    deadlineDateParts.find((part) => part.type === 'month')?.value ?? ''
+  const deadlineDay = deadlineDateParts.find((part) => part.type === 'day')?.value ?? ''
+  const deadlineYear =
+    deadlineDateParts.find((part) => part.type === 'year')?.value ?? ''
+  const legacyMonthFirst =
+    cancellationLocale?.startsWith('en') || cancellationLocale?.startsWith('es')
+  const deadlineDate = legacyMonthFirst
+    ? `${deadlineMonth} ${deadlineDay}`
+    : `${deadlineDay} ${deadlineMonth}`
+  const deadlineLongDate = legacyMonthFirst
+    ? `${deadlineMonth} ${deadlineDay}, ${deadlineYear}`
+    : `${deadlineDay} ${deadlineMonth} ${deadlineYear}`
+  const cancellationPolicyCopy =
+    appointmentCount === 1
+      ? copy.cancellationPolicyCopy
+      : copy.cancellationPolicyCopyPlural
+  const noCancellationCopy =
+    appointmentCount === 1 ? copy.noCancellation : copy.noCancellationPlural
 
   return (
     <BookingPopupSheet
@@ -138,20 +228,13 @@ export function BookingLegacyCheckoutPopup({
       presenceKey={effectivePhase}
       testId={effectivePhase === 'policies' ? 'popup:policies' : 'popup:checkout'}
       legacyGeometry
-      layout={effectivePhase === 'userInfo' ? 'legacyCheckout' : 'content'}
+      layout={effectivePhase === 'userInfo' ? 'legacyCheckout' : 'legacyPolicy'}
       onClose={onClose}
     >
       <AnimatePresence mode="wait" initial={false}>
         {effectivePhase === 'policies' ? (
           <m.div key={`policy:${activePolicy}`} {...stylex.props(styles.content)}>
-            <button
-              type="button"
-              aria-label={copy.close}
-              onClick={onClose}
-              {...stylex.props(styles.close)}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
+            <LegacyCloseButton label={copy.close} onClose={onClose} />
             <m.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -205,45 +288,35 @@ export function BookingLegacyCheckoutPopup({
                       />
                       <div {...stylex.props(styles.policyLabels)}>
                         <span>{copy.now}</span>
-                        <span>{copy.appointment}</span>
+                        <span>
+                          {appointmentCount === 1
+                            ? copy.appointment
+                            : copy.appointments}
+                        </span>
                       </div>
                       <p {...stylex.props(styles.copy)}>
-                        {copy.cancellationPolicyCopy.split('{time}')[0]}
-                        <strong data-testid="text:cancellationTime">
-                          {deadlineTime}
-                        </strong>
-                        {
-                          copy.cancellationPolicyCopy
-                            .split('{time}')[1]
-                            ?.split('{date}')[0]
-                        }
-                        <strong data-testid="text:cancellationDate">
-                          {deadlineDate}
-                        </strong>
-                        {copy.cancellationPolicyCopy.split('{date}')[1]}
+                        <LegacyCancellationCopy
+                          template={cancellationPolicyCopy}
+                          time={deadlineTime}
+                          date={deadlineLongDate}
+                        />
                       </p>
                     </>
                   ) : (
                     <div {...stylex.props(styles.noCancellation)}>
-                      <span aria-hidden="true" {...stylex.props(styles.noCancelIcon)}>
-                        ×
-                      </span>
-                      <p {...stylex.props(styles.copy)}>{copy.noCancellation}</p>
+                      <BookingVisualAsset
+                        assetRole="policy-cancellation"
+                        width={81}
+                        height={80}
+                      />
+                      <p
+                        data-testid="text:noCancellation"
+                        {...stylex.props(styles.noCancellationCopy)}
+                      >
+                        {noCancellationCopy}
+                      </p>
                     </div>
                   )}
-                  {checkoutPolicy ? (
-                    <div data-testid="policy:checkout-disclosure">
-                      <p {...stylex.props(styles.exactPolicyVersion)}>
-                        {copy.checkoutPolicyVersion.replace(
-                          '{version}',
-                          String(checkoutPolicy.version)
-                        )}
-                      </p>
-                      <p {...stylex.props(styles.exactPolicyDisclosure)}>
-                        {checkoutPolicy.disclosure}
-                      </p>
-                    </div>
-                  ) : null}
                 </>
               )}
               <button
@@ -260,24 +333,18 @@ export function BookingLegacyCheckoutPopup({
                   {...stylex.props(styles.statuses)}
                 >
                   {policyKinds.map((kind, index) => (
-                    <span
+                    <LegacyPolicyStatus
                       key={kind}
-                      data-testid="policy:status"
-                      data-policy-status={
+                      policyStatus={
                         index < activePolicyIndex
                           ? 'complete'
                           : index === activePolicyIndex
                             ? 'active'
                             : 'pending'
                       }
-                      {...stylex.props(
-                        styles.status,
-                        index === activePolicyIndex && styles.statusActive,
-                        index < activePolicyIndex && styles.statusComplete
-                      )}
-                    >
-                      {index < activePolicyIndex ? '✓' : null}
-                    </span>
+                      active={index === activePolicyIndex}
+                      complete={index < activePolicyIndex}
+                    />
                   ))}
                 </div>
               ) : null}
@@ -357,14 +424,7 @@ export function BookingLegacyNotificationPolicies({
       onClose={onClose}
     >
       <div {...stylex.props(styles.content)}>
-        <button
-          type="button"
-          aria-label={copy.close}
-          onClick={onClose}
-          {...stylex.props(styles.close)}
-        >
-          <span aria-hidden="true">×</span>
-        </button>
+        <LegacyCloseButton label={copy.close} onClose={onClose} />
         <AnimatePresence mode="wait" initial={false}>
           <m.div
             key={`${activeTarget?.bookingRequestId ?? 'none'}:${activeChannel}`}
@@ -409,17 +469,11 @@ export function BookingLegacyNotificationPolicies({
             {targets.length > 1 ? (
               <div aria-label={copy.policyProgress} {...stylex.props(styles.statuses)}>
                 {targets.map((target, index) => (
-                  <span
+                  <LegacyPolicyStatus
                     key={`${target.bookingRequestId}:${target.channel}`}
-                    data-testid="policy:status"
-                    {...stylex.props(
-                      styles.status,
-                      index === activeIndex && styles.statusActive,
-                      index < activeIndex && styles.statusComplete
-                    )}
-                  >
-                    {index < activeIndex ? '✓' : null}
-                  </span>
+                    active={index === activeIndex}
+                    complete={index < activeIndex}
+                  />
                 ))}
               </div>
             ) : null}
@@ -434,8 +488,11 @@ const styles = stylex.create({
   content: {
     position: 'relative',
     width: '100%',
+    maxHeight: '100%',
     padding: 16,
-    boxSizing: 'border-box'
+    overflow: 'auto',
+    boxSizing: 'border-box',
+    fontFamily: bookingTheme.fontLegacyText
   },
   checkoutPopupBase: {
     position: 'relative',
@@ -444,7 +501,7 @@ const styles = stylex.create({
     padding: 16,
     overflow: 'auto',
     boxSizing: 'border-box',
-    fontFamily: 'SF Pro Text, Roboto, sans-serif'
+    fontFamily: bookingTheme.fontLegacyText
   },
   close: {
     position: 'absolute',
@@ -452,28 +509,22 @@ const styles = stylex.create({
     top: 14,
     right: 6,
     display: 'grid',
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     padding: 0,
     placeItems: 'center',
-    borderWidth: 1,
-    borderStyle: 'solid',
-    borderColor: bookingTheme.colorBorder,
-    borderRadius: 16,
+    borderWidth: 0,
     backgroundColor: 'transparent',
-    color: bookingTheme.colorText,
-    fontSize: 24,
-    lineHeight: 1,
+    color: bookingTheme.colorSystemGray1,
     cursor: 'pointer'
   },
   policy: {
-    paddingTop: 0,
-    overflow: 'hidden'
+    paddingTop: 0
   },
   title: {
-    margin: '8px 48px 0 0',
+    margin: '8px 0 0',
     color: bookingTheme.colorText,
-    fontFamily: 'SF Pro Display, system-ui, sans-serif',
+    fontFamily: bookingTheme.fontLegacyDisplay,
     fontSize: 20,
     fontWeight: 600,
     lineHeight: '24px',
@@ -494,18 +545,18 @@ const styles = stylex.create({
     marginBottom: 24,
     borderWidth: 2,
     borderStyle: 'solid',
-    borderColor: bookingTheme.colorText,
+    borderColor: bookingTheme.colorLink,
     borderRadius: 40,
     color: bookingTheme.colorText,
-    fontFamily: 'SF Pro Display, system-ui, sans-serif',
+    fontFamily: bookingTheme.fontLegacyDisplay,
     fontSize: 20,
     fontWeight: 600,
     letterSpacing: '0.75px'
   },
   adultsCopy: {
     margin: 0,
-    color: bookingTheme.colorTextMuted,
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    color: bookingTheme.colorSystemGray1,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 15,
     lineHeight: '18px',
     letterSpacing: '-0.24px',
@@ -533,8 +584,8 @@ const styles = stylex.create({
   },
   consentCopy: {
     margin: 0,
-    color: bookingTheme.colorTextMuted,
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    color: bookingTheme.colorSystemGray1,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 13,
     lineHeight: '18px',
     letterSpacing: '-0.078px',
@@ -554,8 +605,7 @@ const styles = stylex.create({
     transform: 'translateX(-50%)',
     backgroundColor: '#000000',
     color: '#ffffff',
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
-    textAlign: 'center',
+    fontFamily: bookingTheme.fontLegacyText,
     ':after': {
       content: '""',
       position: 'absolute',
@@ -575,7 +625,7 @@ const styles = stylex.create({
   },
   policyTime: {
     gridArea: 'time',
-    fontFamily: 'SF Pro Display, system-ui, sans-serif',
+    fontFamily: bookingTheme.fontLegacyDisplay,
     fontSize: 20,
     fontWeight: 600,
     lineHeight: '24px',
@@ -603,51 +653,34 @@ const styles = stylex.create({
     fontSize: 11,
     fontWeight: 400,
     lineHeight: '15px',
+    textAlign: 'center',
     textTransform: 'capitalize'
   },
   policyLabels: {
     display: 'flex',
     justifyContent: 'space-between',
     margin: '4px 32px 0',
-    color: bookingTheme.colorTextMuted,
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    color: bookingTheme.secondaryFontA30,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 12,
     fontWeight: 600,
     lineHeight: '16px',
     textTransform: 'uppercase'
   },
   noCancellation: {
-    display: 'grid',
-    justifyItems: 'center',
-    padding: '48px 0 24px'
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    margin: '56px 0'
   },
-  exactPolicyVersion: {
-    margin: '8px 32px 0',
-    color: bookingTheme.colorTextMuted,
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
-    fontSize: 12,
-    fontWeight: 600,
-    lineHeight: '16px'
-  },
-  exactPolicyDisclosure: {
-    margin: '4px 32px 24px',
+  noCancellationCopy: {
+    margin: '24px 0 0',
     color: bookingTheme.colorText,
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
-    fontSize: 13,
-    lineHeight: '18px'
-  },
-  noCancelIcon: {
-    display: 'grid',
-    width: 64,
-    height: 64,
-    marginBottom: 20,
-    placeItems: 'center',
-    borderWidth: 2,
-    borderStyle: 'solid',
-    borderColor: bookingTheme.colorText,
-    borderRadius: 32,
-    fontSize: 36,
-    lineHeight: 1
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px',
+    textAlign: 'center'
   },
   policyBar: {
     position: 'relative',
@@ -655,7 +688,7 @@ const styles = stylex.create({
     height: 6.25,
     margin: '0 auto',
     borderRadius: 16,
-    backgroundColor: bookingTheme.colorText,
+    backgroundColor: bookingTheme.colorLink,
     ':after': {
       content: '""',
       position: 'absolute',
@@ -671,12 +704,20 @@ const styles = stylex.create({
   },
   copy: {
     margin: '24px 32px 44px',
-    color: bookingTheme.colorTextMuted,
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    color: bookingTheme.colorSystemGray1,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 15,
     lineHeight: '18px',
     letterSpacing: '-0.24px',
     textAlign: 'center'
+  },
+  copyStrong: {
+    color: bookingTheme.colorText,
+    fontWeight: 600,
+    whiteSpace: 'nowrap'
+  },
+  copyDate: {
+    textTransform: 'capitalize'
   },
   primary: {
     width: '100%',
@@ -684,9 +725,9 @@ const styles = stylex.create({
     padding: '0 20px',
     borderWidth: 0,
     borderRadius: 8,
-    backgroundColor: bookingTheme.colorText,
-    color: bookingTheme.colorSurface,
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    backgroundColor: bookingTheme.colorPrimary,
+    color: bookingTheme.colorPrimaryFont,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 15,
     fontWeight: 600,
     lineHeight: '20px',
@@ -707,18 +748,13 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     alignItems: 'center',
     justifyContent: 'center',
+    margin: 0,
+    paddingLeft: 1.5,
     borderRadius: '50%',
-    backgroundColor: bookingTheme.colorBorder,
-    color: bookingTheme.colorSurface,
-    fontSize: 5,
-    lineHeight: 1
+    backgroundColor: bookingTheme.colorCardBorder,
+    color: bookingTheme.colorText
   },
   statusActive: {
-    backgroundColor: bookingTheme.colorLink
-  },
-  statusComplete: {
-    width: 8,
-    height: 8,
     backgroundColor: bookingTheme.colorLink
   },
   consentYes: {
@@ -734,7 +770,7 @@ const styles = stylex.create({
     borderRadius: 8,
     backgroundColor: 'transparent',
     color: bookingTheme.colorTextMuted,
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 15,
     fontWeight: 600,
     lineHeight: '20px',

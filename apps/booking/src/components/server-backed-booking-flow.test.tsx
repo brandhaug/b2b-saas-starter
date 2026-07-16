@@ -51,6 +51,10 @@ const checkoutPreparation = (
     bookingKind: 'appointment',
     depositRequired: false
   },
+  cancellationWindow: {
+    eligible: false,
+    cancellableUntil: '2026-07-16T08:00:00.000Z'
+  },
   marketingPolicy: null,
   policyAcceptance: null,
   marketingConsents: []
@@ -283,20 +287,20 @@ describe('server-backed Booking scheduling', () => {
     schedulingScroll.scrollTop = 72
     const bodyOverflow = document.body.style.overflow
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    const policy = await screen.findByRole('dialog', { name: 'Cancellation policy' })
+    const policy = await screen.findByRole('dialog', { name: 'Cancelation policy' })
     await new Promise((resolve) => window.setTimeout(resolve, 250))
     expect(screen.getByRole('dialog', { name: 'Order summary' })).toBeTruthy()
-    expect(
-      within(policy).getByText('This appointment cannot be cancelled.')
-    ).toBeTruthy()
-    expect(within(policy).getByTestId('btn:confirm').textContent).toBe('I agree')
+    expect(within(policy).getByTestId('text:noCancellation').textContent).toBe(
+      'According to the cancelation policy, you cannot cancel this appointment.'
+    )
+    expect(within(policy).getByTestId('btn:confirm').textContent).toBe('OK')
     expect(screen.getByTestId('calendarLine')).toBeTruthy()
     expect(schedulingScroll.scrollTop).toBe(72)
     expect(document.body.style.overflow).toBe(bodyOverflow)
     expect(window.location.pathname).toBe(
       '/mara/booking/main/prv_ava/services/svc_cut/schedule'
     )
-    fireEvent.click(within(policy).getByRole('button', { name: 'I agree' }))
+    fireEvent.click(within(policy).getByRole('button', { name: 'OK' }))
     const checkout = screen.getByRole('dialog', { name: 'Confirm booking' })
     expect(checkout).not.toBe(policy)
     expect(await within(checkout).findByLabelText('First name')).toBeTruthy()
@@ -673,7 +677,7 @@ describe('server-backed Booking scheduling', () => {
       await screen.findByRole('button', { name: /go to checkout, \$50\.00/i })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'I agree' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'OK' }))
     fireEvent.change(await screen.findByLabelText('First name'), {
       target: { value: 'Mia' }
     })
