@@ -767,7 +767,10 @@ export function ServerBackedBookingFlow({
         />
       )
     }
-    const checkoutFlow = (presentation: 'standalone' | 'withinBookingShell') =>
+    const checkoutFlow = (
+      presentation: 'standalone' | 'withinBookingShell',
+      popupTarget: HTMLElement | null = null
+    ) =>
       confirmationProcessing ? (
         <Status
           premiumPalette={premiumPalette}
@@ -777,6 +780,14 @@ export function ServerBackedBookingFlow({
       ) : (
         <BookingCheckoutFlow
           presentation={presentation}
+          locale={locale}
+          popupTarget={popupTarget}
+          countryCode={
+            availability.data?.timezone === 'Europe/Bucharest' ||
+            availability.data?.hold?.quote.currency === 'RON'
+              ? 'RO'
+              : 'US'
+          }
           shopName={journey.data.resolvedConfiguration.shopName.text}
           {...(() => {
             const addressLines = journey.data.shops.find(
@@ -825,6 +836,19 @@ export function ServerBackedBookingFlow({
             privacy: message('checkout.privacy'),
             privacyLink: message('checkout.privacy_link'),
             name: message('checkout.name'),
+            yourInformation: message('checkout.your_information'),
+            firstName: message('checkout.first_name'),
+            lastName: message('checkout.last_name'),
+            phoneNumber: message('checkout.phone_number'),
+            chooseCountry: message('checkout.choose_country'),
+            searchCountry: message('checkout.search_country'),
+            clearSearch: message('checkout.clear_search'),
+            yourRegion: message('checkout.your_region'),
+            countryRegion: message('checkout.country_region'),
+            firstNameRequired: message('checkout.first_name_required'),
+            lastNameRequired: message('checkout.last_name_required'),
+            emailInvalid: message('checkout.email_invalid'),
+            phoneInvalid: message('checkout.phone_invalid'),
             email: message('checkout.email'),
             phoneOptional: message('checkout.phone_optional'),
             reviewBooking: message('checkout.review_booking'),
@@ -1022,7 +1046,7 @@ export function ServerBackedBookingFlow({
             checkoutPolicyVersion: message('checkout.policy_version')
           }}
         >
-          {checkoutFlow('withinBookingShell')}
+          {checkoutFlow('withinBookingShell', target)}
         </BookingLegacyCheckoutPopup>
         <BookingLegacyNotificationPolicies
           open={checkout && notificationPoliciesOpen}

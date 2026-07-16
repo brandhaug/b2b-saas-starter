@@ -242,11 +242,35 @@ export const styles = stylex.create({
   legacyCheckoutSection: {
     marginBottom: 24
   },
+  legacyCheckoutPayment: {
+    marginBottom: 8
+  },
+  legacyCheckoutCustomer: {
+    marginBottom: 24
+  },
+  legacyCheckoutP1Bold: {
+    margin: 0,
+    color: '#1c1c1e',
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
+  },
+  legacyCheckoutCustomerFields: {
+    marginTop: 12
+  },
+  legacyCheckoutCustomerForm: {
+    display: 'flex',
+    gap: 16,
+    flexDirection: 'column'
+  },
   legacyCheckoutNameRow: {
     display: 'flex',
     columnGap: 9
   },
   legacyCheckoutField: {
+    position: 'relative',
     minWidth: 0,
     flex: 1
   },
@@ -261,17 +285,223 @@ export const styles = stylex.create({
       default: 'transparent',
       ':focus': '#0083ff'
     },
-    borderRadius: 8,
+    borderRadius: 4,
     outline: 'none',
-    backgroundColor: '#e5e5ea',
+    backgroundColor: '#ebebeb',
     color: '#000000',
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
-    fontSize: 15,
-    lineHeight: '18px',
-    letterSpacing: '-0.24px'
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 16,
+    lineHeight: '22px',
+    letterSpacing: '-0.24px',
+    '::placeholder': {
+      color: 'rgb(60 60 67 / 30%)'
+    },
+    ':focus::placeholder': {
+      color: 'transparent'
+    },
+    ':not(:placeholder-shown)::placeholder': {
+      color: 'transparent'
+    },
+    ':disabled': {
+      opacity: 0.8,
+      cursor: 'not-allowed'
+    }
   },
   legacyCheckoutInputError: {
     borderColor: '#ff3b30'
+  },
+  legacyCheckoutFieldError: {
+    display: 'block',
+    marginTop: 4,
+    color: '#ff3b30',
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
+  },
+  legacyPhoneInput: {
+    display: 'flex',
+    columnGap: 8,
+    position: 'relative'
+  },
+  legacyPhoneCountry: {
+    display: 'flex',
+    height: 46,
+    flex: '0 0 auto',
+    alignItems: 'center',
+    gap: 8,
+    boxSizing: 'border-box',
+    paddingTop: 0,
+    paddingRight: 16,
+    paddingBottom: 2,
+    paddingLeft: 18,
+    borderWidth: 0,
+    borderRadius: 4,
+    backgroundColor: '#ebebeb',
+    color: '#000000',
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 16,
+    lineHeight: '22px',
+    cursor: 'pointer'
+  },
+  legacyPhonePopupFlag: {
+    flexShrink: 0,
+    marginTop: -3,
+    marginRight: 13,
+    transform: 'scale(0.9)'
+  },
+  legacyPhoneNumber: {
+    minWidth: 0,
+    flex: 1
+  },
+  legacyPhoneCountries: {
+    display: 'flex',
+    width: '100%',
+    maxWidth: 'none',
+    flexDirection: 'column',
+    boxSizing: 'border-box',
+    minHeight: 'calc(100dvh - 36px)',
+    margin: 0,
+    paddingTop: 8,
+    paddingRight: 16,
+    paddingBottom: 16,
+    paddingLeft: 16,
+    borderWidth: 0,
+    backgroundColor: '#ffffff',
+    color: '#1c1c1e'
+  },
+  legacyPhonePopupClose: {
+    position: 'absolute',
+    top: 14,
+    right: 6,
+    width: 44,
+    height: 44,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: '#616163',
+    cursor: 'pointer'
+  },
+  legacyPhonePopupTitle: {
+    flexShrink: 0,
+    marginTop: 8,
+    marginRight: 48,
+    marginBottom: 0,
+    marginLeft: 0,
+    fontFamily: 'SF Pro Display, SF Pro Text, Roboto, sans-serif',
+    fontSize: 28,
+    fontWeight: 600,
+    lineHeight: '34px',
+    letterSpacing: '0.36px'
+  },
+  legacyPhoneSearchWrap: {
+    position: 'relative',
+    flexShrink: 0,
+    marginTop: 24
+  },
+  legacyPhoneSearchIcon: {
+    position: 'absolute',
+    zIndex: 1,
+    top: 11,
+    left: 16,
+    color: '#87878b'
+  },
+  legacyPhoneSearch: {
+    width: '100%',
+    height: 46,
+    boxSizing: 'border-box',
+    paddingTop: 0,
+    paddingRight: 36,
+    paddingBottom: 0,
+    paddingLeft: 44,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: 'transparent',
+    borderRadius: 4,
+    outline: 'none',
+    backgroundColor: '#ebebeb',
+    color: '#1c1c1e',
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 15,
+    lineHeight: '20px'
+  },
+  legacyPhoneSearchReset: {
+    display: 'flex',
+    position: 'absolute',
+    top: 13,
+    right: 16,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    borderWidth: 0,
+    borderRadius: '50%',
+    backgroundColor: '#87878b',
+    color: '#ffffff',
+    cursor: 'pointer'
+  },
+  legacyPhonePopupLabel: {
+    flexShrink: 0,
+    marginTop: 24,
+    marginRight: 0,
+    marginBottom: 4,
+    marginLeft: 0,
+    color: '#87878b',
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 11,
+    fontWeight: 600,
+    lineHeight: '13px',
+    textTransform: 'uppercase'
+  },
+  legacyPhoneCountryScroll: {
+    minHeight: 0,
+    overflowY: 'auto',
+    flex: 1
+  },
+  legacyPhoneCountryOption: {
+    display: 'flex',
+    width: '100%',
+    height: 54,
+    flexShrink: 0,
+    alignItems: 'center',
+    marginLeft: -2,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: {
+      default: '#ffffff',
+      ':hover': '#ebebeb'
+    },
+    color: '#000000',
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 16,
+    lineHeight: '22px',
+    textAlign: 'left',
+    cursor: 'pointer'
+  },
+  legacyPhoneCountryName: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  legacyPhoneDialCode: {
+    marginLeft: 4,
+    color: '#87878b',
+    whiteSpace: 'nowrap'
+  },
+  legacyPhoneCheckmark: {
+    display: 'flex',
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 'auto',
+    borderRadius: '50%',
+    backgroundColor: '#2caf00',
+    color: '#ffffff',
+    fontSize: 11
   },
   legacyCheckoutSectionTitle: {
     margin: '0 0 12px',

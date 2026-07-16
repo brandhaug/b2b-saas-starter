@@ -8,9 +8,11 @@ afterEach(cleanup)
 describe('Booking checkout', () => {
   it('uses the legacy checkout form hierarchy inside the booking popup', () => {
     const close = vi.fn()
+    const submit = vi.fn()
     render(
       <BookingCheckoutFlow
         presentation="withinBookingShell"
+        popupTarget={document.body}
         shopName="Main Shop"
         shopAddressLines={['21 Mercer Street', 'New York, NY 10013']}
         review={null}
@@ -18,7 +20,7 @@ describe('Booking checkout', () => {
         busy={false}
         validationIssues={[]}
         validationMessages={{}}
-        onSubmit={vi.fn()}
+        onSubmit={submit}
         onFinalize={vi.fn()}
         onEdit={vi.fn()}
         onClose={close}
@@ -71,14 +73,72 @@ describe('Booking checkout', () => {
     expect(screen.getByText('Main Shop')).toBeTruthy()
     expect(screen.getByText('21 Mercer Street New York, NY 10013')).toBeTruthy()
     expect(screen.getByText('Payment method')).toBeTruthy()
-    expect(screen.getByTestId('button:paymentMethod:pay_in_person')).toBeTruthy()
+    expect(screen.getByTestId('btn:payInStore')).toBeTruthy()
     expect(screen.queryByRole('radio')).toBeNull()
-    expect(screen.getByText('Your information')).toBeTruthy()
-    expect(screen.getByLabelText('First name')).toBeTruthy()
-    expect(screen.getByLabelText('Last name')).toBeTruthy()
-    expect(screen.getByLabelText('Phone')).toBeTruthy()
+    const customer = popup.querySelector('[data-checkout-section="customer"]')
+    expect(customer?.tagName).toBe('DIV')
+    expect(within(customer as HTMLElement).getByText('Your information').tagName).toBe(
+      'P'
+    )
+    expect(screen.getByTestId('input:firstName')).toBeTruthy()
+    expect(screen.getByTestId('input:lastName')).toBeTruthy()
+    expect(screen.getByTestId('input:phone')).toBeTruthy()
+    const countryButton = screen.getByTestId('btn:phoneCountry')
+    expect(countryButton.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(countryButton)
+    expect(screen.getByTestId('popup:phoneCountry')).toBeTruthy()
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search country or region' }),
+      {
+        target: { value: 'Romania' }
+      }
+    )
+    fireEvent.click(
+      within(screen.getByTestId('popup:phoneCountry')).getByTestId('btn:close')
+    )
+    fireEvent.click(countryButton)
+    expect(
+      (
+        screen.getByRole('searchbox', {
+          name: 'Search country or region'
+        }) as HTMLInputElement
+      ).value
+    ).toBe('')
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search country or region' }),
+      {
+        target: { value: 'Romania' }
+      }
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Romania/ }))
+    expect(countryButton.getAttribute('aria-label')).toContain('Romania +40')
+    expect(screen.getByTestId('input:email')).toBeTruthy()
     expect(screen.getByText('Summary')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Book' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByText('Last name is required')).toBeTruthy()
+    expect(screen.getByText('Enter a valid email address')).toBeTruthy()
+    fireEvent.blur(screen.getByTestId('input:firstName'))
+    expect(screen.getByText('First name is required')).toBeTruthy()
+    fireEvent.blur(screen.getByTestId('input:phone'))
+    expect(screen.getByText('Enter a valid phone number')).toBeTruthy()
+    fireEvent.change(screen.getByTestId('input:firstName'), {
+      target: { value: 'Mara Ionescu' }
+    })
+    fireEvent.change(screen.getByTestId('input:phone'), {
+      target: { value: '721 123 456' }
+    })
+    expect(screen.queryByText('First name is required')).toBeNull()
+    expect(screen.queryByText('Enter a valid phone number')).toBeNull()
+    fireEvent.change(screen.getByTestId('input:email'), {
+      target: { value: 'mara@example.com' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }))
+    expect(submit).toHaveBeenCalledWith({
+      name: 'Mara Ionescu',
+      email: 'mara@example.com',
+      phone: '+40721123456'
+    })
   })
 
   it('captures minimum details without a consent checkbox', () => {

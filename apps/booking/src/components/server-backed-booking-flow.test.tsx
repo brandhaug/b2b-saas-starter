@@ -676,6 +676,12 @@ describe('server-backed Booking scheduling', () => {
     fireEvent.change(await screen.findByLabelText('First name'), {
       target: { value: 'Mia' }
     })
+    fireEvent.change(await screen.findByLabelText('Last name'), {
+      target: { value: 'Test' }
+    })
+    fireEvent.change(await screen.findByLabelText('Phone number'), {
+      target: { value: '202 555 0123' }
+    })
     fireEvent.change(await screen.findByLabelText('Email'), {
       target: { value: 'mia@example.com' }
     })

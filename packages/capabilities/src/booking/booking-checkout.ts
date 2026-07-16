@@ -66,6 +66,33 @@ export const CustomerDetailsIssue = Schema.Struct({
 })
 export type CustomerDetailsIssue = typeof CustomerDetailsIssue.Type
 
+export const validateCustomerDetailsField = ({
+  field,
+  value,
+  required = field !== 'phone',
+  defaultCountry
+}: {
+  readonly field: CustomerDetailsIssue['field']
+  readonly value: string
+  readonly required?: boolean
+  readonly defaultCountry?: CountryCode
+}): CustomerDetailsIssue['code'] | null => {
+  const normalized = value.trim()
+  if (field === 'name') {
+    if (!normalized) return required ? 'name_required' : null
+    return normalized.length > 120 ? 'name_too_long' : null
+  }
+  if (field === 'email')
+    return !normalized ||
+      normalized.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)
+      ? 'email_invalid'
+      : null
+  if (!normalized) return required ? 'phone_invalid' : null
+  const phone = parsePhoneNumberFromString(normalized, defaultCountry)
+  return phone?.isValid() ? null : 'phone_invalid'
+}
+
 export class CustomerDetailsInvalid extends Schema.TaggedErrorClass<CustomerDetailsInvalid>()(
   'CustomerDetailsInvalid',
   { issues: Schema.Array(CustomerDetailsIssue) }
@@ -87,11 +114,17 @@ export const normalizeCustomerDetails = (
     : undefined
   const phone = parsedPhone?.isValid() ? parsedPhone.number : null
   const issues: CustomerDetailsIssue[] = []
-  if (!name) issues.push({ field: 'name', code: 'name_required' })
-  else if (name.length > 120) issues.push({ field: 'name', code: 'name_too_long' })
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
-    issues.push({ field: 'email', code: 'email_invalid' })
-  if (rawPhone && !phone) issues.push({ field: 'phone', code: 'phone_invalid' })
+  const nameIssue = validateCustomerDetailsField({ field: 'name', value: name })
+  const emailIssue = validateCustomerDetailsField({ field: 'email', value: email })
+  const phoneIssue = validateCustomerDetailsField({
+    field: 'phone',
+    value: rawPhone ?? '',
+    required: false,
+    ...(defaultCountry ? { defaultCountry } : {})
+  })
+  if (nameIssue) issues.push({ field: 'name', code: nameIssue })
+  if (emailIssue) issues.push({ field: 'email', code: emailIssue })
+  if (phoneIssue) issues.push({ field: 'phone', code: phoneIssue })
   return issues.length > 0
     ? Effect.fail(new CustomerDetailsInvalid({ issues }))
     : Effect.succeed({ name, email, phone })

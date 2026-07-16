@@ -5,7 +5,10 @@ import type { BookingAvailability } from '@b2b-saas-starter/capabilities/booking
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
 import { calendarSlideVariants } from '../presentation/booking-calendar-motion.ts'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 const availability: BookingAvailability = {
   timezone: 'UTC',
@@ -66,6 +69,8 @@ describe('Booking scheduling flow', () => {
   })
 
   it('matches the legacy title, calendar line, and three-column timetable contract', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-07-15T12:00:00.000Z'))
     const select = vi.fn()
     const back = vi.fn()
     const { container } = render(

@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PaymentMethodSelector } from './payment-method-selector.tsx'
+
+afterEach(cleanup)
 
 describe('Payment method selection', () => {
   const copy = {
@@ -66,5 +68,33 @@ describe('Payment method selection', () => {
       )
       expect(screen.getByRole('status').textContent).toMatch(expected)
     }
+  })
+
+  it('matches the legacy PaymentMethodForm method stack and selection behavior', () => {
+    const select = vi.fn()
+    render(
+      <PaymentMethodSelector
+        eligibility={{ state: 'ready', methods: ['card', 'apple_pay'] }}
+        selected="pay_in_person"
+        status="idle"
+        onSelect={select}
+        presentation="legacyCheckout"
+        {...copy}
+      />
+    )
+
+    const paymentForm = screen.getByTestId('container:paymentMethodForm')
+    expect(paymentForm.tagName).toBe('DIV')
+    expect(paymentForm.getAttribute('role')).toBeNull()
+    expect(paymentForm.previousElementSibling?.tagName).toBe('P')
+    expect(paymentForm.previousElementSibling?.textContent).toBe('Payment method')
+    expect(screen.getByTestId('btn:payInStore')).toBeTruthy()
+    expect(screen.getByTestId('btn:cardEntry')).toBeTruthy()
+    expect(screen.getByTestId('btn:applePay')).toBeTruthy()
+    expect(screen.queryByText('Google Pay')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(paymentForm.querySelector('svg[data-icon="chevron"]')).toBeNull()
+    fireEvent.click(screen.getByTestId('btn:applePay'))
+    expect(select).toHaveBeenCalledWith('apple_pay')
   })
 })

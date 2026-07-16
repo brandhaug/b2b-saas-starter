@@ -6,6 +6,7 @@ import {
   buildCheckoutReview,
   CustomerDetails,
   normalizeCustomerDetails,
+  validateCustomerDetailsField,
   resolveCheckoutPolicy,
   emptySeedBookingCheckoutStore,
   SeedBookingCheckout
@@ -187,6 +188,22 @@ describe('Booking Checkout', () => {
     })
   })
   it('normalizes Customer Details and reports stable field error codes', async () => {
+    expect(
+      validateCustomerDetailsField({
+        field: 'phone',
+        value: '',
+        required: true,
+        defaultCountry: 'RO'
+      })
+    ).toBe('phone_invalid')
+    expect(
+      validateCustomerDetailsField({
+        field: 'phone',
+        value: '+40722123456',
+        required: true,
+        defaultCountry: 'RO'
+      })
+    ).toBeNull()
     await expect(
       Effect.runPromise(
         normalizeCustomerDetails(

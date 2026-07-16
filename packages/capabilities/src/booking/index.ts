@@ -92,6 +92,7 @@ export {
   buildCheckoutReview,
   emptySeedBookingCheckoutStore,
   normalizeCustomerDetails,
+  validateCustomerDetailsField,
   pendingMarketingConsentTargets,
   legacyBookingPolicySteps,
   type LegacyBookingPolicyStep,
