@@ -72,6 +72,7 @@ export const PublicBookingPage = Schema.Struct({
       durationMinutes: Schema.Number
     })
   ),
+  closingTime: Schema.NullOr(Schema.String),
   teamMembers: Schema.Array(
     Schema.Struct({ id: Schema.String, displayName: Schema.String })
   ),
@@ -444,6 +445,11 @@ const seedPublicPage = (store: SeedSchedulingStore): PublicBookingPage => ({
   services: store.scenario.services
     .filter((service) => service.status === 'active')
     .map(({ merchantId: _, status: __, ...service }) => service),
+  closingTime:
+    store.scenario.scheduleRules
+      .map((rule) => rule.endTime)
+      .sort()
+      .at(-1) ?? null,
   teamMembers: store.scenario.providers
     .filter((provider) => provider.status === 'active')
     .map((provider) => ({ id: provider.id, displayName: provider.displayName })),
@@ -841,6 +847,18 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
                   )
                 )
             )
+            const closingRows = yield* orUnavailable('booking-publication')(
+              db
+                .select({ endTime: scheduleRules.endTime })
+                .from(scheduleRules)
+                .innerJoin(providers, eq(providers.id, scheduleRules.providerId))
+                .where(
+                  and(
+                    eq(providers.merchantId, row.merchant.id),
+                    eq(providers.status, 'active')
+                  )
+                )
+            )
             const locationRows = yield* orUnavailable('booking-publication')(
               db
                 .select({
@@ -866,6 +884,11 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
                 currency: service.currency,
                 durationMinutes: service.durationMinutes
               })),
+              closingTime:
+                closingRows
+                  .map((rule) => rule.endTime)
+                  .sort()
+                  .at(-1) ?? null,
               teamMembers: teamRows,
               location: locationRows[0] ? publicLocationFromRow(locationRows[0]) : null,
               bookingPath: `/${row.merchant.slug}/booking`

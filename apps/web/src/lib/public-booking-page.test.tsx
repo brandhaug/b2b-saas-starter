@@ -49,13 +49,19 @@ describe('Public Booking Page resolution', () => {
     expect(screen.queryByRole('heading', { name: 'Services' })).toBeNull()
     expect(screen.queryByText('Signature Cut')).toBeNull()
     expect(screen.queryByRole('form')).toBeNull()
-    expect(screen.getByText('Open for appointments')).toBeTruthy()
-    expect(screen.getByText('By appointment')).toBeTruthy()
-    expect(screen.getByText('Studio team')).toBeTruthy()
+    expect(screen.getByText('Currently working')).toBeTruthy()
+    expect(screen.getByText('Until')).toBeTruthy()
+    expect(screen.getByText('6 PM')).toBeTruthy()
+    expect(screen.queryByText('Studio team')).toBeNull()
     expect(screen.queryByRole('banner')).toBeNull()
     expect(screen.getAllByText(scenario.merchant.publicName)).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open studio gallery' }))
+    expect(
+      screen.getByRole('button', { name: 'Open haircut photo in gallery' })
+    ).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open client photo in gallery' })
+    )
     const gallery = screen.getByRole('dialog', { name: 'Studio gallery' })
     expect(gallery).toBeTruthy()
     expect(screen.getByRole('img', { name: 'Client with a fresh cut' })).toBeTruthy()
@@ -67,12 +73,22 @@ describe('Public Booking Page resolution', () => {
     expect(screen.getByRole('dialog', { name: 'Studio location' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close location map' }))
 
-    const cta = screen.getByRole('link', { name: 'View booking times' })
+    expect(screen.getByText('Based on 456 Google reviews')).toBeTruthy()
+    expect(screen.getByText('4.8')).toBeTruthy()
+
+    const cta = screen.getByRole('link', { name: 'Book an appointment' })
     expect(cta.getAttribute('href')).toBe('/mara-booking-studio/booking')
     expect(
       isBookingRequest(new URL(cta.getAttribute('href')!, 'https://public.test'))
     ).toBe(true)
     expect(cta).toBeInstanceOf(HTMLAnchorElement)
+    fireEvent.click(cta)
+    expect(screen.getByRole('dialog', { name: 'Book an appointment' })).toBeTruthy()
+    expect(screen.getByTitle('Booking app').getAttribute('src')).toBe(
+      '/mara-booking-studio/booking'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Close booking' }))
+    expect(screen.queryByRole('dialog', { name: 'Book an appointment' })).toBeNull()
 
     presentation.unmount()
     render(

@@ -1,13 +1,20 @@
 import {
-  ArrowUpRight,
+  CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   MapPin,
   Maximize2,
-  Users,
+  Star,
   X
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent
+} from 'react'
 import type { PublicBookingPage } from '@b2b-saas-starter/capabilities/scheduling'
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>()
@@ -42,6 +49,37 @@ const maraGallery = [
   }
 ] as const
 
+const maraReviews = {
+  rating: 4.8,
+  count: 456,
+  source: 'Google',
+  avatars: [
+    { initials: 'FS', tone: 'bg-neutral-600' },
+    { initials: 'JK', tone: 'bg-neutral-500' },
+    { initials: 'EB', tone: 'bg-neutral-400 text-neutral-950' }
+  ],
+  entries: [
+    {
+      id: 'review-fs',
+      author: 'Florin S.',
+      recency: '1 week ago',
+      text: 'A relaxed studio, careful work, and a consistently sharp finish.'
+    },
+    {
+      id: 'review-jk',
+      author: 'John K.',
+      recency: '3 weeks ago',
+      text: 'Friendly team and a smooth appointment from start to finish.'
+    },
+    {
+      id: 'review-eb',
+      author: 'Elena B.',
+      recency: '1 month ago',
+      text: 'The studio feels welcoming and the attention to detail is excellent.'
+    }
+  ]
+} as const
+
 export function PublicMerchantPresentation({
   page
 }: {
@@ -57,6 +95,23 @@ export function PublicMerchantPresentation({
 function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }) {
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
   const [locationOpen, setLocationOpen] = useState(false)
+  const [bookingOpen, setBookingOpen] = useState(false)
+
+  const openBooking = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return
+
+    event.preventDefault()
+    setBookingOpen(true)
+  }
+
+  const closeBooking = () => setBookingOpen(false)
 
   return (
     <main className="dark min-h-dvh bg-background text-foreground sm:px-5 sm:py-8">
@@ -85,24 +140,20 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
 
           <div className="flex flex-col gap-4 px-4 pt-7 pb-[calc(env(safe-area-inset-bottom)+2.5rem)]">
             <section aria-label="Studio overview" className="grid grid-cols-2 gap-4">
-              <StudioStatusCard />
-              <StudioTeamCard teamMembers={page.teamMembers} />
+              <StudioStatusCard closingTime={page.closingTime} />
+              <GalleryCard
+                imageIndex={1}
+                label="Open haircut photo in gallery"
+                onOpen={setGalleryIndex}
+              />
             </section>
 
             <section aria-label="Studio gallery" className="grid grid-cols-2 gap-4">
-              <button
-                aria-label="Open studio gallery"
-                className="group relative h-60 overflow-hidden rounded-3xl bg-card"
-                onClick={() => setGalleryIndex(2)}
-                type="button"
-              >
-                <img
-                  alt=""
-                  className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                  src="/images/merchant/mara-client.png"
-                />
-              </button>
+              <GalleryCard
+                imageIndex={2}
+                label="Open client photo in gallery"
+                onOpen={setGalleryIndex}
+              />
 
               {page.location ? (
                 <StudioMapCard
@@ -112,12 +163,15 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
               ) : null}
             </section>
 
+            <ReviewsCard />
+
             <a
-              className="mt-1 flex min-h-14 w-full items-center justify-between rounded-2xl bg-foreground px-5 text-sm font-semibold text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="mt-2 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-primary px-5 text-base font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               href={page.bookingPath}
+              onClick={openBooking}
             >
-              View booking times
-              <ArrowUpRight aria-hidden="true" className="size-5" />
+              <CalendarDays aria-hidden="true" className="size-6" />
+              Book an appointment
             </a>
 
             <footer className="flex justify-center pt-1 text-[13px] text-muted-foreground">
@@ -141,17 +195,34 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
             onClose={() => setLocationOpen(false)}
           />
         ) : null}
+
+        {bookingOpen ? (
+          <BookingDrawer bookingPath={page.bookingPath} onClose={closeBooking} />
+        ) : null}
       </div>
     </main>
   )
 }
 
-function StudioStatusCard() {
+const formatClosingTime = (closingTime: string | null) => {
+  if (!closingTime) return 'By appointment'
+  const [hoursText, minutesText] = closingTime.split(':')
+  const hours = Number(hoursText)
+  const minutes = Number(minutesText)
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return closingTime
+  const suffix = hours >= 12 ? 'PM' : 'AM'
+  const displayHours = hours % 12 || 12
+  return minutes === 0
+    ? `${displayHours} ${suffix}`
+    : `${displayHours}:${minutes.toString().padStart(2, '0')} ${suffix}`
+}
+
+function StudioStatusCard({ closingTime }: { readonly closingTime: string | null }) {
   return (
     <article className="flex h-60 flex-col justify-between rounded-3xl bg-card/90 p-5 backdrop-blur-md">
       <div className="relative">
-        <p className="text-pretty text-[18px] leading-[22px] font-bold tracking-[0.5px] text-card-foreground">
-          Open for appointments
+        <p className="text-pretty text-[22px] leading-[1.08] font-bold tracking-[0.5px] text-card-foreground">
+          Currently working
         </p>
         <span
           aria-hidden="true"
@@ -159,56 +230,42 @@ function StudioStatusCard() {
         />
       </div>
       <div>
-        <p className="text-sm font-medium text-muted-foreground">Booking</p>
-        <p className="mt-1 text-lg font-semibold text-card-foreground">
-          By appointment
+        <p className="text-sm font-medium text-muted-foreground">Until</p>
+        <p className="mt-1 text-[28px] leading-none font-bold text-card-foreground">
+          {formatClosingTime(closingTime)}
         </p>
       </div>
     </article>
   )
 }
 
-function StudioTeamCard({
-  teamMembers
+function GalleryCard({
+  imageIndex,
+  label,
+  onOpen
 }: {
-  readonly teamMembers: PublicBookingPage['teamMembers']
+  readonly imageIndex: number
+  readonly label: string
+  readonly onOpen: (index: number) => void
 }) {
+  const image = maraGallery[imageIndex] ?? maraGallery[0]
+
   return (
-    <article className="flex h-60 flex-col justify-between rounded-3xl bg-card p-5">
-      <div className="flex items-center justify-between">
-        <Users aria-hidden="true" className="size-8 text-primary" strokeWidth={2.5} />
-        <div className="flex -space-x-3" aria-label="Mara Booking Studio team">
-          {teamMembers.slice(0, 3).map((member) => (
-            <span
-              aria-label={member.displayName}
-              className="grid size-10 place-items-center rounded-full border-2 border-card bg-muted text-xs font-semibold text-foreground"
-              key={member.id}
-              title={member.displayName}
-            >
-              {initials(member.displayName)}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div>
-        <p className="text-pretty text-xl leading-6 font-bold tracking-[0.5px] text-card-foreground">
-          Studio team
-        </p>
-        <p className="mt-3 text-sm leading-5 text-muted-foreground">
-          Pick a favorite or take the next available chair
-        </p>
-      </div>
-    </article>
+    <button
+      aria-label={label}
+      className="group relative h-60 overflow-hidden rounded-3xl bg-card"
+      onClick={() => onOpen(imageIndex)}
+      type="button"
+    >
+      <img
+        alt=""
+        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+        loading="lazy"
+        src={image.src}
+      />
+    </button>
   )
 }
-
-const initials = (displayName: string) =>
-  displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('')
 
 type PublicLocation = NonNullable<PublicBookingPage['location']>
 
@@ -269,6 +326,110 @@ function StudioMapCard({
   )
 }
 
+const starPositions = [1, 2, 3, 4, 5] as const
+
+function ReviewsCard() {
+  const [expanded, setExpanded] = useState(false)
+  const reviewsListId = useId()
+  const fullStars = Math.floor(maraReviews.rating)
+
+  return (
+    <section className="rounded-3xl bg-card p-6" aria-label="Customer reviews">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center -space-x-3">
+          {maraReviews.avatars.map((reviewer) => (
+            <span
+              className={`flex size-12 items-center justify-center rounded-full border-2 border-card text-sm font-bold text-neutral-50 ${reviewer.tone}`}
+              key={reviewer.initials}
+            >
+              {reviewer.initials}
+            </span>
+          ))}
+        </div>
+        <button
+          aria-controls={reviewsListId}
+          aria-expanded={expanded}
+          className="flex h-12 items-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={() => setExpanded((current) => !current)}
+          type="button"
+        >
+          {expanded ? 'Hide reviews' : 'See reviews'}
+          <ChevronDown
+            aria-hidden="true"
+            className={`size-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            strokeWidth={2.5}
+          />
+        </button>
+      </div>
+
+      <div className="mt-8 flex items-end justify-between gap-5">
+        <div className="min-w-0">
+          <span className="sr-only">Rated {maraReviews.rating} out of 5</span>
+          <div aria-hidden="true" className="flex items-center gap-1">
+            {starPositions.map((position) => {
+              if (position <= fullStars) {
+                return (
+                  <Star
+                    className="size-6 fill-foreground text-foreground"
+                    key={position}
+                  />
+                )
+              }
+              return (
+                <span className="relative size-6" key={position}>
+                  <Star className="absolute inset-0 size-6 text-foreground" />
+                  <span className="absolute inset-0 w-4/5 overflow-hidden">
+                    <Star className="size-6 fill-foreground text-foreground" />
+                  </span>
+                </span>
+              )
+            })}
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Based on {maraReviews.count} {maraReviews.source} reviews
+          </p>
+        </div>
+        <span className="text-[64px] leading-none font-bold tracking-tight text-card-foreground">
+          {maraReviews.rating.toFixed(1)}
+        </span>
+      </div>
+
+      {expanded ? (
+        <ul
+          className="mt-6 flex flex-col gap-5 border-t border-border pt-5"
+          id={reviewsListId}
+        >
+          {maraReviews.entries.map((review) => (
+            <li
+              className="border-b border-border pb-5 last:border-b-0 last:pb-0"
+              key={review.id}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-semibold text-card-foreground">{review.author}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{review.recency}</p>
+                </div>
+                <div aria-label="5 out of 5 stars" className="flex gap-0.5">
+                  {starPositions.map((position) => (
+                    <Star
+                      aria-hidden="true"
+                      className="size-4 fill-foreground text-foreground"
+                      key={position}
+                    />
+                  ))}
+                </div>
+              </div>
+              <p className="mt-3 text-pretty text-sm leading-5 text-muted-foreground">
+                {review.text}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  )
+}
+
 function useNativeModal() {
   const dialogRef = useRef<HTMLDialogElement>(null)
 
@@ -286,6 +447,50 @@ function useNativeModal() {
   }, [])
 
   return dialogRef
+}
+
+function BookingDrawer({
+  bookingPath,
+  onClose
+}: {
+  readonly bookingPath: string
+  readonly onClose: () => void
+}) {
+  const dialogRef = useNativeModal()
+
+  return (
+    <dialog
+      aria-label="Book an appointment"
+      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-transparent p-0 text-foreground backdrop:bg-black/70 backdrop:backdrop-blur-sm"
+      onCancel={(event) => {
+        event.preventDefault()
+        onClose()
+      }}
+      ref={dialogRef}
+    >
+      <section className="animate-in slide-in-from-bottom absolute inset-x-0 bottom-0 h-[92dvh] overflow-hidden rounded-t-[2rem] bg-background shadow-2xl duration-300">
+        <div className="absolute inset-x-0 top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-background/95 px-5 backdrop-blur-md">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Booking</p>
+            <p className="font-semibold text-foreground">Mara Booking Studio</p>
+          </div>
+          <button
+            aria-label="Close booking"
+            className="flex size-11 items-center justify-center rounded-full bg-card text-foreground"
+            onClick={onClose}
+            type="button"
+          >
+            <X aria-hidden="true" className="size-6" />
+          </button>
+        </div>
+        <iframe
+          className="size-full border-0 pt-16"
+          src={bookingPath}
+          title="Booking app"
+        />
+      </section>
+    </dialog>
+  )
 }
 
 function StudioGallery({
