@@ -36,6 +36,8 @@ import '../styles/legacy-phone-flags.css'
 type CheckoutCopy = {
   readonly processing: string
   readonly title: string
+  readonly haveAccount: string
+  readonly signIn: string
   readonly close: string
   readonly guests: string
   readonly edit: string
@@ -76,6 +78,8 @@ type CheckoutCopy = {
 const defaultCopy: CheckoutCopy = {
   processing: 'Processing…',
   title: 'Confirm booking',
+  haveAccount: 'Have an account?',
+  signIn: 'Sign in',
   close: 'Close',
   guests: 'Guests',
   edit: 'Edit',
@@ -135,6 +139,7 @@ export function BookingCheckoutFlow({
   onFinalize,
   onEdit,
   onClose,
+  onSignIn,
   payment,
   giftCard,
   copy = defaultCopy,
@@ -168,6 +173,7 @@ export function BookingCheckoutFlow({
   }) => void
   readonly onEdit: (requestId: string) => void
   readonly onClose?: () => void
+  readonly onSignIn?: () => void
   readonly payment?:
     | {
         readonly eligibility: PaymentMethodEligibility
@@ -282,6 +288,18 @@ export function BookingCheckoutFlow({
             {...stylex.props(styles.checkoutPopupHeader)}
           >
             <p {...stylex.props(styles.checkoutPopupTitle)}>{copy.title}</p>
+            {onSignIn ? (
+              <div {...stylex.props(styles.checkoutSignInRow)}>
+                <p {...stylex.props(styles.checkoutSignInLabel)}>{copy.haveAccount}</p>
+                <button
+                  type="button"
+                  onClick={onSignIn}
+                  {...stylex.props(styles.checkoutSignInButton)}
+                >
+                  {copy.signIn}
+                </button>
+              </div>
+            ) : null}
             {onClose ? (
               <button
                 type="button"

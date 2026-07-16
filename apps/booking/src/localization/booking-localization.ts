@@ -265,6 +265,8 @@ const en = {
   'confirmation.cancelled': 'The appointment was cancelled.',
   'confirmation.cancel_failed': 'Cancellation could not be completed.',
   'checkout.title': 'Confirm booking',
+  'checkout.have_account': 'Have an account?',
+  'checkout.sign_in': 'Sign in',
   'checkout.cancellation_policy': 'Cancelation policy',
   'checkout.cancellation_policy_copy':
     'You’ll have until {time} on {date} to cancel this appointment without being charged.',
@@ -520,6 +522,8 @@ const es = {
   'confirmation.cancelled': 'La cita se ha cancelado.',
   'confirmation.cancel_failed': 'No se pudo completar la cancelación.',
   'checkout.title': 'Confirmar reserva',
+  'checkout.have_account': '¿Tienes una cuenta?',
+  'checkout.sign_in': 'Iniciar sesión',
   'checkout.cancellation_policy': 'Política de cancelación',
   'checkout.cancellation_policy_copy':
     'Tendrás hasta las {time} del {date} para cancelar esta cita sin ser cobrado.',
@@ -777,6 +781,8 @@ const fr = {
   'confirmation.cancelled': 'Le rendez-vous a été annulé.',
   'confirmation.cancel_failed': 'L’annulation n’a pas pu être effectuée.',
   'checkout.title': 'Confirmer la réservation',
+  'checkout.have_account': 'Vous avez un compte ?',
+  'checkout.sign_in': 'Se connecter',
   'checkout.cancellation_policy': "Politique d'annulation",
   'checkout.cancellation_policy_copy':
     "Vous aurez jusqu'à {time} le {date} pour annuler ce rendez-vous sans frais.",
@@ -1032,6 +1038,8 @@ const ro = {
   'confirmation.cancelled': 'Programarea a fost anulată.',
   'confirmation.cancel_failed': 'Anularea nu a putut fi finalizată.',
   'checkout.title': 'Confirmă rezervarea',
+  'checkout.have_account': 'Ai un cont?',
+  'checkout.sign_in': 'Autentifică-te',
   'checkout.cancellation_policy': 'Politica de anulare',
   'checkout.cancellation_policy_copy':
     'Poți anula această programare fără costuri până la {time}, pe {date}.',

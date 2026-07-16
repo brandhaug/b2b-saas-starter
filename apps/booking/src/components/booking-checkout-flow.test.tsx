@@ -8,6 +8,7 @@ afterEach(cleanup)
 describe('Booking checkout', () => {
   it('uses the legacy checkout form hierarchy inside the booking popup', () => {
     const close = vi.fn()
+    const signIn = vi.fn()
     const submit = vi.fn()
     render(
       <BookingCheckoutFlow
@@ -24,6 +25,7 @@ describe('Booking checkout', () => {
         onFinalize={vi.fn()}
         onEdit={vi.fn()}
         onClose={close}
+        onSignIn={signIn}
         payment={{
           eligibility: { state: 'ready', methods: [] },
           selected: 'pay_in_person',
@@ -67,6 +69,10 @@ describe('Booking checkout', () => {
     const title = screen.getByTestId('container:checkout-title')
     expect(title.tagName).toBe('DIV')
     expect(within(title).getByText('Confirm booking').tagName).toBe('P')
+    expect(within(title).getByText('Have an account?').tagName).toBe('P')
+    const signInButton = within(title).getByRole('button', { name: 'Sign in' })
+    fireEvent.click(signInButton)
+    expect(signIn).toHaveBeenCalledOnce()
     const closeButton = within(title).getByTestId('btn:closeCheckout')
     fireEvent.click(closeButton)
     expect(close).toHaveBeenCalledOnce()

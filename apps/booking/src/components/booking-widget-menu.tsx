@@ -264,9 +264,16 @@ const styles = stylex.create({
   }
 })
 
-export function BookingWidgetMenu() {
+export function BookingWidgetMenu({
+  open: controlledOpen,
+  onOpenChange
+}: {
+  readonly open?: boolean
+  readonly onOpenChange?: (open: boolean) => void
+} = {}) {
   const { locale, setLocale, message } = useBookingLocalization()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
   const [languageOpen, setLanguageOpen] = useState(false)
   const [popupTarget, setPopupTarget] = useState<HTMLElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -282,6 +289,17 @@ export function BookingWidgetMenu() {
     document.addEventListener('click', closeLanguagePicker)
     return () => document.removeEventListener('click', closeLanguagePicker)
   }, [])
+  useEffect(() => {
+    if (open && !popupTarget)
+      setPopupTarget(
+        triggerRef.current?.closest<HTMLElement>('[data-booking-shell="canonical"]') ??
+          document.body
+      )
+  }, [open, popupTarget])
+  const setOpen = (nextOpen: boolean) => {
+    setInternalOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
   const close = () => {
     setLanguageOpen(false)
     setOpen(false)
@@ -355,7 +373,7 @@ export function BookingWidgetMenu() {
               '[data-booking-shell="canonical"]'
             ) ?? document.body
           )
-          setOpen((value) => !value)
+          setOpen(!open)
         }}
         {...stylex.props(styles.trigger)}
       >

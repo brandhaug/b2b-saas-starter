@@ -124,7 +124,8 @@ export function ServerBackedBookingFlow({
     'feedback.selection_refreshed'
   ),
   initialRouteKind,
-  onTitleActionMount
+  onTitleActionMount,
+  onSignIn
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
@@ -132,6 +133,7 @@ export function ServerBackedBookingFlow({
   readonly selectionRefreshedMessage?: string
   readonly initialRouteKind?: CanonicalBookingRouteKind
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
+  readonly onSignIn?: () => void
 }) {
   const { locale, message } = useBookingLocalization()
   const paymentReturn =
@@ -806,6 +808,7 @@ export function ServerBackedBookingFlow({
           premiumPalette={premiumPalette}
           review={review}
           preparation={preparationForCheckout}
+          {...(onSignIn ? { onSignIn } : {})}
           busy={
             detailsMutation.isPending ||
             finalizeMutation.isPending ||
@@ -821,6 +824,8 @@ export function ServerBackedBookingFlow({
           copy={{
             processing: message('feedback.loading'),
             title: message('checkout.title'),
+            haveAccount: message('checkout.have_account'),
+            signIn: message('checkout.sign_in'),
             close: message('action.close'),
             guests: message('checkout.guests'),
             edit: message('checkout.edit'),

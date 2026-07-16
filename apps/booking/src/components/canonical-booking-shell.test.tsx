@@ -25,14 +25,19 @@ vi.mock('./server-backed-booking-flow.tsx', async () => {
   } as const
   return {
     ServerBackedBookingFlow: ({
-      onTitleActionMount
+      onTitleActionMount,
+      onSignIn
     }: {
       onTitleActionMount: (element: HTMLDivElement | null) => void
+      onSignIn?: () => void
     }) => (
       <BookingPremiumThemeBoundary palette={palette}>
         <BookingWidgetShell>
           <div data-testid="mock-title-actions" ref={onTitleActionMount} />
           <p>Booking journey</p>
+          <button type="button" onClick={onSignIn}>
+            Checkout sign in
+          </button>
         </BookingWidgetShell>
       </BookingPremiumThemeBoundary>
     )
@@ -46,6 +51,20 @@ afterEach(() => {
 })
 
 describe('Canonical Booking Shell', () => {
+  it('opens the sign-in popup from the checkout title action', () => {
+    render(
+      <CanonicalBookingShell
+        merchantSlug="mara"
+        sessionId="bsn_checkout_sign_in"
+        locale="en"
+        embedding="standalone"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout sign in' }))
+    expect(screen.getByRole('dialog', { name: 'Booking menu' })).toBeTruthy()
+  })
+
   it('opens the legacy booking menu popup from the title action', async () => {
     render(
       <CanonicalBookingShell

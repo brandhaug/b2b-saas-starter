@@ -29,6 +29,7 @@ export function CanonicalBookingShell({
   readonly initialRouteKind?: CanonicalBookingRouteKind
 }) {
   const [persistingLocale, setPersistingLocale] = useState(false)
+  const [widgetMenuOpen, setWidgetMenuOpen] = useState(false)
   const [titleActionTarget, setTitleActionTarget] = useState<HTMLDivElement | null>(
     null
   )
@@ -67,12 +68,17 @@ export function CanonicalBookingShell({
         sessionLocale={locale}
         onLocaleChange={persistLocale}
       >
-        <BookingWidgetMenuPortal target={titleActionTarget} />
+        <BookingWidgetMenuPortal
+          target={titleActionTarget}
+          open={widgetMenuOpen}
+          onOpenChange={setWidgetMenuOpen}
+        />
         <LocalizedServerBackedBookingFlow
           merchantSlug={merchantSlug}
           sessionId={sessionId}
           {...(initialRouteKind ? { initialRouteKind } : {})}
           onTitleActionMount={setTitleActionTarget}
+          onSignIn={() => setWidgetMenuOpen(true)}
         />
         {persistingLocale ? (
           <LocalePersistenceStatus target={titleActionTarget?.parentElement ?? null} />
@@ -83,11 +89,20 @@ export function CanonicalBookingShell({
 }
 
 function BookingWidgetMenuPortal({
-  target
+  target,
+  open,
+  onOpenChange
 }: {
   readonly target: HTMLDivElement | null
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
 }) {
-  return target ? createPortal(<BookingWidgetMenu />, target) : null
+  return target
+    ? createPortal(
+        <BookingWidgetMenu open={open} onOpenChange={onOpenChange} />,
+        target
+      )
+    : null
 }
 
 function LocalePersistenceStatus({ target }: { readonly target: HTMLElement | null }) {
@@ -106,12 +121,14 @@ function LocalizedServerBackedBookingFlow({
   merchantSlug,
   sessionId,
   initialRouteKind,
-  onTitleActionMount
+  onTitleActionMount,
+  onSignIn
 }: {
   readonly merchantSlug: string
   readonly sessionId: string
   readonly initialRouteKind?: CanonicalBookingRouteKind
   readonly onTitleActionMount: (element: HTMLDivElement | null) => void
+  readonly onSignIn: () => void
 }) {
   const { message } = useBookingLocalization()
   return (
@@ -120,6 +137,7 @@ function LocalizedServerBackedBookingFlow({
       sessionId={sessionId}
       {...(initialRouteKind ? { initialRouteKind } : {})}
       onTitleActionMount={onTitleActionMount}
+      onSignIn={onSignIn}
       selectionRefreshedMessage={message('feedback.selection_refreshed')}
     />
   )

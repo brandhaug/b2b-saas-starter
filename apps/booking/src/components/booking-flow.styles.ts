@@ -153,6 +153,7 @@ export const styles = stylex.create({
     top: -16,
     display: 'flex',
     flexDirection: 'column',
+    gap: 4,
     margin: -16,
     padding: 16,
     backgroundColor: 'rgb(247 247 247 / 88%)',
@@ -171,6 +172,34 @@ export const styles = stylex.create({
     fontWeight: 600,
     lineHeight: '24px',
     letterSpacing: '0.75px'
+  },
+  checkoutSignInRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 4
+  },
+  checkoutSignInLabel: {
+    margin: 0,
+    color: bookingTheme.colorSecondaryLabel,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
+  },
+  checkoutSignInButton: {
+    margin: 0,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: bookingTheme.colorLink,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px',
+    cursor: 'pointer'
   },
   checkoutPopupClose: {
     position: 'absolute',
