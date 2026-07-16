@@ -77,7 +77,7 @@ describe('Public Booking Page resolution', () => {
     expect(screen.getByText('4.8')).toBeTruthy()
 
     const cta = screen.getByRole('link', { name: 'Book an appointment' })
-    expect(cta.getAttribute('href')).toBe('/booking/mara-booking-studio')
+    expect(cta.getAttribute('href')).toBe('/mara-booking-studio/booking')
     expect(
       isBookingRequest(new URL(cta.getAttribute('href')!, 'https://public.test'))
     ).toBe(true)
@@ -98,7 +98,7 @@ describe('Public Booking Page resolution', () => {
         page={{
           ...published.page,
           merchantSlug: 'another-studio',
-          bookingPath: '/booking/another-studio'
+          bookingPath: '/another-studio/booking'
         }}
         merchantSlug="another-studio"
       />

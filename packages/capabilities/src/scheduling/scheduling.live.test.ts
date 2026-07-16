@@ -160,6 +160,7 @@ describe('Live Scheduling and publication', () => {
     expect(result.availability.slots[0]?.startsAt).toBe('2026-07-13T06:00:00.000Z')
     expect(result.readiness.ready).toBe(true)
     expect(result.page.publicName).toBe('Live Schedule Studio')
+    expect(result.page.bookingPath).toBe('/live-schedule-studio/booking')
     expect(result.page.closingTime).toBe('12:00')
     expect(result.page.teamMembers).toEqual([
       { id: 'prv_live_schedule', displayName: 'Live Provider' }

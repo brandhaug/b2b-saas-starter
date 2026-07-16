@@ -36,6 +36,16 @@ const run = <A, E>(
 ) => runWith(scenario, effect)
 
 describe('Scheduling and Public Booking Page', () => {
+  it('publishes an in-scope Merchant-first Booking App path', async () => {
+    const page = await run(
+      Effect.flatMap(BookingPublication, (publication) =>
+        publication.resolvePublished(scenario.merchant.slug)
+      )
+    )
+
+    expect(page.bookingPath).toBe('/mara-booking-studio/booking')
+  })
+
   it('derives deterministic future Availability from recurring rules', async () => {
     const result = await run(
       Effect.gen(function* () {

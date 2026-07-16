@@ -438,6 +438,8 @@ const seedReadiness = (
   return { ready: incomplete.length === 0, incomplete }
 }
 
+const merchantBookingPath = (merchantSlug: string): string => `/${merchantSlug}/booking`
+
 const seedPublicPage = (store: SeedSchedulingStore): PublicBookingPage => ({
   merchantSlug: store.scenario.merchant.slug,
   publicName: store.scenario.merchant.publicName,
@@ -458,7 +460,7 @@ const seedPublicPage = (store: SeedSchedulingStore): PublicBookingPage => ({
     latitude: 44.4314,
     longitude: 26.1002
   },
-  bookingPath: `/booking/${store.scenario.merchant.slug}`
+  bookingPath: merchantBookingPath(store.scenario.merchant.slug)
 })
 
 export const SeedBookingPublication = (
@@ -891,7 +893,7 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
                   .at(-1) ?? null,
               teamMembers: teamRows,
               location: locationRows[0] ? publicLocationFromRow(locationRows[0]) : null,
-              bookingPath: `/booking/${row.merchant.slug}`
+              bookingPath: merchantBookingPath(row.merchant.slug)
             }
           })
       }
