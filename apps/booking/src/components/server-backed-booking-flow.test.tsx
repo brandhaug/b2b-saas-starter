@@ -233,8 +233,9 @@ describe('server-backed Booking scheduling', () => {
     const viewOrder = await screen.findByRole('button', { name: /view order/i })
     const canonicalShell = viewOrder.closest('[data-booking-shell="canonical"]')
     fireEvent.click(viewOrder)
-    fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a time' }))
 
+    await screen.findByTestId('calendarLine')
     const schedulingTitle = await screen.findByText('Choose a time')
     expect(requestedAvailabilityDays).toBe('60')
     expect(window.location.pathname).toBe(
@@ -320,8 +321,8 @@ describe('server-backed Booking scheduling', () => {
     expect(backRoute?.querySelector('[data-testid="service:svc_cut"]')).toBeTruthy()
 
     fireEvent.click(await screen.findByRole('button', { name: /view order/i }))
-    fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
-    await screen.findByText('Choose a time')
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a time' }))
+    await screen.findByTestId('calendarLine')
     const reopenedForwardRoute = canonicalShell?.querySelector(
       '[data-presence-variant="route"][data-route-direction="forward"]'
     )
@@ -520,7 +521,7 @@ describe('server-backed Booking scheduling', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: /view order/i }))
-    fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a time' }))
     expect(
       await screen.findByRole('button', { name: /view order, \$50\.00/i })
     ).toBeTruthy()
@@ -666,8 +667,8 @@ describe('server-backed Booking scheduling', () => {
       </QueryClientProvider>
     )
     fireEvent.click(await screen.findByRole('button', { name: /view order/i }))
-    fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
-    await screen.findByText('Choose a time')
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a time' }))
+    await screen.findByTestId('calendarLine')
     fireEvent.click(
       await screen.findByRole('button', { name: /go to checkout, \$50\.00/i })
     )

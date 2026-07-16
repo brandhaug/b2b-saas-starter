@@ -1120,6 +1120,7 @@ export type BookingSelectionMessages = {
   readonly uncategorized: string
   readonly serviceCategory: string
   readonly chooseServiceFirst: string
+  readonly chooseTime: string
   readonly shop: string
   readonly nearby: string
   readonly search: string
@@ -1152,6 +1153,7 @@ const defaultMessages: BookingSelectionMessages = {
   uncategorized: 'Uncategorized',
   serviceCategory: 'Service category',
   chooseServiceFirst: 'Choose a service first',
+  chooseTime: 'Choose a time',
   shop: 'Shop',
   nearby: 'Nearby',
   search: 'Search',
@@ -1292,7 +1294,7 @@ function OrderSummary({
   onClose,
   onContinue,
   keepOpenOnContinue = false,
-  continueLabel = 'Choose time',
+  continueLabel,
   quote,
   timeZone = 'UTC'
 }: {
@@ -1316,8 +1318,20 @@ function OrderSummary({
   const displayedPrimary = quotedPrimary ?? primary
   const displayedProvider =
     quote?.assignedProvider.displayName ?? providerLabel(journey)
+  const preferredProviderId =
+    journey.providerPreference?.kind === 'specific'
+      ? journey.providerPreference.providerId
+      : undefined
+  const displayedProviderRecord = journey.providers.find(
+    (provider) => provider.id === (quote?.assignedProvider.id ?? preferredProviderId)
+  )
   const displayedTotal = quote?.totalMinor ?? total(journey)
   const displayedCurrency = quote?.currency ?? primary.currency
+  const displayedAppointmentTotal = additions.reduce(
+    (amount, service) => amount + service.priceMinor,
+    displayedPrimary.priceMinor
+  )
+  const displayedContinueLabel = continueLabel ?? messages.chooseTime
   const displayedAppointment = useMemo(() => {
     if (!quote) return null
     const instant = new Date(quote.startsAt)
@@ -1343,7 +1357,7 @@ function OrderSummary({
       data-cart-mode={quote ? 'scheduleChosen' : undefined}
       tabIndex={-1}
       initial={{ y: '100%' }}
-      animate={{ y: 0, height: 'calc(100% - 36px)' }}
+      animate={{ y: 0, height: 'calc(100% + 1px)' }}
       exit={{ y: '100%', transition: { duration: 0.15, ease: 'easeInOut' } }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       onKeyDown={(event) => {
@@ -1414,54 +1428,135 @@ function OrderSummary({
           </svg>
         </button>
       </div>
-      <div {...stylex.props(styles.drawerBody)}>
-        <div {...stylex.props(styles.orderCard)}>
-          <div {...stylex.props(styles.rowBetween)}>
-            <div>
-              <p {...stylex.props(styles.orderProvider)}>{displayedProvider}</p>
-              <p {...stylex.props(styles.orderMuted)}>{displayedPrimary.name}</p>
-            </div>
-            <strong {...stylex.props(styles.mono)}>
-              {formatPrice(displayedPrimary.priceMinor, displayedPrimary.currency)}
-            </strong>
-          </div>
-          {quote ? (
-            <div {...stylex.props(styles.orderAppointment)}>
-              <span data-testid="text:aptDate">{displayedAppointment}</span>
-              <span>
-                {quote.durationMinutes} {messages.durationMinutesShort}
-              </span>
-            </div>
-          ) : null}
-          {additions.map((service) => (
-            <div key={service.id} {...stylex.props(styles.orderLine)}>
-              <span>{service.name}</span>
-              <span {...stylex.props(styles.mono)}>
-                {formatPrice(service.priceMinor, service.currency)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div {...stylex.props(styles.drawerFooter)}>
-        <div {...stylex.props(styles.subtotal)}>
-          <span>Subtotal</span>
-          <span {...stylex.props(styles.mono)}>
-            {formatPrice(displayedTotal, displayedCurrency)}
-          </span>
-        </div>
-        <button
-          type="button"
-          disabled={!onContinue}
-          onClick={() => {
-            if (!keepOpenOnContinue) onClose()
-            onContinue?.()
-          }}
-          {...stylex.props(styles.primaryButton, styles.drawerButton)}
+      <m.div
+        data-testid="container:cartBreakdownScale"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.8 }}
+        transition={{ duration: 0.3 }}
+        {...stylex.props(styles.cartBreakdownScale)}
+      >
+        <div
+          data-testid="container:sizedBreakdownWrapper"
+          {...stylex.props(styles.sizedBreakdownWrapper)}
         >
-          {continueLabel}
-        </button>
-      </div>
+          <div
+            data-testid="container:sizedBreakdown"
+            {...stylex.props(styles.sizedBreakdown)}
+          >
+            <m.div
+              data-testid="container:breakdownTop"
+              initial={{ height: 0, overflow: 'hidden' }}
+              animate={{ height: 'auto', overflow: 'auto' }}
+              exit={{ height: 0, overflow: 'hidden' }}
+              transition={{ duration: 0.15, times: [0, 0.99, 1] }}
+              {...stylex.props(styles.breakdownTop)}
+            >
+              <div {...stylex.props(styles.appointmentsParent)}>
+                <div {...stylex.props(styles.appointmentsScroll)}>
+                  <div {...stylex.props(styles.appointmentStack)}>
+                    <div
+                      data-testid="container:groupAppt"
+                      {...stylex.props(styles.orderCard)}
+                    >
+                      <div {...stylex.props(styles.orderIdentityGrid)}>
+                        <div {...stylex.props(styles.orderAvatar)}>
+                          <span {...stylex.props(styles.orderAvatarInitials)}>
+                            {initials(
+                              displayedProviderRecord?.localizedName?.text ??
+                                displayedProviderRecord?.displayName ??
+                                displayedProvider
+                            )}
+                          </span>
+                        </div>
+                        <p
+                          data-testid="text:barberName"
+                          {...stylex.props(styles.orderProvider)}
+                        >
+                          {displayedProvider}
+                        </p>
+                        <strong
+                          data-testid="text:barberTotal"
+                          {...stylex.props(styles.orderTotalPrice)}
+                        >
+                          {formatPrice(
+                            displayedAppointmentTotal,
+                            displayedPrimary.currency
+                          )}
+                        </strong>
+                        <p
+                          data-testid="text:serviceName"
+                          {...stylex.props(styles.orderMuted)}
+                        >
+                          {displayedPrimary.name}
+                        </p>
+                      </div>
+                      {additions.length ? (
+                        <div {...stylex.props(styles.orderAdditions)}>
+                          {additions.map((service) => (
+                            <div
+                              key={service.id}
+                              data-testid={`container:addon:${service.id}`}
+                              {...stylex.props(styles.orderLine)}
+                            >
+                              <span {...stylex.props(styles.orderAddonNameGroup)}>
+                                <span {...stylex.props(styles.orderAddonPlus)}>+</span>
+                                <span
+                                  data-testid={`text:addonName:${service.id}`}
+                                  {...stylex.props(styles.orderAddonName)}
+                                >
+                                  {service.name}
+                                </span>
+                              </span>
+                              <span data-testid={`text:addonPrice:${service.id}`}>
+                                {formatPrice(service.priceMinor, service.currency)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {quote ? (
+                        <div {...stylex.props(styles.orderAppointment)}>
+                          <span data-testid="text:aptDate">{displayedAppointment}</span>
+                          <span data-testid="text:aptDuration">
+                            {quote.durationMinutes} {messages.durationMinutesShort}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </m.div>
+            <m.div
+              data-testid="container:breakdownBottom"
+              initial={{ height: 0, overflow: 'hidden' }}
+              animate={{ height: 'auto', overflow: 'visible' }}
+              exit={{ height: 0, overflow: 'hidden' }}
+              transition={{ duration: 0.15, times: [0, 0.99, 1] }}
+              {...stylex.props(styles.breakdownBottom)}
+            >
+              <div {...stylex.props(styles.subtotal)}>
+                <span>Subtotal</span>
+                <span data-testid="text:cart:subtotal">
+                  {formatPrice(displayedTotal, displayedCurrency)}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={!onContinue}
+                onClick={() => {
+                  if (!keepOpenOnContinue) onClose()
+                  onContinue?.()
+                }}
+                {...stylex.props(styles.primaryButton, styles.drawerButton)}
+              >
+                {displayedContinueLabel}
+              </button>
+            </m.div>
+          </div>
+        </div>
+      </m.div>
     </m.div>
   )
 }

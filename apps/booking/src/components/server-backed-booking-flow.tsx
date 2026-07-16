@@ -1193,6 +1193,7 @@ export function ServerBackedBookingFlow({
           uncategorized: message('selection.uncategorized'),
           serviceCategory: message('selection.service_category'),
           chooseServiceFirst: message('selection.choose_service_first'),
+          chooseTime: message('scheduling.choose_title'),
           shop: message('label.shop'),
           nearby: message('selection.nearby'),
           search: message('selection.search'),

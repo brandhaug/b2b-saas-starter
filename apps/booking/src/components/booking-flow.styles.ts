@@ -1819,17 +1819,17 @@ export const styles = stylex.create({
   },
   drawerTitle: {
     margin: 0,
-    fontFamily: bookingTheme.fontDisplay,
+    fontFamily: 'SF Pro Display, SF Pro Text, Roboto, sans-serif',
     fontSize: 20,
     fontWeight: 600,
     lineHeight: '24px',
     letterSpacing: '0.75px'
   },
   drawerSubtitle: {
-    marginTop: 4,
+    marginTop: 2,
     marginBottom: 0,
     color: bookingTheme.colorCartAuxText,
-    fontFamily: bookingTheme.fontText,
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
     fontSize: 13,
     lineHeight: '18px',
     letterSpacing: '-0.078px'
@@ -1855,14 +1855,49 @@ export const styles = stylex.create({
   },
   drawerCloseBorder: { stroke: bookingTheme.colorCartCloseBorder },
   drawerCloseContent: { fill: bookingTheme.colorCartCloseContent },
-  drawerBody: {
+  cartBreakdownScale: {
+    width: '100%',
+    height: 'calc(100% - 16px)',
     minHeight: 0,
-    flex: 1,
-    overflowY: 'auto',
+    transformOrigin: 'center center'
+  },
+  sizedBreakdownWrapper: {
+    position: 'relative',
+    width: '100%',
+    height: '100%'
+  },
+  sizedBreakdown: {
+    position: 'absolute',
+    display: 'flex',
+    width: '100%',
+    height: '100%',
+    maxHeight: '100%',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    boxSizing: 'border-box'
+  },
+  breakdownTop: {
+    marginTop: 16,
+    marginBottom: 16,
     scrollbarWidth: 'none'
   },
+  appointmentsParent: {
+    position: 'relative',
+    overflow: 'hidden',
+    flex: 1
+  },
+  appointmentsScroll: {
+    maxHeight: '100%',
+    overflowY: 'scroll',
+    scrollbarWidth: 'none'
+  },
+  appointmentStack: {
+    display: 'flex',
+    gap: 8,
+    flexDirection: 'column',
+    marginTop: 8
+  },
   orderCard: {
-    marginTop: 24,
     padding: 16,
     borderRadius: 16,
     backgroundColor: bookingTheme.colorCartAppointment
@@ -1873,54 +1908,157 @@ export const styles = stylex.create({
     justifyContent: 'space-between',
     gap: 12
   },
+  orderIdentityGrid: {
+    position: 'relative',
+    display: 'grid',
+    gridTemplateColumns: '56px minmax(0, 1fr) auto',
+    gridTemplateRows: 'auto auto',
+    columnGap: 16,
+    rowGap: 3,
+    alignItems: 'start'
+  },
+  orderAvatar: {
+    display: 'flex',
+    width: 56,
+    height: 56,
+    gridColumn: 1,
+    gridRow: '1 / span 2',
+    alignItems: 'center',
+    alignSelf: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: bookingTheme.colorProviderAvatar,
+    color: bookingTheme.colorCartAppointment
+  },
+  orderAvatarInitials: {
+    fontFamily: 'SF Pro Display, SF Pro Text, Roboto, sans-serif',
+    fontSize: 17.5,
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px'
+  },
   orderProvider: {
+    minWidth: 0,
+    overflow: 'hidden',
+    gridColumn: 2,
+    gridRow: 1,
+    alignSelf: 'end',
     margin: 0,
-    fontSize: 14,
-    fontWeight: 650
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  orderTotalPrice: {
+    minWidth: 0,
+    overflow: 'hidden',
+    gridColumn: 3,
+    gridRow: 1,
+    alignSelf: 'end',
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px',
+    textAlign: 'right',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
   },
   orderMuted: {
-    marginTop: 4,
-    marginBottom: 0,
-    color: 'rgb(255 255 255 / 56%)',
-    fontSize: 12
+    minWidth: 0,
+    maxWidth: 'calc(100% - 1em)',
+    overflow: 'hidden',
+    gridColumn: '2 / span 2',
+    gridRow: 2,
+    margin: 0,
+    color: bookingTheme.colorCartAuxText,
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  orderAdditions: {
+    display: 'flex',
+    rowGap: 16,
+    flexDirection: 'column',
+    marginTop: 16
   },
   orderAppointment: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    marginTop: 4,
-    color: bookingTheme.colorCartAuxText,
-    fontFamily: bookingTheme.fontText,
-    fontSize: 13,
+    marginTop: 16,
+    color: bookingTheme.colorBreakdownText,
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 15,
     lineHeight: '18px',
-    letterSpacing: '-0.078px'
+    letterSpacing: '-0.24px'
   },
   orderLine: {
     display: 'flex',
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopStyle: 'solid',
-    borderTopColor: 'rgb(255 255 255 / 12%)',
-    color: 'rgb(255 255 255 / 64%)',
-    fontSize: 12
+    gap: 16,
+    color: bookingTheme.colorCartAuxText,
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px'
   },
-  drawerFooter: {
-    marginTop: 'auto'
+  orderAddonNameGroup: {
+    display: 'flex',
+    minWidth: 0,
+    alignItems: 'center'
+  },
+  orderAddonPlus: {
+    marginRight: 5,
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
+  },
+  orderAddonName: {
+    maxWidth: 'calc(100% - 1em)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  breakdownBottom: {
+    marginTop: 16
   },
   subtotal: {
     display: 'flex',
-    alignItems: 'center',
+    width: '100%',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 16,
-    fontWeight: 650
+    fontFamily: 'SF Pro Display, SF Pro Text, Roboto, sans-serif',
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px'
   },
   drawerButton: {
     width: '100%',
-    height: 48
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: {
+      default: bookingTheme.colorPrimary,
+      ':hover': bookingTheme.colorPrimary,
+      ':disabled': '#b8c8ee'
+    },
+    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    fontSize: 15,
+    fontWeight: 600,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px'
   },
   alert: {
     marginBottom: 20,

@@ -600,8 +600,22 @@ describe('Booking selection flow', () => {
     expect(screen.getByRole('dialog', { name: /order summary/i })).toBe(cart)
     expect(document.activeElement).toBe(viewOrder)
     expect(scrollable.scrollTop).toBe(0)
+    const breakdownScale = within(cart).getByTestId('container:cartBreakdownScale')
+    const breakdownWrapper = within(breakdownScale).getByTestId(
+      'container:sizedBreakdownWrapper'
+    )
+    const breakdown = within(breakdownWrapper).getByTestId('container:sizedBreakdown')
+    const top = within(breakdown).getByTestId('container:breakdownTop')
+    const bottom = within(breakdown).getByTestId('container:breakdownBottom')
+    expect(breakdownScale.parentElement).toBe(cart)
+    expect(breakdownWrapper.parentElement).toBe(breakdownScale)
+    expect(breakdown.parentElement).toBe(breakdownWrapper)
+    expect(top.parentElement).toBe(breakdown)
+    expect(bottom.parentElement).toBe(breakdown)
+    expect(within(top).getByTestId('container:groupAppt')).toBeTruthy()
+    expect(within(bottom).getByTestId('text:cart:subtotal')).toBeTruthy()
     expect(screen.getAllByText('$45.00').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getByRole('button', { name: 'Choose time' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a time' }))
     expect(continueToTime).toHaveBeenCalledOnce()
   })
 
@@ -652,6 +666,40 @@ describe('Booking selection flow', () => {
     } finally {
       focus.mockRestore()
     }
+  })
+
+  it('matches the legacy expanded appointment card when add-ons are selected', () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          presentation: 'solo',
+          providerPreference: { kind: 'specific', providerId: 'prv_ava' },
+          selection: {
+            primaryServiceId: 'svc_cut',
+            additionalServiceIds: ['svc_beard']
+          },
+          compatibleAdditionalServiceIds: ['svc_beard']
+        }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('btn:viewOrder'))
+    const appointment = screen.getByTestId('container:groupAppt')
+    expect(within(appointment).getByTestId('text:barberTotal').textContent).toBe(
+      '$73.00'
+    )
+    const addon = within(appointment).getByTestId('container:addon:svc_beard')
+    expect(within(addon).getByText('+')).toBeTruthy()
+    expect(within(addon).getByTestId('text:addonName:svc_beard').textContent).toBe(
+      'Beard Trim'
+    )
+    expect(within(addon).getByTestId('text:addonPrice:svc_beard').textContent).toBe(
+      '$28.00'
+    )
   })
 
   it('uses the legacy service-card contract and waits through its selected transition before add-ons', async () => {
