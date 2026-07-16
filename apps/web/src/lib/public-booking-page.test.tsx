@@ -45,7 +45,9 @@ describe('Public Booking Page resolution', () => {
     expect(
       screen.getByRole('heading', { name: 'Precision grooming, made personal' })
     ).toBeTruthy()
-    expect(screen.getByText('7 signature services')).toBeTruthy()
+    expect(screen.queryByText('7 signature services')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Services' })).toBeNull()
+    expect(screen.queryByText('Signature Cut')).toBeNull()
     expect(screen.queryByRole('form')).toBeNull()
 
     const cta = screen.getByRole('link', { name: 'View booking times' })

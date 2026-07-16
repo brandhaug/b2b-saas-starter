@@ -1,4 +1,4 @@
-import { ArrowUpRight, CalendarDays, Clock3, Scissors, Sparkles } from 'lucide-react'
+import { ArrowUpRight, CalendarDays, Scissors } from 'lucide-react'
 import type { PublicBookingPage } from '@b2b-saas-starter/capabilities/scheduling'
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>()
@@ -31,10 +31,6 @@ export function PublicMerchantPresentation({
 }
 
 function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }) {
-  const categoryCount = new Set(
-    page.services.flatMap((service) => (service.category ? [service.category] : []))
-  ).size
-
   return (
     <main className="dark min-h-dvh bg-background text-foreground sm:px-5 sm:py-8">
       <div className="relative mx-auto min-h-dvh w-full max-w-[480px] overflow-hidden bg-background sm:min-h-[calc(100dvh-4rem)] sm:rounded-[2.5rem] sm:shadow-2xl sm:shadow-black/50">
@@ -84,7 +80,7 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
                     The studio
                   </p>
                   <p className="mt-1.5 text-lg leading-5 font-semibold">
-                    {page.services.length} signature services
+                    Private appointments
                   </p>
                 </div>
               </article>
@@ -98,56 +94,6 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
                 />
                 <figcaption className="sr-only">Precision haircut detail</figcaption>
               </figure>
-            </section>
-
-            <section
-              className="overflow-hidden rounded-3xl bg-card"
-              aria-labelledby="services-heading"
-            >
-              <div className="flex items-end justify-between gap-5 border-b border-border px-5 pt-5 pb-4">
-                <div>
-                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    The menu
-                  </p>
-                  <h2
-                    id="services-heading"
-                    className="mt-1 text-2xl font-bold tracking-tight"
-                  >
-                    Services
-                  </h2>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <Sparkles aria-hidden="true" className="size-3.5 text-primary" />
-                  {categoryCount} collections
-                </div>
-              </div>
-
-              <div className="divide-y divide-border">
-                {page.services.map((service) => (
-                  <article
-                    className="grid grid-cols-[1fr_auto] gap-4 px-5 py-4"
-                    key={service.id}
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-card-foreground">
-                        {service.name}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
-                        {service.description ??
-                          service.category ??
-                          'Personal grooming service'}
-                      </p>
-                      <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Clock3 aria-hidden="true" className="size-3.5" />
-                        {service.durationMinutes} min
-                      </p>
-                    </div>
-                    <p className="pt-0.5 text-sm font-semibold text-card-foreground">
-                      {formatMoney(service.priceMinor, service.currency)}
-                    </p>
-                  </article>
-                ))}
-              </div>
             </section>
 
             <section aria-label="Studio gallery" className="grid grid-cols-2 gap-4">
@@ -174,7 +120,7 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
                     Ready when you are
                   </p>
                   <p className="mt-2 text-sm leading-5 text-primary-foreground/80">
-                    Pick a service, a specialist, and a time in the booking app.
+                    Choose a specialist and a time in the booking app.
                   </p>
                 </div>
               </article>
