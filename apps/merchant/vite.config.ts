@@ -5,8 +5,8 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 
 export default defineConfig(({ command, mode }) => ({
-  server: { host: 'localhost', port: 3072 },
-  preview: { host: 'localhost', port: 3072 },
+  server: { host: true, port: 3072 },
+  preview: { host: true, port: 3072 },
   resolve: {
     tsconfigPaths: true,
     // Development and tests run through the local D1 shim; the deployed

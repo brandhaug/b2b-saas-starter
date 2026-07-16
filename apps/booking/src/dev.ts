@@ -26,6 +26,7 @@ const vite = Bun.spawn(
 const hopByHopHeaders = ['connection', 'keep-alive', 'transfer-encoding'] as const
 
 const server = Bun.serve({
+  hostname: '0.0.0.0',
   port: 3073,
   async fetch(request) {
     const target = new URL(request.url)

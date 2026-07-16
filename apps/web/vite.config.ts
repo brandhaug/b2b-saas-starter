@@ -91,13 +91,13 @@ export default defineConfig(({ command, mode }) => {
   return {
     server: {
       port: 3071,
-      host: 'localhost',
+      host: true,
       // Quick Tunnels use a random subdomain. Restricting the suffix keeps
       // Vite's DNS-rebinding protection while allowing Cloudflare ingress.
       allowedHosts: ['.trycloudflare.com'],
       ...(bookingProxy ? { proxy: bookingProxy } : {})
     },
-    preview: { port: 3071, host: 'localhost' },
+    preview: { port: 3071, host: true },
     resolve: {
       tsconfigPaths: true,
       alias: workersShim

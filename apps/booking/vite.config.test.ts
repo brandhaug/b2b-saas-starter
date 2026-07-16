@@ -10,6 +10,8 @@ it('aliases Booking Vite to the local Worker bindings during development', async
   const { default: config } = await import('./vite.config.ts')
   const resolved = config({ command: 'serve', mode: 'development' })
 
+  expect(resolved.server?.host).toBe(true)
+  expect(resolved.preview?.host).toBe(true)
   expect(resolved.resolve?.alias).toEqual({
     'cloudflare:workers': expect.stringMatching(/cloudflare-workers-shim-dev\.ts$/)
   })

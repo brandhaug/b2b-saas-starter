@@ -5,6 +5,8 @@ it('proxies local Booking pages, mutations, and assets before Web SSR', async ()
   const { default: config } = await import('./vite.config.ts')
   const resolved = config({ command: 'serve', mode: 'development' })
 
+  expect(resolved.server?.host).toBe(true)
+  expect(resolved.preview?.host).toBe(true)
   expect(resolved.server?.proxy).toEqual({
     '^/booking/[a-z0-9]+(?:-[a-z0-9]+)*(?:/|$)': expect.objectContaining({
       target: 'http://localhost:3073',
