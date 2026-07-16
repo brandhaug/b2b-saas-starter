@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BookingMerchantSlugRouteImport } from './routes/booking.$merchantSlug'
 import { Route as MerchantSlugBookingRouteImport } from './routes/$merchantSlug.booking'
 import { Route as MerchantSlugBookingSplatRouteImport } from './routes/$merchantSlug.booking.$'
 import { Route as MerchantSlugBookingSessionSessionIdRouteImport } from './routes/$merchantSlug.booking_.session.$sessionId'
@@ -17,6 +18,11 @@ import { Route as MerchantSlugBookingSessionSessionIdRouteImport } from './route
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingMerchantSlugRoute = BookingMerchantSlugRouteImport.update({
+  id: '/booking/$merchantSlug',
+  path: '/booking/$merchantSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MerchantSlugBookingRoute = MerchantSlugBookingRouteImport.update({
@@ -40,12 +46,14 @@ const MerchantSlugBookingSessionSessionIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$merchantSlug/booking': typeof MerchantSlugBookingRouteWithChildren
+  '/booking/$merchantSlug': typeof BookingMerchantSlugRoute
   '/$merchantSlug/booking/$': typeof MerchantSlugBookingSplatRoute
   '/$merchantSlug/booking/session/$sessionId': typeof MerchantSlugBookingSessionSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$merchantSlug/booking': typeof MerchantSlugBookingRouteWithChildren
+  '/booking/$merchantSlug': typeof BookingMerchantSlugRoute
   '/$merchantSlug/booking/$': typeof MerchantSlugBookingSplatRoute
   '/$merchantSlug/booking/session/$sessionId': typeof MerchantSlugBookingSessionSessionIdRoute
 }
@@ -53,6 +61,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$merchantSlug/booking': typeof MerchantSlugBookingRouteWithChildren
+  '/booking/$merchantSlug': typeof BookingMerchantSlugRoute
   '/$merchantSlug/booking/$': typeof MerchantSlugBookingSplatRoute
   '/$merchantSlug/booking_/session/$sessionId': typeof MerchantSlugBookingSessionSessionIdRoute
 }
@@ -61,18 +70,21 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$merchantSlug/booking'
+    | '/booking/$merchantSlug'
     | '/$merchantSlug/booking/$'
     | '/$merchantSlug/booking/session/$sessionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$merchantSlug/booking'
+    | '/booking/$merchantSlug'
     | '/$merchantSlug/booking/$'
     | '/$merchantSlug/booking/session/$sessionId'
   id:
     | '__root__'
     | '/'
     | '/$merchantSlug/booking'
+    | '/booking/$merchantSlug'
     | '/$merchantSlug/booking/$'
     | '/$merchantSlug/booking_/session/$sessionId'
   fileRoutesById: FileRoutesById
@@ -80,6 +92,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MerchantSlugBookingRoute: typeof MerchantSlugBookingRouteWithChildren
+  BookingMerchantSlugRoute: typeof BookingMerchantSlugRoute
   MerchantSlugBookingSessionSessionIdRoute: typeof MerchantSlugBookingSessionSessionIdRoute
 }
 
@@ -90,6 +103,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/booking/$merchantSlug': {
+      id: '/booking/$merchantSlug'
+      path: '/booking/$merchantSlug'
+      fullPath: '/booking/$merchantSlug'
+      preLoaderRoute: typeof BookingMerchantSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$merchantSlug/booking': {
@@ -130,6 +150,7 @@ const MerchantSlugBookingRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MerchantSlugBookingRoute: MerchantSlugBookingRouteWithChildren,
+  BookingMerchantSlugRoute: BookingMerchantSlugRoute,
   MerchantSlugBookingSessionSessionIdRoute:
     MerchantSlugBookingSessionSessionIdRoute,
 }

@@ -74,6 +74,11 @@ export default defineConfig(({ command, mode }) => {
   const bookingProxy =
     command === 'serve' && mode !== 'test'
       ? {
+          '^/booking/[a-z0-9]+(?:-[a-z0-9]+)*(?:/|$)': {
+            target: bookingDevOrigin,
+            changeOrigin: true,
+            configure: configureBookingProxy(publicSite)
+          },
           '^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)': {
             target: bookingDevOrigin,
             changeOrigin: true,

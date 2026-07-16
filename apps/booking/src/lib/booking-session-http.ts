@@ -158,14 +158,19 @@ const RescheduleHttpCommand = Schema.Union([
   })
 ])
 
-export const bookingSessionCookie = (input: {
+type BookingSessionCookieInput = {
   readonly sessionId: string
   readonly merchantSlug: string
   readonly capability: string
   readonly absoluteExpiresAt: string
   readonly now: string
   readonly secure: boolean
-}): BookingSessionEffect<string, InvalidBookingSessionCookie> => {
+}
+
+const serializeBookingSessionCookie = (
+  input: BookingSessionCookieInput,
+  path: string
+): BookingSessionEffect<string, InvalidBookingSessionCookie> => {
   if (!SESSION_ID.test(input.sessionId) || !CAPABILITY.test(input.capability)) {
     return Effect.fail(
       new InvalidBookingSessionCookie({
@@ -183,7 +188,7 @@ export const bookingSessionCookie = (input: {
   return Effect.succeed(
     [
       `${COOKIE_PREFIX}${input.sessionId}=${input.capability}`,
-      `Path=/${input.merchantSlug}/booking`,
+      `Path=${path}`,
       `Max-Age=${maxAge}`,
       'HttpOnly',
       input.secure ? 'Secure' : null,
@@ -193,6 +198,16 @@ export const bookingSessionCookie = (input: {
       .join('; ')
   )
 }
+
+export const bookingSessionCookie = (
+  input: BookingSessionCookieInput
+): BookingSessionEffect<string, InvalidBookingSessionCookie> =>
+  serializeBookingSessionCookie(input, `/${input.merchantSlug}/booking`)
+
+const bookingLandingSessionCookie = (
+  input: BookingSessionCookieInput
+): BookingSessionEffect<string, InvalidBookingSessionCookie> =>
+  serializeBookingSessionCookie(input, `/booking/${input.merchantSlug}`)
 
 export const readBookingSessionCapabilities = (
   cookieHeader: string | null
@@ -880,10 +895,15 @@ export const handleBookingSessionRequest = (
   Effect.gen(function* () {
     const url = new URL(request.url)
     const segments = safeSegments(url.pathname)
-    if (!segments || segments[1]?.toLowerCase() !== 'booking') {
+    const bookingFirstLanding =
+      segments?.length === 2 && segments[0]?.toLowerCase() === 'booking'
+    if (
+      !segments ||
+      (!bookingFirstLanding && segments[1]?.toLowerCase() !== 'booking')
+    ) {
       return yield* dependencies.fallback(request)
     }
-    const merchantSlug = segments[0]
+    const merchantSlug = bookingFirstLanding ? segments[1] : segments[0]
     if (!merchantSlug) return hiddenNotFound()
     const now = dependencies.now?.() ?? new Date().toISOString()
     const clientKey = request.headers.get('cf-connecting-ip') ?? `path:${url.pathname}`
@@ -1202,20 +1222,31 @@ export const handleBookingSessionRequest = (
         'x-booking-embedding': resolvedEmbedding
       })
       if (entry.kind === 'created') {
-        const cookieResult = yield* Effect.result(
-          bookingSessionCookie({
-            sessionId: entry.session.id,
-            merchantSlug: canonicalRoute.merchantSlug,
-            capability: entry.capability,
-            absoluteExpiresAt: entry.session.absoluteExpiresAt,
-            now,
-            secure: url.protocol === 'https:'
-          })
-        )
+        const cookieInput = {
+          sessionId: entry.session.id,
+          merchantSlug: canonicalRoute.merchantSlug,
+          capability: entry.capability,
+          absoluteExpiresAt: entry.session.absoluteExpiresAt,
+          now,
+          secure: url.protocol === 'https:'
+        }
+        const cookieResult = yield* Effect.result(bookingSessionCookie(cookieInput))
         if (cookieResult._tag === 'Failure') {
           return mapSessionFailure(cookieResult.failure, canonicalRoute.merchantSlug)
         }
         headers.append('set-cookie', cookieResult.success)
+        if (canonicalRoute.pathname.startsWith('/booking/')) {
+          const aliasCookieResult = yield* Effect.result(
+            bookingLandingSessionCookie(cookieInput)
+          )
+          if (aliasCookieResult._tag === 'Failure') {
+            return mapSessionFailure(
+              aliasCookieResult.failure,
+              canonicalRoute.merchantSlug
+            )
+          }
+          headers.append('set-cookie', aliasCookieResult.success)
+        }
       }
       return new Response(null, { status: canonical.changed ? 307 : 303, headers })
     }

@@ -1,7 +1,8 @@
 # apps/web
 
 Unauthenticated Public Site and canonical Booking ingress. It owns editorial pages,
-public Merchant pages, and dispatches `/:merchantSlug/booking/**` to the Booking App.
+public Merchant pages, and dispatches the `/booking/:merchantSlug` landing plus
+merchant-scoped `/:merchantSlug/booking/**` session traffic to the Booking App.
 It does not own authentication or Merchant product operations; those belong only to
 `apps/merchant`.
 

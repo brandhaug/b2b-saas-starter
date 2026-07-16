@@ -4,6 +4,21 @@
 @source "../node_modules/streamdown/dist/*.js";
 @plugin "@tailwindcss/typography";
 
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root) {
+  animation: 180ms ease-in both merchant-page-exit;
+}
+
+@keyframes merchant-page-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-1.25rem) scale(0.985);
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {

@@ -44,6 +44,16 @@ const merchantBookingPath = (pathname: string): boolean => {
   }
 }
 
+const bookingFirstPath = (pathname: string): boolean => {
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length !== 2 || segments[0] !== 'booking') return false
+  try {
+    return isMerchantSlug(decodeURIComponent(segments[1] ?? ''))
+  } catch {
+    return false
+  }
+}
+
 /**
  * The Public Site owns the canonical ingress. This deliberately uses only
  * path shape and the reserved-slug set: merchant resolution belongs to the
@@ -52,6 +62,7 @@ const merchantBookingPath = (pathname: string): boolean => {
 export const isBookingRequest = (url: URL): boolean =>
   url.pathname === '/virtual:stylex.css' ||
   url.pathname.startsWith('/_booking/') ||
+  bookingFirstPath(url.pathname) ||
   merchantBookingPath(url.pathname)
 
 const bookingUnavailable = (traceId: string): Response =>

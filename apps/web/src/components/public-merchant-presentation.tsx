@@ -8,13 +8,7 @@ import {
   Star,
   X
 } from 'lucide-react'
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent
-} from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { PublicBookingPage } from '@b2b-saas-starter/capabilities/scheduling'
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>()
@@ -95,23 +89,6 @@ export function PublicMerchantPresentation({
 function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }) {
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
   const [locationOpen, setLocationOpen] = useState(false)
-  const [bookingOpen, setBookingOpen] = useState(false)
-
-  const openBooking = (event: ReactMouseEvent<HTMLAnchorElement>) => {
-    if (
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey
-    )
-      return
-
-    event.preventDefault()
-    setBookingOpen(true)
-  }
-
-  const closeBooking = () => setBookingOpen(false)
 
   return (
     <main className="dark min-h-dvh bg-background text-foreground sm:px-5 sm:py-8">
@@ -168,7 +145,6 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
             <a
               className="mt-2 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-primary px-5 text-base font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               href={page.bookingPath}
-              onClick={openBooking}
             >
               <CalendarDays aria-hidden="true" className="size-6" />
               Book an appointment
@@ -194,10 +170,6 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
             location={page.location}
             onClose={() => setLocationOpen(false)}
           />
-        ) : null}
-
-        {bookingOpen ? (
-          <BookingDrawer bookingPath={page.bookingPath} onClose={closeBooking} />
         ) : null}
       </div>
     </main>
@@ -447,50 +419,6 @@ function useNativeModal() {
   }, [])
 
   return dialogRef
-}
-
-function BookingDrawer({
-  bookingPath,
-  onClose
-}: {
-  readonly bookingPath: string
-  readonly onClose: () => void
-}) {
-  const dialogRef = useNativeModal()
-
-  return (
-    <dialog
-      aria-label="Book an appointment"
-      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-transparent p-0 text-foreground backdrop:bg-black/70 backdrop:backdrop-blur-sm"
-      onCancel={(event) => {
-        event.preventDefault()
-        onClose()
-      }}
-      ref={dialogRef}
-    >
-      <section className="animate-in slide-in-from-bottom absolute inset-x-0 bottom-0 h-[92dvh] overflow-hidden rounded-t-[2rem] bg-background shadow-2xl duration-300">
-        <div className="absolute inset-x-0 top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-background/95 px-5 backdrop-blur-md">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">Booking</p>
-            <p className="font-semibold text-foreground">Mara Booking Studio</p>
-          </div>
-          <button
-            aria-label="Close booking"
-            className="flex size-11 items-center justify-center rounded-full bg-card text-foreground"
-            onClick={onClose}
-            type="button"
-          >
-            <X aria-hidden="true" className="size-6" />
-          </button>
-        </div>
-        <iframe
-          className="size-full border-0 pt-16"
-          src={bookingPath}
-          title="Booking app"
-        />
-      </section>
-    </dialog>
-  )
 }
 
 function StudioGallery({

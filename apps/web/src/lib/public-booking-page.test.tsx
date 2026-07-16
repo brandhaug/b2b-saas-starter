@@ -77,18 +77,13 @@ describe('Public Booking Page resolution', () => {
     expect(screen.getByText('4.8')).toBeTruthy()
 
     const cta = screen.getByRole('link', { name: 'Book an appointment' })
-    expect(cta.getAttribute('href')).toBe('/mara-booking-studio/booking')
+    expect(cta.getAttribute('href')).toBe('/booking/mara-booking-studio')
     expect(
       isBookingRequest(new URL(cta.getAttribute('href')!, 'https://public.test'))
     ).toBe(true)
     expect(cta).toBeInstanceOf(HTMLAnchorElement)
-    fireEvent.click(cta)
-    expect(screen.getByRole('dialog', { name: 'Book an appointment' })).toBeTruthy()
-    expect(screen.getByTitle('Booking app').getAttribute('src')).toBe(
-      '/mara-booking-studio/booking'
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Close booking' }))
     expect(screen.queryByRole('dialog', { name: 'Book an appointment' })).toBeNull()
+    expect(screen.queryByTitle('Booking app')).toBeNull()
 
     presentation.unmount()
     render(
@@ -96,7 +91,7 @@ describe('Public Booking Page resolution', () => {
         page={{
           ...published.page,
           merchantSlug: 'another-studio',
-          bookingPath: '/another-studio/booking'
+          bookingPath: '/booking/another-studio'
         }}
         merchantSlug="another-studio"
       />

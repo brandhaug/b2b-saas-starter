@@ -1,18 +1,16 @@
-import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { CanonicalBookingShell } from '../components/canonical-booking-shell.tsx'
 import { validateBookingLandingSearch } from '../lib/booking-landing-route.ts'
+import './booking.$merchantSlug.css'
 
-export const Route = createFileRoute('/$merchantSlug/booking')({
+export const Route = createFileRoute('/booking/$merchantSlug')({
   validateSearch: validateBookingLandingSearch,
-  component: CanonicalBookingRoute
+  component: BookingFirstLandingRoute
 })
 
-function CanonicalBookingRoute() {
+function BookingFirstLandingRoute() {
   const { merchantSlug } = Route.useParams()
-  const location = useLocation()
   const { booking, locale, embed } = Route.useSearch()
-  if (location.pathname !== `/${encodeURIComponent(merchantSlug)}/booking`)
-    return <Outlet />
   if (!booking) return null
   return (
     <CanonicalBookingShell

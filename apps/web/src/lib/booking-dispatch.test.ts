@@ -22,6 +22,8 @@ describe('booking ingress dispatch', () => {
     '/demo-shop/booking/services',
     '/demo-shop/booking/session/bsn_123/checkout',
     '/demo-shop/booking/session/bsn_123/selection',
+    '/booking/demo-shop',
+    '/booking/demo-shop?locale=ro',
     '/_booking/assets/entry.js',
     '/virtual:stylex.css?t=1783705972517'
   ])('recognizes public Booking App traffic: %s', (path) => {
@@ -31,6 +33,7 @@ describe('booking ingress dispatch', () => {
   it.each([
     '/docs/booking',
     '/booking/booking',
+    '/booking/docs',
     '/demo-shop',
     '/demo-shop/services',
     '/demo-shop/booking-notes',

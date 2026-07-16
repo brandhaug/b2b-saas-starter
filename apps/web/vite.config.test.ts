@@ -6,6 +6,11 @@ it('proxies local Booking pages, mutations, and assets before Web SSR', async ()
   const resolved = config({ command: 'serve', mode: 'development' })
 
   expect(resolved.server?.proxy).toEqual({
+    '^/booking/[a-z0-9]+(?:-[a-z0-9]+)*(?:/|$)': expect.objectContaining({
+      target: 'http://localhost:3073',
+      changeOrigin: true,
+      configure: expect.any(Function)
+    }),
     '^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)': expect.objectContaining({
       target: 'http://localhost:3073',
       changeOrigin: true,

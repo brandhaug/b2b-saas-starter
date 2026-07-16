@@ -402,6 +402,51 @@ describe('Booking Session HTTP boundary', () => {
     expect(response?.headers.get('set-cookie')).toContain(capability)
   })
 
+  it('creates from the booking-first landing and keeps both landing and flow cookie scopes', async () => {
+    const capability = 'd'.repeat(64)
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request('https://www.example.test/booking/mara-studio'),
+        {
+          publicSiteOrigin: 'https://www.example.test',
+          enter: () =>
+            Effect.succeed({
+              kind: 'created',
+              routeId: 'brt_alias',
+              capability,
+              session: {
+                id: 'bsn_alias',
+                merchantSlug: 'mara-studio',
+                checkoutPath: 'pay_in_person',
+                lifecycle: 'active',
+                createdAt: '2026-07-10T10:00:00.000Z',
+                lastActivityAt: '2026-07-10T10:00:00.000Z',
+                idleExpiresAt: '2026-07-10T10:30:00.000Z',
+                absoluteExpiresAt: '2026-07-10T12:00:00.000Z'
+              }
+            }),
+          authorize: () => Effect.die(new Error('not called')),
+          takeRead: () => Effect.succeed(true),
+          takeWrite: () => Effect.succeed(true),
+          fallback: () => Effect.succeed(new Response('not called'))
+        }
+      )
+    )
+
+    expect(response?.status).toBe(303)
+    expect(response?.headers.get('location')).toBe(
+      '/booking/mara-studio?booking=brt_alias'
+    )
+    const cookies = response?.headers.getSetCookie() ?? []
+    expect(cookies).toHaveLength(2)
+    expect(cookies.some((cookie) => cookie.includes('Path=/booking/mara-studio'))).toBe(
+      true
+    )
+    expect(cookies.some((cookie) => cookie.includes('Path=/mara-studio/booking'))).toBe(
+      true
+    )
+  })
+
   it('isolates each tab by entering only the Session named by its non-secret locator', async () => {
     const calls: { locator: string | null; candidates: string[] }[] = []
     const capability = 'b'.repeat(64)

@@ -129,4 +129,24 @@ describe('canonical Booking route contract', () => {
       bookingLocator: 'bsn_tab_two'
     })
   })
+
+  it('accepts the booking-first merchant landing alias', () => {
+    expect(matchCanonicalBookingRoute('/booking/mara-booking-studio')).toEqual({
+      kind: 'shop-selection',
+      merchantSlug: 'mara-booking-studio',
+      pathname: '/booking/mara-booking-studio',
+      transactional: false,
+      shopSlug: undefined,
+      serviceSlug: undefined
+    })
+    expect(
+      canonicalizeBookingRequest(
+        new URL('https://booking.test/booking/Mara-Booking-Studio?booking=bsn_alias')
+      )
+    ).toMatchObject({
+      canonicalUrl: '/booking/mara-booking-studio?booking=bsn_alias',
+      changed: true,
+      bookingLocator: 'bsn_alias'
+    })
+  })
 })

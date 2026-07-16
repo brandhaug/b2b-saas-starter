@@ -18,8 +18,9 @@ Server client ─────> Platform API                         │
 ## Five Workers
 
 - `apps/web` is the unauthenticated Public Site and only production booking
-  ingress. It reads published public Merchant data and forwards
-  `/:merchantSlug/booking/**` without owning customer credentials.
+  ingress. It reads published public Merchant data, forwards the public
+  `/booking/:merchantSlug` landing, and relays the resulting Merchant-scoped
+  `/:merchantSlug/booking/**` session traffic without owning customer credentials.
 - `apps/merchant` is the only authenticated first-party product application.
   Better Auth sessions are host-only and Merchant membership resolves the
   authorization boundary.
@@ -53,15 +54,15 @@ reclaims durable work.
 
 ## Credential and privacy boundaries
 
-| Credential/data            | Boundary                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| Merchant session cookie    | host-only Merchant App cookie; never bound to Public Site                       |
-| Booking Session capability | browser cookie scoped to one Merchant booking path; only a hash persists        |
-| Confirmation token         | exchanged once for an exact-path cookie; only hashes/access metadata persist    |
-| Customer session cookie    | customer-only Better Auth namespace; never grants Merchant membership           |
-| Provider access proof      | short-lived Booking Session/Provider-bound proof; only its hash persists        |
-| Platform API token         | one Merchant and explicit scopes; plaintext disclosed once, hash persists       |
-| Webhook signing secret     | plaintext disclosed once; encrypted/derived delivery material stays server-side |
+| Credential/data            | Boundary                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| Merchant session cookie    | host-only Merchant App cookie; never bound to Public Site                                          |
+| Booking Session capability | HTTP-only cookies scoped to the public landing and its Merchant session path; only a hash persists |
+| Confirmation token         | exchanged once for an exact-path cookie; only hashes/access metadata persist                       |
+| Customer session cookie    | customer-only Better Auth namespace; never grants Merchant membership                              |
+| Provider access proof      | short-lived Booking Session/Provider-bound proof; only its hash persists                           |
+| Platform API token         | one Merchant and explicit scopes; plaintext disclosed once, hash persists                          |
+| Webhook signing secret     | plaintext disclosed once; encrypted/derived delivery material stays server-side                    |
 
 Cross-Merchant reads return the same not-found shape as missing resources.
 Operational logs, queue messages, Webhook payloads, cursors, and delivery history

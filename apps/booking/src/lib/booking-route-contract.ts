@@ -110,6 +110,21 @@ export function matchCanonicalBookingRoute(
     return null
   }
   if (
+    segments.length === 2 &&
+    segments[0] === 'booking' &&
+    SAFE_SEGMENT.test(segments[1]!) &&
+    !hasControlOrSeparator(segments[1]!)
+  ) {
+    return {
+      kind: 'shop-selection',
+      merchantSlug: segments[1]!,
+      pathname: `/booking/${encodeURIComponent(segments[1]!)}`,
+      transactional: false,
+      shopSlug: undefined,
+      serviceSlug: undefined
+    }
+  }
+  if (
     segments.length < 2 ||
     segments[1] !== 'booking' ||
     segments.some(
