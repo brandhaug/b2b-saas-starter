@@ -716,8 +716,11 @@ const liveReadiness = (db: EffectDatabase, merchantId: string) =>
   )
 
 const PublicShopAddress = Schema.Struct({
-  street: Schema.String,
-  city: Schema.String
+  street: Schema.optional(Schema.String),
+  line1: Schema.optional(Schema.String),
+  address1: Schema.optional(Schema.String),
+  city: Schema.optional(Schema.String),
+  locality: Schema.optional(Schema.String)
 })
 
 const publicLocationFromRow = (row: {
@@ -733,7 +736,11 @@ const publicLocationFromRow = (row: {
     const address = Schema.decodeUnknownSync(PublicShopAddress)(
       JSON.parse(row.addressJson)
     )
-    const label = [address.street, address.city].join(', ')
+    const street = address.street ?? address.line1 ?? address.address1
+    const city = address.city ?? address.locality
+    const label = [street, city]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+      .join(', ')
     return label ? { label, latitude, longitude } : null
   } catch {
     return null

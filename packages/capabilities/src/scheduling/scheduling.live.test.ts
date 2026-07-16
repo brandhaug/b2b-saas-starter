@@ -82,7 +82,7 @@ beforeAll(async () => {
       yield* db.insert(shopAddresses).values({
         id: 'sad_live_schedule',
         shopId: 'shp_live_schedule',
-        addressJson: JSON.stringify({ street: 'Strada Test 10', city: 'București' }),
+        addressJson: JSON.stringify({ line1: 'Strada Test 10', locality: 'București' }),
         latitude: '44.43',
         longitude: '26.1',
         createdAt: now,
