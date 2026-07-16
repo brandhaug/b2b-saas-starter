@@ -87,6 +87,10 @@ describe('Public Booking Page resolution', () => {
     fireEvent.click(cta)
     expect(screen.getByRole('status', { name: 'Opening booking' })).toBeTruthy()
     expect(screen.queryByTitle('Booking app')).toBeNull()
+    const pageShow = new Event('pageshow')
+    Object.defineProperty(pageShow, 'persisted', { value: true })
+    fireEvent(window, pageShow)
+    expect(screen.queryByRole('status', { name: 'Opening booking' })).toBeNull()
 
     presentation.unmount()
     render(

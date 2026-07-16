@@ -228,12 +228,28 @@ function useBookingPageTransition(bookingPath: string) {
     fallbackTimer.current = setTimeout(complete, BOOKING_TRANSITION_FALLBACK_MS)
   }, [complete])
 
+  const reset = useCallback(() => {
+    if (fallbackTimer.current) clearTimeout(fallbackTimer.current)
+    fallbackTimer.current = null
+    started.current = false
+    navigationStarted.current = false
+    setState('idle')
+  }, [])
+
   useEffect(
     () => () => {
       if (fallbackTimer.current) clearTimeout(fallbackTimer.current)
     },
     []
   )
+
+  useEffect(() => {
+    const restoreAfterBackNavigation = (event: PageTransitionEvent) => {
+      if (event.persisted) reset()
+    }
+    window.addEventListener('pageshow', restoreAfterBackNavigation)
+    return () => window.removeEventListener('pageshow', restoreAfterBackNavigation)
+  }, [reset])
 
   useEffect(() => {
     if (state === 'idle') return
