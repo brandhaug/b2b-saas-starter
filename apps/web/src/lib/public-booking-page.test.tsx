@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import {
   emptySeedSchedulingStore,
   SeedBookingPublication
@@ -49,6 +49,17 @@ describe('Public Booking Page resolution', () => {
     expect(screen.queryByRole('heading', { name: 'Services' })).toBeNull()
     expect(screen.queryByText('Signature Cut')).toBeNull()
     expect(screen.queryByRole('form')).toBeNull()
+    expect(screen.getByText('Open for appointments')).toBeTruthy()
+    expect(screen.getByText('Studio team')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open studio gallery' }))
+    expect(screen.getByRole('dialog', { name: 'Studio gallery' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Client with a fresh cut' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close gallery' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open location map' }))
+    expect(screen.getByRole('dialog', { name: 'Studio location' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close location map' }))
 
     const cta = screen.getByRole('link', { name: 'View booking times' })
     expect(cta.getAttribute('href')).toBe('/mara-booking-studio/booking')

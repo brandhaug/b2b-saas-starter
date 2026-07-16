@@ -1,4 +1,14 @@
-import { ArrowUpRight, CalendarDays, Scissors } from 'lucide-react'
+import {
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Maximize2,
+  Scissors,
+  Users,
+  X
+} from 'lucide-react'
+import { useState } from 'react'
 import type { PublicBookingPage } from '@b2b-saas-starter/capabilities/scheduling'
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>()
@@ -18,6 +28,32 @@ const formatMoney = (priceMinor: number, currency: string): string => {
 
 const MARA_STUDIO_SLUG = 'mara-booking-studio'
 
+const maraGallery = [
+  {
+    alt: 'Barber at work in Mara Booking Studio',
+    src: '/images/merchant/mara-hero.png'
+  },
+  {
+    alt: 'Precision haircut detail',
+    src: '/images/merchant/mara-haircut.png'
+  },
+  {
+    alt: 'Client with a fresh cut',
+    src: '/images/merchant/mara-client.png'
+  }
+] as const
+
+const maraLocation = {
+  label: 'Strada Lipscani 21, București',
+  mapUrl:
+    'https://www.openstreetmap.org/export/embed.html?bbox=26.0942%2C44.4260%2C26.1062%2C44.4368&layer=mapnik&marker=44.4314%2C26.1002'
+} as const
+
+const maraTeam = [
+  { initials: 'MI', name: 'Mara Ionescu' },
+  { initials: 'EP', name: 'Elena Pop' }
+] as const
+
 export function PublicMerchantPresentation({
   page
 }: {
@@ -31,6 +67,9 @@ export function PublicMerchantPresentation({
 }
 
 function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }) {
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
+  const [locationOpen, setLocationOpen] = useState(false)
+
   return (
     <main className="dark min-h-dvh bg-background text-foreground sm:px-5 sm:py-8">
       <div className="relative mx-auto min-h-dvh w-full max-w-[480px] overflow-hidden bg-background sm:min-h-[calc(100dvh-4rem)] sm:rounded-[2.5rem] sm:shadow-2xl sm:shadow-black/50">
@@ -68,62 +107,26 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
 
           <div className="flex flex-col gap-4 px-4 pt-7 pb-[calc(env(safe-area-inset-bottom)+2.5rem)]">
             <section aria-label="Studio overview" className="grid grid-cols-2 gap-4">
-              <article className="flex h-60 flex-col justify-between rounded-3xl bg-card/90 p-5 backdrop-blur-md">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-pretty text-xl leading-6 font-bold tracking-tight">
-                    Open for appointments
-                  </p>
-                  <span className="mt-1 size-3 shrink-0 rounded-full bg-success" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    The studio
-                  </p>
-                  <p className="mt-1.5 text-lg leading-5 font-semibold">
-                    Private appointments
-                  </p>
-                </div>
-              </article>
-
-              <figure className="relative h-60 overflow-hidden rounded-3xl bg-card">
-                <img
-                  alt="Precision haircut detail"
-                  className="size-full object-cover transition-transform duration-500 hover:scale-105"
-                  loading="lazy"
-                  src="/images/merchant/mara-haircut.png"
-                />
-                <figcaption className="sr-only">Precision haircut detail</figcaption>
-              </figure>
+              <StudioStatusCard />
+              <StudioTeamCard />
             </section>
 
             <section aria-label="Studio gallery" className="grid grid-cols-2 gap-4">
-              <figure className="relative h-60 overflow-hidden rounded-3xl bg-card">
+              <button
+                aria-label="Open studio gallery"
+                className="group relative h-60 overflow-hidden rounded-3xl bg-card"
+                onClick={() => setGalleryIndex(2)}
+                type="button"
+              >
                 <img
-                  alt="Client with a fresh cut"
-                  className="size-full object-cover transition-transform duration-500 hover:scale-105"
+                  alt=""
+                  className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
                   src="/images/merchant/mara-client.png"
                 />
-                <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/80 to-transparent px-4 pt-12 pb-4 text-sm font-semibold">
-                  Made for you
-                </figcaption>
-              </figure>
+              </button>
 
-              <article className="flex h-60 flex-col justify-between rounded-3xl bg-primary p-5 text-primary-foreground">
-                <CalendarDays
-                  aria-hidden="true"
-                  className="size-8"
-                  strokeWidth={2.25}
-                />
-                <div>
-                  <p className="text-xl leading-6 font-bold tracking-tight">
-                    Ready when you are
-                  </p>
-                  <p className="mt-2 text-sm leading-5 text-primary-foreground/80">
-                    Choose a specialist and a time in the booking app.
-                  </p>
-                </div>
-              </article>
+              <StudioMapCard onOpen={() => setLocationOpen(true)} />
             </section>
 
             <a
@@ -140,8 +143,210 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
             </footer>
           </div>
         </div>
+
+        {galleryIndex !== null ? (
+          <StudioGallery
+            index={galleryIndex}
+            onClose={() => setGalleryIndex(null)}
+            onNavigate={setGalleryIndex}
+          />
+        ) : null}
+
+        {locationOpen ? (
+          <StudioLocationMap onClose={() => setLocationOpen(false)} />
+        ) : null}
       </div>
     </main>
+  )
+}
+
+function StudioStatusCard() {
+  return (
+    <article className="flex h-60 flex-col justify-between rounded-3xl bg-card/90 p-5 backdrop-blur-md">
+      <div className="relative">
+        <p className="text-pretty text-[18px] leading-[22px] font-bold tracking-[0.5px] text-card-foreground">
+          Open for appointments
+        </p>
+        <span
+          aria-hidden="true"
+          className="absolute top-1 right-0 size-3 rounded-full bg-success"
+        />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-muted-foreground">Today</p>
+        <p className="mt-1 text-lg font-semibold text-card-foreground">9 AM – 7 PM</p>
+      </div>
+    </article>
+  )
+}
+
+function StudioTeamCard() {
+  return (
+    <article className="flex h-60 flex-col justify-between rounded-3xl bg-card p-5">
+      <div className="flex items-center justify-between">
+        <Users aria-hidden="true" className="size-8 text-primary" strokeWidth={2.5} />
+        <div className="flex -space-x-3" aria-label="Mara Booking Studio team">
+          {maraTeam.map((member) => (
+            <span
+              aria-label={member.name}
+              className="grid size-10 place-items-center rounded-full border-2 border-card bg-muted text-xs font-semibold text-foreground"
+              key={member.name}
+              title={member.name}
+            >
+              {member.initials}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="text-pretty text-xl leading-6 font-bold tracking-[0.5px] text-card-foreground">
+          Studio team
+        </p>
+        <p className="mt-3 text-sm leading-5 text-muted-foreground">
+          Pick a favorite or take the next available chair
+        </p>
+      </div>
+    </article>
+  )
+}
+
+function StudioMapCard({ onOpen }: { readonly onOpen: () => void }) {
+  return (
+    <article className="group relative h-60 overflow-hidden rounded-3xl bg-card shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+      <iframe
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 size-full border-0 grayscale invert-[0.88] contrast-125"
+        loading="lazy"
+        src={maraLocation.mapUrl}
+        tabIndex={-1}
+        title="Map preview"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4">
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground">Location</p>
+          <p className="mt-1 line-clamp-2 text-pretty text-sm font-semibold text-foreground">
+            {maraLocation.label}
+          </p>
+        </div>
+        <button
+          aria-label="Open location map"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-background/70 text-foreground shadow-lg backdrop-blur-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onOpen}
+          type="button"
+        >
+          <Maximize2 aria-hidden="true" className="size-4" />
+        </button>
+      </div>
+    </article>
+  )
+}
+
+function StudioGallery({
+  index,
+  onClose,
+  onNavigate
+}: {
+  readonly index: number
+  readonly onClose: () => void
+  readonly onNavigate: (index: number) => void
+}) {
+  const current = maraGallery[index] ?? maraGallery[0]
+  const previous = (index - 1 + maraGallery.length) % maraGallery.length
+  const next = (index + 1) % maraGallery.length
+
+  return (
+    <dialog
+      aria-label="Studio gallery"
+      aria-modal="true"
+      className="fixed inset-0 z-50 m-0 flex h-dvh max-h-none w-screen max-w-none flex-col border-0 bg-background/95 p-0 text-foreground backdrop-blur-sm"
+      open
+    >
+      <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
+        <span className="text-sm font-medium text-muted-foreground">
+          {index + 1} / {maraGallery.length}
+        </span>
+        <button
+          aria-label="Close gallery"
+          className="flex size-11 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-muted"
+          onClick={onClose}
+          type="button"
+        >
+          <X aria-hidden="true" className="size-6" />
+        </button>
+      </div>
+
+      <div className="relative flex flex-1 items-center justify-center px-4 py-6">
+        <img
+          alt={current.alt}
+          className="max-h-full w-full max-w-[480px] rounded-3xl object-contain"
+          src={current.src}
+        />
+        <button
+          aria-label="Previous image"
+          className="absolute left-6 flex size-11 items-center justify-center rounded-full bg-card/90 text-foreground"
+          onClick={() => onNavigate(previous)}
+          type="button"
+        >
+          <ChevronLeft aria-hidden="true" className="size-6" />
+        </button>
+        <button
+          aria-label="Next image"
+          className="absolute right-6 flex size-11 items-center justify-center rounded-full bg-card/90 text-foreground"
+          onClick={() => onNavigate(next)}
+          type="button"
+        >
+          <ChevronRight aria-hidden="true" className="size-6" />
+        </button>
+      </div>
+
+      <div className="flex justify-center gap-3 px-4 pb-8">
+        {maraGallery.map((image, imageIndex) => (
+          <button
+            aria-current={imageIndex === index}
+            aria-label={`View image ${imageIndex + 1}`}
+            className="relative size-16 shrink-0 overflow-hidden rounded-2xl opacity-60 aria-current:opacity-100 aria-current:ring-2 aria-current:ring-primary"
+            key={image.src}
+            onClick={() => onNavigate(imageIndex)}
+            type="button"
+          >
+            <img alt="" className="size-full object-cover" src={image.src} />
+          </button>
+        ))}
+      </div>
+    </dialog>
+  )
+}
+
+function StudioLocationMap({ onClose }: { readonly onClose: () => void }) {
+  return (
+    <dialog
+      aria-label="Studio location"
+      aria-modal="true"
+      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-background p-0 text-foreground"
+      open
+    >
+      <iframe
+        className="absolute inset-0 size-full border-0 grayscale invert-[0.88] contrast-125"
+        src={maraLocation.mapUrl}
+        title={`Map of ${maraLocation.label}`}
+      />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-background to-transparent" />
+      <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-4 px-5 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
+        <div className="flex min-h-12 items-center gap-3 rounded-full bg-background/85 px-4 text-foreground shadow-lg backdrop-blur-md">
+          <MapPin aria-hidden="true" className="size-5 text-primary" />
+          <span className="text-sm font-semibold">{maraLocation.label}</span>
+        </div>
+        <button
+          aria-label="Close location map"
+          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-background/85 text-foreground shadow-lg backdrop-blur-md"
+          onClick={onClose}
+          type="button"
+        >
+          <X aria-hidden="true" className="size-6" />
+        </button>
+      </div>
+    </dialog>
   )
 }
 
