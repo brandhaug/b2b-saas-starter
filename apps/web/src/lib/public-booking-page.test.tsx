@@ -42,7 +42,13 @@ describe('Public Booking Page resolution', () => {
         merchantSlug={scenario.merchant.slug}
       />
     )
-    const cta = screen.getByRole('link', { name: 'Book an appointment' })
+    expect(
+      screen.getByRole('heading', { name: 'Precision grooming, made personal' })
+    ).toBeTruthy()
+    expect(screen.getByText('7 signature services')).toBeTruthy()
+    expect(screen.queryByRole('form')).toBeNull()
+
+    const cta = screen.getByRole('link', { name: 'View booking times' })
     expect(cta.getAttribute('href')).toBe('/mara-booking-studio/booking')
     expect(
       isBookingRequest(new URL(cta.getAttribute('href')!, 'https://public.test'))
