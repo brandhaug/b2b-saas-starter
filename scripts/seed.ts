@@ -5,6 +5,7 @@ import {
   appointments,
   brands,
   bookingSessions,
+  checkoutPolicies,
   confirmationAccess,
   giftCardProducts,
   merchantMemberships,
@@ -135,6 +136,14 @@ const statements = [
       updatedAt: scenario.anchorTime
     })
   ),
+  insert(checkoutPolicies, {
+    ...scenario.checkoutPolicy,
+    merchantId: scenario.merchant.id,
+    brandId: null,
+    shopId: null,
+    scope: 'merchant',
+    scopeId: scenario.merchant.id
+  }),
   ...scenario.providers.map((provider) =>
     insert(shopProviders, {
       shopId,

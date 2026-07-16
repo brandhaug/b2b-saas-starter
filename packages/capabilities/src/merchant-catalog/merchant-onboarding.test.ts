@@ -166,6 +166,15 @@ describe('Seed Booking Scenario builder', () => {
     expect(first.scheduleRules).toHaveLength(10)
     expect(first.providers).toHaveLength(2)
     expect(first.services).toHaveLength(3)
+    expect(first.checkoutPolicy).toEqual({
+      id: 'pol_seed_checkout',
+      kind: 'checkout',
+      version: 1,
+      disclosure: 'Cancel up to 24 hours before the appointment.',
+      effectiveAt: first.anchorTime,
+      retiredAt: null,
+      createdAt: first.anchorTime
+    })
     expect(first.appointments).toEqual([
       expect.objectContaining({ id: 'apt_seed_past', status: 'completed' }),
       expect.objectContaining({ id: 'apt_seed_future', status: 'scheduled' })

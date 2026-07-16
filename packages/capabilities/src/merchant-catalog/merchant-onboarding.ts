@@ -522,6 +522,15 @@ export type SeedBookingScenario = {
     readonly durationMinutes: number
     readonly status: 'active' | 'inactive'
   }>
+  readonly checkoutPolicy: {
+    readonly id: string
+    readonly kind: 'checkout'
+    readonly version: number
+    readonly disclosure: string
+    readonly effectiveAt: string
+    readonly retiredAt: string | null
+    readonly createdAt: string
+  }
   readonly eligibility: ReadonlyArray<{
     readonly merchantId: string
     readonly providerId: string
@@ -648,6 +657,15 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     provider,
     providers: [provider, teamProvider],
     services,
+    checkoutPolicy: {
+      id: 'pol_seed_checkout',
+      kind: 'checkout',
+      version: 1,
+      disclosure: 'Cancel up to 24 hours before the appointment.',
+      effectiveAt: anchorTime,
+      retiredAt: null,
+      createdAt: anchorTime
+    },
     eligibility: [
       { merchantId: merchant.id, providerId: provider.id, serviceId: services[0].id },
       {
