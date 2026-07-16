@@ -52,6 +52,8 @@ describe('Public Booking Page resolution', () => {
     expect(screen.getByText('Open for appointments')).toBeTruthy()
     expect(screen.getByText('By appointment')).toBeTruthy()
     expect(screen.getByText('Studio team')).toBeTruthy()
+    expect(screen.queryByRole('banner')).toBeNull()
+    expect(screen.getAllByText(scenario.merchant.publicName)).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open studio gallery' }))
     const gallery = screen.getByRole('dialog', { name: 'Studio gallery' })

@@ -4,7 +4,6 @@ import {
   ChevronRight,
   MapPin,
   Maximize2,
-  Scissors,
   Users,
   X
 } from 'lucide-react'
@@ -73,17 +72,7 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
         </div>
 
         <div className="relative flex min-h-dvh flex-col sm:min-h-[calc(100dvh-4rem)]">
-          <header className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
-            <div className="inline-flex min-h-11 items-center gap-2.5 rounded-full border border-border bg-background/25 px-4 backdrop-blur-md">
-              <Scissors aria-hidden="true" className="size-4 text-primary" />
-              <span className="max-w-56 truncate text-sm font-semibold tracking-tight">
-                {page.publicName}
-              </span>
-            </div>
-            <span className="size-2.5 rounded-full bg-success shadow-[0_0_0_5px_rgba(52,211,153,0.14)]" />
-          </header>
-
-          <div className="h-[27dvh] min-h-48 max-h-72" />
+          <div className="h-[35dvh] min-h-72 max-h-80" />
 
           <div className="px-6">
             <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
