@@ -2,13 +2,16 @@ import { Effect, Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   Database,
+  brands,
   layerFromD1,
   merchants,
   providerServiceEligibility,
   providers,
   publicBookingPages,
   scheduleRules,
-  services
+  services,
+  shopAddresses,
+  shops
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
@@ -58,6 +61,33 @@ beforeAll(async () => {
       yield* db
         .insert(merchants)
         .values({ ...merchant, createdAt: now, updatedAt: now })
+      yield* db.insert(brands).values({
+        id: 'brd_live_schedule',
+        merchantId: merchant.id,
+        name: merchant.publicName,
+        createdAt: now,
+        updatedAt: now
+      })
+      yield* db.insert(shops).values({
+        id: 'shp_live_schedule',
+        brandId: 'brd_live_schedule',
+        merchantId: merchant.id,
+        slug: merchant.slug,
+        publicName: merchant.publicName,
+        timezone: merchant.timezone,
+        currency: merchant.currency,
+        createdAt: now,
+        updatedAt: now
+      })
+      yield* db.insert(shopAddresses).values({
+        id: 'sad_live_schedule',
+        shopId: 'shp_live_schedule',
+        addressJson: JSON.stringify({ street: 'Strada Test 10', city: 'București' }),
+        latitude: '44.43',
+        longitude: '26.1',
+        createdAt: now,
+        updatedAt: now
+      })
       yield* db.insert(providers).values({
         id: 'prv_live_schedule',
         merchantId: merchant.id,
@@ -130,6 +160,14 @@ describe('Live Scheduling and publication', () => {
     expect(result.availability.slots[0]?.startsAt).toBe('2026-07-13T06:00:00.000Z')
     expect(result.readiness.ready).toBe(true)
     expect(result.page.publicName).toBe('Live Schedule Studio')
+    expect(result.page.teamMembers).toEqual([
+      { id: 'prv_live_schedule', displayName: 'Live Provider' }
+    ])
+    expect(result.page.location).toEqual({
+      label: 'Strada Test 10, București',
+      latitude: 44.43,
+      longitude: 26.1
+    })
     expect(result.rules).toHaveLength(1)
     expect(
       await runDb(Effect.flatMap(Database, (db) => db.select().from(scheduleRules)))

@@ -8,7 +8,7 @@ import {
   Users,
   X
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PublicBookingPage } from '@b2b-saas-starter/capabilities/scheduling'
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>()
@@ -41,17 +41,6 @@ const maraGallery = [
     alt: 'Client with a fresh cut',
     src: '/images/merchant/mara-client.png'
   }
-] as const
-
-const maraLocation = {
-  label: 'Strada Lipscani 21, București',
-  mapUrl:
-    'https://www.openstreetmap.org/export/embed.html?bbox=26.0942%2C44.4260%2C26.1062%2C44.4368&layer=mapnik&marker=44.4314%2C26.1002'
-} as const
-
-const maraTeam = [
-  { initials: 'MI', name: 'Mara Ionescu' },
-  { initials: 'EP', name: 'Elena Pop' }
 ] as const
 
 export function PublicMerchantPresentation({
@@ -108,7 +97,7 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
           <div className="flex flex-col gap-4 px-4 pt-7 pb-[calc(env(safe-area-inset-bottom)+2.5rem)]">
             <section aria-label="Studio overview" className="grid grid-cols-2 gap-4">
               <StudioStatusCard />
-              <StudioTeamCard />
+              <StudioTeamCard teamMembers={page.teamMembers} />
             </section>
 
             <section aria-label="Studio gallery" className="grid grid-cols-2 gap-4">
@@ -126,7 +115,12 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
                 />
               </button>
 
-              <StudioMapCard onOpen={() => setLocationOpen(true)} />
+              {page.location ? (
+                <StudioMapCard
+                  location={page.location}
+                  onOpen={() => setLocationOpen(true)}
+                />
+              ) : null}
             </section>
 
             <a
@@ -152,8 +146,11 @@ function MaraMerchantPresentation({ page }: { readonly page: PublicBookingPage }
           />
         ) : null}
 
-        {locationOpen ? (
-          <StudioLocationMap onClose={() => setLocationOpen(false)} />
+        {locationOpen && page.location ? (
+          <StudioLocationMap
+            location={page.location}
+            onClose={() => setLocationOpen(false)}
+          />
         ) : null}
       </div>
     </main>
@@ -173,27 +170,33 @@ function StudioStatusCard() {
         />
       </div>
       <div>
-        <p className="text-sm font-medium text-muted-foreground">Today</p>
-        <p className="mt-1 text-lg font-semibold text-card-foreground">9 AM – 7 PM</p>
+        <p className="text-sm font-medium text-muted-foreground">Booking</p>
+        <p className="mt-1 text-lg font-semibold text-card-foreground">
+          By appointment
+        </p>
       </div>
     </article>
   )
 }
 
-function StudioTeamCard() {
+function StudioTeamCard({
+  teamMembers
+}: {
+  readonly teamMembers: PublicBookingPage['teamMembers']
+}) {
   return (
     <article className="flex h-60 flex-col justify-between rounded-3xl bg-card p-5">
       <div className="flex items-center justify-between">
         <Users aria-hidden="true" className="size-8 text-primary" strokeWidth={2.5} />
         <div className="flex -space-x-3" aria-label="Mara Booking Studio team">
-          {maraTeam.map((member) => (
+          {teamMembers.slice(0, 3).map((member) => (
             <span
-              aria-label={member.name}
+              aria-label={member.displayName}
               className="grid size-10 place-items-center rounded-full border-2 border-card bg-muted text-xs font-semibold text-foreground"
-              key={member.name}
-              title={member.name}
+              key={member.id}
+              title={member.displayName}
             >
-              {member.initials}
+              {initials(member.displayName)}
             </span>
           ))}
         </div>
@@ -210,14 +213,49 @@ function StudioTeamCard() {
   )
 }
 
-function StudioMapCard({ onOpen }: { readonly onOpen: () => void }) {
+const initials = (displayName: string) =>
+  displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('')
+
+type PublicLocation = NonNullable<PublicBookingPage['location']>
+
+const openStreetMapUrl = (location: PublicLocation) => {
+  const longitudeOffset = 0.006
+  const latitudeOffset = 0.0054
+  const bbox = [
+    location.longitude - longitudeOffset,
+    location.latitude - latitudeOffset,
+    location.longitude + longitudeOffset,
+    location.latitude + latitudeOffset
+  ]
+    .map((coordinate) => coordinate.toFixed(4))
+    .join(',')
+  const params = new URLSearchParams({
+    bbox,
+    layer: 'mapnik',
+    marker: `${location.latitude},${location.longitude}`
+  })
+  return `https://www.openstreetmap.org/export/embed.html?${params.toString()}`
+}
+
+function StudioMapCard({
+  location,
+  onOpen
+}: {
+  readonly location: PublicLocation
+  readonly onOpen: () => void
+}) {
   return (
     <article className="group relative h-60 overflow-hidden rounded-3xl bg-card shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
       <iframe
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 size-full border-0 grayscale invert-[0.88] contrast-125"
         loading="lazy"
-        src={maraLocation.mapUrl}
+        src={openStreetMapUrl(location)}
         tabIndex={-1}
         title="Map preview"
       />
@@ -226,7 +264,7 @@ function StudioMapCard({ onOpen }: { readonly onOpen: () => void }) {
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Location</p>
           <p className="mt-1 line-clamp-2 text-pretty text-sm font-semibold text-foreground">
-            {maraLocation.label}
+            {location.label}
           </p>
         </div>
         <button
@@ -242,6 +280,25 @@ function StudioMapCard({ onOpen }: { readonly onOpen: () => void }) {
   )
 }
 
+function useNativeModal() {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    if (typeof dialog.showModal === 'function') dialog.showModal()
+    else dialog.setAttribute('open', '')
+
+    return () => {
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close()
+      else dialog.removeAttribute('open')
+    }
+  }, [])
+
+  return dialogRef
+}
+
 function StudioGallery({
   index,
   onClose,
@@ -254,13 +311,27 @@ function StudioGallery({
   const current = maraGallery[index] ?? maraGallery[0]
   const previous = (index - 1 + maraGallery.length) % maraGallery.length
   const next = (index + 1) % maraGallery.length
+  const dialogRef = useNativeModal()
 
   return (
     <dialog
       aria-label="Studio gallery"
-      aria-modal="true"
       className="fixed inset-0 z-50 m-0 flex h-dvh max-h-none w-screen max-w-none flex-col border-0 bg-background/95 p-0 text-foreground backdrop-blur-sm"
-      open
+      onCancel={(event) => {
+        event.preventDefault()
+        onClose()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault()
+          onNavigate(previous)
+        }
+        if (event.key === 'ArrowRight') {
+          event.preventDefault()
+          onNavigate(next)
+        }
+      }}
+      ref={dialogRef}
     >
       <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
         <span className="text-sm font-medium text-muted-foreground">
@@ -318,24 +389,35 @@ function StudioGallery({
   )
 }
 
-function StudioLocationMap({ onClose }: { readonly onClose: () => void }) {
+function StudioLocationMap({
+  location,
+  onClose
+}: {
+  readonly location: PublicLocation
+  readonly onClose: () => void
+}) {
+  const dialogRef = useNativeModal()
+
   return (
     <dialog
       aria-label="Studio location"
-      aria-modal="true"
       className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-background p-0 text-foreground"
-      open
+      onCancel={(event) => {
+        event.preventDefault()
+        onClose()
+      }}
+      ref={dialogRef}
     >
       <iframe
         className="absolute inset-0 size-full border-0 grayscale invert-[0.88] contrast-125"
-        src={maraLocation.mapUrl}
-        title={`Map of ${maraLocation.label}`}
+        src={openStreetMapUrl(location)}
+        title={`Map of ${location.label}`}
       />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-background to-transparent" />
       <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-4 px-5 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
         <div className="flex min-h-12 items-center gap-3 rounded-full bg-background/85 px-4 text-foreground shadow-lg backdrop-blur-md">
           <MapPin aria-hidden="true" className="size-5 text-primary" />
-          <span className="text-sm font-semibold">{maraLocation.label}</span>
+          <span className="text-sm font-semibold">{location.label}</span>
         </div>
         <button
           aria-label="Close location map"

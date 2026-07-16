@@ -9,6 +9,8 @@ import {
   publicBookingPages,
   scheduleRules,
   services,
+  shopAddresses,
+  shops,
   type EffectDatabase
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
@@ -68,6 +70,16 @@ export const PublicBookingPage = Schema.Struct({
       priceMinor: Schema.Number,
       currency: Schema.String,
       durationMinutes: Schema.Number
+    })
+  ),
+  teamMembers: Schema.Array(
+    Schema.Struct({ id: Schema.String, displayName: Schema.String })
+  ),
+  location: Schema.NullOr(
+    Schema.Struct({
+      label: Schema.String,
+      latitude: Schema.Number,
+      longitude: Schema.Number
     })
   ),
   bookingPath: Schema.String
@@ -432,6 +444,14 @@ const seedPublicPage = (store: SeedSchedulingStore): PublicBookingPage => ({
   services: store.scenario.services
     .filter((service) => service.status === 'active')
     .map(({ merchantId: _, status: __, ...service }) => service),
+  teamMembers: store.scenario.providers
+    .filter((provider) => provider.status === 'active')
+    .map((provider) => ({ id: provider.id, displayName: provider.displayName })),
+  location: {
+    label: 'Strada Lipscani 21, București',
+    latitude: 44.4314,
+    longitude: 26.1002
+  },
   bookingPath: `/${store.scenario.merchant.slug}/booking`
 })
 
@@ -695,6 +715,26 @@ const liveReadiness = (db: EffectDatabase, merchantId: string) =>
     })
   )
 
+const publicLocationFromRow = (row: {
+  readonly addressJson: string
+  readonly latitude: string | null
+  readonly longitude: string | null
+}): PublicBookingPage['location'] => {
+  const latitude = Number(row.latitude)
+  const longitude = Number(row.longitude)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+
+  try {
+    const address = JSON.parse(row.addressJson) as Record<string, unknown>
+    const label = [address.street, address.city]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+      .join(', ')
+    return label ? { label, latitude, longitude } : null
+  } catch {
+    return null
+  }
+}
+
 export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Database> =
   Layer.effect(
     BookingPublication,
@@ -778,6 +818,29 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
                   )
                 )
             )
+            const teamRows = yield* orUnavailable('booking-publication')(
+              db
+                .select({ id: providers.id, displayName: providers.displayName })
+                .from(providers)
+                .where(
+                  and(
+                    eq(providers.merchantId, row.merchant.id),
+                    eq(providers.status, 'active')
+                  )
+                )
+            )
+            const locationRows = yield* orUnavailable('booking-publication')(
+              db
+                .select({
+                  addressJson: shopAddresses.addressJson,
+                  latitude: shopAddresses.latitude,
+                  longitude: shopAddresses.longitude
+                })
+                .from(shops)
+                .innerJoin(shopAddresses, eq(shopAddresses.shopId, shops.id))
+                .where(eq(shops.merchantId, row.merchant.id))
+                .limit(1)
+            )
             return {
               merchantSlug: row.merchant.slug,
               publicName: row.merchant.publicName,
@@ -791,6 +854,8 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
                 currency: service.currency,
                 durationMinutes: service.durationMinutes
               })),
+              teamMembers: teamRows,
+              location: locationRows[0] ? publicLocationFromRow(locationRows[0]) : null,
               bookingPath: `/${row.merchant.slug}/booking`
             }
           })

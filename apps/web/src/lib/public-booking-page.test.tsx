@@ -17,7 +17,7 @@ import {
 const scenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
 
 describe('Public Booking Page resolution', () => {
-  it('distinguishes published, unpublished, and unknown slugs', async () => {
+  it('resolves publication states and renders merchant presentation contracts', async () => {
     const store = emptySeedSchedulingStore(scenario)
     const layer = SeedBookingPublication(store)
     const published = await Effect.runPromise(
@@ -50,11 +50,15 @@ describe('Public Booking Page resolution', () => {
     expect(screen.queryByText('Signature Cut')).toBeNull()
     expect(screen.queryByRole('form')).toBeNull()
     expect(screen.getByText('Open for appointments')).toBeTruthy()
+    expect(screen.getByText('By appointment')).toBeTruthy()
     expect(screen.getByText('Studio team')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open studio gallery' }))
-    expect(screen.getByRole('dialog', { name: 'Studio gallery' })).toBeTruthy()
+    const gallery = screen.getByRole('dialog', { name: 'Studio gallery' })
+    expect(gallery).toBeTruthy()
     expect(screen.getByRole('img', { name: 'Client with a fresh cut' })).toBeTruthy()
+    fireEvent.keyDown(gallery, { key: 'ArrowLeft' })
+    expect(screen.getByRole('img', { name: 'Precision haircut detail' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close gallery' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Open location map' }))
