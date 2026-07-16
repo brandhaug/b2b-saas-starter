@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   decodeBookingConfiguration,
   resolveBookingConfiguration,
+  resolveCatalogDescription,
   validateBookingPalette
 } from './booking-configuration.ts'
 
@@ -16,6 +17,34 @@ const merchantPalette = {
 } as const
 
 describe('Booking catalog configuration', () => {
+  it('resolves localized service descriptions with source-language fallback', () => {
+    expect(
+      resolveCatalogDescription({
+        sourceText: 'Consultation and cut.',
+        configuration: {
+          sourceLocale: 'en',
+          descriptionTranslations: { es: 'Consulta y corte.' }
+        },
+        locale: 'es'
+      })
+    ).toEqual({
+      text: 'Consulta y corte.',
+      locale: 'es',
+      isSourceLanguageFallback: false
+    })
+    expect(
+      resolveCatalogDescription({
+        sourceText: 'Consultation and cut.',
+        configuration: { sourceLocale: 'en' },
+        locale: 'fr'
+      })
+    ).toEqual({
+      text: 'Consultation and cut.',
+      locale: 'en',
+      isSourceLanguageFallback: true
+    })
+  })
+
   it('rejects malformed persisted translations at the boundary', () => {
     expect(
       decodeBookingConfiguration({

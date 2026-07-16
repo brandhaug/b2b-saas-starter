@@ -34,6 +34,7 @@ const PartialBookingPremiumPalette = Schema.Struct({
 export const BookingConfiguration = Schema.Struct({
   sourceLocale: Schema.optional(CatalogLocale),
   nameTranslations: Schema.optional(OptionalCatalogTranslations),
+  descriptionTranslations: Schema.optional(OptionalCatalogTranslations),
   shortName: Schema.optional(Schema.String),
   shortNameTranslations: Schema.optional(OptionalCatalogTranslations),
   adultsOnly: Schema.optional(Schema.Boolean),
@@ -109,6 +110,24 @@ export function resolveCatalogText(input: {
 }): ResolvedCatalogText {
   const sourceLocale = input.configuration?.sourceLocale ?? 'en'
   const translated = input.configuration?.nameTranslations?.[input.locale]?.trim()
+  return translated
+    ? { text: translated, locale: input.locale, isSourceLanguageFallback: false }
+    : {
+        text: input.sourceText,
+        locale: sourceLocale,
+        isSourceLanguageFallback: input.locale !== sourceLocale
+      }
+}
+
+export function resolveCatalogDescription(input: {
+  readonly sourceText: string | null | undefined
+  readonly configuration?: BookingConfiguration | null | undefined
+  readonly locale: CatalogLocale
+}): ResolvedCatalogText | null {
+  if (!input.sourceText) return null
+  const sourceLocale = input.configuration?.sourceLocale ?? 'en'
+  const translated =
+    input.configuration?.descriptionTranslations?.[input.locale]?.trim()
   return translated
     ? { text: translated, locale: input.locale, isSourceLanguageFallback: false }
     : {

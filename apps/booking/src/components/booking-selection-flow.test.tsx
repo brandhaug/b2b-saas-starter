@@ -60,6 +60,7 @@ const teamJourney: BookingJourney = {
     {
       id: 'svc_cut',
       name: 'Signature Cut',
+      description: 'A precise cut, wash, and style.',
       category: 'Haircuts',
       priceMinor: 4500,
       currency: 'USD',
@@ -69,6 +70,7 @@ const teamJourney: BookingJourney = {
     {
       id: 'svc_beard',
       name: 'Beard Trim',
+      description: 'Shape, trim, and hot towel finish.',
       category: 'Grooming',
       priceMinor: 2800,
       currency: 'USD',
@@ -143,6 +145,38 @@ describe('Booking selection flow', () => {
       />
     )
     expect(titleContainer.className).toBe(transparentClassName)
+  })
+
+  it('expands service information without selecting the service', async () => {
+    const chooseServices = vi.fn()
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          providerPreference: { kind: 'specific', providerId: 'prv_ava' }
+        }}
+        busy={false}
+        onChooseProvider={vi.fn()}
+        onChooseServices={chooseServices}
+      />
+    )
+
+    const card = screen.getByTestId('service:svc_cut')
+    const description = within(card).getByTestId('text:description')
+    expect(description.textContent).toBe('A precise cut, wash, and style.')
+    fireEvent.click(within(card).getByTestId('btn:info'))
+
+    expect(chooseServices).not.toHaveBeenCalled()
+    await waitFor(() => expect(description.style.opacity).toBe('1'))
+
+    const secondCard = screen.getByTestId('service:svc_beard')
+    const secondDescription = within(secondCard).getByTestId('text:description')
+    fireEvent.click(within(secondCard).getByTestId('btn:info'))
+    await waitFor(() => expect(description.style.opacity).toBe('0'))
+    await waitFor(() => expect(secondDescription.style.opacity).toBe('1'))
+
+    fireEvent.mouseLeave(secondCard)
+    await waitFor(() => expect(secondDescription.style.opacity).toBe('0'))
   })
 
   it('waits for the page transition before replacing the title text', async () => {
@@ -612,11 +646,39 @@ describe('Booking selection flow', () => {
     expect(breakdown.parentElement).toBe(breakdownWrapper)
     expect(top.parentElement).toBe(breakdown)
     expect(bottom.parentElement).toBe(breakdown)
-    expect(within(top).getByTestId('container:groupAppt')).toBeTruthy()
+    const appointment = within(top).getByTestId('container:groupAppt')
+    const groupAppointmentWrapper = appointment.parentElement
+    const appointmentStack = groupAppointmentWrapper?.parentElement
+    const appointmentsScroll = within(top).getByTestId('container:appointmentsScroll')
+    const appointmentsParent = within(top).getByTestId('container:appointments')
+    expect(appointmentStack?.parentElement).toBe(appointmentsScroll)
+    expect(appointmentsScroll.parentElement).toBe(appointmentsParent)
+    expect(appointmentsParent?.parentElement).toBe(top)
     expect(within(bottom).getByTestId('text:cart:subtotal')).toBeTruthy()
     expect(screen.getAllByText('$45.00').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: 'Choose a time' }))
     expect(continueToTime).toHaveBeenCalledOnce()
+  })
+
+  it('matches the legacy disabled AppointmentsContainer state', () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...teamJourney,
+          presentation: 'solo',
+          providerPreference: { kind: 'specific', providerId: 'prv_ava' },
+          selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] }
+        }}
+        busy
+        onChooseProvider={vi.fn()}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('btn:viewOrder'))
+    expect(
+      screen.getByTestId('container:appointments').getAttribute('aria-disabled')
+    ).toBe('true')
   })
 
   it('closes the order summary without moving the page behind it', async () => {
@@ -721,7 +783,7 @@ describe('Booking selection flow', () => {
     const serviceCard = screen.getByTestId('service:svc_cut')
     expect(serviceCard.tagName).toBe('DIV')
     expect(serviceCard.getAttribute('data-auto-selected')).toBe('false')
-    expect(within(serviceCard).getByTestId('text:name').textContent).toBe(
+    expect(within(serviceCard).getByTestId('text:name:visible').textContent).toBe(
       'Signature Cut'
     )
     expect(within(serviceCard).getByTestId('text:duration').textContent).toBe('45 min')

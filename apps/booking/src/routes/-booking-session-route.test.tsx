@@ -72,7 +72,7 @@ describe('protected Booking Session route', () => {
         </QueryClientProvider>
       )
     const first = renderRoute()
-    await screen.findByText('Signature Cut')
+    await screen.findByTestId('service:svc_cut')
     expect(fetchMock).toHaveBeenCalledWith(
       '/mara-studio/booking/session/bsn_refresh/selection',
       { credentials: 'same-origin' }

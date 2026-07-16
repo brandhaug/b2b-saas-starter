@@ -9,6 +9,7 @@ import {
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -453,6 +454,7 @@ function BookingSelectionFlowContent({
               key="styledBookingCart"
               journey={journey}
               primary={selectedPrimary}
+              interactive={!busy}
               locale={locale}
               messages={messages}
               onClose={closeOrder}
@@ -847,6 +849,7 @@ function ServiceGrid({
   readonly messages: BookingSelectionMessages
 }) {
   const [category, setCategory] = useState<ServiceCategoryFilter>({ kind: 'all' })
+  const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null)
   const eligible = eligibleServices(journey)
   const categories = [
     ...new Set(
@@ -899,7 +902,7 @@ function ServiceGrid({
         />
         <h2 {...stylex.props(styles.sectionTitle)}>Anything you wish to add?</h2>
         <div {...stylex.props(styles.serviceGrid)}>
-          {compatibleAdditions.map((service) => {
+          {compatibleAdditions.map((service, index) => {
             const selected = additionalIds.has(service.id)
             return (
               <LegacyServiceCard
@@ -907,8 +910,20 @@ function ServiceGrid({
                 service={service}
                 selected={selected}
                 addon
+                orderFromEnd={compatibleAdditions.length - index}
+                expanded={expandedServiceId === service.id}
                 busy={busy}
                 messages={messages}
+                onInfoClick={() =>
+                  setExpandedServiceId((current) =>
+                    current === service.id ? null : service.id
+                  )
+                }
+                onMouseLeave={() =>
+                  setExpandedServiceId((current) =>
+                    current === service.id ? null : current
+                  )
+                }
                 onClick={() =>
                   onChoose({
                     primaryServiceId: selectedPrimary.id,
@@ -955,13 +970,25 @@ function ServiceGrid({
           categories.length === 0 && styles.serviceGridWithoutCategory
         )}
       >
-        {visibleServices.map((service) => (
+        {visibleServices.map((service, index) => (
           <LegacyServiceCard
             key={service.id}
             service={service}
             selected={transitioningServiceId === service.id}
+            orderFromEnd={visibleServices.length - index}
+            expanded={expandedServiceId === service.id}
             busy={busy}
             messages={messages}
+            onInfoClick={() =>
+              setExpandedServiceId((current) =>
+                current === service.id ? null : service.id
+              )
+            }
+            onMouseLeave={() =>
+              setExpandedServiceId((current) =>
+                current === service.id ? null : current
+              )
+            }
             onClick={() =>
               onChoose({ primaryServiceId: service.id, additionalServiceIds: [] })
             }
@@ -1187,23 +1214,135 @@ const defaultMessages: BookingSelectionMessages = {
     'The available professionals and services cannot currently be booked together.'
 }
 
+function LegacyServiceTitle({
+  name,
+  expanded,
+  showInfoButton,
+  selected,
+  addon
+}: {
+  readonly name: string
+  readonly expanded: boolean
+  readonly showInfoButton: boolean
+  readonly selected: boolean
+  readonly addon: boolean
+}) {
+  const titleRef = useRef<HTMLParagraphElement>(null)
+  const measureRef = useRef<HTMLSpanElement>(null)
+  const [clamped, setClamped] = useState({ text: name, truncated: false })
+
+  useLayoutEffect(() => {
+    const title = titleRef.current
+    const measureNode = measureRef.current
+    if (!title || !measureNode) return
+
+    const measure = () => {
+      const computed = getComputedStyle(title)
+      const width =
+        title.clientWidth -
+        Number.parseFloat(computed.paddingLeft || '0') -
+        Number.parseFloat(computed.paddingRight || '0')
+      const lineHeight = Number.parseFloat(computed.lineHeight || '20')
+      if (width <= 0 || lineHeight <= 0) return
+      measureNode.style.width = `${width}px`
+      const targetHeight = lineHeight * (expanded ? 10 : 2)
+      const fits = (candidate: string) => {
+        measureNode.textContent = candidate
+        return measureNode.scrollHeight <= targetHeight + 0.5
+      }
+      if (fits(name)) {
+        setClamped((current) =>
+          current.text === name && !current.truncated
+            ? current
+            : { text: name, truncated: false }
+        )
+        return
+      }
+
+      let lower = 0
+      let upper = name.length
+      while (lower < upper) {
+        const candidate = Math.ceil((lower + upper) / 2)
+        if (fits(name.slice(0, candidate))) lower = candidate
+        else upper = candidate - 1
+      }
+      const measured = name.slice(0, lower)
+      const text = measured.includes(' ')
+        ? measured.split(' ').slice(0, -1).join(' ').trimEnd()
+        : measured
+      setClamped((current) =>
+        current.text === text && current.truncated ? current : { text, truncated: true }
+      )
+    }
+
+    measure()
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(title)
+    return () => observer?.disconnect()
+  }, [expanded, name, showInfoButton])
+
+  return (
+    <p
+      ref={titleRef}
+      data-testid="text:name"
+      {...stylex.props(
+        styles.serviceName,
+        showInfoButton && styles.serviceNameWithInfo,
+        expanded && styles.serviceNameExpanded,
+        selected && !addon && styles.selectedServiceName
+      )}
+    >
+      <span data-testid="text:name:visible">
+        {clamped.text}
+        {clamped.truncated ? (
+          <span aria-hidden="true" {...stylex.props(styles.serviceNameFade)} />
+        ) : null}
+      </span>
+      <span
+        ref={measureRef}
+        aria-hidden="true"
+        {...stylex.props(styles.serviceNameMeasure)}
+      >
+        {name}
+      </span>
+    </p>
+  )
+}
+
 function LegacyServiceCard({
   service,
   selected = false,
   confirmed = false,
   addon = false,
+  orderFromEnd = 1,
+  expanded = false,
   busy,
   onClick,
+  onInfoClick = () => undefined,
+  onMouseLeave = () => undefined,
   messages
 }: {
   readonly service: PublicBookableService
   readonly selected?: boolean
   readonly confirmed?: boolean
   readonly addon?: boolean
+  readonly orderFromEnd?: number
+  readonly expanded?: boolean
   readonly busy: boolean
   readonly onClick: () => void
+  readonly onInfoClick?: () => void
+  readonly onMouseLeave?: () => void
   readonly messages: BookingSelectionMessages
 }) {
+  const description = service.description?.trim() ?? ''
+  const isSelected = selected || confirmed
+  const canExpand = !isSelected || addon
+  const isExpanded = canExpand && expanded
+  const serviceNameParts = service.name.trim().split(/\s+/)
+  const hasOverflowingTitle =
+    service.name.length >= 30 || (serviceNameParts[0]?.length ?? 0) >= 15
+  const showInfoButton = canExpand && (description.length > 0 || hasOverflowingTitle)
   return (
     <m.div
       initial={confirmed ? { opacity: 0, scale: 0.8 } : false}
@@ -1219,32 +1358,63 @@ function LegacyServiceCard({
         role="button"
         tabIndex={busy ? -1 : 0}
         data-testid={`service:${service.id}`}
-        data-auto-selected={selected}
+        data-auto-selected={isSelected}
         aria-disabled={busy}
-        aria-pressed={selected}
+        aria-pressed={isSelected}
         aria-label={
-          selected && (confirmed || addon) ? `Remove ${service.name}` : service.name
+          isSelected && (confirmed || addon) ? `Remove ${service.name}` : service.name
         }
-        onClick={() => {
-          if (!busy) onClick()
-        }}
-        onKeyDown={(event) => activateCard(event, busy, onClick)}
+        onClick={
+          isExpanded
+            ? undefined
+            : () => {
+                if (!busy) onClick()
+              }
+        }
+        onKeyDown={(event) => activateCard(event, busy || isExpanded, onClick)}
+        onMouseLeave={onMouseLeave}
+        style={{ zIndex: orderFromEnd }}
         {...stylex.props(
           styles.serviceCard,
+          isExpanded && styles.serviceCardExpanded,
           selected && styles.selectedService,
           addon && selected && styles.selectedAddon,
           busy && styles.serviceCardBusy
         )}
       >
-        <p
-          data-testid="text:name"
-          {...stylex.props(
-            styles.serviceName,
-            selected && !addon && styles.selectedServiceName
-          )}
-        >
-          {service.name}
-        </p>
+        {showInfoButton ? (
+          <button
+            type="button"
+            data-testid="btn:info"
+            aria-label={`More information about ${service.name}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onInfoClick()
+            }}
+            {...stylex.props(styles.serviceCardInfoButton)}
+          >
+            <svg
+              aria-hidden="true"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              {...stylex.props(styles.serviceCardInfoIcon)}
+            >
+              <path
+                d="M7.657 15.058c4.021 0 7.346-3.325 7.346-7.346 0-4.028-3.325-7.346-7.353-7.346C3.629.366.311 3.684.311 7.712c0 4.02 3.325 7.346 7.346 7.346Zm0-.952c-3.545 0-6.394-2.857-6.394-6.394 0-3.545 2.849-6.401 6.387-6.401 3.545 0 6.401 2.856 6.409 6.4 0 3.538-2.857 6.395-6.402 6.395Zm-.044-9.155c.454 0 .806-.352.806-.799 0-.446-.352-.805-.806-.805-.447 0-.805.359-.805.805 0 .447.358.799.805.799Zm-1.267 6.76h3.003c.235 0 .418-.176.418-.403 0-.227-.183-.41-.418-.41H8.294V6.796c0-.3-.153-.505-.44-.505H6.442c-.235 0-.418.183-.418.403 0 .234.183.41.418.41h.959v3.794H6.346c-.234 0-.417.183-.417.41 0 .227.183.403.417.403Z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+        ) : null}
+        <LegacyServiceTitle
+          name={service.name}
+          expanded={isExpanded}
+          showInfoButton={showInfoButton}
+          selected={isSelected}
+          addon={addon}
+        />
         {service.localizedName?.isSourceLanguageFallback ? (
           <p {...stylex.props(styles.mutedSmall)}>{messages.sourceLanguage}</p>
         ) : null}
@@ -1260,9 +1430,17 @@ function LegacyServiceCard({
         <m.div
           data-testid="text:description"
           initial={false}
-          animate={{ height: 0, opacity: 0 }}
-          {...stylex.props(styles.serviceDescription)}
-        />
+          animate={
+            isExpanded ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }
+          }
+          transition={{ duration: 0.15 }}
+          {...stylex.props(
+            styles.serviceDescription,
+            isExpanded && styles.serviceDescriptionExpanded
+          )}
+        >
+          {description}
+        </m.div>
         <p
           data-testid="text:price"
           {...stylex.props(
@@ -1286,9 +1464,36 @@ function LegacyServiceCard({
   )
 }
 
+function AppointmentsContainer({
+  children,
+  disabled
+}: {
+  readonly children: ReactNode
+  readonly disabled: boolean
+}) {
+  return (
+    <div
+      data-testid="container:appointments"
+      aria-disabled={disabled}
+      {...stylex.props(
+        styles.appointmentsParent,
+        disabled && styles.appointmentsParentDisabled
+      )}
+    >
+      <div
+        data-testid="container:appointmentsScroll"
+        {...stylex.props(styles.appointmentsScroll)}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function OrderSummary({
   journey,
   primary,
+  interactive,
   locale,
   messages,
   onClose,
@@ -1300,6 +1505,7 @@ function OrderSummary({
 }: {
   readonly journey: BookingJourney
   readonly primary: PublicBookableService
+  readonly interactive: boolean
   readonly locale: BookingLocale
   readonly messages: BookingSelectionMessages
   readonly onClose: () => void
@@ -1452,9 +1658,9 @@ function OrderSummary({
               transition={{ duration: 0.15, times: [0, 0.99, 1] }}
               {...stylex.props(styles.breakdownTop)}
             >
-              <div {...stylex.props(styles.appointmentsParent)}>
-                <div {...stylex.props(styles.appointmentsScroll)}>
-                  <div {...stylex.props(styles.appointmentStack)}>
+              <AppointmentsContainer disabled={!interactive}>
+                <div {...stylex.props(styles.appointmentStack)}>
+                  <div {...stylex.props(styles.groupAppointmentWrapper)}>
                     <div
                       data-testid="container:groupAppt"
                       {...stylex.props(styles.orderCard)}
@@ -1526,7 +1732,7 @@ function OrderSummary({
                     </div>
                   </div>
                 </div>
-              </div>
+              </AppointmentsContainer>
             </m.div>
             <m.div
               data-testid="container:breakdownBottom"

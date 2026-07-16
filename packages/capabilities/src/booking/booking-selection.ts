@@ -32,6 +32,7 @@ import { deleteTimeSlotHoldsForSelectionChange } from './booking-scheduling.ts'
 import { deriveSlots, type ScheduleRule } from '../scheduling/scheduling.ts'
 import {
   resolveBookingConfiguration,
+  resolveCatalogDescription,
   resolveCatalogText,
   BookingConfiguration,
   decodeBookingConfiguration,
@@ -67,6 +68,7 @@ export type PublicBookableProvider = typeof PublicBookableProvider.Type
 export const PublicBookableService = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
+  description: Schema.optional(Schema.NullOr(Schema.String)),
   localizedName: Schema.optional(ResolvedCatalogText),
   category: Schema.NullOr(Schema.String),
   priceMinor: Schema.Number,
@@ -180,6 +182,7 @@ type StoredService = {
   readonly id: string
   readonly merchantId: string
   readonly name: string
+  readonly description?: string | null
   readonly category: string | null
   readonly priceMinor: number
   readonly currency: string
@@ -723,6 +726,12 @@ const seedCatalog = (
       .map(({ merchantId: _, status: __, bookingConfiguration, ...service }) => ({
         ...service,
         ...localizedName(service.name, bookingConfiguration),
+        description:
+          resolveCatalogDescription({
+            sourceText: service.description,
+            configuration: bookingConfiguration,
+            locale
+          })?.text ?? null,
         eligibleProviderIds: pairs
           .filter(
             ([merchantId, providerId, serviceId]) =>
@@ -1271,14 +1280,21 @@ const readLiveState = (
         .filter((provider) => provider.eligibleServiceIds.length > 0),
       services: scopedServices
         .map((service) => {
+          const configuration = decodeBookingConfiguration(service.bookingConfigJson)
           const localizedName = resolveCatalogText({
             sourceText: service.name,
-            configuration: decodeBookingConfiguration(service.bookingConfigJson),
+            configuration,
             locale: session.locale ?? 'en'
           })
           return {
             id: service.id,
             name: localizedName.text,
+            description:
+              resolveCatalogDescription({
+                sourceText: service.description,
+                configuration,
+                locale: session.locale ?? 'en'
+              })?.text ?? null,
             localizedName,
             category: service.category,
             priceMinor: service.priceMinor,

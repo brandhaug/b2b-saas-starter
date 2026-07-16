@@ -601,8 +601,11 @@ export const styles = stylex.create({
     },
     borderRadius: 16,
     backgroundColor: {
-      default: '#f7f7f7',
-      '@media (hover: hover)': { default: '#f7f7f7', ':hover': '#ffffff' }
+      default: bookingTheme.colorCardBackground,
+      '@media (hover: hover)': {
+        default: bookingTheme.colorCardBackground,
+        ':hover': bookingTheme.colorCardBackgroundFocused
+      }
     },
     boxShadow: {
       default: 'none',
@@ -1022,7 +1025,7 @@ export const styles = stylex.create({
   serviceGridWithoutCategory: { marginTop: 0 },
   serviceCardSpace: {
     position: 'relative',
-    width: '100%',
+    width: 166,
     height: 125,
     minHeight: 125
   },
@@ -1030,7 +1033,7 @@ export const styles = stylex.create({
   serviceCard: {
     position: 'absolute',
     zIndex: 1,
-    width: '100%',
+    width: 166,
     minHeight: 125,
     boxSizing: 'border-box',
     overflow: 'visible',
@@ -1063,6 +1066,11 @@ export const styles = stylex.create({
     transitionProperty: 'border-color, background-color, box-shadow',
     transitionDuration: '150ms'
   },
+  serviceCardExpanded: {
+    backgroundColor: bookingTheme.colorCardBackgroundFocused,
+    cursor: 'default',
+    userSelect: 'auto'
+  },
   selectedService: {
     borderColor: bookingTheme.colorPrimary,
     backgroundColor: bookingTheme.colorPrimary,
@@ -1081,23 +1089,48 @@ export const styles = stylex.create({
   },
   serviceCardBusy: { pointerEvents: 'none' },
   serviceName: {
+    position: 'relative',
+    display: '-webkit-box',
     width: '100%',
     overflow: 'hidden',
     margin: 0,
     color: '#000000',
-    fontFamily: bookingTheme.fontText,
+    backgroundColor: 'inherit',
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 15,
     fontWeight: 600,
     lineHeight: '20px',
     letterSpacing: '-0.24px',
     overflowWrap: 'break-word',
-    maxHeight: 40
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: 2
+  },
+  serviceNameWithInfo: { paddingRight: 11 },
+  serviceNameExpanded: { WebkitLineClamp: 10 },
+  serviceNameFade: {
+    position: 'absolute',
+    width: 30,
+    height: '2ch',
+    marginLeft: -29,
+    backgroundColor: 'inherit',
+    maskImage: 'linear-gradient(to left, black, transparent)',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms'
+  },
+  serviceNameMeasure: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    display: 'block',
+    width: '100%',
+    visibility: 'hidden',
+    pointerEvents: 'none'
   },
   selectedServiceName: { color: bookingTheme.colorPrimaryFont },
   serviceDuration: {
     marginTop: 3,
     marginBottom: 0,
-    fontFamily: bookingTheme.fontText,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 13,
     lineHeight: '18px',
     letterSpacing: '-0.078px'
@@ -1109,8 +1142,37 @@ export const styles = stylex.create({
     width: '100%',
     height: 0,
     overflow: 'hidden',
-    opacity: 0
+    margin: 0,
+    opacity: 0,
+    color: '#616163',
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 13,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px',
+    transitionProperty: 'margin',
+    transitionDuration: '150ms'
   },
+  serviceDescriptionExpanded: { marginTop: 15, marginBottom: 7 },
+  serviceCardInfoButton: {
+    position: 'absolute',
+    top: 3,
+    right: 9,
+    width: 20,
+    height: 20,
+    padding: 5,
+    border: 0,
+    backgroundColor: 'transparent',
+    color: {
+      default: bookingTheme.colorSystemGray3,
+      '@media (hover: hover)': {
+        default: bookingTheme.colorSystemGray3,
+        ':hover': bookingTheme.colorLink
+      }
+    },
+    textAlign: 'center',
+    cursor: 'pointer'
+  },
+  serviceCardInfoIcon: { display: 'block' },
   pricePill: {
     position: 'absolute',
     right: -1,
@@ -1124,7 +1186,7 @@ export const styles = stylex.create({
     borderBottomLeftRadius: 8,
     backgroundColor: '#ebebeb',
     color: '#000000',
-    fontFamily: bookingTheme.fontText,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 13,
     fontWeight: 600,
     lineHeight: '18px',
@@ -1879,7 +1941,9 @@ export const styles = stylex.create({
   breakdownTop: {
     marginTop: 16,
     marginBottom: 16,
-    scrollbarWidth: 'none'
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    '::-webkit-scrollbar': { display: 'none' }
   },
   appointmentsParent: {
     position: 'relative',
@@ -1889,18 +1953,26 @@ export const styles = stylex.create({
   appointmentsScroll: {
     maxHeight: '100%',
     overflowY: 'scroll',
-    scrollbarWidth: 'none'
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    '::-webkit-scrollbar': { display: 'none' }
   },
+  appointmentsParentDisabled: { opacity: 0.6 },
   appointmentStack: {
     display: 'flex',
     gap: 8,
     flexDirection: 'column',
     marginTop: 8
   },
-  orderCard: {
+  groupAppointmentWrapper: {
     padding: 16,
     borderRadius: 16,
     backgroundColor: bookingTheme.colorCartAppointment
+  },
+  orderCard: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column'
   },
   rowBetween: {
     display: 'flex',

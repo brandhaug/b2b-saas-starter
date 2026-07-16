@@ -104,6 +104,7 @@ beforeAll(async () => {
             id: 'svc_primary',
             merchantId: 'mer_selection',
             name: 'Primary',
+            description: 'Primary service details.',
             category: 'Cuts',
             priceMinor: 4000,
             currency: 'USD',
@@ -226,6 +227,9 @@ describe('Live Booking Selection', () => {
       primaryServiceId: 'svc_primary',
       additionalServiceIds: ['svc_extra']
     })
+    expect(
+      refreshed.services.find((service) => service.id === 'svc_primary')
+    ).toMatchObject({ description: 'Primary service details.' })
     expect(refreshed.shops).toEqual([
       expect.objectContaining({
         addressLines: ['21 Mercer Street', 'New York, NY 10013'],

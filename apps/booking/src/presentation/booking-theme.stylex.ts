@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex'
 export const bookingTheme = stylex.defineVars({
   fontText: '"Geist Variable", ui-sans-serif, sans-serif, system-ui',
   fontDisplay: '"Geist Variable", ui-sans-serif, sans-serif, system-ui',
+  fontLegacyText: 'SF Pro Text, Roboto, sans-serif',
   fontPrice: 'Geist Mono, ui-monospace, monospace',
   textCaption: '12px',
   textFootnote: '13px',
@@ -136,6 +137,7 @@ export const bookingTheme = stylex.defineVars({
   colorSuccess: 'rgb(46 178 0)',
   colorPaid: 'rgb(44 175 0)',
   colorCardBorder: 'rgb(218 218 220)',
+  colorCardBackground: 'rgb(247 247 247)',
   colorCardBorderFocused: 'rgb(225 225 225)',
   colorCardBackgroundFocused: 'rgb(255 255 255)',
   colorCardShadowFocused: 'rgb(0 0 0 / 10%)',
