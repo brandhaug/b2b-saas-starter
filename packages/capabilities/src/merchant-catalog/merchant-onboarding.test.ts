@@ -165,7 +165,56 @@ describe('Seed Booking Scenario builder', () => {
     expect(first.publicBookingPage.status).toBe('published')
     expect(first.scheduleRules).toHaveLength(10)
     expect(first.providers).toHaveLength(2)
-    expect(first.services).toHaveLength(3)
+    expect(first.services.map((service) => service.name)).toEqual([
+      'Signature Cut',
+      'Beard Detail',
+      'Skin Fade',
+      'Buzz Cut',
+      'Hot Towel Shave',
+      'Hair & Beard Combo',
+      'Premium Grooming Package',
+      'Style Consultation'
+    ])
+    const activeServiceIds = first.services
+      .filter((service) => service.status === 'active')
+      .map((service) => service.id)
+    expect(
+      activeServiceIds.every((serviceId) =>
+        first.eligibility.some((pair) => pair.serviceId === serviceId)
+      )
+    ).toBe(true)
+    expect(
+      Object.fromEntries(
+        first.providers.map((provider) => [
+          provider.id,
+          first.eligibility
+            .filter((pair) => pair.providerId === provider.id)
+            .map((pair) => pair.serviceId)
+        ])
+      )
+    ).toEqual({
+      prv_seed_default: [
+        'svc_seed_signature_cut',
+        'svc_seed_beard_detail',
+        'svc_seed_skin_fade',
+        'svc_seed_buzz_cut',
+        'svc_seed_hot_towel_shave',
+        'svc_seed_hair_beard_combo',
+        'svc_seed_premium_grooming'
+      ],
+      prv_seed_elena: [
+        'svc_seed_signature_cut',
+        'svc_seed_beard_detail',
+        'svc_seed_skin_fade',
+        'svc_seed_hot_towel_shave',
+        'svc_seed_hair_beard_combo',
+        'svc_seed_style_consultation'
+      ]
+    })
+    expect(
+      first.services.find((service) => service.id === 'svc_seed_premium_grooming')
+        ?.description
+    ).toContain('personalized consultation')
     expect(first.checkoutPolicy).toEqual({
       id: 'pol_seed_checkout',
       kind: 'checkout',

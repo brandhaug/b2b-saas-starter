@@ -636,6 +636,65 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
       status: 'active'
     },
     {
+      id: 'svc_seed_skin_fade',
+      merchantId: merchant.id,
+      name: 'Skin Fade',
+      description:
+        'A clean skin fade blended through the sides and back, finished with detailed styling on top.',
+      category: 'Hair',
+      priceMinor: 8000,
+      currency: merchant.currency,
+      durationMinutes: 45,
+      status: 'active'
+    },
+    {
+      id: 'svc_seed_buzz_cut',
+      merchantId: merchant.id,
+      name: 'Buzz Cut',
+      description: 'A precise clipper cut with clean edges and a polished finish.',
+      category: 'Hair',
+      priceMinor: 5500,
+      currency: merchant.currency,
+      durationMinutes: 30,
+      status: 'active'
+    },
+    {
+      id: 'svc_seed_hot_towel_shave',
+      merchantId: merchant.id,
+      name: 'Hot Towel Shave',
+      description:
+        'Traditional hot towel preparation, a close razor shave, and a soothing post-shave finish.',
+      category: 'Grooming',
+      priceMinor: 7000,
+      currency: merchant.currency,
+      durationMinutes: 45,
+      status: 'active'
+    },
+    {
+      id: 'svc_seed_hair_beard_combo',
+      merchantId: merchant.id,
+      name: 'Hair & Beard Combo',
+      description:
+        'A complete haircut and beard detail tailored together for a balanced, polished look.',
+      category: 'Packages',
+      priceMinor: 13000,
+      currency: merchant.currency,
+      durationMinutes: 90,
+      status: 'active'
+    },
+    {
+      id: 'svc_seed_premium_grooming',
+      merchantId: merchant.id,
+      name: 'Premium Grooming Package',
+      description:
+        'A personalized consultation followed by a precision haircut, beard shaping, hot towel treatment, wash, styling, and finishing care selected for your hair and skin.',
+      category: 'Packages',
+      priceMinor: 18000,
+      currency: merchant.currency,
+      durationMinutes: 120,
+      status: 'active'
+    },
+    {
       id: 'svc_seed_style_consultation',
       merchantId: merchant.id,
       name: 'Style Consultation',
@@ -647,6 +706,24 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
       status: 'inactive'
     }
   ] as const
+  type ServiceId = (typeof services)[number]['id']
+  const maraServiceIds = [
+    'svc_seed_signature_cut',
+    'svc_seed_beard_detail',
+    'svc_seed_skin_fade',
+    'svc_seed_buzz_cut',
+    'svc_seed_hot_towel_shave',
+    'svc_seed_hair_beard_combo',
+    'svc_seed_premium_grooming'
+  ] as const satisfies ReadonlyArray<ServiceId>
+  const elenaServiceIds = [
+    'svc_seed_signature_cut',
+    'svc_seed_beard_detail',
+    'svc_seed_skin_fade',
+    'svc_seed_hot_towel_shave',
+    'svc_seed_hair_beard_combo',
+    'svc_seed_style_consultation'
+  ] as const satisfies ReadonlyArray<ServiceId>
   const instant = (offsetMinutes: number) =>
     new Date(Date.parse(anchorTime) + offsetMinutes * 60_000).toISOString()
   return {
@@ -667,18 +744,16 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
       createdAt: anchorTime
     },
     eligibility: [
-      { merchantId: merchant.id, providerId: provider.id, serviceId: services[0].id },
-      {
+      ...maraServiceIds.map((serviceId) => ({
+        merchantId: merchant.id,
+        providerId: provider.id,
+        serviceId
+      })),
+      ...elenaServiceIds.map((serviceId) => ({
         merchantId: merchant.id,
         providerId: teamProvider.id,
-        serviceId: services[0].id
-      },
-      { merchantId: merchant.id, providerId: provider.id, serviceId: services[1].id },
-      {
-        merchantId: merchant.id,
-        providerId: teamProvider.id,
-        serviceId: services[2].id
-      }
+        serviceId
+      }))
     ],
     scheduleRules: [
       ...[1, 2, 3, 4, 5].map((weekday) => ({
