@@ -61,13 +61,11 @@ import {
   type BookingEmbedding
 } from './booking-route-contract.ts'
 import {
-  formatBookingCurrency,
-  formatBookingDate,
-  formatBookingTime,
   parseBookingLocale,
   translateBookingMessage,
   type BookingLocale
 } from '../localization/booking-localization.ts'
+import { renderBookingConfirmationView } from './booking-confirmation-view.ts'
 
 export class InvalidBookingSessionCookie extends Schema.TaggedErrorClass<InvalidBookingSessionCookie>()(
   'InvalidBookingSessionCookie',
@@ -710,182 +708,7 @@ const escapeHtml = (value: string) =>
       ]!
   )
 
-const inlineScriptJson = (value: string) =>
-  JSON.stringify(value)
-    .replaceAll('<', '\\u003c')
-    .replaceAll('\u2028', '\\u2028')
-    .replaceAll('\u2029', '\\u2029')
-
-const confirmationHtml = (
-  confirmation: Extract<ConfirmationReadResult, { kind: 'found' }>['confirmation']
-) => {
-  const snapshot = confirmation.snapshot
-  const message = (key: string) =>
-    translateBookingMessage(
-      confirmation.locale,
-      key === 'status.pay_in_person' && snapshot.checkoutPath === 'online_payment'
-        ? 'status.online_payment'
-        : key
-    )
-  const title = message('title.appointment_confirmation')
-  const status = message(`status.appointment_${confirmation.status}`)
-  const isGroup = confirmation.appointments.length > 1
-  const isCancelled = confirmation.appointments.some(
-    (appointment) => appointment.status === 'cancelled'
-  )
-  const customerFirstName =
-    snapshot.customerDetails.name.trim().split(/\s+/)[0] ??
-    snapshot.customerDetails.name
-  const copyByLocale = {
-    en: {
-      heading: isGroup
-        ? `${customerFirstName}, your order is confirmed!`
-        : `${customerFirstName}, your appointment is confirmed!`,
-      confirmationCode: 'Confirmation code',
-      addToCalendar: 'Add to calendar',
-      total: 'Total',
-      payInPerson: 'Pay in person',
-      pendingPayment: 'Pending payment',
-      cancel: isGroup ? 'Cancel appointments' : 'Cancel appointment',
-      reschedule: 'Reschedule',
-      cancelTitle: isGroup ? 'Cancel appointments?' : 'Cancel appointment?',
-      cancelCopy: isGroup
-        ? 'Are you sure you want to cancel every appointment in this order?'
-        : 'Are you sure you want to cancel this appointment?',
-      keep: 'Keep appointment',
-      confirmCancel: 'Yes, cancel',
-      close: 'Close'
-    },
-    es: {
-      heading: isGroup
-        ? `¡${customerFirstName}, tu pedido está confirmado!`
-        : `¡${customerFirstName}, tu cita está confirmada!`,
-      confirmationCode: 'Código de confirmación',
-      addToCalendar: 'Agregar al calendario',
-      total: 'Total',
-      payInPerson: 'Pagar en persona',
-      pendingPayment: 'Pago pendiente',
-      cancel: isGroup ? 'Cancelar citas' : 'Cancelar cita',
-      reschedule: 'Reprogramar',
-      cancelTitle: isGroup ? '¿Cancelar citas?' : '¿Cancelar cita?',
-      cancelCopy: '¿Seguro que quieres cancelar?',
-      keep: 'Conservar cita',
-      confirmCancel: 'Sí, cancelar',
-      close: 'Cerrar'
-    },
-    fr: {
-      heading: isGroup
-        ? `${customerFirstName}, votre commande est confirmée !`
-        : `${customerFirstName}, votre rendez-vous est confirmé !`,
-      confirmationCode: 'Code de confirmation',
-      addToCalendar: "Ajouter à l'agenda",
-      total: 'Total',
-      payInPerson: 'Payer sur place',
-      pendingPayment: 'Paiement en attente',
-      cancel: isGroup ? 'Annuler les rendez-vous' : 'Annuler le rendez-vous',
-      reschedule: 'Reprogrammer',
-      cancelTitle: isGroup ? 'Annuler les rendez-vous ?' : 'Annuler le rendez-vous ?',
-      cancelCopy: 'Voulez-vous vraiment annuler ?',
-      keep: 'Garder le rendez-vous',
-      confirmCancel: 'Oui, annuler',
-      close: 'Fermer'
-    },
-    ro: {
-      heading: isGroup
-        ? `${customerFirstName}, rezervarea ta este confirmată!`
-        : `${customerFirstName}, programarea ta este confirmată!`,
-      confirmationCode: 'Cod de confirmare',
-      addToCalendar: 'Adaugă în calendar',
-      total: 'Total',
-      payInPerson: 'Plată la locație',
-      pendingPayment: 'Plată în așteptare',
-      cancel: isGroup ? 'Anulează programările' : 'Anulează programarea',
-      reschedule: 'Reprogramează',
-      cancelTitle: isGroup ? 'Anulezi programările?' : 'Anulezi programarea?',
-      cancelCopy: 'Sigur dorești să anulezi?',
-      keep: 'Păstrează programarea',
-      confirmCancel: 'Da, anulează',
-      close: 'Închide'
-    }
-  } as const
-  const copy = copyByLocale[confirmation.locale]
-  const calendarButton = (
-    kind: 'apple' | 'google' | 'yahoo',
-    label: string,
-    startsAt: string,
-    endsAt: string
-  ) =>
-    `<button type="button" data-testid="btn:calendar:${kind}" data-calendar-kind="${kind}" data-calendar-start="${escapeHtml(startsAt)}" data-calendar-end="${escapeHtml(endsAt)}" aria-label="${escapeHtml(label)}"><span aria-hidden="true" class="calendar-logo calendar-logo-${kind}">${kind === 'apple' ? '●' : kind === 'google' ? 'G' : 'Y!'}</span></button>`
-  const appointmentCards = confirmation.appointments
-    .map((appointment) => {
-      const appointmentSnapshot = appointment.snapshot
-      const primaryService =
-        appointmentSnapshot.services.find((service) => service.role === 'primary') ??
-        appointmentSnapshot.services[0]
-      const additionalServices = appointmentSnapshot.services.filter(
-        (service) => service.role === 'additional'
-      )
-      const services = additionalServices
-        .map(
-          (service) =>
-            `<div class="service-addon"><span>+ ${escapeHtml(service.name)}</span><span>${formatBookingCurrency(confirmation.locale, service.priceMinor, service.currency)}</span></div>`
-        )
-        .join('')
-      const date = formatBookingDate(
-        confirmation.locale,
-        appointment.startsAt,
-        appointmentSnapshot.merchantTimezone
-      )
-      const time = formatBookingTime(
-        confirmation.locale,
-        appointment.startsAt,
-        appointmentSnapshot.merchantTimezone
-      )
-      const confirmationCode = appointment.id
-        .replace(/^apt_/, '')
-        .slice(-8)
-        .toUpperCase()
-      return `<section data-testid="container:orderApptGroup" class="order-appointment"><div data-testid="container:groupAppt" class="appointment-card"><div class="provider-avatar">${escapeHtml(
-        appointmentSnapshot.assignedProvider.displayName
-          .split(/\s+/)
-          .map((part) => part[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase()
-      )}</div><div class="appointment-identity"><strong>${escapeHtml(appointmentSnapshot.assignedProvider.displayName)}</strong><span>${primaryService ? escapeHtml(primaryService.name) : ''}</span><span data-testid="text:customerName">${escapeHtml(appointmentSnapshot.customerDetails.name)}</span></div><strong class="appointment-price">${formatBookingCurrency(confirmation.locale, appointmentSnapshot.totalMinor, appointmentSnapshot.currency)}</strong></div>${services ? `<div class="service-addons">${services}</div>` : ''}<div class="breakdown"><div><span>${escapeHtml(copy.confirmationCode)}</span><strong>${escapeHtml(confirmationCode)}</strong></div><div><span>${escapeHtml(message('label.duration'))}</span><span data-testid="text:duration">${appointmentSnapshot.durationMinutes} min</span></div><div><span>${escapeHtml(message('label.time'))}</span><time datetime="${escapeHtml(appointment.startsAt)}">${escapeHtml(date)} ${escapeHtml(time)}</time></div></div>${appointment.status !== 'cancelled' ? `<div class="calendar"><p>${escapeHtml(copy.addToCalendar)}</p><div>${calendarButton('apple', 'iCalendar', appointment.startsAt, appointment.endsAt)}${calendarButton('google', 'Google Calendar', appointment.startsAt, appointment.endsAt)}${calendarButton('yahoo', 'Yahoo Calendar', appointment.startsAt, appointment.endsAt)}</div></div>` : ''}${!isGroup ? `<hr><div class="order-total"><strong>${escapeHtml(copy.total)}</strong><strong>${formatBookingCurrency(confirmation.locale, appointmentSnapshot.totalMinor, appointmentSnapshot.currency)}</strong></div>` : ''}</section>`
-    })
-    .join('')
-  const groupTotal = confirmation.appointments.reduce(
-    (total, appointment) => total + appointment.snapshot.totalMinor,
-    0
-  )
-  const groupSummary = isGroup
-    ? `<div class="group-total"><strong>${escapeHtml(copy.total)}</strong><strong>${formatBookingCurrency(confirmation.locale, groupTotal, snapshot.currency)}</strong></div>`
-    : ''
-  const cancellable = isGroup
-    ? confirmation.appointments.every(
-        (appointment) => appointment.status === 'scheduled'
-      )
-    : confirmation.appointments[0]?.status === 'scheduled'
-  const cancelPath = isGroup
-    ? '/cancel'
-    : `/appointments/${encodeURIComponent(confirmation.appointments[0]?.id ?? '')}/cancel`
-  const rescheduleAction =
-    !isGroup && confirmation.appointments[0]?.status === 'scheduled'
-      ? `<button type="button" data-testid="btn:reschedule" class="action-button" data-reschedule-path="/appointments/${encodeURIComponent(confirmation.appointments[0].id)}/reschedule">${escapeHtml(copy.reschedule)}</button>`
-      : ''
-  const actions =
-    cancellable || rescheduleAction
-      ? `<section class="appointment-actions">${rescheduleAction}${cancellable ? `<button type="button" data-testid="btn:cancel" class="action-button danger" data-popup-open="cancel">${escapeHtml(copy.cancel)}</button>` : ''}</section>`
-      : ''
-  const cancelDisclosure = snapshot.cancellationPolicy
-    ? `<p class="payment-disclosure">${escapeHtml(snapshot.cancellationPolicy.cancellableUntilMinutesBeforeStart === 60 ? 'Cancel up to 1 hour before the appointment.' : `Cancel up to ${Math.round(snapshot.cancellationPolicy.cancellableUntilMinutesBeforeStart / 60)} hours before the appointment.`)}</p>`
-    : ''
-  const popup = `<div data-testid="reservation-popup-root" class="popup-layer" aria-hidden="true"><div class="popup-backdrop" data-popup-close></div><section role="dialog" aria-modal="true" aria-labelledby="cancel-popup-title" class="popup-container"><button type="button" class="popup-close" data-popup-close aria-label="${escapeHtml(copy.close)}">×</button><h2 id="cancel-popup-title">${escapeHtml(copy.cancelTitle)}</h2><p>${escapeHtml(copy.cancelCopy)}</p><button type="button" class="popup-action" data-popup-close>${escapeHtml(copy.keep)}</button><button type="button" class="popup-action danger" data-cancel-path="${cancelPath}">${escapeHtml(copy.confirmCancel)}</button><p role="status" aria-live="polite"></p></section></div>`
-  const script = `<script>(function(){var root=document.querySelector('[data-testid="reservation-popup-root"]');var scrollable=document.querySelector('[data-testid="container:scrollable"]');var openButton=document.querySelector('[data-popup-open="cancel"]');function openPopup(){if(!root)return;root.classList.add('is-open');root.setAttribute('aria-hidden','false')}function closePopup(){if(!root)return;root.classList.remove('is-open');root.setAttribute('aria-hidden','true');openButton&&openButton.focus({preventScroll:true})}openButton&&openButton.addEventListener('click',openPopup);root&&root.querySelectorAll('[data-popup-close]').forEach(function(button){button.addEventListener('click',closePopup)});document.addEventListener('keydown',function(event){if(event.key==='Escape')closePopup()});scrollable&&scrollable.addEventListener('scroll',function(){document.querySelector('[data-testid="container:title"]')?.classList.toggle('is-scrolled',scrollable.scrollTop>0)},{passive:true});document.querySelectorAll('[data-calendar-kind]').forEach(function(button){button.addEventListener('click',function(){var start=button.dataset.calendarStart;var end=button.dataset.calendarEnd;var title=${inlineScriptJson(confirmation.merchant.publicName)};var compact=function(value){return value.replace(/[-:]/g,'').replace('.000','')};var kind=button.dataset.calendarKind;var url=kind==='google'?'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+compact(start)+'/'+compact(end):kind==='yahoo'?'https://calendar.yahoo.com/?v=60&title='+encodeURIComponent(title)+'&st='+compact(start)+'&et='+compact(end):'data:text/calendar;charset=utf-8,'+encodeURIComponent('BEGIN:VCALENDAR\\nVERSION:2.0\\nBEGIN:VEVENT\\nDTSTART:'+compact(start)+'\\nDTEND:'+compact(end)+'\\nSUMMARY:'+title+'\\nEND:VEVENT\\nEND:VCALENDAR');window.open(url,'_blank','noopener,noreferrer')})});document.querySelectorAll('[data-reschedule-path]').forEach(function(button){button.addEventListener('click',async function(){button.disabled=true;try{var bytes=crypto.getRandomValues(new Uint8Array(32));var capability=Array.from(bytes,function(byte){return byte.toString(16).padStart(2,'0')}).join('');var response=await fetch(location.pathname+button.dataset.reschedulePath,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'begin',capability:capability,expiresAt:new Date(Date.now()+900000).toISOString()})});if(!response.ok)throw new Error();var result=await response.json();var base=location.pathname.split('/booking/confirmations/')[0];location.href=base+'/booking?booking='+encodeURIComponent(result.bookingSessionId)}catch(error){button.disabled=false}})});root&&root.querySelectorAll('[data-cancel-path]').forEach(function(button){button.addEventListener('click',async function(){button.disabled=true;var status=root.querySelector('[role=status]');try{var response=await fetch(location.pathname+button.dataset.cancelPath,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({idempotencyKey:'cancel-'+crypto.randomUUID(),reason:'customer_requested'})});if(!response.ok)throw new Error();status.textContent=${inlineScriptJson(message('confirmation.cancelled'))};location.reload()}catch(error){button.disabled=false;status.textContent=${inlineScriptJson(message('confirmation.cancel_failed'))}}})})})()</script>`
-  return `<!doctype html><html lang="${confirmation.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)}</title><style>:root{color-scheme:light;font-family:"SF Pro Text",Roboto,Arial,sans-serif}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#323536;color:#000}button{font:inherit;-webkit-tap-highlight-color:transparent}.booking-confirmation{position:relative;width:100%;max-width:375px;height:100dvh;min-height:568px;margin:0 auto;overflow:hidden;background:#f7f7f7}.confirmation-title{position:absolute;z-index:4;top:0;right:0;left:0;display:flex;min-height:88px;align-items:flex-start;gap:16px;padding:24px 44px 16px 16px;transition:background-color .3s;color:#000}.confirmation-title.is-scrolled{background:rgba(247,247,247,.85);backdrop-filter:blur(4px)}.success-icon{width:42px;height:42px;flex:0 0 42px;margin-top:3px;animation:confirmation-in .3s .3s both}.confirmation-title h1{margin:8px 0 0;font-family:"SF Pro Display",Roboto,Arial,sans-serif;font-size:20px;font-weight:600;line-height:24px;letter-spacing:.38px}.confirmation-status{position:absolute;overflow:hidden;width:1px;height:1px;clip:rect(0 0 0 0)}.confirmation-scrollable{position:absolute;inset:0;overflow-x:hidden;overflow-y:auto;padding:104px 16px 32px;scrollbar-width:none}.confirmation-scrollable::-webkit-scrollbar{display:none}.order-appointment{position:relative;margin-bottom:12px;padding:20px 16px;border-radius:8px;background:#ebebeb}.appointment-card{display:flex;align-items:center;min-width:0}.provider-avatar{display:flex;width:48px;height:48px;flex:0 0 48px;align-items:center;justify-content:center;border-radius:8px;background:#d2d2d4;color:#616163;font-size:15px;font-weight:600}.appointment-identity{display:flex;min-width:0;flex:1;flex-direction:column;gap:3px;padding-left:12px}.appointment-identity strong{overflow:hidden;font-size:15px;line-height:20px;text-overflow:ellipsis;white-space:nowrap}.appointment-identity span{overflow:hidden;color:#616163;font-size:13px;line-height:18px;text-overflow:ellipsis;white-space:nowrap}.appointment-price{align-self:flex-start;padding-left:8px;font-size:15px;line-height:20px}.service-addons{display:grid;gap:16px;margin-top:16px}.service-addon{display:flex;justify-content:space-between;color:#616163;font-size:13px}.breakdown{display:grid;gap:16px;margin-top:23px}.breakdown>div,.order-total,.group-total{display:flex;align-items:center;justify-content:space-between;gap:16px}.breakdown span,.breakdown time{color:#616163;font-size:13px;line-height:18px}.breakdown strong{font-size:13px}.calendar{margin-top:20px}.calendar p{margin:0;color:#616163;font-size:13px}.calendar>div{display:flex;gap:9px;margin-top:12px}.calendar button{display:flex;width:100%;height:40px;align-items:center;justify-content:center;padding:0;border:1px solid #dadadc;border-radius:8px;background:transparent;color:#000;cursor:pointer}.calendar-logo{font-weight:600}.calendar-logo-apple{font-size:18px}.calendar-logo-google{font-size:18px}.calendar-logo-yahoo{font-size:14px}.order-appointment hr,.confirmation-divider{height:1px;margin:20px 0;border:0;background:#dadadc}.order-total,.group-total{font-size:15px}.group-total{margin:24px 0}.shop-marker{display:flex;margin-top:24px}.shop-cover{display:flex;width:76px;height:76px;flex:0 0 76px;align-items:center;justify-content:center;border-radius:8px;background:repeating-linear-gradient(-45deg,#e1e1e1 0,#e1e1e1 4px,#dadadc 5px,#dadadc 6px)}.shop-pin{width:22px;height:22px;border:3px solid #fff;border-radius:50%;background:#0083ff;box-shadow:0 4px 16px rgba(0,0,0,.24)}.shop-copy{display:flex;min-width:0;flex-direction:column;justify-content:center;padding-left:16px}.shop-copy strong{font-size:15px;line-height:20px}.shop-copy span{margin-top:2px;color:#616163;font-size:12px}.payment-info{margin-top:24px}.payment-title{display:flex;align-items:center;gap:16px}.payment-icon{display:grid;width:40px;height:28px;place-items:center;border:1px solid #dadadc;border-radius:4px;font-size:15px}.payment-title strong{font-size:15px}.payment-label{margin-left:auto;padding:5px 8px;border-radius:4px;background:#2caf00;color:#fff;font-size:10px;font-weight:600;text-transform:uppercase}.payment-disclosure{margin:12px 0 0;color:rgba(0,0,0,.5);font-size:11px;line-height:15px}.appointment-actions{margin-top:40px}.action-button,.popup-action{width:100%;height:48px;border:1px solid #dadadc;border-radius:8px;background:transparent;font-size:13px;font-weight:600;cursor:pointer}.action-button+.action-button{margin-top:8px}.danger{color:#ff3b30}.popup-layer{position:absolute;z-index:20;inset:0;pointer-events:none}.popup-backdrop{position:absolute;inset:0;background:#000;opacity:0;transition:opacity .15s}.popup-container{position:absolute;right:0;bottom:0;left:0;max-height:calc(100% - 36px);padding:24px 16px 16px;overflow:auto;border-radius:16px 16px 0 0;background:#f7f7f7;box-shadow:0 12px 32px rgba(0,0,0,.16);transform:translateY(100%);transition:transform .15s}.popup-layer.is-open{pointer-events:auto}.popup-layer.is-open .popup-backdrop{opacity:.25}.popup-layer.is-open .popup-container{transform:translateY(0)}.popup-close{position:absolute;top:10px;right:6px;display:grid;width:44px;height:44px;place-items:center;border:0;background:transparent;color:#616163;font-size:28px;cursor:pointer}.popup-container h2{margin:0;padding-right:40px;font-family:"SF Pro Display",Roboto,Arial,sans-serif;font-size:20px;line-height:24px}.popup-container>p{margin:16px 0 24px;color:#616163;font-size:13px;line-height:18px}.popup-action+.popup-action{margin-top:8px}.popup-action.danger{border-color:#dadadc}.popup-container [role=status]{min-height:18px;margin:12px 0 0;color:#616163}@keyframes confirmation-in{from{opacity:0;transform:scale(0)}to{opacity:1;transform:scale(1)}}@media(max-width:375px){.booking-confirmation{max-width:none}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}</style></head><body><main class="booking-confirmation"><header data-testid="container:title" class="confirmation-title"><svg class="success-icon" viewBox="0 0 42 42" aria-hidden="true"><circle cx="21" cy="21" r="21" fill="${isCancelled ? '#ff3b30' : '#2caf00'}"/><path d="m12.5 21.5 5.4 5.2 11.6-12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h1 data-testid="text:apptConfirmationTitle">${escapeHtml(copy.heading)}</h1><span class="confirmation-status">${escapeHtml(status)}</span></header><div data-testid="container:scrollable" class="confirmation-scrollable">${appointmentCards}${groupSummary}<section class="shop-marker"><div class="shop-cover"><span class="shop-pin"></span></div><div class="shop-copy"><strong data-testid="text:shopName">${escapeHtml(confirmation.merchant.publicName)}</strong><span>${escapeHtml(message('label.merchant'))}</span></div></section><hr class="confirmation-divider"><section class="payment-info"><div class="payment-title"><span class="payment-icon">▣</span><strong data-testid="text:payInPerson">${escapeHtml(copy.payInPerson)}</strong><span class="payment-label">${escapeHtml(isCancelled ? status : copy.pendingPayment)}</span></div>${cancelDisclosure}</section>${actions}</div>${popup}</main>${script}</body></html>`
-}
-
+const confirmationHtml = renderBookingConfirmationView
 const jsonJourney = (value: BookingJourney): Response =>
   withPrivateHeaders(
     Response.json(value, {

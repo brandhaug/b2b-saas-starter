@@ -660,7 +660,7 @@ describe('Live Booking Confirmation', () => {
       confirmation: {
         routeId: confirmed.access.routeId,
         status: 'scheduled',
-        merchant: { publicName: 'Confirm Live' },
+        shop: { publicName: 'Confirm Live' },
         snapshot: {
           customerDetails: { email: 'mia@example.com' },
           checkoutPath: 'pay_in_person'

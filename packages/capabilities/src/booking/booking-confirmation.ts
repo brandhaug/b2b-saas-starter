@@ -21,6 +21,7 @@ import {
   policyAcceptances,
   promotionReservations,
   settlementAllocations,
+  shopAddresses,
   shops,
   timeSlotHolds,
   type BatchStatement,
@@ -115,7 +116,14 @@ export const CustomerConfirmation = Schema.Struct({
   locale: Schema.Literals(['en', 'es', 'fr', 'ro']),
   snapshot: AppointmentSnapshot,
   appointments: Schema.Array(CustomerConfirmationAppointment),
-  merchant: Schema.Struct({ publicName: Schema.String })
+  shop: Schema.Struct({
+    publicName: Schema.String,
+    coverPhotoUrl: Schema.optional(Schema.String),
+    addressLines: Schema.optional(Schema.Array(Schema.String)),
+    coordinates: Schema.optional(
+      Schema.Struct({ latitude: Schema.Number, longitude: Schema.Number })
+    )
+  })
 })
 export type CustomerConfirmation = typeof CustomerConfirmation.Type
 export const ConfirmationReadResult = Schema.Union([
@@ -159,6 +167,49 @@ export class BookingConfirmation extends Context.Service<
 
 const addMillisecondsToIso = (instant: string, milliseconds: number) =>
   new Date(Date.parse(instant) + milliseconds).toISOString()
+
+const confirmationShop = (input: {
+  readonly publicName: string
+  readonly bookingConfiguration?: unknown
+  readonly addressJson?: string | null
+  readonly latitude?: string | null
+  readonly longitude?: string | null
+}) => {
+  const bookingConfiguration =
+    input.bookingConfiguration && typeof input.bookingConfiguration === 'object'
+      ? (input.bookingConfiguration as Record<string, unknown>)
+      : null
+  const coverPhotoUrl =
+    typeof bookingConfiguration?.coverPhotoUrl === 'string'
+      ? bookingConfiguration.coverPhotoUrl.trim()
+      : ''
+  let addressLines: string[] = []
+  try {
+    const address = input.addressJson
+      ? (JSON.parse(input.addressJson) as Record<string, unknown>)
+      : null
+    addressLines = address
+      ? ['street', 'city', 'region', 'postalCode', 'country']
+          .map((key) => address[key])
+          .filter(
+            (value): value is string => typeof value === 'string' && !!value.trim()
+          )
+          .map((value) => value.trim())
+      : []
+  } catch {
+    addressLines = []
+  }
+  const latitude = input.latitude?.trim() ? Number(input.latitude) : Number.NaN
+  const longitude = input.longitude?.trim() ? Number(input.longitude) : Number.NaN
+  return {
+    publicName: input.publicName,
+    ...(coverPhotoUrl ? { coverPhotoUrl } : {}),
+    ...(addressLines.length ? { addressLines } : {}),
+    ...(Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? { coordinates: { latitude, longitude } }
+      : {})
+  }
+}
 
 const confirmationNotificationIntent = (input: {
   readonly id: string
@@ -363,6 +414,16 @@ export const SeedBookingConfirmation = (
           }
           if (input.credentialKind === 'bearer')
             store.exchangedAccess.add(input.routeId)
+          const selectedShopId = store.checkout.scheduling.selections.selections.get(
+            recordForAppointmentParty(store, appointment.id)?.id ?? ''
+          )?.shopId
+          const shop =
+            (selectedShopId
+              ? store.checkout.scheduling.selections.shops.get(selectedShopId)
+              : undefined) ??
+            [...store.checkout.scheduling.selections.shops.values()].find(
+              (candidate) => candidate.merchantId === appointment.merchantId
+            )
           return {
             kind: 'found' as const,
             cookieCredential: yield* Effect.promise(() =>
@@ -392,8 +453,13 @@ export const SeedBookingConfirmation = (
                   snapshot: sibling.snapshot as StoredAppointmentSnapshot
                 }
               }),
-              merchant: {
-                publicName: store.checkout.scheduling.scenario.merchant.publicName
+              shop: {
+                publicName:
+                  shop?.publicName ??
+                  store.checkout.scheduling.scenario.merchant.publicName,
+                ...(shop?.coverPhotoUrl ? { coverPhotoUrl: shop.coverPhotoUrl } : {}),
+                ...(shop?.addressLines ? { addressLines: [...shop.addressLines] } : {}),
+                ...(shop?.coordinates ? { coordinates: shop.coordinates } : {})
               }
             }
           }
@@ -674,6 +740,11 @@ export const LiveBookingConfirmation = (
                   appointment: appointments,
                   access: confirmationAccess,
                   merchantName: merchants.publicName,
+                  shopName: shops.publicName,
+                  shopBookingConfiguration: shops.bookingConfigJson,
+                  shopAddressJson: shopAddresses.addressJson,
+                  shopLatitude: shopAddresses.latitude,
+                  shopLongitude: shopAddresses.longitude,
                   locale: bookingSessions.locale
                 })
                 .from(confirmationAccess)
@@ -686,6 +757,12 @@ export const LiveBookingConfirmation = (
                   bookingSessions,
                   eq(bookingSessions.id, appointments.bookingSessionId)
                 )
+                .leftJoin(
+                  bookingParties,
+                  eq(bookingParties.bookingSessionId, bookingSessions.id)
+                )
+                .leftJoin(shops, eq(shops.id, bookingParties.shopId))
+                .leftJoin(shopAddresses, eq(shopAddresses.shopId, shops.id))
                 .where(
                   and(
                     eq(confirmationAccess.routeId, input.routeId),
@@ -769,7 +846,13 @@ export const LiveBookingConfirmation = (
                   endsAt: appointment.endsAt,
                   snapshot: appointment.snapshot!
                 })),
-                merchant: { publicName: row.merchantName }
+                shop: confirmationShop({
+                  publicName: row.shopName || row.merchantName,
+                  bookingConfiguration: row.shopBookingConfiguration,
+                  addressJson: row.shopAddressJson,
+                  latitude: row.shopLatitude,
+                  longitude: row.shopLongitude
+                })
               }
             }
           }),

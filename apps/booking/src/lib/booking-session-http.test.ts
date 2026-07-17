@@ -1460,7 +1460,12 @@ describe('Booking Session HTTP boundary', () => {
           }
         }
       ],
-      merchant: { publicName: "Mara </script><script>alert('x')</script>" },
+      shop: {
+        publicName: "Mara </script><script>alert('x')</script>",
+        coverPhotoUrl: 'https://images.example.test/mara.jpg',
+        addressLines: ['Strada Lipscani 21', 'București', '030167', 'RO'],
+        coordinates: { latitude: 44.4314, longitude: 26.1002 }
+      },
       snapshot
     }
     const readKeys: string[] = []
@@ -1612,7 +1617,7 @@ describe('Booking Session HTTP boundary', () => {
               locale: 'en' as const,
               snapshot,
               appointments,
-              merchant: { publicName: 'Mara Studio' }
+              shop: { publicName: 'Mara Studio' }
             },
             cookieCredential
           })
@@ -1688,7 +1693,7 @@ describe('Booking Session HTTP boundary', () => {
               locale: 'en' as const,
               snapshot: {} as never,
               appointments: [{ id: 'apt_one' } as never],
-              merchant: { publicName: 'Mara Studio' }
+              shop: { publicName: 'Mara Studio' }
             },
             cookieCredential
           })

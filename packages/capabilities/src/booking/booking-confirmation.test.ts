@@ -150,7 +150,10 @@ describe('Booking Confirmation', () => {
     )
     expect(protectedParty).toMatchObject({
       kind: 'found',
-      confirmation: { appointments: [{}, {}] }
+      confirmation: {
+        appointments: [{}, {}],
+        shop: { publicName: 'Party Studio' }
+      }
     })
   })
 })
