@@ -1335,6 +1335,7 @@ function LegacyServiceCard({
   readonly onMouseLeave?: () => void
   readonly messages: BookingSelectionMessages
 }) {
+  const [rejecting, setRejecting] = useState(false)
   const description = service.description?.trim() ?? ''
   const isSelected = selected || confirmed
   const canExpand = !isSelected || addon
@@ -1372,7 +1373,13 @@ function LegacyServiceCard({
               }
         }
         onKeyDown={(event) => activateCard(event, busy || isExpanded, onClick)}
-        onMouseLeave={onMouseLeave}
+        onMouseEnter={() => {
+          if (confirmed) setRejecting(true)
+        }}
+        onMouseLeave={() => {
+          setRejecting(false)
+          onMouseLeave()
+        }}
         style={{ zIndex: orderFromEnd }}
         {...stylex.props(
           styles.serviceCard,
@@ -1451,15 +1458,54 @@ function LegacyServiceCard({
         >
           {formatPrice(service.priceMinor, service.currency)}
         </p>
-        {confirmed ? (
-          <span data-testid="icon:confirmed" {...stylex.props(styles.selectionMark)}>
-            <BookingVisualAsset
-              assetRole="selection-check"
-              {...stylex.props(styles.confirmedCheck)}
-            />
-          </span>
-        ) : null}
+        {confirmed ? <LegacyConfirmedCardIcon rejecting={rejecting} /> : null}
       </div>
+    </m.div>
+  )
+}
+
+function LegacyConfirmedCardIcon({ rejecting }: { readonly rejecting: boolean }) {
+  return (
+    <m.div
+      data-testid="icon:confirmed"
+      initial={{ opacity: 0, scale: 0 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: 0.3, duration: 0.3 }}
+      {...stylex.props(styles.selectionMark)}
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 11 8"
+        fill="none"
+        {...stylex.props(
+          styles.confirmedCheck,
+          rejecting && styles.confirmedCheckHidden
+        )}
+      >
+        <path
+          d="m1 4.693 2.333 2.215L9.366 1"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 10 10"
+        fill="none"
+        {...stylex.props(
+          styles.confirmedClose,
+          rejecting && styles.confirmedCloseVisible
+        )}
+      >
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M.03 1.126a.823.823 0 0 0 .217.39L3.731 5 .247 8.486a.784.784 0 0 0-.217.388.99.99 0 0 0-.004.467c.037.156.113.29.228.4.115.116.25.192.407.228.156.037.31.037.46 0a.84.84 0 0 0 .395-.214L5 6.27l3.478 3.478a.816.816 0 0 0 .397.221.962.962 0 0 0 .461-.003.88.88 0 0 0 .404-.224.924.924 0 0 0 .23-.868.865.865 0 0 0-.217-.394L6.272 4.998l3.482-3.481a.865.865 0 0 0 .218-.398.937.937 0 0 0 0-.46.855.855 0 0 0-.638-.629.963.963 0 0 0-.461-.003.816.816 0 0 0-.394.221l-3.477 3.48L1.516.242a.84.84 0 0 0-.394-.215.99.99 0 0 0-.461 0 .832.832 0 0 0-.407.228A.88.88 0 0 0 .03.66a.95.95 0 0 0 0 .465Z"
+          fill="currentColor"
+        />
+      </svg>
     </m.div>
   )
 }

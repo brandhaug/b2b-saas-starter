@@ -127,6 +127,7 @@ export const bookingTheme = stylex.defineVars({
   colorViewOrderBackground: '#000000',
   colorViewOrderText: '#ffffff',
   colorSecondary: '#ffffff',
+  colorConfirmedCardIconBackground: '#000000',
   colorPrimaryA10: 'rgb(0 131 255 / 10%)',
   colorLink: 'rgb(0 107 208)',
   colorCanvas: '#f7f7f8',

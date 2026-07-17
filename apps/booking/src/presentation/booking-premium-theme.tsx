@@ -49,6 +49,13 @@ const customProperty = (reference: string) => {
   return match[1]
 }
 
+const isCloseToBlack = (hexColor: string) => {
+  const red = Number.parseInt(hexColor.slice(1, 3), 16)
+  const green = Number.parseInt(hexColor.slice(3, 5), 16)
+  const blue = Number.parseInt(hexColor.slice(5, 7), 16)
+  return (red * 0.299 + green * 0.587 + blue * 0.114) / 256 < 0.1
+}
+
 const premiumStyle = (palette: BookingPremiumPalette) =>
   ({
     [customProperty(bookingTheme.colorPrimary)]: palette.primaryColor,
@@ -60,6 +67,11 @@ const premiumStyle = (palette: BookingPremiumPalette) =>
     [customProperty(bookingTheme.colorViewOrderText)]: palette.primaryFontColor,
     [customProperty(bookingTheme.colorCartCloseContent)]: palette.primaryFontColor,
     [customProperty(bookingTheme.colorSecondary)]: palette.secondaryColor,
+    [customProperty(bookingTheme.colorConfirmedCardIconBackground)]: isCloseToBlack(
+      palette.primaryColor
+    )
+      ? palette.primaryDark
+      : palette.secondaryColor,
     [customProperty(bookingTheme.colorLink)]: palette.linkColor
   }) as CSSProperties
 
