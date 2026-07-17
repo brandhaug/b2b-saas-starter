@@ -1,6 +1,17 @@
 export const BOOKING_PWA_THEME_COLOR = '#f7f7f7' as const
 export const BOOKING_PWA_VIEWPORT =
-  'width=device-width, initial-scale=1, viewport-fit=cover' as const
+  'width=375, minimum-scale=1, shrink-to-fit=no' as const
+export const BOOKING_STANDALONE_VIEWPORT_SCRIPT = `
+(function () {
+  if (window.self === window.top) { // config.mode.standalone
+    var metaElement = document.querySelector('meta[name=viewport]');
+
+    if (metaElement) {
+      metaElement.setAttribute('content', ${JSON.stringify(BOOKING_PWA_VIEWPORT)});
+    }
+  }
+})();
+` as const
 
 export interface MerchantBookingPwaConfig {
   readonly scope: string

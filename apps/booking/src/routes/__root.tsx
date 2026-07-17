@@ -5,7 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { NotFoundPage } from '../components/not-found-page'
 import { BookingLocalizationProvider } from '../localization/booking-localization-provider'
-import { BOOKING_PWA_THEME_COLOR, BOOKING_PWA_VIEWPORT } from '../lib/merchant-pwa'
+import {
+  BOOKING_PWA_THEME_COLOR,
+  BOOKING_PWA_VIEWPORT,
+  BOOKING_STANDALONE_VIEWPORT_SCRIPT
+} from '../lib/merchant-pwa'
 import appCss from '../index.css?url'
 
 export const Route = createRootRoute({
@@ -35,6 +39,9 @@ function RootComponent() {
     <html lang="en">
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{ __html: BOOKING_STANDALONE_VIEWPORT_SCRIPT }}
+        />
         {import.meta.env.DEV ? (
           <>
             <link rel="stylesheet" href="/_booking/virtual:stylex.css" />

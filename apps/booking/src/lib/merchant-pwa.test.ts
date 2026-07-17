@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BOOKING_PWA_THEME_COLOR,
   BOOKING_PWA_VIEWPORT,
+  BOOKING_STANDALONE_VIEWPORT_SCRIPT,
   createMerchantBookingPwaConfig
 } from './merchant-pwa.ts'
 
@@ -26,11 +27,13 @@ describe('Merchant Booking PWA adapter', () => {
     })
   })
 
-  it('keeps zoom available while covering standalone safe areas', () => {
-    expect(BOOKING_PWA_VIEWPORT).toBe(
-      'width=device-width, initial-scale=1, viewport-fit=cover'
+  it('keeps the legacy 375px viewport for top-level Booking pages', () => {
+    expect(BOOKING_PWA_VIEWPORT).toBe('width=375, minimum-scale=1, shrink-to-fit=no')
+    expect(BOOKING_STANDALONE_VIEWPORT_SCRIPT).toContain(
+      'if (window.self === window.top)'
     )
-    expect(BOOKING_PWA_VIEWPORT).not.toContain('maximum-scale')
-    expect(BOOKING_PWA_VIEWPORT).not.toContain('user-scalable=no')
+    expect(BOOKING_STANDALONE_VIEWPORT_SCRIPT).toContain(
+      `metaElement.setAttribute('content', ${JSON.stringify(BOOKING_PWA_VIEWPORT)})`
+    )
   })
 })
