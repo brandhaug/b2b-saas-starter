@@ -1460,7 +1460,7 @@ describe('Booking Session HTTP boundary', () => {
           }
         }
       ],
-      merchant: { publicName: 'Mara Studio' },
+      merchant: { publicName: "Mara </script><script>alert('x')</script>" },
       snapshot
     }
     const readKeys: string[] = []
@@ -1513,6 +1513,24 @@ describe('Booking Session HTTP boundary', () => {
     expect(html).toContain('Confirmarea programării')
     expect(html).toContain('Mia')
     expect(html).toContain('Noah')
+    expect(html).toContain('data-testid="container:title"')
+    expect(html).toContain('data-testid="text:apptConfirmationTitle"')
+    expect(html).toContain('data-testid="container:scrollable"')
+    expect(html).toContain('data-testid="container:orderApptGroup"')
+    expect(html).toContain('data-testid="container:groupAppt"')
+    expect(html).toContain('data-testid="btn:calendar:apple"')
+    expect(html).toContain('data-testid="btn:calendar:google"')
+    expect(html).toContain('data-testid="btn:calendar:yahoo"')
+    expect(html).toContain('data-testid="text:shopName"')
+    expect(html).toContain('data-testid="btn:cancel"')
+    expect(html).toContain('data-testid="reservation-popup-root"')
+    expect(html).not.toContain('class="rail"')
+    expect(html).not.toContain("</script><script>alert('x')</script>")
+    expect(html).not.toContain("document.body.style.overflow='hidden'")
+    const scriptSource = html.match(/<script>([\s\S]*)<\/script>/)?.[1]
+    expect(scriptSource).toBeTruthy()
+    if (!scriptSource) throw new Error('confirmation script missing')
+    expect(() => new Function(scriptSource)).not.toThrow()
     expect(clean.headers.get('cache-control')).toBe('private, no-store')
     expect(clean.headers.get('referrer-policy')).toBe('no-referrer')
     expect(readKeys).toEqual([
