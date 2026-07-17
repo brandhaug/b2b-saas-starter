@@ -13,6 +13,16 @@ export const DEFAULT_BOOKING_CANCELLATION_POLICY = {
   cancellableUntilMinutesBeforeStart: 60
 } as const satisfies CancellationPolicySnapshot
 
+export const cancellationPolicyDisclosure = (
+  policy: CancellationPolicySnapshot
+): string => {
+  const minutes = policy.cancellableUntilMinutesBeforeStart
+  if (minutes % 60 !== 0)
+    return `Cancel up to ${minutes} ${minutes === 1 ? 'minute' : 'minutes'} before the appointment.`
+  const hours = minutes / 60
+  return `Cancel up to ${hours} ${hours === 1 ? 'hour' : 'hours'} before the appointment.`
+}
+
 export type BookingCancellationWindow = {
   readonly eligible: boolean
   readonly cancellableUntil: string

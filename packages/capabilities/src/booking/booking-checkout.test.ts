@@ -180,9 +180,16 @@ describe('Booking Checkout', () => {
       eligible: true,
       cancellableUntil: '2026-07-13T08:00:00.000Z'
     })
+    expect(result.rebuilt.policy?.disclosure).toBe(
+      'Cancel up to 1 hour before the appointment.'
+    )
     expect(result.review).toMatchObject({
       readyToConfirm: true,
-      policyAcceptance: { policyId: 'pol_shop', version: 3 },
+      policyAcceptance: {
+        policyId: 'pol_shop',
+        version: 3,
+        disclosure: 'Cancel up to 1 hour before the appointment.'
+      },
       marketingConsents: [{ bookingRequestId: 'brq_one', granted: false }]
     })
     expect(result.rebuilt).toMatchObject({

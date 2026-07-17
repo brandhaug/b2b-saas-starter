@@ -568,12 +568,6 @@ export const styles = stylex.create({
     fontSize: 16,
     lineHeight: '20px'
   },
-  legacyCheckoutDisclosure: {
-    margin: '12px 0 0',
-    color: '#747983',
-    fontSize: 12,
-    lineHeight: '18px'
-  },
   legacyCheckoutAction: {
     minHeight: 100,
     marginBottom: 4

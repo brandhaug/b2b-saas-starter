@@ -218,8 +218,8 @@ describe('Seed Booking Scenario builder', () => {
     expect(first.checkoutPolicy).toEqual({
       id: 'pol_seed_checkout',
       kind: 'checkout',
-      version: 1,
-      disclosure: 'Cancel up to 24 hours before the appointment.',
+      version: 2,
+      disclosure: 'Cancel up to 1 hour before the appointment.',
       effectiveAt: first.anchorTime,
       retiredAt: null,
       createdAt: first.anchorTime

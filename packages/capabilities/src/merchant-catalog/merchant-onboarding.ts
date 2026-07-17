@@ -16,6 +16,10 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { isSupportedCurrency } from './currency.ts'
 import type { BookingConfiguration } from './booking-configuration.ts'
+import {
+  cancellationPolicyDisclosure,
+  DEFAULT_BOOKING_CANCELLATION_POLICY
+} from '../booking/booking-cancellation.ts'
 
 export const RESERVED_MERCHANT_SLUGS = [
   'admin',
@@ -737,8 +741,8 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     checkoutPolicy: {
       id: 'pol_seed_checkout',
       kind: 'checkout',
-      version: 1,
-      disclosure: 'Cancel up to 24 hours before the appointment.',
+      version: 2,
+      disclosure: cancellationPolicyDisclosure(DEFAULT_BOOKING_CANCELLATION_POLICY),
       effectiveAt: anchorTime,
       retiredAt: null,
       createdAt: anchorTime

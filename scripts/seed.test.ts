@@ -11,7 +11,7 @@ describe('Booking seed SQL', () => {
       )
 
     expect(policyInsert).toBe(
-      "INSERT OR REPLACE INTO checkout_policies (id, kind, version, disclosure, effective_at, retired_at, created_at, merchant_id, brand_id, shop_id, scope, scope_id) VALUES ('pol_seed_checkout', 'checkout', 1, 'Cancel up to 24 hours before the appointment.', '2026-07-10T09:30:00.000Z', NULL, '2026-07-10T09:30:00.000Z', 'mer_seed_booking_studio', NULL, NULL, 'merchant', 'mer_seed_booking_studio');"
+      "INSERT OR REPLACE INTO checkout_policies (id, kind, version, disclosure, effective_at, retired_at, created_at, merchant_id, brand_id, shop_id, scope, scope_id) VALUES ('pol_seed_checkout', 'checkout', 2, 'Cancel up to 1 hour before the appointment.', '2026-07-10T09:30:00.000Z', NULL, '2026-07-10T09:30:00.000Z', 'mer_seed_booking_studio', NULL, NULL, 'merchant', 'mer_seed_booking_studio');"
     )
   })
 })

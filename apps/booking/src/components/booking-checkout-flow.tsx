@@ -457,11 +457,6 @@ export function BookingCheckoutFlow({
                 </div>
               </div>
             ) : null}
-            {preparation?.policy ? (
-              <p {...stylex.props(styles.legacyCheckoutDisclosure)}>
-                {preparation.policy.disclosure}
-              </p>
-            ) : null}
           </div>
           <div
             data-checkout-section="action"

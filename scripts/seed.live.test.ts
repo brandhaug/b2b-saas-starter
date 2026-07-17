@@ -18,7 +18,7 @@ describe('Booking seed SQL on D1', () => {
     if (!test) throw new Error('Test D1 was not provisioned')
     const policy = await test.d1
       .prepare(
-        'SELECT id, scope, scope_id, kind, disclosure FROM checkout_policies WHERE id = ?'
+        'SELECT id, scope, scope_id, kind, version, disclosure FROM checkout_policies WHERE id = ?'
       )
       .bind('pol_seed_checkout')
       .first()
@@ -28,7 +28,8 @@ describe('Booking seed SQL on D1', () => {
       scope: 'merchant',
       scope_id: 'mer_seed_booking_studio',
       kind: 'checkout',
-      disclosure: 'Cancel up to 24 hours before the appointment.'
+      version: 2,
+      disclosure: 'Cancel up to 1 hour before the appointment.'
     })
   })
 })

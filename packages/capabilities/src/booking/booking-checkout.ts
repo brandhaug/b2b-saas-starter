@@ -36,7 +36,11 @@ import {
 import type { SeedBookingSchedulingStore } from './booking-scheduling.ts'
 import { BookingQuote } from './booking-scheduling.ts'
 import type { BookingSession } from './booking-sessions.ts'
-import { defaultBookingCancellationWindow } from './booking-cancellation.ts'
+import {
+  cancellationPolicyDisclosure,
+  DEFAULT_BOOKING_CANCELLATION_POLICY,
+  defaultBookingCancellationWindow
+} from './booking-cancellation.ts'
 
 export const CustomerDetails = Schema.Struct({
   name: Schema.String.check(
@@ -471,7 +475,7 @@ const partyCheckoutWorkflow = (
         repository.topology(party),
         repository.policies()
       ])
-      return resolveCheckoutPolicy(
+      const resolved = resolveCheckoutPolicy(
         policies.filter((policy) => policy.kind === kind),
         {
           ...topology,
@@ -479,6 +483,14 @@ const partyCheckoutWorkflow = (
           now
         }
       )
+      return resolved && kind === 'checkout'
+        ? {
+            ...resolved,
+            disclosure: cancellationPolicyDisclosure(
+              DEFAULT_BOOKING_CANCELLATION_POLICY
+            )
+          }
+        : resolved
     })
   const prepare = (session: BookingSession, now: string) =>
     Effect.gen(function* () {

@@ -288,7 +288,7 @@ describe('Live Booking Checkout', () => {
       acceptedQuote: { acceptedAt: now },
       policyAcceptance: {
         policyId: 'pol_checkout_live',
-        disclosure: 'Cancel up to 24 hours before the appointment.'
+        disclosure: 'Cancel up to 1 hour before the appointment.'
       },
       marketingConsents: [{ bookingRequestId: 'brq_live_one', granted: false }]
     })

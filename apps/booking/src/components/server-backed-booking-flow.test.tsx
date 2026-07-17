@@ -304,6 +304,7 @@ describe('server-backed Booking scheduling', () => {
     const checkout = screen.getByRole('dialog', { name: 'Confirm booking' })
     expect(checkout).not.toBe(policy)
     expect(await within(checkout).findByLabelText('First name')).toBeTruthy()
+    expect(within(checkout).queryByText(/Cancel up to .* before/i)).toBeNull()
     expect(screen.getByTestId('calendarLine')).toBeTruthy()
     fireEvent.click(within(checkout).getByRole('button', { name: 'Close' }))
     fireEvent.click(
