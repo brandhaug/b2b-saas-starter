@@ -62,6 +62,33 @@ const confirmation = {
 } satisfies BookingConfirmationPresentation
 
 describe('Booking confirmation route flow', () => {
+  it('does not imply payment status or chargeability for no-card Pay In Person', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json(confirmation))
+    )
+
+    render(
+      <BookingConfirmationRouteFlow
+        merchantSlug="mara-booking-studio"
+        routeId="cnf_demo"
+        embedding="standalone"
+      />
+    )
+
+    expect((await screen.findByTestId('text:payInPerson')).textContent).toBe(
+      'Pay in person'
+    )
+    expect(screen.queryByText('Pending payment')).toBeNull()
+    expect(
+      screen.queryByText(
+        (_, element) =>
+          element?.tagName === 'P' &&
+          element.textContent?.includes('You will only be charged') === true
+      )
+    ).toBeNull()
+  })
+
   it('renders the legacy reservation hierarchy inside the canonical booking shell', async () => {
     vi.stubGlobal(
       'fetch',

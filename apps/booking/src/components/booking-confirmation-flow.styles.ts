@@ -388,30 +388,6 @@ export const confirmationStyles = stylex.create({
     lineHeight: '22px',
     letterSpacing: '-0.408px'
   },
-  paymentStatus: {
-    display: 'flex',
-    height: 21,
-    alignItems: 'center',
-    marginLeft: 'auto',
-    paddingInline: 8,
-    borderRadius: 4,
-    backgroundColor: bookingTheme.colorPaid,
-    color: '#ffffff',
-    fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 10,
-    fontWeight: 600,
-    lineHeight: '6px',
-    textTransform: 'uppercase'
-  },
-  paymentCancelled: { backgroundColor: bookingTheme.colorDanger },
-  paymentDisclosure: {
-    marginTop: 12,
-    marginBottom: 0,
-    color: bookingTheme.blackA50,
-    fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 12,
-    lineHeight: '16px'
-  },
   actions: { marginTop: 40 },
   actionButton: {
     width: '100%',

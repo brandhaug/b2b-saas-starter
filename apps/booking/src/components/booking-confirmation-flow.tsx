@@ -351,11 +351,7 @@ function BookingConfirmationView({
           </section>
           <hr {...stylex.props(styles.reservationDivider)} />
           {confirmation.snapshot.checkoutPath === 'pay_in_person' ? (
-            <PayInPerson
-              confirmation={confirmation}
-              cancelled={isCancelled}
-              group={isGroup}
-            />
+            <PayInPerson confirmation={confirmation} />
           ) : null}
           {scheduled ? (
             <section {...stylex.props(styles.actions)}>
@@ -676,40 +672,12 @@ function AppointmentCard({
 }
 
 function PayInPerson({
-  confirmation,
-  cancelled,
-  group
+  confirmation
 }: {
   readonly confirmation: BookingConfirmationPresentationData
-  readonly cancelled: boolean
-  readonly group: boolean
 }) {
   const copy = (key: Parameters<typeof translateBookingMessage>[1]) =>
     translateBookingMessage(confirmation.locale, key)
-  const minutes =
-    confirmation.snapshot.cancellationPolicy?.cancellableUntilMinutesBeforeStart
-  let disclosure = ''
-  if (minutes) {
-    const hours = Math.floor(minutes / 60)
-    const remainder = minutes % 60
-    const hourCopy = hours
-      ? copy(hours === 1 ? 'reservation.lead_hour' : 'reservation.lead_hours').replace(
-          '{count}',
-          String(hours)
-        )
-      : ''
-    const minuteCopy = remainder
-      ? copy(
-          remainder === 1 ? 'reservation.lead_minute' : 'reservation.lead_minutes'
-        ).replace('{count}', String(remainder))
-      : ''
-    const lead = [hourCopy, minuteCopy].filter(Boolean).join(' ')
-    disclosure = copy(
-      group
-        ? 'reservation.pay_in_person_disclaimer_group'
-        : 'reservation.pay_in_person_disclaimer'
-    ).replace('{lead}', lead)
-  }
   return (
     <section {...stylex.props(styles.payment)}>
       <div {...stylex.props(styles.paymentTitle)}>
@@ -717,23 +685,7 @@ function PayInPerson({
         <strong data-testid="text:payInPerson" {...stylex.props(styles.paymentName)}>
           {copy('reservation.pay_in_person')}
         </strong>
-        <span
-          data-testid={`text:${cancelled ? 'canceledStatus' : 'paidStatus'}`}
-          {...stylex.props(styles.paymentStatus, cancelled && styles.paymentCancelled)}
-        >
-          {copy(cancelled ? 'reservation.cancelled' : 'reservation.pending_payment')}
-        </span>
       </div>
-      {disclosure ? (
-        <p {...stylex.props(styles.paymentDisclosure)}>
-          {disclosure.split('<br/>').map((line, index) => (
-            <span key={line}>
-              {index ? <br /> : null}
-              {line}
-            </span>
-          ))}
-        </p>
-      ) : null}
     </section>
   )
 }
