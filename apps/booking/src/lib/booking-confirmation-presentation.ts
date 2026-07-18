@@ -43,12 +43,18 @@ const PresentationSnapshot = Schema.Struct({
   )
 })
 
+const PresentationAdjustment = Schema.Struct({
+  kind: Schema.Literals(['tax', 'fee']),
+  amountMinor: Schema.Number
+})
+
 const PresentationAppointment = Schema.Struct({
   id: Schema.String,
   status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
   startsAt: Schema.String,
   endsAt: Schema.String,
-  snapshot: PresentationSnapshot
+  snapshot: PresentationSnapshot,
+  adjustments: Schema.Array(PresentationAdjustment)
 })
 
 export const BookingConfirmationPresentation = Schema.Struct({
@@ -110,7 +116,8 @@ export const presentBookingConfirmation = (
     status: appointment.status,
     startsAt: appointment.startsAt,
     endsAt: appointment.endsAt,
-    snapshot: presentSnapshot(appointment.snapshot)
+    snapshot: presentSnapshot(appointment.snapshot),
+    adjustments: appointment.adjustments ?? []
   })),
   shop: {
     publicName: confirmation.shop.publicName,

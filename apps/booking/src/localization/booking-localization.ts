@@ -272,6 +272,8 @@ const en = {
   'reservation.add_to_calendar': 'Add to calendar',
   'reservation.total': 'Total price',
   'reservation.including_taxes': 'Incl. taxes and fees',
+  'reservation.taxes': 'Taxes',
+  'reservation.booking_fee': 'Fee',
   'reservation.get_directions': 'Get directions',
   'reservation.pay_in_person': 'Pay in person',
   'reservation.pay_in_person_disclaimer':
@@ -558,6 +560,8 @@ const es = {
   'reservation.add_to_calendar': 'Agregar al calendario',
   'reservation.total': 'Precio total',
   'reservation.including_taxes': 'Incl. impuestos y tarifas',
+  'reservation.taxes': 'Impuestos',
+  'reservation.booking_fee': 'Tarifa',
   'reservation.get_directions': 'Obtener direcciones',
   'reservation.pay_in_person': 'Pagar en persona',
   'reservation.pay_in_person_disclaimer':
@@ -846,6 +850,8 @@ const fr = {
   'reservation.add_to_calendar': "Ajouter à l'agenda",
   'reservation.total': 'Prix total',
   'reservation.including_taxes': 'Taxes et frais inclus',
+  'reservation.taxes': 'Taxes',
+  'reservation.booking_fee': 'Frais de réservation',
   'reservation.get_directions': "Obtenir l'itinéraire",
   'reservation.pay_in_person': 'Payer en personne',
   'reservation.pay_in_person_disclaimer':
@@ -1132,6 +1138,8 @@ const ro = {
   'reservation.add_to_calendar': 'Adaugă în calendar',
   'reservation.total': 'Preț total',
   'reservation.including_taxes': 'Taxe și comisioane incluse',
+  'reservation.taxes': 'Taxe',
+  'reservation.booking_fee': 'Comision',
   'reservation.get_directions': 'Obține indicații',
   'reservation.pay_in_person': 'Plată la locație',
   'reservation.pay_in_person_disclaimer':

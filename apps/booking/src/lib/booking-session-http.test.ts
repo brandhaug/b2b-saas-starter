@@ -1445,7 +1445,11 @@ describe('Booking Session HTTP boundary', () => {
           status: 'scheduled' as const,
           startsAt: snapshot.startsAt,
           endsAt: snapshot.endsAt,
-          snapshot
+          snapshot,
+          adjustments: [
+            { kind: 'tax' as const, amountMinor: 700 },
+            { kind: 'fee' as const, amountMinor: 300 }
+          ]
         },
         {
           id: 'apt_noah',
@@ -1461,7 +1465,8 @@ describe('Booking Session HTTP boundary', () => {
               email: 'noah@example.com',
               phone: '+15550000002'
             }
-          }
+          },
+          adjustments: []
         }
       ],
       shop: {
@@ -1545,8 +1550,15 @@ describe('Booking Session HTTP boundary', () => {
       routeId: 'cnf_clean',
       customerFirstName: 'Mia',
       appointments: [
-        { id: 'apt_mia', status: 'scheduled' },
-        { id: 'apt_noah', status: 'scheduled' }
+        {
+          id: 'apt_mia',
+          status: 'scheduled',
+          adjustments: [
+            { kind: 'tax', amountMinor: 700 },
+            { kind: 'fee', amountMinor: 300 }
+          ]
+        },
+        { id: 'apt_noah', status: 'scheduled', adjustments: [] }
       ]
     })
     expect(presentation).not.toHaveProperty('snapshot.customerDetails')

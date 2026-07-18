@@ -302,6 +302,21 @@ export const confirmationStyles = stylex.create({
     transform: 'rotate(-90deg)'
   },
   taxesBreakdown: { marginTop: 10 },
+  taxesEntry: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4
+  },
+  taxesEntryLast: { marginBottom: 0 },
+  taxesEntryText: {
+    margin: 0,
+    color: bookingTheme.colorSecondaryLabel,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px'
+  },
   groupTotal: { marginBlock: 24 },
   scheduleAnotherWrapper: { marginTop: 16 },
   shop: { display: 'flex', marginTop: 24 },

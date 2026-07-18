@@ -16,6 +16,7 @@ import {
   merchants,
   notificationIntents,
   payments,
+  pricingAdjustments,
   pricingQuoteAcceptances,
   pricingQuotes,
   policyAcceptances,
@@ -106,7 +107,15 @@ const CustomerConfirmationAppointment = Schema.Struct({
   status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
   startsAt: Schema.String,
   endsAt: Schema.String,
-  snapshot: AppointmentSnapshot
+  snapshot: AppointmentSnapshot,
+  adjustments: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        kind: Schema.Literals(['tax', 'fee']),
+        amountMinor: Schema.Number
+      })
+    )
+  )
 })
 export const CustomerConfirmation = Schema.Struct({
   routeId: Schema.String,
@@ -450,7 +459,8 @@ export const SeedBookingConfirmation = (
                   status: sibling.status,
                   startsAt: sibling.startsAt,
                   endsAt: sibling.endsAt,
-                  snapshot: sibling.snapshot as StoredAppointmentSnapshot
+                  snapshot: sibling.snapshot as StoredAppointmentSnapshot,
+                  adjustments: []
                 }
               }),
               shop: {
@@ -827,6 +837,31 @@ export const LiveBookingConfirmation = (
                       .where(eq(appointments.bookingPartyId, row.access.bookingPartyId))
                   )
                 : [{ appointment: row.appointment }]
+            const acceptedQuoteIds = [
+              ...new Set(
+                partyAppointments.flatMap(({ appointment }) => {
+                  const quoteId = appointment.snapshot?.acceptedQuote?.id
+                  return quoteId ? [quoteId] : []
+                })
+              )
+            ]
+            const adjustmentRows = acceptedQuoteIds.length
+              ? yield* orUnavailable('booking-confirmation')(
+                  db
+                    .select({
+                      pricingQuoteId: pricingAdjustments.pricingQuoteId,
+                      kind: pricingAdjustments.kind,
+                      amountMinor: pricingAdjustments.amountMinor
+                    })
+                    .from(pricingAdjustments)
+                    .where(
+                      and(
+                        inArray(pricingAdjustments.pricingQuoteId, acceptedQuoteIds),
+                        inArray(pricingAdjustments.kind, ['tax', 'fee'])
+                      )
+                    )
+                )
+              : []
             return {
               kind: 'found' as const,
               cookieCredential: yield* Effect.promise(() =>
@@ -839,13 +874,26 @@ export const LiveBookingConfirmation = (
                 endsAt: row.appointment.endsAt,
                 locale: row.locale as 'en' | 'es' | 'fr' | 'ro',
                 snapshot: row.appointment.snapshot!,
-                appointments: partyAppointments.map(({ appointment }) => ({
-                  id: appointment.id,
-                  status: appointment.status,
-                  startsAt: appointment.startsAt,
-                  endsAt: appointment.endsAt,
-                  snapshot: appointment.snapshot!
-                })),
+                appointments: partyAppointments.map(({ appointment }) => {
+                  const quoteId = appointment.snapshot?.acceptedQuote?.id
+                  return {
+                    id: appointment.id,
+                    status: appointment.status,
+                    startsAt: appointment.startsAt,
+                    endsAt: appointment.endsAt,
+                    snapshot: appointment.snapshot!,
+                    adjustments: adjustmentRows
+                      .filter(
+                        (adjustment) =>
+                          adjustment.pricingQuoteId === quoteId &&
+                          (adjustment.kind === 'tax' || adjustment.kind === 'fee')
+                      )
+                      .map((adjustment) => ({
+                        kind: adjustment.kind as 'tax' | 'fee',
+                        amountMinor: adjustment.amountMinor
+                      }))
+                  }
+                }),
                 shop: confirmationShop({
                   publicName: row.shopName || row.merchantName,
                   bookingConfiguration: row.shopBookingConfiguration,

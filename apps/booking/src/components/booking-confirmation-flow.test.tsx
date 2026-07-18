@@ -50,7 +50,8 @@ const confirmation = {
       status: 'scheduled' as const,
       startsAt: snapshot.startsAt,
       endsAt: snapshot.endsAt,
-      snapshot
+      snapshot,
+      adjustments: []
     }
   ],
   shop: {
@@ -204,6 +205,39 @@ describe('Booking confirmation route flow', () => {
       scheduleAnother.compareDocumentPosition(shop) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(scheduleAnother.closest('[data-booking-shell="canonical"]')).toBeTruthy()
+  })
+
+  it('expands the real nonzero tax and fee adjustments like legacy', async () => {
+    const pricedConfirmation = {
+      ...confirmation,
+      appointments: confirmation.appointments.map((appointment) => ({
+        ...appointment,
+        adjustments: [
+          { kind: 'tax' as const, amountMinor: 500 },
+          { kind: 'tax' as const, amountMinor: 200 },
+          { kind: 'fee' as const, amountMinor: 300 }
+        ]
+      }))
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json(pricedConfirmation))
+    )
+
+    render(
+      <BookingConfirmationRouteFlow
+        merchantSlug="mara-booking-studio"
+        routeId="cnf_demo"
+        embedding="standalone"
+      />
+    )
+
+    fireEvent.click(await screen.findByTestId('unfold:taxes-n-fees'))
+
+    expect((await screen.findByTestId('text:taxes')).textContent).toBe('RON\u00a07')
+    expect(screen.getByTestId('text:bookingFee').textContent).toBe('RON\u00a03')
+    expect(screen.getByText('Taxes').tagName).toBe('P')
+    expect(screen.getByText('Fee').tagName).toBe('P')
   })
 
   it('opens the legacy reschedule popup before preparing a replacement time', async () => {

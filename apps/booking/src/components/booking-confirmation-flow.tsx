@@ -648,15 +648,44 @@ function AppointmentCard({
               {legacyCurrency(locale, snapshot.totalMinor, snapshot.currency)}
             </span>
           </div>
-          <TaxesAndFeesExpandable label={copy('reservation.including_taxes')} />
+          <TaxesAndFeesExpandable
+            label={copy('reservation.including_taxes')}
+            adjustments={appointment.adjustments}
+            currency={snapshot.currency}
+            locale={locale}
+            taxLabel={copy('reservation.taxes')}
+            feeLabel={copy('reservation.booking_fee')}
+          />
         </>
       ) : null}
     </section>
   )
 }
 
-function TaxesAndFeesExpandable({ label }: { readonly label: string }) {
+function TaxesAndFeesExpandable({
+  label,
+  adjustments,
+  currency,
+  locale,
+  taxLabel,
+  feeLabel
+}: {
+  readonly label: string
+  readonly adjustments: BookingConfirmationPresentationData['appointments'][number]['adjustments']
+  readonly currency: string
+  readonly locale: BookingLocale
+  readonly taxLabel: string
+  readonly feeLabel: string
+}) {
   const [expanded, setExpanded] = useState(false)
+  const visibleAdjustments = (['tax', 'fee'] as const)
+    .map((kind) => ({
+      kind,
+      amountMinor: adjustments
+        .filter((adjustment) => adjustment.kind === kind)
+        .reduce((total, adjustment) => total + adjustment.amountMinor, 0)
+    }))
+    .filter((adjustment) => adjustment.amountMinor !== 0)
 
   return (
     <LazyMotion features={domAnimation} strict>
@@ -697,7 +726,29 @@ function TaxesAndFeesExpandable({ label }: { readonly label: string }) {
             exit={{ height: 0, opacity: 1, overflow: 'hidden' }}
             transition={{ times: [0, 0.99, 1], duration: 0.15 }}
           >
-            <div {...stylex.props(styles.taxesBreakdown)} />
+            <div {...stylex.props(styles.taxesBreakdown)}>
+              {visibleAdjustments.map((adjustment, index) => (
+                <div
+                  key={adjustment.kind}
+                  {...stylex.props(
+                    styles.taxesEntry,
+                    index === visibleAdjustments.length - 1 && styles.taxesEntryLast
+                  )}
+                >
+                  <p {...stylex.props(styles.taxesEntryText)}>
+                    {adjustment.kind === 'tax' ? taxLabel : feeLabel}
+                  </p>
+                  <p
+                    data-testid={
+                      adjustment.kind === 'tax' ? 'text:taxes' : 'text:bookingFee'
+                    }
+                    {...stylex.props(styles.taxesEntryText)}
+                  >
+                    {legacyCurrency(locale, adjustment.amountMinor, currency)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </m.div>
         )}
       </AnimatePresence>

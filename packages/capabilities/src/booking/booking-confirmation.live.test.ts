@@ -14,6 +14,7 @@ import {
   merchants,
   notificationIntents,
   providers,
+  pricingAdjustments,
   pricingQuoteAcceptances,
   pricingQuotes,
   publicBookingPages,
@@ -549,6 +550,43 @@ describe('Live Booking Confirmation', () => {
         `UPDATE pricing_quotes SET facts_json = '{"giftCardReservationIds":["gcr_group"]}' WHERE id = 'pqt_group'`
       )
       .run()
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db.insert(pricingAdjustments).values([
+            {
+              id: 'pad_group_tax',
+              pricingQuoteId: 'pqt_group',
+              kind: 'tax',
+              label: 'Tax',
+              amountMinor: 1000,
+              allocationJson: '{}',
+              createdAt: now
+            },
+            {
+              id: 'pad_group_fee',
+              pricingQuoteId: 'pqt_group',
+              kind: 'fee',
+              label: 'Fee',
+              amountMinor: 500,
+              allocationJson: '{}',
+              createdAt: now
+            },
+            {
+              id: 'pad_group_discount',
+              pricingQuoteId: 'pqt_group',
+              kind: 'discount',
+              label: 'Private promotion',
+              amountMinor: -500,
+              allocationJson: '{}',
+              createdAt: now
+            }
+          ])
+        }),
+        layerFromD1(test.d1)
+      )
+    )
 
     const first = await confirm('bsn_group')
     const replay = await confirm('bsn_group', 'consumed')
@@ -605,6 +643,43 @@ describe('Live Booking Confirmation', () => {
       'appointment_confirmation',
       'party_confirmation'
     ])
+    const cookieCredential = await deriveConfirmationCookieCredential(
+      first.access,
+      keyring
+    )
+    const confirmationRead = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingConfirmation, (service) =>
+          service.read({
+            routeId: first.access.routeId,
+            merchantSlug: 'confirm-live',
+            credential: cookieCredential,
+            credentialKind: 'cookie',
+            now
+          })
+        ),
+        layer()
+      )
+    )
+    expect(confirmationRead).toMatchObject({
+      kind: 'found',
+      confirmation: {
+        appointments: [
+          {
+            adjustments: [
+              { kind: 'tax', amountMinor: 1000 },
+              { kind: 'fee', amountMinor: 500 }
+            ]
+          },
+          {
+            adjustments: [
+              { kind: 'tax', amountMinor: 1000 },
+              { kind: 'fee', amountMinor: 500 }
+            ]
+          }
+        ]
+      }
+    })
   })
 
   it('verifies retained keys and rejects expired, revoked, and wrong-version access', async () => {
