@@ -125,7 +125,7 @@ const persistReplacementFacts = async (
     test.d1
       .prepare(
         `INSERT INTO pricing_quotes (id, booking_party_id, version, currency, subtotal_minor, adjustment_minor, tip_minor, total_minor, facts_json, accepted_at, expires_at, created_at)
-         VALUES (?, ?, ?, ?, ?, 0, 0, ?, '{}', ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, 0, 0, ?, '{}', NULL, ?, ?)`
       )
       .bind(
         facts.quote.id,
@@ -134,7 +134,6 @@ const persistReplacementFacts = async (
         facts.quote.currency,
         facts.quote.totalMinor,
         facts.quote.totalMinor,
-        facts.quote.acceptedAt,
         facts.quote.expiresAt,
         now
       ),
@@ -160,6 +159,35 @@ const persistReplacementFacts = async (
 }
 
 describe('Live Booking rescheduling', () => {
+  it('uses the authoritative quote acceptance row during replacement preparation', async () => {
+    const facts = replacement('2026-07-19T12:00:00.000Z')
+    const session = await run(
+      Effect.flatMap(BookingRescheduling, (service) =>
+        service.begin({
+          merchantId: 'mrc_reschedule',
+          appointmentId: 'apt_reschedule',
+          capabilityHash: 'reschedule-acceptance-row',
+          expiresAt: '2026-07-13T10:20:00.000Z',
+          now
+        })
+      )
+    )
+    await persistReplacementFacts(session, facts)
+
+    const prepared = await run(
+      Effect.flatMap(BookingRescheduling, (service) =>
+        service.prepare({
+          sessionId: session.id,
+          capabilityHash: 'reschedule-acceptance-row',
+          replacement: facts,
+          now
+        })
+      )
+    )
+
+    expect(prepared.replacement?.quote.acceptedAt).toBe(facts.quote.acceptedAt)
+  })
+
   it('commits the replacement and reminder-version swap in one D1 batch', async () => {
     const session = await run(
       Effect.flatMap(BookingRescheduling, (service) =>

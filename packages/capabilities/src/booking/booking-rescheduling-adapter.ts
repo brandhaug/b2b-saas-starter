@@ -310,7 +310,7 @@ export const LiveBookingRescheduling: Layer.Layer<
           quote.quote.version !== replacement.quote.version ||
           quote.quote.totalMinor !== replacement.quote.totalMinor ||
           quote.quote.currency !== replacement.quote.currency ||
-          quote.quote.acceptedAt !== replacement.quote.acceptedAt ||
+          quote.acceptance.acceptedAt !== replacement.quote.acceptedAt ||
           quote.quote.expiresAt !== replacement.quote.expiresAt
         )
           return yield* rejected('quote_invalid')
