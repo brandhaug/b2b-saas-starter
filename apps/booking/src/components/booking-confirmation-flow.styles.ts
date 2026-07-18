@@ -264,7 +264,7 @@ export const confirmationStyles = stylex.create({
     color: bookingTheme.colorPrimaryLabel,
     cursor: 'pointer'
   },
-  calendarIcon: { display: 'block', width: 20, height: 20 },
+  calendarIcon: { display: 'block', width: 20, height: 16 },
   divider: {
     height: 1,
     marginBlock: 20,

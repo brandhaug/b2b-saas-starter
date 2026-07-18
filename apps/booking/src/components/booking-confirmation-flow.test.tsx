@@ -96,6 +96,31 @@ describe('Booking confirmation route flow', () => {
     expect(screen.getByTestId('text:barberName').textContent).toBe('Mara I.')
     expect(screen.getByTestId('service:svc_cut')).toBeTruthy()
     expect(screen.queryByTestId('text:servicePrice')).toBeNull()
+    expect(
+      screen
+        .getByTestId('btn:calendar:apple')
+        .querySelector('svg')
+        ?.getAttribute('width')
+    ).toBe('14px')
+    expect(
+      screen
+        .getByTestId('btn:calendar:google')
+        .querySelector('svg')
+        ?.getAttribute('width')
+    ).toBe('16px')
+    expect(
+      screen
+        .getByTestId('btn:calendar:yahoo')
+        .querySelector('svg')
+        ?.getAttribute('width')
+    ).toBe('14px')
+    for (const kind of ['apple', 'google', 'yahoo'])
+      expect(
+        screen
+          .getByTestId(`btn:calendar:${kind}`)
+          .querySelector('svg')
+          ?.getAttribute('height')
+      ).toBe('16px')
     expect(fetch).toHaveBeenCalledWith(
       '/mara-booking-studio/booking/confirmations/cnf_demo/data',
       expect.objectContaining({ credentials: 'same-origin' })

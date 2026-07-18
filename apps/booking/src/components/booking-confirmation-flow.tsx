@@ -766,6 +766,8 @@ function CalendarIcon({ kind }: { readonly kind: 'apple' | 'google' | 'yahoo' })
   if (kind === 'apple')
     return (
       <svg
+        width="14px"
+        height="16px"
         viewBox="0 0 14 16"
         aria-hidden="true"
         {...stylex.props(styles.calendarIcon)}
@@ -779,6 +781,8 @@ function CalendarIcon({ kind }: { readonly kind: 'apple' | 'google' | 'yahoo' })
   if (kind === 'google')
     return (
       <svg
+        width="16px"
+        height="16px"
         viewBox="0 0 16 16"
         aria-hidden="true"
         {...stylex.props(styles.calendarIcon)}
@@ -790,7 +794,13 @@ function CalendarIcon({ kind }: { readonly kind: 'apple' | 'google' | 'yahoo' })
       </svg>
     )
   return (
-    <svg viewBox="0 -1 14 16" aria-hidden="true" {...stylex.props(styles.calendarIcon)}>
+    <svg
+      width="14px"
+      height="16px"
+      viewBox="0 -1 14 16"
+      aria-hidden="true"
+      {...stylex.props(styles.calendarIcon)}
+    >
       <path
         fill="currentColor"
         d="M13.663 0H9.356L6.83 5.89 4.307 0H0l4.694 10.954L2.96 15h4.307C9.42 9.973 11.523 4.993 13.663 0Z"
