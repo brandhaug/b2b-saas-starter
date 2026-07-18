@@ -65,7 +65,6 @@ import {
   translateBookingMessage,
   type BookingLocale
 } from '../localization/booking-localization.ts'
-import { renderBookingConfirmationView } from './booking-confirmation-view.ts'
 
 export class InvalidBookingSessionCookie extends Schema.TaggedErrorClass<InvalidBookingSessionCookie>()(
   'InvalidBookingSessionCookie',
@@ -708,7 +707,6 @@ const escapeHtml = (value: string) =>
       ]!
   )
 
-const confirmationHtml = renderBookingConfirmationView
 const jsonJourney = (value: BookingJourney): Response =>
   withPrivateHeaders(
     Response.json(value, {
@@ -1036,6 +1034,62 @@ export const handleBookingSessionRequest = (
       return jsonPrivate(result.success)
     }
 
+    if (
+      segments.length === 5 &&
+      segments[2] === 'confirmations' &&
+      segments[4] === 'data'
+    ) {
+      const routeId = segments[3]
+      if (
+        request.method !== 'GET' ||
+        !routeId ||
+        !CONFIRMATION_ID.test(routeId) ||
+        !dependencies.confirmation
+      )
+        return withPrivateHeaders(hiddenNotFound())
+      if (!(yield* dependencies.takeRead(`confirmation:data:${clientKey}`)))
+        return withPrivateHeaders(tooManyRequests())
+      const cookieName = `confirmation_${routeId}`
+      const credential = request.headers
+        .get('cookie')
+        ?.split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${cookieName}=`))
+        ?.slice(cookieName.length + 1)
+      if (!credential || !CONFIRMATION_TOKEN.test(credential))
+        return withPrivateHeaders(hiddenNotFound())
+      const result = yield* Effect.result(
+        dependencies.confirmation.read({
+          routeId,
+          merchantSlug,
+          credential,
+          credentialKind: 'cookie',
+          now
+        })
+      )
+      if (result._tag === 'Failure') return withPrivateHeaders(unavailable())
+      if (result.success.kind === 'not_found')
+        return withPrivateHeaders(hiddenNotFound())
+      if (result.success.kind === 'expired')
+        return withPrivateHeaders(
+          Response.json(
+            {
+              kind: 'expired',
+              title: translateBookingMessage(
+                result.success.locale,
+                'confirmation.expired_title'
+              ),
+              copy: translateBookingMessage(
+                result.success.locale,
+                'confirmation.expired_copy'
+              )
+            },
+            { status: 410 }
+          )
+        )
+      return jsonPrivate(result.success.confirmation)
+    }
+
     if (segments.length === 4 && segments[2] === 'confirmations') {
       const routeId = segments[3]
       if (
@@ -1099,11 +1153,7 @@ export const handleBookingSessionRequest = (
         )
         return withPrivateHeaders(new Response(null, { status: 303, headers }))
       }
-      return withPrivateHeaders(
-        new Response(confirmationHtml(result.success.confirmation), {
-          headers: { 'content-type': 'text/html; charset=utf-8' }
-        })
-      )
+      return withPrivateHeaders(yield* dependencies.fallback(request))
     }
 
     const canonical = canonicalizeBookingRequest(url)

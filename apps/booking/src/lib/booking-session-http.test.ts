@@ -1404,7 +1404,7 @@ describe('Booking Session HTTP boundary', () => {
     expect(unavailableConfirmation.status).toBe(503)
   })
 
-  it('exchanges a valid Confirmation token for an exact-path 24-hour cookie and serves the clean view', async () => {
+  it('exchanges a valid Confirmation token and serves facts through the canonical app shell', async () => {
     const token = 'a'.repeat(64)
     const cookieCredential = 'b'.repeat(64)
     const snapshot = {
@@ -1487,7 +1487,13 @@ describe('Booking Session HTTP boundary', () => {
         return Effect.succeed(true)
       },
       takeWrite: () => Effect.succeed(true),
-      fallback: () => Effect.die(new Error('not called'))
+      fallback: () =>
+        Effect.succeed(
+          new Response(
+            '<!doctype html><html><body><div id="root" data-booking-app="canonical"></div></body></html>',
+            { headers: { 'content-type': 'text/html; charset=utf-8' } }
+          )
+        )
     }
     const path = '/mara-studio/booking/confirmations/cnf_clean'
     const exchange = await Effect.runPromise(
@@ -1515,32 +1521,28 @@ describe('Booking Session HTTP boundary', () => {
     )
     expect(clean.status).toBe(200)
     const html = await clean.text()
-    expect(html).toContain('Confirmarea programării')
-    expect(html).toContain('Mia')
-    expect(html).toContain('Noah')
-    expect(html).toContain('data-testid="container:title"')
-    expect(html).toContain('data-testid="text:apptConfirmationTitle"')
-    expect(html).toContain('data-testid="container:scrollable"')
-    expect(html).toContain('data-testid="container:orderApptGroup"')
-    expect(html).toContain('data-testid="container:groupAppt"')
-    expect(html).toContain('data-testid="btn:calendar:apple"')
-    expect(html).toContain('data-testid="btn:calendar:google"')
-    expect(html).toContain('data-testid="btn:calendar:yahoo"')
-    expect(html).toContain('data-testid="text:shopName"')
-    expect(html).toContain('data-testid="btn:cancel"')
-    expect(html).toContain('data-testid="reservation-popup-root"')
-    expect(html).not.toContain('class="rail"')
-    expect(html).not.toContain("</script><script>alert('x')</script>")
-    expect(html).not.toContain("document.body.style.overflow='hidden'")
-    const scriptSource = html.match(/<script>([\s\S]*)<\/script>/)?.[1]
-    expect(scriptSource).toBeTruthy()
-    if (!scriptSource) throw new Error('confirmation script missing')
-    expect(() => new Function(scriptSource)).not.toThrow()
+    expect(html).toContain('id="root"')
+    expect(html).toContain('data-booking-app="canonical"')
+    expect(html).not.toContain('class="reservation-widget"')
     expect(clean.headers.get('cache-control')).toBe('private, no-store')
     expect(clean.headers.get('referrer-policy')).toBe('no-referrer')
+
+    const data = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`https://www.example.test${path}/data`, {
+          headers: { cookie: `confirmation_cnf_clean=${cookieCredential}` }
+        }),
+        dependencies
+      )
+    )
+    expect(data.status).toBe(200)
+    expect(await data.json()).toEqual(confirmation)
+    expect(data.headers.get('cache-control')).toBe('private, no-store')
+    expect(data.headers.get('referrer-policy')).toBe('no-referrer')
     expect(readKeys).toEqual([
       `confirmation:exchange:path:${path}`,
-      `confirmation:display:path:${path}`
+      `confirmation:display:path:${path}`,
+      `confirmation:data:path:${path}/data`
     ])
   })
 
