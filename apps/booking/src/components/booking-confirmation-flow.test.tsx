@@ -121,6 +121,9 @@ describe('Booking confirmation route flow', () => {
           .querySelector('svg')
           ?.getAttribute('height')
       ).toBe('16px')
+    expect(screen.getByTestId('text:shopName').tagName).toBe('P')
+    expect(screen.getByTestId('text:shopAddress').tagName).toBe('P')
+    expect(screen.getByTestId('btn:getDirections').firstElementChild?.tagName).toBe('P')
     expect(fetch).toHaveBeenCalledWith(
       '/mara-booking-studio/booking/confirmations/cnf_demo/data',
       expect.objectContaining({ credentials: 'same-origin' })

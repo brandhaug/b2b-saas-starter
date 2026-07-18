@@ -321,16 +321,13 @@ function BookingConfirmationView({
               <span {...stylex.props(styles.shopPin)} />
             </div>
             <div {...stylex.props(styles.shopCopy)}>
-              <strong data-testid="text:shopName" {...stylex.props(styles.shopName)}>
+              <p data-testid="text:shopName" {...stylex.props(styles.shopName)}>
                 {confirmation.shop.publicName}
-              </strong>
+              </p>
               {shopAddress ? (
-                <span
-                  data-testid="text:shopAddress"
-                  {...stylex.props(styles.shopAddress)}
-                >
+                <p data-testid="text:shopAddress" {...stylex.props(styles.shopAddress)}>
                   {shopAddress}
-                </span>
+                </p>
               ) : null}
               {directionsQuery ? (
                 <button
@@ -345,7 +342,9 @@ function BookingConfirmationView({
                   }
                   {...stylex.props(styles.directions)}
                 >
-                  {copy('reservation.get_directions')}
+                  <p {...stylex.props(styles.directionsText)}>
+                    {copy('reservation.get_directions')}
+                  </p>
                 </button>
               ) : null}
             </div>

@@ -332,6 +332,7 @@ export const confirmationStyles = stylex.create({
     paddingLeft: 16
   },
   shopName: {
+    margin: 0,
     color: bookingTheme.colorPrimaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
     fontSize: 17,
@@ -341,22 +342,33 @@ export const confirmationStyles = stylex.create({
   },
   shopAddress: {
     marginTop: 2,
+    marginRight: 0,
+    marginBottom: 0,
+    marginLeft: 0,
     color: bookingTheme.colorSecondaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 11,
-    lineHeight: '15px'
+    fontSize: 13,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
   },
   directions: {
     alignSelf: 'flex-start',
     marginTop: 'auto',
+    marginRight: 0,
+    marginBottom: 2,
+    marginLeft: 0,
     padding: 0,
     borderWidth: 0,
     backgroundColor: 'transparent',
+    cursor: 'pointer'
+  },
+  directionsText: {
+    margin: 0,
     color: bookingTheme.colorLink,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 13,
+    fontSize: 15,
     lineHeight: '18px',
-    cursor: 'pointer'
+    letterSpacing: '-0.24px'
   },
   reservationDivider: {
     height: 1,
