@@ -151,6 +151,15 @@ describe('Booking confirmation route flow', () => {
     expect(screen.getByTestId('text:shopName').tagName).toBe('P')
     expect(screen.getByTestId('text:shopAddress').tagName).toBe('P')
     expect(screen.getByTestId('btn:getDirections').firstElementChild?.tagName).toBe('P')
+    const taxesToggle = screen.getByTestId('unfold:taxes-n-fees')
+    expect(taxesToggle.tagName).toBe('P')
+    expect(taxesToggle.querySelector('svg')?.getAttribute('width')).toBe('9')
+    expect(taxesToggle.querySelector('svg')?.getAttribute('height')).toBe('16')
+    expect(taxesToggle.querySelector('path')?.getAttribute('d')).toContain(
+      'M8.07552 15.8411'
+    )
+    fireEvent.click(taxesToggle)
+    await waitFor(() => expect(screen.queryByTestId('unfold:taxes-n-fees')).toBeNull())
     expect(fetch).toHaveBeenCalledWith(
       '/mara-booking-studio/booking/confirmations/cnf_demo/data',
       expect.objectContaining({ credentials: 'same-origin' })

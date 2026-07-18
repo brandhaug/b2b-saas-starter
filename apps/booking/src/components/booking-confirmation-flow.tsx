@@ -1,6 +1,8 @@
 import * as stylex from '@stylexjs/stylex'
 import { Schema } from 'effect'
+import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
 import {
   BookingConfirmationPresentation,
@@ -646,28 +648,60 @@ function AppointmentCard({
               {legacyCurrency(locale, snapshot.totalMinor, snapshot.currency)}
             </span>
           </div>
-          <button
-            type="button"
-            data-testid="unfold:taxes-n-fees"
-            {...stylex.props(styles.taxesToggle)}
-          >
-            {copy('reservation.including_taxes')}
-            <svg
-              viewBox="0 0 9 16"
-              aria-hidden="true"
-              {...stylex.props(styles.taxesChevron)}
-            >
-              <path
-                d="m1 1 7 7-7 7"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-            </svg>
-          </button>
+          <TaxesAndFeesExpandable label={copy('reservation.including_taxes')} />
         </>
       ) : null}
     </section>
+  )
+}
+
+function TaxesAndFeesExpandable({ label }: { readonly label: string }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <LazyMotion features={domAnimation} strict>
+      <AnimatePresence initial>
+        {!expanded ? (
+          <m.div
+            key="taxes-and-fees-toggler"
+            initial={{ height: 0, opacity: 1, overflow: 'hidden' }}
+            animate={{
+              height: 'auto',
+              opacity: 1,
+              transitionEnd: { overflow: 'unset' }
+            }}
+            exit={{ height: 0, opacity: 1, overflow: 'hidden' }}
+            transition={{ times: [0, 0.99, 1], duration: 0.15 }}
+          >
+            <p
+              data-testid="unfold:taxes-n-fees"
+              onClick={() => setExpanded(true)}
+              {...stylex.props(styles.taxesToggle)}
+            >
+              {label}
+              <BookingVisualAsset
+                assetRole="navigation-back"
+                {...stylex.props(styles.taxesChevron)}
+              />
+            </p>
+          </m.div>
+        ) : (
+          <m.div
+            key="taxes-and-fees-breakdown"
+            initial={{ height: 0, opacity: 1, overflow: 'hidden' }}
+            animate={{
+              height: 'auto',
+              opacity: 1,
+              transitionEnd: { overflow: 'unset' }
+            }}
+            exit={{ height: 0, opacity: 1, overflow: 'hidden' }}
+            transition={{ times: [0, 0.99, 1], duration: 0.15 }}
+          >
+            <div {...stylex.props(styles.taxesBreakdown)} />
+          </m.div>
+        )}
+      </AnimatePresence>
+    </LazyMotion>
   )
 }
 

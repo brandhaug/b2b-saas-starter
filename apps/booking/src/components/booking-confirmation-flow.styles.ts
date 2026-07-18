@@ -284,19 +284,24 @@ export const confirmationStyles = stylex.create({
     letterSpacing: '-0.408px'
   },
   taxesToggle: {
-    display: 'flex',
-    alignItems: 'center',
     marginTop: 2,
-    padding: 0,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
+    marginRight: 0,
+    marginBottom: 0,
+    marginLeft: 0,
     color: bookingTheme.colorSecondaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 11,
-    lineHeight: '15px',
+    fontSize: 13,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px',
     cursor: 'pointer'
   },
-  taxesChevron: { width: 4, height: 7, marginLeft: 4, transform: 'rotate(90deg)' },
+  taxesChevron: {
+    width: 4,
+    height: 7,
+    marginLeft: 4,
+    transform: 'rotate(-90deg)'
+  },
+  taxesBreakdown: { marginTop: 10 },
   groupTotal: { marginBlock: 24 },
   scheduleAnotherWrapper: { marginTop: 16 },
   shop: { display: 'flex', marginTop: 24 },
