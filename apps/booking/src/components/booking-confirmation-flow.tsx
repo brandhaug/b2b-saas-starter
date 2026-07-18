@@ -34,6 +34,14 @@ const initials = (name: string) =>
     .slice(0, 2)
     .toUpperCase()
 
+const legacyProviderShortName = (name: string) => {
+  const [firstName = '', ...lastNameParts] = name.trim().split(/\s+/)
+  const lastName = lastNameParts.join(' ')
+  if (!firstName || !lastName) return firstName || lastName
+  if (/^[\p{L}]\.$/u.test(lastName)) return `${firstName} ${lastName}`
+  return `${firstName} ${lastName[0]}.`
+}
+
 const legacyCurrency = (locale: BookingLocale, amountMinor: number, currency: string) =>
   new Intl.NumberFormat(locale === 'fr' ? 'fr-CA' : 'en-US', {
     style: 'currency',
@@ -482,6 +490,7 @@ function AppointmentCard({
     snapshot.merchantTimezone,
     copy('label.appointment_at')
   )
+  const providerName = legacyProviderShortName(snapshot.assignedProvider.displayName)
 
   return (
     <section
@@ -489,41 +498,73 @@ function AppointmentCard({
       {...stylex.props(styles.orderAppointment)}
     >
       <div data-testid="container:groupAppt" {...stylex.props(styles.appointmentCard)}>
-        <div {...stylex.props(styles.avatar)}>
-          {initials(snapshot.assignedProvider.displayName)}
-        </div>
-        <strong data-testid="text:barberName" {...stylex.props(styles.primaryText)}>
-          {snapshot.assignedProvider.displayName}
-        </strong>
-        <strong
-          data-testid="text:barberTotal"
-          {...stylex.props(styles.primaryText, styles.totalText)}
-        >
-          {legacyCurrency(locale, snapshot.totalMinor, snapshot.currency)}
-        </strong>
-        <span data-testid="text:serviceName" {...stylex.props(styles.secondaryText)}>
-          {primaryService?.name ?? ''}
-        </span>
-        <span
-          data-testid="text:servicePrice"
-          {...stylex.props(styles.secondaryText, styles.secondaryPrice)}
-        >
-          {showServicePrice && primaryService
-            ? legacyCurrency(locale, primaryService.priceMinor, primaryService.currency)
-            : ''}
-        </span>
-        {additions.length ? (
-          <div {...stylex.props(styles.addons)}>
-            {additions.map((service) => (
-              <div key={service.id} {...stylex.props(styles.addon)}>
-                <span>+ {service.name}</span>
-                <span>
-                  {legacyCurrency(locale, service.priceMinor, service.currency)}
-                </span>
-              </div>
-            ))}
+        <div {...stylex.props(styles.barberAndService)}>
+          <div {...stylex.props(styles.avatarWrapper)}>
+            <div {...stylex.props(styles.avatar)}>
+              <p {...stylex.props(styles.avatarInitials)}>
+                {initials(snapshot.assignedProvider.displayName)}
+              </p>
+            </div>
           </div>
-        ) : null}
+          <div {...stylex.props(styles.barberNameWrapper)}>
+            <p data-testid="text:barberName" {...stylex.props(styles.primaryText)}>
+              {providerName}
+            </p>
+          </div>
+          <div {...stylex.props(styles.totalPriceWrapper)}>
+            <p
+              data-testid="text:barberTotal"
+              {...stylex.props(styles.primaryText, styles.totalText)}
+            >
+              {legacyCurrency(locale, snapshot.totalMinor, snapshot.currency)}
+            </p>
+          </div>
+          <div {...stylex.props(styles.serviceNameWrapper)}>
+            {primaryService ? (
+              <div
+                data-testid={`service:${primaryService.id}`}
+                {...stylex.props(styles.serviceLine)}
+              >
+                <div {...stylex.props(styles.serviceLabelWrapper)}>
+                  <p
+                    data-testid="text:serviceName"
+                    {...stylex.props(styles.secondaryText)}
+                  >
+                    {primaryService.name}
+                  </p>
+                </div>
+                {showServicePrice ? (
+                  <p
+                    data-testid="text:servicePrice"
+                    {...stylex.props(styles.secondaryText, styles.secondaryPrice)}
+                  >
+                    {legacyCurrency(
+                      locale,
+                      primaryService.priceMinor,
+                      primaryService.currency
+                    )}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <div
+          {...stylex.props(
+            styles.serviceAddonsWrapper,
+            additions.length > 0 && styles.serviceAddonsWrapperPopulated
+          )}
+        >
+          {additions.map((service) => (
+            <div key={service.id} {...stylex.props(styles.addon)}>
+              <span>+ {service.name}</span>
+              <span>
+                {legacyCurrency(locale, service.priceMinor, service.currency)}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div {...stylex.props(styles.serviceTimeWrapper)} />
       </div>
       <div {...stylex.props(styles.breakdown)}>
         {!cancelled ? (

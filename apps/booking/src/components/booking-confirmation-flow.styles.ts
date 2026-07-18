@@ -88,28 +88,70 @@ export const confirmationStyles = stylex.create({
     backgroundColor: bookingTheme.colorSystemGray5
   },
   appointmentCard: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  barberAndService: {
+    position: 'relative',
     display: 'grid',
-    gridTemplateColumns: '48px minmax(0, 1fr) auto',
-    gridTemplateRows: 'auto auto auto',
+    gridTemplateColumns: '40px minmax(0, 1fr) auto',
+    gridTemplateAreas:
+      '"BarberAvatar BarberName TotalPrice" "BarberAvatar ServiceName ServiceName"',
     columnGap: 12,
+    rowGap: 3,
     alignItems: 'start'
+  },
+  avatarWrapper: {
+    gridArea: 'BarberAvatar',
+    alignSelf: 'center'
   },
   avatar: {
     display: 'flex',
-    width: 48,
-    height: 48,
-    gridRow: '1 / 4',
+    position: 'relative',
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: bookingTheme.colorReplacementAvatar,
-    color: bookingTheme.colorSecondaryLabel,
-    fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 15,
-    fontWeight: 600
+    borderRadius: 6,
+    backgroundColor: bookingTheme.colorChrome,
+    color: bookingTheme.colorTertiaryLabel,
+    lineHeight: 0
+  },
+  avatarInitials: {
+    margin: 0,
+    fontFamily: bookingTheme.fontLegacyDisplay,
+    fontSize: 12.5,
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px'
+  },
+  barberNameWrapper: {
+    display: 'flex',
+    gridArea: 'BarberName',
+    alignItems: 'center',
+    overflow: 'hidden'
+  },
+  totalPriceWrapper: { gridArea: 'TotalPrice' },
+  serviceNameWrapper: {
+    display: 'flex',
+    gridArea: 'ServiceName'
+  },
+  serviceLine: {
+    display: 'flex',
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'space-between'
+  },
+  serviceLabelWrapper: {
+    display: 'flex',
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center'
   },
   primaryText: {
     overflow: 'hidden',
+    margin: 0,
     color: bookingTheme.colorPrimaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
     fontSize: 17,
@@ -121,7 +163,10 @@ export const confirmationStyles = stylex.create({
   },
   totalText: { textAlign: 'right' },
   secondaryText: {
+    width: '100%',
+    maxWidth: 'calc(100% - 1em)',
     overflow: 'hidden',
+    margin: 0,
     color: bookingTheme.colorSecondaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
     fontSize: 15,
@@ -130,11 +175,19 @@ export const confirmationStyles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap'
   },
-  secondaryPrice: { textAlign: 'right' },
-  addons: {
-    display: 'grid',
-    gridColumn: '2 / 4',
-    gap: 16,
+  secondaryPrice: {
+    width: 'auto',
+    maxWidth: 'none',
+    flexShrink: 0,
+    marginLeft: 4,
+    textAlign: 'right'
+  },
+  serviceAddonsWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    rowGap: 16
+  },
+  serviceAddonsWrapperPopulated: {
     marginTop: 16
   },
   addon: {
@@ -146,6 +199,10 @@ export const confirmationStyles = stylex.create({
     fontSize: 15,
     lineHeight: '18px',
     letterSpacing: '-0.24px'
+  },
+  serviceTimeWrapper: {
+    display: 'flex',
+    flexDirection: 'column'
   },
   breakdown: { display: 'grid', gap: 16, marginTop: 23 },
   row: {

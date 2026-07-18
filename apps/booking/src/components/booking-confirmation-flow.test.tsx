@@ -91,6 +91,11 @@ describe('Booking confirmation route flow', () => {
     )
     expect(screen.getByTestId('container:orderApptGroup')).toBeTruthy()
     expect(screen.queryByTestId('text:customerName')).toBeNull()
+    const appointmentCard = screen.getByTestId('container:groupAppt')
+    expect(appointmentCard.children).toHaveLength(3)
+    expect(screen.getByTestId('text:barberName').textContent).toBe('Mara I.')
+    expect(screen.getByTestId('service:svc_cut')).toBeTruthy()
+    expect(screen.queryByTestId('text:servicePrice')).toBeNull()
     expect(fetch).toHaveBeenCalledWith(
       '/mara-booking-studio/booking/confirmations/cnf_demo/data',
       expect.objectContaining({ credentials: 'same-origin' })
