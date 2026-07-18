@@ -1426,7 +1426,11 @@ describe('Booking Session HTTP boundary', () => {
       currency: 'USD',
       totalMinor: 5000,
       merchantTimezone: 'America/New_York',
-      customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
+      customerDetails: {
+        name: 'Mia Private',
+        email: 'mia@example.com',
+        phone: '+15550000001'
+      },
       checkoutPath: 'pay_in_person' as const
     }
     const confirmation = {
@@ -1453,9 +1457,9 @@ describe('Booking Session HTTP boundary', () => {
             startsAt: '2026-07-13T11:00:00.000Z',
             endsAt: '2026-07-13T12:00:00.000Z',
             customerDetails: {
-              name: 'Noah',
+              name: 'Noah Private',
               email: 'noah@example.com',
-              phone: null
+              phone: '+15550000002'
             }
           }
         }
@@ -1536,7 +1540,26 @@ describe('Booking Session HTTP boundary', () => {
       )
     )
     expect(data.status).toBe(200)
-    expect(await data.json()).toEqual(confirmation)
+    const presentation = (await data.json()) as Record<string, unknown>
+    expect(presentation).toMatchObject({
+      routeId: 'cnf_clean',
+      customerFirstName: 'Mia',
+      appointments: [
+        { id: 'apt_mia', status: 'scheduled' },
+        { id: 'apt_noah', status: 'scheduled' }
+      ]
+    })
+    expect(presentation).not.toHaveProperty('snapshot.customerDetails')
+    expect(presentation).not.toHaveProperty('appointments.0.snapshot.customerDetails')
+    expect(presentation).not.toHaveProperty('appointments.1.snapshot.customerDetails')
+    const serializedPresentation = JSON.stringify(presentation)
+    expect(serializedPresentation).not.toContain('mia@example.com')
+    expect(serializedPresentation).not.toContain('noah@example.com')
+    expect(serializedPresentation).not.toContain('Private')
+    expect(serializedPresentation).not.toContain('+15550000001')
+    expect(serializedPresentation).not.toContain('+15550000002')
+    expect(serializedPresentation).not.toContain('customerDetails')
+    expect(serializedPresentation).not.toContain('phone')
     expect(data.headers.get('cache-control')).toBe('private, no-store')
     expect(data.headers.get('referrer-policy')).toBe('no-referrer')
     expect(readKeys).toEqual([

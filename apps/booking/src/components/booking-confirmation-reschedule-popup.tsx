@@ -6,10 +6,10 @@ import {
   CheckoutPreparation as CheckoutPreparationSchema,
   TimeSlotHold as TimeSlotHoldSchema,
   type BookingAvailability,
-  type CustomerConfirmation,
   type TimeSlotHold
 } from '@b2b-saas-starter/capabilities/booking'
 import { useEffect, useRef, useState } from 'react'
+import type { BookingConfirmationPresentation } from '../lib/booking-confirmation-presentation.ts'
 import { translateBookingMessage } from '../localization/booking-localization.ts'
 import { BookingPopupSheet } from '../presentation/booking-primitives.tsx'
 import { bookingTheme } from '../presentation/booking-theme.stylex.ts'
@@ -45,8 +45,8 @@ export function BookingConfirmationReschedulePopup({
 }: {
   readonly target: HTMLElement | null
   readonly open: boolean
-  readonly confirmation: CustomerConfirmation
-  readonly appointment: CustomerConfirmation['appointments'][number]
+  readonly confirmation: BookingConfirmationPresentation
+  readonly appointment: BookingConfirmationPresentation['appointments'][number]
   readonly merchantSlug: string
   readonly onClose: () => void
 }) {

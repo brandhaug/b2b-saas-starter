@@ -65,6 +65,7 @@ import {
   translateBookingMessage,
   type BookingLocale
 } from '../localization/booking-localization.ts'
+import { presentBookingConfirmation } from './booking-confirmation-presentation.ts'
 
 export class InvalidBookingSessionCookie extends Schema.TaggedErrorClass<InvalidBookingSessionCookie>()(
   'InvalidBookingSessionCookie',
@@ -1087,7 +1088,7 @@ export const handleBookingSessionRequest = (
             { status: 410 }
           )
         )
-      return jsonPrivate(result.success.confirmation)
+      return jsonPrivate(presentBookingConfirmation(result.success.confirmation))
     }
 
     if (segments.length === 4 && segments[2] === 'confirmations') {

@@ -48,7 +48,7 @@ export const confirmationStyles = stylex.create({
     fontSize: 20,
     fontWeight: 600,
     lineHeight: '24px',
-    letterSpacing: '0.38px'
+    letterSpacing: '0.75px'
   },
   visuallyHidden: {
     position: 'absolute',
@@ -112,9 +112,10 @@ export const confirmationStyles = stylex.create({
     overflow: 'hidden',
     color: bookingTheme.colorPrimaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: 600,
-    lineHeight: '20px',
+    lineHeight: '22px',
+    letterSpacing: '-0.408px',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap'
   },
@@ -123,8 +124,9 @@ export const confirmationStyles = stylex.create({
     overflow: 'hidden',
     color: bookingTheme.colorSecondaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 13,
+    fontSize: 15,
     lineHeight: '18px',
+    letterSpacing: '-0.24px',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap'
   },
@@ -141,8 +143,9 @@ export const confirmationStyles = stylex.create({
     gap: 12,
     color: bookingTheme.colorSecondaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 13,
-    lineHeight: '18px'
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px'
   },
   breakdown: { display: 'grid', gap: 16, marginTop: 23 },
   row: {
@@ -152,8 +155,9 @@ export const confirmationStyles = stylex.create({
     gap: 16,
     color: bookingTheme.colorSecondaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 13,
-    lineHeight: '18px'
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px'
   },
   confirmationCode: {
     paddingBlock: 4,
@@ -170,8 +174,9 @@ export const confirmationStyles = stylex.create({
     backgroundColor: 'transparent',
     color: bookingTheme.colorSecondaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 13,
+    fontSize: 15,
     lineHeight: '18px',
+    letterSpacing: '-0.24px',
     textAlign: 'right',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap'
@@ -182,8 +187,9 @@ export const confirmationStyles = stylex.create({
     margin: 0,
     color: bookingTheme.colorSecondaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 13,
-    lineHeight: '18px'
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px'
   },
   calendarActions: { display: 'flex', gap: 9, marginTop: 12 },
   calendarButton: {
@@ -215,8 +221,10 @@ export const confirmationStyles = stylex.create({
     gap: 16,
     color: bookingTheme.colorPrimaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 15,
-    lineHeight: '20px'
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
   },
   taxesToggle: {
     display: 'flex',
@@ -269,8 +277,10 @@ export const confirmationStyles = stylex.create({
   shopName: {
     color: bookingTheme.colorPrimaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 15,
-    lineHeight: '20px'
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
   },
   shopAddress: {
     marginTop: 2,
@@ -304,9 +314,10 @@ export const confirmationStyles = stylex.create({
     marginLeft: 16,
     color: bookingTheme.colorPrimaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: 600,
-    lineHeight: '20px'
+    lineHeight: '22px',
+    letterSpacing: '-0.408px'
   },
   paymentStatus: {
     display: 'flex',
@@ -329,8 +340,8 @@ export const confirmationStyles = stylex.create({
     marginBottom: 0,
     color: bookingTheme.blackA50,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 11,
-    lineHeight: '15px'
+    fontSize: 12,
+    lineHeight: '16px'
   },
   actions: { marginTop: 40 },
   actionButton: {
@@ -344,8 +355,10 @@ export const confirmationStyles = stylex.create({
     backgroundColor: 'transparent',
     color: bookingTheme.colorPrimaryLabel,
     fontFamily: bookingTheme.fontLegacyText,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: 600,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px',
     cursor: 'pointer',
     ':disabled': { opacity: 0.6, cursor: 'not-allowed' }
   },

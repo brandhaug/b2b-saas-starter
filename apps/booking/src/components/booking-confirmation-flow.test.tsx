@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { CustomerConfirmation } from '@b2b-saas-starter/capabilities/booking'
+import type { BookingConfirmationPresentation } from '../lib/booking-confirmation-presentation.ts'
 import { BookingConfirmationRouteFlow } from './booking-confirmation-flow.tsx'
 
 afterEach(() => {
@@ -28,7 +28,6 @@ const snapshot = {
   currency: 'RON',
   totalMinor: 9000,
   merchantTimezone: 'Europe/Bucharest',
-  customerDetails: { name: 'gg', email: 'gg@example.test', phone: null },
   checkoutPath: 'pay_in_person' as const,
   cancellationPolicy: {
     id: 'cancellation:default:v1',
@@ -43,6 +42,7 @@ const confirmation = {
   startsAt: snapshot.startsAt,
   endsAt: snapshot.endsAt,
   locale: 'en' as const,
+  customerFirstName: 'gg',
   snapshot,
   appointments: [
     {
@@ -59,7 +59,7 @@ const confirmation = {
     addressLines: ['Strada Lipscani 21', 'București'],
     coordinates: { latitude: 44.4314, longitude: 26.1002 }
   }
-} satisfies CustomerConfirmation
+} satisfies BookingConfirmationPresentation
 
 describe('Booking confirmation route flow', () => {
   it('renders the legacy reservation hierarchy inside the canonical booking shell', async () => {
@@ -90,6 +90,7 @@ describe('Booking confirmation route flow', () => {
       'gg, your appointment is confirmed!'
     )
     expect(screen.getByTestId('container:orderApptGroup')).toBeTruthy()
+    expect(screen.queryByTestId('text:customerName')).toBeNull()
     expect(fetch).toHaveBeenCalledWith(
       '/mara-booking-studio/booking/confirmations/cnf_demo/data',
       expect.objectContaining({ credentials: 'same-origin' })

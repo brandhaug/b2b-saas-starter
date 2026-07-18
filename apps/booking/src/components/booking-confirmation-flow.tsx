@@ -1,7 +1,11 @@
 import * as stylex from '@stylexjs/stylex'
-import type { CustomerConfirmation } from '@b2b-saas-starter/capabilities/booking'
+import { Schema } from 'effect'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
+import {
+  BookingConfirmationPresentation,
+  type BookingConfirmationPresentation as BookingConfirmationPresentationData
+} from '../lib/booking-confirmation-presentation.ts'
 import {
   translateBookingMessage,
   type BookingLocale
@@ -15,7 +19,10 @@ import { confirmationStyles as styles } from './booking-confirmation-flow.styles
 
 type ConfirmationState =
   | { readonly kind: 'loading' }
-  | { readonly kind: 'found'; readonly confirmation: CustomerConfirmation }
+  | {
+      readonly kind: 'found'
+      readonly confirmation: BookingConfirmationPresentationData
+    }
   | { readonly kind: 'error'; readonly message: string }
 
 const initials = (name: string) =>
@@ -121,7 +128,10 @@ export function BookingConfirmationRouteFlow({
               : translateBookingMessage('en', 'recovery.booking_not_found_copy')
           throw new Error(message)
         }
-        setState({ kind: 'found', confirmation: body as CustomerConfirmation })
+        setState({
+          kind: 'found',
+          confirmation: Schema.decodeUnknownSync(BookingConfirmationPresentation)(body)
+        })
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
@@ -163,7 +173,7 @@ function BookingConfirmationView({
   confirmation,
   merchantSlug
 }: {
-  readonly confirmation: CustomerConfirmation
+  readonly confirmation: BookingConfirmationPresentationData
   readonly merchantSlug: string
 }) {
   const locale = confirmation.locale
@@ -176,9 +186,7 @@ function BookingConfirmationView({
   const scheduled = confirmation.appointments.every(
     (appointment) => appointment.status === 'scheduled'
   )
-  const customerFirstName =
-    confirmation.snapshot.customerDetails.name.trim().split(/\s+/)[0] ??
-    confirmation.snapshot.customerDetails.name
+  const customerFirstName = confirmation.customerFirstName
   const headingKey = isCancelled
     ? isGroup
       ? 'reservation.heading_group_cancelled'
@@ -271,10 +279,10 @@ function BookingConfirmationView({
           ))}
           {isGroup ? (
             <div {...stylex.props(styles.totalRow, styles.groupTotal)}>
-              <strong>{copy('reservation.total')}</strong>
-              <strong data-testid="text:total">
+              <span>{copy('reservation.total')}</span>
+              <span data-testid="text:total">
                 {legacyCurrency(locale, groupTotal, confirmation.snapshot.currency)}
-              </strong>
+              </span>
             </div>
           ) : null}
           {isCancelled && !isGroup ? (
@@ -448,8 +456,8 @@ function AppointmentCard({
   group,
   onReschedule
 }: {
-  readonly appointment: CustomerConfirmation['appointments'][number]
-  readonly confirmation: CustomerConfirmation
+  readonly appointment: BookingConfirmationPresentationData['appointments'][number]
+  readonly confirmation: BookingConfirmationPresentationData
   readonly cancelled: boolean
   readonly group: boolean
   readonly onReschedule: () => void
@@ -503,9 +511,6 @@ function AppointmentCard({
           {showServicePrice && primaryService
             ? legacyCurrency(locale, primaryService.priceMinor, primaryService.currency)
             : ''}
-        </span>
-        <span data-testid="text:customerName" {...stylex.props(styles.secondaryText)}>
-          {snapshot.customerDetails.name}
         </span>
         {additions.length ? (
           <div {...stylex.props(styles.addons)}>
@@ -600,10 +605,10 @@ function AppointmentCard({
         <>
           <hr {...stylex.props(styles.divider)} />
           <div {...stylex.props(styles.totalRow)}>
-            <strong>{copy('reservation.total')}</strong>
-            <strong data-testid="text:total">
+            <span>{copy('reservation.total')}</span>
+            <span data-testid="text:total">
               {legacyCurrency(locale, snapshot.totalMinor, snapshot.currency)}
-            </strong>
+            </span>
           </div>
           <button
             type="button"
@@ -635,7 +640,7 @@ function PayInPerson({
   cancelled,
   group
 }: {
-  readonly confirmation: CustomerConfirmation
+  readonly confirmation: BookingConfirmationPresentationData
   readonly cancelled: boolean
   readonly group: boolean
 }) {
