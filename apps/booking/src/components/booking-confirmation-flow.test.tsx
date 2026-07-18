@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CustomerConfirmation } from '@b2b-saas-starter/capabilities/booking'
 import { BookingConfirmationRouteFlow } from './booking-confirmation-flow.tsx'
@@ -134,5 +134,98 @@ describe('Booking confirmation route flow', () => {
       scheduleAnother.compareDocumentPosition(shop) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(scheduleAnother.closest('[data-booking-shell="canonical"]')).toBeTruthy()
+  })
+
+  it('opens the legacy reschedule popup before preparing a replacement time', async () => {
+    let resolveBegin!: (response: Response) => void
+    const begin = new Promise<Response>((resolve) => {
+      resolveBegin = resolve
+    })
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/data')) return Promise.resolve(Response.json(confirmation))
+      if (url.endsWith('/appointments/apt_DEMO123/reschedule')) return begin
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <BookingConfirmationRouteFlow
+        merchantSlug="mara-booking-studio"
+        routeId="cnf_demo"
+        embedding="standalone"
+      />
+    )
+
+    fireEvent.click(await screen.findByTestId('btn:reschedule'))
+
+    const popup = await screen.findByTestId('popup:rescheduleAppointment')
+    expect(popup.getAttribute('role')).toBe('dialog')
+    expect(popup.getAttribute('aria-label')).toBe('Reschedule appointment')
+    expect(popup.querySelector('h2')?.textContent).toBe('Reschedule appointment')
+    expect(screen.getByText('Finding available times…')).toBeTruthy()
+    expect(document.body.style.overflow).toBe('')
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/appointments/apt_DEMO123/reschedule'),
+        expect.objectContaining({ method: 'POST' })
+      )
+    )
+
+    resolveBegin(Response.json({ bookingSessionId: 'bsn_reschedule' }))
+  })
+
+  it('shows the legacy confirm control after holding a replacement time', async () => {
+    const startsAt = '2026-07-21T07:00:00.000Z'
+    const endsAt = '2026-07-21T08:00:00.000Z'
+    const availability = {
+      timezone: 'Europe/Bucharest',
+      range: { from: '2026-07-21T00:00:00.000Z', days: 60 },
+      slots: [{ startsAt, endsAt }],
+      hold: null
+    }
+    const hold = {
+      id: 'hld_reschedule',
+      bookingSessionId: 'bsn_reschedule',
+      bookingRequestId: 'bkr_reschedule',
+      createdAt: '2026-07-18T10:00:00.000Z',
+      expiresAt: '2026-07-18T10:15:00.000Z',
+      quote: {
+        startsAt,
+        endsAt,
+        providerPreference: { kind: 'specific' as const, providerId: 'prv_mara' },
+        assignedProvider: { id: 'prv_mara', displayName: 'Mara Ionescu' },
+        services: snapshot.services,
+        durationMinutes: 60,
+        currency: 'RON',
+        totalMinor: 9000
+      }
+    }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/data')) return Response.json(confirmation)
+      if (url.endsWith('/appointments/apt_DEMO123/reschedule'))
+        return Response.json({ id: 'rsc_demo', bookingSessionId: 'bsn_reschedule' })
+      if (url.includes('/availability?')) return Response.json(availability)
+      if (url.endsWith('/hold')) return Response.json(hold)
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <BookingConfirmationRouteFlow
+        merchantSlug="mara-booking-studio"
+        routeId="cnf_demo"
+        embedding="standalone"
+      />
+    )
+
+    fireEvent.click(await screen.findByTestId('btn:reschedule'))
+    const time = await screen.findByRole('button', { name: '10:00 AM' })
+    fireEvent.click(time)
+
+    expect(await screen.findByTestId('btn:confirm')).toBeTruthy()
+    expect(screen.getByTestId('popup:rescheduleAppointment')).toBeTruthy()
+    expect(document.body.style.overflow).toBe('')
   })
 })

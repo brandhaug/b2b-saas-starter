@@ -42,6 +42,7 @@ export function BookingSchedulingFlow({
   onTitleActionMount,
   premiumPalette = null,
   embedded = false,
+  embeddedVariant = 'continuation',
   showOrderBar = true
 }: {
   readonly availability: BookingAvailability
@@ -58,6 +59,7 @@ export function BookingSchedulingFlow({
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
   readonly premiumPalette?: BookingPremiumPalette | null
   readonly embedded?: boolean
+  readonly embeddedVariant?: 'continuation' | 'reschedule'
   readonly showOrderBar?: boolean
 }) {
   const message = (key: BookingTranslationKey) => translateBookingMessage(locale, key)
@@ -191,7 +193,13 @@ export function BookingSchedulingFlow({
       ) : null}
       <main
         data-testid="container:scrollable"
-        {...stylex.props(styles.main, embedded && styles.embeddedSchedulingMain)}
+        {...stylex.props(
+          styles.main,
+          embedded && styles.embeddedSchedulingMain,
+          embedded &&
+            embeddedVariant === 'reschedule' &&
+            styles.rescheduleSchedulingMain
+        )}
       >
         {slotLost || holdExpired ? (
           <div {...stylex.props(styles.alert)}>

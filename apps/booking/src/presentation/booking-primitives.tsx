@@ -224,6 +224,9 @@ const styles = stylex.create({
   legacyPopupWrapper: {
     paddingTop: 36
   },
+  legacyReschedulePopupWrapper: {
+    paddingTop: 44
+  },
   popupSheet: {
     position: 'relative',
     width: '100%',
@@ -255,6 +258,9 @@ const styles = stylex.create({
     display: 'flex',
     overflowX: 'hidden',
     overflowY: 'hidden'
+  },
+  popupSheetLegacyReschedule: {
+    height: '100%'
   },
   popupStickyHeader: {
     position: 'sticky',
@@ -800,7 +806,11 @@ export function BookingPopupSheet({
   readonly testId?: string
   readonly presenceKey?: string
   readonly legacyGeometry?: boolean
-  readonly layout?: 'content' | 'legacyCheckout' | 'legacyPolicy'
+  readonly layout?:
+    | 'content'
+    | 'legacyCheckout'
+    | 'legacyPolicy'
+    | 'legacyReschedule'
   readonly header?: ReactNode
   readonly children: ReactNode
 }) {
@@ -838,7 +848,8 @@ export function BookingPopupSheet({
                 transition={reduced ? { duration: 0 } : popupInteractionTransition}
                 {...stylex.props(
                   styles.popupWrapper,
-                  legacyGeometry && styles.legacyPopupWrapper
+                  legacyGeometry && styles.legacyPopupWrapper,
+                  layout === 'legacyReschedule' && styles.legacyReschedulePopupWrapper
                 )}
               >
                 <div
@@ -855,7 +866,9 @@ export function BookingPopupSheet({
                     styles.popupSheet,
                     legacyGeometry && styles.legacyPopupSheet,
                     layout === 'legacyCheckout' && styles.popupSheetLegacyCheckout,
-                    layout === 'legacyPolicy' && styles.popupSheetLegacyPolicy
+                    layout === 'legacyPolicy' && styles.popupSheetLegacyPolicy,
+                    layout === 'legacyReschedule' &&
+                      styles.popupSheetLegacyReschedule
                   )}
                 >
                   {header ? (

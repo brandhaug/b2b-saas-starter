@@ -4,6 +4,9 @@ import {
   appointments,
   batch,
   bookingParties,
+  bookingRequests,
+  bookingRequestServices,
+  bookingSessionAdditionalServices,
   bookingSessions,
   checkoutPolicies,
   Database,
@@ -410,6 +413,17 @@ export const LiveBookingRescheduling: Layer.Layer<
           const id = `rsc_${stableSuffix(`${input.appointmentId}:${input.capabilityHash}`)}`
           const bookingSessionId = `bsn_${id}`
           const bookingPartyId = `bpt_${id}`
+          const bookingRequestId = `bkr_${id}`
+          const services = appointment.snapshot.services ?? []
+          const primaryService =
+            services.find((service) => service.role === 'primary') ?? services[0]
+          const additionalServices = services.filter(
+            (service) => service.id !== primaryService?.id
+          )
+          const providerPreference = appointment.snapshot.providerPreference ?? {
+            kind: 'specific' as const,
+            providerId: appointment.providerId
+          }
           yield* orUnavailable('booking-rescheduling')(
             batch(db, [
               db.insert(bookingSessions).values({
@@ -417,6 +431,12 @@ export const LiveBookingRescheduling: Layer.Layer<
                 merchantId: appointment.merchantId,
                 capabilityHash: input.capabilityHash,
                 checkoutPath: 'pay_in_person',
+                providerPreference: providerPreference.kind,
+                providerId:
+                  providerPreference.kind === 'specific'
+                    ? providerPreference.providerId
+                    : null,
+                primaryServiceId: primaryService?.id ?? null,
                 lifecycle: 'active',
                 createdAt: input.now,
                 lastActivityAt: input.now,
@@ -427,6 +447,7 @@ export const LiveBookingRescheduling: Layer.Layer<
                 id: bookingPartyId,
                 bookingSessionId,
                 shopId: appointment.shopId,
+                activeRequestId: bookingRequestId,
                 lifecycle: 'active',
                 currency: appointment.snapshot.currency,
                 locale: 'en',
@@ -434,6 +455,42 @@ export const LiveBookingRescheduling: Layer.Layer<
                 createdAt: input.now,
                 updatedAt: input.now
               }),
+              db.insert(bookingRequests).values({
+                id: bookingRequestId,
+                bookingPartyId,
+                position: 0,
+                providerPreference: providerPreference.kind,
+                providerId:
+                  providerPreference.kind === 'specific'
+                    ? providerPreference.providerId
+                    : null,
+                primaryServiceId: primaryService?.id ?? null,
+                ...(appointment.snapshot.customerDetails
+                  ? {
+                      customerDetailsJson: JSON.stringify(
+                        appointment.snapshot.customerDetails
+                      )
+                    }
+                  : {}),
+                createdAt: input.now,
+                updatedAt: input.now
+              }),
+              ...services.map((service, position) =>
+                db.insert(bookingRequestServices).values({
+                  bookingRequestId,
+                  serviceId: service.id,
+                  role: service.id === primaryService?.id ? 'primary' : 'additional',
+                  position,
+                  createdAt: input.now
+                })
+              ),
+              ...additionalServices.map((service, position) =>
+                db.insert(bookingSessionAdditionalServices).values({
+                  bookingSessionId,
+                  serviceId: service.id,
+                  position
+                })
+              ),
               db.insert(rescheduleSessions).values({
                 id,
                 appointmentId: appointment.id,

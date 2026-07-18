@@ -16,7 +16,16 @@ const snapshot = JSON.stringify({
   endsAt: '2026-07-14T11:00:00.000Z',
   providerPreference: { kind: 'specific', providerId: 'prv_old' },
   assignedProvider: { id: 'prv_old', displayName: 'Old Provider' },
-  services: [],
+  services: [
+    {
+      id: 'svc_reschedule',
+      role: 'primary',
+      name: 'Cut',
+      durationMinutes: 60,
+      priceMinor: 5_000,
+      currency: 'USD'
+    }
+  ],
   durationMinutes: 60,
   currency: 'USD',
   totalMinor: 5_000,
@@ -57,6 +66,7 @@ beforeAll(async () => {
     `INSERT INTO merchants (id, public_name, slug, timezone, currency, plan, created_at, updated_at) VALUES ('mrc_reschedule', 'Reschedule Shop', 'reschedule-shop', 'UTC', 'USD', 'solo', '${now}', '${now}')`,
     `INSERT INTO brands (id, merchant_id, name, created_at, updated_at) VALUES ('brd_reschedule', 'mrc_reschedule', 'Reschedule Shop', '${now}', '${now}')`,
     `INSERT INTO shops (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at) VALUES ('shp_reschedule', 'brd_reschedule', 'mrc_reschedule', 'reschedule', 'Reschedule Shop', 'UTC', 'USD', '${now}', '${now}')`,
+    `INSERT INTO services (id, merchant_id, name, price_minor, currency, duration_minutes, status, created_at, updated_at) VALUES ('svc_reschedule', 'mrc_reschedule', 'Cut', 5000, 'USD', 60, 'active', '${now}', '${now}')`,
     `INSERT INTO providers (id, merchant_id, display_name, status, created_at, updated_at) VALUES ('prv_old', 'mrc_reschedule', 'Old Provider', 'active', '${now}', '${now}')`,
     `INSERT INTO providers (id, merchant_id, display_name, status, created_at, updated_at) VALUES ('prv_new', 'mrc_reschedule', 'New Provider', 'active', '${now}', '${now}')`,
     `INSERT INTO booking_sessions (id, merchant_id, capability_hash, checkout_path, lifecycle, created_at, last_activity_at, idle_expires_at, absolute_expires_at) VALUES ('bsn_reschedule', 'mrc_reschedule', 'booking-hash', 'pay_in_person', 'consumed', '${now}', '${now}', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z')`,
@@ -162,6 +172,20 @@ describe('Live Booking rescheduling', () => {
         })
       )
     )
+    const selection = await test.d1
+      .prepare(
+        `SELECT p.active_request_id, r.provider_preference, r.provider_id, r.primary_service_id
+         FROM booking_parties p
+         JOIN booking_requests r ON r.id = p.active_request_id
+         WHERE p.id = ?`
+      )
+      .bind(session.bookingPartyId)
+      .all()
+    expect(selection.results[0]).toMatchObject({
+      provider_preference: 'specific',
+      provider_id: 'prv_old',
+      primary_service_id: 'svc_reschedule'
+    })
     await persistReplacementFacts(session, replacement())
     await run(
       Effect.flatMap(BookingRescheduling, (service) =>

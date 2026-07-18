@@ -9,6 +9,7 @@ import {
 import { BookingLocalizationProvider } from '../localization/booking-localization-provider.tsx'
 import { BookingPopupSheet } from '../presentation/booking-primitives.tsx'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
+import { BookingConfirmationReschedulePopup } from './booking-confirmation-reschedule-popup.tsx'
 import { BookingShellProvider, BookingWidgetShell } from './booking-widget-shell.tsx'
 import { confirmationStyles as styles } from './booking-confirmation-flow.styles.ts'
 
@@ -90,11 +91,6 @@ const calendarUrl = (
     return `https://calendar.yahoo.com/?v=60&title=${encodeURIComponent(title)}&st=${compact(startsAt)}&et=${compact(endsAt)}`
   return `data:text/calendar;charset=utf-8,${encodeURIComponent(`BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:${compact(startsAt)}\nDTEND:${compact(endsAt)}\nSUMMARY:${title}\nEND:VEVENT\nEND:VCALENDAR`)}`
 }
-
-const capability = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
-    byte.toString(16).padStart(2, '0')
-  ).join('')
 
 export function BookingConfirmationRouteFlow({
   merchantSlug,
@@ -199,6 +195,7 @@ function BookingConfirmationView({
   } as const
   const [scrolled, setScrolled] = useState(false)
   const [popupOpen, setPopupOpen] = useState(false)
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
   const [popupTarget, setPopupTarget] = useState<HTMLDivElement | null>(null)
   const [mutation, setMutation] = useState<'idle' | 'pending' | 'failed'>('idle')
   const groupTotal = confirmation.appointments.reduce(
@@ -216,31 +213,6 @@ function BookingConfirmationView({
   const cancelPath = isGroup
     ? '/cancel'
     : `/appointments/${encodeURIComponent(confirmation.appointments[0]?.id ?? '')}/cancel`
-
-  const beginReschedule = async (appointmentId: string) => {
-    setMutation('pending')
-    try {
-      const response = await fetch(
-        `${window.location.pathname}/appointments/${encodeURIComponent(appointmentId)}/reschedule`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            action: 'begin',
-            capability: capability(),
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString()
-          })
-        }
-      )
-      if (!response.ok) throw new Error('reschedule failed')
-      const body = (await response.json()) as { readonly bookingSessionId: string }
-      window.location.assign(
-        `/${encodeURIComponent(merchantSlug)}/booking?booking=${encodeURIComponent(body.bookingSessionId)}`
-      )
-    } catch {
-      setMutation('failed')
-    }
-  }
 
   const cancel = async () => {
     setMutation('pending')
@@ -294,7 +266,7 @@ function BookingConfirmationView({
               confirmation={confirmation}
               cancelled={isCancelled}
               group={isGroup}
-              onReschedule={() => void beginReschedule(appointment.id)}
+              onReschedule={() => setRescheduleOpen(true)}
             />
           ))}
           {isGroup ? (
@@ -377,7 +349,7 @@ function BookingConfirmationView({
                   type="button"
                   data-testid="btn:reschedule"
                   disabled={mutation === 'pending'}
-                  onClick={() => void beginReschedule(confirmation.appointments[0]!.id)}
+                  onClick={() => setRescheduleOpen(true)}
                   {...stylex.props(styles.actionButton)}
                 >
                   {copy('reservation.reschedule')}
@@ -404,7 +376,18 @@ function BookingConfirmationView({
       <div
         ref={setPopupTarget}
         data-testid="reservation-popup-root"
-        {...stylex.props(styles.popupMount, popupOpen && styles.popupMountOpen)}
+        {...stylex.props(
+          styles.popupMount,
+          (popupOpen || rescheduleOpen) && styles.popupMountOpen
+        )}
+      />
+      <BookingConfirmationReschedulePopup
+        target={popupTarget}
+        open={rescheduleOpen}
+        confirmation={confirmation}
+        appointment={confirmation.appointments[0]!}
+        merchantSlug={merchantSlug}
+        onClose={() => setRescheduleOpen(false)}
       />
       <BookingPopupSheet
         target={popupTarget}

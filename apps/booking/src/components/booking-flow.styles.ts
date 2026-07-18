@@ -122,6 +122,11 @@ export const styles = stylex.create({
     boxSizing: 'border-box',
     paddingTop: bookingTheme.space18
   },
+  rescheduleSchedulingMain: {
+    paddingTop: 24,
+    paddingRight: 0,
+    paddingLeft: 0
+  },
   routeLayer: {
     position: 'absolute',
     zIndex: bookingTheme.layerContent,

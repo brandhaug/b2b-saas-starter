@@ -6,6 +6,22 @@ export type AppointmentRescheduleSnapshot = Readonly<
     readonly totalMinor: number
     readonly currency: string
     readonly assignedProvider: { readonly id: string; readonly displayName: string }
+    readonly providerPreference?:
+      | { readonly kind: 'any' }
+      | { readonly kind: 'specific'; readonly providerId: string }
+    readonly services?: ReadonlyArray<{
+      readonly id: string
+      readonly role: 'primary' | 'additional'
+      readonly name: string
+      readonly durationMinutes: number
+      readonly priceMinor: number
+      readonly currency: string
+    }>
+    readonly customerDetails?: {
+      readonly name: string
+      readonly email: string
+      readonly phone: string | null
+    }
     readonly startsAt: string
     readonly endsAt: string
   }
