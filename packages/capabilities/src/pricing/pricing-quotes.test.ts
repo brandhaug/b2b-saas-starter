@@ -48,6 +48,51 @@ const limited: Promotion = {
 }
 
 describe('Pricing Quotes', () => {
+  it('snapshots 21% VAT inside the advertised customer price without adding a fee', async () => {
+    const quote = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(PricingQuotes, (pricing) =>
+          pricing.quote(
+            material({
+              lines: [
+                {
+                  requestId: 'brq_one',
+                  holdId: 'hld_one',
+                  serviceIds: ['svc_one'],
+                  amountMinor: 9000
+                }
+              ],
+              giftCardReservationIds: [],
+              tipMinor: 0
+            })
+          )
+        ),
+        SeedPricingQuotes([], [], {
+          taxBasisPoints: 2100,
+          taxIncluded: true,
+          feeMinor: 0,
+          taxLabel: 'VAT',
+          feeLabel: 'Fee',
+          version: 1
+        })
+      )
+    )
+
+    expect(quote).toMatchObject({
+      subtotalMinor: 9000,
+      adjustmentMinor: 0,
+      totalMinor: 9000,
+      adjustments: [
+        {
+          kind: 'tax',
+          label: 'VAT',
+          amountMinor: 1562,
+          allocation: { brq_one: 1562 }
+        }
+      ]
+    })
+  })
+
   it('creates an immutable single-currency version with deterministic named allocations', async () => {
     const quote = await Effect.runPromise(
       Effect.provide(
@@ -56,6 +101,7 @@ describe('Pricing Quotes', () => {
         ),
         SeedPricingQuotes([], [limited], {
           taxBasisPoints: 1000,
+          taxIncluded: false,
           feeMinor: 90,
           taxLabel: 'VAT',
           feeLabel: 'Booking fee',

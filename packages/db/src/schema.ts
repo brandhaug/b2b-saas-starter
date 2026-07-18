@@ -1121,6 +1121,7 @@ export const pricingPolicies = sqliteTable('pricing_policies', {
     .references(() => shops.id, { onDelete: 'cascade' }),
   taxBasisPoints: integer('tax_basis_points').default(0).notNull(),
   taxLabel: text('tax_label').default('Tax').notNull(),
+  taxIncluded: integer('tax_included', { mode: 'boolean' }).default(false).notNull(),
   feeMinor: integer('fee_minor').default(0).notNull(),
   feeLabel: text('fee_label').default('Fee').notNull(),
   version: integer('version').default(1).notNull(),

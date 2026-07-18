@@ -46,6 +46,7 @@ type PromotionReservation = {
 }
 export type PricingRules = {
   readonly taxBasisPoints: number
+  readonly taxIncluded: boolean
   readonly feeMinor: number
   readonly taxLabel: string
   readonly feeLabel: string
@@ -53,6 +54,7 @@ export type PricingRules = {
 }
 const noPricingRules: PricingRules = {
   taxBasisPoints: 0,
+  taxIncluded: false,
   feeMinor: 0,
   taxLabel: 'Tax',
   feeLabel: 'Fee',
@@ -111,9 +113,12 @@ const buildQuote = (input: {
   }
   const discountedSubtotal =
     subtotalMinor + adjustments.reduce((sum, item) => sum + item.amountMinor, 0)
-  const taxMinor = Math.floor(
-    (discountedSubtotal * input.rules.taxBasisPoints) / 10_000
-  )
+  const taxMinor = input.rules.taxIncluded
+    ? Math.round(
+        (discountedSubtotal * input.rules.taxBasisPoints) /
+          (10_000 + input.rules.taxBasisPoints)
+      )
+    : Math.floor((discountedSubtotal * input.rules.taxBasisPoints) / 10_000)
   if (taxMinor > 0)
     adjustments.push({
       id: newCapabilityId('pad'),
@@ -138,7 +143,11 @@ const buildQuote = (input: {
       amountMinor: material.tipMinor,
       allocation: allocateMinor(material.tipMinor, material.lines)
     })
-  const adjustmentMinor = adjustments.reduce((sum, item) => sum + item.amountMinor, 0)
+  const adjustmentMinor = adjustments.reduce(
+    (sum, item) =>
+      sum + (item.kind === 'tax' && input.rules.taxIncluded ? 0 : item.amountMinor),
+    0
+  )
   return {
     id: input.id,
     bookingPartyId: material.bookingPartyId,
@@ -593,6 +602,7 @@ export const LivePricingQuotes: Layer.Layer<PricingQuotes, never, Database> =
             const pricingRules: PricingRules = policy
               ? {
                   taxBasisPoints: policy.taxBasisPoints,
+                  taxIncluded: policy.taxIncluded,
                   taxLabel: policy.taxLabel,
                   feeMinor: policy.feeMinor,
                   feeLabel: policy.feeLabel,

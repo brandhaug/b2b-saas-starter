@@ -13,6 +13,7 @@ import {
   providerServiceEligibility,
   providers,
   publicBookingPages,
+  pricingPolicies,
   scheduleRules,
   services,
   shopProviders,
@@ -100,6 +101,17 @@ const statements = [
     publicName: scenario.merchant.publicName,
     timezone: scenario.merchant.timezone,
     currency: scenario.merchant.currency,
+    createdAt: scenario.anchorTime,
+    updatedAt: scenario.anchorTime
+  }),
+  insert(pricingPolicies, {
+    shopId,
+    taxBasisPoints: 2100,
+    taxLabel: 'VAT',
+    taxIncluded: true,
+    feeMinor: 0,
+    feeLabel: 'Fee',
+    version: 1,
     createdAt: scenario.anchorTime,
     updatedAt: scenario.anchorTime
   }),

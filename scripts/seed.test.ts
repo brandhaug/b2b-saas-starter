@@ -14,4 +14,20 @@ describe('Booking seed SQL', () => {
       "INSERT OR REPLACE INTO checkout_policies (id, kind, version, disclosure, effective_at, retired_at, created_at, merchant_id, brand_id, shop_id, scope, scope_id) VALUES ('pol_seed_checkout', 'checkout', 2, 'Cancel up to 1 hour before the appointment.', '2026-07-10T09:30:00.000Z', NULL, '2026-07-10T09:30:00.000Z', 'mer_seed_booking_studio', NULL, NULL, 'merchant', 'mer_seed_booking_studio');"
     )
   })
+
+  it('configures Mara prices with included 21% VAT and no booking fee', () => {
+    const sql = buildSeedSql()
+    const pricingPolicyInsert = sql
+      .split('\n')
+      .find((statement) =>
+        statement.startsWith('INSERT OR REPLACE INTO pricing_policies')
+      )
+
+    expect(pricingPolicyInsert).toContain(
+      '(shop_id, tax_basis_points, tax_label, tax_included, fee_minor, fee_label'
+    )
+    expect(pricingPolicyInsert).toContain(
+      "'shp_mer_seed_booking_studio', 2100, 'VAT', 1, 0, 'Fee'"
+    )
+  })
 })
