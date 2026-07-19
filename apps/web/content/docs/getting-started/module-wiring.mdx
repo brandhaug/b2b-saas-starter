@@ -16,7 +16,7 @@ Every third-party provider in the starter is an Optional Provider Module. The ap
 - `attention` — the variables are set but the runtime is not wired yet (billing, observability).
 - `ready` — variables set and runtime wired.
 
-`withModuleEnvStatus` in `packages/capabilities/src/module-env-overlay.ts` overlays these statuses onto the Starter Module catalog and the Integration Surfaces list. Catalog-mapped modules (`better-auth`, `cloudflare-email`, `observability`) surface in the homepage module table (`/`) and the workspace dashboard module table. Integration-mapped providers (`github`, `stripe`, `turnstile`) surface through the REST endpoint `GET /workspaces/:slug/integrations`, where an unconfigured surface carries the summary `Set <VAR>, <VAR> to activate this integration.` The `ai` module has no catalog or integration mapping yet, so the overlay ignores it.
+`withModuleEnvStatus` in `packages/capabilities/src/module-env-overlay.ts` overlays these statuses onto the Starter Module catalog and Integration Surfaces. Provider configuration stays separate from the Merchant and Operations authentication realms.
 
 ## Where values go
 
@@ -24,24 +24,9 @@ Every third-party provider in the starter is an Optional Provider Module. The ap
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Web dev server (`bun run dev` from the repo root)    | Root `.env`, copied from `.env.example`                                                                                                                  |
 | API worker under Wrangler (`bun --cwd apps/api dev`) | `apps/api/.dev.vars`; `apps/api/wrangler.jsonc` ships `WORKERS_AI_ENABLED = "false"` and `CLOUDFLARE_EMAIL_FROM = "noreply@example.com"` as dev defaults |
-| Deployed Workers (`bun run deploy`)                  | The deploy shell environment; `alchemy.run.ts` forwards the optional-module keys to all three Workers and wraps secret-shaped values in `Redacted`       |
+| Deployed Workers (`bun run deploy`)                  | The deploy shell environment; `alchemy.run.ts` forwards optional-module keys and wraps secret-shaped values in `Redacted`                                |
 
 Local status checks are easiest in the web app: it runs the in-memory Seed layer with the env overlay applied, so the homepage module table at `http://localhost:3071/` reflects your `.env` after a restart. The API worker under Wrangler runs the Live layer against its own local D1 state, so the REST status checks below are most meaningful on a deployed stack with a workspace API Token.
-
-## GitHub OAuth
-
-The Example OAuth Provider. `createAuth` in `packages/auth/src/index.ts` registers the GitHub social provider only when both variables are set; email/password sign-in works either way.
-
-| Variable               | Value                   |
-| ---------------------- | ----------------------- |
-| `GITHUB_CLIENT_ID`     | OAuth app client ID     |
-| `GITHUB_CLIENT_SECRET` | OAuth app client secret |
-
-Create an OAuth app under GitHub → Settings → Developer settings → OAuth Apps. Set the authorization callback URL to `<BETTER_AUTH_URL>/api/auth/callback/github` (locally `http://localhost:3071/api/auth/callback/github`).
-
-**Unconfigured:** `/sign-in` shows a disabled "Continue with GitHub" button with the caption "Configure GitHub OAuth secrets to enable." The `github` Integration Surface reports `needs-config`.
-
-**Verify:** set both variables and restart `bun run dev`. The server side is now active — Better Auth accepts `authClient.signIn.social({ provider: 'github' })` calls. The sign-in button in `apps/web/src/routes/sign-in.tsx` is a disabled placeholder either way; wiring it to the social sign-in call is the first OAuth task in a fork. On a deployed stack, `GET /workspaces/<slug>/integrations` reports the `github` surface as `ready` and drops the set-vars summary.
 
 ## Cloudflare Email
 

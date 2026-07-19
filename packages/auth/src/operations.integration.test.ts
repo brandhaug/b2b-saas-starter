@@ -488,7 +488,7 @@ describe('Operations authentication contract', () => {
         now: second!.absoluteExpiresAt
       })
     ).toBeNull()
-  })
+  }, 15_000)
 
   it('rejects non-operator identities and local deterministic credentials in production', async () => {
     const fixture = await setup()

@@ -20,17 +20,18 @@ const statusFor = (env: Record<string, string | undefined>, moduleId: string) =>
 describe('readServerEnv', () => {
   it('boots provider-light: an empty env decodes via local defaults', () => {
     const env = readServerEnv({})
-    expect(env.BETTER_AUTH_URL).toBe('http://localhost:3071')
     expect(env.STRIPE_SECRET_KEY).toBeUndefined()
   })
 
-  it('fails fast in strict mode when required baseline vars are missing', () => {
-    expect(() => readServerEnv({}, { mode: 'strict' })).toThrow()
-  })
-
-  it('prefers real values over local defaults', () => {
-    const env = readServerEnv({ BETTER_AUTH_URL: 'https://app.example.com' })
-    expect(env.BETTER_AUTH_URL).toBe('https://app.example.com')
+  it('ignores retired Public Site authentication variables', () => {
+    const env = readServerEnv({
+      BETTER_AUTH_SECRET: 'retired',
+      BETTER_AUTH_URL: 'https://public.example.com',
+      GITHUB_CLIENT_ID: 'retired'
+    })
+    expect(env).not.toHaveProperty('BETTER_AUTH_SECRET')
+    expect(env).not.toHaveProperty('BETTER_AUTH_URL')
+    expect(env).not.toHaveProperty('GITHUB_CLIENT_ID')
   })
 
   it('accepts a raw worker env: bindings and unknown keys are ignored', () => {
@@ -58,16 +59,16 @@ describe('schema-derived key lists', () => {
 
 describe('moduleConfigStatus', () => {
   it('reports missing var names (redacted: names only) when env is unset', () => {
-    const github = statusFor({}, 'github-oauth')
-    expect(github.envPresent).toBe(false)
-    expect(github.configured).toBe(false)
-    expect(github.missing).toEqual(['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'])
+    const email = statusFor({}, 'cloudflare-email')
+    expect(email.envPresent).toBe(false)
+    expect(email.configured).toBe(false)
+    expect(email.missing).toEqual(['CLOUDFLARE_EMAIL_FROM'])
   })
 
   it('requires every var: a partially configured module stays unconfigured', () => {
-    const github = statusFor({ GITHUB_CLIENT_ID: 'iv1.abc' }, 'github-oauth')
-    expect(github.envPresent).toBe(false)
-    expect(github.missing).toEqual(['GITHUB_CLIENT_SECRET'])
+    const turnstile = statusFor({ TURNSTILE_SITE_KEY: 'site-key' }, 'turnstile')
+    expect(turnstile.envPresent).toBe(false)
+    expect(turnstile.missing).toEqual(['TURNSTILE_SECRET_KEY'])
   })
 
   it('treats empty strings as unset', () => {

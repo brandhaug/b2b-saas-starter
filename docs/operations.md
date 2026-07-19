@@ -1,6 +1,45 @@
 # Booking Product Operations
 
-## System Operator bootstrap and emergency recovery
+## Production cutover order
+
+The Operations App is a sixth Worker on a staff-only origin with its own Better
+Auth secret, trusted origins, host-only cookie namespace, and rate limits. Do not
+send traffic to that origin until the following sequence is complete:
+
+1. Configure distinct `MERCHANT_AUTH_SECRET` and `OPERATIONS_AUTH_SECRET` values,
+   the exact `OPERATIONS_APP_ORIGIN`, `OPERATIONS_AUTH_TRUSTED_ORIGINS`,
+   `OPERATIONS_SECURITY_CONTACT`, every Operations rate limit, and a verified
+   `CLOUDFLARE_EMAIL_FROM` sender.
+2. Apply D1 migrations. Stage the first dedicated, verified `system_operator`
+   identity through the controlled production data-change process; it must have
+   no Merchant membership or Customer Account identity.
+3. Run the production bootstrap command below against remote D1. Confirm its
+   durable `operations.operator.bootstrap.accepted` audit event and explicit
+   Better Auth roles.
+4. Deploy and verify `/ready`, operator password sign-in, mandatory TOTP, the
+   Operations release matrix, and target email delivery before enabling the
+   Operations hostname in public DNS or routing.
+
+Cloudflare Access is deferred. The application must remain correct and secure
+through Operations Auth, current-state authorization, dedicated rate limits,
+reduced impersonation authority, and durable evidence without it.
+
+## Local deterministic operator
+
+After local migrations and seed data are ready, set `ENVIRONMENT=development`,
+`OPERATIONS_LOCAL_SEED=enabled`, and the Operations values from `.env.example`,
+then run `bun run dev:operations`. The local-only fixture is:
+
+- email: `operator@operations.local`
+- password: `local-operations-password`
+- TOTP seed: `JBSWY3DPEHPK3PXP`
+- roles: Merchant Impersonator, Impersonation Auditor, and Operator Manager
+
+The fixture is rejected outside development and test. Sign in at
+`http://localhost:3076/sign-in`; use an authenticator configured with the TOTP
+seed, then exercise discovery, impersonation, audit, and operator management.
+
+## System Operator bootstrap
 
 Both maintenance commands target one exact, already verified email and record the
 named maintainer in the global audit log. They never accept passwords, TOTP
@@ -29,6 +68,75 @@ a no-op; a different role set is rejected. Recovery atomically revokes the
 Operator Session and derived impersonation sessions, removes the old second
 factor, and leaves Operations sign-in unavailable until TOTP and backup-code
 enrollment is completed again.
+
+## Invite and enroll an operator
+
+An enabled operator with the Operator Manager role opens `/operators`, chooses
+"Invite System Operator", supplies a new dedicated email, and assigns one or
+more predefined roles. Production sends a single-use link through Cloudflare
+Email; local development exposes the deterministic capture at
+`/__local/operator-invitation-email`. The link expires after 24 hours and can be
+revoked from its result page.
+
+Acceptance creates a 30-minute enrollment-only session. The recipient sets a
+password, verifies the email through the invitation, enrolls TOTP, stores and
+confirms backup codes, and then signs in normally. The enrollment session has no
+Merchant discovery, operator management, audit, or impersonation permission. If
+it expires, normal sign-in resumes incomplete security enrollment.
+
+## Emergency recovery
+
+Identify the exact operator and target environment, confirm active incident
+ownership, then run the matching `operator:recover` command shown above. In
+production the exact email confirmation and `--remote` flag are mandatory. The
+transaction revokes the Operator Session and every derived impersonation,
+disables the old factor, queues any required terminal target notification, and
+records global recovery evidence. The operator must enroll a new TOTP factor and
+confirm new backup codes; password-only Operations access remains denied.
+
+## Impersonation procedure
+
+1. Sign in with password and TOTP, then search for the Merchant or Merchant
+   Member. Confirm the Member is enabled, belongs to the displayed Merchant, and
+   is eligible.
+2. On Member detail, enter a non-empty internal Impersonation Reason, optionally
+   add the external support reference, and complete a fresh TOTP challenge.
+3. Submit the handoff. The browser sends its 60-second credential by top-level
+   POST to the Merchant App; never copy it into a URL, log, ticket, or chat.
+4. Confirm the persistent banner names the target Member and Merchant. Perform
+   only the necessary reversible support action. Identity, MFA, ownership,
+   long-lived credential, monetary, destructive, and bulk-wipe actions are
+   always denied.
+5. Use the banner's stop action as soon as the task is complete. The session also
+   ends after one absolute hour or immediately when an authoritative security
+   fact changes. Terminal flows return to Operations Member detail without
+   restoring or overwriting a normal Merchant Session.
+
+## Target notifications
+
+Activation, manual stop, expiry, and revocation append a Notification Intent in
+the same D1 transaction as the lifecycle transition. The Background Worker sends
+and retries the intent idempotently. Messages name the Merchant, timestamp,
+optional support reference, and security contact; they never disclose the real
+operator or internal reason. For an incident, inspect the intent and delivery
+attempt by stable impersonation ID, allow queue/cron retry, and do not replay the
+handoff or lifecycle mutation to force email.
+
+Production Operations readiness fails closed when its email adapter or security
+contact is unavailable. Local development uses deterministic capture.
+
+## Global audit review
+
+An operator with the Impersonation Auditor role opens `/audit` and filters by
+action, result, operator, target, Merchant, or time. Detail views expose internal
+reasons and support references only to that permission. Use the stable event and
+impersonation identifiers when correlating authentication, provisioning,
+management, handoff, mutation, stop, expiry, or revocation evidence. Do not copy
+credentials or session material into audit metadata or ordinary logs.
+
+Impersonation evidence is classified for two-year retention and preserves
+historical attribution after a live operator, Member, or Merchant is disabled or
+deleted.
 
 ## Durable notification recovery
 

@@ -427,7 +427,9 @@ export class OperationsAuthorization extends Context.Service<
 
 const operatorIdleLifetimeMs = 30 * 60 * 1_000
 
-const parseRoles = (value: string | null): OperatorRole[] => [
+export const parseOperatorRoles = (
+  value: string | null | undefined
+): OperatorRole[] => [
   ...new Set(
     (value ?? '')
       .split(',')
@@ -438,62 +440,66 @@ const parseRoles = (value: string | null): OperatorRole[] => [
   )
 ]
 
+export const authorizeOperatorSession = (
+  db: PromiseDrizzleDatabase,
+  reference: OperatorSessionReference,
+  requestedNow?: Date
+): Effect.Effect<OperatorPrincipal, OperationsContractDenied> =>
+  Effect.tryPromise({
+    try: async () => {
+      const now = requestedNow ?? new Date()
+      const [authoritative] = await db
+        .select({ operator: user, session })
+        .from(session)
+        .innerJoin(user, eq(user.id, session.userId))
+        .where(
+          and(
+            eq(session.id, reference.operatorSessionId),
+            eq(user.identityClass, 'system_operator')
+          )
+        )
+        .limit(1)
+      const idleExpiresAt = authoritative?.session.operatorIdleExpiresAt
+      const absoluteExpiresAt = authoritative?.session.operatorAbsoluteExpiresAt
+      if (
+        !authoritative ||
+        authoritative.operator.banned ||
+        !authoritative.operator.emailVerified ||
+        !authoritative.operator.twoFactorEnabled ||
+        !idleExpiresAt ||
+        !absoluteExpiresAt ||
+        now >= idleExpiresAt ||
+        now >= absoluteExpiresAt
+      ) {
+        throw new Error('operator session is not authorized')
+      }
+      const nextIdle = new Date(
+        Math.min(now.getTime() + operatorIdleLifetimeMs, absoluteExpiresAt.getTime())
+      )
+      await db
+        .update(session)
+        .set({ operatorIdleExpiresAt: nextIdle })
+        .where(eq(session.id, authoritative.session.id))
+      return {
+        id: authoritative.operator.id,
+        sessionId: authoritative.session.id,
+        email: authoritative.operator.email,
+        name: authoritative.operator.name,
+        roles: parseOperatorRoles(authoritative.operator.role),
+        idleExpiresAt: nextIdle,
+        absoluteExpiresAt
+      }
+    },
+    catch: () =>
+      new OperationsContractDenied({ reason: 'operator session is not authorized' })
+  })
+
 export const makeOperationsAuthorizationLayer = (
   db: PromiseDrizzleDatabase
 ): Layer.Layer<OperationsAuthorization> =>
   Layer.succeed(OperationsAuthorization)({
     authorize: (reference, requestedNow) =>
-      Effect.tryPromise({
-        try: async () => {
-          const now = requestedNow ?? new Date()
-          const [authoritative] = await db
-            .select({ operator: user, session })
-            .from(session)
-            .innerJoin(user, eq(user.id, session.userId))
-            .where(
-              and(
-                eq(session.id, reference.operatorSessionId),
-                eq(user.identityClass, 'system_operator')
-              )
-            )
-            .limit(1)
-          const idleExpiresAt = authoritative?.session.operatorIdleExpiresAt
-          const absoluteExpiresAt = authoritative?.session.operatorAbsoluteExpiresAt
-          if (
-            !authoritative ||
-            authoritative.operator.banned ||
-            !authoritative.operator.emailVerified ||
-            !authoritative.operator.twoFactorEnabled ||
-            !idleExpiresAt ||
-            !absoluteExpiresAt ||
-            now >= idleExpiresAt ||
-            now >= absoluteExpiresAt
-          ) {
-            throw new Error('operator session is not authorized')
-          }
-          const nextIdle = new Date(
-            Math.min(
-              now.getTime() + operatorIdleLifetimeMs,
-              absoluteExpiresAt.getTime()
-            )
-          )
-          await db
-            .update(session)
-            .set({ operatorIdleExpiresAt: nextIdle })
-            .where(eq(session.id, authoritative.session.id))
-          return {
-            id: authoritative.operator.id,
-            sessionId: authoritative.session.id,
-            email: authoritative.operator.email,
-            name: authoritative.operator.name,
-            roles: parseRoles(authoritative.operator.role),
-            idleExpiresAt: nextIdle,
-            absoluteExpiresAt
-          }
-        },
-        catch: () =>
-          new OperationsContractDenied({ reason: 'operator session is not authorized' })
-      })
+      authorizeOperatorSession(db, reference, requestedNow)
   })
 
 const fixtureActor: OperatorSessionReference = {

@@ -36,6 +36,54 @@ _Avoid_: Adoption Readiness, current time-slot availability, team setup
 The authenticated business-facing application where merchants manage their public page, services, providers, appointments, customers, settings, and reports.
 _Avoid_: Admin app, back office, app app
 
+**Operations App**:
+The staff-only application for platform-wide support and administration across Merchants and platform identities. It is separate from the Merchant App and never derives authority from Merchant membership.
+_Avoid_: Admin app, internal app, back office
+
+**Operations Vertical Slice**:
+The first Operations App release proving operator authentication, controlled provisioning, Merchant and Merchant Member discovery, safe impersonation, and global impersonation audit review end to end.
+_Avoid_: Legacy admin port, full operations console, Merchant App administration
+
+**System Operator**:
+An authenticated platform staff member authorized to use the Operations App. A System Operator identity cannot also be a Merchant Member or Customer Account.
+_Avoid_: Merchant admin, workspace admin, support user
+
+**Operator Session**:
+The authenticated interaction envelope that grants a System Operator access to the Operations App only. It never grants Merchant authority and cannot be presented as a Merchant App session.
+_Avoid_: Admin session, shared session, Merchant session
+
+**Operator Enrollment Session**:
+A temporary permissionless interaction envelope allowing an invited staff identity to complete password, email-verification, two-factor, and backup-code setup before receiving an Operator Session.
+_Avoid_: Operator Session, partial admin access, Merchant onboarding
+
+**Operator Permission**:
+An explicit platform-wide authorization granted to a System Operator for one Operations App capability and sourced from Better Auth custom access control. Better Auth roles may bundle Operator Permissions, but Operations App access alone implies none.
+_Avoid_: Merchant Role, blanket admin access, UI-only permission
+
+**Operator Invitation**:
+A controlled offer for a new dedicated staff identity to become a System Operator with an explicit initial permission set. It grants only an Operator Enrollment Session until email verification, password setup, and mandatory two-factor enrollment are complete.
+_Avoid_: Public sign-up, Merchant invitation, immediate account creation
+
+**Impersonated Merchant Session**:
+A temporary Merchant App session that acts with a target Merchant Member's effective authority while preserving the initiating System Operator as provenance. It is created only through an explicit impersonation handoff and remains distinct from the Operator Session.
+_Avoid_: Shared admin cookie, operator login, permanent access
+
+**Impersonation Reason**:
+The required human explanation for starting an Impersonated Merchant Session, optionally linked to an external support reference. It records intent for review but grants no authority.
+_Avoid_: Permission, authorization, free access note
+
+**Impersonation Handoff Ticket**:
+A single-use, short-lived capability that authorizes the Merchant App to create one Impersonated Merchant Session after Operations App checks succeed. Only its hash persists, and consumption is atomic.
+_Avoid_: Shared cookie, session token, reusable login link
+
+**Impersonation Record**:
+The durable lifecycle record connecting one System Operator, Operator Session, target Merchant Member, Merchant, Impersonation Reason, handoff, and resulting Impersonated Merchant Session. Its lifecycle is **Pending Handoff**, **Active**, **Stopped**, **Expired**, or **Revoked**.
+_Avoid_: Audit event, Better Auth session, support ticket
+
+**Impersonation Audit Trail**:
+The two-year persisted history that attributes an impersonation lifecycle and its sensitive activity to both the initiating System Operator and target Merchant Member, surviving either identity's deactivation or deletion through stable identifiers.
+_Avoid_: Application log, target-only audit history, session debug log
+
 **Booking App**:
 The public customer-facing booking experience for choosing a service, provider preference when needed, time, customer details, checkout path, and appointment confirmation.
 _Avoid_: Widget, public app, storefront
@@ -312,10 +360,6 @@ _Avoid_: Invite link, onboarding email
 The permission level a member has within a workspace: owner, admin, or member.
 _Avoid_: Permission group, access tier
 
-**System Admin**:
-A user with global Better Auth user-management permissions but no implicit authority over a Merchant or its data.
-_Avoid_: Merchant Owner, Merchant support agent, operator
-
 **Audit Event**:
 A recorded security, admin, workspace, billing, integration, API, or catalog action.
 _Avoid_: Log line, activity item, notification
@@ -422,8 +466,8 @@ _Avoid_: Seed Workspace, unrelated demo fixtures, sample tenant
 - A **Workspace** has one or more **Members**
 - An **Invitation** targets one **Workspace Role** in one **Workspace**
 - A **Member** has exactly one **Workspace Role** per **Workspace**
-- A **System Admin** manages users globally and is distinct from a **Workspace Role**
-- An **Audit Event** can be associated with a user, workspace, system admin action, or provider action
+- A **System Operator** holds platform-wide Operations authority and is distinct from a **Workspace Role**
+- An **Audit Event** can be associated with a user, workspace, System Operator action, or provider action
 - A **Notification** can be created from workspace, module, report, billing, integration, or API token activity
 - An **API Token** belongs to exactly one **Merchant** and can create **Audit Events**
 - An **API Token** has one **API Token Status**.
@@ -480,8 +524,8 @@ _Avoid_: Seed Workspace, unrelated demo fixtures, sample tenant
 > **Dev:** "Can workspaces be single-user until later?"
 > **Domain expert:** "No. A B2B **Workspace** needs **Members**, **Invitations**, and simple **Workspace Roles** from the start."
 >
-> **Dev:** "Is a workspace owner the same as a global admin?"
-> **Domain expert:** "No. A **Workspace Role** controls access within one workspace, while a **System Admin** manages users globally through Better Auth admin capabilities."
+> **Dev:** "Is a workspace owner the same as a platform operator?"
+> **Domain expert:** "No. A **Workspace Role** controls access within one workspace, while a **System Operator** uses explicitly permissioned Operations capabilities."
 >
 > **Dev:** "Are admin changes just normal logs?"
 > **Domain expert:** "No. Security-sensitive and governance actions should create **Audit Events** that can be inspected in the app."
@@ -507,14 +551,14 @@ _Avoid_: Seed Workspace, unrelated demo fixtures, sample tenant
 - "Cloudflare support" understates the platform decision. Resolved: the starter is **Cloudflare-First**, not platform-agnostic.
 - Contributor's analytics terms should not become this repo's domain language. Resolved: copy UX patterns, but express them through **Starter Modules**, **Adoption Readiness**, and **Implementation Reports**.
 - "Report schedule" is a workspace setting, not just infrastructure cron. Resolved: use **Report Schedule**.
-- "OAuth support" should not make local setup dependent on GitHub or any other provider. Resolved: email/password is the **Local Auth Path**, and GitHub OAuth is an **Example OAuth Provider**.
+- "OAuth support" should not make local setup depend on an external provider. Resolved: Merchant email/password remains local-first, while optional Customer Account providers are isolated from Merchant and Operations authority.
 - "Billing included" means billing is an **Optional Provider Module**, not that Stripe setup is mandatory for local development.
 - Sentry and PostHog are included but should not become required setup steps. Resolved: both are **Optional Provider Modules**.
 - REST and MCP should not drift into separate demos. Resolved: both are **Capability Interfaces** for the same underlying behavior.
 - "Catalog updater" should not mean only a developer-run script. Resolved: **Catalog Refresh** covers both runtime background work and dependency catalog automation.
 - Public docs, FAQ, help, and blog content should not be modeled as workspace data. Resolved: they are **Public Knowledge Content**.
 - "Team", "seat", and "collaborator" should not compete with the workspace model. Resolved: use **Member**, **Invitation**, and **Workspace Role**.
-- "Admin" is ambiguous. Resolved: use **System Admin** for global Better Auth admin users and **Workspace Role** for workspace-level permissions.
+- "Admin" is ambiguous. Resolved: use **System Operator** for platform staff and **Workspace Role** for workspace-level permissions.
 - "Audit log" should not be confused with operational logs. Resolved: persisted governance records are **Audit Events**.
 - "Notification" should not be used for persisted governance history. Resolved: **Notifications** are user-facing messages, while **Audit Events** are inspectable governance records.
 - Platform API credentials should not be modeled as user sessions or provider secrets. Resolved: use merchant-scoped **API Tokens**.

@@ -14,7 +14,11 @@ import { and, eq, isNull, ne } from 'drizzle-orm'
 import { Effect, Schema } from 'effect'
 import {
   operatorRoleNames,
+  parseOperatorRoles,
+  hasOperatorPermission,
+  operatorPermissionNames,
   type OperatorPrincipal,
+  type OperatorPermission,
   type OperatorRole as OperatorRoleName,
   type OperatorSessionReference
 } from '@b2b-saas-starter/capabilities/operations'
@@ -26,16 +30,11 @@ const hour = 60 * 60
 const operatorAbsoluteLifetimeSeconds = 8 * hour
 const operatorIdleLifetimeSeconds = 30 * 60
 
-export { operatorRoleNames }
+export { operatorRoleNames, parseOperatorRoles }
 export type { OperatorPrincipal, OperatorRoleName, OperatorSessionReference }
 
-export const operatorPermissions = [
-  'merchant:read',
-  'merchant:impersonate',
-  'impersonation-audit:read',
-  'operator:manage'
-] as const
-export type OperatorPermission = (typeof operatorPermissions)[number]
+export const operatorPermissions = operatorPermissionNames
+export type { OperatorPermission }
 
 export const operatorAccessControl = createAccessControl({
   merchant: ['read', 'impersonate'],
@@ -54,35 +53,7 @@ export const operatorRoles = {
   'operator-manager': operatorAccessControl.newRole({ operator: ['manage'] })
 } as const
 
-const isOperatorRole = (value: string): value is OperatorRoleName =>
-  operatorRoleNames.includes(value as OperatorRoleName)
-
-export const parseOperatorRoles = (
-  value: string | null | undefined
-): OperatorRoleName[] => [
-  ...new Set(
-    (value ?? '')
-      .split(',')
-      .map((role) => role.trim())
-      .filter(isOperatorRole)
-  )
-]
-
-const permissionStatement = (permission: OperatorPermission) => {
-  const [resource, action] = permission.split(':') as [
-    keyof typeof operatorAccessControl.statements,
-    string
-  ]
-  return { [resource]: [action] } as never
-}
-
-export const hasOperatorPermission = (
-  roles: readonly OperatorRoleName[],
-  permission: OperatorPermission
-): boolean =>
-  roles.some(
-    (role) => operatorRoles[role].authorize(permissionStatement(permission)).success
-  )
+export { hasOperatorPermission }
 
 export const operatorSessionPolicy = {
   absoluteLifetimeSeconds: operatorAbsoluteLifetimeSeconds,

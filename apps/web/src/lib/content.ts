@@ -1,5 +1,4 @@
 import { Activity, BarChart3, CreditCard, Mail } from 'lucide-react'
-import { GithubIcon } from '@/components/icons/github'
 
 export const publicLinks = [
   { to: '/docs', label: 'Docs' },
@@ -18,7 +17,7 @@ export const optionalProviderModules = [
   {
     id: 'sentry',
     name: 'Sentry',
-    role: 'Error monitoring across all three Workers',
+    role: 'Error monitoring across all six Workers',
     icon: Activity
   },
   {
@@ -32,12 +31,6 @@ export const optionalProviderModules = [
     name: 'Cloudflare Email',
     role: 'Outbound transactional email',
     icon: Mail
-  },
-  {
-    id: 'github-oauth',
-    name: 'GitHub OAuth',
-    role: 'Example OAuth Provider',
-    icon: GithubIcon
   }
 ] as const
 
@@ -60,7 +53,7 @@ export const faqItems = [
   {
     question: 'Do I need to configure every provider to run locally?',
     answer:
-      'No. Stripe, Sentry, PostHog, Turnstile, Cloudflare Email, GitHub OAuth, and the AI providers are env-gated. Missing keys keep the module in a needs-config state — the app still boots and the rest of the surface stays usable.'
+      'No. Stripe, Sentry, PostHog, Turnstile, Cloudflare Email, and the AI providers are env-gated. Missing keys keep the module in a needs-config state — the app still boots and the rest of the surface stays usable.'
   },
   {
     question: 'How does deployment work?',
@@ -87,7 +80,7 @@ export const changelog = [
     changes: [
       'Cloudflare-first architecture',
       'Effect v4 application backbone',
-      'Better Auth admin dashboard',
+      'Isolated Merchant and Operations authentication',
       'Outbound webhooks through Cloudflare Queues'
     ]
   }

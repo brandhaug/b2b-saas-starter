@@ -37,7 +37,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage --maxWorkers=2"
   },
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",

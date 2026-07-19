@@ -10,11 +10,11 @@ The starter is Cloudflare-first. Production resources are declared once in the r
 
 ## What gets provisioned
 
-- One D1 database shared by `apps/web`, `apps/api`, and `apps/background`
-- One Worker per app (web, api, background), each with `placement.mode = smart` where applicable
-- A Cloudflare Queue plus dead-letter queue (`b2b-saas-starter-webhooks` + `b2b-saas-starter-webhooks-dlq`) bound as a `QueueConsumer` on the background worker
-- Cloudflare `SendEmail` binding with `allowedSenderAddresses` for outbound transactional mail (Optional Provider Module)
-- Cloudflare `RateLimit` bindings on the web worker (`RATE_LIMITER_AUTH_READ`, `RATE_LIMITER_AUTH_WRITE`) and on the api worker (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, `RATE_LIMITER_INVITATIONS`, `RATE_LIMITER_ASSISTANT`, `RATE_LIMITER_MCP`)
+- One D1 database shared by the six application Workers
+- Public Site, Merchant App, Operations App, Booking App, Platform API, and Background Worker
+- A booking-events Queue consumed by the Background Worker for durable recovery
+- A restricted Cloudflare `SendEmail` binding; production Operations readiness requires it
+- Dedicated rate-limit bindings for Merchant, Booking, Platform API, and Operations categories
 
 ## Deploy
 
@@ -26,7 +26,9 @@ bun run deploy
 
 ## Environment configuration
 
-Sensitive values are wrapped in `effect/Redacted` inside `alchemy.run.ts` so they never appear in logs or stack traces. Optional providers are validated module-aware in `packages/env/src/server.ts` — missing config degrades the relevant Optional Provider Module to inactive rather than failing startup. See the secret matrix in `ARCHITECTURE.md` for the full list (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`, `SENTRY_DSN`, `POSTHOG_KEY`/`POSTHOG_HOST`, `CLOUDFLARE_EMAIL_FROM`, `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`, `WORKERS_AI_ENABLED`, `OPENAI_API_KEY`).
+Sensitive values are wrapped in `effect/Redacted` inside `alchemy.run.ts` so they never appear in logs or stack traces. Merchant and Operations secrets must be distinct, and each realm has its own origin and trusted-origin list. Optional product providers remain module-aware; missing Operations email configuration fails production readiness closed. See `ARCHITECTURE.md`, `.env.example`, and `docs/operations.md` for the complete split.
+
+Cloudflare Access is deferred and is not part of application correctness. Add it later only as defense in depth; do not use it to replace Operations Auth, current-state authorization, rate limiting, or audit evidence.
 
 ## Rolling back
 

@@ -1,7 +1,5 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { admin } from 'better-auth/plugins/admin'
-import { username } from 'better-auth/plugins/username'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import type { BetterAuthPlugin } from 'better-auth/types'
 import { and, desc, eq, inArray } from 'drizzle-orm'
@@ -9,53 +7,6 @@ import type { Database } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
 
 export * from './operations.ts'
-
-export type CreateAuthOptions = {
-  readonly db: Database
-  readonly secret: string
-  readonly baseURL: string
-  readonly trustedOrigins?: string[]
-  readonly githubClientId?: string
-  readonly githubClientSecret?: string
-}
-
-export function createAuth(options: CreateAuthOptions) {
-  const socialProviders =
-    options.githubClientId && options.githubClientSecret
-      ? {
-          github: {
-            clientId: options.githubClientId,
-            clientSecret: options.githubClientSecret
-          }
-        }
-      : undefined
-
-  return betterAuth({
-    secret: options.secret,
-    baseURL: options.baseURL,
-    trustedOrigins: options.trustedOrigins,
-    database: drizzleAdapter(options.db, {
-      provider: 'sqlite',
-      schema
-    }),
-    emailAndPassword: {
-      enabled: true
-    },
-    socialProviders,
-    plugins: [
-      username(),
-      admin({
-        adminRoles: ['admin']
-      }),
-      // Better Auth requires cookie-integration plugins last so cookies set by
-      // other plugins' hooks are forwarded to the framework cookie store.
-      tanstackStartCookies()
-    ]
-  })
-}
-
-export type Auth = ReturnType<typeof createAuth>
-export type Session = NonNullable<Awaited<ReturnType<Auth['api']['getSession']>>>
 
 const day = 60 * 60 * 24
 

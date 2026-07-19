@@ -16,6 +16,7 @@ confirmation transaction through a durable D1 outbox.
 | ----------------- | ---------: | ------------------------------------------------------------------- |
 | Public Site       |       3071 | Editorial pages, public Merchant pages, canonical booking ingress   |
 | Merchant App      |       3072 | Better Auth and authenticated Merchant configuration/operations     |
+| Operations App    |       3076 | Staff auth, Merchant discovery, impersonation, and global audit     |
 | Booking App       |       3073 | Capability-protected customer booking and Confirmation              |
 | Platform API      |       8787 | Merchant-scoped `/v1` server-to-server reads and integration config |
 | Background Worker |       8788 | Durable outbox recovery, email, and Webhook delivery                |
@@ -47,6 +48,7 @@ public page at `http://localhost:3071/mara-booking-studio`.
 bun run dev                 # all six Workers
 bun run dev:web             # Public Site only
 bun run dev:merchant        # Merchant App only
+bun run dev:operations      # Operations App only
 bun run dev:booking         # Booking App development origin only
 bun run dev:api
 bun run dev:background
@@ -72,12 +74,13 @@ bun run destroy
 ```text
 apps/web          Public Site and booking ingress
 apps/merchant     authenticated Merchant App
+apps/operations   staff-only Operations App and isolated auth realm
 apps/booking      public customer booking journey
 apps/api          Platform API
 apps/background   notification outbox worker
 packages/capabilities  Booking Product use cases and adapters
 packages/db       D1 schema, migrations, and test provisioning
-packages/auth     Merchant Better Auth factory
+packages/auth     isolated Merchant, Customer, and Operations auth factories
 packages/email    outbound email boundary
 ```
 

@@ -245,13 +245,13 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Bootstrap and Recover System Operators; Complete Operations Security and Evidence Matrices.
 
-- [ ] The superseded global auth factory and obsolete admin runtime remnants are removed without changing the narrow Merchant Auth contract.
-- [ ] Stale public documentation describing the superseded administration model is removed or rewritten to use canonical Operations terminology.
-- [ ] Runtime, environment, setup, architecture, domain, and operator documentation describe the sixth Worker and separate auth realm consistently.
-- [ ] Bootstrap, invitation, local seed, emergency recovery, target notification, audit review, and impersonation operating procedures are documented.
-- [ ] Cloudflare Access remains documented as deferred and is not required for application correctness or security tests.
-- [ ] No parallel System Operator, role, or permission tables exist; Better Auth custom access control remains authoritative.
-- [ ] No stock Better Auth admin or raw impersonation endpoint is exposed by the supported Operations surface.
-- [ ] Builds, migrations, unit and integration tests, browser tests, formatting, linting, and the complete release matrix pass from a clean setup.
-- [ ] The first production operator can be established before public Operations traffic is enabled.
-- [ ] The Operations Vertical Slice is demoable from operator sign-in through discovery, impersonation, visible disclosure, safe action, termination, target notification, and global audit review.
+- [x] The superseded global auth factory and obsolete admin runtime remnants are removed without changing the narrow Merchant Auth contract.
+- [x] Stale public documentation describing the superseded administration model is removed or rewritten to use canonical Operations terminology.
+- [x] Runtime, environment, setup, architecture, domain, and operator documentation describe the sixth Worker and separate auth realm consistently.
+- [x] Bootstrap, invitation, local seed, emergency recovery, target notification, audit review, and impersonation operating procedures are documented.
+- [x] Cloudflare Access remains documented as deferred and is not required for application correctness or security tests.
+- [x] No parallel System Operator, role, or permission tables exist; Better Auth custom access control remains authoritative.
+- [x] No stock Better Auth admin or raw impersonation endpoint is exposed by the supported Operations surface.
+- [x] Builds, migrations, unit and integration tests, browser tests, formatting, linting, and the complete release matrix pass from a clean setup.
+- [x] The first production operator can be established before public Operations traffic is enabled.
+- [x] The Operations Vertical Slice is demoable from operator sign-in through discovery, impersonation, visible disclosure, safe action, termination, target notification, and global audit review.

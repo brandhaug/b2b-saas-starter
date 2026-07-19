@@ -9,11 +9,6 @@ const optional = Schema.optional(Schema.String)
 // forwarding env from the key lists, and `apps/web/src/worker-env.d.ts`
 // derives its string vars from `ServerEnv`.
 export const ServerEnvSchema = Schema.Struct({
-  BETTER_AUTH_SECRET: Schema.String,
-  BETTER_AUTH_URL: Schema.String,
-  BETTER_AUTH_TRUSTED_ORIGINS: optional,
-  GITHUB_CLIENT_ID: optional,
-  GITHUB_CLIENT_SECRET: optional,
   STRIPE_SECRET_KEY: optional,
   STRIPE_WEBHOOK_SECRET: optional,
   SENTRY_DSN: optional,
@@ -40,8 +35,6 @@ export const serverEnvKeys = Object.keys(ServerEnvSchema.fields) as ReadonlyArra
 // `satisfies` pins both lists to schema keys, so a typo or a var that was
 // removed from the schema is a compile error.
 export const optionalModuleEnvSecretKeys = [
-  'GITHUB_CLIENT_ID',
-  'GITHUB_CLIENT_SECRET',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'TURNSTILE_SECRET_KEY',
@@ -76,20 +69,11 @@ const hasValue = (value: string | undefined): boolean =>
 
 export function readServerEnv(
   source: Record<string, unknown>,
-  options?: { readonly mode?: 'local' | 'strict' }
+  _options?: { readonly mode?: 'local' | 'strict' }
 ): ServerEnv {
-  const localDefaults: Partial<ServerEnv> =
-    options?.mode === 'strict'
-      ? {}
-      : {
-          BETTER_AUTH_SECRET: 'local-dev-secret-change-me-minimum-32-chars',
-          BETTER_AUTH_URL: 'http://localhost:3071'
-        }
   // Pick only schema keys from the source (worker envs also carry bindings)
   // and let the schema validate — the field list lives in ONE place above.
-  const picked = Object.fromEntries(
-    serverEnvKeys.map((key) => [key, source[key] ?? localDefaults[key]])
-  )
+  const picked = Object.fromEntries(serverEnvKeys.map((key) => [key, source[key]]))
   return Schema.decodeUnknownSync(ServerEnvSchema)(picked)
 }
 
@@ -122,8 +106,6 @@ export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[
   }
 
   return [
-    status('better-auth', ['BETTER_AUTH_SECRET', 'BETTER_AUTH_URL']),
-    status('github-oauth', ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET']),
     status('billing', ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'], {
       runtimeWired: false
     }),

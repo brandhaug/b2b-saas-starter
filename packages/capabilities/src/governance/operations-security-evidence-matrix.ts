@@ -5,6 +5,7 @@ export type OperationsEvidenceSeam =
   | 'browser-boundary'
   | 'configuration-boundary'
   | 'notification-capture'
+  | 'repository-boundary'
 
 export type OperationsEvidenceReference = {
   readonly workspace: string
@@ -253,6 +254,18 @@ export const operationsSecurityEvidenceMatrix = [
       'src/config.test.ts',
       'src/worker.readiness.test.ts'
     )
+  },
+  {
+    id: 'OPS-CUTOVER-01',
+    title: 'Operations is the only supported platform-administration model',
+    claims: [
+      'cutover:legacy-auth-removed',
+      'cutover:public-admin-docs-removed',
+      'cutover:six-worker-runtime-documented',
+      'cutover:operator-procedures-documented'
+    ],
+    seams: ['repository-boundary'],
+    evidence: evidence('scripts', 'operations-cutover.test.ts')
   }
 ] as const satisfies readonly OperationsSecurityControl[]
 

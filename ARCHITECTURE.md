@@ -3,6 +3,7 @@
 ```text
 Customer browser ──> Public Site ──BOOKING binding──> Booking App
 Merchant browser ──> Merchant App                         │
+Operator browser ──> Operations App                       │
 Server client ─────> Platform API                         │
                          │                                │
                          └──────── shared D1 <────────────┘
@@ -15,15 +16,19 @@ Server client ─────> Platform API                         │
                                 └─ signed Webhooks
 ```
 
-## Five Workers
+## Six Workers
 
 - `apps/web` is the unauthenticated Public Site and only production booking
   ingress. It reads published public Merchant data, forwards the public
   `/booking/:merchantSlug` landing, and relays the resulting Merchant-scoped
   `/:merchantSlug/booking/**` session traffic without owning customer credentials.
-- `apps/merchant` is the only authenticated first-party product application.
+- `apps/merchant` is the authenticated merchant-facing product application.
   Better Auth sessions are host-only and Merchant membership resolves the
   authorization boundary.
+- `apps/operations` is the staff-only platform operations application. It uses
+  a separate Better Auth realm and host-only Operator Session, shares D1 and
+  application capabilities, and reaches Merchant authority only through an
+  explicit audited impersonation handoff.
 - `apps/booking` owns Booking Sessions, provider/service selection, availability,
   Time Slot Holds, checkout review, atomic confirmation, and Confirmation. It is
   private in production and reachable through the Public Site service binding.

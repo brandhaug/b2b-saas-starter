@@ -13,7 +13,6 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
-    "@b2b-saas-starter/auth": "workspace:*",
     "@b2b-saas-starter/capabilities": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
@@ -33,7 +32,6 @@
     "@tanstack/react-router-ssr-query": "catalog:",
     "@tanstack/react-start": "catalog:",
     "@tanstack/react-table": "catalog:",
-    "better-auth": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "catalog:",

@@ -70,7 +70,11 @@ const requiredClaims = [
   'browser:return-to-operations',
   'production:missing-secret-fails-closed',
   'production:missing-email-fails-closed',
-  'production:cloudflare-access-deferred'
+  'production:cloudflare-access-deferred',
+  'cutover:legacy-auth-removed',
+  'cutover:public-admin-docs-removed',
+  'cutover:six-worker-runtime-documented',
+  'cutover:operator-procedures-documented'
 ] as const
 
 describe('Operations security and evidence release matrix', () => {
