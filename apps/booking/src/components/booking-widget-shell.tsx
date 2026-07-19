@@ -1,4 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
+import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
 import { createContext, useContext, type ReactNode } from 'react'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
 import { useBookingPremiumTheme } from '../presentation/booking-premium-theme.tsx'
@@ -42,11 +43,106 @@ export function BookingWidgetShell({
       {...stylex.props(styles.widget)}
     >
       {children}
-      {busy && busyLabel ? (
-        <output aria-live="polite" {...stylex.props(styles.processingOverlay)}>
-          {busyLabel}
-        </output>
-      ) : null}
+      <BookingLegacyProcessingOverlay
+        open={busy && Boolean(busyLabel)}
+        label={busyLabel ?? ''}
+      />
     </div>
+  )
+}
+
+export function BookingLegacyProcessingOverlay({
+  open,
+  label
+}: {
+  readonly open: boolean
+  readonly label: string
+}) {
+  return (
+    <LazyMotion features={domAnimation} strict>
+      <AnimatePresence mode="wait" initial={false}>
+        {open ? (
+          <m.output
+            key="booking-processing-overlay"
+            aria-label={label}
+            aria-live="polite"
+            data-testid="overlay:processing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            {...stylex.props(styles.legacyProcessingOverlay)}
+          >
+            <div {...stylex.props(styles.processingMessage)}>
+              <m.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                transition={{ duration: 0.15 }}
+                {...stylex.props(styles.processingIconContainer)}
+              >
+                <svg
+                  aria-hidden="true"
+                  width="62"
+                  height="62"
+                  viewBox="0 0 62 62"
+                  {...stylex.props(styles.processingIcon)}
+                >
+                  <defs>
+                    <linearGradient
+                      id="booking-processing-right"
+                      gradientUnits="userSpaceOnUse"
+                      x1="46.25"
+                      y1="0.5"
+                      x2="46.25"
+                      y2="61.5"
+                    >
+                      <stop offset="0" stopColor="currentColor" stopOpacity="0" />
+                      <stop
+                        offset="0.7999"
+                        stopColor="currentColor"
+                        stopOpacity="0.82"
+                      />
+                    </linearGradient>
+                    <linearGradient
+                      id="booking-processing-left"
+                      gradientUnits="userSpaceOnUse"
+                      x1="15.75"
+                      y1="0.5"
+                      x2="15.75"
+                      y2="61.5"
+                    >
+                      <stop offset="0.8" stopColor="currentColor" stopOpacity="0" />
+                      <stop offset="1" stopColor="currentColor" stopOpacity="0.8" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    fill="none"
+                    stroke="url(#booking-processing-right)"
+                    strokeWidth="3"
+                    d="M31 60c16 0 29-13 29-29S47 2 31 2"
+                  />
+                  <path
+                    fill="none"
+                    stroke="url(#booking-processing-left)"
+                    strokeWidth="3"
+                    d="M31 2C15 2 2 15 2 31s13 29 29 29"
+                  />
+                </svg>
+              </m.div>
+              <m.p
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                transition={{ duration: 0.15 }}
+                {...stylex.props(styles.processingTitle)}
+              >
+                {label}
+              </m.p>
+            </div>
+          </m.output>
+        ) : null}
+      </AnimatePresence>
+    </LazyMotion>
   )
 }

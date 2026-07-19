@@ -201,6 +201,10 @@ describe('server-backed Booking scheduling', () => {
     const replacementHoldResponse = new Promise<Response>((resolve) => {
       resolveReplacementHold = resolve
     })
+    let resolveCustomerDetails!: (response: Response) => void
+    const customerDetailsResponse = new Promise<Response>((resolve) => {
+      resolveCustomerDetails = resolve
+    })
     let holdRequestCount = 0
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url =
@@ -221,6 +225,8 @@ describe('server-backed Booking scheduling', () => {
       }
       if (url.endsWith('/hold') && init?.method === 'POST')
         return holdRequestCount++ === 0 ? holdResponse : replacementHoldResponse
+      if (url.endsWith('/customer-details') && init?.method === 'POST')
+        return customerDetailsResponse
       throw new Error(`unexpected request: ${url}`)
     })
     const queryClient = new QueryClient({
@@ -306,6 +312,26 @@ describe('server-backed Booking scheduling', () => {
     expect(await within(checkout).findByLabelText('First name')).toBeTruthy()
     expect(within(checkout).queryByText(/Cancel up to .* before/i)).toBeNull()
     expect(screen.getByTestId('calendarLine')).toBeTruthy()
+    fireEvent.change(within(checkout).getByLabelText('First name'), {
+      target: { value: 'Mia' }
+    })
+    fireEvent.change(within(checkout).getByLabelText('Last name'), {
+      target: { value: 'Test' }
+    })
+    fireEvent.change(within(checkout).getByLabelText('Phone number'), {
+      target: { value: '202 555 0123' }
+    })
+    fireEvent.change(within(checkout).getByLabelText('Email'), {
+      target: { value: 'mia@example.com' }
+    })
+    fireEvent.click(within(checkout).getByRole('button', { name: 'Book' }))
+    const processing = await screen.findByRole('status', { name: 'Processing' })
+    expect(processing.getAttribute('data-testid')).toBe('overlay:processing')
+    expect(processing.closest('[data-booking-shell="canonical"]')).toBe(canonicalShell)
+    expect(processing.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 62 62')
+    expect(screen.getByRole('dialog', { name: 'Confirm booking' })).toBe(checkout)
+    resolveCustomerDetails(Response.json({ issues: [] }, { status: 422 }))
+    await waitFor(() => expect(screen.queryByTestId('overlay:processing')).toBeNull())
     fireEvent.click(within(checkout).getByRole('button', { name: 'Close' }))
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Order summary' })).getByRole(

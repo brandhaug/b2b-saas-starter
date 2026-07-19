@@ -28,6 +28,52 @@ export const styles = stylex.create({
     color: '#000000',
     backdropFilter: 'blur(4px)'
   },
+  legacyProcessingOverlay: {
+    position: 'absolute',
+    zIndex: bookingTheme.layerProcessing,
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f7f7f7',
+    color: bookingTheme.colorPrimaryFont,
+    backdropFilter: 'blur(4px)'
+  },
+  processingMessage: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center'
+  },
+  processingIconContainer: {
+    position: 'relative',
+    width: 62,
+    height: 62
+  },
+  processingIcon: {
+    display: 'block',
+    width: 62,
+    height: 62,
+    animationName: stylex.keyframes({
+      to: { transform: 'rotate(360deg)' }
+    }),
+    animationDuration: '600ms',
+    animationIterationCount: 'infinite',
+    animationTimingFunction: 'linear',
+    '@media (prefers-reduced-motion: reduce)': { animationName: 'none' }
+  },
+  processingTitle: {
+    height: 24,
+    marginTop: 24,
+    marginRight: 0,
+    marginBottom: 0,
+    marginLeft: 0,
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px'
+  },
   header: {
     position: 'sticky',
     zIndex: bookingTheme.layerChrome,

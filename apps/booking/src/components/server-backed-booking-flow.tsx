@@ -47,7 +47,10 @@ import {
   createBrowserCheckoutTelemetry,
   type CheckoutTelemetry
 } from '../lib/checkout-telemetry.ts'
-import { BookingWidgetShell } from './booking-widget-shell.tsx'
+import {
+  BookingLegacyProcessingOverlay,
+  BookingWidgetShell
+} from './booking-widget-shell.tsx'
 import {
   BookingPremiumThemeBoundary,
   type BookingPremiumPalette
@@ -1081,6 +1084,10 @@ export function ServerBackedBookingFlow({
             notificationPreferences: message('checkout.notification_preferences'),
             policyProgress: message('checkout.policy_progress')
           }}
+        />
+        <BookingLegacyProcessingOverlay
+          open={detailsMutation.isPending || finalizeMutation.isPending}
+          label={message('feedback.processing')}
         />
       </>
     )
