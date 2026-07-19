@@ -17,6 +17,8 @@
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
+    "@cloudflare/workers-types": "catalog:",
+    "@playwright/test": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

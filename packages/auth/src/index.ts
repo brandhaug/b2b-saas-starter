@@ -3,6 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { username } from 'better-auth/plugins/username'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
+import type { BetterAuthPlugin } from 'better-auth/types'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import type { Database } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
@@ -81,6 +82,22 @@ export type MerchantAuthEmailSender = (
   request?: Request
 ) => Promise<void>
 
+const impersonationProvenance = () =>
+  ({
+    id: 'impersonation-provenance',
+    schema: {
+      session: {
+        fields: {
+          impersonatedBy: {
+            type: 'string',
+            required: false,
+            input: false
+          }
+        }
+      }
+    }
+  }) satisfies BetterAuthPlugin
+
 export type CreateMerchantAuthOptions = {
   readonly db: Database
   readonly secret: string
@@ -140,7 +157,7 @@ export function createMerchantAuth(options: CreateMerchantAuthOptions) {
       // middleware, which uses the fifteen-minute `freshAge` above.
       changeEmail: { enabled: true }
     },
-    plugins: [tanstackStartCookies()]
+    plugins: [impersonationProvenance(), tanstackStartCookies()]
   })
 }
 
