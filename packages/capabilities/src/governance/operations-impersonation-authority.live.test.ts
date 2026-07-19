@@ -7,6 +7,7 @@ import {
   merchantMemberships,
   merchants,
   operationsAuditEvents,
+  operationsNotificationIntents,
   session,
   twoFactor,
   user
@@ -145,7 +146,8 @@ describe('reduced impersonation authority', () => {
         Effect.provide(
           makeOperationsImpersonationAuthorityLayer(db, {
             now: () => now,
-            auditEventId: () => `oaud_authority_${++evidence}`
+            auditEventId: () => `oaud_authority_${++evidence}`,
+            securityContact: 'security@example.test'
           })
         )
       )
@@ -185,6 +187,7 @@ describe('reduced impersonation authority', () => {
           Effect.provide(
             makeOperationsImpersonationAuthorityLayer(db, {
               now: () => now,
+              securityContact: 'security@example.test',
               targetAuthority: () => new Set(['service.read'])
             })
           )
@@ -321,6 +324,84 @@ describe('reduced impersonation authority', () => {
     })
   })
 
+  it('atomically expires the lifecycle on the first protected request after the absolute limit', async () => {
+    const fixture = await addActive('absolute-expiry')
+    const expiredAt = new Date(later.getTime() + 1_000)
+
+    await expect(
+      Effect.runPromise(
+        Effect.flatMap(OperationsImpersonationAuthority, (authority) =>
+          authority.authorize({
+            merchantSessionId: fixture.merchantSessionId,
+            action: 'merchant.navigate'
+          })
+        ).pipe(
+          Effect.provide(
+            makeOperationsImpersonationAuthorityLayer(db, {
+              now: () => expiredAt,
+              securityContact: ''
+            })
+          )
+        )
+      )
+    ).rejects.toMatchObject({ _tag: 'OperationsContractDenied' })
+
+    const [record] = await db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.id, fixture.impersonationId))
+    expect(record).toMatchObject({
+      lifecycle: 'expired',
+      terminationCause: 'absolute-timeout',
+      terminalAt: expiredAt
+    })
+    expect(
+      await db
+        .select()
+        .from(operationsNotificationIntents)
+        .where(
+          eq(operationsNotificationIntents.impersonationId, fixture.impersonationId)
+        )
+    ).toHaveLength(1)
+  })
+
+  it('revokes the lifecycle on the first protected request after permission removal', async () => {
+    const fixture = await addActive('permission-revocation')
+    await db
+      .update(user)
+      .set({ role: 'merchant-reader' })
+      .where(eq(user.id, fixture.operatorId))
+
+    await expect(
+      run((authority) =>
+        authority.authorize({
+          merchantSessionId: fixture.merchantSessionId,
+          action: 'merchant.navigate'
+        })
+      )
+    ).rejects.toMatchObject({ _tag: 'OperationsContractDenied' })
+
+    const [record] = await db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.id, fixture.impersonationId))
+    expect(record).toMatchObject({
+      lifecycle: 'revoked',
+      terminationCause: 'permission-removed',
+      terminalAt: now
+    })
+    const [revokedSession] = await db
+      .select()
+      .from(session)
+      .where(eq(session.id, fixture.merchantSessionId))
+    expect(revokedSession?.expiresAt).toEqual(now)
+    const [intent] = await db
+      .select()
+      .from(operationsNotificationIntents)
+      .where(eq(operationsNotificationIntents.impersonationId, fixture.impersonationId))
+    expect(intent?.eventType).toBe('impersonation-revoked')
+  })
+
   it.each([
     [
       'disabled operator',
@@ -395,5 +476,21 @@ describe('reduced impersonation authority', () => {
       _tag: 'OperationsContractDenied',
       reason: 'impersonation authority denied'
     })
+
+    if (name === 'released security state') {
+      const [record] = await db
+        .select()
+        .from(impersonationRecords)
+        .where(eq(impersonationRecords.id, fixture.impersonationId))
+      const [merchantSession] = await db
+        .select()
+        .from(session)
+        .where(eq(session.id, fixture.merchantSessionId))
+      expect(record).toMatchObject({
+        lifecycle: 'revoked',
+        terminationCause: 'security-state-revoked'
+      })
+      expect(merchantSession?.expiresAt).toEqual(now)
+    }
   })
 })

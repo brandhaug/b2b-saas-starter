@@ -1,7 +1,19 @@
 import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
 import type { ReactNode } from 'react'
-import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
+import {
+  createRootRoute,
+  HeadContent,
+  Outlet,
+  redirect,
+  Scripts,
+  useRouter
+} from '@tanstack/react-router'
+import { ImpersonationBanner } from '@/components/impersonation-banner.tsx'
+import {
+  getImpersonationLifecycle,
+  stopImpersonation
+} from '@/lib/server/impersonation-lifecycle.ts'
 import appCss from '../index.css?url'
 
 export const Route = createRootRoute({
@@ -17,12 +29,32 @@ export const Route = createRootRoute({
     ],
     links: [{ rel: 'stylesheet', href: appCss }]
   }),
+  beforeLoad: async () => {
+    const lifecycle = await getImpersonationLifecycle()
+    if (lifecycle?.state === 'terminated') throw redirect({ href: lifecycle.returnTo })
+    return { impersonationLifecycle: lifecycle }
+  },
   component: RootComponent
 })
 
 function RootComponent() {
+  const { impersonationLifecycle: lifecycle } = Route.useRouteContext()
+  const router = useRouter()
   return (
     <RootDocument>
+      {lifecycle?.state === 'active' ? (
+        <ImpersonationBanner
+          presentation={lifecycle}
+          onExpired={() => {
+            void router.invalidate()
+          }}
+          onStop={async () => {
+            const stopped = await stopImpersonation()
+            if (stopped?.state === 'terminated')
+              window.location.assign(stopped.returnTo)
+          }}
+        />
+      ) : null}
       <Outlet />
     </RootDocument>
   )

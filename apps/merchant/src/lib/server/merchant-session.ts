@@ -1,6 +1,7 @@
 import { redirect } from '@tanstack/react-router'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
+import { env } from 'cloudflare:workers'
 import { Effect, Schema } from 'effect'
 import type { ImpersonatedMerchantAction } from '@b2b-saas-starter/capabilities/operations'
 import {
@@ -19,7 +20,9 @@ const readSession = createServerOnlyFn(() => {
 
 const merchantRequests = () => {
   const context = createMerchantServerContext()
-  const layer = makeOperationsImpersonationAuthorityLayer(context.db())
+  const layer = makeOperationsImpersonationAuthorityLayer(context.db(), {
+    securityContact: env.OPERATIONS_SECURITY_CONTACT ?? ''
+  })
   return makeMerchantRequestAuthority({
     readSession,
     authority: {

@@ -7,6 +7,11 @@ import {
   hasOperatorPermission,
   parseOperatorRoles
 } from './operations-contracts.ts'
+import {
+  OperationsImpersonationLifecycle,
+  makeOperationsImpersonationLifecycleLayer,
+  type ImpersonationRevocationCause
+} from './operations-impersonation-lifecycle.ts'
 
 export const impersonatedMerchantActions = [
   'merchant.navigate',
@@ -234,6 +239,35 @@ const rowIsAuthoritative = (row: AuthorityRow, nowEpoch: number): boolean =>
   row.merchantStatus === 'enabled' &&
   row.membershipRole === 'owner'
 
+const revocationCauseFrom = (
+  row: AuthorityRow,
+  nowEpoch: number
+): ImpersonationRevocationCause => {
+  if (row.operatorBanned !== 0) return 'operator-disabled'
+  if (
+    row.operatorSessionExpiresAt <= nowEpoch ||
+    row.operatorIdleExpiresAt === null ||
+    row.operatorIdleExpiresAt <= nowEpoch ||
+    row.operatorAbsoluteExpiresAt === null ||
+    row.operatorAbsoluteExpiresAt <= nowEpoch
+  )
+    return 'operator-session-revoked'
+  if (
+    row.operatorTwoFactorEnabled !== 1 ||
+    row.factorVerified !== 1 ||
+    (row.factorLockedUntil !== null && row.factorLockedUntil > nowEpoch)
+  )
+    return 'totp-unenrolled'
+  if (
+    !hasOperatorPermission(parseOperatorRoles(row.operatorRole), 'merchant:impersonate')
+  )
+    return 'permission-removed'
+  if (row.targetBanned !== 0) return 'target-disabled'
+  if (row.merchantStatus !== 'enabled') return 'merchant-disabled'
+  if (row.membershipRole !== 'owner') return 'membership-changed'
+  return 'security-state-revoked'
+}
+
 const selectAuthorityRow = async (
   db: PromiseDrizzleDatabase,
   merchantSessionId: string
@@ -296,14 +330,30 @@ export const makeOperationsImpersonationAuthorityLayer = (
   options: {
     readonly now?: () => Date
     readonly auditEventId?: () => string
+    readonly securityContact: string
     readonly targetAuthority?: (input: {
       readonly targetMemberId: string
       readonly membershipRole: string
     }) => ReadonlySet<ImpersonatedMerchantAction>
-  } = {}
+  }
 ): Layer.Layer<OperationsImpersonationAuthority> => {
   const now = options.now ?? (() => new Date())
   const auditEventId = options.auditEventId ?? (() => `oaud_${crypto.randomUUID()}`)
+  const lifecycleLayer = makeOperationsImpersonationLifecycleLayer(db, {
+    now,
+    securityContact: options.securityContact
+  })
+  const terminate = (
+    merchantSessionId: string,
+    cause: 'absolute-timeout' | ImpersonationRevocationCause
+  ) =>
+    Effect.runPromise(
+      Effect.flatMap(OperationsImpersonationLifecycle, (lifecycle) =>
+        cause === 'absolute-timeout'
+          ? lifecycle.resolve({ merchantSessionId })
+          : lifecycle.revoke({ merchantSessionId, cause })
+      ).pipe(Effect.provide(lifecycleLayer))
+    )
 
   const recordEvidence = async (input: {
     readonly businessEventId?: string
@@ -345,7 +395,14 @@ export const makeOperationsImpersonationAuthorityLayer = (
         try: async () => {
           const requestedAt = now()
           const row = await selectAuthorityRow(db, input.merchantSessionId)
-          if (!row) throw denied()
+          if (!row) {
+            try {
+              await terminate(input.merchantSessionId, 'security-state-revoked')
+            } catch (error) {
+              if (!(error instanceof OperationsContractDenied)) throw error
+            }
+            throw denied()
+          }
           const authorization = authorizationFrom(row)
           const targetAuthority = options.targetAuthority
             ? options.targetAuthority({
@@ -360,6 +417,18 @@ export const makeOperationsImpersonationAuthorityLayer = (
             action: input.action
           })
           if (!rowIsAuthoritative(row, Math.floor(requestedAt.getTime() / 1_000))) {
+            if (
+              row.lifecycle === 'active' &&
+              row.activeExpiresAt !== null &&
+              row.activeExpiresAt <= Math.floor(requestedAt.getTime() / 1_000)
+            ) {
+              await terminate(row.merchantSessionId, 'absolute-timeout')
+            } else if (row.lifecycle === 'active') {
+              await terminate(
+                row.merchantSessionId,
+                revocationCauseFrom(row, Math.floor(requestedAt.getTime() / 1_000))
+              )
+            }
             if (isImpersonatedMerchantMutation(input.action)) {
               await recordEvidence({
                 authorization,

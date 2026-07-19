@@ -23,7 +23,13 @@ const handleAuth = (request: Request): Promise<Response> => {
       Effect.runPromise(
         Effect.flatMap(OperationsImpersonationAuthority, (authority) =>
           authority.authorize(input)
-        ).pipe(Effect.provide(makeOperationsImpersonationAuthorityLayer(context.db())))
+        ).pipe(
+          Effect.provide(
+            makeOperationsImpersonationAuthorityLayer(context.db(), {
+              securityContact: env.OPERATIONS_SECURITY_CONTACT ?? ''
+            })
+          )
+        )
       )
   })(request)
 }

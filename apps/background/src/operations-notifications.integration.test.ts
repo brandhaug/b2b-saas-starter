@@ -32,11 +32,18 @@ describe('Operations impersonation notification delivery', () => {
   afterAll(async () => testD1?.dispose())
   beforeEach(() => resetCapturedOperationsNotifications())
 
-  const addIntent = async (id: string) => {
+  const addIntent = async (
+    id: string,
+    eventType:
+      | 'impersonation-started'
+      | 'impersonation-stopped'
+      | 'impersonation-expired'
+      | 'impersonation-revoked' = 'impersonation-started'
+  ) => {
     await db.insert(operationsNotificationIntents).values({
       id,
       impersonationId: `imp_${id}`,
-      eventType: 'impersonation-started',
+      eventType,
       recipientEmail: 'target@merchant.test',
       merchantId: 'mer_notification',
       merchantName: 'Notification Merchant',
@@ -107,6 +114,7 @@ describe('Operations impersonation notification delivery', () => {
     expect(readCapturedOperationsNotifications()).toEqual([
       {
         idempotencyKey: 'opnti_capture',
+        eventType: 'impersonation-started',
         to: 'target@merchant.test',
         merchant: 'Notification Merchant',
         occurredAt: now,
@@ -115,6 +123,45 @@ describe('Operations impersonation notification delivery', () => {
       }
     ])
   })
+
+  it.each([
+    ['impersonation-stopped', 'stopped', 'has stopped'],
+    ['impersonation-expired', 'expired', 'has expired'],
+    ['impersonation-revoked', 'revoked', 'was revoked']
+  ] as const)(
+    'renders a sanitized %s target notification',
+    async (eventType, idSuffix, wording) => {
+      const id = `opnti_${idSuffix}`
+      await addIntent(id, eventType)
+      const send = vi.fn().mockResolvedValue(undefined)
+
+      await Effect.runPromise(
+        processOperationsNotification({
+          intentId: id,
+          now,
+          providerState: 'configured'
+        }).pipe(
+          Effect.provide(makeOperationsNotificationOutboxLayer(db)),
+          Effect.provide(
+            makeCloudflareEmailDispatcherLayer(
+              { send },
+              { defaultFrom: 'security@example.test' }
+            )
+          )
+        )
+      )
+
+      const message = send.mock.calls[0]?.[0]
+      expect(message.subject).toBe(`Staff access to Notification Merchant ${wording}`)
+      expect(message.text).toContain(wording)
+      expect(message.text).toContain('Notification Merchant')
+      expect(message.text).toContain(now)
+      expect(message.text).toContain('SUP-42')
+      expect(message.text).toContain('security@example.test')
+      expect(message.text).not.toContain('Operator')
+      expect(message.text).not.toContain('Investigate')
+    }
+  )
 
   it('records provider failure for retry without failing the committed lifecycle', async () => {
     await addIntent('opnti_retry')

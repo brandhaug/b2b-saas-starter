@@ -35,17 +35,28 @@ export interface ImpersonationStartedEmailProps {
   readonly securityContact: string
 }
 
-export function ImpersonationStartedEmail(props: ImpersonationStartedEmailProps) {
+export interface ImpersonationLifecycleEmailProps extends ImpersonationStartedEmailProps {
+  readonly lifecycle: 'started' | 'stopped' | 'expired' | 'revoked'
+}
+
+export const impersonationLifecycleWording = (
+  lifecycle: ImpersonationLifecycleEmailProps['lifecycle']
+): string => (lifecycle === 'revoked' ? 'was revoked' : `has ${lifecycle}`)
+
+export function ImpersonationLifecycleEmail(props: ImpersonationLifecycleEmailProps) {
+  const wording = impersonationLifecycleWording(props.lifecycle)
   return (
     <Html lang="en">
       <Head />
-      <Preview>Staff access to {props.merchant} has started</Preview>
+      <Preview>
+        Staff access to {props.merchant} {wording}
+      </Preview>
       <Body>
         <Container>
-          <Heading>Staff access has started</Heading>
+          <Heading>Staff access {wording}</Heading>
           <Text>
-            Authorized platform staff began temporary support access to {props.merchant}{' '}
-            at {props.occurredAt}.
+            Temporary platform staff access to {props.merchant} {wording} at{' '}
+            {props.occurredAt}.
           </Text>
           {props.supportReference ? (
             <Text>Support reference: {props.supportReference}</Text>
@@ -61,6 +72,10 @@ export function ImpersonationStartedEmail(props: ImpersonationStartedEmailProps)
       </Body>
     </Html>
   )
+}
+
+export function ImpersonationStartedEmail(props: ImpersonationStartedEmailProps) {
+  return <ImpersonationLifecycleEmail {...props} lifecycle="started" />
 }
 
 export function AvailabilityOfferEmail(props: {

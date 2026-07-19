@@ -4,7 +4,12 @@ import {
   type OperationsNotificationWork
 } from '@b2b-saas-starter/capabilities/operations'
 import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { EmailDispatcher, ImpersonationStartedEmail } from '@b2b-saas-starter/email'
+import {
+  EmailDispatcher,
+  ImpersonationLifecycleEmail,
+  impersonationLifecycleWording,
+  type ImpersonationLifecycleEmailProps
+} from '@b2b-saas-starter/email'
 
 export const OPERATIONS_NOTIFICATION_RETRY_DELAYS = [30, 60, 90, 120, 150, 180] as const
 
@@ -15,6 +20,7 @@ export type OperationsNotificationProviderState =
 
 export type CapturedOperationsNotification = {
   readonly idempotencyKey: string
+  readonly eventType: OperationsNotificationWork['eventType']
   readonly to: string
   readonly merchant: string
   readonly occurredAt: string
@@ -24,6 +30,18 @@ export type CapturedOperationsNotification = {
 
 const captured: CapturedOperationsNotification[] = []
 
+const notificationLifecycle: Readonly<
+  Record<
+    OperationsNotificationWork['eventType'],
+    ImpersonationLifecycleEmailProps['lifecycle']
+  >
+> = {
+  'impersonation-started': 'started',
+  'impersonation-stopped': 'stopped',
+  'impersonation-expired': 'expired',
+  'impersonation-revoked': 'revoked'
+}
+
 export const readCapturedOperationsNotifications = () => [...captured]
 export const resetCapturedOperationsNotifications = () => {
   captured.length = 0
@@ -32,6 +50,7 @@ export const resetCapturedOperationsNotifications = () => {
 const capture = (work: OperationsNotificationWork): void => {
   captured.push({
     idempotencyKey: work.id,
+    eventType: work.eventType,
     to: work.recipientEmail,
     merchant: work.merchantName,
     occurredAt: work.occurredAt,
@@ -80,17 +99,20 @@ export const processOperationsNotification = (input: {
     }
 
     const dispatcher = yield* EmailDispatcher
+    const lifecycle = notificationLifecycle[work.eventType]
+    const wording = impersonationLifecycleWording(lifecycle)
     const result = yield* Effect.result(
       dispatcher.send({
         idempotencyKey: work.id,
         from: '',
         to: work.recipientEmail,
-        subject: `Staff access to ${work.merchantName} has started`,
-        element: ImpersonationStartedEmail({
+        subject: `Staff access to ${work.merchantName} ${wording}`,
+        element: ImpersonationLifecycleEmail({
           merchant: work.merchantName,
           occurredAt: work.occurredAt,
           supportReference: work.supportReference,
-          securityContact: work.securityContact
+          securityContact: work.securityContact,
+          lifecycle
         })
       })
     )

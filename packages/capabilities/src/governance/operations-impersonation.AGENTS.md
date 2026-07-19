@@ -16,3 +16,7 @@ session, and Active Impersonation Record before intersecting target authority wi
 explicit action allowlist. Denied mutations and designated sensitive reads are audited;
 routine reads are not. Merchant HTTP handlers must record the eventual result of every
 allowed mutation against the returned authorization context.
+
+The first protected request after the one-hour absolute limit delegates to the
+lifecycle capability so Expired state, session revocation, audit evidence, and target
+notification remain one authoritative transition rather than a presentation concern.

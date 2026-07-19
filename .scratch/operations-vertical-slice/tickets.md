@@ -192,17 +192,17 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Activate and Notify Impersonation.
 
-- [ ] Every impersonated Merchant screen shows a persistent non-dismissible banner identifying the target Member and Merchant and stating that an operator is acting.
-- [ ] The banner shows an authoritative countdown to the one-hour absolute expiry and offers a stop action.
-- [ ] Impersonation never slides or refreshes past one hour; continuation requires a new reason and fresh TOTP in a new lifecycle.
-- [ ] Manual stop atomically marks the record Stopped, revokes the Merchant Session, and clears only the impersonation cookie.
-- [ ] Absolute timeout atomically marks the record Expired and denies further Merchant requests.
-- [ ] Revocation marks the record Revoked with a stable termination cause.
-- [ ] Stopped, Expired, and Revoked transitions commit their corresponding Notification Intent atomically.
-- [ ] Terminal notifications contain Merchant, timestamp, optional support reference, and security contact but exclude operator identity and internal reason.
-- [ ] Stop, expiry, and revocation return the browser to target Member detail in Operations while leaving the independent Operator Session active unless it caused termination.
-- [ ] No flow restores, creates, merges, or overwrites a normal Merchant Session.
-- [ ] Browser tests cover every banner state, countdown, stop, automatic expiry, revocation, notification, cookie clearing, and return path.
+- [x] Every impersonated Merchant screen shows a persistent non-dismissible banner identifying the target Member and Merchant and stating that an operator is acting.
+- [x] The banner shows an authoritative countdown to the one-hour absolute expiry and offers a stop action.
+- [x] Impersonation never slides or refreshes past one hour; continuation requires a new reason and fresh TOTP in a new lifecycle.
+- [x] Manual stop atomically marks the record Stopped, revokes the Merchant Session, and clears only the impersonation cookie.
+- [x] Absolute timeout atomically marks the record Expired and denies further Merchant requests.
+- [x] Revocation marks the record Revoked with a stable termination cause.
+- [x] Stopped, Expired, and Revoked transitions commit their corresponding Notification Intent atomically.
+- [x] Terminal notifications contain Merchant, timestamp, optional support reference, and security contact but exclude operator identity and internal reason.
+- [x] Stop, expiry, and revocation return the browser to target Member detail in Operations while leaving the independent Operator Session active unless it caused termination.
+- [x] No flow restores, creates, merges, or overwrites a normal Merchant Session.
+- [x] Browser tests cover every banner state, countdown, stop, automatic expiry, revocation, notification, cookie clearing, and return path.
 
 ## Revoke Active Impersonation Immediately
 
