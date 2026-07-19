@@ -892,6 +892,41 @@ export const auditEvents = sqliteTable(
   ]
 )
 
+export const operationsAuditEvents = sqliteTable(
+  'operations_audit_events',
+  {
+    id: id(),
+    businessEventId: text('business_event_id').notNull(),
+    actorOperatorId: text('actor_operator_id').notNull(),
+    actorDisplayName: text('actor_display_name').notNull(),
+    operatorSessionId: text('operator_session_id'),
+    impersonationId: text('impersonation_id'),
+    targetId: text('target_id'),
+    targetDisplayName: text('target_display_name'),
+    merchantId: text('merchant_id'),
+    merchantDisplayName: text('merchant_display_name'),
+    action: text('action').notNull(),
+    result: text('result', { enum: ['accepted', 'rejected'] }).notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    retentionPolicy: text('retention_policy', {
+      enum: ['operations-standard', 'impersonation-two-years']
+    }).notNull(),
+    retainUntil: text('retain_until'),
+    internalReason: text('internal_reason'),
+    supportReference: text('support_reference'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('operations_audit_events_business_event_idx').on(table.businessEventId),
+    index('operations_audit_events_occurred_at_idx').on(table.occurredAt, table.id),
+    index('operations_audit_events_actor_idx').on(
+      table.actorOperatorId,
+      table.occurredAt
+    ),
+    index('operations_audit_events_merchant_idx').on(table.merchantId, table.occurredAt)
+  ]
+)
+
 export const brands = sqliteTable('brands', {
   id: id(),
   merchantId: text('merchant_id')

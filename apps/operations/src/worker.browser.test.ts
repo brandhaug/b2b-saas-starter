@@ -6,6 +6,7 @@ import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
   merchantMemberships,
   merchants,
+  operationsAuditEvents,
   publicBookingPages,
   user
 } from '@b2b-saas-starter/db/schema'
@@ -137,6 +138,24 @@ describe('Operations browser boundary', () => {
       merchantId: 'mer_browser_disabled',
       userId: 'mem_browser_disabled',
       role: 'owner',
+      createdAt: now.toISOString()
+    })
+    await db.insert(operationsAuditEvents).values({
+      id: 'oaud_browser_activation',
+      businessEventId: 'browser:impersonation:activated',
+      actorOperatorId: localOperatorFixture.id,
+      actorDisplayName: localOperatorFixture.name,
+      targetId: 'mem_browser_target',
+      targetDisplayName: 'Browser Target',
+      merchantId: 'mer_browser_studio',
+      merchantDisplayName: 'Browser Booking Studio',
+      action: 'impersonation.activated',
+      result: 'accepted',
+      occurredAt: now.toISOString(),
+      retentionPolicy: 'impersonation-two-years',
+      retainUntil: '2028-07-19T09:00:00.000Z',
+      internalReason: 'Investigate private scheduling failure',
+      supportReference: 'SUP-BROWSER-42',
       createdAt: now.toISOString()
     })
     closeServer = () =>
@@ -281,4 +300,57 @@ describe('Operations browser boundary', () => {
       .where(eq(user.id, 'mem_browser_target'))
     await page.close()
   }, 20_000)
+
+  it('filters global evidence, protects detail, and rechecks audit permission', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${origin}/sign-in`)
+    await page.getByLabel('Email').fill(localOperatorFixture.email)
+    await page.getByLabel('Password').fill(localOperatorFixture.password)
+    await page.getByRole('button', { name: 'Continue' }).click()
+    const auth = createOperationsAuth({
+      db: createDb(testD1.d1),
+      secret,
+      baseURL: origin,
+      trustedOrigins: [origin],
+      production: false
+    })
+    const { code } = await auth.api.generateTOTP({
+      body: { secret: localOperatorFixture.totpSecret }
+    })
+    await page.getByLabel('Authentication code').fill(code)
+    await page.getByRole('button', { name: 'Verify' }).click()
+
+    await page.getByRole('link', { name: 'Review global Operations audit' }).click()
+    await page.getByLabel('Action').fill('impersonation.activated')
+    await page.getByRole('button', { name: 'Filter audit' }).click()
+    await browserExpect(
+      page.getByRole('link', { name: 'impersonation.activated' })
+    ).toBeVisible()
+    expect(await page.locator('body').textContent()).not.toContain(
+      'Investigate private scheduling failure'
+    )
+    expect(await page.locator('body').textContent()).not.toContain('SUP-BROWSER-42')
+
+    await page.getByRole('link', { name: 'impersonation.activated' }).click()
+    await browserExpect(
+      page.getByText('Investigate private scheduling failure')
+    ).toBeVisible()
+    await browserExpect(page.getByText('SUP-BROWSER-42')).toBeVisible()
+    await browserExpect(
+      page.getByText('Two years, through 2028-07-19T09:00:00.000Z')
+    ).toBeVisible()
+
+    const db = createDb(testD1.d1)
+    await db
+      .update(user)
+      .set({ role: 'merchant-impersonator,operator-manager' })
+      .where(eq(user.id, localOperatorFixture.id))
+    const denied = await page.goto(`${origin}/audit`)
+    expect(denied?.status()).toBe(403)
+    await db
+      .update(user)
+      .set({ role: localOperatorFixture.roles.join(',') })
+      .where(eq(user.id, localOperatorFixture.id))
+    await page.close()
+  })
 })

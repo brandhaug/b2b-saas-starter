@@ -47,6 +47,7 @@ describe('contracted Booking Product D1', () => {
       'platform_webhook_events',
       'platform_webhook_deliveries',
       'audit_events',
+      'operations_audit_events',
       'brands',
       'shops',
       'shop_addresses',

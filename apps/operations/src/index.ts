@@ -7,12 +7,16 @@ import {
   readOperatorSessionReference
 } from '@b2b-saas-starter/auth/operations'
 import {
+  GlobalOperationsAudit,
   OperationsContractDenied,
   OperationsDiscovery,
   OperationsAuthorization,
   makeOperationsAuthorizationLayer,
   hasOperatorPermission,
+  makeOperationsAuditLayer,
   makeOperationsDiscoveryLayer,
+  type OperationsAuditEventDetail,
+  type OperationsAuditEventSummary,
   type MerchantDetail,
   type MerchantMemberDetail,
   type MerchantMemberSearchResult,
@@ -116,6 +120,25 @@ const memberDetailHtml = (member: MerchantMemberDetail): string => {
     ? 'Eligible for impersonation'
     : `Ineligible for impersonation: ${escapeHtml(member.impersonationEligibility.reason ?? 'unknown')}`
   return `<p><a href="/merchants/${encodeURIComponent(member.membership.merchantId)}">Back to Merchant</a></p><h1>${escapeHtml(member.name)}</h1><dl><dt>Member ID</dt><dd><code>${escapeHtml(member.id)}</code></dd><dt>Email</dt><dd>${escapeHtml(member.email)}</dd><dt>Email verification</dt><dd>${member.emailVerified ? 'Verified' : 'Unverified'}</dd><dt>Enabled state</dt><dd>${member.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Membership</dt><dd>${membership}</dd><dt>Active sessions</dt><dd>${member.activeSessionCount}</dd><dt>Last sign-in</dt><dd>${escapeHtml(member.lastSignInAt ?? 'Never')}</dd><dt>Impersonation</dt><dd>${eligibility}</dd></dl>`
+}
+
+const auditIdentityHtml = (identity: { id: string; displayName: string } | null) =>
+  identity
+    ? `${escapeHtml(identity.displayName)} <code>${escapeHtml(identity.id)}</code>`
+    : 'Not applicable'
+
+const auditResultHtml = (event: OperationsAuditEventSummary): string =>
+  `<tr><td><a href="/audit/${encodeURIComponent(event.id)}">${escapeHtml(event.action)}</a></td><td>${event.result}</td><td>${auditIdentityHtml(event.actor)}</td><td>${auditIdentityHtml(event.target)}</td><td>${auditIdentityHtml(event.merchant)}</td><td><time datetime="${escapeHtml(event.occurredAt)}">${escapeHtml(event.occurredAt)}</time></td><td>${event.retentionPolicy === 'impersonation-two-years' ? `Two years (until ${escapeHtml(event.retainUntil ?? 'unclassified')})` : 'Operations standard'}</td></tr>`
+
+const auditDetailHtml = (event: OperationsAuditEventDetail): string =>
+  `<p><a href="/audit">Back to global audit</a></p><h1>${escapeHtml(event.action)}</h1><dl><dt>Result</dt><dd>${event.result}</dd><dt>Real operator</dt><dd>${auditIdentityHtml(event.actor)}</dd><dt>Operator Session</dt><dd>${escapeHtml(event.operatorSessionId ?? 'Not applicable')}</dd><dt>Impersonation</dt><dd>${escapeHtml(event.impersonationId ?? 'Not applicable')}</dd><dt>Target</dt><dd>${auditIdentityHtml(event.target)}</dd><dt>Merchant</dt><dd>${auditIdentityHtml(event.merchant)}</dd><dt>Timestamp</dt><dd>${escapeHtml(event.occurredAt)}</dd><dt>Retention</dt><dd>${event.retentionPolicy === 'impersonation-two-years' ? `Two years, through ${escapeHtml(event.retainUntil ?? '')}` : 'Operations standard'}</dd><dt>Internal reason</dt><dd>${escapeHtml(event.internalReason ?? 'Not provided')}</dd><dt>Support reference</dt><dd>${escapeHtml(event.supportReference ?? 'Not provided')}</dd></dl>`
+
+const auditErrorResponse = (error: unknown): Response => {
+  if (error instanceof CapabilityUnavailable)
+    return Response.json({ error: 'operations_audit_unavailable' }, { status: 503 })
+  if (error instanceof OperationsContractDenied && error.reason.endsWith('not found'))
+    return Response.json({ error: 'not_found' }, { status: 404 })
+  return Response.json({ error: 'forbidden' }, { status: 403 })
 }
 
 let localSeed: Promise<void> | undefined
@@ -344,6 +367,18 @@ export const createOperationsWorker = () => ({
         }).pipe(Effect.provide(makeOperationsDiscoveryLayer(db)))
       )
 
+    const runAudit = <A>(
+      use: (
+        audit: GlobalOperationsAudit['Service']
+      ) => Effect.Effect<A, OperationsContractDenied | CapabilityUnavailable>
+    ): Promise<A> =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const audit = yield* GlobalOperationsAudit
+          return yield* use(audit)
+        }).pipe(Effect.provide(makeOperationsAuditLayer(db)))
+      )
+
     const managementResponse = await handleOperatorManagementRoutes({
       request,
       db,
@@ -355,6 +390,62 @@ export const createOperationsWorker = () => ({
       limited
     })
     if (managementResponse) return managementResponse
+
+    const auditDetailRoute = url.pathname.match(/^\/audit\/([^/]+)$/)
+    if (request.method === 'GET' && auditDetailRoute) {
+      try {
+        const event = await runAudit((audit) =>
+          audit.get(reference!, decodeURIComponent(auditDetailRoute[1]!))
+        )
+        return html(`${event.action} — Global audit`, auditDetailHtml(event))
+      } catch (error) {
+        return auditErrorResponse(error)
+      }
+    }
+    if (request.method === 'GET' && url.pathname === '/audit') {
+      const action = url.searchParams.get('action')?.trim().slice(0, 120) || undefined
+      const resultValue = url.searchParams.get('result')
+      const result =
+        resultValue === 'accepted' || resultValue === 'rejected'
+          ? resultValue
+          : undefined
+      const actorOperatorId =
+        url.searchParams.get('operator')?.trim().slice(0, 120) || undefined
+      const merchantId =
+        url.searchParams.get('merchant')?.trim().slice(0, 120) || undefined
+      const targetId = url.searchParams.get('target')?.trim().slice(0, 120) || undefined
+      try {
+        const cursor = url.searchParams.get('cursor') || undefined
+        const page = await runAudit((audit) =>
+          audit.list(reference!, {
+            ...(action ? { action } : {}),
+            ...(result ? { result } : {}),
+            ...(actorOperatorId ? { actorOperatorId } : {}),
+            ...(merchantId ? { merchantId } : {}),
+            ...(targetId ? { targetId } : {}),
+            ...(cursor ? { cursor } : {})
+          })
+        )
+        const rows = page.events.length
+          ? page.events.map(auditResultHtml).join('')
+          : '<tr><td colspan="7">No matching Operations audit events.</td></tr>'
+        const nextPage = page.nextCursor
+          ? `<p><a href="${escapeHtml(
+              (() => {
+                const next = new URLSearchParams(url.searchParams)
+                next.set('cursor', page.nextCursor!)
+                return `/audit?${next.toString()}`
+              })()
+            )}">Older audit events</a></p>`
+          : ''
+        return html(
+          'Global Operations audit',
+          `<p><a href="/">Back to Operations</a></p><h1>Global Operations audit</h1><form method="get"><label>Action<input name="action" maxlength="120" value="${escapeHtml(action ?? '')}"></label><label>Result<select name="result"><option value="">Any</option><option value="accepted"${result === 'accepted' ? ' selected' : ''}>Accepted</option><option value="rejected"${result === 'rejected' ? ' selected' : ''}>Rejected</option></select></label><label>Real operator ID<input name="operator" maxlength="120" value="${escapeHtml(actorOperatorId ?? '')}"></label><label>Merchant ID<input name="merchant" maxlength="120" value="${escapeHtml(merchantId ?? '')}"></label><label>Target ID<input name="target" maxlength="120" value="${escapeHtml(targetId ?? '')}"></label><button type="submit">Filter audit</button></form><table><thead><tr><th>Action</th><th>Result</th><th>Real operator</th><th>Target</th><th>Merchant</th><th>Timestamp</th><th>Retention</th></tr></thead><tbody>${rows}</tbody></table>${nextPage}`
+        )
+      } catch (error) {
+        return auditErrorResponse(error)
+      }
+    }
 
     if (request.method === 'GET' && url.pathname === '/api/merchants/search') {
       try {
@@ -485,7 +576,7 @@ export const createOperationsWorker = () => ({
     }
     return html(
       'Operations',
-      `<p>Protected Operations shell</p><h1>Welcome, ${escapeHtml(principal.name)}</h1><p>Signed in as <code>${escapeHtml(principal.email)}</code>.</p><p>Roles: ${principal.roles.map(escapeHtml).join(', ')}</p>${hasOperatorPermission(principal.roles, 'operator:manage') ? '<p><a href="/operators">Manage System Operators</a></p>' : ''}<h2>Merchant discovery</h2><form method="get"><label>Find merchants<input name="merchantQuery" value="${escapeHtml(merchantQuery)}" maxlength="100" required></label><button type="submit">Search merchants</button></form><form method="get"><label>Find merchant members<input name="memberQuery" value="${escapeHtml(memberQuery)}" maxlength="100" required></label><button type="submit">Search members</button></form>${results}`
+      `<p>Protected Operations shell</p><h1>Welcome, ${escapeHtml(principal.name)}</h1><p>Signed in as <code>${escapeHtml(principal.email)}</code>.</p><p>Roles: ${principal.roles.map(escapeHtml).join(', ')}</p>${hasOperatorPermission(principal.roles, 'operator:manage') ? '<p><a href="/operators">Manage System Operators</a></p>' : ''}${hasOperatorPermission(principal.roles, 'impersonation-audit:read') ? '<p><a href="/audit">Review global Operations audit</a></p>' : ''}<h2>Merchant discovery</h2><form method="get"><label>Find merchants<input name="merchantQuery" value="${escapeHtml(merchantQuery)}" maxlength="100" required></label><button type="submit">Search merchants</button></form><form method="get"><label>Find merchant members<input name="memberQuery" value="${escapeHtml(memberQuery)}" maxlength="100" required></label><button type="submit">Search members</button></form>${results}`
     )
   }
 })
