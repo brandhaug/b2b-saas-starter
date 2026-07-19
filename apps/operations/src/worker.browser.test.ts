@@ -6,8 +6,10 @@ import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
   merchantMemberships,
   merchants,
+  operatorEnrollments,
   operationsAuditEvents,
   publicBookingPages,
+  twoFactor,
   user
 } from '@b2b-saas-starter/db/schema'
 import { eq } from 'drizzle-orm'
@@ -57,6 +59,7 @@ describe('Operations browser boundary', () => {
   let origin: string
   let closeServer: () => Promise<void>
   let env: OperationsWorkerEnv
+  const invitationLinks: string[] = []
 
   beforeAll(async () => {
     testD1 = await provisionTestD1()
@@ -78,7 +81,14 @@ describe('Operations browser boundary', () => {
       OPERATIONS_APP_ORIGIN: origin,
       OPERATIONS_AUTH_TRUSTED_ORIGINS: origin,
       OPERATIONS_LOCAL_SEED: 'enabled',
-      ENVIRONMENT: 'development'
+      ENVIRONMENT: 'development',
+      CLOUDFLARE_EMAIL_FROM: 'operations@example.test',
+      EMAIL: {
+        send: async (message) => {
+          const link = message.text.match(/https?:\/\/\S+/)?.[0]
+          if (link) invitationLinks.push(link)
+        }
+      }
     }
     const db = createDb(testD1.d1)
     const now = new Date('2026-07-19T09:00:00.000Z')
@@ -227,6 +237,159 @@ describe('Operations browser boundary', () => {
     await context.close()
   })
 
+  it('invites and enrolls a dedicated operator without permission escape', async () => {
+    const manager = await browser.newPage()
+    await manager.goto(`${origin}/sign-in`)
+    await manager.getByLabel('Email').fill(localOperatorFixture.email)
+    await manager.getByLabel('Password').fill(localOperatorFixture.password)
+    await manager.getByRole('button', { name: 'Continue' }).click()
+    const auth = createOperationsAuth({
+      db: createDb(testD1.d1),
+      secret,
+      baseURL: origin,
+      trustedOrigins: [origin],
+      production: false
+    })
+    const managerCode = await auth.api.generateTOTP({
+      body: { secret: localOperatorFixture.totpSecret }
+    })
+    await manager.getByLabel('Authentication code').fill(managerCode.code)
+    await manager.getByRole('button', { name: 'Verify' }).click()
+    await manager.goto(`${origin}/operators`)
+    await manager.getByRole('link', { name: 'Invite System Operator' }).click()
+    const email = `invited-${crypto.randomUUID()}@example.test`
+    const password = 'enrollment-password-strong'
+    await manager.getByLabel('Email').fill(email)
+    await manager.getByLabel('merchant-reader').check()
+    await manager.getByRole('button', { name: 'Create invitation' }).click()
+    const invitationLink = invitationLinks.at(-1)
+    expect(invitationLink).toContain('/enroll?token=')
+
+    const recipientContext = await browser.newContext()
+    const recipient = await recipientContext.newPage()
+    await recipient.goto(invitationLink!)
+    await recipient.getByLabel('Name').fill('Invited Operator')
+    await recipient.getByLabel('Password').fill(password)
+    await recipient.getByRole('button', { name: 'Begin security enrollment' }).click()
+    await browserExpect(recipient).toHaveURL(`${origin}/enroll/security`)
+    await browserExpect(
+      recipient.getByText('This enrollment-only session has no Operations permissions.')
+    ).toBeVisible()
+
+    const escapeAttempt = await recipientContext.newPage()
+    await escapeAttempt.goto(origin)
+    await browserExpect(escapeAttempt).toHaveURL(`${origin}/sign-in`)
+    await escapeAttempt.close()
+
+    await recipient.getByLabel('Confirm password').fill(password)
+    await recipient
+      .getByRole('button', { name: 'Set up authenticator and backup codes' })
+      .click({ timeout: 5_000 })
+    const totpURI = await recipient.locator('p code').textContent()
+    const displayedBackupCodes = await recipient.locator('li code').allTextContents()
+    const totpSecret = new URL(totpURI!).searchParams.get('secret')
+    expect(totpSecret).toBeTruthy()
+    const db = createDb(testD1.d1)
+    const [invited] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, email))
+      .limit(1)
+    const [storedFactor] = await db
+      .select({ backupCodes: twoFactor.backupCodes })
+      .from(twoFactor)
+      .where(eq(twoFactor.userId, invited!.id))
+      .limit(1)
+    for (const code of displayedBackupCodes) {
+      expect(storedFactor?.backupCodes).not.toContain(code)
+    }
+    const enrollmentCode = await auth.api.generateTOTP({
+      body: { secret: totpSecret! }
+    })
+    await recipient.getByLabel('Authentication code').fill(enrollmentCode.code)
+    await recipient.getByLabel('I stored my backup codes').check()
+    await recipient
+      .getByRole('button', { name: 'Complete enrollment' })
+      .click({ timeout: 5_000 })
+    await browserExpect(recipient).toHaveURL(
+      `${origin}/sign-in?result=enrollment-complete`
+    )
+
+    await recipient.getByLabel('Email').fill(email)
+    await recipient.getByLabel('Password').fill(password)
+    await recipient.getByRole('button', { name: 'Continue' }).click({ timeout: 5_000 })
+    await browserExpect(recipient).toHaveURL(`${origin}/verify-totp`)
+    const signInCode = await auth.api.generateTOTP({
+      body: { secret: totpSecret! }
+    })
+    await recipient.getByLabel('Authentication code').fill(signInCode.code)
+    await recipient.getByRole('button', { name: 'Verify' }).click({ timeout: 5_000 })
+    await browserExpect(recipient).toHaveURL(`${origin}/`)
+    await browserExpect(recipient.getByText('Protected Operations shell')).toBeVisible()
+
+    await recipientContext.close()
+    await manager.close()
+  }, 30_000)
+
+  it('resumes expired enrollment after password sign-in without another invitation', async () => {
+    const manager = await browser.newPage()
+    await manager.goto(`${origin}/sign-in`)
+    await manager.getByLabel('Email').fill(localOperatorFixture.email)
+    await manager.getByLabel('Password').fill(localOperatorFixture.password)
+    await manager.getByRole('button', { name: 'Continue' }).click()
+    const auth = createOperationsAuth({
+      db: createDb(testD1.d1),
+      secret,
+      baseURL: origin,
+      trustedOrigins: [origin],
+      production: false
+    })
+    const managerCode = await auth.api.generateTOTP({
+      body: { secret: localOperatorFixture.totpSecret }
+    })
+    await manager.getByLabel('Authentication code').fill(managerCode.code)
+    await manager.getByRole('button', { name: 'Verify' }).click()
+    await manager.goto(`${origin}/operators/invitations/new`)
+    const email = `interrupted-${crypto.randomUUID()}@example.test`
+    const password = 'interrupted-password-strong'
+    await manager.getByLabel('Email').fill(email)
+    await manager.getByLabel('merchant-reader').check()
+    await manager.getByRole('button', { name: 'Create invitation' }).click()
+    const invitationLink = invitationLinks.at(-1)
+
+    const recipient = await browser.newPage()
+    await recipient.goto(invitationLink!)
+    await recipient.getByLabel('Name').fill('Interrupted Operator')
+    await recipient.getByLabel('Password').fill(password)
+    await recipient.getByRole('button', { name: 'Begin security enrollment' }).click()
+    const db = createDb(testD1.d1)
+    const [interrupted] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, email))
+      .limit(1)
+    await db
+      .update(operatorEnrollments)
+      .set({ sessionExpiresAt: new Date(Date.now() - 1_000) })
+      .where(eq(operatorEnrollments.operatorId, interrupted!.id))
+
+    await recipient.goto(`${origin}/sign-in`)
+    await recipient.getByLabel('Email').fill(email)
+    await recipient.getByLabel('Password').fill(password)
+    await recipient.getByRole('button', { name: 'Continue' }).click()
+    await browserExpect(recipient).toHaveURL(`${origin}/enroll/security`)
+    await browserExpect(recipient.getByLabel('Confirm password')).toBeVisible()
+    await recipient.getByRole('button', { name: 'Sign out of enrollment' }).click()
+    await browserExpect(recipient).toHaveURL(`${origin}/sign-in`)
+    expect(
+      (await recipient.context().cookies(origin)).some(
+        (cookie) => cookie.name === 'operations.enrollment'
+      )
+    ).toBe(false)
+    await recipient.close()
+    await manager.close()
+  }, 30_000)
+
   it('searches from the protected UI and shows current Merchant Member eligibility', async () => {
     const page = await browser.newPage()
     await page.goto(`${origin}/sign-in`)
@@ -300,7 +463,6 @@ describe('Operations browser boundary', () => {
       .where(eq(user.id, 'mem_browser_target'))
     await page.close()
   }, 20_000)
-
   it('filters global evidence, protects detail, and rechecks audit permission', async () => {
     const page = await browser.newPage()
     await page.goto(`${origin}/sign-in`)

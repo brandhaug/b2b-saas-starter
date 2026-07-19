@@ -144,6 +144,8 @@
         "@b2b-saas-starter/capabilities": "workspace:*",
         "@b2b-saas-starter/db": "workspace:*",
         "@b2b-saas-starter/rate-limit": "workspace:*",
+        "@fontsource-variable/geist": "catalog:",
+        "@fontsource-variable/geist-mono": "catalog:",
         "effect": "catalog:",
       },
       "devDependencies": {

@@ -1,7 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createDb } from '@b2b-saas-starter/db/client'
-import { session, user } from '@b2b-saas-starter/db/schema'
+import {
+  account,
+  operatorEnrollments,
+  operatorInvitations,
+  session,
+  user
+} from '@b2b-saas-starter/db/schema'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
+import { hashPassword } from 'better-auth/crypto'
 import { eq } from 'drizzle-orm'
 import { Effect } from 'effect'
 import {
@@ -188,6 +195,82 @@ describe('Operations authentication contract', () => {
     ]) {
       const response = await fixture.call(path, {})
       expect(response.status, path).toBe(404)
+    }
+  })
+
+  it('resumes incomplete enrollment without issuing a password-only Operator Session', async () => {
+    const fixture = await setup()
+    const suffix = crypto.randomUUID()
+    const operatorId = `opr_incomplete_${suffix}`
+    const incompleteEmail = `incomplete-${suffix}@operations.local`
+    const invitationId = `oinv_${suffix}`
+    const [manager] = await fixture.db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, fixture.email))
+      .limit(1)
+    await fixture.db.insert(user).values({
+      id: operatorId,
+      email: incompleteEmail,
+      name: 'Incomplete Operator',
+      emailVerified: true,
+      twoFactorEnabled: false,
+      identityClass: 'system_operator',
+      role: 'merchant-reader',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+    await fixture.db.insert(account).values({
+      id: `credential_${operatorId}`,
+      accountId: operatorId,
+      providerId: 'credential',
+      userId: operatorId,
+      password: await hashPassword(password),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+    await fixture.db.insert(operatorInvitations).values({
+      id: invitationId,
+      email: incompleteEmail,
+      rolesJson: ['merchant-reader'],
+      tokenHash: `invitation_hash_${suffix}`,
+      invitedByOperatorId: manager!.id,
+      acceptedOperatorId: operatorId,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60_000),
+      acceptedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+    await fixture.db.insert(operatorEnrollments).values({
+      id: `oenr_${suffix}`,
+      invitationId,
+      operatorId,
+      sessionTokenHash: `enrollment_hash_${suffix}`,
+      sessionExpiresAt: new Date(Date.now() - 1_000),
+      passwordSetAt: new Date(),
+      emailVerifiedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+
+    const response = await fixture.call('/sign-in/email', {
+      email: incompleteEmail,
+      password
+    })
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: 'enrollment_required',
+      operatorId
+    })
+    expect(response.headers.getSetCookie().join(';')).not.toContain(
+      'operations.session_token='
+    )
+    for (const path of [
+      '/two-factor/disable',
+      '/two-factor/generate-backup-codes',
+      '/change-password'
+    ]) {
+      expect((await fixture.call(path, {})).status, path).toBe(404)
     }
   })
 

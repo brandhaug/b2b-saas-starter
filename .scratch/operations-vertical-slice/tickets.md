@@ -62,16 +62,16 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Establish Operations Auth and Contract Seams.
 
-- [ ] An Operator Manager can invite a new dedicated email and assign one or more accepted roles.
-- [ ] Invitations reject existing Merchant Member, Customer Account, and conflicting System Operator identities.
-- [ ] Invitations are single-use, revocable, and expire after 24 hours.
-- [ ] Acceptance creates a 30-minute enrollment-only session with no operational permissions.
-- [ ] Enrollment permits only password setup, email verification, TOTP enrollment, backup-code confirmation, and sign-out.
-- [ ] The operator cannot reach Operations data until email, TOTP, and backup-code requirements are complete.
-- [ ] If enrollment expires after password setup, normal sign-in resumes incomplete enrollment without requiring another invitation.
-- [ ] Password-only access and every supported second-factor downgrade path are rejected.
-- [ ] Invitation creation, revocation, acceptance, expiry, enrollment success, and enrollment failure create appropriate audit evidence.
-- [ ] Browser and integration tests cover happy path, replay, revocation, expiry, interrupted enrollment, and attempted permission escape.
+- [x] An Operator Manager can invite a new dedicated email and assign one or more accepted roles.
+- [x] Invitations reject existing Merchant Member, Customer Account, and conflicting System Operator identities.
+- [x] Invitations are single-use, revocable, and expire after 24 hours.
+- [x] Acceptance creates a 30-minute enrollment-only session with no operational permissions.
+- [x] Enrollment permits only password setup, email verification, TOTP enrollment, backup-code confirmation, and sign-out.
+- [x] The operator cannot reach Operations data until email, TOTP, and backup-code requirements are complete.
+- [x] If enrollment expires after password setup, normal sign-in resumes incomplete enrollment without requiring another invitation.
+- [x] Password-only access and every supported second-factor downgrade path are rejected.
+- [x] Invitation creation, revocation, acceptance, expiry, enrollment success, and enrollment failure create appropriate audit evidence.
+- [x] Browser and integration tests cover happy path, replay, revocation, expiry, interrupted enrollment, and attempted permission escape.
 
 ## Manage Operator Roles and Sessions
 

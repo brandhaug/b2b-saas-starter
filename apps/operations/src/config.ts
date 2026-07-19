@@ -15,6 +15,7 @@ export type OperationsEnvironment = {
   readonly OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE?: string
   readonly OPERATIONS_RATE_LIMIT_WINDOW_SECONDS?: string
   readonly ENVIRONMENT?: string
+  readonly CLOUDFLARE_EMAIL_FROM?: string
 }
 
 export type OperationsConfig = {

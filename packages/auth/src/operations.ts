@@ -3,8 +3,13 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createAccessControl } from 'better-auth/plugins/access'
 import { admin as adminPlugin } from 'better-auth/plugins/admin'
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins/two-factor'
-import { hashPassword, symmetricEncrypt } from 'better-auth/crypto'
-import { and, eq, ne } from 'drizzle-orm'
+import {
+  hashPassword,
+  symmetricDecrypt,
+  symmetricEncrypt,
+  verifyPassword
+} from 'better-auth/crypto'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import {
   operatorRoleNames,
   type OperatorPrincipal,
@@ -179,7 +184,8 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
       twoFactorPlugin({
         issuer: 'B2B SaaS Starter Operations',
         twoFactorCookieMaxAge: 5 * 60,
-        trustDeviceMaxAge: 0
+        trustDeviceMaxAge: 0,
+        backupCodeOptions: { storeBackupCodes: 'encrypted' }
       })
     ]
   })
@@ -209,9 +215,14 @@ export const createOperationsAuthHandler =
     }
     if (path === '/sign-in/email') {
       let email: string | undefined
+      let password: string | undefined
       try {
-        const body = (await request.clone().json()) as { readonly email?: unknown }
+        const body = (await request.clone().json()) as {
+          readonly email?: unknown
+          readonly password?: unknown
+        }
         email = typeof body.email === 'string' ? body.email.toLowerCase() : undefined
+        password = typeof body.password === 'string' ? body.password : undefined
       } catch {
         return Response.json({ error: 'authentication_failed' }, { status: 401 })
       }
@@ -219,8 +230,10 @@ export const createOperationsAuthHandler =
         return Response.json({ error: 'authentication_failed' }, { status: 401 })
       const [candidate] = await options.db
         .select({
+          id: schema.user.id,
           identityClass: schema.user.identityClass,
           banned: schema.user.banned,
+          emailVerified: schema.user.emailVerified,
           twoFactorEnabled: schema.user.twoFactorEnabled
         })
         .from(schema.user)
@@ -229,11 +242,43 @@ export const createOperationsAuthHandler =
       if (
         !candidate ||
         candidate.identityClass !== 'system_operator' ||
-        candidate.banned ||
-        !candidate.twoFactorEnabled
+        candidate.banned
       ) {
         return Response.json({ error: 'authentication_failed' }, { status: 401 })
       }
+      const [incomplete] = await options.db
+        .select({ password: schema.account.password })
+        .from(schema.operatorEnrollments)
+        .innerJoin(
+          schema.account,
+          and(
+            eq(schema.account.userId, schema.operatorEnrollments.operatorId),
+            eq(schema.account.providerId, 'credential')
+          )
+        )
+        .where(
+          and(
+            eq(schema.operatorEnrollments.operatorId, candidate.id),
+            isNull(schema.operatorEnrollments.completedAt)
+          )
+        )
+        .limit(1)
+      if (incomplete) {
+        if (
+          candidate.emailVerified &&
+          password &&
+          incomplete.password &&
+          (await verifyPassword({ hash: incomplete.password, password }))
+        ) {
+          return Response.json(
+            { error: 'enrollment_required', operatorId: candidate.id },
+            { status: 403 }
+          )
+        }
+        return Response.json({ error: 'authentication_failed' }, { status: 401 })
+      }
+      if (!candidate.twoFactorEnabled)
+        return Response.json({ error: 'authentication_failed' }, { status: 401 })
     }
     return options.auth.handler(request)
   }
@@ -244,6 +289,101 @@ export const readOperatorSessionReference = async (input: {
 }): Promise<OperatorSessionReference | null> => {
   const current = await input.auth.api.getSession({ headers: input.headers })
   return current ? { operatorSessionId: current.session.id } : null
+}
+
+const randomTotpSecret = (): string => {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  const bytes = crypto.getRandomValues(new Uint8Array(32))
+  return [...bytes].map((byte) => alphabet[byte % alphabet.length]).join('')
+}
+
+const randomBackupCodes = (): readonly string[] => {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+  return Array.from({ length: 10 }, () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(10))
+    const code = [...bytes].map((byte) => alphabet[byte % alphabet.length]).join('')
+    return `${code.slice(0, 5)}-${code.slice(5)}`
+  })
+}
+
+export const beginOperatorTwoFactorEnrollment = async (input: {
+  readonly db: Database
+  readonly secret: string
+  readonly operatorId: string
+  readonly password: string
+}): Promise<{ readonly totpURI: string; readonly backupCodes: readonly string[] }> => {
+  const [credential] = await input.db
+    .select({ password: schema.account.password, email: schema.user.email })
+    .from(schema.account)
+    .innerJoin(schema.user, eq(schema.user.id, schema.account.userId))
+    .where(
+      and(
+        eq(schema.account.userId, input.operatorId),
+        eq(schema.account.providerId, 'credential'),
+        eq(schema.user.identityClass, 'system_operator')
+      )
+    )
+    .limit(1)
+  if (
+    !credential?.password ||
+    !(await verifyPassword({ hash: credential.password, password: input.password }))
+  ) {
+    throw new Error('operator enrollment password is invalid')
+  }
+  const totpSecret = randomTotpSecret()
+  const backupCodes = randomBackupCodes()
+  await input.db.batch([
+    input.db
+      .delete(schema.twoFactor)
+      .where(eq(schema.twoFactor.userId, input.operatorId)),
+    input.db.insert(schema.twoFactor).values({
+      id: `totp_${crypto.randomUUID()}`,
+      userId: input.operatorId,
+      secret: await symmetricEncrypt({ key: input.secret, data: totpSecret }),
+      backupCodes: await symmetricEncrypt({
+        key: input.secret,
+        data: JSON.stringify(backupCodes)
+      }),
+      verified: false,
+      failedVerificationCount: 0
+    })
+  ])
+  const issuer = 'B2B SaaS Starter Operations'
+  return {
+    totpURI: `otpauth://totp/${encodeURIComponent(`${issuer}:${credential.email}`)}?secret=${totpSecret}&issuer=${encodeURIComponent(issuer)}`,
+    backupCodes
+  }
+}
+
+export const hashOperatorEnrollmentPassword = (password: string): Promise<string> =>
+  hashPassword(password)
+
+export const verifyOperatorTwoFactorEnrollment = async (input: {
+  readonly auth: OperationsAuth
+  readonly db: Database
+  readonly secret: string
+  readonly operatorId: string
+  readonly code: string
+}): Promise<void> => {
+  const [factor] = await input.db
+    .select({ id: schema.twoFactor.id, secret: schema.twoFactor.secret })
+    .from(schema.twoFactor)
+    .where(eq(schema.twoFactor.userId, input.operatorId))
+    .limit(1)
+  if (!factor) throw new Error('operator TOTP enrollment is unavailable')
+  const totpSecret = await symmetricDecrypt({ key: input.secret, data: factor.secret })
+  const generated = await input.auth.api.generateTOTP({ body: { secret: totpSecret } })
+  if (generated.code !== input.code) throw new Error('operator TOTP code is invalid')
+  await input.db.batch([
+    input.db
+      .update(schema.twoFactor)
+      .set({ verified: true, failedVerificationCount: 0, lockedUntil: null })
+      .where(eq(schema.twoFactor.id, factor.id)),
+    input.db
+      .update(schema.user)
+      .set({ twoFactorEnabled: true, updatedAt: new Date() })
+      .where(eq(schema.user.id, input.operatorId))
+  ])
 }
 
 export type LocalOperatorFixture = {

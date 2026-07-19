@@ -8,13 +8,13 @@ import {
 } from '@b2b-saas-starter/auth/operations'
 import {
   GlobalOperationsAudit,
+  OperationsAuthorization,
   OperationsContractDenied,
   OperationsDiscovery,
-  OperationsAuthorization,
   makeOperationsAuthorizationLayer,
-  hasOperatorPermission,
   makeOperationsAuditLayer,
   makeOperationsDiscoveryLayer,
+  hasOperatorPermission,
   type OperationsAuditEventDetail,
   type OperationsAuditEventSummary,
   type MerchantDetail,
@@ -24,13 +24,26 @@ import {
 } from '@b2b-saas-starter/capabilities/operations'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { clientKey, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
+import geistFont from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2'
+import geistMonoFont from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2'
 import { Effect } from 'effect'
 import { makeOperationsAbuseProtection } from './abuse-protection.ts'
 import { parseOperationsConfig, type OperationsEnvironment } from './config.ts'
 import { handleOperatorManagementRoutes } from './operator-management.ts'
+import {
+  createOperatorInvitationDelivery,
+  readLocalOperatorInvitationEmail,
+  type OperationsEmailBinding
+} from './operations-email.ts'
+import {
+  handleOperatorEnrollmentRoutes,
+  resumeOperatorEnrollment
+} from './operator-enrollment.ts'
+import { escapeHtml, html, redirect } from './operations-response.ts'
 
 export type OperationsWorkerEnv = OperationsEnvironment & {
   readonly DB: D1Database
+  readonly EMAIL?: OperationsEmailBinding
   readonly RATE_LIMITER_OPERATIONS_READ?: CloudflareRateLimit
   readonly RATE_LIMITER_OPERATIONS_AUTHENTICATION?: CloudflareRateLimit
   readonly RATE_LIMITER_OPERATIONS_TOTP?: CloudflareRateLimit
@@ -49,40 +62,9 @@ export const localOperatorFixture = {
   roles: ['merchant-impersonator', 'impersonation-auditor', 'operator-manager']
 } as const
 
-const html = (title: string, body: string): Response =>
-  new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font-family:system-ui;background:#101417;color:#f5f7f8;max-width:80rem;margin:5rem auto;padding:0 1.5rem}main{border:1px solid #334048;padding:2rem;background:#172027}label,input,button{display:block;width:100%;box-sizing:border-box}input,button{margin:.5rem 0 1.25rem;padding:.75rem}input[type=checkbox]{display:inline;width:auto;margin:.25rem .5rem .25rem 0;padding:0}button{cursor:pointer;background:#e7b85b;border:0;font-weight:700}code{color:#e7b85b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #334048;padding:.75rem;text-align:left;vertical-align:top}td form{margin-bottom:1rem}</style></head><body><main>${body}</main></body></html>`,
-    {
-      headers: {
-        'content-type': 'text/html; charset=utf-8',
-        'cache-control': 'no-store'
-      }
-    }
-  )
-
-const redirect = (location: string, cookies: readonly string[] = []): Response => {
-  const headers = new Headers({ location, 'cache-control': 'no-store' })
-  cookies.forEach((cookie) => headers.append('set-cookie', cookie))
-  return new Response(null, { status: 303, headers })
-}
-
 const formText = (form: FormData, name: string): string => {
   const value = form.get(name)
   return typeof value === 'string' ? value : ''
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (character) =>
-      ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      })[character]!
-  )
 }
 
 const discoveryErrorResponse = (error: unknown): Response => {
@@ -187,6 +169,36 @@ export const createOperationsWorker = () => ({
         { status: 503 }
       )
     }
+    const url = new URL(request.url)
+    if (request.method === 'GET' && url.pathname === '/assets/geist.woff2') {
+      return new Response(geistFont, {
+        headers: {
+          'content-type': 'font/woff2',
+          'cache-control': 'public,max-age=31536000,immutable'
+        }
+      })
+    }
+    if (request.method === 'GET' && url.pathname === '/assets/geist-mono.woff2') {
+      return new Response(geistMonoFont, {
+        headers: {
+          'content-type': 'font/woff2',
+          'cache-control': 'public,max-age=31536000,immutable'
+        }
+      })
+    }
+    if (
+      config.localDevelopment &&
+      request.method === 'GET' &&
+      url.pathname === '/__local/operator-invitation-email'
+    ) {
+      const captured = readLocalOperatorInvitationEmail()
+      return captured
+        ? html(
+            'Local operator invitation email',
+            `<h1>Local operator invitation email</h1><p>To: ${escapeHtml(captured.email)}</p><p><a href="${escapeHtml(captured.url)}">Verify email and enroll</a></p>`
+          )
+        : Response.json({ error: 'no_local_invitation_email' }, { status: 404 })
+    }
     const db = createDb(env.DB)
     const abuseProtection = makeOperationsAbuseProtection({
       db,
@@ -232,7 +244,15 @@ export const createOperationsWorker = () => ({
     }
     const auth = createOperationsAuth({ db, ...config })
     const authHandler = createOperationsAuthHandler({ auth, db })
-    const url = new URL(request.url)
+    const invitationDelivery = createOperatorInvitationDelivery(env, config.production)
+    const enrollmentResponse = await handleOperatorEnrollmentRoutes({
+      request,
+      config,
+      db,
+      auth,
+      invitationDelivery
+    })
+    if (enrollmentResponse) return enrollmentResponse
 
     if (url.pathname.startsWith('/api/auth/')) {
       const authPath = url.pathname.slice('/api/auth'.length)
@@ -308,6 +328,21 @@ export const createOperationsWorker = () => ({
           })
         })
       )
+      if (response.status === 403) {
+        const body = (await response
+          .clone()
+          .json()
+          .catch(() => null)) as {
+          readonly error?: unknown
+          readonly operatorId?: unknown
+        } | null
+        if (
+          body?.error === 'enrollment_required' &&
+          typeof body.operatorId === 'string'
+        ) {
+          return resumeOperatorEnrollment({ operatorId: body.operatorId, db, config })
+        }
+      }
       if (!response.ok) return redirect('/sign-in?error=authentication_failed')
       return redirect('/verify-totp', response.headers.getSetCookie())
     }
@@ -387,7 +422,9 @@ export const createOperationsWorker = () => ({
       consumeRateLimit: consumeAbuse,
       renderHtml: html,
       redirect,
-      limited
+      limited,
+      listActionsHtml:
+        '<p><a href="/operators/invitations/new">Invite System Operator</a></p>'
     })
     if (managementResponse) return managementResponse
 

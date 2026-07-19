@@ -232,6 +232,59 @@ export const twoFactor = sqliteTable(
   (table) => [uniqueIndex('two_factor_user_id_idx').on(table.userId)]
 )
 
+export const operatorInvitations = sqliteTable(
+  'operator_invitations',
+  {
+    id: id(),
+    email: text('email').notNull(),
+    rolesJson: text('roles_json', { mode: 'json' })
+      .$type<readonly string[]>()
+      .notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    invitedByOperatorId: text('invited_by_operator_id')
+      .notNull()
+      .references(() => user.id),
+    // Stable attribution survives later identity deletion; it is intentionally
+    // not a cascading foreign key.
+    acceptedOperatorId: text('accepted_operator_id'),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    acceptedAt: integer('accepted_at', { mode: 'timestamp' }),
+    ...authTimestamps()
+  },
+  (table) => [
+    index('operator_invitations_email_idx').on(table.email),
+    index('operator_invitations_expiry_idx').on(table.expiresAt)
+  ]
+)
+
+export const operatorEnrollments = sqliteTable(
+  'operator_enrollments',
+  {
+    id: id(),
+    invitationId: text('invitation_id')
+      .notNull()
+      .references(() => operatorInvitations.id),
+    operatorId: text('operator_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sessionTokenHash: text('session_token_hash').notNull().unique(),
+    sessionExpiresAt: integer('session_expires_at', { mode: 'timestamp' }).notNull(),
+    passwordSetAt: integer('password_set_at', { mode: 'timestamp' }).notNull(),
+    emailVerifiedAt: integer('email_verified_at', { mode: 'timestamp' }).notNull(),
+    totpVerifiedAt: integer('totp_verified_at', { mode: 'timestamp' }),
+    backupCodesConfirmedAt: integer('backup_codes_confirmed_at', {
+      mode: 'timestamp'
+    }),
+    completedAt: integer('completed_at', { mode: 'timestamp' }),
+    ...authTimestamps()
+  },
+  (table) => [
+    uniqueIndex('operator_enrollments_invitation_idx').on(table.invitationId),
+    uniqueIndex('operator_enrollments_operator_idx').on(table.operatorId)
+  ]
+)
+
 export const account = sqliteTable(
   'account',
   {

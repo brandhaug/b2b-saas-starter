@@ -5,6 +5,9 @@
   "workers_dev": false,
   "compatibility_date": "2026-05-16",
   "compatibility_flags": ["nodejs_compat"],
+  "rules": [
+    { "type": "Data", "globs": ["**/*.woff2"], "fallthrough": true }
+  ],
   "observability": { "enabled": true, "head_sampling_rate": 1 },
   "vars": {
     "OPERATIONS_RATE_LIMIT_SESSION_READ": "120",
