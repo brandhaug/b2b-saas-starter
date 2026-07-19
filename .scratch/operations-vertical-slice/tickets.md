@@ -112,15 +112,15 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Establish Operations Auth and Contract Seams.
 
-- [ ] Global Operations audit records retain stable real-operator, target, Merchant, action, result, and timestamp facts applicable to the event.
-- [ ] Audit persistence does not cascade-delete historical evidence when live operators, Members, or Merchants are disabled or deleted.
-- [ ] Events are classified for the accepted two-year impersonation retention policy.
-- [ ] Only `impersonation-audit:read` grants the global review surface.
-- [ ] Auditors can filter and inspect existing authentication, bootstrap, recovery, invitation, and management evidence as those producers become available.
-- [ ] Internal reasons and support references are access-controlled and never emitted to ordinary logs or unauthorised responses.
-- [ ] Credential values, session tokens, handoff plaintext, TOTP secrets, and backup codes are never stored as audit details.
-- [ ] Audit writes survive retry without producing misleading duplicate business events.
-- [ ] Persistence and UI tests cover permission denial, filtering, stable attribution, referenced-identity deletion, redaction, and retention classification.
+- [x] Global Operations audit records retain stable real-operator, target, Merchant, action, result, and timestamp facts applicable to the event.
+- [x] Audit persistence does not cascade-delete historical evidence when live operators, Members, or Merchants are disabled or deleted.
+- [x] Events are classified for the accepted two-year impersonation retention policy.
+- [x] Only `impersonation-audit:read` grants the global review surface.
+- [x] Auditors can filter and inspect existing authentication, bootstrap, recovery, invitation, and management evidence as those producers become available.
+- [x] Internal reasons and support references are access-controlled and never emitted to ordinary logs or unauthorised responses.
+- [x] Credential values, session tokens, handoff plaintext, TOTP secrets, and backup codes are never stored as audit details.
+- [x] Audit writes survive retry without producing misleading duplicate business events.
+- [x] Persistence and UI tests cover permission denial, filtering, stable attribution, referenced-identity deletion, redaction, and retention classification.
 
 ## Protect Operations Authentication from Abuse
 
