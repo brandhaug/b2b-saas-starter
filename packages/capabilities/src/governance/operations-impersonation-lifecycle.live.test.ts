@@ -268,4 +268,70 @@ describe('Operations impersonation lifecycle', () => {
       .where(eq(operationsNotificationIntents.impersonationId, fixture.impersonationId))
     expect(intent?.eventType).toBe('impersonation-revoked')
   })
+
+  it('makes concurrent revocation decisions idempotent with exactly-once evidence', async () => {
+    const fixture = await addActive('concurrent-revocation')
+
+    const results = await Promise.all([
+      run((lifecycle) =>
+        lifecycle.revoke({
+          merchantSessionId: fixture.merchantSessionId,
+          cause: 'security-state-revoked'
+        })
+      ),
+      run((lifecycle) =>
+        lifecycle.revoke({
+          merchantSessionId: fixture.merchantSessionId,
+          cause: 'security-state-revoked'
+        })
+      )
+    ])
+
+    expect(results).toEqual([results[0], results[0]])
+    expect(
+      await db
+        .select()
+        .from(operationsNotificationIntents)
+        .where(
+          eq(operationsNotificationIntents.impersonationId, fixture.impersonationId)
+        )
+    ).toHaveLength(1)
+    expect(
+      await db
+        .select()
+        .from(operationsAuditEvents)
+        .where(eq(operationsAuditEvents.impersonationId, fixture.impersonationId))
+    ).toHaveLength(1)
+  })
+
+  it('records terminal evidence when the derived Merchant Session is already absent', async () => {
+    const fixture = await addActive('missing-derived-session')
+    await db.delete(session).where(eq(session.id, fixture.merchantSessionId))
+
+    await expect(
+      run((lifecycle) =>
+        lifecycle.revoke({
+          merchantSessionId: fixture.merchantSessionId,
+          cause: 'security-state-revoked'
+        })
+      )
+    ).resolves.toMatchObject({
+      lifecycle: 'revoked',
+      terminationCause: 'security-state-revoked'
+    })
+    expect(
+      await db
+        .select()
+        .from(operationsNotificationIntents)
+        .where(
+          eq(operationsNotificationIntents.impersonationId, fixture.impersonationId)
+        )
+    ).toHaveLength(1)
+    expect(
+      await db
+        .select()
+        .from(operationsAuditEvents)
+        .where(eq(operationsAuditEvents.impersonationId, fixture.impersonationId))
+    ).toHaveLength(1)
+  })
 })

@@ -1,3 +1,4 @@
+import { activeImpersonationRevocationStatements } from '@b2b-saas-starter/capabilities/operations'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createAccessControl } from 'better-auth/plugins/access'
@@ -95,6 +96,7 @@ export type CreateOperationsAuthOptions = {
   readonly baseURL: string
   readonly trustedOrigins: readonly string[]
   readonly production: boolean
+  readonly securityContact: string
 }
 
 export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
@@ -171,7 +173,18 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
                 .set({ operatorTotpVerifiedAt: created.createdAt ?? new Date() })
                 .where(eq(schema.session.id, created.id))
             }
-            await options.db
+            const raw = options.db.$client
+            const occurredAt = created.createdAt ?? new Date()
+            const revocations = activeImpersonationRevocationStatements({
+              selector: {
+                operatorId: created.userId,
+                exceptOperatorSessionId: created.id
+              },
+              cause: 'operator-session-replaced',
+              occurredAt,
+              securityContact: options.securityContact
+            })
+            const deletePreviousSessions = options.db
               .delete(schema.session)
               .where(
                 and(
@@ -179,6 +192,15 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
                   ne(schema.session.id, created.id)
                 )
               )
+              .toSQL()
+            await raw.batch([
+              ...revocations.map((statement) =>
+                raw.prepare(statement.sql).bind(...statement.params)
+              ),
+              raw
+                .prepare(deletePreviousSessions.sql)
+                .bind(...deletePreviousSessions.params)
+            ])
           }
         }
       }

@@ -132,7 +132,7 @@ type AuthorityRow = {
   readonly merchantId: string
   readonly merchantName: string
   readonly merchantStatus: string
-  readonly membershipRole: string
+  readonly membershipRole: string | null
   readonly merchantSessionId: string
   readonly merchantSessionUserId: string
   readonly merchantSessionImpersonatedBy: string | null
@@ -315,9 +315,9 @@ const selectAuthorityRow = async (
         AND operator_session.userId = operator.id
        JOIN twoFactor AS factor ON factor.userId = operator.id
        JOIN user AS target ON target.id = record.target_member_id
-       JOIN merchant_memberships AS membership
+       LEFT JOIN merchant_memberships AS membership
          ON membership.user_id = target.id AND membership.merchant_id = record.merchant_id
-       JOIN merchants AS merchant ON merchant.id = membership.merchant_id
+       JOIN merchants AS merchant ON merchant.id = record.merchant_id
        WHERE merchant_session.id = ?1
        LIMIT 1`
     )
@@ -333,7 +333,7 @@ export const makeOperationsImpersonationAuthorityLayer = (
     readonly securityContact: string
     readonly targetAuthority?: (input: {
       readonly targetMemberId: string
-      readonly membershipRole: string
+      readonly membershipRole: string | null
     }) => ReadonlySet<ImpersonatedMerchantAction>
   }
 ): Layer.Layer<OperationsImpersonationAuthority> => {

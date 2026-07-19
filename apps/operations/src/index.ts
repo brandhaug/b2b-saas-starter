@@ -450,6 +450,7 @@ export const createOperationsWorker = () => ({
       db,
       actor: principal,
       reference: reference!,
+      securityContact: config.securityContact,
       consumeRateLimit: consumeAbuse,
       renderHtml: html,
       redirect,

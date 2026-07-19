@@ -210,16 +210,16 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Manage Operator Roles and Sessions; Enforce Reduced Impersonation Authority; Show and End the Impersonation Lifecycle.
 
-- [ ] Removing `merchant:impersonate` revokes the affected Active impersonation immediately.
-- [ ] Disabling the operator atomically revokes the Operator Session and every derived impersonation.
-- [ ] Replacing the Operator Session revokes impersonation derived from the previous session.
-- [ ] Removing TOTP enrollment through the controlled recovery path revokes derived impersonation.
-- [ ] Disabling the target or removing/changing the target's Merchant membership revokes impersonation.
-- [ ] Relevant security-state revocation and explicit administrative revocation terminate access with stable causes.
-- [ ] Concurrent requests cannot use the session after the first authoritative revocation decision.
-- [ ] Revocation clears the impersonation cookie where possible, returns to Operations, and does not restore a normal Merchant Session.
-- [ ] Revocation audit and target notification are produced exactly once despite retries or concurrent requests.
-- [ ] Integration and browser tests exercise every revocation trigger, concurrency behavior, attribution, notification, and immediate denial.
+- [x] Removing `merchant:impersonate` revokes the affected Active impersonation immediately.
+- [x] Disabling the operator atomically revokes the Operator Session and every derived impersonation.
+- [x] Replacing the Operator Session revokes impersonation derived from the previous session.
+- [x] Removing TOTP enrollment through the controlled recovery path revokes derived impersonation.
+- [x] Disabling the target or removing/changing the target's Merchant membership revokes impersonation.
+- [x] Relevant security-state revocation and explicit administrative revocation terminate access with stable causes.
+- [x] Concurrent requests cannot use the session after the first authoritative revocation decision.
+- [x] Revocation clears the impersonation cookie where possible, returns to Operations, and does not restore a normal Merchant Session.
+- [x] Revocation audit and target notification are produced exactly once despite retries or concurrent requests.
+- [x] Integration and browser tests exercise every revocation trigger, concurrency behavior, attribution, notification, and immediate denial.
 
 ## Complete Operations Security and Evidence Matrices
 

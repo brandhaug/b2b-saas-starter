@@ -44,7 +44,8 @@ describe('System Operator maintenance commands', () => {
   const maintenance = () =>
     makeSystemOperatorMaintenance(makeD1OperatorMaintenanceDatabase(test.d1), {
       now: () => now,
-      id: () => `oaud_${crypto.randomUUID()}`
+      id: () => `oaud_${crypto.randomUUID()}`,
+      securityContact: 'security@example.test'
     })
 
   it('bootstraps an existing verified dedicated identity with explicit roles idempotently', async () => {
@@ -286,7 +287,39 @@ describe('System Operator maintenance commands', () => {
         .bind(`totp_${suffix}`, operatorId),
       test.d1
         .prepare('UPDATE user SET twoFactorEnabled = 1 WHERE id = ?1')
-        .bind(operatorId)
+        .bind(operatorId),
+      test.d1
+        .prepare(
+          `INSERT INTO merchants
+           (id, public_name, slug, timezone, currency, created_at, updated_at)
+           VALUES (?1, 'Recovery Merchant', ?2, 'Europe/Bucharest', 'RON', ?3, ?3)`
+        )
+        .bind(`mer_${suffix}`, `recovery-${suffix}`, now.toISOString()),
+      test.d1
+        .prepare(
+          `INSERT INTO merchant_memberships (merchant_id, user_id, role, created_at)
+           VALUES (?1, ?2, 'owner', ?3)`
+        )
+        .bind(`mer_${suffix}`, targetId, now.toISOString()),
+      test.d1
+        .prepare(
+          `INSERT INTO impersonation_records
+           (id, operator_id, operator_session_id, target_member_id, merchant_id,
+            lifecycle, reason, ticket_hash, handoff_expires_at,
+            merchant_session_id, active_expires_at, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, 'active', 'Recovery test', ?6, ?7, ?8, ?7, ?9, ?9)`
+        )
+        .bind(
+          `imprec_${suffix}`,
+          operatorId,
+          `ops_${suffix}`,
+          targetId,
+          `mer_${suffix}`,
+          `hash_${suffix}`,
+          epoch + 3600,
+          `imp_${suffix}`,
+          now.toISOString()
+        )
     ])
 
     const result = await Effect.runPromise(
@@ -305,6 +338,37 @@ describe('System Operator maintenance commands', () => {
       .bind(`%${suffix}`)
       .all<{ id: string }>()
     expect(sessions.results).toEqual([{ id: `unrelated_${suffix}` }])
+    expect(
+      await test.d1
+        .prepare(
+          `SELECT lifecycle, termination_cause
+           FROM impersonation_records WHERE id = ?1`
+        )
+        .bind(`imprec_${suffix}`)
+        .first()
+    ).toEqual({
+      lifecycle: 'revoked',
+      termination_cause: 'totp-unenrolled'
+    })
+    expect(
+      await test.d1
+        .prepare(
+          `SELECT count(*) AS count FROM operations_notification_intents
+           WHERE impersonation_id = ?1`
+        )
+        .bind(`imprec_${suffix}`)
+        .first()
+    ).toEqual({ count: 1 })
+    expect(
+      await test.d1
+        .prepare(
+          `SELECT count(*) AS count FROM operations_audit_events
+           WHERE impersonation_id = ?1 AND actor_operator_id = ?2
+             AND target_id = ?3`
+        )
+        .bind(`imprec_${suffix}`, operatorId, targetId)
+        .first()
+    ).toEqual({ count: 1 })
     expect(
       await test.d1
         .prepare('SELECT count(*) AS count FROM twoFactor WHERE userId = ?1')
@@ -396,7 +460,8 @@ describe('System Operator maintenance commands', () => {
       Effect.runPromise(
         makeSystemOperatorMaintenance(failing, {
           now: () => now,
-          id: () => `oaud_${crypto.randomUUID()}`
+          id: () => `oaud_${crypto.randomUUID()}`,
+          securityContact: 'security@example.test'
         }).recover({
           actor: 'security@example.test',
           environment: 'local',

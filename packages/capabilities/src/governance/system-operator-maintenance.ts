@@ -6,6 +6,7 @@ import type {
 } from '@cloudflare/workers-types'
 import { operatorRoleNames, type OperatorRole } from './operations-contracts.ts'
 import { CapabilityUnavailable } from '../errors.ts'
+import { activeImpersonationRevocationStatements } from './operations-impersonation-revocation.ts'
 
 export const OperatorMaintenanceEnvironment = Schema.Literals(['local', 'production'])
 export type OperatorMaintenanceEnvironment = typeof OperatorMaintenanceEnvironment.Type
@@ -84,6 +85,7 @@ export class SystemOperatorMaintenance extends Context.Service<
 type MaintenanceOptions = {
   readonly now?: () => Date
   readonly id?: () => string
+  readonly securityContact: string
 }
 
 type IdentityRow = {
@@ -217,7 +219,7 @@ const rejected = (reason: string): OperatorMaintenanceRejected =>
 
 export const makeSystemOperatorMaintenance = (
   database: OperatorMaintenanceDatabase,
-  options: MaintenanceOptions = {}
+  options: MaintenanceOptions
 ): SystemOperatorMaintenanceShape => {
   const currentTime = options.now ?? (() => new Date())
   const nextId = options.id ?? (() => `oaud_${crypto.randomUUID()}`)
@@ -378,8 +380,16 @@ export const makeSystemOperatorMaintenance = (
         reason
       })
 
-    const epoch = Math.floor(currentTime().getTime() / 1_000)
+    const occurredAt = currentTime()
+    const epoch = Math.floor(occurredAt.getTime() / 1_000)
     const auditId = nextId()
+    const revocationStatements = activeImpersonationRevocationStatements({
+      selector: { operatorId: candidate!.id },
+      cause: 'totp-unenrolled',
+      occurredAt,
+      securityContact: options.securityContact,
+      requireAuditEventId: auditId
+    })
     try {
       const results = await database.batch([
         {
@@ -391,7 +401,7 @@ export const makeSystemOperatorMaintenance = (
             targetEmail: email,
             result: 'accepted',
             environment: request.environment,
-            occurredAt: currentTime().toISOString(),
+            occurredAt: occurredAt.toISOString(),
             condition: {
               sql: `EXISTS (
                         SELECT 1 FROM user AS target
@@ -407,6 +417,7 @@ export const makeSystemOperatorMaintenance = (
             }
           })
         },
+        ...revocationStatements,
         {
           sql: `DELETE FROM session WHERE impersonatedBy = ?1
                   AND EXISTS (SELECT 1 FROM audit_events WHERE id = ?2)`,
@@ -429,7 +440,8 @@ export const makeSystemOperatorMaintenance = (
           params: [epoch, candidate!.id, auditId]
         }
       ])
-      if ((results[0]?.changes ?? 0) < 1 || results[4]?.changes !== 1)
+      const targetUpdate = results[revocationStatements.length + 4]
+      if ((results[0]?.changes ?? 0) < 1 || targetUpdate?.changes !== 1)
         throw new Error('recovery target changed concurrently')
     } catch (cause) {
       throw unavailable(cause)
@@ -453,7 +465,7 @@ export const makeSystemOperatorMaintenance = (
 
 export const makeSystemOperatorMaintenanceLayer = (
   database: OperatorMaintenanceDatabase,
-  options: MaintenanceOptions = {}
+  options: MaintenanceOptions
 ): Layer.Layer<SystemOperatorMaintenance> =>
   Layer.succeed(SystemOperatorMaintenance)(
     makeSystemOperatorMaintenance(database, options)

@@ -12,6 +12,7 @@ import {
   type OperatorRole
 } from './operations-contracts.ts'
 import { CapabilityUnavailable } from '../errors.ts'
+import { activeImpersonationRevocationStatements } from './operations-impersonation-revocation.ts'
 
 const ManagedOperatorEnrollmentState = Schema.Literals(['complete', 'incomplete'])
 
@@ -153,6 +154,10 @@ const runAtomic = async (
   return raw.batch(queries.map((query) => raw.prepare(query.sql).bind(...query.params)))
 }
 
+const asStatements = (
+  statements: readonly { readonly sql: string; readonly params: readonly unknown[] }[]
+): readonly Statement[] => statements.map((statement) => ({ toSQL: () => statement }))
+
 const conditionalInsertAfterChange = (statement: Statement): Statement => ({
   toSQL: () => {
     const query = statement.toSQL()
@@ -168,6 +173,7 @@ const conditionalInsertAfterChange = (statement: Statement): Statement => ({
 
 const auditInsert =
   (input: {
+    readonly id?: string
     readonly actorId: string
     readonly actorName?: string | undefined
     readonly actorSessionId?: string | undefined
@@ -179,7 +185,7 @@ const auditInsert =
   }) =>
   ({ db }: { readonly db: PromiseDrizzleDatabase }) =>
     db.insert(auditEvents).values({
-      id: `oaud_${crypto.randomUUID()}`,
+      id: input.id ?? `oaud_${crypto.randomUUID()}`,
       actorUserId: input.actorId,
       merchantId: null,
       eventType: input.eventType,
@@ -276,7 +282,8 @@ const rejectionReason = async (
 }
 
 export const makeOperationsManagementLayer = (
-  db: PromiseDrizzleDatabase
+  db: PromiseDrizzleDatabase,
+  options: { readonly securityContact: string }
 ): Layer.Layer<OperationsManagement> =>
   Layer.succeed(OperationsManagement)({
     list: (actor, requestedNow) =>
@@ -387,7 +394,9 @@ export const makeOperationsManagementLayer = (
                 )
               )
             )
+          const managementAuditId = `oaud_${crypto.randomUUID()}`
           const audit = auditInsert({
+            id: managementAuditId,
             actorId: actor.id,
             actorName: actor.name,
             actorSessionId: actor.sessionId,
@@ -399,7 +408,18 @@ export const makeOperationsManagementLayer = (
           })({ db })
           const results = await runAtomic(db, [
             update,
-            conditionalInsertAfterChange(audit)
+            conditionalInsertAfterChange(audit),
+            ...(hasOperatorPermission(roles, 'merchant:impersonate')
+              ? []
+              : asStatements(
+                  activeImpersonationRevocationStatements({
+                    selector: { operatorId: input.targetOperatorId },
+                    cause: 'permission-removed',
+                    occurredAt: input.now ?? occurredAt,
+                    requireAuditEventId: managementAuditId,
+                    securityContact: options.securityContact
+                  })
+                ))
           ])
           if ((results[0]?.meta?.changes ?? 0) === 0) {
             const reason = await rejectionReason(
@@ -450,10 +470,17 @@ export const makeOperationsManagementLayer = (
                     )
               )
             )
+          const managementAuditId = `oaud_${crypto.randomUUID()}`
           const revoke = db
             .delete(session)
-            .where(and(eq(session.userId, input.targetOperatorId), sql`changes() > 0`))
+            .where(
+              and(
+                eq(session.userId, input.targetOperatorId),
+                sql`exists (select 1 from ${auditEvents} where ${auditEvents.id} = ${managementAuditId})`
+              )
+            )
           const audit = auditInsert({
+            id: managementAuditId,
             actorId: actor.id,
             actorName: actor.name,
             actorSessionId: actor.sessionId,
@@ -465,7 +492,18 @@ export const makeOperationsManagementLayer = (
           const results = await runAtomic(db, [
             update,
             conditionalInsertAfterChange(audit),
-            ...(input.enabled ? [] : [revoke])
+            ...(input.enabled ? [] : [revoke]),
+            ...(input.enabled
+              ? []
+              : asStatements(
+                  activeImpersonationRevocationStatements({
+                    selector: { operatorId: input.targetOperatorId },
+                    cause: 'operator-disabled',
+                    occurredAt: input.now ?? occurredAt,
+                    requireAuditEventId: managementAuditId,
+                    securityContact: options.securityContact
+                  })
+                ))
           ])
           if ((results[0]?.meta?.changes ?? 0) === 0) {
             const reason = await rejectionReason(

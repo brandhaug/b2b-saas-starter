@@ -402,11 +402,94 @@ describe('reduced impersonation authority', () => {
     expect(intent?.eventType).toBe('impersonation-revoked')
   })
 
+  it('uses a stable membership cause when the target membership is removed', async () => {
+    const fixture = await addActive('membership-removal')
+    await db.insert(user).values({
+      id: 'mem_authority_membership-replacement',
+      email: 'membership-replacement@merchant.test',
+      name: 'Membership replacement owner',
+      emailVerified: true,
+      identityClass: 'merchant_member',
+      createdAt: now,
+      updatedAt: now
+    })
+    await db
+      .update(merchantMemberships)
+      .set({ userId: 'mem_authority_membership-replacement' })
+      .where(eq(merchantMemberships.merchantId, fixture.merchantId))
+
+    await expect(
+      run((authority) =>
+        authority.authorize({
+          merchantSessionId: fixture.merchantSessionId,
+          action: 'merchant.navigate'
+        })
+      )
+    ).rejects.toMatchObject({ _tag: 'OperationsContractDenied' })
+
+    const [record] = await db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.id, fixture.impersonationId))
+    expect(record).toMatchObject({
+      lifecycle: 'revoked',
+      terminationCause: 'membership-changed'
+    })
+  })
+
+  it('denies concurrent protected requests after the first revocation decision', async () => {
+    const fixture = await addActive('concurrent-authority-revocation')
+    await db
+      .update(user)
+      .set({ role: 'merchant-reader' })
+      .where(eq(user.id, fixture.operatorId))
+
+    const requests = await Promise.allSettled([
+      run((authority) =>
+        authority.authorize({
+          merchantSessionId: fixture.merchantSessionId,
+          action: 'merchant.navigate'
+        })
+      ),
+      run((authority) =>
+        authority.authorize({
+          merchantSessionId: fixture.merchantSessionId,
+          action: 'merchant.navigate'
+        })
+      )
+    ])
+    expect(requests).toEqual([
+      expect.objectContaining({
+        status: 'rejected',
+        reason: expect.objectContaining({ _tag: 'OperationsContractDenied' })
+      }),
+      expect.objectContaining({
+        status: 'rejected',
+        reason: expect.objectContaining({ _tag: 'OperationsContractDenied' })
+      })
+    ])
+    expect(
+      await db
+        .select()
+        .from(operationsNotificationIntents)
+        .where(
+          eq(operationsNotificationIntents.impersonationId, fixture.impersonationId)
+        )
+    ).toHaveLength(1)
+    expect(
+      await db
+        .select()
+        .from(operationsAuditEvents)
+        .where(eq(operationsAuditEvents.impersonationId, fixture.impersonationId))
+    ).toHaveLength(1)
+  })
+
   it.each([
     [
       'disabled operator',
       async (fixture: Awaited<ReturnType<typeof addActive>>) =>
-        db.update(user).set({ banned: true }).where(eq(user.id, fixture.operatorId))
+        db.update(user).set({ banned: true }).where(eq(user.id, fixture.operatorId)),
+      'operator-disabled'
     ],
     [
       'inactive Operator Session',
@@ -414,7 +497,8 @@ describe('reduced impersonation authority', () => {
         db
           .update(session)
           .set({ operatorIdleExpiresAt: new Date(now.getTime() - 1) })
-          .where(eq(session.id, fixture.operatorSessionId))
+          .where(eq(session.id, fixture.operatorSessionId)),
+      'operator-session-revoked'
     ],
     [
       'missing TOTP enrollment',
@@ -422,7 +506,8 @@ describe('reduced impersonation authority', () => {
         db
           .update(user)
           .set({ twoFactorEnabled: false })
-          .where(eq(user.id, fixture.operatorId))
+          .where(eq(user.id, fixture.operatorId)),
+      'totp-unenrolled'
     ],
     [
       'removed permission',
@@ -430,12 +515,17 @@ describe('reduced impersonation authority', () => {
         db
           .update(user)
           .set({ role: 'merchant-reader' })
-          .where(eq(user.id, fixture.operatorId))
+          .where(eq(user.id, fixture.operatorId)),
+      'permission-removed'
     ],
     [
       'disabled target',
       async (fixture: Awaited<ReturnType<typeof addActive>>) =>
-        db.update(user).set({ banned: true }).where(eq(user.id, fixture.targetMemberId))
+        db
+          .update(user)
+          .set({ banned: true })
+          .where(eq(user.id, fixture.targetMemberId)),
+      'target-disabled'
     ],
     [
       'mismatched target authority',
@@ -443,7 +533,8 @@ describe('reduced impersonation authority', () => {
         db
           .update(impersonationRecords)
           .set({ merchantId: `mismatched-${fixture.merchantId}` })
-          .where(eq(impersonationRecords.id, fixture.impersonationId))
+          .where(eq(impersonationRecords.id, fixture.impersonationId)),
+      'security-state-revoked'
     ],
     [
       'inactive lifecycle',
@@ -451,7 +542,8 @@ describe('reduced impersonation authority', () => {
         db
           .update(impersonationRecords)
           .set({ lifecycle: 'revoked' })
-          .where(eq(impersonationRecords.id, fixture.impersonationId))
+          .where(eq(impersonationRecords.id, fixture.impersonationId)),
+      null
     ],
     [
       'released security state',
@@ -459,9 +551,10 @@ describe('reduced impersonation authority', () => {
         db
           .update(impersonationRecords)
           .set({ terminationCause: 'security-state-released' })
-          .where(eq(impersonationRecords.id, fixture.impersonationId))
+          .where(eq(impersonationRecords.id, fixture.impersonationId)),
+      'security-state-revoked'
     ]
-  ])('rechecks %s on every protected request', async (name, invalidate) => {
+  ])('rechecks %s on every protected request', async (name, invalidate, cause) => {
     const fixture = await addActive(`recheck-${name.replaceAll(' ', '-')}`)
     await invalidate(fixture)
 
@@ -477,7 +570,7 @@ describe('reduced impersonation authority', () => {
       reason: 'impersonation authority denied'
     })
 
-    if (name === 'released security state') {
+    if (cause) {
       const [record] = await db
         .select()
         .from(impersonationRecords)
@@ -488,9 +581,23 @@ describe('reduced impersonation authority', () => {
         .where(eq(session.id, fixture.merchantSessionId))
       expect(record).toMatchObject({
         lifecycle: 'revoked',
-        terminationCause: 'security-state-revoked'
+        terminationCause: cause
       })
       expect(merchantSession?.expiresAt).toEqual(now)
+      expect(
+        await db
+          .select()
+          .from(operationsNotificationIntents)
+          .where(
+            eq(operationsNotificationIntents.impersonationId, fixture.impersonationId)
+          )
+      ).toHaveLength(1)
+      expect(
+        await db
+          .select()
+          .from(operationsAuditEvents)
+          .where(eq(operationsAuditEvents.impersonationId, fixture.impersonationId))
+      ).toHaveLength(1)
     }
   })
 })

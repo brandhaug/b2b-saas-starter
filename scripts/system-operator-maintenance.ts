@@ -137,8 +137,17 @@ export const makeWranglerOperatorMaintenanceDatabase = (
 })
 
 export const runSystemOperatorCommand = async (input: CommandInput) => {
+  const securityContact =
+    process.env.OPERATIONS_SECURITY_CONTACT ??
+    (input.environment === 'local' ? 'security@operations.local' : '')
+  if (input.command === 'recover' && !securityContact) {
+    throw new Error(
+      'OPERATIONS_SECURITY_CONTACT is required for recovery revocation notifications'
+    )
+  }
   const maintenance = makeSystemOperatorMaintenance(
-    makeWranglerOperatorMaintenanceDatabase(input.remote)
+    makeWranglerOperatorMaintenanceDatabase(input.remote),
+    { securityContact }
   )
   const result = await Effect.runPromise(
     input.command === 'bootstrap'

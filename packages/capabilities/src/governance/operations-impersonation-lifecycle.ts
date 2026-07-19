@@ -244,7 +244,8 @@ export const makeOperationsImpersonationLifecycleLayer = (
                 'pending', ?5, ?5, ?5
          FROM impersonation_records AS record
          WHERE record.id = ?7 AND record.lifecycle = ?8
-           AND record.updated_at = ?5`,
+           AND record.updated_at = ?5
+         ON CONFLICT(impersonation_id, event_type) DO NOTHING`,
         notificationIntentId(`${row.impersonationId}_${lifecycle}`),
         eventType,
         row.targetEmail,
@@ -269,7 +270,8 @@ export const makeOperationsImpersonationLifecycleLayer = (
                 record.reason, record.support_reference, ?7
          FROM impersonation_records AS record
          WHERE record.id = ?9 AND record.lifecycle = ?10
-           AND record.updated_at = ?7`,
+           AND record.updated_at = ?7
+         ON CONFLICT(business_event_id) DO NOTHING`,
         auditEventId(`${row.impersonationId}_${lifecycle}`),
         businessEventId,
         row.operatorName,
@@ -282,7 +284,11 @@ export const makeOperationsImpersonationLifecycleLayer = (
         lifecycle
       )
     ])
-    if (results.some((result) => (result.meta?.changes ?? 0) !== 1)) throw unavailable()
+    if ((results[0]?.meta?.changes ?? 0) === 0) {
+      const current = await read(row.merchantSessionId)
+      if (!current) throw denied()
+      return terminalResult(current)
+    }
     return {
       state: 'terminated',
       lifecycle,

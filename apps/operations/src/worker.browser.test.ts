@@ -196,7 +196,8 @@ describe('Operations browser boundary', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const { code } = await auth.api.generateTOTP({
       body: { secret: localOperatorFixture.totpSecret }
@@ -249,7 +250,8 @@ describe('Operations browser boundary', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const managerCode = await auth.api.generateTOTP({
       body: { secret: localOperatorFixture.totpSecret }
@@ -343,7 +345,8 @@ describe('Operations browser boundary', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const managerCode = await auth.api.generateTOTP({
       body: { secret: localOperatorFixture.totpSecret }
@@ -402,7 +405,8 @@ describe('Operations browser boundary', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const { code } = await auth.api.generateTOTP({
       body: { secret: localOperatorFixture.totpSecret }
@@ -479,7 +483,8 @@ describe('Operations browser boundary', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const { code } = await auth.api.generateTOTP({
       body: { secret: localOperatorFixture.totpSecret }
@@ -532,7 +537,8 @@ describe('Operations browser boundary', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const { code } = await auth.api.generateTOTP({
       body: { secret: localOperatorFixture.totpSecret }
@@ -589,7 +595,8 @@ describe('Operations browser boundary', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const { code } = await auth.api.generateTOTP({
       body: { secret: localOperatorFixture.totpSecret }

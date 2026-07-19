@@ -2,6 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createDb } from '@b2b-saas-starter/db/client'
 import {
   account,
+  impersonationRecords,
+  merchantMemberships,
+  merchants,
+  operationsAuditEvents,
+  operationsNotificationIntents,
   operatorEnrollments,
   operatorInvitations,
   session,
@@ -76,7 +81,8 @@ describe('Operations authentication contract', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const authHandler = createOperationsAuthHandler({ auth, db })
     const email = `operator-${crypto.randomUUID()}@operations.local`
@@ -325,6 +331,60 @@ describe('Operations authentication contract', () => {
     })
     expect(first).not.toBeNull()
 
+    const suffix = crypto.randomUUID()
+    const targetId = `mem_session_replacement_${suffix}`
+    const merchantId = `mer_session_replacement_${suffix}`
+    const merchantSessionId = `mss_session_replacement_${suffix}`
+    const activeUntil = new Date(Date.now() + 60 * 60_000)
+    await fixture.db.insert(user).values({
+      id: targetId,
+      email: `${targetId}@example.test`,
+      name: 'Session replacement target',
+      emailVerified: true,
+      identityClass: 'merchant_member',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+    await fixture.db.insert(merchants).values({
+      id: merchantId,
+      publicName: 'Session Replacement Merchant',
+      slug: `session-replacement-${suffix}`,
+      timezone: 'Europe/Bucharest',
+      currency: 'RON',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
+    await fixture.db.insert(merchantMemberships).values({
+      merchantId,
+      userId: targetId,
+      role: 'owner',
+      createdAt: new Date().toISOString()
+    })
+    await fixture.db.insert(session).values({
+      id: merchantSessionId,
+      token: `merchant_token_${suffix}`,
+      userId: targetId,
+      impersonatedBy: first!.id,
+      expiresAt: activeUntil,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+    await fixture.db.insert(impersonationRecords).values({
+      id: `imp_session_replacement_${suffix}`,
+      operatorId: first!.id,
+      operatorSessionId: first!.sessionId,
+      targetMemberId: targetId,
+      merchantId,
+      lifecycle: 'active',
+      reason: 'Verify replacement revocation',
+      ticketHash: `hash_${suffix}`,
+      handoffExpiresAt: activeUntil,
+      merchantSessionId,
+      activeExpiresAt: activeUntil,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
+
     const secondCookie = await fixture.authenticate()
     expect(
       await resolveOperatorSession({
@@ -339,6 +399,31 @@ describe('Operations authentication contract', () => {
       headers: new Headers({ cookie: secondCookie })
     })
     expect(second).not.toBeNull()
+    const [replaced] = await fixture.db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.merchantSessionId, merchantSessionId))
+    expect(replaced).toMatchObject({
+      lifecycle: 'revoked',
+      terminationCause: 'operator-session-replaced'
+    })
+    const [revokedMerchantSession] = await fixture.db
+      .select()
+      .from(session)
+      .where(eq(session.id, merchantSessionId))
+    expect(revokedMerchantSession?.expiresAt).toEqual(replaced?.terminalAt)
+    expect(
+      await fixture.db
+        .select()
+        .from(operationsNotificationIntents)
+        .where(eq(operationsNotificationIntents.impersonationId, replaced!.id))
+    ).toHaveLength(1)
+    expect(
+      await fixture.db
+        .select()
+        .from(operationsAuditEvents)
+        .where(eq(operationsAuditEvents.impersonationId, replaced!.id))
+    ).toHaveLength(1)
 
     expect(
       await resolveOperatorSession({
@@ -438,9 +523,9 @@ describe('Operations authentication contract', () => {
     expect(principal).not.toBeNull()
 
     await Effect.runPromise(
-      makeSystemOperatorMaintenance(
-        makeD1OperatorMaintenanceDatabase(testD1.d1)
-      ).recover({
+      makeSystemOperatorMaintenance(makeD1OperatorMaintenanceDatabase(testD1.d1), {
+        securityContact: 'security@example.test'
+      }).recover({
         actor: 'security-maintainer@example.test',
         environment: 'local',
         remote: false,

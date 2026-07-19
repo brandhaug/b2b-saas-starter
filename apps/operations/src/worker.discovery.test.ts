@@ -39,7 +39,8 @@ describe('Operations Merchant discovery HTTP boundary', () => {
       secret,
       baseURL: origin,
       trustedOrigins: [origin],
-      production: false
+      production: false,
+      securityContact: 'security@example.test'
     })
     const authHandler = createOperationsAuthHandler({ auth, db })
     const authenticate = async (operator: {

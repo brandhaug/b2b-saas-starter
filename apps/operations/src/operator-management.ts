@@ -68,6 +68,7 @@ type OperatorManagementRouteOptions = {
   readonly db: PromiseDrizzleDatabase
   readonly actor: OperatorPrincipal
   readonly reference: OperatorSessionReference
+  readonly securityContact: string
   readonly consumeRateLimit: (
     input: OperationsRateLimitRequest
   ) => Promise<OperationsRateLimitDecision>
@@ -88,7 +89,11 @@ export const handleOperatorManagementRoutes = async (
   ): Promise<A> =>
     Effect.runPromise(
       Effect.flatMap(OperationsManagement, use).pipe(
-        Effect.provide(makeOperationsManagementLayer(options.db))
+        Effect.provide(
+          makeOperationsManagementLayer(options.db, {
+            securityContact: options.securityContact
+          })
+        )
       )
     )
 
