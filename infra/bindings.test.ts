@@ -194,7 +194,7 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
     ).toBe(bookingEventsQueueName)
   })
 
-  it('declares the five settled Workers and the Public Site service binding', () => {
+  it('declares the six settled Workers and the Public Site service binding', () => {
     for (const [app, worker] of Object.entries(bookingProductWorkers)) {
       const config = readWranglerConfig(app)
       expect(config['name']).toBe(worker.name)
@@ -227,6 +227,7 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
     expect(source).toContain("Cloudflare.QueueConsumer('booking-events-consumer'")
     expect(source).toContain('domain: publicSiteDomain')
     expect(source).toContain('domain: merchantAppDomain')
+    expect(source).toContain('domain: operationsAppDomain')
     expect(source).toContain('domain: platformApiDomain')
   })
 })

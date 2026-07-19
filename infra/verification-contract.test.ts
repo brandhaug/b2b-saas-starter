@@ -3,10 +3,11 @@ import { buildSeedSql } from '../scripts/seed.ts'
 import { bookingProductWorkers } from './topology.ts'
 
 describe('Booking Product verification contract', () => {
-  it('keeps exactly five settled Worker identities', () => {
+  it('keeps exactly six settled Worker identities', () => {
     expect(Object.keys(bookingProductWorkers)).toEqual([
       'web',
       'merchant',
+      'operations',
       'booking',
       'api',
       'background'

@@ -23,6 +23,7 @@
     "dev": "turbo dev",
     "dev:web": "bun --cwd apps/web dev",
     "dev:merchant": "bun --cwd apps/merchant dev",
+    "dev:operations": "bun --cwd apps/operations dev",
     "dev:booking": "bun --cwd apps/booking dev",
     "dev:api": "bun --cwd apps/api dev",
     "dev:background": "bun --cwd apps/background dev",

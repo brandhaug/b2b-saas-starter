@@ -71,13 +71,14 @@ use stable identifiers and event facts, not Customer Details or credentials.
 ## Deployment
 
 `alchemy.run.ts` provisions one D1 database, the booking-events Queue, optional
-Cloudflare Email binding, rate-limit bindings, and all five Workers. The Queue is
+Cloudflare Email binding, rate-limit bindings, and all six Workers. The Queue is
 consumed by the Background Worker; its scheduled handler runs every five minutes.
 `infra/topology.ts` is the canonical Worker-name/port map and
 `infra/bindings.test.ts` prevents Alchemy/Wrangler drift.
 
 Required deploy environment: `PUBLIC_SITE_ORIGIN`, `MERCHANT_APP_ORIGIN`,
-`PLATFORM_API_ORIGIN`, `MERCHANT_AUTH_SECRET`, `CONFIRMATION_SIGNING_KEYS`, and
+`OPERATIONS_APP_ORIGIN`, `PLATFORM_API_ORIGIN`, `MERCHANT_AUTH_SECRET`,
+`OPERATIONS_AUTH_SECRET`, `CONFIRMATION_SIGNING_KEYS`, and
 `CONFIRMATION_CURRENT_KEY_ID`. Email and observability providers are optional;
 missing optional bindings degrade delivery or telemetry without blocking booking.
 See [.env.example](./.env.example) and [docs/operations.md](./docs/operations.md).

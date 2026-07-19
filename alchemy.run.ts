@@ -71,7 +71,13 @@ function optionalSecret(name: string) {
   return value ? Redacted.make(value) : undefined
 }
 
-const MERCHANT_AUTH_SECRET = Redacted.make(requiredEnv('MERCHANT_AUTH_SECRET'))
+const merchantAuthSecret = requiredEnv('MERCHANT_AUTH_SECRET')
+const operationsAuthSecret = requiredEnv('OPERATIONS_AUTH_SECRET')
+if (merchantAuthSecret === operationsAuthSecret) {
+  throw new Error('OPERATIONS_AUTH_SECRET must be distinct from MERCHANT_AUTH_SECRET')
+}
+const MERCHANT_AUTH_SECRET = Redacted.make(merchantAuthSecret)
+const OPERATIONS_AUTH_SECRET = Redacted.make(operationsAuthSecret)
 const CONFIRMATION_SIGNING_KEYS = Redacted.make(
   requiredEnv('CONFIRMATION_SIGNING_KEYS')
 )
@@ -82,9 +88,11 @@ const CUSTOMER_AUTH_SECRET = optionalSecret('CUSTOMER_AUTH_SECRET')
 const CUSTOMER_GOOGLE_CLIENT_SECRET = optionalSecret('CUSTOMER_GOOGLE_CLIENT_SECRET')
 const CUSTOMER_APPLE_CLIENT_SECRET = optionalSecret('CUSTOMER_APPLE_CLIENT_SECRET')
 const merchantAppOrigin = requiredEnv('MERCHANT_APP_ORIGIN')
+const operationsAppOrigin = requiredEnv('OPERATIONS_APP_ORIGIN')
 const publicSiteOrigin = requiredEnv('PUBLIC_SITE_ORIGIN')
 const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
 const merchantAppDomain = requiredHostname('MERCHANT_APP_ORIGIN')
+const operationsAppDomain = requiredHostname('OPERATIONS_APP_ORIGIN')
 const platformApiDomain = requiredHostname('PLATFORM_API_ORIGIN')
 // Optional: when unset, the SendEmail binding is skipped and the email
 // module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
@@ -184,6 +192,23 @@ export const Stack = Alchemy.Stack(
 
     yield* attachRateLimits(merchant, merchantRateLimits)
 
+    const operations = yield* Cloudflare.Worker('operations', {
+      name: bookingProductWorkers.operations.name,
+      url: false,
+      domain: operationsAppDomain,
+      main: './apps/operations/src/index.ts',
+      bindings: { DB: db },
+      env: {
+        OPERATIONS_AUTH_SECRET,
+        OPERATIONS_APP_ORIGIN: operationsAppOrigin,
+        OPERATIONS_AUTH_TRUSTED_ORIGINS: operationsAppOrigin,
+        ENVIRONMENT: 'production'
+      },
+      compatibility: { date: '2026-05-16', flags: ['nodejs_compat'] },
+      observability,
+      placement: smartPlacement
+    })
+
     const booking = yield* Cloudflare.Vite('booking', {
       name: bookingProductWorkers.booking.name,
       // Customer traffic reaches this worker only through `web`'s BOOKING
@@ -269,6 +294,7 @@ export const Stack = Alchemy.Stack(
       bookingEventsQueue,
       db,
       merchant,
+      operations,
       transactionalEmail,
       web
     }

@@ -6,6 +6,7 @@
 export const bookingProductWorkers = {
   web: { name: 'b2b-saas-starter-web', localPort: 3071 },
   merchant: { name: 'b2b-saas-starter-merchant', localPort: 3072 },
+  operations: { name: 'b2b-saas-starter-operations', localPort: 3076 },
   booking: { name: 'b2b-saas-starter-booking', localPort: 3073 },
   api: { name: 'b2b-saas-starter-api', localPort: 8787 },
   background: { name: 'b2b-saas-starter-background', localPort: 8788 }

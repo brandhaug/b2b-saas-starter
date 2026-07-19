@@ -1,0 +1,23 @@
+{
+  "name": "operations",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 3076",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@b2b-saas-starter/auth": "workspace:*",
+    "@b2b-saas-starter/capabilities": "workspace:*",
+    "@b2b-saas-starter/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@b2b-saas-starter/config": "workspace:*",
+    "@cloudflare/workers-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

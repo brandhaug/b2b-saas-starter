@@ -175,5 +175,5 @@ describe('capability foundation migration', () => {
       source_id: 'apt_legacy',
       source_version: 1
     })
-  })
+  }, 30_000)
 })

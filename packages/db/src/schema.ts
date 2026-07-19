@@ -19,6 +19,11 @@ export const platformApiTokenScopes = [
 ] as const
 export type PlatformApiTokenScopeValue = (typeof platformApiTokenScopes)[number]
 export const merchantMemberRoles = ['owner'] as const
+export const identityClasses = [
+  'system_operator',
+  'merchant_member',
+  'customer_account'
+] as const
 export const merchantPlans = ['solo', 'team'] as const
 export const providerStatuses = ['active', 'inactive'] as const
 export const providerBookingAccess = ['public', 'restricted'] as const
@@ -177,6 +182,12 @@ export const user = sqliteTable('user', {
   displayUsername: text('displayUsername'),
   emailVerified: integer('emailVerified', { mode: 'boolean' }).default(false).notNull(),
   role: text('role').default('user'),
+  identityClass: text('identityClass', { enum: identityClasses })
+    .default('merchant_member')
+    .notNull(),
+  twoFactorEnabled: integer('twoFactorEnabled', { mode: 'boolean' })
+    .default(false)
+    .notNull(),
   banned: integer('banned', { mode: 'boolean' }).default(false),
   banReason: text('banReason'),
   banExpires: integer('banExpires', { mode: 'timestamp' }),
@@ -195,9 +206,29 @@ export const session = sqliteTable(
     userId: text('userId')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    impersonatedBy: text('impersonatedBy')
+    impersonatedBy: text('impersonatedBy'),
+    operatorIdleExpiresAt: integer('operatorIdleExpiresAt', { mode: 'timestamp' }),
+    operatorAbsoluteExpiresAt: integer('operatorAbsoluteExpiresAt', {
+      mode: 'timestamp'
+    })
   },
   (table) => [index('session_user_id_idx').on(table.userId)]
+)
+
+export const twoFactor = sqliteTable(
+  'twoFactor',
+  {
+    id: id(),
+    secret: text('secret').notNull(),
+    backupCodes: text('backupCodes').notNull(),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    verified: integer('verified', { mode: 'boolean' }).default(true).notNull(),
+    failedVerificationCount: integer('failedVerificationCount').default(0).notNull(),
+    lockedUntil: integer('lockedUntil', { mode: 'timestamp' })
+  },
+  (table) => [uniqueIndex('two_factor_user_id_idx').on(table.userId)]
 )
 
 export const account = sqliteTable(

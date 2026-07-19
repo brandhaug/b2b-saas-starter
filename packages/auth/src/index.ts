@@ -8,6 +8,8 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import type { Database } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
 
+export * from './operations.ts'
+
 export type CreateAuthOptions = {
   readonly db: Database
   readonly secret: string
@@ -153,9 +155,38 @@ export function createMerchantAuth(options: CreateMerchantAuthOptions) {
       revokeSessionsOnPasswordReset: true
     },
     user: {
+      additionalFields: {
+        identityClass: {
+          type: 'string',
+          required: true,
+          input: false,
+          defaultValue: 'merchant_member'
+        }
+      },
       // Better Auth protects this endpoint with its sensitive-session
       // middleware, which uses the fifteen-minute `freshAge` above.
       changeEmail: { enabled: true }
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (candidate) => ({
+            data: { ...candidate, identityClass: 'merchant_member' }
+          })
+        }
+      },
+      session: {
+        create: {
+          before: async (candidate) => {
+            const [identity] = await options.db
+              .select({ identityClass: schema.user.identityClass })
+              .from(schema.user)
+              .where(eq(schema.user.id, candidate.userId))
+              .limit(1)
+            return identity?.identityClass === 'merchant_member' ? undefined : false
+          }
+        }
+      }
     },
     plugins: [impersonationProvenance(), tanstackStartCookies()]
   })
@@ -200,6 +231,37 @@ export function createCustomerAuth(options: CreateCustomerAuthOptions) {
       cookieCache: { enabled: false }
     },
     emailAndPassword: { enabled: false },
+    user: {
+      additionalFields: {
+        identityClass: {
+          type: 'string',
+          required: true,
+          input: false,
+          defaultValue: 'customer_account'
+        }
+      }
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (candidate) => ({
+            data: { ...candidate, identityClass: 'customer_account' }
+          })
+        }
+      },
+      session: {
+        create: {
+          before: async (candidate) => {
+            const [identity] = await options.db
+              .select({ identityClass: schema.user.identityClass })
+              .from(schema.user)
+              .where(eq(schema.user.id, candidate.userId))
+              .limit(1)
+            return identity?.identityClass === 'customer_account' ? undefined : false
+          }
+        }
+      }
+    },
     socialProviders: {
       ...(options.google ? { google: options.google } : {}),
       ...(options.apple ? { apple: options.apple } : {})

@@ -1,15 +1,16 @@
 ---
 title: Architecture overview
-description: The five-Worker Booking Product, D1 transaction boundary, and durable delivery path.
+description: The six-Worker Booking Product, D1 transaction boundary, and durable delivery path.
 category: architecture
 order: 10
 tags: [architecture, cloudflare, booking]
 ---
 
-The Booking Product ships five Workers: the unauthenticated Public Site, the
-authenticated Merchant App, the private Booking App, the merchant-scoped Platform
-API, and the Background Worker. They share one Merchant-owned D1 model through
-Effect capabilities.
+The Booking Product ships six Workers: the unauthenticated Public Site, the
+authenticated Merchant App, the staff-only Operations App, the private Booking App,
+the merchant-scoped Platform API, and the Background Worker. They share one D1 model
+through Effect capabilities while Merchant and System Operator auth realms stay
+separate.
 
 Customer traffic enters at the Public Site and reaches the Booking App through a
 service binding. The Booking App atomically commits the Appointment, Confirmation

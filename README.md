@@ -1,6 +1,6 @@
 # Booking Product
 
-Cloudflare-first booking product built with five Workers, Effect v4, Drizzle on
+Cloudflare-first booking product built with six Workers, Effect v4, Drizzle on
 D1, Better Auth, Alchemy, Vitest, Playwright, oxlint, oxfmt, Turbo, and Bun.
 
 The first shipped vertical slice lets a verified Merchant Owner configure and
@@ -44,7 +44,7 @@ public page at `http://localhost:3071/mara-booking-studio`.
 ## Commands
 
 ```bash
-bun run dev                 # all five Workers
+bun run dev                 # all six Workers
 bun run dev:web             # Public Site only
 bun run dev:merchant        # Merchant App only
 bun run dev:booking         # Booking App development origin only

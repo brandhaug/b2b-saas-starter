@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./operations": "./src/operations.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
