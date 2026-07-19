@@ -1,22 +1,35 @@
-import { Context, Effect, Schema } from 'effect'
+import { Context, Effect, Layer, Schema } from 'effect'
+import { and, eq } from 'drizzle-orm'
+import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
+import { session, user } from '@b2b-saas-starter/db'
 
-export const OperatorRole = Schema.Literals([
+export const operatorRoleNames = [
   'merchant-reader',
   'merchant-impersonator',
   'impersonation-auditor',
   'operator-manager'
-])
+] as const
+export const OperatorRole = Schema.Literals(operatorRoleNames)
 export type OperatorRole = typeof OperatorRole.Type
 
-export const OperatorAuthorization = Schema.Struct({
-  operatorId: Schema.String,
-  operatorSessionId: Schema.String,
-  roles: Schema.Array(OperatorRole)
+export const OperatorSessionReference = Schema.Struct({
+  operatorSessionId: Schema.String
 })
-export type OperatorAuthorization = typeof OperatorAuthorization.Type
+export type OperatorSessionReference = typeof OperatorSessionReference.Type
+
+export const OperatorPrincipal = Schema.Struct({
+  id: Schema.String,
+  sessionId: Schema.String,
+  email: Schema.String,
+  name: Schema.String,
+  roles: Schema.Array(OperatorRole),
+  idleExpiresAt: Schema.Date,
+  absoluteExpiresAt: Schema.Date
+})
+export type OperatorPrincipal = typeof OperatorPrincipal.Type
 
 export const ProvisionOperatorRequest = Schema.Struct({
-  actor: OperatorAuthorization,
+  actor: OperatorSessionReference,
   email: Schema.String,
   name: Schema.String,
   roles: Schema.Array(OperatorRole)
@@ -30,7 +43,7 @@ export const ProvisionOperatorResult = Schema.Struct({
 export type ProvisionOperatorResult = typeof ProvisionOperatorResult.Type
 
 export const MerchantDiscoveryQuery = Schema.Struct({
-  actor: OperatorAuthorization,
+  actor: OperatorSessionReference,
   kind: Schema.Literals(['merchant', 'merchant-member']),
   query: Schema.String,
   limit: Schema.Number
@@ -77,7 +90,7 @@ export const OperationsRateLimitDecision = Schema.Struct({
 export type OperationsRateLimitDecision = typeof OperationsRateLimitDecision.Type
 
 export const ImpersonationStartRequest = Schema.Struct({
-  actor: OperatorAuthorization,
+  actor: OperatorSessionReference,
   targetMemberId: Schema.String,
   merchantId: Schema.String,
   reason: Schema.String,
@@ -120,7 +133,7 @@ export class OperationsAudit extends Context.Service<
   {
     readonly record: (input: OperationsAuditRecord) => Effect.Effect<void>
     readonly list: (
-      actor: OperatorAuthorization
+      actor: OperatorSessionReference
     ) => Effect.Effect<readonly OperationsAuditRecord[], OperationsContractDenied>
   }
 >()('@b2b-saas-starter/capabilities/OperationsAudit') {}
@@ -143,10 +156,89 @@ export class OperationsImpersonation extends Context.Service<
   }
 >()('@b2b-saas-starter/capabilities/OperationsImpersonation') {}
 
-const fixtureActor: OperatorAuthorization = {
-  operatorId: 'opr_local',
-  operatorSessionId: 'ops_local',
-  roles: ['merchant-impersonator', 'impersonation-auditor', 'operator-manager']
+export class OperationsAuthorization extends Context.Service<
+  OperationsAuthorization,
+  {
+    readonly authorize: (
+      reference: OperatorSessionReference,
+      now?: Date
+    ) => Effect.Effect<OperatorPrincipal, OperationsContractDenied>
+  }
+>()('@b2b-saas-starter/capabilities/OperationsAuthorization') {}
+
+const operatorIdleLifetimeMs = 30 * 60 * 1_000
+
+const parseRoles = (value: string | null): OperatorRole[] => [
+  ...new Set(
+    (value ?? '')
+      .split(',')
+      .map((role) => role.trim())
+      .filter((role): role is OperatorRole =>
+        operatorRoleNames.includes(role as OperatorRole)
+      )
+  )
+]
+
+export const makeOperationsAuthorizationLayer = (
+  db: PromiseDrizzleDatabase
+): Layer.Layer<OperationsAuthorization> =>
+  Layer.succeed(OperationsAuthorization)({
+    authorize: (reference, requestedNow) =>
+      Effect.tryPromise({
+        try: async () => {
+          const now = requestedNow ?? new Date()
+          const [authoritative] = await db
+            .select({ operator: user, session })
+            .from(session)
+            .innerJoin(user, eq(user.id, session.userId))
+            .where(
+              and(
+                eq(session.id, reference.operatorSessionId),
+                eq(user.identityClass, 'system_operator')
+              )
+            )
+            .limit(1)
+          const idleExpiresAt = authoritative?.session.operatorIdleExpiresAt
+          const absoluteExpiresAt = authoritative?.session.operatorAbsoluteExpiresAt
+          if (
+            !authoritative ||
+            authoritative.operator.banned ||
+            !authoritative.operator.emailVerified ||
+            !authoritative.operator.twoFactorEnabled ||
+            !idleExpiresAt ||
+            !absoluteExpiresAt ||
+            now >= idleExpiresAt ||
+            now >= absoluteExpiresAt
+          ) {
+            throw new Error('operator session is not authorized')
+          }
+          const nextIdle = new Date(
+            Math.min(
+              now.getTime() + operatorIdleLifetimeMs,
+              absoluteExpiresAt.getTime()
+            )
+          )
+          await db
+            .update(session)
+            .set({ operatorIdleExpiresAt: nextIdle })
+            .where(eq(session.id, authoritative.session.id))
+          return {
+            id: authoritative.operator.id,
+            sessionId: authoritative.session.id,
+            email: authoritative.operator.email,
+            name: authoritative.operator.name,
+            roles: parseRoles(authoritative.operator.role),
+            idleExpiresAt: nextIdle,
+            absoluteExpiresAt
+          }
+        },
+        catch: () =>
+          new OperationsContractDenied({ reason: 'operator session is not authorized' })
+      })
+  })
+
+const fixtureActor: OperatorSessionReference = {
+  operatorSessionId: 'ops_local'
 }
 
 export const makeOperationsContractFixtures = () =>
@@ -165,7 +257,7 @@ export const makeOperationsContractFixtures = () =>
     },
     audit: {
       id: 'oaud_fixture',
-      actorOperatorId: fixtureActor.operatorId,
+      actorOperatorId: 'opr_local',
       targetId: null,
       merchantId: 'mer_fixture',
       action: 'merchant.discovery',

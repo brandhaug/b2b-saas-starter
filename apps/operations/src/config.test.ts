@@ -30,4 +30,17 @@ describe('Operations Worker configuration', () => {
   ])('fails closed for invalid isolated configuration', (env, message) => {
     expect(() => parseOperationsConfig(env)).toThrow(message)
   })
+
+  it.each([undefined, 'staging', 'preview', 'production'])(
+    'rejects deterministic credentials in %s',
+    (environment) => {
+      expect(() =>
+        parseOperationsConfig({
+          ...valid,
+          ...(environment === undefined ? {} : { ENVIRONMENT: environment }),
+          OPERATIONS_LOCAL_SEED: 'enabled'
+        })
+      ).toThrow('outside local development')
+    }
+  )
 })

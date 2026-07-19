@@ -143,6 +143,8 @@
         "@b2b-saas-starter/auth": "workspace:*",
         "@b2b-saas-starter/capabilities": "workspace:*",
         "@b2b-saas-starter/db": "workspace:*",
+        "@b2b-saas-starter/rate-limit": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
@@ -254,11 +256,15 @@
     "packages/auth": {
       "name": "@b2b-saas-starter/auth",
       "dependencies": {
+        "@b2b-saas-starter/capabilities": "workspace:*",
         "@b2b-saas-starter/db": "workspace:*",
         "better-auth": "catalog:",
+        "drizzle-orm": "catalog:",
       },
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
+        "@cloudflare/workers-types": "catalog:",
+        "@playwright/test": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
       },

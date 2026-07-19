@@ -3,13 +3,19 @@ import { createDb } from '@b2b-saas-starter/db/client'
 import { session, user } from '@b2b-saas-starter/db/schema'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { eq } from 'drizzle-orm'
+import { Effect } from 'effect'
+import {
+  OperationsAuthorization,
+  makeOperationsAuthorizationLayer
+} from '@b2b-saas-starter/capabilities/operations'
 import {
   createOperationsAuth,
   createOperationsAuthHandler,
   hasOperatorPermission,
   operatorRoles,
   provisionLocalOperator,
-  resolveOperatorSession
+  readOperatorSessionReference,
+  type OperationsAuth
 } from './operations.ts'
 import { createMerchantAuth } from './index.ts'
 
@@ -22,6 +28,22 @@ const cookieFor = (response: Response, name: string): string => {
   const cookies = response.headers.getSetCookie()
   const value = cookies.find((cookie) => cookie.startsWith(`${name}=`))
   return value?.split(';')[0] ?? ''
+}
+
+const resolveOperatorSession = async (input: {
+  readonly auth: OperationsAuth
+  readonly db: ReturnType<typeof createDb>
+  readonly headers: Headers
+  readonly now?: Date
+}) => {
+  const reference = await readOperatorSessionReference(input)
+  if (!reference) return null
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const authorization = yield* OperationsAuthorization
+      return yield* authorization.authorize(reference, input.now)
+    }).pipe(Effect.provide(makeOperationsAuthorizationLayer(input.db)))
+  ).catch(() => null)
 }
 
 describe('Operations authentication contract', () => {
@@ -154,6 +176,7 @@ describe('Operations authentication contract', () => {
     const fixture = await setup()
     for (const path of [
       '/sign-up/email',
+      '/get-session',
       '/admin/create-user',
       '/admin/list-users',
       '/admin/list-user-sessions',
@@ -188,6 +211,15 @@ describe('Operations authentication contract', () => {
       headers: new Headers({ cookie: secondCookie })
     })
     expect(second).not.toBeNull()
+
+    expect(
+      await resolveOperatorSession({
+        auth: fixture.auth,
+        db: fixture.db,
+        headers: new Headers({ cookie: secondCookie }),
+        now: new Date(second!.idleExpiresAt.getTime())
+      })
+    ).toBeNull()
 
     const nearAbsolute = new Date(second!.absoluteExpiresAt.getTime() - 5 * 60_000)
     await fixture.db

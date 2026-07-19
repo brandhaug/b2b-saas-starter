@@ -1,5 +1,11 @@
 ALTER TABLE `user` ADD `identityClass` text DEFAULT 'merchant_member' NOT NULL;
 --> statement-breakpoint
+UPDATE `user`
+SET `identityClass` = 'customer_account'
+WHERE `id` IN (
+	SELECT `userId` FROM `account` WHERE `providerId` IN ('google', 'apple')
+);
+--> statement-breakpoint
 ALTER TABLE `user` ADD `twoFactorEnabled` integer DEFAULT false NOT NULL;
 --> statement-breakpoint
 ALTER TABLE `session` ADD `operatorIdleExpiresAt` integer;

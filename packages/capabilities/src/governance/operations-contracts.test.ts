@@ -7,7 +7,7 @@ import {
   OperationsRateLimitRequest,
   ProvisionOperatorRequest,
   makeOperationsContractFixtures
-} from './contracts.ts'
+} from './operations-contracts.ts'
 
 describe('Operations transport-neutral contracts', () => {
   it('decodes fixtures for every independent Operations workstream', () => {
@@ -34,5 +34,7 @@ describe('Operations transport-neutral contracts', () => {
     expect(serialized).not.toMatch(
       /password|totpSecret|backupCode|cookie|bearer|Request|Response/
     )
+    expect(serialized).not.toMatch(/"actor":\{[^}]*"roles"/)
+    expect(serialized).not.toMatch(/"actor":\{[^}]*"operatorId"/)
   })
 })

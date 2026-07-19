@@ -1,9 +1,16 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createAccessControl } from 'better-auth/plugins/access'
+import { admin as adminPlugin } from 'better-auth/plugins/admin'
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins/two-factor'
 import { hashPassword, symmetricEncrypt } from 'better-auth/crypto'
 import { and, eq, ne } from 'drizzle-orm'
+import {
+  operatorRoleNames,
+  type OperatorPrincipal,
+  type OperatorRole as OperatorRoleName,
+  type OperatorSessionReference
+} from '@b2b-saas-starter/capabilities/operations'
 import type { Database } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
 
@@ -11,13 +18,8 @@ const hour = 60 * 60
 const operatorAbsoluteLifetimeSeconds = 8 * hour
 const operatorIdleLifetimeSeconds = 30 * 60
 
-export const operatorRoleNames = [
-  'merchant-reader',
-  'merchant-impersonator',
-  'impersonation-auditor',
-  'operator-manager'
-] as const
-export type OperatorRoleName = (typeof operatorRoleNames)[number]
+export { operatorRoleNames }
+export type { OperatorPrincipal, OperatorRoleName, OperatorSessionReference }
 
 export const operatorPermissions = [
   'merchant:read',
@@ -150,7 +152,11 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
             }
           },
           after: async (created, context) => {
-            if (context?.path !== '/two-factor/verify-totp') return
+            if (
+              context?.path !== '/two-factor/verify-totp' &&
+              context?.path !== '/two-factor/verify-backup-code'
+            )
+              return
             await options.db
               .delete(schema.session)
               .where(
@@ -164,6 +170,12 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
       }
     },
     plugins: [
+      adminPlugin({
+        ac: operatorAccessControl,
+        roles: operatorRoles,
+        defaultRole: 'merchant-reader',
+        adminRoles: ['operator-manager']
+      }),
       twoFactorPlugin({
         issuer: 'B2B SaaS Starter Operations',
         twoFactorCookieMaxAge: 5 * 60,
@@ -178,8 +190,7 @@ const publicOperationsAuthPaths = new Set([
   '/sign-in/email',
   '/two-factor/verify-totp',
   '/two-factor/verify-backup-code',
-  '/sign-out',
-  '/get-session'
+  '/sign-out'
 ])
 
 const authPath = (request: Request): string => {
@@ -209,7 +220,7 @@ export const createOperationsAuthHandler =
       const [candidate] = await options.db
         .select({
           identityClass: schema.user.identityClass,
-          enabled: schema.user.banned,
+          banned: schema.user.banned,
           twoFactorEnabled: schema.user.twoFactorEnabled
         })
         .from(schema.user)
@@ -218,7 +229,7 @@ export const createOperationsAuthHandler =
       if (
         !candidate ||
         candidate.identityClass !== 'system_operator' ||
-        candidate.enabled ||
+        candidate.banned ||
         !candidate.twoFactorEnabled
       ) {
         return Response.json({ error: 'authentication_failed' }, { status: 401 })
@@ -227,65 +238,12 @@ export const createOperationsAuthHandler =
     return options.auth.handler(request)
   }
 
-export type OperatorPrincipal = {
-  readonly id: string
-  readonly sessionId: string
-  readonly email: string
-  readonly name: string
-  readonly roles: readonly OperatorRoleName[]
-  readonly idleExpiresAt: Date
-  readonly absoluteExpiresAt: Date
-}
-
-export const resolveOperatorSession = async (input: {
+export const readOperatorSessionReference = async (input: {
   readonly auth: OperationsAuth
-  readonly db: Database
   readonly headers: Headers
-  readonly now?: Date
-}): Promise<OperatorPrincipal | null> => {
+}): Promise<OperatorSessionReference | null> => {
   const current = await input.auth.api.getSession({ headers: input.headers })
-  if (!current) return null
-  const now = input.now ?? new Date()
-  const [authoritative] = await input.db
-    .select({ operator: schema.user, session: schema.session })
-    .from(schema.session)
-    .innerJoin(schema.user, eq(schema.user.id, schema.session.userId))
-    .where(eq(schema.session.id, current.session.id))
-    .limit(1)
-  const idleExpiresAt = authoritative?.session.operatorIdleExpiresAt
-  const absoluteExpiresAt = authoritative?.session.operatorAbsoluteExpiresAt
-  if (
-    !authoritative ||
-    authoritative.operator.identityClass !== 'system_operator' ||
-    authoritative.operator.banned ||
-    !authoritative.operator.emailVerified ||
-    !authoritative.operator.twoFactorEnabled ||
-    !idleExpiresAt ||
-    !absoluteExpiresAt ||
-    now >= idleExpiresAt ||
-    now >= absoluteExpiresAt
-  ) {
-    return null
-  }
-  const nextIdle = new Date(
-    Math.min(
-      now.getTime() + operatorIdleLifetimeSeconds * 1_000,
-      absoluteExpiresAt.getTime()
-    )
-  )
-  await input.db
-    .update(schema.session)
-    .set({ operatorIdleExpiresAt: nextIdle })
-    .where(eq(schema.session.id, authoritative.session.id))
-  return {
-    id: authoritative.operator.id,
-    sessionId: authoritative.session.id,
-    email: authoritative.operator.email,
-    name: authoritative.operator.name,
-    roles: parseOperatorRoles(authoritative.operator.role),
-    idleExpiresAt: nextIdle,
-    absoluteExpiresAt
-  }
+  return current ? { operatorSessionId: current.session.id } : null
 }
 
 export type LocalOperatorFixture = {

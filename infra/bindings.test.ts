@@ -8,6 +8,7 @@ import {
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
+  operationsRateLimits,
   type QueueConsumerSettings,
   type RateLimitBindingSpec
 } from './bindings.ts'
@@ -166,6 +167,19 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
         [...merchantRateLimits, ...bookingRateLimits].map((spec) => spec.namespaceId)
       )
     ).toHaveLength(merchantRateLimits.length + bookingRateLimits.length)
+  })
+
+  it('Operations authentication has a dedicated rate-limit boundary', () => {
+    expectRateLimitSync(
+      rateLimitBindings(readWranglerConfig('operations')),
+      operationsRateLimits
+    )
+    const namespaces = new Set(
+      [...apiRateLimits, ...merchantRateLimits, ...bookingRateLimits].map(
+        (spec) => spec.namespaceId
+      )
+    )
+    expect(namespaces.has(operationsRateLimits[0]!.namespaceId)).toBe(false)
   })
 
   it('apps/background consumes only Booking Product events', () => {

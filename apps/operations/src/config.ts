@@ -13,6 +13,7 @@ export type OperationsConfig = {
   readonly trustedOrigins: readonly string[]
   readonly production: boolean
   readonly localSeed: boolean
+  readonly localDevelopment: boolean
 }
 
 const origin = (name: string, value: string | undefined): string => {
@@ -26,6 +27,8 @@ const origin = (name: string, value: string | undefined): string => {
 
 export const parseOperationsConfig = (env: OperationsEnvironment): OperationsConfig => {
   const production = env.ENVIRONMENT === 'production'
+  const localDevelopment =
+    env.ENVIRONMENT === 'development' || env.ENVIRONMENT === 'test'
   const secret = env.OPERATIONS_AUTH_SECRET
   if (!secret || secret.length < 32) {
     throw new Error('OPERATIONS_AUTH_SECRET must contain at least 32 characters')
@@ -46,8 +49,15 @@ export const parseOperationsConfig = (env: OperationsEnvironment): OperationsCon
     throw new Error('Operations base URL must be included in trusted origins')
   }
   const localSeed = env.OPERATIONS_LOCAL_SEED === 'enabled'
-  if (production && localSeed) {
-    throw new Error('Operations local seed is forbidden in production')
+  if (!localDevelopment && localSeed) {
+    throw new Error('Operations local seed is forbidden outside local development')
   }
-  return { secret, baseURL, trustedOrigins, production, localSeed }
+  return {
+    secret,
+    baseURL,
+    trustedOrigins,
+    production,
+    localSeed,
+    localDevelopment
+  }
 }

@@ -11,7 +11,9 @@
   "dependencies": {
     "@b2b-saas-starter/auth": "workspace:*",
     "@b2b-saas-starter/capabilities": "workspace:*",
-    "@b2b-saas-starter/db": "workspace:*"
+    "@b2b-saas-starter/db": "workspace:*",
+    "@b2b-saas-starter/rate-limit": "workspace:*",
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",

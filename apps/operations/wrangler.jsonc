@@ -12,5 +12,15 @@
       "database_name": "b2b-saas-starter",
       "database_id": "placeholder"
     }
-  ]
+  ],
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER_OPERATIONS_AUTH",
+        "type": "ratelimit",
+        "namespace_id": "5001",
+        "simple": { "limit": 20, "period": 60 }
+      }
+    ]
+  }
 }

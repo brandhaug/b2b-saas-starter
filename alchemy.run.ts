@@ -8,6 +8,7 @@ import {
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
+  operationsRateLimits,
   type RateLimitBindingSpec
 } from './infra/bindings.ts'
 import { bookingProductWorkers } from './infra/topology.ts'
@@ -208,6 +209,8 @@ export const Stack = Alchemy.Stack(
       observability,
       placement: smartPlacement
     })
+
+    yield* attachRateLimits(operations, operationsRateLimits)
 
     const booking = yield* Cloudflare.Vite('booking', {
       name: bookingProductWorkers.booking.name,

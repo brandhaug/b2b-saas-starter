@@ -4,12 +4,23 @@ import {
   createOperationsAuth,
   createOperationsAuthHandler,
   provisionLocalOperator,
-  resolveOperatorSession
+  readOperatorSessionReference
 } from '@b2b-saas-starter/auth/operations'
+import {
+  OperationsAuthorization,
+  makeOperationsAuthorizationLayer
+} from '@b2b-saas-starter/capabilities/operations'
+import {
+  clientKey,
+  makeRateLimiter,
+  type CloudflareRateLimit
+} from '@b2b-saas-starter/rate-limit'
+import { Effect, type Scope } from 'effect'
 import { parseOperationsConfig, type OperationsEnvironment } from './config.ts'
 
 export type OperationsWorkerEnv = OperationsEnvironment & {
   readonly DB: D1Database
+  readonly RATE_LIMITER_OPERATIONS_AUTH?: CloudflareRateLimit
 }
 
 export const localOperatorFixture = {
@@ -45,6 +56,20 @@ const formText = (form: FormData, name: string): string => {
 
 let localSeed: Promise<void> | undefined
 
+const runScoped = <A>(effect: Effect.Effect<A, never, Scope.Scope>): Promise<A> =>
+  Effect.runPromise(Effect.scoped(effect) as Effect.Effect<A>)
+
+const authorize = async (
+  db: ReturnType<typeof createDb>,
+  reference: { readonly operatorSessionId: string }
+) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const authorization = yield* OperationsAuthorization
+      return yield* authorization.authorize(reference)
+    }).pipe(Effect.provide(makeOperationsAuthorizationLayer(db)))
+  ).catch(() => null)
+
 export const createOperationsWorker = () => ({
   async fetch(request: Request, env: OperationsWorkerEnv): Promise<Response> {
     let config
@@ -61,7 +86,7 @@ export const createOperationsWorker = () => ({
       localSeed ??= provisionLocalOperator({
         db,
         secret: config.secret,
-        mode: 'development',
+        mode: config.localDevelopment ? 'development' : 'production',
         operator: localOperatorFixture
       })
       await localSeed
@@ -70,7 +95,21 @@ export const createOperationsWorker = () => ({
     const authHandler = createOperationsAuthHandler({ auth, db })
     const url = new URL(request.url)
 
-    if (url.pathname.startsWith('/api/auth/')) return authHandler(request)
+    if (url.pathname.startsWith('/api/auth/')) {
+      const limiter = makeRateLimiter({
+        binding: () => env.RATE_LIMITER_OPERATIONS_AUTH,
+        fallbackLimits: { 'operator-authentication': 20 }
+      })
+      const allowed = await runScoped(
+        limiter.take({
+          bucket: 'operator-authentication',
+          key: clientKey(request)
+        })
+      )
+      return allowed
+        ? authHandler(request)
+        : Response.json({ error: 'rate_limited' }, { status: 429 })
+    }
 
     if (request.method === 'GET' && url.pathname === '/sign-in') {
       return html(
@@ -116,11 +155,11 @@ export const createOperationsWorker = () => ({
       return redirect('/', response.headers.getSetCookie())
     }
 
-    const principal = await resolveOperatorSession({
+    const reference = await readOperatorSessionReference({
       auth,
-      db,
       headers: request.headers
     })
+    const principal = reference ? await authorize(db, reference) : null
     if (!principal) return redirect('/sign-in')
     if (request.method !== 'GET' || url.pathname !== '/') {
       return Response.json({ error: 'not_found' }, { status: 404 })

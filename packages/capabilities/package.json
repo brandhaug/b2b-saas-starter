@@ -23,7 +23,7 @@
     "./customer-identity": "./src/customer-identity/index.ts",
     "./notifications": "./src/notifications/index.ts",
     "./scheduled-work": "./src/scheduled-work/index.ts",
-    "./operations": "./src/operations/index.ts",
+    "./operations": "./src/governance/operations-contracts.ts",
     "./foundation/ids": "./src/ids.ts",
     "./foundation/booking": "./src/booking/foundations.ts",
     "./foundation/merchant-catalog": "./src/merchant-catalog/foundations.ts",

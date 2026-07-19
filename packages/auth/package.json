@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@b2b-saas-starter/capabilities": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:"

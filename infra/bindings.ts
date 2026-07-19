@@ -31,6 +31,15 @@ export const merchantRateLimits: readonly RateLimitBindingSpec[] = [
   { name: 'RATE_LIMITER_AUTH_WRITE', namespaceId: '3002', limit: 20, period: 60 }
 ]
 
+export const operationsRateLimits: readonly RateLimitBindingSpec[] = [
+  {
+    name: 'RATE_LIMITER_OPERATIONS_AUTH',
+    namespaceId: '5001',
+    limit: 20,
+    period: 60
+  }
+]
+
 export const bookingRateLimits: readonly RateLimitBindingSpec[] = [
   { name: 'RATE_LIMITER_BOOKING_READ', namespaceId: '4001', limit: 120, period: 60 },
   { name: 'RATE_LIMITER_BOOKING_WRITE', namespaceId: '4002', limit: 30, period: 60 }
