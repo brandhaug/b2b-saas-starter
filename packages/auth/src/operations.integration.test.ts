@@ -9,6 +9,10 @@ import {
   makeOperationsAuthorizationLayer
 } from '@b2b-saas-starter/capabilities/operations'
 import {
+  makeD1OperatorMaintenanceDatabase,
+  makeSystemOperatorMaintenance
+} from '@b2b-saas-starter/capabilities/governance'
+import {
   createOperationsAuth,
   createOperationsAuthHandler,
   hasOperatorPermission,
@@ -297,5 +301,39 @@ describe('Operations authentication contract', () => {
     expect(response.headers.getSetCookie().join(';')).not.toContain(
       'merchant.session_token='
     )
+  })
+
+  it('denies password-only access and invalidates the old session after emergency recovery', async () => {
+    const fixture = await setup()
+    const sessionCookie = await fixture.authenticate()
+    const principal = await resolveOperatorSession({
+      auth: fixture.auth,
+      db: fixture.db,
+      headers: new Headers({ cookie: sessionCookie })
+    })
+    expect(principal).not.toBeNull()
+
+    await Effect.runPromise(
+      makeSystemOperatorMaintenance(
+        makeD1OperatorMaintenanceDatabase(testD1.d1)
+      ).recover({
+        actor: 'security-maintainer@example.test',
+        environment: 'local',
+        remote: false,
+        email: fixture.email,
+        confirmedEmail: fixture.email
+      })
+    )
+
+    expect(
+      await resolveOperatorSession({
+        auth: fixture.auth,
+        db: fixture.db,
+        headers: new Headers({ cookie: sessionCookie })
+      })
+    ).toBeNull()
+    expect(
+      (await fixture.call('/sign-in/email', { email: fixture.email, password })).status
+    ).toBe(401)
   })
 })

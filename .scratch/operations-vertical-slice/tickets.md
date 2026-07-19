@@ -46,15 +46,15 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Establish Operations Auth and Contract Seams.
 
-- [ ] Bootstrap targets an existing verified dedicated email and rejects identities belonging to a Merchant Member or Customer Account.
-- [ ] Bootstrap is idempotent, assigns explicit Better Auth roles, creates no Merchant membership, and never grants wildcard or stock admin permissions.
-- [ ] Remote production execution requires an explicit production target and confirmation of the intended email.
-- [ ] Re-running bootstrap cannot duplicate identities, broaden permissions implicitly, or change Merchant membership.
-- [ ] Emergency recovery requires an explicit target environment and exact operator email.
-- [ ] Recovery revokes the current Operator Session and every derived impersonation before changing second-factor state.
-- [ ] Recovery disables the old factor, forces TOTP and backup-code re-enrollment, and does not permit password-only Operations access.
-- [ ] Bootstrap and recovery each emit durable global audit evidence with actor, target, result, environment, and timestamp, without logging credentials.
-- [ ] Integration tests cover local use, explicit production targeting, identity collision, idempotency, revocation, failure rollback, and forced re-enrollment.
+- [x] Bootstrap targets an existing verified dedicated email and rejects identities belonging to a Merchant Member or Customer Account.
+- [x] Bootstrap is idempotent, assigns explicit Better Auth roles, creates no Merchant membership, and never grants wildcard or stock admin permissions.
+- [x] Remote production execution requires an explicit production target and confirmation of the intended email.
+- [x] Re-running bootstrap cannot duplicate identities, broaden permissions implicitly, or change Merchant membership.
+- [x] Emergency recovery requires an explicit target environment and exact operator email.
+- [x] Recovery revokes the current Operator Session and every derived impersonation before changing second-factor state.
+- [x] Recovery disables the old factor, forces TOTP and backup-code re-enrollment, and does not permit password-only Operations access.
+- [x] Bootstrap and recovery each emit durable global audit evidence with actor, target, result, environment, and timestamp, without logging credentials.
+- [x] Integration tests cover local use, explicit production targeting, identity collision, idempotency, revocation, failure rollback, and forced re-enrollment.
 
 ## Invite and Enroll System Operators
 

@@ -1,5 +1,35 @@
 # Booking Product Operations
 
+## System Operator bootstrap and emergency recovery
+
+Both maintenance commands target one exact, already verified email and record the
+named maintainer in the global audit log. They never accept passwords, TOTP
+secrets, or backup codes.
+
+For local D1, run:
+
+```bash
+bun run operator:bootstrap -- --environment local --email operator@example.test --confirm-email operator@example.test --actor maintainer@example.test --roles merchant-reader,operator-manager
+bun run operator:recover -- --environment local --email operator@example.test --confirm-email operator@example.test --actor maintainer@example.test
+```
+
+Production additionally requires the explicit `--remote` switch. Repeat the exact
+target email in `--confirm-email`; the capability rejects mismatches before any
+identity or session state changes.
+
+```bash
+bun run operator:bootstrap -- --environment production --remote --email operator@example.com --confirm-email operator@example.com --actor maintainer@example.com --roles merchant-reader,operator-manager
+bun run operator:recover -- --environment production --remote --email operator@example.com --confirm-email operator@example.com --actor maintainer@example.com
+```
+
+Bootstrap assigns roles only to an existing verified identity already classified
+as a System Operator and carrying no Merchant membership. It never reclassifies a
+Merchant Member or Customer Account. Re-running it with the same explicit roles is
+a no-op; a different role set is rejected. Recovery atomically revokes the
+Operator Session and derived impersonation sessions, removes the old second
+factor, and leaves Operations sign-in unavailable until TOTP and backup-code
+enrollment is completed again.
+
 ## Durable notification recovery
 
 `booking_outbox` is authoritative. The booking-events Queue merely wakes the

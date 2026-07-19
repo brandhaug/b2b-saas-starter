@@ -43,6 +43,8 @@
     "db:migrate:local": "bun --cwd packages/db db:migrate:local",
     "db:migrate:remote": "bun --cwd packages/db db:migrate:remote",
     "db:seed": "bun scripts/seed.ts",
+    "operator:bootstrap": "bun scripts/system-operator-maintenance.ts bootstrap",
+    "operator:recover": "bun scripts/system-operator-maintenance.ts recover",
     "deploy": "bun alchemy.run.ts",
     "destroy": "bun alchemy.run.ts --destroy",
     "prepare": "git config core.hooksPath .githooks"
