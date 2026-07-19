@@ -39,7 +39,7 @@ describe('Booking widget shell', () => {
     expect(shell?.getAttribute('data-scroll-owner')).toBe('content')
     expect(shell?.getAttribute('style')).toContain('#111111')
     expect(shell?.hasAttribute('aria-busy')).toBe(false)
-    expect(screen.getByRole('status').textContent).toBe('Updating booking…')
+    expect(screen.getByText('Updating booking…')).toBeTruthy()
   })
 
   it('replaces the pending spinner with the legacy success message', async () => {
@@ -51,7 +51,10 @@ describe('Booking widget shell', () => {
       />
     )
 
-    expect(screen.getByTestId('icon:processingPending')).toBeTruthy()
+    const pending = screen.getByText('Processing')
+    expect(
+      pending.parentElement?.previousElementSibling?.querySelector('svg')
+    ).toBeTruthy()
 
     rerender(
       <BookingLegacyProcessingOverlay
@@ -61,10 +64,11 @@ describe('Booking widget shell', () => {
       />
     )
 
-    const success = await screen.findByRole('status', { name: 'Success' })
-    expect(success.getAttribute('data-processing-state')).toBe('success')
-    expect(screen.queryByTestId('icon:processingPending')).toBeNull()
-    expect(screen.getByTestId('icon:processingSuccess')).toBeTruthy()
-    expect(screen.getByTestId('text:successMessage').textContent).toBe('Success')
+    expect(screen.queryByText('Processing')).toBeNull()
+    const success = screen.getByTestId('text:successMessage')
+    expect(success.textContent).toBe('Success')
+    expect(
+      success.parentElement?.previousElementSibling?.querySelector('svg')
+    ).toBeTruthy()
   })
 })

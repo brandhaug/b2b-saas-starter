@@ -49,6 +49,10 @@ export const styles = stylex.create({
     width: 62,
     height: 62
   },
+  processingPendingCollapsible: {
+    position: 'absolute',
+    inset: 0
+  },
   processingIcon: {
     display: 'block',
     width: 62,
@@ -74,17 +78,16 @@ export const styles = stylex.create({
     color: '#ffffff'
   },
   processingTitle: {
-    height: 24,
-    marginTop: 24,
-    marginRight: 0,
-    marginBottom: 0,
-    marginLeft: 0,
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    margin: 0,
+    fontFamily: bookingTheme.fontLegacyDisplay,
     fontSize: 20,
     fontWeight: 600,
     lineHeight: '24px',
     letterSpacing: '0.75px'
+  },
+  processingTitleBox: {
+    height: 24,
+    marginTop: 24
   },
   header: {
     position: 'sticky',

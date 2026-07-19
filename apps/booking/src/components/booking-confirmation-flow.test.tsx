@@ -7,6 +7,8 @@ import { BookingConfirmationRouteFlow } from './booking-confirmation-flow.tsx'
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
+  window.history.replaceState(null, '', '/')
 })
 
 const snapshot = {
@@ -63,6 +65,44 @@ const confirmation = {
 } satisfies BookingConfirmationPresentation
 
 describe('Booking confirmation route flow', () => {
+  it('shows the legacy success message over the new reservation route', async () => {
+    window.history.replaceState(
+      {
+        bookingProcessingSuccess: {
+          expiresAt: Date.now() + 50,
+          label: 'Success'
+        }
+      },
+      '',
+      '/mara-booking-studio/booking/confirmations/cnf_demo'
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined))
+    )
+
+    render(
+      <BookingConfirmationRouteFlow
+        merchantSlug="mara-booking-studio"
+        routeId="cnf_demo"
+        embedding="standalone"
+      />
+    )
+
+    const successText = screen.getByTestId('text:successMessage')
+    const titleBox = successText.parentElement
+    const message = titleBox?.parentElement
+    const overlay = message?.parentElement
+    expect(successText.textContent).toBe('Success')
+    expect(titleBox?.tagName).toBe('DIV')
+    expect(message?.children).toHaveLength(2)
+    expect(overlay?.tagName).toBe('DIV')
+    expect(overlay?.closest('[data-booking-shell="canonical"]')).toBeTruthy()
+
+    await waitFor(() => expect(screen.queryByTestId('text:successMessage')).toBeNull())
+    expect(window.history.state.bookingProcessingSuccess).toBeUndefined()
+  })
+
   it('does not imply payment status or chargeability for no-card Pay In Person', async () => {
     vi.stubGlobal(
       'fetch',

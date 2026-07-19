@@ -3,6 +3,10 @@ import { Schema } from 'effect'
 import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
+import {
+  clearBookingProcessingSuccess,
+  readBookingProcessingSuccess
+} from '../lib/booking-processing-transition.ts'
 import type { BookingEmbedding } from '../lib/booking-route-contract.ts'
 import {
   BookingConfirmationPresentation,
@@ -16,7 +20,11 @@ import { BookingLocalizationProvider } from '../localization/booking-localizatio
 import { BookingPopupSheet } from '../presentation/booking-primitives.tsx'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
 import { BookingConfirmationReschedulePopup } from './booking-confirmation-reschedule-popup.tsx'
-import { BookingShellProvider, BookingWidgetShell } from './booking-widget-shell.tsx'
+import {
+  BookingLegacyProcessingOverlay,
+  BookingShellProvider,
+  BookingWidgetShell
+} from './booking-widget-shell.tsx'
 import { confirmationStyles as styles } from './booking-confirmation-flow.styles.ts'
 
 type ConfirmationState =
@@ -119,6 +127,24 @@ export function BookingConfirmationRouteFlow({
   readonly embedding: BookingEmbedding
 }) {
   const [state, setState] = useState<ConfirmationState>({ kind: 'loading' })
+  const [processingSuccess, setProcessingSuccess] = useState(() =>
+    readBookingProcessingSuccess()
+  )
+
+  useEffect(() => {
+    if (!processingSuccess) return
+    const remaining = processingSuccess.expiresAt - Date.now()
+    if (remaining <= 0) {
+      clearBookingProcessingSuccess()
+      setProcessingSuccess(null)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      clearBookingProcessingSuccess()
+      setProcessingSuccess(null)
+    }, remaining)
+    return () => window.clearTimeout(timer)
+  }, [processingSuccess])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -172,6 +198,11 @@ export function BookingConfirmationRouteFlow({
                 {state.message}
               </p>
             ) : null}
+            <BookingLegacyProcessingOverlay
+              state={processingSuccess ? 'success' : 'hidden'}
+              pendingLabel=""
+              successLabel={processingSuccess?.label ?? ''}
+            />
           </BookingWidgetShell>
         </BookingPremiumThemeBoundary>
       </BookingLocalizationProvider>

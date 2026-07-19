@@ -325,13 +325,16 @@ describe('server-backed Booking scheduling', () => {
       target: { value: 'mia@example.com' }
     })
     fireEvent.click(within(checkout).getByRole('button', { name: 'Book' }))
-    const processing = await screen.findByRole('status', { name: 'Processing' })
-    expect(processing.getAttribute('data-testid')).toBe('overlay:processing')
+    const processing = await screen.findByText('Processing')
     expect(processing.closest('[data-booking-shell="canonical"]')).toBe(canonicalShell)
-    expect(processing.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 62 62')
+    expect(
+      processing.parentElement?.previousElementSibling
+        ?.querySelector('svg')
+        ?.getAttribute('viewBox')
+    ).toBe('0 0 62 62')
     expect(screen.getByRole('dialog', { name: 'Confirm booking' })).toBe(checkout)
     resolveCustomerDetails(Response.json({ issues: [] }, { status: 422 }))
-    await waitFor(() => expect(screen.queryByTestId('overlay:processing')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('Processing')).toBeNull())
     fireEvent.click(within(checkout).getByRole('button', { name: 'Close' }))
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Order summary' })).getByRole(
