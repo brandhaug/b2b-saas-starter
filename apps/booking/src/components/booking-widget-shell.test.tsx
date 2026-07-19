@@ -2,7 +2,11 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
-import { BookingShellProvider, BookingWidgetShell } from './booking-widget-shell.tsx'
+import {
+  BookingLegacyProcessingOverlay,
+  BookingShellProvider,
+  BookingWidgetShell
+} from './booking-widget-shell.tsx'
 
 afterEach(cleanup)
 
@@ -36,5 +40,31 @@ describe('Booking widget shell', () => {
     expect(shell?.getAttribute('style')).toContain('#111111')
     expect(shell?.hasAttribute('aria-busy')).toBe(false)
     expect(screen.getByRole('status').textContent).toBe('Updating booking…')
+  })
+
+  it('replaces the pending spinner with the legacy success message', async () => {
+    const { rerender } = render(
+      <BookingLegacyProcessingOverlay
+        state="pending"
+        pendingLabel="Processing"
+        successLabel="Success"
+      />
+    )
+
+    expect(screen.getByTestId('icon:processingPending')).toBeTruthy()
+
+    rerender(
+      <BookingLegacyProcessingOverlay
+        state="success"
+        pendingLabel="Processing"
+        successLabel="Success"
+      />
+    )
+
+    const success = await screen.findByRole('status', { name: 'Success' })
+    expect(success.getAttribute('data-processing-state')).toBe('success')
+    expect(screen.queryByTestId('icon:processingPending')).toBeNull()
+    expect(screen.getByTestId('icon:processingSuccess')).toBeTruthy()
+    expect(screen.getByTestId('text:successMessage').textContent).toBe('Success')
   })
 })

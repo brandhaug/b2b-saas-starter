@@ -167,6 +167,8 @@ export function ServerBackedBookingFlow({
   const [confirmationProcessing, setConfirmationProcessing] = useState(
     paymentReturn && !paymentCancelled
   )
+  const [checkoutSucceeded, setCheckoutSucceeded] = useState(false)
+  const checkoutSuccessTimer = useRef<number | null>(null)
   const [paymentEligibility, setPaymentEligibility] =
     useState<PaymentMethodEligibility>({ state: 'disabled', methods: [] })
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pay_in_person')
@@ -181,6 +183,13 @@ export function ServerBackedBookingFlow({
   const paymentIdempotencyKey = useRef(`payment-${crypto.randomUUID()}`)
   const paymentReturnConfirmed = useRef(false)
   const [selectionRefreshed, setSelectionRefreshed] = useState(false)
+  useEffect(
+    () => () => {
+      if (checkoutSuccessTimer.current !== null)
+        window.clearTimeout(checkoutSuccessTimer.current)
+    },
+    []
+  )
   const [partyNow, setPartyNow] = useState('9999-12-31T23:59:59.999Z')
   useEffect(() => {
     const update = () => setPartyNow(new Date().toISOString())
@@ -663,9 +672,16 @@ export function ServerBackedBookingFlow({
       return (await response.json()) as { readonly location: string }
     },
     onSuccess: (result) => {
-      if (result) window.location.assign(result.location)
+      if (!result) return
+      setCheckoutSucceeded(true)
+      checkoutSuccessTimer.current = window.setTimeout(() => {
+        window.location.assign(result.location)
+      }, 3000)
     },
-    onError: (error) => void telemetry.report(error)
+    onError: (error) => {
+      setCheckoutSucceeded(false)
+      void telemetry.report(error)
+    }
   })
   const pendingConsentTargets = useMemo(
     () =>
@@ -756,6 +772,11 @@ export function ServerBackedBookingFlow({
     setLegacyCheckoutPhase('policies')
     legacyBookPending.current = false
     setNotificationPoliciesOpen(false)
+    setCheckoutSucceeded(false)
+    if (checkoutSuccessTimer.current !== null) {
+      window.clearTimeout(checkoutSuccessTimer.current)
+      checkoutSuccessTimer.current = null
+    }
     setPreparation(null)
     queryClient.removeQueries({ queryKey: checkoutPreparationKey })
   }
@@ -983,6 +1004,7 @@ export function ServerBackedBookingFlow({
           }
           onSubmit={(details) => {
             if (presentation === 'withinBookingShell') legacyBookPending.current = true
+            setCheckoutSucceeded(false)
             detailsMutation.mutate(details)
           }}
           onFinalize={(input) => finalizeMutation.mutate(input)}
@@ -1086,8 +1108,15 @@ export function ServerBackedBookingFlow({
           }}
         />
         <BookingLegacyProcessingOverlay
-          open={detailsMutation.isPending || finalizeMutation.isPending}
-          label={message('feedback.processing')}
+          state={
+            checkoutSucceeded
+              ? 'success'
+              : detailsMutation.isPending || finalizeMutation.isPending
+                ? 'pending'
+                : 'hidden'
+          }
+          pendingLabel={message('feedback.processing')}
+          successLabel={message('feedback.success')}
         />
       </>
     )

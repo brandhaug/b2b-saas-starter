@@ -61,6 +61,18 @@ export const styles = stylex.create({
     animationTimingFunction: 'linear',
     '@media (prefers-reduced-motion: reduce)': { animationName: 'none' }
   },
+  processingSuccessCircle: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    width: 62,
+    height: 62,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '50%',
+    backgroundColor: '#2caf00',
+    color: '#ffffff'
+  },
   processingTitle: {
     height: 24,
     marginTop: 24,

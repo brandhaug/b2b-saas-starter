@@ -154,6 +154,7 @@ const en = {
   'feedback.error_generic': 'Something went wrong. Try again.',
   'feedback.loading': 'Preparing your booking…',
   'feedback.processing': 'Processing',
+  'feedback.success': 'Success',
   'feedback.selection_refreshed':
     'Your booking changed in another tab. We reloaded the latest choices.',
   'feedback.source_language': 'Shown in the merchant’s original language',
@@ -447,6 +448,7 @@ const es = {
   'feedback.error_generic': 'Algo salió mal. Inténtalo de nuevo.',
   'feedback.loading': 'Preparando tu reserva…',
   'feedback.processing': 'Procesando',
+  'feedback.success': 'Éxito',
   'feedback.selection_refreshed':
     'Tu reserva cambió en otra pestaña. Cargamos las opciones más recientes.',
   'feedback.source_language': 'Se muestra en el idioma original del comercio',
@@ -740,6 +742,7 @@ const fr = {
   'feedback.error_generic': 'Un problème est survenu. Réessayez.',
   'feedback.loading': 'Préparation de votre réservation…',
   'feedback.processing': 'Chargement',
+  'feedback.success': 'Succès',
   'feedback.selection_refreshed':
     'Votre réservation a changé dans un autre onglet. Les choix récents ont été rechargés.',
   'feedback.source_language': 'Affiché dans la langue originale du commerce',
@@ -1035,6 +1038,7 @@ const ro = {
   'feedback.error_generic': 'Ceva nu a funcționat. Încearcă din nou.',
   'feedback.loading': 'Pregătim rezervarea…',
   'feedback.processing': 'Se procesează',
+  'feedback.success': 'Succes',
   'feedback.selection_refreshed':
     'Rezervarea s-a schimbat în altă filă. Am reîncărcat opțiunile recente.',
   'feedback.source_language': 'Afișat în limba originală a comerciantului',
