@@ -644,6 +644,14 @@ const legacyPhoneCountries: readonly LegacyPhoneCountry[] = getCountries().map(
   (iso2) => ({ iso2, dialCode: getCountryCallingCode(iso2) })
 )
 
+function formatLegacyNationalPhone(country: LegacyPhoneCountry, value: string): string {
+  const digits = value.replace(/\D/g, '')
+  if (!digits) return ''
+
+  const international = new AsYouType().input(`+${country.dialCode}${digits}`)
+  return international.replace(`+${country.dialCode}`, '').trimStart()
+}
+
 function LegacyPhoneField(props: {
   readonly label: string
   readonly countryCode: CountryCode
@@ -753,8 +761,7 @@ function LegacyPhoneField(props: {
           placeholder={props.label}
           value={phone}
           onChange={(event) => {
-            const digits = event.currentTarget.value.replace(/\D/g, '')
-            setPhone(new AsYouType(country.iso2).input(digits))
+            setPhone(formatLegacyNationalPhone(country, event.currentTarget.value))
           }}
           onBlur={() => setTouched(true)}
           {...stylex.props(
@@ -857,9 +864,7 @@ function LegacyPhoneField(props: {
                 name={countryName(option)}
                 onSelect={() => {
                   setCountry(option)
-                  setPhone((current) =>
-                    new AsYouType(option.iso2).input(current.replace(/\D/g, ''))
-                  )
+                  setPhone((current) => formatLegacyNationalPhone(option, current))
                   setSearch('')
                   setOpen(false)
                 }}

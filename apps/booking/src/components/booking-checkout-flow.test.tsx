@@ -132,8 +132,11 @@ describe('Booking checkout', () => {
       target: { value: 'Mara Ionescu' }
     })
     fireEvent.change(screen.getByTestId('input:phone'), {
-      target: { value: '721 123 456' }
+      target: { value: '753849882' }
     })
+    expect((screen.getByTestId('input:phone') as HTMLInputElement).value).toBe(
+      '753 849 882'
+    )
     expect(screen.queryByText('First name is required')).toBeNull()
     expect(screen.queryByText('Enter a valid phone number')).toBeNull()
     fireEvent.change(screen.getByTestId('input:email'), {
@@ -143,7 +146,7 @@ describe('Booking checkout', () => {
     expect(submit).toHaveBeenCalledWith({
       name: 'Mara Ionescu',
       email: 'mara@example.com',
-      phone: '+40721123456'
+      phone: '+40753849882'
     })
   })
 
