@@ -10,17 +10,20 @@ import {
   OperationsAuthorization,
   makeOperationsAuthorizationLayer
 } from '@b2b-saas-starter/capabilities/operations'
-import {
-  clientKey,
-  makeRateLimiter,
-  type CloudflareRateLimit
-} from '@b2b-saas-starter/rate-limit'
-import { Effect, type Scope } from 'effect'
+import { clientKey, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
+import { Effect } from 'effect'
+import { makeOperationsAbuseProtection } from './abuse-protection.ts'
 import { parseOperationsConfig, type OperationsEnvironment } from './config.ts'
 
 export type OperationsWorkerEnv = OperationsEnvironment & {
   readonly DB: D1Database
-  readonly RATE_LIMITER_OPERATIONS_AUTH?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_READ?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_AUTHENTICATION?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_TOTP?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_SEARCH?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_MANAGEMENT?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_IMPERSONATION_START?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE?: CloudflareRateLimit
 }
 
 export const localOperatorFixture = {
@@ -56,8 +59,27 @@ const formText = (form: FormData, name: string): string => {
 
 let localSeed: Promise<void> | undefined
 
-const runScoped = <A>(effect: Effect.Effect<A, never, Scope.Scope>): Promise<A> =>
-  Effect.runPromise(Effect.scoped(effect) as Effect.Effect<A>)
+const cookieValue = (request: Request, name: string): string => {
+  const cookie = request.headers.get('cookie') ?? ''
+  const acceptedNames = new Set([name, `__Secure-${name}`])
+  for (const part of cookie.split(';')) {
+    const [candidate, ...value] = part.trim().split('=')
+    if (candidate && acceptedNames.has(candidate)) return value.join('=') || 'missing'
+  }
+  return 'missing'
+}
+
+const limited = (retryAfterSeconds: number): Response =>
+  Response.json(
+    { error: 'authentication_temporarily_unavailable', retryable: true },
+    {
+      status: 429,
+      headers: {
+        'retry-after': String(retryAfterSeconds),
+        'cache-control': 'no-store'
+      }
+    }
+  )
 
 const authorize = async (
   db: ReturnType<typeof createDb>,
@@ -82,6 +104,39 @@ export const createOperationsWorker = () => ({
       )
     }
     const db = createDb(env.DB)
+    const abuseProtection = makeOperationsAbuseProtection({
+      db,
+      bindings: {
+        ...(env.RATE_LIMITER_OPERATIONS_READ
+          ? { read: env.RATE_LIMITER_OPERATIONS_READ }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_AUTHENTICATION
+          ? { authentication: env.RATE_LIMITER_OPERATIONS_AUTHENTICATION }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_TOTP
+          ? { totp: env.RATE_LIMITER_OPERATIONS_TOTP }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_SEARCH
+          ? { search: env.RATE_LIMITER_OPERATIONS_SEARCH }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_MANAGEMENT
+          ? { management: env.RATE_LIMITER_OPERATIONS_MANAGEMENT }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_IMPERSONATION_START
+          ? { impersonationStart: env.RATE_LIMITER_OPERATIONS_IMPERSONATION_START }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE
+          ? { handoffExchange: env.RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE }
+          : {})
+      },
+      fallbackLimits: config.rateLimits.fallbackLimits,
+      retryAfterSeconds: config.rateLimits.retryAfterSeconds
+    })
+    const consumeAbuse = (input: Parameters<typeof abuseProtection.consume>[0]) =>
+      abuseProtection.consume(input).catch(() => ({
+        allowed: false,
+        retryAfterSeconds: config.rateLimits.retryAfterSeconds
+      }))
     if (config.localSeed) {
       localSeed ??= provisionLocalOperator({
         db,
@@ -96,19 +151,51 @@ export const createOperationsWorker = () => ({
     const url = new URL(request.url)
 
     if (url.pathname.startsWith('/api/auth/')) {
-      const limiter = makeRateLimiter({
-        binding: () => env.RATE_LIMITER_OPERATIONS_AUTH,
-        fallbackLimits: { 'operator-authentication': 20 }
-      })
-      const allowed = await runScoped(
-        limiter.take({
-          bucket: 'operator-authentication',
-          key: clientKey(request)
+      const authPath = url.pathname.slice('/api/auth'.length)
+      if (authPath === '/sign-in/email') {
+        let subjectKey = 'missing'
+        try {
+          const body = (await request.clone().json()) as { readonly email?: unknown }
+          if (typeof body.email === 'string') {
+            subjectKey = body.email.trim().toLocaleLowerCase('en-US') || 'missing'
+          }
+        } catch {
+          // Malformed attempts share the same neutral missing-identity bucket.
+        }
+        const decision = await consumeAbuse({
+          category: 'operator-authentication',
+          subjectKey,
+          sourceKey: clientKey(request),
+          operation: 'password'
         })
-      )
-      return allowed
-        ? authHandler(request)
-        : Response.json({ error: 'rate_limited' }, { status: 429 })
+        if (!decision.allowed) return limited(decision.retryAfterSeconds!)
+      }
+      if (
+        authPath === '/two-factor/verify-totp' ||
+        authPath === '/two-factor/verify-backup-code'
+      ) {
+        const decision = await consumeAbuse({
+          category: 'operator-totp',
+          subjectKey: cookieValue(request, 'operations.two_factor'),
+          sourceKey: clientKey(request),
+          operation: authPath === '/two-factor/verify-totp' ? 'totp' : 'backup-code'
+        })
+        if (!decision.allowed) return limited(decision.retryAfterSeconds!)
+      }
+      if (
+        authPath !== '/sign-in/email' &&
+        authPath !== '/two-factor/verify-totp' &&
+        authPath !== '/two-factor/verify-backup-code'
+      ) {
+        const decision = await consumeAbuse({
+          category: 'operator-session-read',
+          subjectKey: cookieValue(request, 'operations.session_token'),
+          sourceKey: clientKey(request),
+          operation: 'session-read'
+        })
+        if (!decision.allowed) return limited(decision.retryAfterSeconds!)
+      }
+      return authHandler(request)
     }
 
     if (request.method === 'GET' && url.pathname === '/sign-in') {
@@ -119,12 +206,20 @@ export const createOperationsWorker = () => ({
     }
     if (request.method === 'POST' && url.pathname === '/sign-in') {
       const form = await request.formData()
+      const email = formText(form, 'email').trim().toLocaleLowerCase('en-US')
+      const decision = await consumeAbuse({
+        category: 'operator-authentication',
+        subjectKey: email || 'missing',
+        sourceKey: clientKey(request),
+        operation: 'password'
+      })
+      if (!decision.allowed) return limited(decision.retryAfterSeconds!)
       const response = await authHandler(
         new Request(`${config.baseURL}/api/auth/sign-in/email`, {
           method: 'POST',
           headers: { origin: config.baseURL, 'content-type': 'application/json' },
           body: JSON.stringify({
-            email: formText(form, 'email'),
+            email,
             password: formText(form, 'password')
           })
         })
@@ -140,6 +235,13 @@ export const createOperationsWorker = () => ({
     }
     if (request.method === 'POST' && url.pathname === '/verify-totp') {
       const form = await request.formData()
+      const decision = await consumeAbuse({
+        category: 'operator-totp',
+        subjectKey: cookieValue(request, 'operations.two_factor'),
+        sourceKey: clientKey(request),
+        operation: 'totp'
+      })
+      if (!decision.allowed) return limited(decision.retryAfterSeconds!)
       const response = await authHandler(
         new Request(`${config.baseURL}/api/auth/two-factor/verify-totp`, {
           method: 'POST',
@@ -155,6 +257,13 @@ export const createOperationsWorker = () => ({
       return redirect('/', response.headers.getSetCookie())
     }
 
+    const readDecision = await consumeAbuse({
+      category: 'operator-session-read',
+      subjectKey: cookieValue(request, 'operations.session_token'),
+      sourceKey: clientKey(request),
+      operation: 'session-read'
+    })
+    if (!readDecision.allowed) return limited(readDecision.retryAfterSeconds!)
     const reference = await readOperatorSessionReference({
       auth,
       headers: request.headers

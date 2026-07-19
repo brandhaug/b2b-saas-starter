@@ -128,14 +128,14 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Establish Operations Auth and Contract Seams.
 
-- [ ] Session/read traffic and authentication/TOTP attempts use separate configurable rate-limit categories.
-- [ ] Keys combine the appropriate operator or submitted identity, source characteristics, and operation without leaking raw secrets.
-- [ ] Limits do not let high-volume harmless reads consume or reset high-risk authentication controls.
-- [ ] Responses communicate retryability without revealing whether a protected identity exists.
-- [ ] Repeated security-relevant failures create bounded, deduplicated audit evidence.
-- [ ] Successful authentication does not erase evidence or create an unlimited bypass.
-- [ ] Local development has deterministic limits suitable for tests without disabling the policy.
-- [ ] Contract tests cover category isolation, composite-key behavior, expiry/recovery, concurrency, neutral errors, and failure auditing.
+- [x] Session/read traffic and authentication/TOTP attempts use separate configurable rate-limit categories.
+- [x] Keys combine the appropriate operator or submitted identity, source characteristics, and operation without leaking raw secrets.
+- [x] Limits do not let high-volume harmless reads consume or reset high-risk authentication controls.
+- [x] Responses communicate retryability without revealing whether a protected identity exists.
+- [x] Repeated security-relevant failures create bounded, deduplicated audit evidence.
+- [x] Successful authentication does not erase evidence or create an unlimited bypass.
+- [x] Local development has deterministic limits suitable for tests without disabling the policy.
+- [x] Contract tests cover category isolation, composite-key behavior, expiry/recovery, concurrency, neutral errors, and failure auditing.
 
 ## Create an Accountable Pending Handoff
 

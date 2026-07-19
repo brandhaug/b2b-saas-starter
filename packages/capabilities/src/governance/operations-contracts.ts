@@ -1,7 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
-import { session, user } from '@b2b-saas-starter/db'
+import { auditEvents, session, user } from '@b2b-saas-starter/db'
 
 export const operatorRoleNames = [
   'merchant-reader',
@@ -73,13 +73,15 @@ export const OperationsRateLimitRequest = Schema.Struct({
   category: Schema.Literals([
     'operator-session-read',
     'operator-authentication',
+    'operator-totp',
     'merchant-discovery',
     'operator-management',
     'impersonation-start',
     'handoff-exchange'
   ]),
   subjectKey: Schema.String,
-  sourceKey: Schema.String
+  sourceKey: Schema.String,
+  operation: Schema.String
 })
 export type OperationsRateLimitRequest = typeof OperationsRateLimitRequest.Type
 
@@ -88,6 +90,11 @@ export const OperationsRateLimitDecision = Schema.Struct({
   retryAfterSeconds: Schema.NullOr(Schema.Number)
 })
 export type OperationsRateLimitDecision = typeof OperationsRateLimitDecision.Type
+
+export class OperationsRateLimitUnavailable extends Schema.TaggedErrorClass<OperationsRateLimitUnavailable>()(
+  'OperationsRateLimitUnavailable',
+  { reason: Schema.String }
+) {}
 
 export const ImpersonationStartRequest = Schema.Struct({
   actor: OperatorSessionReference,
@@ -143,9 +150,103 @@ export class OperationsRateLimit extends Context.Service<
   {
     readonly consume: (
       input: OperationsRateLimitRequest
-    ) => Effect.Effect<OperationsRateLimitDecision>
+    ) => Effect.Effect<OperationsRateLimitDecision, OperationsRateLimitUnavailable>
   }
 >()('@b2b-saas-starter/capabilities/OperationsRateLimit') {}
+
+type OperationsRateLimitCategory = OperationsRateLimitRequest['category']
+
+export type OperationsRateLimitAdapter = {
+  readonly consume: (input: {
+    readonly category: OperationsRateLimitCategory
+    readonly key: string
+  }) => Promise<boolean>
+  readonly recordDenied: (input: {
+    readonly id: string
+    readonly category: OperationsRateLimitCategory
+    readonly operation: string
+    readonly keyHash: string
+    readonly occurredAt: string
+  }) => Promise<void>
+}
+
+export const makeOperationsRateLimitAuditRecorder =
+  (db: PromiseDrizzleDatabase): OperationsRateLimitAdapter['recordDenied'] =>
+  async (denial) => {
+    await db
+      .insert(auditEvents)
+      .values({
+        id: denial.id,
+        merchantId: null,
+        actorUserId: null,
+        eventType: 'operations.authentication.rate-limited',
+        targetType: 'system-operator-authentication',
+        targetId: null,
+        metadata: {
+          category: denial.category,
+          operation: denial.operation,
+          compositeKeyHash: denial.keyHash,
+          retryable: true
+        },
+        createdAt: denial.occurredAt
+      })
+      .onConflictDoNothing()
+  }
+
+const sha256 = async (value: string): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+export const makeOperationsRateLimitLayer = (input: {
+  readonly adapter: OperationsRateLimitAdapter
+  readonly retryAfterSeconds: Readonly<Record<OperationsRateLimitCategory, number>>
+  readonly now?: () => Date
+}): Layer.Layer<OperationsRateLimit> =>
+  Layer.succeed(OperationsRateLimit)({
+    consume: (request) =>
+      Effect.tryPromise({
+        try: async () => {
+          const key = await sha256(
+            [
+              request.category,
+              request.operation,
+              request.subjectKey,
+              request.sourceKey
+            ].join('\u0000')
+          )
+          const allowed = await input.adapter.consume({
+            category: request.category,
+            key
+          })
+          const retryAfterSeconds = input.retryAfterSeconds[request.category]
+          if (!allowed) {
+            const occurredAt = (input.now ?? (() => new Date()))()
+            const window = Math.floor(
+              occurredAt.getTime() / (retryAfterSeconds * 1_000)
+            )
+            const evidenceHash = await sha256(`${key}\u0000${window}`)
+            await input.adapter.recordDenied({
+              id: `oaud_auth_abuse_${evidenceHash.slice(0, 32)}`,
+              category: request.category,
+              operation: request.operation,
+              keyHash: key,
+              occurredAt: occurredAt.toISOString()
+            })
+          }
+          return {
+            allowed,
+            retryAfterSeconds: allowed ? null : retryAfterSeconds
+          }
+        },
+        catch: () =>
+          new OperationsRateLimitUnavailable({
+            reason: 'operations rate limit is unavailable'
+          })
+      })
+  })
 
 export class OperationsImpersonation extends Context.Service<
   OperationsImpersonation,
@@ -267,7 +368,8 @@ export const makeOperationsContractFixtures = () =>
     rateLimit: {
       category: 'operator-authentication',
       subjectKey: 'operator-email-hash',
-      sourceKey: 'source-fingerprint-hash'
+      sourceKey: 'source-fingerprint-hash',
+      operation: 'sign-in'
     },
     impersonation: {
       actor: fixtureActor,

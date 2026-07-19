@@ -8,6 +8,7 @@ import {
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
+  operationsRateLimitEnvironment,
   operationsRateLimits,
   type RateLimitBindingSpec
 } from './infra/bindings.ts'
@@ -200,6 +201,7 @@ export const Stack = Alchemy.Stack(
       main: './apps/operations/src/index.ts',
       bindings: { DB: db },
       env: {
+        ...operationsRateLimitEnvironment,
         OPERATIONS_AUTH_SECRET,
         OPERATIONS_APP_ORIGIN: operationsAppOrigin,
         OPERATIONS_AUTH_TRUSTED_ORIGINS: operationsAppOrigin,

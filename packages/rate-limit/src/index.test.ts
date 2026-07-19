@@ -1,5 +1,5 @@
 import { Effect, type Scope } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   clientKey,
   makeRateLimiter,
@@ -22,6 +22,8 @@ const runScoped = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> =
   Effect.runPromise(Effect.scoped(effect) as Effect.Effect<A, E>)
 
 const uniqueKey = () => `test-${Date.now()}-${Math.random()}`
+
+afterEach(() => vi.useRealTimers())
 
 describe('makeRateLimiter fallback (no Cloudflare bindings)', () => {
   it('enforces the per-bucket limit and keys buckets independently', async () => {
@@ -53,6 +55,33 @@ describe('makeRateLimiter fallback (no Cloudflare bindings)', () => {
     }
     const fresh = makeRateLimiter(config())
     expect(await runScoped(fresh.take({ bucket: 'write', key }))).toBe(false)
+  })
+
+  it('recovers after the configured window expires', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-19T10:00:00.000Z'))
+    const limiter = makeRateLimiter(config())
+    const key = uniqueKey()
+    for (let i = 0; i < 20; i += 1) {
+      expect(await runScoped(limiter.take({ bucket: 'write', key }))).toBe(true)
+    }
+    expect(await runScoped(limiter.take({ bucket: 'write', key }))).toBe(false)
+
+    vi.setSystemTime(new Date('2026-07-19T10:01:00.001Z'))
+    expect(await runScoped(limiter.take({ bucket: 'write', key }))).toBe(true)
+  })
+
+  it('applies the limit atomically across concurrent attempts', async () => {
+    const limiter = makeRateLimiter(config())
+    const key = uniqueKey()
+    const outcomes = await Promise.all(
+      Array.from({ length: 21 }, () =>
+        runScoped(limiter.take({ bucket: 'write', key }))
+      )
+    )
+
+    expect(outcomes.filter(Boolean)).toHaveLength(20)
+    expect(outcomes.filter((allowed) => !allowed)).toHaveLength(1)
   })
 })
 

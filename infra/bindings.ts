@@ -33,12 +33,59 @@ export const merchantRateLimits: readonly RateLimitBindingSpec[] = [
 
 export const operationsRateLimits: readonly RateLimitBindingSpec[] = [
   {
-    name: 'RATE_LIMITER_OPERATIONS_AUTH',
+    name: 'RATE_LIMITER_OPERATIONS_READ',
     namespaceId: '5001',
+    limit: 120,
+    period: 60
+  },
+  {
+    name: 'RATE_LIMITER_OPERATIONS_AUTHENTICATION',
+    namespaceId: '5002',
+    limit: 10,
+    period: 60
+  },
+  {
+    name: 'RATE_LIMITER_OPERATIONS_TOTP',
+    namespaceId: '5003',
+    limit: 5,
+    period: 60
+  },
+  {
+    name: 'RATE_LIMITER_OPERATIONS_SEARCH',
+    namespaceId: '5004',
+    limit: 30,
+    period: 60
+  },
+  {
+    name: 'RATE_LIMITER_OPERATIONS_MANAGEMENT',
+    namespaceId: '5005',
     limit: 20,
+    period: 60
+  },
+  {
+    name: 'RATE_LIMITER_OPERATIONS_IMPERSONATION_START',
+    namespaceId: '5006',
+    limit: 10,
+    period: 60
+  },
+  {
+    name: 'RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE',
+    namespaceId: '5007',
+    limit: 10,
     period: 60
   }
 ]
+
+export const operationsRateLimitEnvironment = {
+  OPERATIONS_RATE_LIMIT_SESSION_READ: '120',
+  OPERATIONS_RATE_LIMIT_AUTHENTICATION: '10',
+  OPERATIONS_RATE_LIMIT_TOTP: '5',
+  OPERATIONS_RATE_LIMIT_SEARCH: '30',
+  OPERATIONS_RATE_LIMIT_MANAGEMENT: '20',
+  OPERATIONS_RATE_LIMIT_IMPERSONATION_START: '10',
+  OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE: '10',
+  OPERATIONS_RATE_LIMIT_WINDOW_SECONDS: '60'
+} as const
 
 export const bookingRateLimits: readonly RateLimitBindingSpec[] = [
   { name: 'RATE_LIMITER_BOOKING_READ', namespaceId: '4001', limit: 120, period: 60 },
