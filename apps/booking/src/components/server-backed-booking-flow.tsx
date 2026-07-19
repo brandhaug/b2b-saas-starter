@@ -57,7 +57,10 @@ import {
 } from '../presentation/booking-premium-theme.tsx'
 import type { CanonicalBookingRouteKind } from '../lib/booking-route-contract.ts'
 import { buildCanonicalBookingPath } from '../lib/booking-route-contract.ts'
-import { replaceWithBookingSuccess } from '../lib/booking-processing-transition.ts'
+import {
+  exchangeBookingConfirmationAccess,
+  replaceWithBookingSuccess
+} from '../lib/booking-processing-transition.ts'
 
 type SettlementPaymentEligibility = PaymentMethodEligibility & {
   readonly giftCardMinor: number
@@ -661,7 +664,13 @@ export function ServerBackedBookingFlow({
         return
       }
       if (!response.ok) throw new Error('confirmation unavailable')
-      return (await response.json()) as { readonly location: string }
+      const result = (await response.json()) as { readonly location: string }
+      const canonicalLocation = await exchangeBookingConfirmationAccess(result.location)
+      if (!canonicalLocation) {
+        window.location.assign(result.location)
+        return
+      }
+      return { location: canonicalLocation }
     },
     onSuccess: (result) => {
       if (!result) return

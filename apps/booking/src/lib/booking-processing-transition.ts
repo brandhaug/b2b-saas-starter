@@ -5,6 +5,29 @@ export interface BookingProcessingSuccessState {
   readonly label: string
 }
 
+type ConfirmationAccessFetcher = (
+  input: string,
+  init: RequestInit
+) => Promise<Pick<Response, 'ok' | 'url'>>
+
+export const exchangeBookingConfirmationAccess = async (
+  location: string,
+  fetchConfirmation: ConfirmationAccessFetcher = fetch
+) => {
+  if (typeof window === 'undefined') return null
+  const requested = new URL(location, window.location.href)
+  const response = await fetchConfirmation(location, { credentials: 'same-origin' })
+  if (!response.ok) return null
+  const settled = new URL(response.url || location, requested)
+  if (
+    settled.origin !== requested.origin ||
+    settled.pathname !== requested.pathname ||
+    settled.searchParams.has('token')
+  )
+    return null
+  return `${settled.pathname}${settled.search}${settled.hash}`
+}
+
 const historyRecord = () => {
   if (typeof window === 'undefined') return {}
   const state: unknown = window.history.state
