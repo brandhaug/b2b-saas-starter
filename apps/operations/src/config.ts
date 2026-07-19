@@ -17,6 +17,7 @@ export type OperationsEnvironment = {
   readonly OPERATIONS_RATE_LIMIT_WINDOW_SECONDS?: string
   readonly ENVIRONMENT?: string
   readonly CLOUDFLARE_EMAIL_FROM?: string
+  readonly OPERATIONS_SECURITY_CONTACT?: string
 }
 
 export type OperationsConfig = {
@@ -27,6 +28,7 @@ export type OperationsConfig = {
   readonly production: boolean
   readonly localSeed: boolean
   readonly localDevelopment: boolean
+  readonly securityContact: string
   readonly rateLimits: {
     readonly fallbackLimits: Readonly<Record<OperationsRateLimitCategory, number>>
     readonly retryAfterSeconds: number
@@ -106,6 +108,12 @@ export const parseOperationsConfig = (env: OperationsEnvironment): OperationsCon
   if (!localDevelopment && localSeed) {
     throw new Error('Operations local seed is forbidden outside local development')
   }
+  const securityContact =
+    env.OPERATIONS_SECURITY_CONTACT ??
+    (production ? undefined : 'security@operations.local')
+  if (!securityContact || !/^[^\s@]+@[^\s@]+$/.test(securityContact)) {
+    throw new Error('OPERATIONS_SECURITY_CONTACT must be a valid email address')
+  }
   const rateLimit = (
     name: string,
     value: string | undefined,
@@ -120,6 +128,7 @@ export const parseOperationsConfig = (env: OperationsEnvironment): OperationsCon
     production,
     localSeed,
     localDevelopment,
+    securityContact,
     rateLimits: {
       fallbackLimits: {
         'operator-session-read': rateLimit(

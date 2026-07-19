@@ -16,6 +16,12 @@ import { WaitingList } from '@b2b-saas-starter/capabilities/waiting-list'
 import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
 import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { GiftCardRedemptions } from '@b2b-saas-starter/capabilities/gift-cards'
+import { createDb } from '@b2b-saas-starter/db/client'
+import { makeOperationsNotificationOutboxLayer } from '@b2b-saas-starter/capabilities/operations'
+import {
+  processOperationsNotification,
+  recoverOperationsNotifications
+} from './operations-notifications.ts'
 
 type Env = {
   readonly DB: D1Database
@@ -26,6 +32,7 @@ type Env = {
   readonly EMAIL?: SendEmailBinding
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly OPERATIONAL_EMAIL_ENABLED?: string
+  readonly ENVIRONMENT?: string
   readonly WAITING_LIST_DELIVERY_CURRENT_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_LEGACY_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_KEYS?: string
@@ -105,6 +112,46 @@ const recoverBookingNotificationOutbox = (now: string, env: Env) =>
     Effect.asVoid
   )
 
+const operationsEmailProviderState = (env: Env) =>
+  env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
+    ? ('configured' as const)
+    : env.ENVIRONMENT === 'production'
+      ? ('needs_configuration' as const)
+      : ('capture' as const)
+
+const operationsNotificationLayer = (env: Env) =>
+  makeOperationsNotificationOutboxLayer(createDb(env.DB))
+
+const processOperationsNotificationIntent = (intentId: string, now: string, env: Env) =>
+  processOperationsNotification({
+    intentId,
+    now,
+    providerState: operationsEmailProviderState(env)
+  }).pipe(
+    Effect.provide(operationsNotificationLayer(env)),
+    Effect.provide(
+      selectEmailDispatcherLayer({
+        ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+        ...(env.CLOUDFLARE_EMAIL_FROM
+          ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+          : {})
+      })
+    )
+  )
+
+const recoverOperationsNotificationIntents = (now: string, env: Env) =>
+  recoverOperationsNotifications(now).pipe(
+    Effect.provide(operationsNotificationLayer(env)),
+    Effect.flatMap((ids) =>
+      Effect.forEach(
+        ids,
+        (intentId) => processOperationsNotificationIntent(intentId, now, env),
+        { concurrency: 4 }
+      )
+    ),
+    Effect.asVoid
+  )
+
 export default {
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     const now = new Date(event.scheduledTime).toISOString()
@@ -125,6 +172,7 @@ export default {
             Effect.all(
               [
                 recoverBookingNotificationOutbox(now, env),
+                recoverOperationsNotificationIntents(now, env),
                 Effect.flatMap(GiftCardRedemptions, (giftCards) =>
                   giftCards.releaseExpired({ now })
                 ).pipe(Effect.provide(capabilityLayer), Effect.asVoid),

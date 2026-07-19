@@ -28,6 +28,41 @@ export interface AppointmentConfirmationEmailProps {
   readonly confirmationUrl: string
 }
 
+export interface ImpersonationStartedEmailProps {
+  readonly merchant: string
+  readonly occurredAt: string
+  readonly supportReference: string | null
+  readonly securityContact: string
+}
+
+export function ImpersonationStartedEmail(props: ImpersonationStartedEmailProps) {
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>Staff access to {props.merchant} has started</Preview>
+      <Body>
+        <Container>
+          <Heading>Staff access has started</Heading>
+          <Text>
+            Authorized platform staff began temporary support access to {props.merchant}{' '}
+            at {props.occurredAt}.
+          </Text>
+          {props.supportReference ? (
+            <Text>Support reference: {props.supportReference}</Text>
+          ) : null}
+          <Text>
+            If you do not recognize this activity, contact{' '}
+            <Link href={`mailto:${props.securityContact}`}>
+              {props.securityContact}
+            </Link>
+            .
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
 export function AvailabilityOfferEmail(props: {
   readonly startsAt: string
   readonly offerUrl: string

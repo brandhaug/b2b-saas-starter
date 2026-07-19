@@ -20,7 +20,7 @@ import {
 import { makeOperationsImpersonationLayer } from './operations-impersonation.ts'
 
 const now = new Date('2026-07-19T12:00:00.000Z')
-const ticket = 'pending-handoff-ticket-plaintext'
+const ticket = 'ticket_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 
 describe('Operations pending impersonation handoff', () => {
   let testD1: TestD1
@@ -223,6 +223,28 @@ describe('Operations pending impersonation handoff', () => {
       )
     )
 
+  const activate = (
+    handoffTicket: string,
+    options: Parameters<typeof makeOperationsImpersonationLayer>[1] = {}
+  ) =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const impersonation = yield* OperationsImpersonation
+        return yield* impersonation.activate({ handoffTicket })
+      }).pipe(
+        Effect.provide(
+          makeOperationsImpersonationLayer(db, {
+            now: () => now,
+            sessionId: () => 'merchant_impersonation_session',
+            sessionToken: () => 'merchant-impersonation-session-token',
+            notificationIntentId: () => 'opnti_imp_handoff_started',
+            securityContact: 'security@example.test',
+            ...options
+          })
+        )
+      )
+    )
+
   it('creates an accountable pending handoff without persisting its plaintext ticket', async () => {
     const result = await run((impersonation) =>
       impersonation.start({
@@ -271,6 +293,158 @@ describe('Operations pending impersonation handoff', () => {
       retentionPolicy: 'impersonation-two-years'
     })
     expect(JSON.stringify(audit)).not.toContain(ticket)
+  })
+
+  it('atomically activates a valid handoff with provenance and a sanitized start Notification Intent', async () => {
+    const result = await activate(ticket)
+
+    expect(result).toEqual({
+      impersonationId: 'imp_handoff',
+      lifecycle: 'active',
+      merchantSessionId: 'merchant_impersonation_session',
+      sessionToken: 'merchant-impersonation-session-token',
+      expiresAt: '2026-07-19T13:00:00.000Z'
+    })
+    const [record] = await db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.id, 'imp_handoff'))
+    expect(record).toMatchObject({
+      lifecycle: 'active',
+      merchantSessionId: 'merchant_impersonation_session',
+      activeExpiresAt: new Date('2026-07-19T13:00:00.000Z')
+    })
+    const [merchantSession] = await db
+      .select()
+      .from(session)
+      .where(eq(session.id, 'merchant_impersonation_session'))
+    expect(merchantSession).toMatchObject({
+      userId: 'mem_handoff_target',
+      impersonatedBy: 'opr_handoff',
+      token: 'merchant-impersonation-session-token'
+    })
+    const intent = await testD1.d1
+      .prepare(
+        `SELECT impersonation_id, event_type, recipient_email, merchant_name,
+                occurred_at, support_reference, security_contact, payload_json
+         FROM operations_notification_intents
+         WHERE id = ?1`
+      )
+      .bind('opnti_imp_handoff_started')
+      .first<Record<string, unknown>>()
+    expect(intent).toMatchObject({
+      impersonation_id: 'imp_handoff',
+      event_type: 'impersonation-started',
+      recipient_email: 'target@merchant.test',
+      merchant_name: 'Handoff Merchant',
+      occurred_at: now.toISOString(),
+      support_reference: 'SUP-42',
+      security_contact: 'security@example.test'
+    })
+    expect(intent?.payload_json).toBe(
+      JSON.stringify({
+        merchant: 'Handoff Merchant',
+        timestamp: now.toISOString(),
+        supportReference: 'SUP-42',
+        securityContact: 'security@example.test'
+      })
+    )
+    expect(JSON.stringify(intent)).not.toContain('Handoff Operator')
+    expect(JSON.stringify(intent)).not.toContain(
+      'Reproduce a reported scheduling issue'
+    )
+  })
+
+  it('rejects malformed, mismatched, and replayed tickets without another Merchant Session', async () => {
+    await expect(activate('malformed')).rejects.toMatchObject({
+      _tag: 'OperationsContractDenied'
+    })
+    await expect(
+      activate('ticket_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+    ).rejects.toMatchObject({ _tag: 'OperationsContractDenied' })
+    await expect(activate(ticket)).rejects.toMatchObject({
+      _tag: 'OperationsContractDenied'
+    })
+
+    expect(
+      await db.select().from(session).where(eq(session.impersonatedBy, 'opr_handoff'))
+    ).toHaveLength(1)
+    const intents = await testD1.d1
+      .prepare(
+        `SELECT id FROM operations_notification_intents
+         WHERE impersonation_id = 'imp_handoff'`
+      )
+      .all()
+    expect(intents.results).toHaveLength(1)
+  })
+
+  it('rolls the Active transition back when Merchant Session persistence fails', async () => {
+    const operator = await addOperator('activation_rollback')
+    const target = await addTarget('activation_rollback')
+    const rollbackTicket = 'ticket_cccccccccccccccccccccccccccccccccccc'
+    await start(
+      { ...operator, ...target },
+      { id: () => 'imp_activation_rollback', ticket: () => rollbackTicket }
+    )
+
+    await expect(
+      activate(rollbackTicket, {
+        sessionId: () => 'ops_handoff_session',
+        notificationIntentId: () => 'opnti_activation_rollback'
+      })
+    ).rejects.toMatchObject({ _tag: 'CapabilityUnavailable' })
+
+    const [record] = await db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.id, 'imp_activation_rollback'))
+    expect(record).toMatchObject({
+      lifecycle: 'pending-handoff',
+      merchantSessionId: null,
+      activeExpiresAt: null
+    })
+    const intent = await testD1.d1
+      .prepare(
+        `SELECT id FROM operations_notification_intents
+         WHERE impersonation_id = 'imp_activation_rollback'`
+      )
+      .first()
+    expect(intent).toBeNull()
+  })
+
+  it('rechecks expiry and current operator authority when consuming a ticket', async () => {
+    const expiredOperator = await addOperator('activation_expired')
+    const expiredTarget = await addTarget('activation_expired')
+    const expiredTicket = 'ticket_ffffffffffffffffffffffffffffffffffff'
+    await start(
+      { ...expiredOperator, ...expiredTarget },
+      { id: () => 'imp_activation_expired', ticket: () => expiredTicket }
+    )
+    await expect(
+      activate(expiredTicket, { now: () => new Date(now.getTime() + 61_000) })
+    ).rejects.toMatchObject({ _tag: 'OperationsContractDenied' })
+
+    const staleOperator = await addOperator('activation_stale_authority')
+    const staleTarget = await addTarget('activation_stale_authority')
+    const staleTicket = 'ticket_gggggggggggggggggggggggggggggggggggg'
+    await start(
+      { ...staleOperator, ...staleTarget },
+      { id: () => 'imp_activation_stale_authority', ticket: () => staleTicket }
+    )
+    await db
+      .update(user)
+      .set({ role: 'merchant-reader' })
+      .where(eq(user.id, staleOperator.operatorId))
+
+    await expect(activate(staleTicket)).rejects.toMatchObject({
+      _tag: 'OperationsContractDenied'
+    })
+    expect(
+      await db
+        .select()
+        .from(session)
+        .where(eq(session.userId, staleTarget.targetMemberId))
+    ).toEqual([])
   })
 
   it('rejects an empty reason and retains rejected-attempt evidence without a record', async () => {

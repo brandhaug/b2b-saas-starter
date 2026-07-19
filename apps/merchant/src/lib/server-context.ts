@@ -11,6 +11,9 @@ const production = (): boolean =>
 
 export const createMerchantServerContext = () => {
   let authInstance: ReturnType<typeof createMerchantAuth> | undefined
+  let dbInstance: ReturnType<typeof createDb> | undefined
+
+  const db = () => (dbInstance ??= createDb(env.DB))
 
   const auth = () => {
     if (!authInstance) {
@@ -22,7 +25,7 @@ export const createMerchantServerContext = () => {
         .map((origin) => origin.trim())
         .filter(Boolean)
       authInstance = createMerchantAuth({
-        db: createDb(env.DB),
+        db: db(),
         secret: env.MERCHANT_AUTH_SECRET ?? localSecret,
         baseURL,
         trustedOrigins,
@@ -36,7 +39,10 @@ export const createMerchantServerContext = () => {
 
   return {
     auth,
+    db,
     emailDelivery: () => createMerchantEmailDelivery(env, production()),
-    production
+    production,
+    merchantOrigin: () => env.MERCHANT_AUTH_URL ?? localOrigin,
+    merchantSecret: () => env.MERCHANT_AUTH_SECRET ?? localSecret
   }
 }

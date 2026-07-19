@@ -23,6 +23,7 @@ import { Route as AvailabilityRouteImport } from './routes/availability'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppointmentsAppointmentIdRouteImport } from './routes/appointments.$appointmentId'
+import { Route as ImpersonationHandoffsExchangeRouteImport } from './routes/impersonation.handoffs.exchange'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
 const WalkInsRoute = WalkInsRouteImport.update({
@@ -96,6 +97,12 @@ const AppointmentsAppointmentIdRoute =
     path: '/$appointmentId',
     getParentRoute: () => AppointmentsRoute,
   } as any)
+const ImpersonationHandoffsExchangeRoute =
+  ImpersonationHandoffsExchangeRouteImport.update({
+    id: '/impersonation/handoffs/exchange',
+    path: '/impersonation/handoffs/exchange',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -118,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -135,6 +143,7 @@ export interface FileRoutesByTo {
   '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -153,6 +162,7 @@ export interface FileRoutesById {
   '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/walk-ins'
     | '/appointments/$appointmentId'
     | '/api/auth/$'
+    | '/impersonation/handoffs/exchange'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/walk-ins'
     | '/appointments/$appointmentId'
     | '/api/auth/$'
+    | '/impersonation/handoffs/exchange'
   id:
     | '__root__'
     | '/'
@@ -206,6 +218,7 @@ export interface FileRouteTypes {
     | '/walk-ins'
     | '/appointments/$appointmentId'
     | '/api/auth/$'
+    | '/impersonation/handoffs/exchange'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -223,6 +236,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   WalkInsRoute: typeof WalkInsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ImpersonationHandoffsExchangeRoute: typeof ImpersonationHandoffsExchangeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -325,6 +339,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppointmentsAppointmentIdRouteImport
       parentRoute: typeof AppointmentsRoute
     }
+    '/impersonation/handoffs/exchange': {
+      id: '/impersonation/handoffs/exchange'
+      path: '/impersonation/handoffs/exchange'
+      fullPath: '/impersonation/handoffs/exchange'
+      preLoaderRoute: typeof ImpersonationHandoffsExchangeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -362,6 +383,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   WalkInsRoute: WalkInsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ImpersonationHandoffsExchangeRoute: ImpersonationHandoffsExchangeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

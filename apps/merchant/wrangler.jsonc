@@ -9,6 +9,10 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "vars": {
+    "OPERATIONS_APP_ORIGIN": "http://operations.localhost:3076",
+    "OPERATIONS_SECURITY_CONTACT": "security@operations.local"
+  },
   "d1_databases": [
     {
       "binding": "DB",

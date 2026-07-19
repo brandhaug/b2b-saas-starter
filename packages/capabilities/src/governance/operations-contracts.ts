@@ -232,6 +232,20 @@ export const ImpersonationStartResult = Schema.Struct({
 })
 export type ImpersonationStartResult = typeof ImpersonationStartResult.Type
 
+export const ImpersonationActivationRequest = Schema.Struct({
+  handoffTicket: Schema.String
+})
+export type ImpersonationActivationRequest = typeof ImpersonationActivationRequest.Type
+
+export const ImpersonationActivationResult = Schema.Struct({
+  impersonationId: Schema.String,
+  lifecycle: Schema.Literal('active'),
+  merchantSessionId: Schema.String,
+  sessionToken: Schema.String,
+  expiresAt: Schema.String
+})
+export type ImpersonationActivationResult = typeof ImpersonationActivationResult.Type
+
 export class OperationsContractDenied extends Schema.TaggedErrorClass<OperationsContractDenied>()(
   'OperationsContractDenied',
   { reason: Schema.String }
@@ -392,6 +406,12 @@ export class OperationsImpersonation extends Context.Service<
     readonly recordRejectedStart: (
       input: ImpersonationStartRequest
     ) => Effect.Effect<void, OperationsContractDenied | CapabilityUnavailable>
+    readonly activate: (
+      input: ImpersonationActivationRequest
+    ) => Effect.Effect<
+      ImpersonationActivationResult,
+      OperationsContractDenied | CapabilityUnavailable
+    >
   }
 >()('@b2b-saas-starter/capabilities/OperationsImpersonation') {}
 

@@ -15,6 +15,7 @@ const valid = {
   OPERATIONS_RATE_LIMIT_IMPERSONATION_START: '10',
   OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE: '10',
   OPERATIONS_RATE_LIMIT_WINDOW_SECONDS: '60',
+  OPERATIONS_SECURITY_CONTACT: 'security@example.com',
   ENVIRONMENT: 'production'
 } as const
 
@@ -38,7 +39,8 @@ describe('Operations Worker configuration', () => {
     [{ ...valid, MERCHANT_AUTH_SECRET: valid.OPERATIONS_AUTH_SECRET }, 'distinct'],
     [{ ...valid, MERCHANT_APP_ORIGIN: valid.OPERATIONS_APP_ORIGIN }, 'distinct'],
     [{ ...valid, MERCHANT_APP_ORIGIN: 'http://merchant.example.com' }, 'https'],
-    [{ ...valid, OPERATIONS_LOCAL_SEED: 'enabled' }, 'local seed']
+    [{ ...valid, OPERATIONS_LOCAL_SEED: 'enabled' }, 'local seed'],
+    [{ ...valid, OPERATIONS_SECURITY_CONTACT: '' }, 'SECURITY_CONTACT']
   ])('fails closed for invalid isolated configuration', (env, message) => {
     expect(() => parseOperationsConfig(env)).toThrow(message)
   })

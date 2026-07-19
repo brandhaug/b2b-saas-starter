@@ -181,6 +181,15 @@ export const createOperationsWorker = () => ({
       )
     }
     const url = new URL(request.url)
+    const invitationDelivery = createOperatorInvitationDelivery(env, config.production)
+    if (request.method === 'GET' && url.pathname === '/ready') {
+      return invitationDelivery.configured
+        ? Response.json({ status: 'ready' })
+        : Response.json(
+            { error: 'operations_email_unavailable' },
+            { status: 503, headers: { 'cache-control': 'no-store' } }
+          )
+    }
     if (request.method === 'GET' && url.pathname === '/assets/geist.woff2') {
       return new Response(geistFont, {
         headers: {
@@ -255,7 +264,6 @@ export const createOperationsWorker = () => ({
     }
     const auth = createOperationsAuth({ db, ...config })
     const authHandler = createOperationsAuthHandler({ auth, db })
-    const invitationDelivery = createOperatorInvitationDelivery(env, config.production)
     const enrollmentResponse = await handleOperatorEnrollmentRoutes({
       request,
       config,

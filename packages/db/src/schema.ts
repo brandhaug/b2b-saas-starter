@@ -31,6 +31,12 @@ export const impersonationLifecycles = [
   'expired',
   'revoked'
 ] as const
+export const operationsNotificationStatuses = [
+  'pending',
+  'processing',
+  'delivered',
+  'failed'
+] as const
 export const merchantPlans = ['solo', 'team'] as const
 export const merchantStatuses = ['enabled', 'disabled'] as const
 export const providerStatuses = ['active', 'inactive'] as const
@@ -325,6 +331,50 @@ export const impersonationRecords = sqliteTable(
       table.handoffExpiresAt
     ),
     index('impersonation_records_operator_session_idx').on(table.operatorSessionId)
+  ]
+)
+
+export const operationsNotificationIntents = sqliteTable(
+  'operations_notification_intents',
+  {
+    id: id(),
+    impersonationId: text('impersonation_id').notNull(),
+    eventType: text('event_type', {
+      enum: [
+        'impersonation-started',
+        'impersonation-stopped',
+        'impersonation-expired',
+        'impersonation-revoked'
+      ]
+    }).notNull(),
+    recipientEmail: text('recipient_email').notNull(),
+    merchantId: text('merchant_id').notNull(),
+    merchantName: text('merchant_name').notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    supportReference: text('support_reference'),
+    securityContact: text('security_contact').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    status: text('status', { enum: operationsNotificationStatuses })
+      .default('pending')
+      .notNull(),
+    availableAt: text('available_at').notNull(),
+    claimedAt: text('claimed_at'),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    nextAttemptAt: text('next_attempt_at'),
+    failureCode: text('failure_code'),
+    deliveredAt: text('delivered_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('operations_notification_intents_lifecycle_unique').on(
+      table.impersonationId,
+      table.eventType
+    ),
+    index('operations_notification_intents_status_available_idx').on(
+      table.status,
+      table.availableAt
+    )
   ]
 )
 

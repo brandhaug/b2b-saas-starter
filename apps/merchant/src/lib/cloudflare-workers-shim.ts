@@ -8,6 +8,10 @@ export const env = {
   MERCHANT_AUTH_URL: process.env.MERCHANT_AUTH_URL ?? 'http://localhost:3072',
   MERCHANT_AUTH_TRUSTED_ORIGINS:
     process.env.MERCHANT_AUTH_TRUSTED_ORIGINS ?? 'http://localhost:3072',
+  OPERATIONS_APP_ORIGIN:
+    process.env.OPERATIONS_APP_ORIGIN ?? 'http://operations.localhost:3076',
+  OPERATIONS_SECURITY_CONTACT:
+    process.env.OPERATIONS_SECURITY_CONTACT ?? 'security@operations.local',
   CLOUDFLARE_EMAIL_FROM: process.env.CLOUDFLARE_EMAIL_FROM,
   ENVIRONMENT: process.env.ENVIRONMENT,
   RATE_LIMITER_AUTH_READ: undefined,

@@ -159,16 +159,16 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Invite and Enroll System Operators; Create an Accountable Pending Handoff.
 
-- [ ] The browser submits the plaintext handoff ticket by top-level POST and the ticket never appears in a URL.
-- [ ] Consumption atomically validates the hash, expiry, lifecycle, operator, Operator Session, permission, target, Merchant, membership, and concurrency bindings.
-- [ ] A normal Merchant Session in the browser causes neutral rejection and remains untouched.
-- [ ] Successful consumption creates a host-only Impersonated Merchant Session with `impersonatedBy` and moves the record from Pending Handoff to Active.
-- [ ] Ticket replay, expiry, mismatch, malformed input, and partial persistence cannot produce another Merchant Session.
-- [ ] The Active transition and start Notification Intent commit together.
-- [ ] The target notification contains Merchant, timestamp, optional support reference, and security contact, while excluding the operator identity and internal reason.
-- [ ] Delivery is asynchronous, retryable, and idempotent; provider failure does not roll back activation.
-- [ ] Production readiness fails closed without a working email adapter, while local development uses deterministic capture.
-- [ ] The integration seam proves activation, provenance, notification content, replay rejection, normal-session preservation, and failure rollback end to end.
+- [x] The browser submits the plaintext handoff ticket by top-level POST and the ticket never appears in a URL.
+- [x] Consumption atomically validates the hash, expiry, lifecycle, operator, Operator Session, permission, target, Merchant, membership, and concurrency bindings.
+- [x] A normal Merchant Session in the browser causes neutral rejection and remains untouched.
+- [x] Successful consumption creates a host-only Impersonated Merchant Session with `impersonatedBy` and moves the record from Pending Handoff to Active.
+- [x] Ticket replay, expiry, mismatch, malformed input, and partial persistence cannot produce another Merchant Session.
+- [x] The Active transition and start Notification Intent commit together.
+- [x] The target notification contains Merchant, timestamp, optional support reference, and security contact, while excluding the operator identity and internal reason.
+- [x] Delivery is asynchronous, retryable, and idempotent; provider failure does not roll back activation.
+- [x] Production readiness fails closed without a working email adapter, while local development uses deterministic capture.
+- [x] The integration seam proves activation, provenance, notification content, replay rejection, normal-session preservation, and failure rollback end to end.
 
 ## Enforce Reduced Impersonation Authority
 
