@@ -24,6 +24,13 @@ export const identityClasses = [
   'merchant_member',
   'customer_account'
 ] as const
+export const impersonationLifecycles = [
+  'pending-handoff',
+  'active',
+  'stopped',
+  'expired',
+  'revoked'
+] as const
 export const merchantPlans = ['solo', 'team'] as const
 export const merchantStatuses = ['enabled', 'disabled'] as const
 export const providerStatuses = ['active', 'inactive'] as const
@@ -211,7 +218,8 @@ export const session = sqliteTable(
     operatorIdleExpiresAt: integer('operatorIdleExpiresAt', { mode: 'timestamp' }),
     operatorAbsoluteExpiresAt: integer('operatorAbsoluteExpiresAt', {
       mode: 'timestamp'
-    })
+    }),
+    operatorTotpVerifiedAt: integer('operatorTotpVerifiedAt', { mode: 'timestamp' })
   },
   (table) => [index('session_user_id_idx').on(table.userId)]
 )
@@ -282,6 +290,41 @@ export const operatorEnrollments = sqliteTable(
   (table) => [
     uniqueIndex('operator_enrollments_invitation_idx').on(table.invitationId),
     uniqueIndex('operator_enrollments_operator_idx').on(table.operatorId)
+  ]
+)
+
+export const impersonationRecords = sqliteTable(
+  'impersonation_records',
+  {
+    id: id(),
+    operatorId: text('operator_id').notNull(),
+    operatorSessionId: text('operator_session_id').notNull(),
+    targetMemberId: text('target_member_id').notNull(),
+    merchantId: text('merchant_id').notNull(),
+    lifecycle: text('lifecycle', { enum: impersonationLifecycles }).notNull(),
+    reason: text('reason').notNull(),
+    supportReference: text('support_reference'),
+    ticketHash: text('ticket_hash').notNull().unique(),
+    handoffExpiresAt: integer('handoff_expires_at', { mode: 'timestamp' }).notNull(),
+    merchantSessionId: text('merchant_session_id'),
+    activeExpiresAt: integer('active_expires_at', { mode: 'timestamp' }),
+    terminalAt: integer('terminal_at', { mode: 'timestamp' }),
+    terminationCause: text('termination_cause'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('impersonation_records_operator_open_unique')
+      .on(table.operatorId)
+      .where(sql`${table.lifecycle} IN ('pending-handoff', 'active')`),
+    uniqueIndex('impersonation_records_target_open_unique')
+      .on(table.targetMemberId)
+      .where(sql`${table.lifecycle} IN ('pending-handoff', 'active')`),
+    index('impersonation_records_handoff_expiry_idx').on(
+      table.lifecycle,
+      table.handoffExpiresAt
+    ),
+    index('impersonation_records_operator_session_idx').on(table.operatorSessionId)
   ]
 )
 

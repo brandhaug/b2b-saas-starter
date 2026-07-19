@@ -205,6 +205,7 @@ export const Stack = Alchemy.Stack(
         OPERATIONS_AUTH_SECRET,
         OPERATIONS_APP_ORIGIN: operationsAppOrigin,
         OPERATIONS_AUTH_TRUSTED_ORIGINS: operationsAppOrigin,
+        MERCHANT_APP_ORIGIN: merchantAppOrigin,
         ENVIRONMENT: 'production'
       },
       compatibility: { date: '2026-05-16', flags: ['nodejs_compat'] },

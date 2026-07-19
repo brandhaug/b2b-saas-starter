@@ -10,6 +10,7 @@ import {
   verifyPassword
 } from 'better-auth/crypto'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import { Effect, Schema } from 'effect'
 import {
   operatorRoleNames,
   type OperatorPrincipal,
@@ -17,6 +18,7 @@ import {
   type OperatorSessionReference
 } from '@b2b-saas-starter/capabilities/operations'
 import type { Database } from '@b2b-saas-starter/db/client'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import * as schema from '@b2b-saas-starter/db/schema'
 
 const hour = 60 * 60
@@ -127,7 +129,8 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
       cookieCache: { enabled: false },
       additionalFields: {
         operatorIdleExpiresAt: { type: 'date', required: false, input: false },
-        operatorAbsoluteExpiresAt: { type: 'date', required: false, input: false }
+        operatorAbsoluteExpiresAt: { type: 'date', required: false, input: false },
+        operatorTotpVerifiedAt: { type: 'date', required: false, input: false }
       }
     },
     emailAndPassword: {
@@ -162,6 +165,12 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
               context?.path !== '/two-factor/verify-backup-code'
             )
               return
+            if (context.path === '/two-factor/verify-totp') {
+              await options.db
+                .update(schema.session)
+                .set({ operatorTotpVerifiedAt: created.createdAt ?? new Date() })
+                .where(eq(schema.session.id, created.id))
+            }
             await options.db
               .delete(schema.session)
               .where(
@@ -385,6 +394,77 @@ export const verifyOperatorTwoFactorEnrollment = async (input: {
       .where(eq(schema.user.id, input.operatorId))
   ])
 }
+
+export class OperatorTotpPresenceDenied extends Schema.TaggedErrorClass<OperatorTotpPresenceDenied>()(
+  'OperatorTotpPresenceDenied',
+  { reason: Schema.String }
+) {}
+
+export const verifyOperatorTotpPresence = (input: {
+  readonly auth: OperationsAuth
+  readonly db: Database
+  readonly secret: string
+  readonly operatorId: string
+  readonly operatorSessionId: string
+  readonly code: string
+  readonly verifiedAt?: Date
+}): Effect.Effect<void, OperatorTotpPresenceDenied | CapabilityUnavailable> =>
+  Effect.tryPromise({
+    try: async () => {
+      const challengeDenied = () =>
+        new OperatorTotpPresenceDenied({ reason: 'operator TOTP challenge failed' })
+      if (!/^\d{6}$/.test(input.code.trim())) throw challengeDenied()
+      const [factor] = await input.db
+        .select({
+          secret: schema.twoFactor.secret,
+          verified: schema.twoFactor.verified,
+          lockedUntil: schema.twoFactor.lockedUntil
+        })
+        .from(schema.twoFactor)
+        .innerJoin(schema.user, eq(schema.user.id, schema.twoFactor.userId))
+        .where(
+          and(
+            eq(schema.twoFactor.userId, input.operatorId),
+            eq(schema.user.identityClass, 'system_operator'),
+            eq(schema.user.twoFactorEnabled, true),
+            eq(schema.user.banned, false)
+          )
+        )
+        .limit(1)
+      const verifiedAt = input.verifiedAt ?? new Date()
+      if (
+        !factor?.verified ||
+        (factor.lockedUntil !== null && factor.lockedUntil > verifiedAt)
+      )
+        throw challengeDenied()
+      const totpSecret = await symmetricDecrypt({
+        key: input.secret,
+        data: factor.secret
+      })
+      const generated = await input.auth.api.generateTOTP({
+        body: { secret: totpSecret }
+      })
+      if (generated.code !== input.code.trim()) throw challengeDenied()
+      const updated = await input.db
+        .update(schema.session)
+        .set({ operatorTotpVerifiedAt: verifiedAt, updatedAt: verifiedAt })
+        .where(
+          and(
+            eq(schema.session.id, input.operatorSessionId),
+            eq(schema.session.userId, input.operatorId)
+          )
+        )
+        .returning({ id: schema.session.id })
+      if (updated.length !== 1) throw challengeDenied()
+    },
+    catch: (error) =>
+      error instanceof OperatorTotpPresenceDenied
+        ? error
+        : new CapabilityUnavailable({
+            capability: 'operator-totp-presence',
+            reason: 'operator TOTP verification is unavailable'
+          })
+  })
 
 export type LocalOperatorFixture = {
   readonly id: string

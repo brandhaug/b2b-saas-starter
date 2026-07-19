@@ -26,6 +26,7 @@ import {
   operatorRoles,
   provisionLocalOperator,
   readOperatorSessionReference,
+  verifyOperatorTotpPresence,
   type OperationsAuth
 } from './operations.ts'
 import { createMerchantAuth } from './index.ts'
@@ -181,6 +182,46 @@ describe('Operations authentication contract', () => {
       name: 'Local System Operator',
       roles: ['merchant-impersonator', 'impersonation-auditor', 'operator-manager']
     })
+    const [authoritative] = await fixture.db
+      .select({ operatorTotpVerifiedAt: session.operatorTotpVerifiedAt })
+      .from(session)
+      .where(eq(session.id, principal!.sessionId))
+    expect(authoritative?.operatorTotpVerifiedAt).toBeInstanceOf(Date)
+
+    await fixture.db
+      .update(session)
+      .set({ operatorTotpVerifiedAt: null })
+      .where(eq(session.id, principal!.sessionId))
+    await expect(
+      Effect.runPromise(
+        verifyOperatorTotpPresence({
+          auth: fixture.auth,
+          db: fixture.db,
+          secret,
+          operatorId: principal!.id,
+          operatorSessionId: principal!.sessionId,
+          code: '000000'
+        })
+      )
+    ).rejects.toMatchObject({
+      _tag: 'OperatorTotpPresenceDenied',
+      reason: 'operator TOTP challenge failed'
+    })
+    await Effect.runPromise(
+      verifyOperatorTotpPresence({
+        auth: fixture.auth,
+        db: fixture.db,
+        secret,
+        operatorId: principal!.id,
+        operatorSessionId: principal!.sessionId,
+        code
+      })
+    )
+    const [refreshedPresence] = await fixture.db
+      .select({ operatorTotpVerifiedAt: session.operatorTotpVerifiedAt })
+      .from(session)
+      .where(eq(session.id, principal!.sessionId))
+    expect(refreshedPresence?.operatorTotpVerifiedAt).toBeInstanceOf(Date)
   })
 
   it('does not expose public signup or stock Better Auth administration', async () => {

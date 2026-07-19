@@ -4,16 +4,20 @@ import {
   createOperationsAuth,
   createOperationsAuthHandler,
   provisionLocalOperator,
-  readOperatorSessionReference
+  readOperatorSessionReference,
+  OperatorTotpPresenceDenied,
+  verifyOperatorTotpPresence
 } from '@b2b-saas-starter/auth/operations'
 import {
   GlobalOperationsAudit,
   OperationsAuthorization,
   OperationsContractDenied,
   OperationsDiscovery,
+  OperationsImpersonation,
   makeOperationsAuthorizationLayer,
   makeOperationsAuditLayer,
   makeOperationsDiscoveryLayer,
+  makeOperationsImpersonationLayer,
   hasOperatorPermission,
   type OperationsAuditEventDetail,
   type OperationsAuditEventSummary,
@@ -96,12 +100,19 @@ const merchantDetailHtml = (merchant: MerchantDetail): string => {
   return `<p><a href="/">Back to discovery</a></p><h1>${escapeHtml(merchant.publicName)}</h1><dl><dt>Merchant ID</dt><dd><code>${escapeHtml(merchant.id)}</code></dd><dt>Status</dt><dd>${merchant.status}</dd><dt>Public page</dt><dd>${page}</dd><dt>Booking readiness</dt><dd>${readiness}</dd></dl><h2>Members</h2><ul>${merchant.members.map((member) => `<li><a href="/merchants/${encodeURIComponent(merchant.id)}/members/${encodeURIComponent(member.id)}">${escapeHtml(member.name)}</a> — ${escapeHtml(member.email)} (${member.status}, ${member.role})</li>`).join('')}</ul>`
 }
 
-const memberDetailHtml = (member: MerchantMemberDetail): string => {
+const memberDetailHtml = (
+  member: MerchantMemberDetail,
+  canStartImpersonation: boolean
+): string => {
   const membership = `${escapeHtml(member.membership.role)} of ${escapeHtml(member.membership.merchantName)}`
   const eligibility = member.impersonationEligibility.eligible
     ? 'Eligible for impersonation'
     : `Ineligible for impersonation: ${escapeHtml(member.impersonationEligibility.reason ?? 'unknown')}`
-  return `<p><a href="/merchants/${encodeURIComponent(member.membership.merchantId)}">Back to Merchant</a></p><h1>${escapeHtml(member.name)}</h1><dl><dt>Member ID</dt><dd><code>${escapeHtml(member.id)}</code></dd><dt>Email</dt><dd>${escapeHtml(member.email)}</dd><dt>Email verification</dt><dd>${member.emailVerified ? 'Verified' : 'Unverified'}</dd><dt>Enabled state</dt><dd>${member.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Membership</dt><dd>${membership}</dd><dt>Active sessions</dt><dd>${member.activeSessionCount}</dd><dt>Last sign-in</dt><dd>${escapeHtml(member.lastSignInAt ?? 'Never')}</dd><dt>Impersonation</dt><dd>${eligibility}</dd></dl>`
+  const start =
+    member.impersonationEligibility.eligible && canStartImpersonation
+      ? `<h2>Create accountable pending handoff</h2><p>A current authentication code is required. The handoff expires after 60 seconds and does not replace another open impersonation.</p><form method="post" action="/merchants/${encodeURIComponent(member.membership.merchantId)}/members/${encodeURIComponent(member.id)}/impersonations"><label>Internal Impersonation Reason<textarea name="reason" maxlength="1000" required></textarea></label><label>External support reference<input name="supportReference" maxlength="200"></label><label>Current authentication code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required></label><button type="submit">Create pending handoff</button></form>`
+      : ''
+  return `<p><a href="/merchants/${encodeURIComponent(member.membership.merchantId)}">Back to Merchant</a></p><h1>${escapeHtml(member.name)}</h1><dl><dt>Member ID</dt><dd><code>${escapeHtml(member.id)}</code></dd><dt>Email</dt><dd>${escapeHtml(member.email)}</dd><dt>Email verification</dt><dd>${member.emailVerified ? 'Verified' : 'Unverified'}</dd><dt>Enabled state</dt><dd>${member.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Membership</dt><dd>${membership}</dd><dt>Active sessions</dt><dd>${member.activeSessionCount}</dd><dt>Last sign-in</dt><dd>${escapeHtml(member.lastSignInAt ?? 'Never')}</dd><dt>Impersonation</dt><dd>${eligibility}</dd></dl>${start}`
 }
 
 const auditIdentityHtml = (identity: { id: string; displayName: string } | null) =>
@@ -414,6 +425,18 @@ export const createOperationsWorker = () => ({
         }).pipe(Effect.provide(makeOperationsAuditLayer(db)))
       )
 
+    const runImpersonation = <A>(
+      use: (
+        impersonation: OperationsImpersonation['Service']
+      ) => Effect.Effect<A, OperationsContractDenied | CapabilityUnavailable>
+    ): Promise<A> =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const impersonation = yield* OperationsImpersonation
+          return yield* use(impersonation)
+        }).pipe(Effect.provide(makeOperationsImpersonationLayer(db)))
+      )
+
     const managementResponse = await handleOperatorManagementRoutes({
       request,
       db,
@@ -427,6 +450,99 @@ export const createOperationsWorker = () => ({
         '<p><a href="/operators/invitations/new">Invite System Operator</a></p>'
     })
     if (managementResponse) return managementResponse
+
+    const startImpersonationRoute = url.pathname.match(
+      /^\/merchants\/([^/]+)\/members\/([^/]+)\/impersonations$/
+    )
+    if (request.method === 'POST' && startImpersonationRoute) {
+      const merchantId = decodeURIComponent(startImpersonationRoute[1]!)
+      const targetMemberId = decodeURIComponent(startImpersonationRoute[2]!)
+      const form = await request.formData()
+      const startRequest = {
+        actor: reference!,
+        targetMemberId,
+        merchantId,
+        reason: formText(form, 'reason'),
+        supportReference: formText(form, 'supportReference') || null
+      }
+      const recordRejectedAttempt = async (): Promise<Response | null> => {
+        try {
+          await runImpersonation((impersonation) =>
+            impersonation.recordRejectedStart(startRequest)
+          )
+          return null
+        } catch {
+          return Response.json(
+            { error: 'impersonation_audit_unavailable' },
+            { status: 503 }
+          )
+        }
+      }
+      const totpDecision = await consumeAbuse({
+        category: 'operator-totp',
+        subjectKey: principal.id,
+        sourceKey: clientKey(request),
+        operation: 'impersonation-presence'
+      })
+      if (!totpDecision.allowed) {
+        const unavailable = await recordRejectedAttempt()
+        return unavailable ?? limited(totpDecision.retryAfterSeconds!)
+      }
+      try {
+        await Effect.runPromise(
+          verifyOperatorTotpPresence({
+            auth,
+            db,
+            secret: config.secret,
+            operatorId: principal.id,
+            operatorSessionId: principal.sessionId,
+            code: formText(form, 'code')
+          })
+        )
+      } catch (error) {
+        const unavailable = await recordRejectedAttempt()
+        if (unavailable) return unavailable
+        if (!(error instanceof OperatorTotpPresenceDenied)) {
+          return Response.json(
+            { error: 'impersonation_totp_unavailable' },
+            { status: 503 }
+          )
+        }
+        return html(
+          'TOTP challenge failed',
+          `<p><a href="/merchants/${encodeURIComponent(merchantId)}/members/${encodeURIComponent(targetMemberId)}">Return to Member detail</a></p><h1>Authentication code was not accepted</h1><p>No pending handoff was created.</p>`,
+          403
+        )
+      }
+      const startDecision = await consumeAbuse({
+        category: 'impersonation-start',
+        subjectKey: `${principal.id}:${targetMemberId}`,
+        sourceKey: clientKey(request),
+        operation: 'start'
+      })
+      if (!startDecision.allowed) {
+        const unavailable = await recordRejectedAttempt()
+        return unavailable ?? limited(startDecision.retryAfterSeconds!)
+      }
+      try {
+        const result = await runImpersonation((impersonation) =>
+          impersonation.start(startRequest)
+        )
+        return html(
+          'Pending Handoff created',
+          `<h1>Pending Handoff created</h1><p>This single-use handoff expires at <time datetime="${escapeHtml(result.expiresAt)}">${escapeHtml(result.expiresAt)}</time>.</p><form method="post" action="${escapeHtml(config.merchantBaseURL)}/impersonation/handoffs/exchange"><input type="hidden" name="ticket" value="${escapeHtml(result.handoffTicket)}"><button type="submit">Continue to Merchant App</button></form>`
+        )
+      } catch (error) {
+        if (error instanceof CapabilityUnavailable) {
+          return Response.json({ error: 'impersonation_unavailable' }, { status: 503 })
+        }
+        return html(
+          'Pending Handoff rejected',
+          `<p><a href="/merchants/${encodeURIComponent(merchantId)}/members/${encodeURIComponent(targetMemberId)}">Return to Member detail</a></p><h1>Unable to create pending handoff</h1><p>Authority or target state changed, or an open impersonation already holds a concurrency slot.</p>`,
+          409
+        )
+      }
+    }
 
     const auditDetailRoute = url.pathname.match(/^\/audit\/([^/]+)$/)
     if (request.method === 'GET' && auditDetailRoute) {
@@ -561,7 +677,13 @@ export const createOperationsWorker = () => ({
             memberId: decodeURIComponent(memberPageRoute[2]!)
           })
         )
-        return html(`${member.name} — Operations`, memberDetailHtml(member))
+        return html(
+          `${member.name} — Operations`,
+          memberDetailHtml(
+            member,
+            hasOperatorPermission(principal.roles, 'merchant:impersonate')
+          )
+        )
       } catch (error) {
         return discoveryErrorResponse(error)
       }

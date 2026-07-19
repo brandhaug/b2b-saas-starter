@@ -18,7 +18,8 @@ const html = (title: string, body: string, status = 200): Response =>
       status,
       headers: {
         'content-type': 'text/html; charset=utf-8',
-        'cache-control': 'no-store'
+        'cache-control': 'no-store',
+        'referrer-policy': 'no-referrer'
       }
     }
   )

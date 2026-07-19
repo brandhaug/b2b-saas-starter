@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createDb } from '@b2b-saas-starter/db/client'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
+  impersonationRecords,
   merchantMemberships,
   merchants,
   operatorEnrollments,
@@ -450,6 +451,9 @@ describe('Operations browser boundary', () => {
     await browserExpect(
       page.getByText('Ineligible for impersonation: member-disabled')
     ).toBeVisible()
+    await browserExpect(
+      page.getByRole('heading', { name: 'Create accountable pending handoff' })
+    ).toHaveCount(0)
 
     const db = createDb(testD1.d1)
     await db.update(user).set({ banned: true }).where(eq(user.id, 'mem_browser_target'))
@@ -463,6 +467,117 @@ describe('Operations browser boundary', () => {
       .where(eq(user.id, 'mem_browser_target'))
     await page.close()
   }, 20_000)
+
+  it('creates a recent-TOTP pending handoff from eligible Member detail without putting the ticket in the URL', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${origin}/sign-in`)
+    await page.getByLabel('Email').fill(localOperatorFixture.email)
+    await page.getByLabel('Password').fill(localOperatorFixture.password)
+    await page.getByRole('button', { name: 'Continue' }).click()
+    const auth = createOperationsAuth({
+      db: createDb(testD1.d1),
+      secret,
+      baseURL: origin,
+      trustedOrigins: [origin],
+      production: false
+    })
+    const { code } = await auth.api.generateTOTP({
+      body: { secret: localOperatorFixture.totpSecret }
+    })
+    await page.getByLabel('Authentication code').fill(code)
+    await page.getByRole('button', { name: 'Verify' }).click()
+
+    await page.goto(`${origin}/merchants/mer_browser_studio/members/mem_browser_target`)
+    await page
+      .getByLabel('Internal Impersonation Reason')
+      .fill('Reproduce a browser-reported scheduling issue')
+    await page.getByLabel('External support reference').fill('SUP-BROWSER-START')
+    const fresh = await auth.api.generateTOTP({
+      body: { secret: localOperatorFixture.totpSecret }
+    })
+    await page.getByLabel('Current authentication code').fill(fresh.code)
+    await page.getByRole('button', { name: 'Create pending handoff' }).click()
+
+    await browserExpect(
+      page.getByRole('heading', { name: 'Pending Handoff created' })
+    ).toBeVisible()
+    expect(page.url()).not.toContain('ticket')
+    expect(page.url()).not.toContain('SUP-BROWSER-START')
+    const plaintext = await page.locator('input[name="ticket"]').inputValue()
+    expect(plaintext.length).toBeGreaterThan(32)
+    const db = createDb(testD1.d1)
+    const [record] = await db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.targetMemberId, 'mem_browser_target'))
+    expect(record).toMatchObject({
+      lifecycle: 'pending-handoff',
+      reason: 'Reproduce a browser-reported scheduling issue',
+      supportReference: 'SUP-BROWSER-START'
+    })
+    expect(record?.ticketHash).not.toBe(plaintext)
+    expect(JSON.stringify(record)).not.toContain(plaintext)
+    await page.close()
+  }, 20_000)
+
+  it('rechecks permission after Member detail is rendered and rejects a stale start', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${origin}/sign-in`)
+    await page.getByLabel('Email').fill(localOperatorFixture.email)
+    await page.getByLabel('Password').fill(localOperatorFixture.password)
+    await page.getByRole('button', { name: 'Continue' }).click()
+    const db = createDb(testD1.d1)
+    const auth = createOperationsAuth({
+      db,
+      secret,
+      baseURL: origin,
+      trustedOrigins: [origin],
+      production: false
+    })
+    const { code } = await auth.api.generateTOTP({
+      body: { secret: localOperatorFixture.totpSecret }
+    })
+    await page.getByLabel('Authentication code').fill(code)
+    await page.getByRole('button', { name: 'Verify' }).click()
+    await db
+      .update(impersonationRecords)
+      .set({
+        lifecycle: 'stopped',
+        terminalAt: new Date(),
+        updatedAt: new Date().toISOString()
+      })
+      .where(eq(impersonationRecords.targetMemberId, 'mem_browser_target'))
+
+    await page.goto(`${origin}/merchants/mer_browser_studio/members/mem_browser_target`)
+    await browserExpect(
+      page.getByRole('heading', { name: 'Create accountable pending handoff' })
+    ).toBeVisible()
+    await page.getByLabel('Internal Impersonation Reason').fill('Stale role proof')
+    const fresh = await auth.api.generateTOTP({
+      body: { secret: localOperatorFixture.totpSecret }
+    })
+    await page.getByLabel('Current authentication code').fill(fresh.code)
+    await db
+      .update(user)
+      .set({ role: 'impersonation-auditor,operator-manager' })
+      .where(eq(user.id, localOperatorFixture.id))
+    await page.getByRole('button', { name: 'Create pending handoff' }).click()
+    await browserExpect(
+      page.getByRole('heading', { name: 'Unable to create pending handoff' })
+    ).toBeVisible()
+    expect(
+      await db
+        .select()
+        .from(impersonationRecords)
+        .where(eq(impersonationRecords.lifecycle, 'pending-handoff'))
+    ).toEqual([])
+    await db
+      .update(user)
+      .set({ role: localOperatorFixture.roles.join(',') })
+      .where(eq(user.id, localOperatorFixture.id))
+    await page.close()
+  }, 20_000)
+
   it('filters global evidence, protects detail, and rechecks audit permission', async () => {
     const page = await browser.newPage()
     await page.goto(`${origin}/sign-in`)

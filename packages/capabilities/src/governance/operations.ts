@@ -1,2 +1,3 @@
 export * from './index.ts'
 export * from './operations-management.ts'
+export * from './operations-impersonation.ts'

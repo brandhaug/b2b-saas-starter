@@ -143,15 +143,15 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Discover Merchants and Merchant Members; Review Global Operations Audit Events.
 
-- [ ] Starting from eligible Member detail requires `merchant:impersonate`, a non-empty internal Impersonation Reason, and an optional external support reference.
-- [ ] The operator must complete a successful TOTP challenge no more than five minutes before the authoritative start decision.
-- [ ] Start rechecks the enabled operator, active Operator Session, TOTP enrollment, current role, enabled target, current membership, Merchant match, and eligible identity class.
-- [ ] At most one Pending Handoff or Active impersonation exists per operator and per target; overlap is rejected rather than replaced.
-- [ ] A successful start creates an explicit Pending Handoff Impersonation Record and a cryptographically random ticket expiring after 60 seconds.
-- [ ] Only a one-way ticket hash and bound lifecycle metadata persist; plaintext is excluded from URLs and ordinary logs.
-- [ ] Successful and rejected attempts are audited with operator, target, Merchant, reason, optional support reference, result, and timestamp.
-- [ ] Expired Pending Handoffs release both concurrency slots deterministically.
-- [ ] Capability, transaction, and browser tests cover reason validation, fresh TOTP, stale permissions, disabled targets, identity mismatch, both concurrency dimensions, ticket secrecy, and expiry.
+- [x] Starting from eligible Member detail requires `merchant:impersonate`, a non-empty internal Impersonation Reason, and an optional external support reference.
+- [x] The operator must complete a successful TOTP challenge no more than five minutes before the authoritative start decision.
+- [x] Start rechecks the enabled operator, active Operator Session, TOTP enrollment, current role, enabled target, current membership, Merchant match, and eligible identity class.
+- [x] At most one Pending Handoff or Active impersonation exists per operator and per target; overlap is rejected rather than replaced.
+- [x] A successful start creates an explicit Pending Handoff Impersonation Record and a cryptographically random ticket expiring after 60 seconds.
+- [x] Only a one-way ticket hash and bound lifecycle metadata persist; plaintext is excluded from URLs and ordinary logs.
+- [x] Successful and rejected attempts are audited with operator, target, Merchant, reason, optional support reference, result, and timestamp.
+- [x] Expired Pending Handoffs release both concurrency slots deterministically.
+- [x] Capability, transaction, and browser tests cover reason validation, fresh TOTP, stale permissions, disabled targets, identity mismatch, both concurrency dimensions, ticket secrecy, and expiry.
 
 ## Activate and Notify Impersonation
 

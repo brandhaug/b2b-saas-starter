@@ -4,6 +4,7 @@ export type OperationsEnvironment = {
   readonly OPERATIONS_AUTH_SECRET?: string
   readonly OPERATIONS_APP_ORIGIN?: string
   readonly OPERATIONS_AUTH_TRUSTED_ORIGINS?: string
+  readonly MERCHANT_APP_ORIGIN?: string
   readonly MERCHANT_AUTH_SECRET?: string
   readonly OPERATIONS_LOCAL_SEED?: string
   readonly OPERATIONS_RATE_LIMIT_SESSION_READ?: string
@@ -21,6 +22,7 @@ export type OperationsEnvironment = {
 export type OperationsConfig = {
   readonly secret: string
   readonly baseURL: string
+  readonly merchantBaseURL: string
   readonly trustedOrigins: readonly string[]
   readonly production: boolean
   readonly localSeed: boolean
@@ -78,8 +80,19 @@ export const parseOperationsConfig = (env: OperationsEnvironment): OperationsCon
     throw new Error('Operations and Merchant auth secrets must be distinct')
   }
   const baseURL = origin('OPERATIONS_APP_ORIGIN', env.OPERATIONS_APP_ORIGIN)
+  const merchantBaseURL = origin(
+    'MERCHANT_APP_ORIGIN',
+    env.MERCHANT_APP_ORIGIN ??
+      (production ? undefined : 'http://merchant.localhost:3072')
+  )
+  if (merchantBaseURL === baseURL) {
+    throw new Error('Operations and Merchant origins must be distinct')
+  }
   if (production && !baseURL.startsWith('https://')) {
     throw new Error('production Operations origin must use https')
+  }
+  if (production && !merchantBaseURL.startsWith('https://')) {
+    throw new Error('production Merchant origin must use https')
   }
   const trustedOrigins = (env.OPERATIONS_AUTH_TRUSTED_ORIGINS ?? '')
     .split(',')
@@ -102,6 +115,7 @@ export const parseOperationsConfig = (env: OperationsEnvironment): OperationsCon
   return {
     secret,
     baseURL,
+    merchantBaseURL,
     trustedOrigins,
     production,
     localSeed,

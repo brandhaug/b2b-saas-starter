@@ -227,7 +227,8 @@ export type ImpersonationStartRequest = typeof ImpersonationStartRequest.Type
 export const ImpersonationStartResult = Schema.Struct({
   impersonationId: Schema.String,
   lifecycle: Schema.Literal('pending-handoff'),
-  expiresAt: Schema.String
+  expiresAt: Schema.String,
+  handoffTicket: Schema.String
 })
 export type ImpersonationStartResult = typeof ImpersonationStartResult.Type
 
@@ -384,7 +385,13 @@ export class OperationsImpersonation extends Context.Service<
   {
     readonly start: (
       input: ImpersonationStartRequest
-    ) => Effect.Effect<ImpersonationStartResult, OperationsContractDenied>
+    ) => Effect.Effect<
+      ImpersonationStartResult,
+      OperationsContractDenied | CapabilityUnavailable
+    >
+    readonly recordRejectedStart: (
+      input: ImpersonationStartRequest
+    ) => Effect.Effect<void, OperationsContractDenied | CapabilityUnavailable>
   }
 >()('@b2b-saas-starter/capabilities/OperationsImpersonation') {}
 

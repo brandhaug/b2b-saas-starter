@@ -5,6 +5,7 @@ const valid = {
   OPERATIONS_AUTH_SECRET: 'operations-secret-that-is-at-least-thirty-two-bytes',
   OPERATIONS_APP_ORIGIN: 'https://operations.example.com',
   OPERATIONS_AUTH_TRUSTED_ORIGINS: 'https://operations.example.com',
+  MERCHANT_APP_ORIGIN: 'https://merchant.example.com',
   MERCHANT_AUTH_SECRET: 'different-merchant-secret-that-is-long-enough',
   OPERATIONS_RATE_LIMIT_SESSION_READ: '120',
   OPERATIONS_RATE_LIMIT_AUTHENTICATION: '10',
@@ -21,6 +22,7 @@ describe('Operations Worker configuration', () => {
   it('accepts an isolated production origin and secret', () => {
     expect(parseOperationsConfig(valid)).toMatchObject({
       baseURL: valid.OPERATIONS_APP_ORIGIN,
+      merchantBaseURL: valid.MERCHANT_APP_ORIGIN,
       production: true,
       trustedOrigins: [valid.OPERATIONS_APP_ORIGIN]
     })
@@ -34,6 +36,8 @@ describe('Operations Worker configuration', () => {
       'trusted origins'
     ],
     [{ ...valid, MERCHANT_AUTH_SECRET: valid.OPERATIONS_AUTH_SECRET }, 'distinct'],
+    [{ ...valid, MERCHANT_APP_ORIGIN: valid.OPERATIONS_APP_ORIGIN }, 'distinct'],
+    [{ ...valid, MERCHANT_APP_ORIGIN: 'http://merchant.example.com' }, 'https'],
     [{ ...valid, OPERATIONS_LOCAL_SEED: 'enabled' }, 'local seed']
   ])('fails closed for invalid isolated configuration', (env, message) => {
     expect(() => parseOperationsConfig(env)).toThrow(message)
