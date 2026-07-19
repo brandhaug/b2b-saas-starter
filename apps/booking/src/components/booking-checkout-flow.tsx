@@ -49,6 +49,10 @@ type CheckoutCopy = {
   readonly book: string
   readonly privacy: string
   readonly privacyLink: string
+  readonly bookingAgreement: string
+  readonly bookingAgreementConnector: string
+  readonly termsOfService: string
+  readonly privacyPolicy: string
   readonly name: string
   readonly yourInformation: string
   readonly firstName: string
@@ -92,6 +96,10 @@ const defaultCopy: CheckoutCopy = {
   book: 'Book',
   privacy: 'Customer Details are used for this booking.',
   privacyLink: 'See the Privacy Policy',
+  bookingAgreement: 'By booking an appointment you agree to the',
+  bookingAgreementConnector: 'and the',
+  termsOfService: 'Terms of Service',
+  privacyPolicy: 'Privacy Policy',
   name: 'Name',
   yourInformation: 'Your information',
   firstName: 'First name',
@@ -468,11 +476,27 @@ export function BookingCheckoutFlow({
               data-testid="btn:book"
               {...stylex.props(styles.primaryButton, styles.legacyCheckoutBook)}
             >
-              {copy.book}
+              <p {...stylex.props(styles.legacyCheckoutBookText)}>{copy.book}</p>
             </button>
             <p {...stylex.props(styles.legacyCheckoutDisclaimer)}>
-              By booking, you agree to the shop's policies.{' '}
-              <a href="/privacy">{copy.privacyLink}</a>.
+              {copy.bookingAgreement}
+              <br />
+              <a
+                href="https://getsquire.com/terms-of-service"
+                target="_blank"
+                {...stylex.props(styles.legacyCheckoutDisclaimerLink)}
+              >
+                {copy.termsOfService}
+              </a>{' '}
+              {copy.bookingAgreementConnector}{' '}
+              <a
+                href="https://getsquire.com/privacy-policy"
+                target="_blank"
+                {...stylex.props(styles.legacyCheckoutDisclaimerLink)}
+              >
+                {copy.privacyPolicy}
+              </a>
+              .
             </p>
           </div>
         </div>

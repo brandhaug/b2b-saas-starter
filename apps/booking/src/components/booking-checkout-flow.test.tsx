@@ -81,6 +81,25 @@ describe('Booking checkout', () => {
     expect(screen.getByText('Payment method')).toBeTruthy()
     expect(screen.getByTestId('btn:payInStore')).toBeTruthy()
     expect(screen.queryByRole('radio')).toBeNull()
+    const action = popup.querySelector('[data-checkout-section="action"]')
+    expect(action).toBeTruthy()
+    const bookButton = within(action as HTMLElement).getByTestId('btn:book')
+    expect(within(bookButton).getByText('Book').tagName).toBe('P')
+    const termsLink = within(action as HTMLElement).getByRole('link', {
+      name: 'Terms of Service'
+    })
+    const privacyLink = within(action as HTMLElement).getByRole('link', {
+      name: 'Privacy Policy'
+    })
+    expect(termsLink.getAttribute('href')).toBe(
+      'https://getsquire.com/terms-of-service'
+    )
+    expect(privacyLink.getAttribute('href')).toBe(
+      'https://getsquire.com/privacy-policy'
+    )
+    expect(termsLink.getAttribute('target')).toBe('_blank')
+    expect(privacyLink.getAttribute('target')).toBe('_blank')
+    expect(termsLink.closest('p')?.querySelector('br')).toBeTruthy()
     const customer = popup.querySelector('[data-checkout-section="customer"]')
     expect(customer?.tagName).toBe('DIV')
     expect(within(customer as HTMLElement).getByText('Your information').tagName).toBe(

@@ -579,14 +579,40 @@ export const styles = stylex.create({
   },
   legacyCheckoutBook: {
     width: '100%',
-    height: 48
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: {
+      default: bookingTheme.colorPrimary,
+      ':hover': bookingTheme.colorPrimary,
+      ':disabled': bookingTheme.colorSystemGray2
+    },
+    color: {
+      default: bookingTheme.colorPrimaryFont,
+      ':disabled': bookingTheme.colorSystemGray9
+    }
+  },
+  legacyCheckoutBookText: {
+    margin: 0,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 15,
+    fontWeight: 600,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px'
   },
   legacyCheckoutDisclaimer: {
-    margin: '12px 8px 0',
-    color: '#747983',
-    fontSize: 11,
+    marginTop: 20,
+    marginRight: 0,
+    marginBottom: 8,
+    marginLeft: 0,
+    color: bookingTheme.colorSystemGray1,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 12,
     lineHeight: '16px',
     textAlign: 'center'
+  },
+  legacyCheckoutDisclaimerLink: {
+    color: bookingTheme.colorPrimaryFont,
+    textDecoration: 'none'
   },
   checkoutPopupSurface: {
     height: 'auto',
