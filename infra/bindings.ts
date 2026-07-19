@@ -76,6 +76,10 @@ export const operationsRateLimits: readonly RateLimitBindingSpec[] = [
   }
 ]
 
+export const merchantImpersonationRateLimits = operationsRateLimits.filter(
+  (spec) => spec.name === 'RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE'
+)
+
 export const operationsRateLimitEnvironment = {
   OPERATIONS_RATE_LIMIT_SESSION_READ: '120',
   OPERATIONS_RATE_LIMIT_AUTHENTICATION: '10',

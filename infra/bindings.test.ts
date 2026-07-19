@@ -8,6 +8,7 @@ import {
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
+  merchantImpersonationRateLimits,
   operationsRateLimitEnvironment,
   operationsRateLimits,
   type QueueConsumerSettings,
@@ -155,10 +156,10 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
   })
 
   it('Merchant and Booking rate limits are isolated and match their workers', () => {
-    expectRateLimitSync(
-      rateLimitBindings(readWranglerConfig('merchant')),
-      merchantRateLimits
-    )
+    expectRateLimitSync(rateLimitBindings(readWranglerConfig('merchant')), [
+      ...merchantRateLimits,
+      ...merchantImpersonationRateLimits
+    ])
     expectRateLimitSync(
       rateLimitBindings(readWranglerConfig('booking')),
       bookingRateLimits
@@ -179,7 +180,10 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
         (spec) => spec.namespaceId
       )
     )
-    expect(namespaces.has(operationsRateLimits[0]!.namespaceId)).toBe(false)
+    for (const spec of operationsRateLimits) {
+      if (merchantImpersonationRateLimits.includes(spec)) continue
+      expect(namespaces.has(spec.namespaceId)).toBe(false)
+    }
   })
 
   it('apps/background consumes only Booking Product events', () => {

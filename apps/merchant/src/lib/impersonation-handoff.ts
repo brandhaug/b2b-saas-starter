@@ -21,16 +21,29 @@ type MerchantImpersonationHandoffOptions = {
   readonly sessionId?: () => string
   readonly sessionToken?: () => string
   readonly notificationIntentId?: () => string
+  readonly consumeRateLimit?: (input: {
+    readonly handoffTicket: string
+    readonly request: Request
+  }) => Promise<{
+    readonly allowed: boolean
+    readonly retryAfterSeconds: number | null
+  }>
 }
 
-const rejected = (status: 400 | 409 | 503): Response =>
+const rejected = (
+  status: 400 | 409 | 429 | 503,
+  retryAfterSeconds?: number
+): Response =>
   Response.json(
     { error: 'impersonation_handoff_rejected' },
     {
       status,
       headers: {
         'cache-control': 'no-store',
-        'referrer-policy': 'no-referrer'
+        'referrer-policy': 'no-referrer',
+        ...(retryAfterSeconds === undefined
+          ? {}
+          : { 'retry-after': String(retryAfterSeconds) })
       }
     }
   )
@@ -60,15 +73,29 @@ export const createMerchantImpersonationHandoffHandler = (
       return rejected(400)
     }
 
+    const handoffTicket = await ticketFrom(request)
+    if (!handoffTicket) return rejected(400)
+
+    if (options.consumeRateLimit) {
+      try {
+        const decision = await options.consumeRateLimit({ handoffTicket, request })
+        if (!decision.allowed) return rejected(429, decision.retryAfterSeconds ?? 60)
+      } catch {
+        return rejected(503)
+      }
+    }
+
+    const cookie = request.headers.get('cookie') ?? ''
+    if (/(?:^|;\s*)(?:__Secure-)?merchant\.session_token=/.test(cookie)) {
+      return rejected(409)
+    }
+
     try {
       const existing = await options.auth.api.getSession({ headers: request.headers })
       if (existing) return rejected(409)
     } catch {
       return rejected(503)
     }
-
-    const handoffTicket = await ticketFrom(request)
-    if (!handoffTicket) return rejected(400)
 
     try {
       const result = await Effect.runPromise(

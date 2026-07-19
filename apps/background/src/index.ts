@@ -115,9 +115,9 @@ const recoverBookingNotificationOutbox = (now: string, env: Env) =>
 const operationsEmailProviderState = (env: Env) =>
   env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
     ? ('configured' as const)
-    : env.ENVIRONMENT === 'production'
-      ? ('needs_configuration' as const)
-      : ('capture' as const)
+    : env.ENVIRONMENT === 'development' || env.ENVIRONMENT === 'test'
+      ? ('capture' as const)
+      : ('needs_configuration' as const)
 
 const operationsNotificationLayer = (env: Env) =>
   makeOperationsNotificationOutboxLayer(createDb(env.DB))

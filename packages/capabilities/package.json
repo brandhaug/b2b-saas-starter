@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",
+    "@b2b-saas-starter/rate-limit": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "libphonenumber-js": "catalog:"

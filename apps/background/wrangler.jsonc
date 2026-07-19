@@ -12,6 +12,7 @@
     "mode": "smart"
   },
   "vars": {
+    "ENVIRONMENT": "development",
     "PUBLIC_SITE_ORIGIN": "http://localhost:3071",
     "CONFIRMATION_CURRENT_KEY_ID": "local-v1",
     "CONFIRMATION_SIGNING_KEYS": "{\"local-v1\":\"replace-before-production-confirmation-key\"}"

@@ -1,13 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Effect } from 'effect'
 import { createDb } from '@b2b-saas-starter/db/client'
+import { eq } from 'drizzle-orm'
 import { operationsNotificationIntents } from '@b2b-saas-starter/db/schema'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
   LogEmailDispatcherLayer,
   makeCloudflareEmailDispatcherLayer
 } from '@b2b-saas-starter/email'
-import { makeOperationsNotificationOutboxLayer } from '@b2b-saas-starter/capabilities/operations'
+import {
+  OperationsNotificationOutbox,
+  makeOperationsNotificationOutboxLayer
+} from '@b2b-saas-starter/capabilities/operations'
 import {
   processOperationsNotification,
   readCapturedOperationsNotifications,
@@ -134,5 +138,51 @@ describe('Operations impersonation notification delivery', () => {
     )
 
     expect(scheduleRetry).toHaveBeenCalledWith('opnti_retry', 30)
+  })
+
+  it('ignores completion from a worker whose stale claim was recovered', async () => {
+    await addIntent('opnti_claim_ownership')
+    const layer = makeOperationsNotificationOutboxLayer(db)
+    const first = await Effect.runPromise(
+      Effect.flatMap(OperationsNotificationOutbox, (store) =>
+        store.claim('opnti_claim_ownership', now)
+      ).pipe(Effect.provide(layer))
+    )
+    const recoveredAt = '2026-07-19T12:01:01.000Z'
+    const recovered = await Effect.runPromise(
+      Effect.flatMap(OperationsNotificationOutbox, (store) =>
+        store.claim('opnti_claim_ownership', recoveredAt)
+      ).pipe(Effect.provide(layer))
+    )
+    expect(first?.claimedAt).toBe(now)
+    expect(recovered?.claimedAt).toBe(recoveredAt)
+
+    await Effect.runPromise(
+      Effect.flatMap(OperationsNotificationOutbox, (store) =>
+        store.delivered('opnti_claim_ownership', recoveredAt, 1, recoveredAt)
+      ).pipe(Effect.provide(layer))
+    )
+    await Effect.runPromise(
+      Effect.flatMap(OperationsNotificationOutbox, (store) =>
+        store.failed(
+          'opnti_claim_ownership',
+          now,
+          1,
+          'stale_worker_failure',
+          '2026-07-19T12:02:00.000Z',
+          '2026-07-19T12:01:02.000Z'
+        )
+      ).pipe(Effect.provide(layer))
+    )
+
+    const [intent] = await db
+      .select()
+      .from(operationsNotificationIntents)
+      .where(eq(operationsNotificationIntents.id, 'opnti_claim_ownership'))
+    expect(intent).toMatchObject({
+      status: 'delivered',
+      failureCode: null,
+      deliveredAt: recoveredAt
+    })
   })
 })

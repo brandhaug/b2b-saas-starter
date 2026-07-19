@@ -8,6 +8,7 @@ import {
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
+  merchantImpersonationRateLimits,
   operationsRateLimitEnvironment,
   operationsRateLimits,
   type RateLimitBindingSpec
@@ -96,11 +97,10 @@ const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
 const merchantAppDomain = requiredHostname('MERCHANT_APP_ORIGIN')
 const operationsAppDomain = requiredHostname('OPERATIONS_APP_ORIGIN')
 const platformApiDomain = requiredHostname('PLATFORM_API_ORIGIN')
-// Optional: when unset, the SendEmail binding is skipped and the email
-// module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
-// read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalModuleEnv` below —
-// there is no second email var name.
-const CLOUDFLARE_EMAIL_FROM = process.env.CLOUDFLARE_EMAIL_FROM
+// Impersonation notification delivery is mandatory in production, so the combined
+// deployment requires a verified sender and provisions one restricted binding.
+const CLOUDFLARE_EMAIL_FROM = requiredEnv('CLOUDFLARE_EMAIL_FROM')
+const OPERATIONS_SECURITY_CONTACT = requiredEnv('OPERATIONS_SECURITY_CONTACT')
 
 // Optional module env, forwarded to the web, API, and background workers so
 // the shared module-aware env validation (`@b2b-saas-starter/env`, ADR 0035)
@@ -140,17 +140,12 @@ export const Stack = Alchemy.Stack(
       name: bookingEventsQueueName
     })
 
-    // Only provision the SendEmail binding when a verified sender is
-    // configured — without it the email module stays inactive instead of
-    // failing the deploy.
-    const transactionalEmail = CLOUDFLARE_EMAIL_FROM
-      ? yield* Cloudflare.SendEmail('EMAIL', {
-          // Restrict the Worker to sending from the verified default. Add
-          // more `allowedSenderAddresses` here as you verify additional
-          // domains in Cloudflare Email Routing.
-          allowedSenderAddresses: [CLOUDFLARE_EMAIL_FROM]
-        })
-      : undefined
+    const transactionalEmail = yield* Cloudflare.SendEmail('EMAIL', {
+      // Restrict the Worker to sending from the verified default. Add
+      // more `allowedSenderAddresses` here as you verify additional
+      // domains in Cloudflare Email Routing.
+      allowedSenderAddresses: [CLOUDFLARE_EMAIL_FROM]
+    })
 
     const api = yield* Cloudflare.Worker('api', {
       name: bookingProductWorkers.api.name,
@@ -159,7 +154,7 @@ export const Stack = Alchemy.Stack(
       main: './apps/api/src/index.ts',
       bindings: {
         DB: db,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        EMAIL: transactionalEmail
       },
       env: optionalModuleEnv,
       compatibility: { date: '2026-05-16' },
@@ -178,13 +173,19 @@ export const Stack = Alchemy.Stack(
       rootDir: './apps/merchant',
       bindings: {
         DB: db,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        EMAIL: transactionalEmail
       },
       env: {
         ...optionalModuleEnv,
         MERCHANT_AUTH_SECRET,
         MERCHANT_AUTH_URL: merchantAppOrigin,
-        MERCHANT_AUTH_TRUSTED_ORIGINS: merchantAppOrigin
+        MERCHANT_AUTH_TRUSTED_ORIGINS: merchantAppOrigin,
+        OPERATIONS_APP_ORIGIN: operationsAppOrigin,
+        OPERATIONS_SECURITY_CONTACT,
+        OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE:
+          operationsRateLimitEnvironment.OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE,
+        OPERATIONS_RATE_LIMIT_WINDOW_SECONDS:
+          operationsRateLimitEnvironment.OPERATIONS_RATE_LIMIT_WINDOW_SECONDS
       },
       compatibility: {
         flags: ['nodejs_compat']
@@ -193,19 +194,22 @@ export const Stack = Alchemy.Stack(
     })
 
     yield* attachRateLimits(merchant, merchantRateLimits)
+    yield* attachRateLimits(merchant, merchantImpersonationRateLimits)
 
     const operations = yield* Cloudflare.Worker('operations', {
       name: bookingProductWorkers.operations.name,
       url: false,
       domain: operationsAppDomain,
       main: './apps/operations/src/index.ts',
-      bindings: { DB: db },
+      bindings: { DB: db, EMAIL: transactionalEmail },
       env: {
         ...operationsRateLimitEnvironment,
         OPERATIONS_AUTH_SECRET,
         OPERATIONS_APP_ORIGIN: operationsAppOrigin,
         OPERATIONS_AUTH_TRUSTED_ORIGINS: operationsAppOrigin,
         MERCHANT_APP_ORIGIN: merchantAppOrigin,
+        CLOUDFLARE_EMAIL_FROM,
+        OPERATIONS_SECURITY_CONTACT,
         ENVIRONMENT: 'production'
       },
       compatibility: { date: '2026-05-16', flags: ['nodejs_compat'] },
@@ -259,9 +263,14 @@ export const Stack = Alchemy.Stack(
         BOOKING_EVENTS_QUEUE: bookingEventsQueue,
         CONFIRMATION_SIGNING_KEYS,
         CONFIRMATION_CURRENT_KEY_ID,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        EMAIL: transactionalEmail
       },
-      env: { ...optionalModuleEnv, PUBLIC_SITE_ORIGIN: publicSiteOrigin },
+      env: {
+        ...optionalModuleEnv,
+        PUBLIC_SITE_ORIGIN: publicSiteOrigin,
+        CLOUDFLARE_EMAIL_FROM,
+        ENVIRONMENT: 'production'
+      },
       crons: ['*/5 * * * *'],
       compatibility: { date: '2026-05-16' },
       observability,
@@ -282,7 +291,7 @@ export const Stack = Alchemy.Stack(
       bindings: {
         DB: db,
         BOOKING: booking,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        EMAIL: transactionalEmail
       },
       // Merchant credentials belong only to the Merchant App. The Public
       // Site no longer receives a Better Auth secret or session binding.

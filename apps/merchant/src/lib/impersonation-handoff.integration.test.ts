@@ -127,7 +127,11 @@ describe('Merchant impersonation handoff HTTP boundary', () => {
     return { operatorId, targetMemberId, merchantId, impersonationId }
   }
 
-  const handler = () =>
+  const handler = (
+    overrides: Partial<
+      Parameters<typeof createMerchantImpersonationHandoffHandler>[0]
+    > = {}
+  ) =>
     createMerchantImpersonationHandoffHandler({
       db,
       auth,
@@ -139,7 +143,8 @@ describe('Merchant impersonation handoff HTTP boundary', () => {
       now: () => now,
       sessionId: () => 'impersonated_merchant_session',
       sessionToken: () => 'impersonated-merchant-session-token',
-      notificationIntentId: () => 'opnti_impersonation_started'
+      notificationIntentId: () => 'opnti_impersonation_started',
+      ...overrides
     })
 
   const exchange = (ticket: string, cookie?: string) => {
@@ -209,6 +214,57 @@ describe('Merchant impersonation handoff HTTP boundary', () => {
     expect(current).toMatchObject({
       user: { id: fixture.targetMemberId },
       session: { id: 'normal_merchant_session', impersonatedBy: null }
+    })
+    const [record] = await db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.id, fixture.impersonationId))
+    expect(record).toMatchObject({
+      lifecycle: 'pending-handoff',
+      merchantSessionId: null
+    })
+  })
+
+  it('does not overwrite a presented Merchant Session cookie even when it is invalid', async () => {
+    const ticket = 'ticket_ffffffffffffffffffffffffffffffffffff'
+    const fixture = await pending('invalid_cookie', ticket)
+
+    const response = await exchange(
+      ticket,
+      '__Secure-merchant.session_token=invalid-session-cookie'
+    )
+
+    expect(response.status).toBe(409)
+    expect(response.headers.get('set-cookie')).toBeNull()
+    const [record] = await db
+      .select()
+      .from(impersonationRecords)
+      .where(eq(impersonationRecords.id, fixture.impersonationId))
+    expect(record).toMatchObject({
+      lifecycle: 'pending-handoff',
+      merchantSessionId: null
+    })
+  })
+
+  it('rate-limits exchange before activation and returns a neutral retry response', async () => {
+    const ticket = 'ticket_gggggggggggggggggggggggggggggggggggg'
+    const fixture = await pending('rate_limited', ticket)
+    const form = new FormData()
+    form.set('ticket', ticket)
+    const response = await handler({
+      consumeRateLimit: async () => ({ allowed: false, retryAfterSeconds: 37 })
+    })(
+      new Request(`${merchantOrigin}/impersonation/handoffs/exchange`, {
+        method: 'POST',
+        headers: { origin: operationsOrigin },
+        body: form
+      })
+    )
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('37')
+    expect(await response.json()).toEqual({
+      error: 'impersonation_handoff_rejected'
     })
     const [record] = await db
       .select()

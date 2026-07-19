@@ -17,6 +17,7 @@ export type OperationsNotificationWork = {
   readonly supportReference: string | null
   readonly securityContact: string
   readonly attemptCount: number
+  readonly claimedAt: string
 }
 
 export class OperationsNotificationOutbox extends Context.Service<
@@ -32,11 +33,13 @@ export class OperationsNotificationOutbox extends Context.Service<
     ) => Effect.Effect<readonly string[], CapabilityUnavailable>
     readonly delivered: (
       intentId: string,
+      claimedAt: string,
       attemptCount: number,
       deliveredAt: string
     ) => Effect.Effect<void, CapabilityUnavailable>
     readonly failed: (
       intentId: string,
+      claimedAt: string,
       attemptCount: number,
       failureCode: string,
       nextAttemptAt: string | null,
@@ -99,7 +102,8 @@ export const makeOperationsNotificationOutboxLayer = (
           occurredAt: row.occurredAt,
           supportReference: row.supportReference,
           securityContact: row.securityContact,
-          attemptCount: row.attemptCount
+          attemptCount: row.attemptCount,
+          claimedAt: now
         }
       }),
     recoverable: (now, limit = 100) =>
@@ -119,35 +123,31 @@ export const makeOperationsNotificationOutboxLayer = (
           .all<{ readonly id: string }>()
         return rows.results.map((row) => row.id)
       }),
-    delivered: (intentId, attemptCount, deliveredAt) =>
+    delivered: (intentId, claimedAt, attemptCount, deliveredAt) =>
       effect(() =>
-        db
-          .update(operationsNotificationIntents)
-          .set({
-            status: 'delivered',
-            attemptCount,
-            claimedAt: null,
-            nextAttemptAt: null,
-            failureCode: null,
-            deliveredAt,
-            updatedAt: deliveredAt
-          })
-          .where(eq(operationsNotificationIntents.id, intentId))
+        raw
+          .prepare(
+            `UPDATE operations_notification_intents
+             SET status = 'delivered', attempt_count = ?1, claimed_at = NULL,
+                 next_attempt_at = NULL, failure_code = NULL, delivered_at = ?2,
+                 updated_at = ?2
+             WHERE id = ?3 AND status = 'processing' AND claimed_at = ?4`
+          )
+          .bind(attemptCount, deliveredAt, intentId, claimedAt)
+          .run()
           .then(() => undefined)
       ),
-    failed: (intentId, attemptCount, failureCode, nextAttemptAt, failedAt) =>
+    failed: (intentId, claimedAt, attemptCount, failureCode, nextAttemptAt, failedAt) =>
       effect(() =>
-        db
-          .update(operationsNotificationIntents)
-          .set({
-            status: 'failed',
-            attemptCount,
-            claimedAt: null,
-            nextAttemptAt,
-            failureCode,
-            updatedAt: failedAt
-          })
-          .where(eq(operationsNotificationIntents.id, intentId))
+        raw
+          .prepare(
+            `UPDATE operations_notification_intents
+             SET status = 'failed', attempt_count = ?1, claimed_at = NULL,
+                 next_attempt_at = ?2, failure_code = ?3, updated_at = ?4
+             WHERE id = ?5 AND status = 'processing' AND claimed_at = ?6`
+          )
+          .bind(attemptCount, nextAttemptAt, failureCode, failedAt, intentId, claimedAt)
+          .run()
           .then(() => undefined)
       )
   })

@@ -11,7 +11,9 @@
   },
   "vars": {
     "OPERATIONS_APP_ORIGIN": "http://operations.localhost:3076",
-    "OPERATIONS_SECURITY_CONTACT": "security@operations.local"
+    "OPERATIONS_SECURITY_CONTACT": "security@operations.local",
+    "OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE": "10",
+    "OPERATIONS_RATE_LIMIT_WINDOW_SECONDS": "60"
   },
   "d1_databases": [
     {
@@ -33,6 +35,12 @@
         "type": "ratelimit",
         "namespace_id": "3002",
         "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE",
+        "type": "ratelimit",
+        "namespace_id": "5007",
+        "simple": { "limit": 10, "period": 60 }
       }
     ]
   }

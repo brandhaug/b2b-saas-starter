@@ -59,6 +59,7 @@ export const processOperationsNotification = (input: {
       const delay = 300
       yield* store.failed(
         work.id,
+        work.claimedAt,
         work.attemptCount,
         'email_not_configured',
         new Date(Date.parse(input.now) + delay * 1_000).toISOString(),
@@ -74,7 +75,7 @@ export const processOperationsNotification = (input: {
     const attemptNumber = work.attemptCount + 1
     if (input.providerState === 'capture') {
       capture(work)
-      yield* store.delivered(work.id, attemptNumber, input.now)
+      yield* store.delivered(work.id, work.claimedAt, attemptNumber, input.now)
       return
     }
 
@@ -94,7 +95,7 @@ export const processOperationsNotification = (input: {
       })
     )
     if (Result.isSuccess(result)) {
-      yield* store.delivered(work.id, attemptNumber, input.now)
+      yield* store.delivered(work.id, work.claimedAt, attemptNumber, input.now)
       return
     }
 
@@ -105,6 +106,7 @@ export const processOperationsNotification = (input: {
         : new Date(Date.parse(input.now) + delay * 1_000).toISOString()
     yield* store.failed(
       work.id,
+      work.claimedAt,
       attemptNumber,
       delay === null ? 'email_retries_exhausted' : 'email_send_failed',
       nextAttemptAt,
