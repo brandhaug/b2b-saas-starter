@@ -11,6 +11,7 @@ import {
   OperationsDiscovery,
   OperationsAuthorization,
   makeOperationsAuthorizationLayer,
+  hasOperatorPermission,
   makeOperationsDiscoveryLayer,
   type MerchantDetail,
   type MerchantMemberDetail,
@@ -22,6 +23,7 @@ import { clientKey, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limi
 import { Effect } from 'effect'
 import { makeOperationsAbuseProtection } from './abuse-protection.ts'
 import { parseOperationsConfig, type OperationsEnvironment } from './config.ts'
+import { handleOperatorManagementRoutes } from './operator-management.ts'
 
 export type OperationsWorkerEnv = OperationsEnvironment & {
   readonly DB: D1Database
@@ -45,7 +47,7 @@ export const localOperatorFixture = {
 
 const html = (title: string, body: string): Response =>
   new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font-family:system-ui;background:#101417;color:#f5f7f8;max-width:44rem;margin:5rem auto;padding:0 1.5rem}main{border:1px solid #334048;padding:2rem;background:#172027}label,input,button{display:block;width:100%;box-sizing:border-box}input,button{margin:.5rem 0 1.25rem;padding:.75rem}button{cursor:pointer;background:#e7b85b;border:0;font-weight:700}code{color:#e7b85b}</style></head><body><main>${body}</main></body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font-family:system-ui;background:#101417;color:#f5f7f8;max-width:80rem;margin:5rem auto;padding:0 1.5rem}main{border:1px solid #334048;padding:2rem;background:#172027}label,input,button{display:block;width:100%;box-sizing:border-box}input,button{margin:.5rem 0 1.25rem;padding:.75rem}input[type=checkbox]{display:inline;width:auto;margin:.25rem .5rem .25rem 0;padding:0}button{cursor:pointer;background:#e7b85b;border:0;font-weight:700}code{color:#e7b85b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #334048;padding:.75rem;text-align:left;vertical-align:top}td form{margin-bottom:1rem}</style></head><body><main>${body}</main></body></html>`,
     {
       headers: {
         'content-type': 'text/html; charset=utf-8',
@@ -342,6 +344,18 @@ export const createOperationsWorker = () => ({
         }).pipe(Effect.provide(makeOperationsDiscoveryLayer(db)))
       )
 
+    const managementResponse = await handleOperatorManagementRoutes({
+      request,
+      db,
+      actor: principal,
+      reference: reference!,
+      consumeRateLimit: consumeAbuse,
+      renderHtml: html,
+      redirect,
+      limited
+    })
+    if (managementResponse) return managementResponse
+
     if (request.method === 'GET' && url.pathname === '/api/merchants/search') {
       try {
         const results = await runDiscovery((discovery) =>
@@ -471,7 +485,7 @@ export const createOperationsWorker = () => ({
     }
     return html(
       'Operations',
-      `<p>Protected Operations shell</p><h1>Welcome, ${escapeHtml(principal.name)}</h1><p>Signed in as <code>${escapeHtml(principal.email)}</code>.</p><p>Roles: ${principal.roles.map(escapeHtml).join(', ')}</p><h2>Merchant discovery</h2><form method="get"><label>Find merchants<input name="merchantQuery" value="${escapeHtml(merchantQuery)}" maxlength="100" required></label><button type="submit">Search merchants</button></form><form method="get"><label>Find merchant members<input name="memberQuery" value="${escapeHtml(memberQuery)}" maxlength="100" required></label><button type="submit">Search members</button></form>${results}`
+      `<p>Protected Operations shell</p><h1>Welcome, ${escapeHtml(principal.name)}</h1><p>Signed in as <code>${escapeHtml(principal.email)}</code>.</p><p>Roles: ${principal.roles.map(escapeHtml).join(', ')}</p>${hasOperatorPermission(principal.roles, 'operator:manage') ? '<p><a href="/operators">Manage System Operators</a></p>' : ''}<h2>Merchant discovery</h2><form method="get"><label>Find merchants<input name="merchantQuery" value="${escapeHtml(merchantQuery)}" maxlength="100" required></label><button type="submit">Search merchants</button></form><form method="get"><label>Find merchant members<input name="memberQuery" value="${escapeHtml(memberQuery)}" maxlength="100" required></label><button type="submit">Search members</button></form>${results}`
     )
   }
 })
