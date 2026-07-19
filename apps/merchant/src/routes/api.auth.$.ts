@@ -1,5 +1,10 @@
 import { env } from 'cloudflare:workers'
 import { createFileRoute } from '@tanstack/react-router'
+import { Effect } from 'effect'
+import {
+  OperationsImpersonationAuthority,
+  makeOperationsImpersonationAuthorityLayer
+} from '@b2b-saas-starter/capabilities/operations'
 import { createMerchantAuthHandler } from '@/lib/merchant-auth-handler.ts'
 import { createMerchantRateLimiter } from '@/lib/rate-limit.ts'
 import { createMerchantServerContext } from '@/lib/server-context.ts'
@@ -13,7 +18,13 @@ const handleAuth = (request: Request): Promise<Response> => {
     },
     emailDelivery: context.emailDelivery(),
     environment: context.production() ? 'production' : 'development',
-    rateLimiter: createMerchantRateLimiter(env)
+    rateLimiter: createMerchantRateLimiter(env),
+    authorizeImpersonated: (input) =>
+      Effect.runPromise(
+        Effect.flatMap(OperationsImpersonationAuthority, (authority) =>
+          authority.authorize(input)
+        ).pipe(Effect.provide(makeOperationsImpersonationAuthorityLayer(context.db())))
+      )
   })(request)
 }
 

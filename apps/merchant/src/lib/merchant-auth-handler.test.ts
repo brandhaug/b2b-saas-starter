@@ -97,6 +97,89 @@ describe('Merchant authentication HTTP boundary', () => {
     expect(auth.handler).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['/api/auth/change-email', 'identity-security.update'],
+    ['/api/auth/change-password', 'identity-security.update'],
+    ['/api/auth/delete-user', 'identity.delete'],
+    ['/api/auth/two-factor/enable', 'mfa.update'],
+    ['/api/auth/link-social', 'identity-security.update'],
+    ['/api/auth/revoke-session', 'identity-security.update']
+  ] as const)(
+    'denies impersonated requests to %s at the HTTP boundary',
+    async (pathname, action) => {
+      const auth = {
+        handler: vi.fn(),
+        getSession: vi.fn().mockResolvedValue({
+          session: {
+            id: 'mss_impersonated',
+            impersonatedBy: 'opr_real',
+            createdAt: new Date()
+          }
+        })
+      }
+      const authorizeImpersonated = vi
+        .fn()
+        .mockRejectedValue(new Error('impersonation authority denied'))
+      const handler = createMerchantAuthHandler({
+        auth,
+        emailDelivery: { isConfigured: true },
+        environment: 'production',
+        rateLimiter: { take: vi.fn().mockResolvedValue(true) },
+        authorizeImpersonated
+      })
+
+      const response = await handler(
+        new Request(`https://app.example.test${pathname}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}'
+        })
+      )
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toEqual({
+        error: 'impersonation_authority_denied'
+      })
+      expect(authorizeImpersonated).toHaveBeenCalledWith({
+        merchantSessionId: 'mss_impersonated',
+        action
+      })
+      expect(auth.handler).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reauthorizes sensitive credential metadata reads before Better Auth', async () => {
+    const auth = {
+      handler: vi.fn().mockResolvedValue(Response.json({ sessions: [] })),
+      getSession: vi.fn().mockResolvedValue({
+        session: {
+          id: 'mss_impersonated',
+          impersonatedBy: 'opr_real',
+          createdAt: new Date()
+        }
+      })
+    }
+    const authorizeImpersonated = vi.fn().mockResolvedValue(undefined)
+    const handler = createMerchantAuthHandler({
+      auth,
+      emailDelivery: { isConfigured: true },
+      environment: 'production',
+      rateLimiter: { take: vi.fn().mockResolvedValue(true) },
+      authorizeImpersonated
+    })
+
+    const response = await handler(
+      new Request('https://app.example.test/api/auth/list-sessions')
+    )
+
+    expect(response.status).toBe(200)
+    expect(authorizeImpersonated).toHaveBeenCalledWith({
+      merchantSessionId: 'mss_impersonated',
+      action: 'credential-metadata.read'
+    })
+    expect(auth.handler).toHaveBeenCalledTimes(1)
+  })
+
   it('short-circuits a denied IP or email rate limit with 429', async () => {
     const auth = { handler: vi.fn() }
     const handler = createMerchantAuthHandler({

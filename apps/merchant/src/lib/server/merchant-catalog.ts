@@ -15,7 +15,7 @@ import {
   makeMerchantCatalogRequestHandler,
   type MerchantCatalogRunner
 } from './merchant-catalog-handler.ts'
-import { requireMerchantRequestSession } from './merchant-session.ts'
+import { runMerchantRequest } from './merchant-session.ts'
 
 const ServiceMutation = Schema.Struct({
   id: Schema.optional(Schema.String),
@@ -45,31 +45,40 @@ const runCatalog: MerchantCatalogRunner = async (userId, effect) => {
   )
 }
 
-const requests = makeMerchantCatalogRequestHandler({
-  currentUserId: async () => (await requireMerchantRequestSession()).user.id,
-  run: runCatalog
-})
+const requestsFor = (userId: string) =>
+  makeMerchantCatalogRequestHandler({
+    currentUserId: async () => userId,
+    run: runCatalog
+  })
 
 export const getMerchantCatalog = createServerFn({ method: 'GET' }).handler(
   async (): Promise<MerchantCatalogSnapshot> => {
-    return requests.read()
+    return runMerchantRequest('financial.read', (session) =>
+      requestsFor(session.user.id).read()
+    )
   }
 )
 
 export const saveMerchantService = createServerFn({ method: 'POST' })
   .validator((input: unknown) => decodeService(input))
   .handler(async ({ data }): Promise<ServiceRecord> => {
-    return requests.saveService(data)
+    return runMerchantRequest('service.update', (session) =>
+      requestsFor(session.user.id).saveService(data)
+    )
   })
 
 export const saveServiceEligibility = createServerFn({ method: 'POST' })
   .validator((input: unknown) => decodeEligibility(input))
   .handler(async ({ data }): Promise<void> => {
-    return requests.saveEligibility(data)
+    return runMerchantRequest('service-eligibility.update', (session) =>
+      requestsFor(session.user.id).saveEligibility(data)
+    )
   })
 
 export const saveMerchantProvider = createServerFn({ method: 'POST' })
   .validator((input: unknown) => decodeProvider(input))
   .handler(async ({ data }): Promise<ProviderRecord> => {
-    return requests.saveProvider(data)
+    return runMerchantRequest('provider.update', (session) =>
+      requestsFor(session.user.id).saveProvider(data)
+    )
   })

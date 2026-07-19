@@ -18,7 +18,7 @@ import { createMerchantImpersonationHandoffHandler } from './impersonation-hando
 const merchantOrigin = 'https://merchant.example.test'
 const operationsOrigin = 'https://operations.example.test'
 const merchantSecret = 'merchant-secret-that-is-at-least-thirty-two-characters'
-const now = new Date('2026-07-19T12:00:00.000Z')
+const now = new Date()
 
 const sha256 = async (value: string) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
@@ -54,7 +54,7 @@ describe('Merchant impersonation handoff HTTP boundary', () => {
     const targetMemberId = `mem_${suffix}`
     const merchantId = `mer_${suffix}`
     const impersonationId = `imp_${suffix}`
-    const later = new Date('2026-07-19T18:00:00.000Z')
+    const later = new Date(now.getTime() + 6 * 60 * 60 * 1_000)
     await db.insert(user).values([
       {
         id: operatorId,
@@ -199,7 +199,7 @@ describe('Merchant impersonation handoff HTTP boundary', () => {
       id: 'normal_merchant_session',
       token: normalToken,
       userId: fixture.targetMemberId,
-      expiresAt: new Date('2026-07-19T18:00:00.000Z'),
+      expiresAt: new Date(now.getTime() + 6 * 60 * 60 * 1_000),
       createdAt: now,
       updatedAt: now
     })

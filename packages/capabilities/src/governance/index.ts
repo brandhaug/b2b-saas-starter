@@ -1,5 +1,6 @@
 export * from './audit-event-log.ts'
 export * from './operations-contracts.ts'
+export * from './operations-impersonation-authority.ts'
 export * from './operations-discovery.ts'
 export * from './operator-invitations.ts'
 export * from './operations-audit.ts'

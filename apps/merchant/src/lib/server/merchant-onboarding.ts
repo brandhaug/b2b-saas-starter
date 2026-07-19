@@ -8,7 +8,7 @@ import {
   type MerchantRecord
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
-import { requireMerchantRequestSession } from './merchant-session.ts'
+import { runMerchantRequest } from './merchant-session.ts'
 
 const decodeInput = Schema.decodeUnknownSync(MerchantOnboardingPayload)
 
@@ -23,10 +23,11 @@ const runMerchantCatalog = <A, E>(effect: Effect.Effect<A, E, MerchantOnboarding
 
 export const getMerchantOnboardingStatus = createServerFn({ method: 'GET' }).handler(
   async (): Promise<MerchantOnboardingStatus> => {
-    const session = await requireMerchantRequestSession()
-    return runMerchantCatalog(
-      Effect.flatMap(MerchantOnboarding, (onboarding) =>
-        onboarding.status(session.user.id)
+    return runMerchantRequest('merchant.read', (session) =>
+      runMerchantCatalog(
+        Effect.flatMap(MerchantOnboarding, (onboarding) =>
+          onboarding.status(session.user.id)
+        )
       )
     )
   }
@@ -35,10 +36,11 @@ export const getMerchantOnboardingStatus = createServerFn({ method: 'GET' }).han
 export const completeMerchantOnboarding = createServerFn({ method: 'POST' })
   .validator((input: unknown) => decodeInput(input))
   .handler(async ({ data }): Promise<MerchantRecord> => {
-    const session = await requireMerchantRequestSession()
-    return runMerchantCatalog(
-      Effect.flatMap(MerchantOnboarding, (onboarding) =>
-        onboarding.complete(session.user.id, data)
+    return runMerchantRequest('merchant-ownership.update', (session) =>
+      runMerchantCatalog(
+        Effect.flatMap(MerchantOnboarding, (onboarding) =>
+          onboarding.complete(session.user.id, data)
+        )
       )
     )
   })

@@ -13,7 +13,7 @@ import {
   makeWalkInLifecycleRequestHandler,
   type WalkInLifecycleRunner
 } from './walk-in-lifecycle-handler.ts'
-import { requireMerchantRequestSession } from './merchant-session.ts'
+import { runMerchantRequest } from './merchant-session.ts'
 
 const QueueInput = Schema.Struct({ shopId: Schema.String })
 const TransitionInput = Schema.Struct({
@@ -34,22 +34,33 @@ const run: WalkInLifecycleRunner = async (userId, effect) => {
     )
   )
 }
-const requests = makeWalkInLifecycleRequestHandler({
-  currentUserId: async () => (await requireMerchantRequestSession()).user.id,
-  run
-})
+const requestsFor = (userId: string) =>
+  makeWalkInLifecycleRequestHandler({
+    currentUserId: async () => userId,
+    run
+  })
 
 export const getWalkInShops = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<readonly Shop[]> => requests.shops()
+  async (): Promise<readonly Shop[]> =>
+    runMerchantRequest('walk-in.read', (session) =>
+      requestsFor(session.user.id).shops()
+    )
 )
 
 export const getWalkInQueue = createServerFn({ method: 'GET' })
   .validator(Schema.decodeUnknownSync(QueueInput))
   .handler(
     async ({ data }): Promise<readonly WalkInQueueEntry[]> =>
-      requests.queue(data.shopId)
+      runMerchantRequest('walk-in.read', (session) =>
+        requestsFor(session.user.id).queue(data.shopId)
+      )
   )
 
 export const transitionWalkInEntry = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(TransitionInput))
-  .handler(async ({ data }): Promise<WalkInQueueEntry> => requests.transition(data))
+  .handler(
+    async ({ data }): Promise<WalkInQueueEntry> =>
+      runMerchantRequest('walk-in.update', (session) =>
+        requestsFor(session.user.id).transition(data)
+      )
+  )

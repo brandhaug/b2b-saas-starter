@@ -1,7 +1,11 @@
 type MerchantAuth = {
   readonly handler: (request: Request) => Promise<Response>
   readonly getSession?: (headers: Headers) => Promise<{
-    readonly session: { readonly createdAt: Date }
+    readonly session: {
+      readonly id: string
+      readonly createdAt: Date
+      readonly impersonatedBy?: string | null | undefined
+    }
   } | null>
 }
 
@@ -21,6 +25,15 @@ export type CreateMerchantAuthHandlerOptions = {
   readonly emailDelivery: MerchantEmailDelivery
   readonly environment: 'development' | 'test' | 'production'
   readonly rateLimiter: MerchantAuthRateLimiter
+  readonly authorizeImpersonated?: (input: {
+    readonly merchantSessionId: string
+    readonly action:
+      | 'identity-security.update'
+      | 'mfa.update'
+      | 'identity.delete'
+      | 'credential-metadata.read'
+      | 'merchant.navigate'
+  }) => Promise<unknown>
 }
 
 const emailActions = new Set([
@@ -36,6 +49,32 @@ const passwordReauthenticationActions = new Set([
   '/api/auth/change-email',
   '/api/auth/change-password'
 ])
+const impersonatedActionFor = (
+  pathname: string,
+  method: string
+):
+  | 'identity-security.update'
+  | 'mfa.update'
+  | 'identity.delete'
+  | 'credential-metadata.read'
+  | 'merchant.navigate'
+  | null => {
+  if (!pathname.startsWith('/api/auth/')) return null
+  if (method === 'POST') {
+    if (pathname === '/api/auth/delete-user') return 'identity.delete'
+    if (pathname.startsWith('/api/auth/two-factor/')) return 'mfa.update'
+    return 'identity-security.update'
+  }
+  if (method !== 'GET') return null
+  if (
+    pathname === '/api/auth/list-sessions' ||
+    pathname === '/api/auth/list-accounts' ||
+    pathname === '/api/auth/get-access-token'
+  ) {
+    return 'credential-metadata.read'
+  }
+  return 'merchant.navigate'
+}
 const passwordReauthenticationWindowMs = 60 * 15 * 1_000
 
 const jsonResponse = (body: object, status: number): Response =>
@@ -106,9 +145,30 @@ export const createMerchantAuthHandler =
     }
 
     const pathname = new URL(request.url).pathname
+    const impersonatedAction = impersonatedActionFor(pathname, request.method)
+    const currentSession =
+      (impersonatedAction || passwordReauthenticationActions.has(pathname)) &&
+      options.auth.getSession
+        ? await options.auth.getSession(request.headers)
+        : null
+
+    if (currentSession?.session.impersonatedBy && impersonatedAction) {
+      try {
+        if (!options.authorizeImpersonated) throw new Error('guard unavailable')
+        await options.authorizeImpersonated({
+          merchantSessionId: currentSession.session.id,
+          action: impersonatedAction
+        })
+      } catch {
+        return jsonResponse({ error: 'impersonation_authority_denied' }, 403)
+      }
+      if (request.method === 'POST') {
+        return jsonResponse({ error: 'impersonation_authority_denied' }, 403)
+      }
+    }
 
     if (passwordReauthenticationActions.has(pathname) && options.auth.getSession) {
-      const session = await options.auth.getSession(request.headers)
+      const session = currentSession
       if (!session) {
         return jsonResponse(
           { error: 'merchant_unauthorized', message: 'Sign in and retry this change.' },

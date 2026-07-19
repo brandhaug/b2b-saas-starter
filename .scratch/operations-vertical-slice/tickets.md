@@ -176,15 +176,15 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Manage Operator Roles and Sessions; Activate and Notify Impersonation.
 
-- [ ] Every protected impersonated request rechecks enabled operator, active Operator Session, TOTP enrollment, `merchant:impersonate`, enabled target, current same-Merchant membership, Active lifecycle, and unreleased security state.
-- [ ] Effective authority is the intersection of target Member authority and the explicit impersonation allowlist.
-- [ ] Identity and security changes, MFA changes, identity deletion, Merchant ownership changes, long-lived credential creation or rotation, monetary movement, payout or billing destination changes, destructive deletion, and bulk wipes are denied.
-- [ ] Financial state remains inspectable without exposing mutation commands.
-- [ ] Representative reversible service and schedule operations work when the target Member is authorized.
-- [ ] Every successful or failed mutation is attributed to the real operator, target, Merchant, and impersonation.
-- [ ] Designated sensitive reads create audit evidence; routine navigation and nonsensitive reads do not create per-request noise.
-- [ ] Denied actions return stable, nonleaking errors and cannot be invoked by bypassing the UI.
-- [ ] Capability and integration tests enumerate every denied category, representative allowed actions, target-authority reduction, and audit attribution.
+- [x] Every protected impersonated request rechecks enabled operator, active Operator Session, TOTP enrollment, `merchant:impersonate`, enabled target, current same-Merchant membership, Active lifecycle, and unreleased security state.
+- [x] Effective authority is the intersection of target Member authority and the explicit impersonation allowlist.
+- [x] Identity and security changes, MFA changes, identity deletion, Merchant ownership changes, long-lived credential creation or rotation, monetary movement, payout or billing destination changes, destructive deletion, and bulk wipes are denied.
+- [x] Financial state remains inspectable without exposing mutation commands.
+- [x] Representative reversible service and schedule operations work when the target Member is authorized.
+- [x] Every successful or failed mutation is attributed to the real operator, target, Merchant, and impersonation.
+- [x] Designated sensitive reads create audit evidence; routine navigation and nonsensitive reads do not create per-request noise.
+- [x] Denied actions return stable, nonleaking errors and cannot be invoked by bypassing the UI.
+- [x] Capability and integration tests enumerate every denied category, representative allowed actions, target-authority reduction, and audit attribution.
 
 ## Show and End the Impersonation Lifecycle
 

@@ -27,7 +27,7 @@ describe('Global Operations audit', () => {
     readonly roles: string
   }) => {
     const db = createDb(testD1.d1)
-    const now = new Date('2026-07-19T09:30:00.000Z')
+    const now = new Date()
     await db.insert(user).values({
       id: input.id,
       email: `${input.id}@operations.test`,
@@ -43,9 +43,9 @@ describe('Global Operations audit', () => {
       id: input.sessionId,
       token: `token-${input.sessionId}`,
       userId: input.id,
-      expiresAt: new Date('2026-07-19T17:00:00.000Z'),
-      operatorIdleExpiresAt: new Date('2026-07-19T10:00:00.000Z'),
-      operatorAbsoluteExpiresAt: new Date('2026-07-19T17:00:00.000Z'),
+      expiresAt: new Date(now.getTime() + 8 * 60 * 60 * 1_000),
+      operatorIdleExpiresAt: new Date(now.getTime() + 30 * 60 * 1_000),
+      operatorAbsoluteExpiresAt: new Date(now.getTime() + 8 * 60 * 60 * 1_000),
       createdAt: now,
       updatedAt: now
     })

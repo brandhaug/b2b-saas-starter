@@ -1,5 +1,6 @@
 export * from './index.ts'
 export * from './operations-management.ts'
 export * from './operations-impersonation.ts'
+export * from './operations-impersonation-authority.ts'
 export * from './operations-notifications.ts'
 export * from './operations-abuse-protection.ts'

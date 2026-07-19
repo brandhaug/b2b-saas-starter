@@ -1,8 +1,14 @@
 import { redirect } from '@tanstack/react-router'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
+import type { ImpersonatedMerchantAction } from '@b2b-saas-starter/capabilities/operations'
+import {
+  OperationsImpersonationAuthority,
+  makeOperationsImpersonationAuthorityLayer
+} from '@b2b-saas-starter/capabilities/operations'
 import { createMerchantServerContext } from '../server-context.ts'
+import { makeMerchantRequestAuthority } from './merchant-request-authority.ts'
 
 const readSession = createServerOnlyFn(() => {
   const request = getRequest()
@@ -11,7 +17,35 @@ const readSession = createServerOnlyFn(() => {
   })
 })
 
-const getSession = createServerFn({ method: 'GET' }).handler(readSession)
+const merchantRequests = () => {
+  const context = createMerchantServerContext()
+  const layer = makeOperationsImpersonationAuthorityLayer(context.db())
+  return makeMerchantRequestAuthority({
+    readSession,
+    authority: {
+      authorize: (input) =>
+        Effect.runPromise(
+          Effect.flatMap(OperationsImpersonationAuthority, (authority) =>
+            authority.authorize(input)
+          ).pipe(Effect.provide(layer))
+        ),
+      recordMutation: (input) =>
+        Effect.runPromise(
+          Effect.flatMap(OperationsImpersonationAuthority, (authority) =>
+            authority.recordMutation(input)
+          ).pipe(Effect.provide(layer))
+        )
+    },
+    unauthorized: () =>
+      new MerchantUnauthorizedError({
+        message: 'Your Merchant App session has expired. Sign in and retry.'
+      })
+  })
+}
+
+const getSession = createServerFn({ method: 'GET' }).handler(
+  async () => (await merchantRequests().authorize('merchant.navigate')).session
+)
 
 /** Navigation uses a redirect; server mutations must use UnauthorizedError. */
 export const requireMerchantSession = async (redirectTo: string) => {
@@ -27,12 +61,11 @@ export class MerchantUnauthorizedError extends Schema.TaggedErrorClass<MerchantU
   { message: Schema.String }
 ) {}
 
-export const requireMerchantRequestSession = async () => {
-  const session = await readSession()
-  if (!session) {
-    throw new MerchantUnauthorizedError({
-      message: 'Your Merchant App session has expired. Sign in and retry.'
-    })
-  }
-  return session
-}
+export const requireMerchantRequestSession = async (
+  action: ImpersonatedMerchantAction = 'merchant.navigate'
+) => (await merchantRequests().authorize(action)).session
+
+export const runMerchantRequest = <Result>(
+  action: ImpersonatedMerchantAction,
+  use: (session: Awaited<ReturnType<typeof readSession>> & {}) => Promise<Result>
+): Promise<Result> => merchantRequests().run(action, use)

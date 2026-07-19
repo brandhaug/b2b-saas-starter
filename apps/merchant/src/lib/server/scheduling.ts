@@ -10,7 +10,7 @@ import {
   makeSchedulingRequestHandler,
   type SchedulingRunner
 } from './scheduling-handler.ts'
-import { requireMerchantRequestSession } from './merchant-session.ts'
+import { runMerchantRequest } from './merchant-session.ts'
 
 const SaveRules = Schema.Struct({
   providerId: Schema.String,
@@ -33,20 +33,32 @@ const run: SchedulingRunner = async (userId, effect) => {
   )
 }
 
-const requests = makeSchedulingRequestHandler({
-  currentUserId: async () => (await requireMerchantRequestSession()).user.id,
-  run,
-  now: () => new Date().toISOString()
-})
+const requestsFor = (userId: string) =>
+  makeSchedulingRequestHandler({
+    currentUserId: async () => userId,
+    run,
+    now: () => new Date().toISOString()
+  })
 
 export const getSchedulingConfiguration = createServerFn({ method: 'GET' }).handler(
-  () => requests.read()
+  () =>
+    runMerchantRequest('financial.read', (session) =>
+      requestsFor(session.user.id).read()
+    )
 )
 
 export const saveScheduleRules = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(SaveRules))
-  .handler(({ data }) => requests.saveRules(data))
+  .handler(({ data }) =>
+    runMerchantRequest('schedule.update', (session) =>
+      requestsFor(session.user.id).saveRules(data)
+    )
+  )
 
 export const setPublicPagePublished = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(SetPublished))
-  .handler(({ data }) => requests.setPublished(data.published))
+  .handler(({ data }) =>
+    runMerchantRequest('publication.update', (session) =>
+      requestsFor(session.user.id).setPublished(data.published)
+    )
+  )
