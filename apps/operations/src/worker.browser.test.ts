@@ -3,6 +3,13 @@ import { chromium, expect as browserExpect, type Browser } from '@playwright/tes
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createDb } from '@b2b-saas-starter/db/client'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
+import {
+  merchantMemberships,
+  merchants,
+  publicBookingPages,
+  user
+} from '@b2b-saas-starter/db/schema'
+import { eq } from 'drizzle-orm'
 import { createOperationsAuth } from '@b2b-saas-starter/auth/operations'
 import { createOperationsWorker, localOperatorFixture } from './index.ts'
 import type { OperationsWorkerEnv } from './index.ts'
@@ -72,6 +79,66 @@ describe('Operations browser boundary', () => {
       OPERATIONS_LOCAL_SEED: 'enabled',
       ENVIRONMENT: 'development'
     }
+    const db = createDb(testD1.d1)
+    const now = new Date('2026-07-19T09:00:00.000Z')
+    await db.insert(user).values({
+      id: 'mem_browser_target',
+      email: 'target@example.test',
+      name: 'Browser Target',
+      emailVerified: true,
+      identityClass: 'merchant_member',
+      createdAt: now,
+      updatedAt: now
+    })
+    await db.insert(merchants).values({
+      id: 'mer_browser_studio',
+      publicName: 'Browser Booking Studio',
+      slug: 'browser-studio',
+      timezone: 'Europe/Bucharest',
+      currency: 'RON',
+      plan: 'solo',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    })
+    await db.insert(merchantMemberships).values({
+      merchantId: 'mer_browser_studio',
+      userId: 'mem_browser_target',
+      role: 'owner',
+      createdAt: now.toISOString()
+    })
+    await db.insert(publicBookingPages).values({
+      id: 'pbp_browser_studio',
+      merchantId: 'mer_browser_studio',
+      status: 'published',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    })
+    await db.insert(user).values({
+      id: 'mem_browser_disabled',
+      email: 'disabled-browser@example.test',
+      name: 'Disabled Browser Target',
+      emailVerified: true,
+      identityClass: 'merchant_member',
+      banned: true,
+      createdAt: now,
+      updatedAt: now
+    })
+    await db.insert(merchants).values({
+      id: 'mer_browser_disabled',
+      publicName: 'Disabled Browser Studio',
+      slug: 'disabled-browser-studio',
+      timezone: 'Europe/Bucharest',
+      currency: 'RON',
+      plan: 'solo',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    })
+    await db.insert(merchantMemberships).values({
+      merchantId: 'mer_browser_disabled',
+      userId: 'mem_browser_disabled',
+      role: 'owner',
+      createdAt: now.toISOString()
+    })
     closeServer = () =>
       new Promise((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve()))
@@ -140,4 +207,78 @@ describe('Operations browser boundary', () => {
     expect(signup.status()).toBe(404)
     await context.close()
   })
+
+  it('searches from the protected UI and shows current Merchant Member eligibility', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${origin}/sign-in`)
+    await page.getByLabel('Email').fill(localOperatorFixture.email)
+    await page.getByLabel('Password').fill(localOperatorFixture.password)
+    await page.getByRole('button', { name: 'Continue' }).click()
+    const auth = createOperationsAuth({
+      db: createDb(testD1.d1),
+      secret,
+      baseURL: origin,
+      trustedOrigins: [origin],
+      production: false
+    })
+    const { code } = await auth.api.generateTOTP({
+      body: { secret: localOperatorFixture.totpSecret }
+    })
+    await page.getByLabel('Authentication code').fill(code)
+    await page.getByRole('button', { name: 'Verify' }).click()
+
+    await page.getByLabel('Find merchants').fill('browser')
+    await page.getByRole('button', { name: 'Search merchants' }).click()
+    await page.getByRole('link', { name: 'Browser Booking Studio' }).click()
+    await browserExpect(
+      page.getByRole('heading', { name: 'Browser Booking Studio' })
+    ).toBeVisible()
+    await browserExpect(
+      page.getByText('Published at /browser-studio/booking')
+    ).toBeVisible()
+    await browserExpect(
+      page.getByText('Incomplete: active-service, eligible-provider, schedule-rules')
+    ).toBeVisible()
+
+    await page.getByRole('link', { name: 'Browser Target' }).click()
+    await browserExpect(
+      page.getByRole('heading', { name: 'Browser Target' })
+    ).toBeVisible()
+    await browserExpect(page.getByText('target@example.test')).toBeVisible()
+    await browserExpect(page.getByText('Eligible for impersonation')).toBeVisible()
+
+    const detailResponse = await page.request.get(
+      `${origin}/api/merchants/mer_browser_studio/members/mem_browser_target`
+    )
+    const detailBody = await detailResponse.text()
+    expect(detailResponse.status()).toBe(200)
+    expect(detailBody).not.toMatch(/token|password|secret|backup/i)
+
+    await page.goto(origin)
+    await page.getByLabel('Find merchant members').fill('target@example.test')
+    await page.getByRole('button', { name: 'Search members' }).click()
+    await page.getByRole('link', { name: 'Browser Target' }).click()
+    await browserExpect(page.getByText('Eligible for impersonation')).toBeVisible()
+
+    await page.goto(`${origin}/?memberQuery=nobody`)
+    await browserExpect(page.getByText('No Merchant Members found.')).toBeVisible()
+
+    await page.goto(`${origin}/?memberQuery=disabled-browser%40example.test`)
+    await page.getByRole('link', { name: 'Disabled Browser Target' }).click()
+    await browserExpect(
+      page.getByText('Ineligible for impersonation: member-disabled')
+    ).toBeVisible()
+
+    const db = createDb(testD1.d1)
+    await db.update(user).set({ banned: true }).where(eq(user.id, 'mem_browser_target'))
+    await page.goto(`${origin}/merchants/mer_browser_studio/members/mem_browser_target`)
+    await browserExpect(
+      page.getByText('Ineligible for impersonation: member-disabled')
+    ).toBeVisible()
+    await db
+      .update(user)
+      .set({ banned: false })
+      .where(eq(user.id, 'mem_browser_target'))
+    await page.close()
+  }, 20_000)
 })

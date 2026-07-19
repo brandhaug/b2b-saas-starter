@@ -7,9 +7,17 @@ import {
   readOperatorSessionReference
 } from '@b2b-saas-starter/auth/operations'
 import {
+  OperationsContractDenied,
+  OperationsDiscovery,
   OperationsAuthorization,
-  makeOperationsAuthorizationLayer
+  makeOperationsAuthorizationLayer,
+  makeOperationsDiscoveryLayer,
+  type MerchantDetail,
+  type MerchantMemberDetail,
+  type MerchantMemberSearchResult,
+  type MerchantSearchResult
 } from '@b2b-saas-starter/capabilities/operations'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { clientKey, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
 import { Effect } from 'effect'
 import { makeOperationsAbuseProtection } from './abuse-protection.ts'
@@ -37,7 +45,7 @@ export const localOperatorFixture = {
 
 const html = (title: string, body: string): Response =>
   new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font-family:system-ui;background:#101417;color:#f5f7f8;max-width:44rem;margin:5rem auto;padding:0 1.5rem}main{border:1px solid #334048;padding:2rem;background:#172027}label,input,button{display:block;width:100%;box-sizing:border-box}input,button{margin:.5rem 0 1.25rem;padding:.75rem}button{cursor:pointer;background:#e7b85b;border:0;font-weight:700}code{color:#e7b85b}</style></head><body><main>${body}</main></body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font-family:system-ui;background:#101417;color:#f5f7f8;max-width:44rem;margin:5rem auto;padding:0 1.5rem}main{border:1px solid #334048;padding:2rem;background:#172027}label,input,button{display:block;width:100%;box-sizing:border-box}input,button{margin:.5rem 0 1.25rem;padding:.75rem}button{cursor:pointer;background:#e7b85b;border:0;font-weight:700}code{color:#e7b85b}</style></head><body><main>${body}</main></body></html>`,
     {
       headers: {
         'content-type': 'text/html; charset=utf-8',
@@ -55,6 +63,57 @@ const redirect = (location: string, cookies: readonly string[] = []): Response =
 const formText = (form: FormData, name: string): string => {
   const value = form.get(name)
   return typeof value === 'string' ? value : ''
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[character]!
+  )
+}
+
+const discoveryErrorResponse = (error: unknown): Response => {
+  if (error instanceof CapabilityUnavailable)
+    return Response.json({ error: 'discovery_unavailable' }, { status: 503 })
+  const reason =
+    error instanceof OperationsContractDenied ? error.reason : 'discovery unavailable'
+  if (reason.endsWith('not found'))
+    return Response.json({ error: 'not_found' }, { status: 404 })
+  if (reason.includes('invalid'))
+    return Response.json({ error: 'invalid_search' }, { status: 400 })
+  return Response.json({ error: 'forbidden' }, { status: 403 })
+}
+
+const merchantResultHtml = (result: MerchantSearchResult): string =>
+  `<li><a href="/merchants/${encodeURIComponent(result.id)}">${escapeHtml(result.publicName)}</a> <code>${escapeHtml(result.slug)}</code> — ${result.status}</li>`
+
+const memberResultHtml = (result: MerchantMemberSearchResult): string =>
+  `<li><a href="/merchants/${encodeURIComponent(result.merchant.id)}/members/${encodeURIComponent(result.id)}">${escapeHtml(result.name)}</a> — ${escapeHtml(result.email)} · ${escapeHtml(result.merchant.publicName)} (${result.status})</li>`
+
+const merchantDetailHtml = (merchant: MerchantDetail): string => {
+  const page =
+    merchant.publicPage.status === 'published' && merchant.publicPage.bookingPath
+      ? `Published at ${escapeHtml(merchant.publicPage.bookingPath)}`
+      : 'Unpublished'
+  const readiness = merchant.readiness.ready
+    ? 'Ready for publication'
+    : `Incomplete: ${merchant.readiness.incomplete.map(escapeHtml).join(', ')}`
+  return `<p><a href="/">Back to discovery</a></p><h1>${escapeHtml(merchant.publicName)}</h1><dl><dt>Merchant ID</dt><dd><code>${escapeHtml(merchant.id)}</code></dd><dt>Status</dt><dd>${merchant.status}</dd><dt>Public page</dt><dd>${page}</dd><dt>Booking readiness</dt><dd>${readiness}</dd></dl><h2>Members</h2><ul>${merchant.members.map((member) => `<li><a href="/merchants/${encodeURIComponent(merchant.id)}/members/${encodeURIComponent(member.id)}">${escapeHtml(member.name)}</a> — ${escapeHtml(member.email)} (${member.status}, ${member.role})</li>`).join('')}</ul>`
+}
+
+const memberDetailHtml = (member: MerchantMemberDetail): string => {
+  const membership = `${escapeHtml(member.membership.role)} of ${escapeHtml(member.membership.merchantName)}`
+  const eligibility = member.impersonationEligibility.eligible
+    ? 'Eligible for impersonation'
+    : `Ineligible for impersonation: ${escapeHtml(member.impersonationEligibility.reason ?? 'unknown')}`
+  return `<p><a href="/merchants/${encodeURIComponent(member.membership.merchantId)}">Back to Merchant</a></p><h1>${escapeHtml(member.name)}</h1><dl><dt>Member ID</dt><dd><code>${escapeHtml(member.id)}</code></dd><dt>Email</dt><dd>${escapeHtml(member.email)}</dd><dt>Email verification</dt><dd>${member.emailVerified ? 'Verified' : 'Unverified'}</dd><dt>Enabled state</dt><dd>${member.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Membership</dt><dd>${membership}</dd><dt>Active sessions</dt><dd>${member.activeSessionCount}</dd><dt>Last sign-in</dt><dd>${escapeHtml(member.lastSignInAt ?? 'Never')}</dd><dt>Impersonation</dt><dd>${eligibility}</dd></dl>`
 }
 
 let localSeed: Promise<void> | undefined
@@ -270,12 +329,149 @@ export const createOperationsWorker = () => ({
     })
     const principal = reference ? await authorize(db, reference) : null
     if (!principal) return redirect('/sign-in')
+
+    const runDiscovery = <A>(
+      use: (
+        discovery: OperationsDiscovery['Service']
+      ) => Effect.Effect<A, OperationsContractDenied | CapabilityUnavailable>
+    ): Promise<A> =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const discovery = yield* OperationsDiscovery
+          return yield* use(discovery)
+        }).pipe(Effect.provide(makeOperationsDiscoveryLayer(db)))
+      )
+
+    if (request.method === 'GET' && url.pathname === '/api/merchants/search') {
+      try {
+        const results = await runDiscovery((discovery) =>
+          discovery.search({
+            actor: reference!,
+            kind: 'merchant',
+            query: url.searchParams.get('q') ?? '',
+            limit: Number(url.searchParams.get('limit') ?? 20)
+          })
+        )
+        return Response.json({ results })
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/members/search') {
+      try {
+        const results = await runDiscovery((discovery) =>
+          discovery.search({
+            actor: reference!,
+            kind: 'merchant-member',
+            query: url.searchParams.get('q') ?? '',
+            limit: Number(url.searchParams.get('limit') ?? 20)
+          })
+        )
+        return Response.json({ results })
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+
+    const memberRoute = url.pathname.match(
+      /^\/api\/merchants\/([^/]+)\/members\/([^/]+)$/
+    )
+    if (request.method === 'GET' && memberRoute) {
+      try {
+        return Response.json(
+          await runDiscovery((discovery) =>
+            discovery.getMember({
+              actor: reference!,
+              merchantId: decodeURIComponent(memberRoute[1]!),
+              memberId: decodeURIComponent(memberRoute[2]!)
+            })
+          )
+        )
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+    const merchantApiRoute = url.pathname.match(/^\/api\/merchants\/([^/]+)$/)
+    if (request.method === 'GET' && merchantApiRoute) {
+      try {
+        return Response.json(
+          await runDiscovery((discovery) =>
+            discovery.getMerchant({
+              actor: reference!,
+              merchantId: decodeURIComponent(merchantApiRoute[1]!)
+            })
+          )
+        )
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+
+    const memberPageRoute = url.pathname.match(
+      /^\/merchants\/([^/]+)\/members\/([^/]+)$/
+    )
+    if (request.method === 'GET' && memberPageRoute) {
+      try {
+        const member = await runDiscovery((discovery) =>
+          discovery.getMember({
+            actor: reference!,
+            merchantId: decodeURIComponent(memberPageRoute[1]!),
+            memberId: decodeURIComponent(memberPageRoute[2]!)
+          })
+        )
+        return html(`${member.name} — Operations`, memberDetailHtml(member))
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+    const merchantPageRoute = url.pathname.match(/^\/merchants\/([^/]+)$/)
+    if (request.method === 'GET' && merchantPageRoute) {
+      try {
+        const merchant = await runDiscovery((discovery) =>
+          discovery.getMerchant({
+            actor: reference!,
+            merchantId: decodeURIComponent(merchantPageRoute[1]!)
+          })
+        )
+        return html(`${merchant.publicName} — Operations`, merchantDetailHtml(merchant))
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
     if (request.method !== 'GET' || url.pathname !== '/') {
       return Response.json({ error: 'not_found' }, { status: 404 })
     }
+    const merchantQuery = url.searchParams.get('merchantQuery')?.trim() ?? ''
+    const memberQuery = url.searchParams.get('memberQuery')?.trim() ?? ''
+    let results = ''
+    try {
+      if (merchantQuery) {
+        const found = await runDiscovery((discovery) =>
+          discovery.search({
+            actor: reference!,
+            kind: 'merchant',
+            query: merchantQuery,
+            limit: 20
+          })
+        )
+        results = `<h2>Merchant results</h2>${found.length ? `<ul>${found.map((item) => merchantResultHtml(item as MerchantSearchResult)).join('')}</ul>` : '<p>No Merchants found.</p>'}`
+      } else if (memberQuery) {
+        const found = await runDiscovery((discovery) =>
+          discovery.search({
+            actor: reference!,
+            kind: 'merchant-member',
+            query: memberQuery,
+            limit: 20
+          })
+        )
+        results = `<h2>Member results</h2>${found.length ? `<ul>${found.map((item) => memberResultHtml(item as MerchantMemberSearchResult)).join('')}</ul>` : '<p>No Merchant Members found.</p>'}`
+      }
+    } catch (error) {
+      return discoveryErrorResponse(error)
+    }
     return html(
       'Operations',
-      `<p>Protected Operations shell</p><h1>Welcome, ${principal.name}</h1><p>Signed in as <code>${principal.email}</code>.</p><p>Roles: ${principal.roles.join(', ')}</p>`
+      `<p>Protected Operations shell</p><h1>Welcome, ${escapeHtml(principal.name)}</h1><p>Signed in as <code>${escapeHtml(principal.email)}</code>.</p><p>Roles: ${principal.roles.map(escapeHtml).join(', ')}</p><h2>Merchant discovery</h2><form method="get"><label>Find merchants<input name="merchantQuery" value="${escapeHtml(merchantQuery)}" maxlength="100" required></label><button type="submit">Search merchants</button></form><form method="get"><label>Find merchant members<input name="memberQuery" value="${escapeHtml(memberQuery)}" maxlength="100" required></label><button type="submit">Search members</button></form>${results}`
     )
   }
 })

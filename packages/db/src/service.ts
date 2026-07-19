@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Schema } from 'effect'
 import * as D1Client from '@effect/sql-d1/D1Client'
 import * as SQLiteD1Drizzle from 'drizzle-orm/effect-d1'
 import type { Query } from 'drizzle-orm'
+import { createDb, type Database as PromiseDrizzleDatabase } from './client.ts'
 
 export type EffectDatabase = SQLiteD1Drizzle.EffectSQLiteD1Database & {
   readonly $client: D1Client.D1Client
@@ -19,6 +20,9 @@ export const layerFromD1 = (d1: D1Client.D1ClientConfig['db']): Layer.Layer<Data
     Layer.provide(D1Client.layer({ db: d1 })),
     Layer.orDie
   )
+
+export const promiseDatabaseFromEffect = (db: EffectDatabase): PromiseDrizzleDatabase =>
+  createDb(db.$client.config.db)
 
 export class DbBatchError extends Schema.TaggedErrorClass<DbBatchError>()(
   'DbBatchError',

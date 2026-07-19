@@ -95,16 +95,16 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Establish Operations Auth and Contract Seams.
 
-- [ ] Merchant search accepts id, name, or slug and returns tenant-scoped identity and status results.
-- [ ] Merchant Member search accepts id, name, or email and identifies the associated Merchant and membership.
-- [ ] Merchant detail shows identity, status, public page, readiness, and Members.
-- [ ] Member detail shows name, email, verification and enabled state, membership, active-session count, last sign-in, and impersonation eligibility.
-- [ ] Only `merchant:read` grants discovery and detail access; UI visibility alone never grants it.
-- [ ] Read contracts exclude passwords, bearer tokens, secret values, full session tokens, unrelated Customer Details, and credential material.
-- [ ] Financial facts may be inspected only through the accepted read contract and never imply monetary mutation authority.
-- [ ] Disabled Members, unsupported identity classes, and mismatched Merchant membership are visibly ineligible for impersonation.
-- [ ] Search inputs are bounded and protected against cross-Merchant or sensitive-data leakage.
-- [ ] Capability, HTTP, and browser tests cover permissions, exact-match identifiers, partial search, empty results, disabled targets, sensitive exclusions, and stale eligibility.
+- [x] Merchant search accepts id, name, or slug and returns tenant-scoped identity and status results.
+- [x] Merchant Member search accepts id, name, or email and identifies the associated Merchant and membership.
+- [x] Merchant detail shows identity, status, public page, readiness, and Members.
+- [x] Member detail shows name, email, verification and enabled state, membership, active-session count, last sign-in, and impersonation eligibility.
+- [x] Only `merchant:read` grants discovery and detail access; UI visibility alone never grants it.
+- [x] Read contracts exclude passwords, bearer tokens, secret values, full session tokens, unrelated Customer Details, and credential material.
+- [x] Financial facts may be inspected only through the accepted read contract and never imply monetary mutation authority.
+- [x] Disabled Members, unsupported identity classes, and mismatched Merchant membership are visibly ineligible for impersonation.
+- [x] Search inputs are bounded and protected against cross-Merchant or sensitive-data leakage.
+- [x] Capability, HTTP, and browser tests cover permissions, exact-match identifiers, partial search, empty results, disabled targets, sensitive exclusions, and stale eligibility.
 
 ## Review Global Operations Audit Events
 

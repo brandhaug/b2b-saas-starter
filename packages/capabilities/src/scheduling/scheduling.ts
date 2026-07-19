@@ -7,11 +7,13 @@ import {
   providerServiceEligibility,
   providers,
   publicBookingPages,
+  promiseDatabaseFromEffect,
   scheduleRules,
   services,
   shopAddresses,
   shops,
-  type EffectDatabase
+  type EffectDatabase,
+  type PromiseDrizzleDatabase
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -682,9 +684,31 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
   })
 )
 
-const liveReadiness = (db: EffectDatabase, merchantId: string) =>
-  orUnavailable('booking-publication')(
-    db
+export const deriveBookingReadiness = (
+  rows: readonly {
+    readonly merchant: { readonly publicName: string; readonly slug: string } | null
+    readonly serviceId: string | null
+    readonly providerId: string | null
+    readonly ruleId: string | null
+  }[]
+): BookingReadiness => {
+  const merchant = rows[0]?.merchant
+  const incomplete: ReadinessCheck[] = []
+  if (!merchant?.publicName.trim()) incomplete.push('public-name')
+  if (!merchant?.slug.trim()) incomplete.push('slug')
+  if (!rows.some((row) => row.serviceId)) incomplete.push('active-service')
+  if (!rows.some((row) => row.providerId)) incomplete.push('eligible-provider')
+  if (!rows.some((row) => row.providerId && row.ruleId))
+    incomplete.push('schedule-rules')
+  return { ready: incomplete.length === 0, incomplete }
+}
+
+export const readBookingReadiness = async (
+  db: PromiseDrizzleDatabase,
+  merchantId: string
+): Promise<BookingReadiness> =>
+  deriveBookingReadiness(
+    await db
       .select({
         merchant: merchants,
         serviceId: services.id,
@@ -709,17 +733,13 @@ const liveReadiness = (db: EffectDatabase, merchantId: string) =>
       )
       .leftJoin(scheduleRules, eq(scheduleRules.providerId, providers.id))
       .where(eq(merchants.id, merchantId))
-  ).pipe(
-    Effect.map((rows) => {
-      const merchant = rows[0]?.merchant
-      const incomplete: ReadinessCheck[] = []
-      if (!merchant?.publicName.trim()) incomplete.push('public-name')
-      if (!merchant?.slug.trim()) incomplete.push('slug')
-      if (!rows.some((row) => row.serviceId)) incomplete.push('active-service')
-      if (!rows.some((row) => row.providerId)) incomplete.push('eligible-provider')
-      if (!rows.some((row) => row.providerId && row.ruleId))
-        incomplete.push('schedule-rules')
-      return { ready: incomplete.length === 0, incomplete }
+  )
+
+const liveReadiness = (db: EffectDatabase, merchantId: string) =>
+  orUnavailable('booking-publication')(
+    Effect.tryPromise({
+      try: () => readBookingReadiness(promiseDatabaseFromEffect(db), merchantId),
+      catch: (error) => error
     })
   )
 

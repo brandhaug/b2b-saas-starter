@@ -25,6 +25,7 @@ export const identityClasses = [
   'customer_account'
 ] as const
 export const merchantPlans = ['solo', 'team'] as const
+export const merchantStatuses = ['enabled', 'disabled'] as const
 export const providerStatuses = ['active', 'inactive'] as const
 export const providerBookingAccess = ['public', 'restricted'] as const
 export const serviceStatuses = ['active', 'inactive'] as const
@@ -272,6 +273,7 @@ export const merchants = sqliteTable('merchants', {
   id: id(),
   publicName: text('public_name').notNull(),
   slug: text('slug').unique().notNull(),
+  status: text('status', { enum: merchantStatuses }).default('enabled').notNull(),
   timezone: text('timezone').notNull(),
   currency: text('currency').notNull(),
   plan: text('plan', { enum: merchantPlans }).default('solo').notNull(),

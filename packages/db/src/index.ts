@@ -6,6 +6,7 @@ export {
   DbBatchError,
   layerFromDb,
   layerFromD1,
+  promiseDatabaseFromEffect,
   type BatchStatement,
   type BatchQueryResult,
   type CompiledBatchQuery,

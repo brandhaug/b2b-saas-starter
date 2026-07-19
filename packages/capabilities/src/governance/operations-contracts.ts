@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
 import { auditEvents, session, user } from '@b2b-saas-starter/db'
+import { CapabilityUnavailable } from '../errors.ts'
 
 export const operatorRoleNames = [
   'merchant-reader',
@@ -11,6 +12,29 @@ export const operatorRoleNames = [
 ] as const
 export const OperatorRole = Schema.Literals(operatorRoleNames)
 export type OperatorRole = typeof OperatorRole.Type
+
+export const operatorPermissionNames = [
+  'merchant:read',
+  'merchant:impersonate',
+  'impersonation-audit:read',
+  'operator:manage'
+] as const
+export const OperatorPermission = Schema.Literals(operatorPermissionNames)
+export type OperatorPermission = typeof OperatorPermission.Type
+
+export const operatorRolePermissions: Readonly<
+  Record<OperatorRole, readonly OperatorPermission[]>
+> = {
+  'merchant-reader': ['merchant:read'],
+  'merchant-impersonator': ['merchant:read', 'merchant:impersonate'],
+  'impersonation-auditor': ['impersonation-audit:read'],
+  'operator-manager': ['operator:manage']
+}
+
+export const hasOperatorPermission = (
+  roles: readonly OperatorRole[],
+  permission: OperatorPermission
+): boolean => roles.some((role) => operatorRolePermissions[role].includes(permission))
 
 export const OperatorSessionReference = Schema.Struct({
   operatorSessionId: Schema.String
@@ -50,13 +74,108 @@ export const MerchantDiscoveryQuery = Schema.Struct({
 })
 export type MerchantDiscoveryQuery = typeof MerchantDiscoveryQuery.Type
 
-export const MerchantDiscoveryResult = Schema.Struct({
-  id: Schema.String,
-  merchantId: Schema.String,
-  displayName: Schema.String,
-  status: Schema.Literals(['enabled', 'disabled'])
+export const MerchantLookup = Schema.Struct({
+  actor: OperatorSessionReference,
+  merchantId: Schema.String
 })
+export type MerchantLookup = typeof MerchantLookup.Type
+
+export const MerchantMemberLookup = Schema.Struct({
+  actor: OperatorSessionReference,
+  merchantId: Schema.String,
+  memberId: Schema.String
+})
+export type MerchantMemberLookup = typeof MerchantMemberLookup.Type
+
+const MerchantOperationalStatus = Schema.Literals(['enabled', 'disabled'])
+const MerchantMembershipRole = Schema.Literal('owner')
+
+export const MerchantSearchResult = Schema.Struct({
+  kind: Schema.Literal('merchant'),
+  id: Schema.String,
+  publicName: Schema.String,
+  slug: Schema.String,
+  status: MerchantOperationalStatus
+})
+export type MerchantSearchResult = typeof MerchantSearchResult.Type
+
+export const MerchantMemberSearchResult = Schema.Struct({
+  kind: Schema.Literal('merchant-member'),
+  id: Schema.String,
+  name: Schema.String,
+  email: Schema.String,
+  status: MerchantOperationalStatus,
+  merchant: Schema.Struct({
+    id: Schema.String,
+    publicName: Schema.String,
+    role: MerchantMembershipRole
+  }),
+  impersonationEligible: Schema.Boolean
+})
+export type MerchantMemberSearchResult = typeof MerchantMemberSearchResult.Type
+
+export const MerchantDiscoveryResult = Schema.Union([
+  MerchantSearchResult,
+  MerchantMemberSearchResult
+])
 export type MerchantDiscoveryResult = typeof MerchantDiscoveryResult.Type
+
+export const MerchantDetail = Schema.Struct({
+  id: Schema.String,
+  publicName: Schema.String,
+  slug: Schema.String,
+  status: MerchantOperationalStatus,
+  publicPage: Schema.Struct({
+    status: Schema.Literals(['published', 'unpublished']),
+    bookingPath: Schema.NullOr(Schema.String)
+  }),
+  readiness: Schema.Struct({
+    ready: Schema.Boolean,
+    incomplete: Schema.Array(Schema.String)
+  }),
+  members: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      email: Schema.String,
+      status: MerchantOperationalStatus,
+      role: MerchantMembershipRole
+    })
+  )
+})
+export type MerchantDetail = typeof MerchantDetail.Type
+
+const ImpersonationIneligibilityReason = Schema.Literals([
+  'member-disabled',
+  'merchant-disabled',
+  'unsupported-identity-class',
+  'merchant-membership-mismatch'
+])
+
+export const MerchantMemberDetail = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  email: Schema.String,
+  identityClass: Schema.Literals([
+    'system_operator',
+    'merchant_member',
+    'customer_account'
+  ]),
+  emailVerified: Schema.Boolean,
+  enabled: Schema.Boolean,
+  membership: Schema.Struct({
+    merchantId: Schema.String,
+    merchantName: Schema.String,
+    role: MerchantMembershipRole
+  }),
+  activeSessionCount: Schema.Number,
+  lastSignInAt: Schema.NullOr(Schema.String),
+  impersonationEligibility: Schema.Struct({
+    eligible: Schema.Boolean,
+    reason: Schema.NullOr(ImpersonationIneligibilityReason)
+  })
+})
+export type MerchantMemberDetail = typeof MerchantMemberDetail.Type
 
 export const OperationsAuditRecord = Schema.Struct({
   id: Schema.String,
@@ -131,7 +250,19 @@ export class OperationsDiscovery extends Context.Service<
   {
     readonly search: (
       input: MerchantDiscoveryQuery
-    ) => Effect.Effect<readonly MerchantDiscoveryResult[], OperationsContractDenied>
+    ) => Effect.Effect<
+      readonly (MerchantSearchResult | MerchantMemberSearchResult)[],
+      OperationsContractDenied | CapabilityUnavailable
+    >
+    readonly getMerchant: (
+      input: MerchantLookup
+    ) => Effect.Effect<MerchantDetail, OperationsContractDenied | CapabilityUnavailable>
+    readonly getMember: (
+      input: MerchantMemberLookup
+    ) => Effect.Effect<
+      MerchantMemberDetail,
+      OperationsContractDenied | CapabilityUnavailable
+    >
   }
 >()('@b2b-saas-starter/capabilities/OperationsDiscovery') {}
 

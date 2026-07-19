@@ -11,7 +11,9 @@ export {
   SchedulingValidationError,
   SeedBookingPublication,
   SeedScheduling,
+  deriveBookingReadiness,
   deriveSlots,
-  emptySeedSchedulingStore
+  emptySeedSchedulingStore,
+  readBookingReadiness
 } from './scheduling.ts'
 export type { SeedSchedulingStore } from './scheduling.ts'
