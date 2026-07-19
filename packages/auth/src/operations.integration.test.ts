@@ -28,6 +28,8 @@ import {
   createOperationsAuth,
   createOperationsAuthHandler,
   hasOperatorPermission,
+  operatorPermissions,
+  operatorRoleNames,
   operatorRoles,
   provisionLocalOperator,
   readOperatorSessionReference,
@@ -154,6 +156,27 @@ describe('Operations authentication contract', () => {
     expect(hasOperatorPermission(['merchant-reader'], 'merchant:impersonate')).toBe(
       false
     )
+
+    const expected = {
+      'merchant-reader': ['merchant:read'],
+      'merchant-impersonator': ['merchant:read', 'merchant:impersonate'],
+      'impersonation-auditor': ['impersonation-audit:read'],
+      'operator-manager': ['operator:manage']
+    } as const
+    for (const role of operatorRoleNames) {
+      for (const permission of operatorPermissions) {
+        const [resource, action] = permission.split(':')
+        const statement = { [resource!]: [action!] } as never
+        const allowed = expected[role].includes(permission as never)
+        expect(
+          operatorRoles[role].authorize(statement).success,
+          `${role} ${permission}`
+        ).toBe(allowed)
+        expect(hasOperatorPermission([role], permission), `${role} ${permission}`).toBe(
+          allowed
+        )
+      }
+    }
   })
 
   it('requires password plus TOTP before issuing an authoritative Operator Session', async () => {
@@ -235,10 +258,21 @@ describe('Operations authentication contract', () => {
     for (const path of [
       '/sign-up/email',
       '/get-session',
+      '/admin/set-role',
+      '/admin/get-user',
       '/admin/create-user',
+      '/admin/update-user',
       '/admin/list-users',
       '/admin/list-user-sessions',
-      '/admin/impersonate-user'
+      '/admin/unban-user',
+      '/admin/ban-user',
+      '/admin/impersonate-user',
+      '/admin/stop-impersonating',
+      '/admin/revoke-user-session',
+      '/admin/revoke-user-sessions',
+      '/admin/remove-user',
+      '/admin/set-user-password',
+      '/admin/has-permission'
     ]) {
       const response = await fixture.call(path, {})
       expect(response.status, path).toBe(404)

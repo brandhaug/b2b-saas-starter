@@ -9,14 +9,18 @@ import { makeSignature } from 'better-auth/crypto'
 import { createDb } from '@b2b-saas-starter/db/client'
 import {
   impersonationRecords,
+  merchantMemberships,
   merchants,
   operationsNotificationIntents,
   session,
+  twoFactor,
   user
 } from '@b2b-saas-starter/db/schema'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
+  OperationsImpersonationAuthority,
   OperationsImpersonationLifecycle,
+  makeOperationsImpersonationAuthorityLayer,
   makeOperationsImpersonationLifecycleLayer
 } from '@b2b-saas-starter/capabilities/operations'
 import {
@@ -50,6 +54,19 @@ describe('Merchant impersonation lifecycle browser boundary', () => {
       )
     )
 
+  const runAuthority = <A>(
+    use: (
+      authority: OperationsImpersonationAuthority['Service']
+    ) => Effect.Effect<A, unknown>
+  ) =>
+    Effect.runPromise(
+      Effect.flatMap(OperationsImpersonationAuthority, use).pipe(
+        Effect.provide(
+          makeOperationsImpersonationAuthorityLayer(db, { securityContact })
+        )
+      )
+    )
+
   const presentedSession = async (request: import('node:http').IncomingMessage) => {
     const token = await verifiedMerchantSessionToken({
       cookie: request.headers.cookie ?? '',
@@ -73,6 +90,35 @@ describe('Merchant impersonation lifecycle browser boundary', () => {
         if (url.pathname.startsWith('/operations/merchants/')) {
           response.setHeader('content-type', 'text/html')
           response.end('<h1>Operations Member detail</h1>')
+          return
+        }
+        if (url.pathname === '/api/impersonation/action') {
+          const current = await presentedSession(request)
+          const action = url.searchParams.get('action')
+          if (
+            !current?.session.impersonatedBy ||
+            (action !== 'service.update' && action !== 'identity-security.update')
+          ) {
+            response.statusCode = 403
+            response.setHeader('content-type', 'application/json')
+            response.end(JSON.stringify({ decision: 'denied' }))
+            return
+          }
+          try {
+            await runAuthority((authority) =>
+              authority.authorize({
+                merchantSessionId: current.session.id,
+                action
+              })
+            )
+            response.statusCode = 200
+            response.setHeader('content-type', 'application/json')
+            response.end(JSON.stringify({ decision: 'allowed' }))
+          } catch {
+            response.statusCode = 403
+            response.setHeader('content-type', 'application/json')
+            response.end(JSON.stringify({ decision: 'denied' }))
+          }
           return
         }
         if (
@@ -176,6 +222,7 @@ describe('Merchant impersonation lifecycle browser boundary', () => {
         expiresAt: new Date(now.getTime() + 8 * 60 * 60_000),
         operatorIdleExpiresAt: new Date(now.getTime() + 30 * 60_000),
         operatorAbsoluteExpiresAt: new Date(now.getTime() + 8 * 60 * 60_000),
+        operatorTotpVerifiedAt: now,
         createdAt: now,
         updatedAt: now
       },
@@ -189,6 +236,13 @@ describe('Merchant impersonation lifecycle browser boundary', () => {
         updatedAt: now
       }
     ])
+    await db.insert(twoFactor).values({
+      id: `totp_browser_lifecycle_${suffix}`,
+      userId: operatorId,
+      secret: 'encrypted-test-secret',
+      backupCodes: 'encrypted-test-backup-codes',
+      verified: true
+    })
     await db.insert(merchants).values({
       id: merchantId,
       publicName: `Browser Merchant ${suffix}`,
@@ -197,6 +251,12 @@ describe('Merchant impersonation lifecycle browser boundary', () => {
       currency: 'RON',
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
+    })
+    await db.insert(merchantMemberships).values({
+      merchantId,
+      userId: targetMemberId,
+      role: 'owner',
+      createdAt: now.toISOString()
     })
     const impersonationId = `imp_browser_lifecycle_${suffix}`
     await db.insert(impersonationRecords).values({
@@ -324,6 +384,29 @@ describe('Merchant impersonation lifecycle browser boundary', () => {
     ).toBeVisible()
     expect(await normalBrowser.context.cookies(origin)).toHaveLength(1)
     await normalBrowser.context.close()
+    await context.close()
+  }, 20_000)
+
+  it('allows reversible work and denies identity changes from the browser boundary', async () => {
+    const fixture = await active('authority')
+    const { context, page } = await pageFor(fixture)
+    await page.goto(origin)
+
+    const decisions = await page.evaluate(async () => {
+      const request = (action: string) =>
+        fetch(`/api/impersonation/action?action=${encodeURIComponent(action)}`).then(
+          async (response) => ({ status: response.status, body: await response.json() })
+        )
+      return Promise.all([
+        request('service.update'),
+        request('identity-security.update')
+      ])
+    })
+
+    expect(decisions).toEqual([
+      { status: 200, body: { decision: 'allowed' } },
+      { status: 403, body: { decision: 'denied' } }
+    ])
     await context.close()
   }, 20_000)
 })

@@ -227,17 +227,17 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Review Global Operations Audit Events; Protect Operations Authentication from Abuse; Enforce Reduced Impersonation Authority; Show and End the Impersonation Lifecycle; Revoke Active Impersonation Immediately.
 
-- [ ] Global audit review includes start attempts, handoffs, activation, stop, expiry, revocation, rejection, sensitive reads, and every successful or failed mutation.
-- [ ] Impersonation evidence retains stable identifiers for two years and survives operator, Member, and Merchant disablement or deletion.
-- [ ] Internal reasons and support references remain permission-protected and excluded from ordinary logs, notification content where prohibited, and unauthorised views.
-- [ ] Dedicated rate-limit categories cover session/read, authentication/TOTP, search, invitation/permission management, impersonation start, and handoff exchange.
-- [ ] Every notification transition is atomic with its lifecycle fact, asynchronously retried, idempotent, and verifiable through deterministic local capture.
-- [ ] Cookie, secret, base-URL, and trusted-origin isolation is proven from the browser boundary.
-- [ ] The complete role matrix and every stock Better Auth admin endpoint denial are exercised.
-- [ ] Identity disjointness, invitation/enrollment, single Operator Session, absolute and idle limits, recovery, concurrency, reduced authority, and immediate revocation all have release-blocking coverage.
-- [ ] Browser coverage proves search-to-target, fresh TOTP, POST handoff, banner, allowed and denied actions, normal-session rejection, stop, expiry, revocation, and return.
-- [ ] Production configuration fails closed for missing secrets or email, while optional Cloudflare Access remains explicitly deferred.
-- [ ] The full matrix passes using the repository's established Effect, D1 integration, and browser-test seams without implementation-detail assertions.
+- [x] Global audit review includes start attempts, handoffs, activation, stop, expiry, revocation, rejection, sensitive reads, and every successful or failed mutation.
+- [x] Impersonation evidence retains stable identifiers for two years and survives operator, Member, and Merchant disablement or deletion.
+- [x] Internal reasons and support references remain permission-protected and excluded from ordinary logs, notification content where prohibited, and unauthorised views.
+- [x] Dedicated rate-limit categories cover session/read, authentication/TOTP, search, invitation/permission management, impersonation start, and handoff exchange.
+- [x] Every notification transition is atomic with its lifecycle fact, asynchronously retried, idempotent, and verifiable through deterministic local capture.
+- [x] Cookie, secret, base-URL, and trusted-origin isolation is proven from the browser boundary.
+- [x] The complete role matrix and every stock Better Auth admin endpoint denial are exercised.
+- [x] Identity disjointness, invitation/enrollment, single Operator Session, absolute and idle limits, recovery, concurrency, reduced authority, and immediate revocation all have release-blocking coverage.
+- [x] Browser coverage proves search-to-target, fresh TOTP, POST handoff, banner, allowed and denied actions, normal-session rejection, stop, expiry, revocation, and return.
+- [x] Production configuration fails closed for missing secrets or email, while optional Cloudflare Access remains explicitly deferred.
+- [x] The full matrix passes using the repository's established Effect, D1 integration, and browser-test seams without implementation-detail assertions.
 
 ## Cut Over to the Operations Model
 

@@ -35,7 +35,7 @@ describe('Operations production readiness', () => {
     })
   })
 
-  it('reports ready when the transactional email adapter is configured', async () => {
+  it('reports ready without Cloudflare Access when application controls are configured', async () => {
     const response = await createOperationsWorker().fetch(
       new Request('https://operations.example.test/ready'),
       { ...production, EMAIL: { send: async () => undefined } }

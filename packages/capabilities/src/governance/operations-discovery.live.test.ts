@@ -24,12 +24,16 @@ import { makeOperationsDiscoveryLayer } from './operations-discovery.ts'
 describe('Operations Merchant discovery', () => {
   let testD1: TestD1
   let db: ReturnType<typeof createDb>
+  let activeSessionCreatedAt: Date
 
   beforeAll(async () => {
     testD1 = await provisionTestD1()
     db = createDb(testD1.d1)
-    const now = new Date('2026-07-19T10:00:00.000Z')
-    const later = new Date('2026-07-19T18:00:00.000Z')
+    const now = new Date()
+    const later = new Date(now.getTime() + 8 * 60 * 60 * 1_000)
+    activeSessionCreatedAt = new Date(
+      Math.floor((now.getTime() - 30 * 60 * 1_000) / 1_000) * 1_000
+    )
     await db.insert(user).values([
       {
         id: 'opr_reader',
@@ -108,15 +112,15 @@ describe('Operations Merchant discovery', () => {
         token: 'merchant-sensitive-session-token',
         userId: 'mem_mara',
         expiresAt: later,
-        createdAt: new Date('2026-07-19T09:30:00.000Z'),
+        createdAt: activeSessionCreatedAt,
         updatedAt: now
       },
       {
         id: 'merchant_expired_session',
         token: 'merchant-expired-sensitive-token',
         userId: 'mem_mara',
-        expiresAt: new Date('2026-07-19T07:00:00.000Z'),
-        createdAt: new Date('2026-07-18T12:00:00.000Z'),
+        expiresAt: new Date(now.getTime() - 3 * 60 * 60 * 1_000),
+        createdAt: new Date(now.getTime() - 22 * 60 * 60 * 1_000),
         updatedAt: now
       }
     ])
@@ -311,7 +315,7 @@ describe('Operations Merchant discovery', () => {
       emailVerified: true,
       enabled: true,
       activeSessionCount: 1,
-      lastSignInAt: '2026-07-19T09:30:00.000Z',
+      lastSignInAt: activeSessionCreatedAt.toISOString(),
       membership: { merchantId: 'mer_mara', role: 'owner' },
       impersonationEligibility: { eligible: true, reason: null }
     })
