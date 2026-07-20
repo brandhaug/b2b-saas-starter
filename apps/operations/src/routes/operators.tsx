@@ -13,9 +13,9 @@ import {
   getManagedOperators,
   setOperatorEnabled,
   updateOperatorRoles
-} from '@/lib/server/operations.ts'
-import type { ManagedOperatorView } from '@/lib/server/operations.ts'
-import type { MutationResult } from '@/lib/server/operations.ts'
+} from '@/lib/server/operations-server-functions.ts'
+import type { ManagedOperatorView } from '@/lib/server/operations-server-functions.ts'
+import type { MutationResult } from '@/lib/server/operations-server-functions.ts'
 
 const roles = [
   'merchant-reader',

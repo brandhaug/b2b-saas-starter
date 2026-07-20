@@ -2,7 +2,7 @@
 
 Cloudflare-first B2B SaaS starter. The public site showcases the repository itself; the authenticated app is a reference implementation for workspaces, starter modules, readiness, integrations, API/MCP, email, reports, webhooks, audit, and admin.
 
-See [CONTEXT.md](./CONTEXT.md) for canonical domain language, [ARCHITECTURE.md](./ARCHITECTURE.md) for the system map and security model, and [DESIGN.md](./DESIGN.md) for the visual identity — design tokens, typography, and component contracts. Decisions live in [docs/adr](./docs/adr).
+See [CONTEXT.md](./CONTEXT.md) for canonical domain language and [ARCHITECTURE.md](./ARCHITECTURE.md) for the system map and security model. Decisions live in [docs/adr](./docs/adr).
 
 ## Intent Node Index
 

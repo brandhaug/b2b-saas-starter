@@ -8,7 +8,10 @@ import {
 } from '@/components/operations-ui.tsx'
 import { formValue } from '@/lib/form-value.ts'
 import { requireOperationsSession } from '@/lib/require-operations-session.ts'
-import { inviteOperator, revokeOperatorInvitation } from '@/lib/server/operations.ts'
+import {
+  inviteOperator,
+  revokeOperatorInvitation
+} from '@/lib/server/operations-server-functions.ts'
 
 const roles = [
   'merchant-reader',

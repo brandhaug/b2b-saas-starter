@@ -12,7 +12,7 @@ import {
   completeOperatorSecurityEnrollment,
   getOperatorEnrollment,
   startOperatorSecurityEnrollment
-} from '@/lib/server/operations.ts'
+} from '@/lib/server/operations-server-functions.ts'
 
 export const Route = createFileRoute('/enroll_/security')({
   loader: () => getOperatorEnrollment(),

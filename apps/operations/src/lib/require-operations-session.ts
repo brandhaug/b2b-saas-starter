@@ -1,5 +1,5 @@
 import { redirect } from '@tanstack/react-router'
-import { getOperationsSession } from './server/operations.ts'
+import { getOperationsSession } from './server/operations-server-functions.ts'
 
 export const requireOperationsSession = async () => {
   const session = await getOperationsSession()

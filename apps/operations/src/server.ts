@@ -1,6 +1,9 @@
 import startServer from '@tanstack/react-start/server-entry'
 import { env as workerEnv } from 'cloudflare:workers'
-import { createOperationsWorker, type OperationsWorkerEnv } from './index.ts'
+import {
+  createOperationsWorker,
+  type OperationsWorkerEnv
+} from './lib/server/operations-worker.ts'
 
 const operations = createOperationsWorker()
 

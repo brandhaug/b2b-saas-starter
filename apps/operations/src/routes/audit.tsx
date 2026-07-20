@@ -6,7 +6,7 @@ import {
   SubmitButton
 } from '@/components/operations-ui.tsx'
 import { requireOperationsSession } from '@/lib/require-operations-session.ts'
-import { getAuditEvents } from '@/lib/server/operations.ts'
+import { getAuditEvents } from '@/lib/server/operations-server-functions.ts'
 
 type AuditSearch = {
   readonly action?: string

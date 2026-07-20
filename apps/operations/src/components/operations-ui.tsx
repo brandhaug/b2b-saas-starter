@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { operationsAuthClient } from '@b2b-saas-starter/auth/operations/client'
-import type { ScreenResult } from '@/lib/server/operations.ts'
+import type { ScreenResult } from '@/lib/server/operations-server-functions.ts'
 
 export function OperationsShell({
   eyebrow,

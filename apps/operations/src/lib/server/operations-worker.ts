@@ -1,0 +1,583 @@
+import type { D1Database } from '@cloudflare/workers-types'
+import { createDb } from '@b2b-saas-starter/db/client'
+import {
+  createOperationsAuth,
+  createOperationsAuthHandler,
+  provisionLocalOperator,
+  readOperatorSessionReference,
+  OperatorTotpPresenceDenied,
+  verifyOperatorTotpPresence
+} from '@b2b-saas-starter/auth/operations'
+import {
+  GlobalOperationsAudit,
+  OperationsAuthorization,
+  OperationsContractDenied,
+  OperationsDiscovery,
+  OperationsImpersonation,
+  makeOperationsAuthorizationLayer,
+  makeOperationsAuditLayer,
+  makeOperationsDiscoveryLayer,
+  makeOperationsImpersonationLayer
+} from '@b2b-saas-starter/capabilities/operations'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { clientKey, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
+import { Effect } from 'effect'
+import { makeOperationsAbuseProtection } from './operations-abuse-protection.ts'
+import {
+  parseOperationsConfig,
+  type OperationsEnvironment
+} from './operations-config.ts'
+import { handleOperatorManagementRoutes } from './operator-management.ts'
+import {
+  createOperatorInvitationDelivery,
+  readLocalOperatorInvitationEmail,
+  type OperationsEmailBinding
+} from './operations-email.ts'
+import {
+  handleOperatorEnrollmentRoutes,
+  resumeOperatorEnrollment
+} from './operator-enrollment.ts'
+import { redirect } from './http-response.ts'
+
+export type OperationsWorkerEnv = OperationsEnvironment & {
+  readonly DB: D1Database
+  readonly EMAIL?: OperationsEmailBinding
+  readonly RATE_LIMITER_OPERATIONS_READ?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_AUTHENTICATION?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_TOTP?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_SEARCH?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_MANAGEMENT?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_IMPERSONATION_START?: CloudflareRateLimit
+  readonly RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE?: CloudflareRateLimit
+}
+
+export const localOperatorFixture = {
+  id: 'opr_local_operations',
+  name: 'Local System Operator',
+  email: 'operator@operations.local',
+  password: 'local-operations-password',
+  // Better Auth stores raw string key material and Base32-encodes it for the
+  // otpauth URI. Authenticator apps must receive this encoded setup key.
+  totpSecret: 'JBSWY3DPEHPK3PXP',
+  totpAuthenticatorKey: 'JJBFGV2ZGNCFARKIKBFTGUCYKA',
+  roles: ['merchant-impersonator', 'impersonation-auditor', 'operator-manager']
+} as const
+
+const formText = (form: FormData, name: string): string => {
+  const value = form.get(name)
+  return typeof value === 'string' ? value : ''
+}
+
+const discoveryErrorResponse = (error: unknown): Response => {
+  if (error instanceof CapabilityUnavailable)
+    return Response.json({ error: 'discovery_unavailable' }, { status: 503 })
+  const reason =
+    error instanceof OperationsContractDenied ? error.reason : 'discovery unavailable'
+  if (reason.endsWith('not found'))
+    return Response.json({ error: 'not_found' }, { status: 404 })
+  if (reason.includes('invalid'))
+    return Response.json({ error: 'invalid_search' }, { status: 400 })
+  return Response.json({ error: 'forbidden' }, { status: 403 })
+}
+
+const auditErrorResponse = (error: unknown): Response => {
+  if (error instanceof CapabilityUnavailable)
+    return Response.json({ error: 'operations_audit_unavailable' }, { status: 503 })
+  if (error instanceof OperationsContractDenied && error.reason.endsWith('not found'))
+    return Response.json({ error: 'not_found' }, { status: 404 })
+  return Response.json({ error: 'forbidden' }, { status: 403 })
+}
+
+let localSeed: Promise<void> | undefined
+
+const cookieValue = (request: Request, name: string): string => {
+  const cookie = request.headers.get('cookie') ?? ''
+  const acceptedNames = new Set([name, `__Secure-${name}`])
+  for (const part of cookie.split(';')) {
+    const [candidate, ...value] = part.trim().split('=')
+    if (candidate && acceptedNames.has(candidate)) return value.join('=') || 'missing'
+  }
+  return 'missing'
+}
+
+const limited = (retryAfterSeconds: number): Response =>
+  Response.json(
+    { error: 'authentication_temporarily_unavailable', retryable: true },
+    {
+      status: 429,
+      headers: {
+        'retry-after': String(retryAfterSeconds),
+        'cache-control': 'no-store'
+      }
+    }
+  )
+
+const authorize = async (
+  db: ReturnType<typeof createDb>,
+  reference: { readonly operatorSessionId: string }
+) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const authorization = yield* OperationsAuthorization
+      return yield* authorization.authorize(reference)
+    }).pipe(Effect.provide(makeOperationsAuthorizationLayer(db)))
+  ).catch(() => null)
+
+export const createOperationsWorker = () => ({
+  async fetch(request: Request, env: OperationsWorkerEnv): Promise<Response> {
+    let config
+    try {
+      config = parseOperationsConfig(env)
+    } catch (error) {
+      return Response.json(
+        { error: 'operations_configuration_invalid', reason: String(error) },
+        { status: 503 }
+      )
+    }
+    const url = new URL(request.url)
+    const invitationDelivery = createOperatorInvitationDelivery(env, config.production)
+    if (request.method === 'GET' && url.pathname === '/ready') {
+      return invitationDelivery.configured
+        ? Response.json({ status: 'ready' })
+        : Response.json(
+            { error: 'operations_email_unavailable' },
+            { status: 503, headers: { 'cache-control': 'no-store' } }
+          )
+    }
+    if (
+      config.localDevelopment &&
+      request.method === 'GET' &&
+      url.pathname === '/__local/operator-invitation-email'
+    ) {
+      const captured = readLocalOperatorInvitationEmail()
+      return captured
+        ? Response.json(captured)
+        : Response.json({ error: 'no_local_invitation_email' }, { status: 404 })
+    }
+    const db = createDb(env.DB)
+    const abuseProtection = makeOperationsAbuseProtection({
+      db,
+      bindings: {
+        ...(env.RATE_LIMITER_OPERATIONS_READ
+          ? { read: env.RATE_LIMITER_OPERATIONS_READ }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_AUTHENTICATION
+          ? { authentication: env.RATE_LIMITER_OPERATIONS_AUTHENTICATION }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_TOTP
+          ? { totp: env.RATE_LIMITER_OPERATIONS_TOTP }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_SEARCH
+          ? { search: env.RATE_LIMITER_OPERATIONS_SEARCH }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_MANAGEMENT
+          ? { management: env.RATE_LIMITER_OPERATIONS_MANAGEMENT }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_IMPERSONATION_START
+          ? { impersonationStart: env.RATE_LIMITER_OPERATIONS_IMPERSONATION_START }
+          : {}),
+        ...(env.RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE
+          ? { handoffExchange: env.RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE }
+          : {})
+      },
+      fallbackLimits: config.rateLimits.fallbackLimits,
+      retryAfterSeconds: config.rateLimits.retryAfterSeconds
+    })
+    const consumeAbuse = (input: Parameters<typeof abuseProtection.consume>[0]) =>
+      abuseProtection.consume(input).catch(() => ({
+        allowed: false,
+        retryAfterSeconds: config.rateLimits.retryAfterSeconds
+      }))
+    if (config.localSeed) {
+      localSeed ??= provisionLocalOperator({
+        db,
+        secret: config.secret,
+        mode: config.localDevelopment ? 'development' : 'production',
+        operator: localOperatorFixture
+      })
+      await localSeed
+    }
+    const auth = createOperationsAuth({ db, ...config })
+    const authHandler = createOperationsAuthHandler({ auth, db })
+    const enrollmentResponse = await handleOperatorEnrollmentRoutes({
+      request,
+      config,
+      db,
+      auth,
+      invitationDelivery
+    })
+    if (enrollmentResponse) return enrollmentResponse
+
+    if (url.pathname.startsWith('/api/auth/')) {
+      const authPath = url.pathname.slice('/api/auth'.length)
+      if (authPath === '/sign-in/email') {
+        let subjectKey = 'missing'
+        try {
+          const body = (await request.clone().json()) as { readonly email?: unknown }
+          if (typeof body.email === 'string') {
+            subjectKey = body.email.trim().toLocaleLowerCase('en-US') || 'missing'
+          }
+        } catch {
+          // Malformed attempts share the same neutral missing-identity bucket.
+        }
+        const decision = await consumeAbuse({
+          category: 'operator-authentication',
+          subjectKey,
+          sourceKey: clientKey(request),
+          operation: 'password'
+        })
+        if (!decision.allowed) return limited(decision.retryAfterSeconds!)
+      }
+      if (
+        authPath === '/two-factor/verify-totp' ||
+        authPath === '/two-factor/verify-backup-code'
+      ) {
+        const decision = await consumeAbuse({
+          category: 'operator-totp',
+          subjectKey: cookieValue(request, 'operations.two_factor'),
+          sourceKey: clientKey(request),
+          operation: authPath === '/two-factor/verify-totp' ? 'totp' : 'backup-code'
+        })
+        if (!decision.allowed) return limited(decision.retryAfterSeconds!)
+      }
+      if (
+        authPath !== '/sign-in/email' &&
+        authPath !== '/two-factor/verify-totp' &&
+        authPath !== '/two-factor/verify-backup-code'
+      ) {
+        const decision = await consumeAbuse({
+          category: 'operator-session-read',
+          subjectKey: cookieValue(request, 'operations.session_token'),
+          sourceKey: clientKey(request),
+          operation: 'session-read'
+        })
+        if (!decision.allowed) return limited(decision.retryAfterSeconds!)
+      }
+      return authHandler(request)
+    }
+
+    if (request.method === 'POST' && url.pathname === '/sign-in') {
+      const form = await request.formData()
+      const email = formText(form, 'email').trim().toLocaleLowerCase('en-US')
+      const decision = await consumeAbuse({
+        category: 'operator-authentication',
+        subjectKey: email || 'missing',
+        sourceKey: clientKey(request),
+        operation: 'password'
+      })
+      if (!decision.allowed) return limited(decision.retryAfterSeconds!)
+      const response = await authHandler(
+        new Request(`${config.baseURL}/api/auth/sign-in/email`, {
+          method: 'POST',
+          headers: { origin: config.baseURL, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            password: formText(form, 'password')
+          })
+        })
+      )
+      if (response.status === 403) {
+        const body = (await response
+          .clone()
+          .json()
+          .catch(() => null)) as {
+          readonly error?: unknown
+          readonly operatorId?: unknown
+        } | null
+        if (
+          body?.error === 'enrollment_required' &&
+          typeof body.operatorId === 'string'
+        ) {
+          return resumeOperatorEnrollment({ operatorId: body.operatorId, db, config })
+        }
+      }
+      if (!response.ok) return redirect('/sign-in?error=authentication_failed')
+      return redirect('/verify-totp', response.headers.getSetCookie())
+    }
+    if (request.method === 'POST' && url.pathname === '/verify-totp') {
+      const form = await request.formData()
+      const decision = await consumeAbuse({
+        category: 'operator-totp',
+        subjectKey: cookieValue(request, 'operations.two_factor'),
+        sourceKey: clientKey(request),
+        operation: 'totp'
+      })
+      if (!decision.allowed) return limited(decision.retryAfterSeconds!)
+      const response = await authHandler(
+        new Request(`${config.baseURL}/api/auth/two-factor/verify-totp`, {
+          method: 'POST',
+          headers: {
+            origin: config.baseURL,
+            cookie: request.headers.get('cookie') ?? '',
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({ code: formText(form, 'code'), trustDevice: false })
+        })
+      )
+      if (!response.ok) return redirect('/verify-totp?error=invalid_code')
+      return redirect('/', response.headers.getSetCookie())
+    }
+
+    const readDecision = await consumeAbuse({
+      category: 'operator-session-read',
+      subjectKey: cookieValue(request, 'operations.session_token'),
+      sourceKey: clientKey(request),
+      operation: 'session-read'
+    })
+    if (!readDecision.allowed) return limited(readDecision.retryAfterSeconds!)
+    const reference = await readOperatorSessionReference({
+      auth,
+      headers: request.headers
+    })
+    const principal = reference ? await authorize(db, reference) : null
+    if (!principal) return redirect('/sign-in')
+
+    if (request.method === 'GET' && url.pathname === '/api/operations/session') {
+      return Response.json({ principal })
+    }
+
+    const runDiscovery = <A>(
+      use: (
+        discovery: OperationsDiscovery['Service']
+      ) => Effect.Effect<A, OperationsContractDenied | CapabilityUnavailable>
+    ): Promise<A> =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const discovery = yield* OperationsDiscovery
+          return yield* use(discovery)
+        }).pipe(Effect.provide(makeOperationsDiscoveryLayer(db)))
+      )
+
+    const runAudit = <A>(
+      use: (
+        audit: GlobalOperationsAudit['Service']
+      ) => Effect.Effect<A, OperationsContractDenied | CapabilityUnavailable>
+    ): Promise<A> =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const audit = yield* GlobalOperationsAudit
+          return yield* use(audit)
+        }).pipe(Effect.provide(makeOperationsAuditLayer(db)))
+      )
+
+    const runImpersonation = <A>(
+      use: (
+        impersonation: OperationsImpersonation['Service']
+      ) => Effect.Effect<A, OperationsContractDenied | CapabilityUnavailable>
+    ): Promise<A> =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const impersonation = yield* OperationsImpersonation
+          return yield* use(impersonation)
+        }).pipe(Effect.provide(makeOperationsImpersonationLayer(db)))
+      )
+
+    const managementResponse = await handleOperatorManagementRoutes({
+      request,
+      db,
+      actor: principal,
+      reference: reference!,
+      securityContact: config.securityContact,
+      consumeRateLimit: consumeAbuse,
+      redirect,
+      limited
+    })
+    if (managementResponse) return managementResponse
+
+    const startImpersonationRoute = url.pathname.match(
+      /^\/merchants\/([^/]+)\/members\/([^/]+)\/impersonations$/
+    )
+    if (request.method === 'POST' && startImpersonationRoute) {
+      const merchantId = decodeURIComponent(startImpersonationRoute[1]!)
+      const targetMemberId = decodeURIComponent(startImpersonationRoute[2]!)
+      const form = await request.formData()
+      const startRequest = {
+        actor: reference!,
+        targetMemberId,
+        merchantId,
+        reason: formText(form, 'reason'),
+        supportReference: formText(form, 'supportReference') || null
+      }
+      const recordRejectedAttempt = async (): Promise<Response | null> => {
+        try {
+          await runImpersonation((impersonation) =>
+            impersonation.recordRejectedStart(startRequest)
+          )
+          return null
+        } catch {
+          return Response.json(
+            { error: 'impersonation_audit_unavailable' },
+            { status: 503 }
+          )
+        }
+      }
+      const totpDecision = await consumeAbuse({
+        category: 'operator-totp',
+        subjectKey: principal.id,
+        sourceKey: clientKey(request),
+        operation: 'impersonation-presence'
+      })
+      if (!totpDecision.allowed) {
+        const unavailable = await recordRejectedAttempt()
+        return unavailable ?? limited(totpDecision.retryAfterSeconds!)
+      }
+      try {
+        await Effect.runPromise(
+          verifyOperatorTotpPresence({
+            auth,
+            db,
+            secret: config.secret,
+            operatorId: principal.id,
+            operatorSessionId: principal.sessionId,
+            code: formText(form, 'code')
+          })
+        )
+      } catch (error) {
+        const unavailable = await recordRejectedAttempt()
+        if (unavailable) return unavailable
+        if (!(error instanceof OperatorTotpPresenceDenied)) {
+          return Response.json(
+            { error: 'impersonation_totp_unavailable' },
+            { status: 503 }
+          )
+        }
+        return Response.json({ error: 'impersonation_totp_rejected' }, { status: 403 })
+      }
+      const startDecision = await consumeAbuse({
+        category: 'impersonation-start',
+        subjectKey: `${principal.id}:${targetMemberId}`,
+        sourceKey: clientKey(request),
+        operation: 'start'
+      })
+      if (!startDecision.allowed) {
+        const unavailable = await recordRejectedAttempt()
+        return unavailable ?? limited(startDecision.retryAfterSeconds!)
+      }
+      try {
+        const result = await runImpersonation((impersonation) =>
+          impersonation.start(startRequest)
+        )
+        return Response.json({
+          handoffTicket: result.handoffTicket,
+          expiresAt: result.expiresAt,
+          merchantAppOrigin: config.merchantBaseURL
+        })
+      } catch (error) {
+        if (error instanceof CapabilityUnavailable) {
+          return Response.json({ error: 'impersonation_unavailable' }, { status: 503 })
+        }
+        return Response.json({ error: 'impersonation_rejected' }, { status: 409 })
+      }
+    }
+
+    const auditDetailRoute = url.pathname.match(/^\/api\/operations\/audit\/([^/]+)$/)
+    if (request.method === 'GET' && auditDetailRoute) {
+      try {
+        const event = await runAudit((audit) =>
+          audit.get(reference!, decodeURIComponent(auditDetailRoute[1]!))
+        )
+        return Response.json({ event })
+      } catch (error) {
+        return auditErrorResponse(error)
+      }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/operations/audit') {
+      const action = url.searchParams.get('action')?.trim().slice(0, 120) || undefined
+      const resultValue = url.searchParams.get('result')
+      const result =
+        resultValue === 'accepted' || resultValue === 'rejected'
+          ? resultValue
+          : undefined
+      const actorOperatorId =
+        url.searchParams.get('operator')?.trim().slice(0, 120) || undefined
+      const merchantId =
+        url.searchParams.get('merchant')?.trim().slice(0, 120) || undefined
+      const targetId = url.searchParams.get('target')?.trim().slice(0, 120) || undefined
+      try {
+        const cursor = url.searchParams.get('cursor') || undefined
+        const page = await runAudit((audit) =>
+          audit.list(reference!, {
+            ...(action ? { action } : {}),
+            ...(result ? { result } : {}),
+            ...(actorOperatorId ? { actorOperatorId } : {}),
+            ...(merchantId ? { merchantId } : {}),
+            ...(targetId ? { targetId } : {}),
+            ...(cursor ? { cursor } : {})
+          })
+        )
+        return Response.json(page)
+      } catch (error) {
+        return auditErrorResponse(error)
+      }
+    }
+
+    if (request.method === 'GET' && url.pathname === '/api/merchants/search') {
+      try {
+        const results = await runDiscovery((discovery) =>
+          discovery.search({
+            actor: reference!,
+            kind: 'merchant',
+            query: url.searchParams.get('q') ?? '',
+            limit: Number(url.searchParams.get('limit') ?? 20)
+          })
+        )
+        return Response.json({ results })
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/members/search') {
+      try {
+        const results = await runDiscovery((discovery) =>
+          discovery.search({
+            actor: reference!,
+            kind: 'merchant-member',
+            query: url.searchParams.get('q') ?? '',
+            limit: Number(url.searchParams.get('limit') ?? 20)
+          })
+        )
+        return Response.json({ results })
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+
+    const memberRoute = url.pathname.match(
+      /^\/api\/merchants\/([^/]+)\/members\/([^/]+)$/
+    )
+    if (request.method === 'GET' && memberRoute) {
+      try {
+        return Response.json(
+          await runDiscovery((discovery) =>
+            discovery.getMember({
+              actor: reference!,
+              merchantId: decodeURIComponent(memberRoute[1]!),
+              memberId: decodeURIComponent(memberRoute[2]!)
+            })
+          )
+        )
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+    const merchantApiRoute = url.pathname.match(/^\/api\/merchants\/([^/]+)$/)
+    if (request.method === 'GET' && merchantApiRoute) {
+      try {
+        return Response.json(
+          await runDiscovery((discovery) =>
+            discovery.getMerchant({
+              actor: reference!,
+              merchantId: decodeURIComponent(merchantApiRoute[1]!)
+            })
+          )
+        )
+      } catch (error) {
+        return discoveryErrorResponse(error)
+      }
+    }
+
+    return Response.json({ error: 'not_found' }, { status: 404 })
+  }
+})
+
+export default createOperationsWorker()

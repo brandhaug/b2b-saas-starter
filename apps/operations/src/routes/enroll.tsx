@@ -7,7 +7,7 @@ import {
   SubmitButton
 } from '@/components/operations-ui.tsx'
 import { formValue } from '@/lib/form-value.ts'
-import { acceptOperatorInvitation } from '@/lib/server/operations.ts'
+import { acceptOperatorInvitation } from '@/lib/server/operations-server-functions.ts'
 
 export const Route = createFileRoute('/enroll')({
   validateSearch: (search: Record<string, unknown>) => ({

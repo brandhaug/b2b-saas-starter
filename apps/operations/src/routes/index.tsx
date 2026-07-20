@@ -9,7 +9,7 @@ import {
   SubmitButton
 } from '@/components/operations-ui.tsx'
 import { requireOperationsSession } from '@/lib/require-operations-session.ts'
-import { searchOperations } from '@/lib/server/operations.ts'
+import { searchOperations } from '@/lib/server/operations-server-functions.ts'
 
 type DiscoverySearch = { readonly merchantQuery: string; readonly memberQuery: string }
 

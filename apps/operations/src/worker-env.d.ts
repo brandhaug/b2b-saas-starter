@@ -1,4 +1,4 @@
-import type { OperationsWorkerEnv } from './index.ts'
+import type { OperationsWorkerEnv } from './lib/server/operations-worker.ts'
 
 declare global {
   namespace Cloudflare {

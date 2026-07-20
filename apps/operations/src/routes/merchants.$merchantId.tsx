@@ -6,7 +6,7 @@ import {
   ScreenState
 } from '@/components/operations-ui.tsx'
 import { requireOperationsSession } from '@/lib/require-operations-session.ts'
-import { getMerchant } from '@/lib/server/operations.ts'
+import { getMerchant } from '@/lib/server/operations-server-functions.ts'
 
 export const Route = createFileRoute('/merchants/$merchantId')({
   beforeLoad: requireOperationsSession,
