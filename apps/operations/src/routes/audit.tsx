@@ -19,12 +19,26 @@ type AuditSearch = {
 
 export const Route = createFileRoute('/audit')({
   beforeLoad: requireOperationsSession,
-  validateSearch: (search: Record<string, unknown>): AuditSearch =>
-    Object.fromEntries(
-      Object.entries(search).filter(
-        (entry): entry is [string, string] => typeof entry[1] === 'string'
-      )
-    ),
+  validateSearch: (search: Record<string, unknown>): AuditSearch => {
+    const text = (name: string) => {
+      const value = search[name]
+      return typeof value === 'string' && value.trim() ? value : undefined
+    }
+    const action = text('action')
+    const operator = text('operator')
+    const merchant = text('merchant')
+    const target = text('target')
+    const cursor = text('cursor')
+    const result = search.result
+    return {
+      ...(action ? { action } : {}),
+      ...(result === 'accepted' || result === 'rejected' ? { result } : {}),
+      ...(operator ? { operator } : {}),
+      ...(merchant ? { merchant } : {}),
+      ...(target ? { target } : {}),
+      ...(cursor ? { cursor } : {})
+    }
+  },
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => getAuditEvents({ data: deps }),
   component: AuditPage

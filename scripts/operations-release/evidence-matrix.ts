@@ -227,7 +227,13 @@ export const operationsSecurityEvidenceMatrix = [
     ],
     seams: ['http-boundary', 'browser-boundary', 'd1-integration'],
     evidence: [
-      ...evidence('apps/operations', 'src/tanstack-routes.browser.test.tsx'),
+      ...evidence(
+        'apps/operations',
+        'src/tanstack-runtime.browser.test.ts',
+        'src/tanstack-routes.browser.test.tsx',
+        'src/local-runtime.integration.test.ts',
+        'src/worker.discovery.test.ts'
+      ),
       ...evidence(
         'packages/auth',
         'src/isolated-impersonation-handoff.integration.test.ts'

@@ -246,9 +246,19 @@ export const ImpersonationActivationResult = Schema.Struct({
 })
 export type ImpersonationActivationResult = typeof ImpersonationActivationResult.Type
 
+export const OperationsDenialCode = Schema.Literals([
+  'operator-management-forbidden',
+  'operator-self-management-forbidden',
+  'operator-not-found',
+  'operator-management-stale',
+  'last-operator-manager-protected',
+  'operator-management-conflict'
+])
+export type OperationsDenialCode = typeof OperationsDenialCode.Type
+
 export class OperationsContractDenied extends Schema.TaggedErrorClass<OperationsContractDenied>()(
   'OperationsContractDenied',
-  { reason: Schema.String }
+  { reason: Schema.String, code: Schema.optional(OperationsDenialCode) }
 ) {}
 
 export class OperationsProvisioning extends Context.Service<

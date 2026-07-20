@@ -175,7 +175,8 @@ describe('Operations TanStack routes', () => {
         .closest('form')!
     )
     expect(await screen.findByText(/invitation sent to new-operator/i)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke invitation' }))
+    fireEvent.click(screen.getByText('Revoke invitation'))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke invitation' }))
 
     await waitFor(() =>
       expect(server.revokeOperatorInvitation).toHaveBeenCalledWith({
@@ -295,7 +296,7 @@ describe('Operations TanStack routes', () => {
   })
 
   it('renders management and audit records through the hydrated application', async () => {
-    server.getManagedOperators.mockResolvedValueOnce(
+    server.getManagedOperators.mockResolvedValue(
       ready({
         actorOperatorId: 'operator-1',
         operators: [
@@ -382,6 +383,41 @@ describe('Operations TanStack routes', () => {
           roles: ['merchant-reader', 'impersonation-auditor']
         }
       })
+    )
+  })
+
+  it('renders authoritative operator mutation failures without navigation', async () => {
+    server.getManagedOperators.mockResolvedValue(
+      ready({
+        actorOperatorId: 'operator-1',
+        operators: [
+          {
+            id: 'operator-2',
+            name: 'Morgan Support',
+            email: 'morgan@example.com',
+            enabled: true,
+            enrollmentState: 'complete',
+            roles: ['merchant-reader'],
+            activeSession: { active: false, absoluteExpiresAt: null },
+            lastSignInAt: null,
+            createdAt: '2026-07-01T10:00:00.000Z',
+            updatedAt: '2026-07-20T10:00:00.000Z'
+          }
+        ]
+      })
+    )
+    server.updateOperatorRoles.mockResolvedValueOnce({
+      state: 'conflict',
+      message: 'Authoritative state changed or the action conflicts with open work.'
+    })
+    await renderRoute('/operators')
+
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Save roles' }).closest('form')!
+    )
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Authoritative state changed'
     )
   })
 

@@ -56,7 +56,7 @@ const enrollmentCookie = (
   config: OperationsConfig,
   maxAge = 30 * 60
 ): string =>
-  `${enrollmentCookieName}=${credential}; Path=/enroll; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.production ? '; Secure' : ''}`
+  `${enrollmentCookieName}=${credential}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.production ? '; Secure' : ''}`
 
 const runInvitations = <A>(
   db: Database,

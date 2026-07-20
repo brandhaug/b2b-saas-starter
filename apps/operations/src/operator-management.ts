@@ -35,6 +35,34 @@ type OperatorManagementRouteOptions = {
   readonly limited: (retryAfterSeconds: number) => Response
 }
 
+const acceptsJson = (request: Request): boolean =>
+  request.headers.get('accept')?.includes('application/json') ?? false
+
+const managementSuccess = (
+  request: Request,
+  redirect: (location: string) => Response,
+  location: string
+): Response => (acceptsJson(request) ? Response.json(null) : redirect(location))
+
+const managementFailure = (error: unknown): Response => {
+  if (error instanceof CapabilityUnavailable)
+    return Response.json({ error: 'operator_management_unavailable' }, { status: 503 })
+  if (!(error instanceof OperationsContractDenied))
+    return Response.json({ error: 'operator_management_unavailable' }, { status: 503 })
+  switch (error.code) {
+    case 'operator-not-found':
+      return Response.json({ error: 'operator_not_found' }, { status: 404 })
+    case 'operator-management-stale':
+    case 'last-operator-manager-protected':
+    case 'operator-management-conflict':
+      return Response.json({ error: 'operator_management_conflict' }, { status: 409 })
+    case 'operator-management-forbidden':
+    case 'operator-self-management-forbidden':
+    case undefined:
+      return Response.json({ error: 'operator_management_forbidden' }, { status: 403 })
+  }
+}
+
 export const handleOperatorManagementRoutes = async (
   options: OperatorManagementRouteOptions
 ): Promise<Response | null> => {
@@ -69,9 +97,9 @@ export const handleOperatorManagementRoutes = async (
     if (!decision.allowed) return options.limited(decision.retryAfterSeconds!)
     const form = await options.request.formData()
     const submittedUpdatedAt = new Date(formText(form, 'expectedUpdatedAt'))
-    const expectedUpdatedAt = Number.isNaN(submittedUpdatedAt.getTime())
-      ? new Date(0)
-      : submittedUpdatedAt
+    if (Number.isNaN(submittedUpdatedAt.getTime()))
+      return Response.json({ error: 'invalid_updated_at' }, { status: 400 })
+    const expectedUpdatedAt = submittedUpdatedAt
     try {
       if (action === 'roles') {
         const roles = form
@@ -91,7 +119,11 @@ export const handleOperatorManagementRoutes = async (
             })
           )
         )
-        return options.redirect('/operators?result=roles-updated')
+        return managementSuccess(
+          options.request,
+          options.redirect,
+          '/operators?result=roles-updated'
+        )
       }
       if (action === 'enabled') {
         await runManagement((management) =>
@@ -104,7 +136,11 @@ export const handleOperatorManagementRoutes = async (
             })
           )
         )
-        return options.redirect('/operators?result=enabled-state-updated')
+        return managementSuccess(
+          options.request,
+          options.redirect,
+          '/operators?result=enabled-state-updated'
+        )
       }
       await runManagement((management) =>
         management.deleteOperator(
@@ -115,13 +151,13 @@ export const handleOperatorManagementRoutes = async (
           })
         )
       )
-      return options.redirect('/operators?result=operator-deleted')
+      return managementSuccess(
+        options.request,
+        options.redirect,
+        '/operators?result=operator-deleted'
+      )
     } catch (error) {
-      const reason =
-        error instanceof OperationsContractDenied
-          ? error.reason
-          : 'operator management unavailable'
-      return options.redirect(`/operators?error=${encodeURIComponent(reason)}`)
+      return managementFailure(error)
     }
   }
 

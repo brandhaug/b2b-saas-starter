@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import {
   Feedback,
   OperationsShell,
@@ -15,6 +15,7 @@ import {
   updateOperatorRoles
 } from '@/lib/server/operations.ts'
 import type { ManagedOperatorView } from '@/lib/server/operations.ts'
+import type { MutationResult } from '@/lib/server/operations.ts'
 
 const roles = [
   'merchant-reader',
@@ -22,6 +23,19 @@ const roles = [
   'impersonation-auditor',
   'operator-manager'
 ] as const
+
+const reportMutation = (
+  result: MutationResult<unknown>,
+  successMessage: string,
+  setMessage: (message: string | null) => void,
+  refresh: () => void
+): void => {
+  if (result.state === 'redirect') window.location.assign(result.location)
+  else if (result.state === 'ready') {
+    setMessage(successMessage)
+    refresh()
+  } else setMessage(result.message)
+}
 
 export const Route = createFileRoute('/operators')({
   beforeLoad: requireOperationsSession,
@@ -84,6 +98,7 @@ function OperatorCard({
   readonly operator: ManagedOperatorView
 }) {
   const isSelf = operator.id === actorOperatorId
+  const router = useRouter()
   const [message, setMessage] = useState<string | null>(null)
   return (
     <article className="border border-border bg-card p-6">
@@ -132,8 +147,9 @@ function OperatorCard({
                     .filter((role): role is string => typeof role === 'string')
                 }
               }).then((result) => {
-                if (result.state === 'redirect') window.location.assign(result.location)
-                else if (result.state !== 'ready') setMessage(result.message)
+                reportMutation(result, 'Operator roles updated.', setMessage, () => {
+                  void router.invalidate()
+                })
               })
             }}
           >
@@ -167,9 +183,14 @@ function OperatorCard({
                     enabled: formValue(form, 'enabled') === 'true'
                   }
                 }).then((result) => {
-                  if (result.state === 'redirect')
-                    window.location.assign(result.location)
-                  else if (result.state !== 'ready') setMessage(result.message)
+                  reportMutation(
+                    result,
+                    'Operator enabled state updated.',
+                    setMessage,
+                    () => {
+                      void router.invalidate()
+                    }
+                  )
                 })
               }}
             >
@@ -203,9 +224,9 @@ function OperatorCard({
                       expectedUpdatedAt: formValue(form, 'expectedUpdatedAt')
                     }
                   }).then((result) => {
-                    if (result.state === 'redirect')
-                      window.location.assign(result.location)
-                    else if (result.state !== 'ready') setMessage(result.message)
+                    reportMutation(result, 'Operator deleted.', setMessage, () => {
+                      void router.invalidate()
+                    })
                   })
                 }}
               >

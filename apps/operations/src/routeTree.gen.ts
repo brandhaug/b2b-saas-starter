@@ -19,7 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as MerchantsMerchantIdRouteImport } from './routes/merchants.$merchantId'
 import { Route as EnrollSecurityRouteImport } from './routes/enroll_.security'
 import { Route as AuditEventIdRouteImport } from './routes/audit_.$eventId'
-import { Route as _localOperatorInvitationEmailRouteImport } from './routes/__local.operator-invitation-email'
+import { Route as _localOperatorInvitationEmailRouteImport } from './routes/[_][_]local.operator-invitation-email'
 import { Route as OperatorsInvitationsNewRouteImport } from './routes/operators_.invitations.new'
 import { Route as ApiOperationsSplatRouteImport } from './routes/api.operations.$'
 import { Route as ApiMerchantsSplatRouteImport } from './routes/api.merchants.$'
@@ -80,7 +80,7 @@ const AuditEventIdRoute = AuditEventIdRouteImport.update({
 const _localOperatorInvitationEmailRoute =
   _localOperatorInvitationEmailRouteImport.update({
     id: '/__local/operator-invitation-email',
-    path: '/operator-invitation-email',
+    path: '/__local/operator-invitation-email',
     getParentRoute: () => rootRouteImport,
   } as any)
 const OperatorsInvitationsNewRoute = OperatorsInvitationsNewRouteImport.update({
@@ -123,7 +123,7 @@ export interface FileRoutesByFullPath {
   '/ready': typeof ReadyRoute
   '/sign-in': typeof SignInRoute
   '/verify-totp': typeof VerifyTotpRoute
-  '/operator-invitation-email': typeof _localOperatorInvitationEmailRoute
+  '/__local/operator-invitation-email': typeof _localOperatorInvitationEmailRoute
   '/audit/$eventId': typeof AuditEventIdRoute
   '/enroll/security': typeof EnrollSecurityRoute
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
@@ -142,7 +142,7 @@ export interface FileRoutesByTo {
   '/ready': typeof ReadyRoute
   '/sign-in': typeof SignInRoute
   '/verify-totp': typeof VerifyTotpRoute
-  '/operator-invitation-email': typeof _localOperatorInvitationEmailRoute
+  '/__local/operator-invitation-email': typeof _localOperatorInvitationEmailRoute
   '/audit/$eventId': typeof AuditEventIdRoute
   '/enroll/security': typeof EnrollSecurityRoute
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
@@ -183,7 +183,7 @@ export interface FileRouteTypes {
     | '/ready'
     | '/sign-in'
     | '/verify-totp'
-    | '/operator-invitation-email'
+    | '/__local/operator-invitation-email'
     | '/audit/$eventId'
     | '/enroll/security'
     | '/merchants/$merchantId'
@@ -202,7 +202,7 @@ export interface FileRouteTypes {
     | '/ready'
     | '/sign-in'
     | '/verify-totp'
-    | '/operator-invitation-email'
+    | '/__local/operator-invitation-email'
     | '/audit/$eventId'
     | '/enroll/security'
     | '/merchants/$merchantId'
@@ -327,8 +327,8 @@ declare module '@tanstack/react-router' {
     }
     '/__local/operator-invitation-email': {
       id: '/__local/operator-invitation-email'
-      path: '/operator-invitation-email'
-      fullPath: '/operator-invitation-email'
+      path: '/__local/operator-invitation-email'
+      fullPath: '/__local/operator-invitation-email'
       preLoaderRoute: typeof _localOperatorInvitationEmailRouteImport
       parentRoute: typeof rootRouteImport
     }

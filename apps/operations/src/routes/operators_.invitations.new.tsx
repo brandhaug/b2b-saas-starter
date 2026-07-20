@@ -79,24 +79,32 @@ function InviteOperatorPage() {
       </form>
       {notice ? <Feedback status>{notice}</Feedback> : null}
       {invitation ? (
-        <button
-          className="mt-4 h-9 rounded-md border border-destructive px-3 text-sm font-medium text-destructive"
-          onClick={() => {
-            setError(null)
-            void revokeOperatorInvitation({
-              data: { invitationId: invitation.id }
-            }).then((result) => {
-              if (result.state === 'redirect') window.location.assign(result.location)
-              else if (result.state === 'ready') {
-                setInvitation(null)
-                setNotice('Invitation revoked.')
-              } else setError(result.message)
-            })
-          }}
-          type="button"
-        >
-          Revoke invitation
-        </button>
+        <details className="mt-4 max-w-xl border border-destructive p-4">
+          <summary className="cursor-pointer text-sm font-medium text-destructive">
+            Revoke invitation
+          </summary>
+          <p className="mt-3 text-sm text-muted-foreground">
+            This invitation will stop working immediately.
+          </p>
+          <button
+            className="mt-4 h-9 rounded-md bg-destructive px-3 text-sm font-medium text-destructive-foreground"
+            onClick={() => {
+              setError(null)
+              void revokeOperatorInvitation({
+                data: { invitationId: invitation.id }
+              }).then((result) => {
+                if (result.state === 'redirect') window.location.assign(result.location)
+                else if (result.state === 'ready') {
+                  setInvitation(null)
+                  setNotice('Invitation revoked.')
+                } else setError(result.message)
+              })
+            }}
+            type="button"
+          >
+            Confirm revoke invitation
+          </button>
+        </details>
       ) : null}
       {error ? <Feedback>{error}</Feedback> : null}
     </OperationsShell>

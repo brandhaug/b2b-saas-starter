@@ -62,6 +62,7 @@ const worker = createOperationsWorker()
 
 const BoundedText = Schema.String.check(Schema.isMaxLength(1_000))
 const Identifier = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))
+const EmptyOrIdentifier = Schema.Union([Schema.Literal(''), Identifier])
 const MutationValues = Schema.Record(
   Schema.String,
   Schema.Union([Schema.String, Schema.Array(Schema.String)])
@@ -144,6 +145,11 @@ const submit = createServerOnlyFn(
     if (response.status === 303)
       return { state: 'redirect', location: response.headers.get('location') ?? '/' }
     if (response.status === 401)
+      return {
+        state: 'expired',
+        message: 'This secure interaction has expired. Sign in and try again.'
+      }
+    if (response.status === 410)
       return {
         state: 'expired',
         message: 'This secure interaction has expired. Sign in and try again.'
@@ -258,23 +264,25 @@ export const getAuditEvents = createServerFn({ method: 'GET' })
     Schema.decodeUnknownSync(
       Schema.Struct({
         action: Schema.optional(BoundedText),
-        result: Schema.optional(Schema.Literals(['accepted', 'rejected'])),
-        operator: Schema.optional(Identifier),
-        merchant: Schema.optional(Identifier),
-        target: Schema.optional(Identifier),
+        result: Schema.optional(Schema.Literals(['', 'accepted', 'rejected'])),
+        operator: Schema.optional(EmptyOrIdentifier),
+        merchant: Schema.optional(EmptyOrIdentifier),
+        target: Schema.optional(EmptyOrIdentifier),
         cursor: Schema.optional(Schema.String)
       })
     )
   )
-  .handler(({ data }) =>
-    read(
-      `/api/operations/audit${queryString(data)}`,
+  .handler(({ data }) => {
+    const result =
+      data.result === 'accepted' || data.result === 'rejected' ? data.result : undefined
+    return read(
+      `/api/operations/audit${queryString({ ...data, result })}`,
       Schema.Struct({
         events: Schema.Array(AuditEventSummary),
         nextCursor: Schema.NullOr(Schema.String)
       })
     )
-  )
+  })
 
 export const getAuditEvent = createServerFn({ method: 'GET' })
   .validator(Schema.decodeUnknownSync(Identifier))

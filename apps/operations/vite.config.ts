@@ -7,6 +7,7 @@ import { defineConfig } from 'vite'
 export default defineConfig(({ command, mode }) => ({
   server: { host: true, port: 3076 },
   preview: { host: true, port: 3076 },
+  test: { fileParallelism: false },
   resolve: {
     tsconfigPaths: true,
     alias:

@@ -9,6 +9,7 @@ import {
   hasOperatorPermission,
   makeOperationsAuthorizationLayer,
   operatorRoleNames,
+  type OperationsDenialCode,
   type OperatorRole
 } from './operations-contracts.ts'
 import { CapabilityUnavailable } from '../errors.ts'
@@ -208,6 +209,7 @@ const rejectWithAudit = async (
     readonly actorSessionId?: string | undefined
     readonly targetId: string
     readonly eventType: string
+    readonly code: OperationsDenialCode
     readonly reason: string
     readonly occurredAt: Date
   }
@@ -222,7 +224,7 @@ const rejectWithAudit = async (
     occurredAt: input.occurredAt,
     details: { reason: input.reason }
   })({ db })
-  throw new OperationsContractDenied({ reason: input.reason })
+  throw new OperationsContractDenied({ code: input.code, reason: input.reason })
 }
 
 const authorizeManager = async (
@@ -240,6 +242,7 @@ const authorizeManager = async (
       actorSessionId: principal.sessionId,
       targetId,
       eventType,
+      code: 'operator-management-forbidden',
       reason: 'operator management is not authorized',
       occurredAt
     })
@@ -251,6 +254,7 @@ const authorizeManager = async (
       actorSessionId: principal.sessionId,
       targetId,
       eventType,
+      code: 'operator-self-management-forbidden',
       reason: 'operators cannot manage themselves',
       occurredAt
     })
@@ -263,22 +267,31 @@ const rejectionReason = async (
   targetId: string,
   expectedUpdatedAt: Date,
   protectsManager: boolean
-): Promise<string> => {
+): Promise<{ readonly code: OperationsDenialCode; readonly reason: string }> => {
   const [target] = await db
     .select({ updatedAt: user.updatedAt, role: user.role, banned: user.banned })
     .from(user)
     .where(and(eq(user.id, targetId), eq(user.identityClass, 'system_operator')))
     .limit(1)
-  if (!target) return 'operator was not found'
+  if (!target) return { code: 'operator-not-found', reason: 'operator was not found' }
   if (target.updatedAt.getTime() !== expectedUpdatedAt.getTime())
-    return 'operator management page is stale'
+    return {
+      code: 'operator-management-stale',
+      reason: 'operator management page is stale'
+    }
   if (
     protectsManager &&
     !target.banned &&
     parseRoles(target.role).includes('operator-manager')
   )
-    return 'the last enabled Operator Manager cannot be changed'
-  return 'operator management was rejected'
+    return {
+      code: 'last-operator-manager-protected',
+      reason: 'the last enabled Operator Manager cannot be changed'
+    }
+  return {
+    code: 'operator-management-conflict',
+    reason: 'operator management was rejected'
+  }
 }
 
 export const makeOperationsManagementLayer = (
@@ -305,6 +318,7 @@ export const makeOperationsManagementLayer = (
             catch: managementUnavailable
           })
           return yield* new OperationsContractDenied({
+            code: 'operator-management-forbidden',
             reason: 'operator management is not authorized'
           })
         }
@@ -422,7 +436,7 @@ export const makeOperationsManagementLayer = (
                 ))
           ])
           if ((results[0]?.meta?.changes ?? 0) === 0) {
-            const reason = await rejectionReason(
+            const denial = await rejectionReason(
               db,
               input.targetOperatorId,
               input.expectedUpdatedAt,
@@ -434,7 +448,7 @@ export const makeOperationsManagementLayer = (
               actorSessionId: actor.sessionId,
               targetId: input.targetOperatorId,
               eventType: 'operator.roles.update_rejected',
-              reason,
+              ...denial,
               occurredAt: input.now ?? occurredAt
             })
           }
@@ -506,7 +520,7 @@ export const makeOperationsManagementLayer = (
                 ))
           ])
           if ((results[0]?.meta?.changes ?? 0) === 0) {
-            const reason = await rejectionReason(
+            const denial = await rejectionReason(
               db,
               input.targetOperatorId,
               input.expectedUpdatedAt,
@@ -518,7 +532,7 @@ export const makeOperationsManagementLayer = (
               actorSessionId: actor.sessionId,
               targetId: input.targetOperatorId,
               eventType: `operator.${action}_rejected`,
-              reason,
+              ...denial,
               occurredAt: input.now ?? occurredAt
             })
           }
@@ -564,7 +578,7 @@ export const makeOperationsManagementLayer = (
             conditionalInsertAfterChange(audit)
           ])
           if ((results[0]?.meta?.changes ?? 0) === 0) {
-            const reason = await rejectionReason(
+            const denial = await rejectionReason(
               db,
               input.targetOperatorId,
               input.expectedUpdatedAt,
@@ -576,7 +590,7 @@ export const makeOperationsManagementLayer = (
               actorSessionId: actor.sessionId,
               targetId: input.targetOperatorId,
               eventType: 'operator.delete_rejected',
-              reason,
+              ...denial,
               occurredAt
             })
           }
