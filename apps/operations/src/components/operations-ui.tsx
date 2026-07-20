@@ -12,9 +12,9 @@ export function OperationsShell({
   readonly children: ReactNode
 }) {
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-950">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
+    <div className="min-h-dvh bg-background text-foreground">
+      <header className="sticky top-0 border-b border-border bg-background/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link
             className="font-semibold tracking-tight"
             search={{ merchantQuery: '', memberQuery: '' }}
@@ -43,14 +43,55 @@ export function OperationsShell({
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
-          {eyebrow}
-        </p>
+      <main className="mx-auto max-w-6xl px-6 py-12">
+        <p className="text-sm font-medium text-primary">{eyebrow}</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
         <div className="mt-8">{children}</div>
       </main>
     </div>
+  )
+}
+
+export function AuthenticationShell({
+  eyebrow,
+  title,
+  description,
+  children
+}: {
+  readonly eyebrow: string
+  readonly title: string
+  readonly description?: string
+  readonly children: ReactNode
+}) {
+  return (
+    <main className="grid min-h-dvh place-items-center bg-background p-6">
+      <section className="w-full max-w-lg border border-border bg-card p-6">
+        <p className="text-sm font-medium text-primary">{eyebrow}</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
+        {description ? (
+          <p className="mt-4 text-sm leading-6 text-muted-foreground">{description}</p>
+        ) : null}
+        {children}
+      </section>
+    </main>
+  )
+}
+
+export function Feedback({
+  children,
+  status = false
+}: {
+  readonly children: ReactNode
+  readonly status?: boolean
+}) {
+  const className =
+    'mt-6 block rounded-md border border-border bg-muted p-4 text-sm text-foreground'
+  return status ? (
+    <output className={className}>{children}</output>
+  ) : (
+    <p className={className} role="alert">
+      {children}
+    </p>
   )
 }
 
@@ -61,6 +102,10 @@ export function ScreenState({
 }) {
   const copy = {
     unauthenticated: ['Session expired', 'Sign in again to continue.'],
+    expired: [
+      'Enrollment expired',
+      'Sign in to resume incomplete security enrollment.'
+    ],
     forbidden: [
       'Permission required',
       'Your current Operator Permissions do not allow this view.'
@@ -73,12 +118,12 @@ export function ScreenState({
   } as const
   const [title, message] = copy[result.state]
   return (
-    <section className="max-w-xl border border-slate-200 bg-white p-6" role="alert">
+    <section className="max-w-xl border border-border bg-card p-6" role="alert">
       <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="mt-2 text-sm text-slate-600">{message}</p>
-      {result.state === 'unauthenticated' ? (
+      <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+      {result.state === 'unauthenticated' || result.state === 'expired' ? (
         <Link
-          className="mt-5 inline-flex rounded bg-blue-700 px-4 py-2 text-sm text-white"
+          className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
           search={{ error: undefined, result: undefined }}
           to="/sign-in"
         >
@@ -107,7 +152,7 @@ export function Field({
       {label}
       {children ?? (
         <input
-          className="h-10 rounded border border-slate-300 bg-white px-3"
+          className="h-9 rounded-md border border-input bg-card px-3"
           name={name}
           type={type}
           required={required}
@@ -120,7 +165,7 @@ export function Field({
 export function SubmitButton({ children }: { readonly children: ReactNode }) {
   return (
     <button
-      className="h-10 rounded bg-blue-700 px-4 text-sm font-medium text-white"
+      className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
       type="submit"
     >
       {children}
@@ -130,7 +175,7 @@ export function SubmitButton({ children }: { readonly children: ReactNode }) {
 
 export function DefinitionList({ children }: { readonly children: ReactNode }) {
   return (
-    <dl className="grid gap-px overflow-hidden border border-slate-200 bg-slate-200 sm:grid-cols-2">
+    <dl className="grid gap-px overflow-hidden border border-border bg-border sm:grid-cols-2">
       {children}
     </dl>
   )
@@ -144,10 +189,8 @@ export function Fact({
   readonly children: ReactNode
 }) {
   return (
-    <div className="bg-white p-4">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {term}
-      </dt>
+    <div className="bg-card p-4">
+      <dt className="text-sm font-medium text-muted-foreground">{term}</dt>
       <dd className="mt-1 text-sm">{children}</dd>
     </div>
   )

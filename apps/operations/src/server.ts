@@ -7,13 +7,10 @@ const operations = createOperationsWorker()
 const belongsToAuthoritativeBoundary = (request: Request): boolean => {
   const pathname = new URL(request.url).pathname
   return (
-    pathname === '/ready' ||
-    pathname.startsWith('/api/') ||
-    pathname.startsWith('/__local/') ||
-    (request.method === 'POST' &&
-      /^\/(?:sign-in|verify-totp|enroll(?:\/.*)?|operators(?:\/.*)?|merchants\/[^/]+\/members\/[^/]+\/impersonations)$/.test(
-        pathname
-      ))
+    request.method === 'POST' &&
+    /^\/(?:sign-in|verify-totp|enroll(?:\/.*)?|operators(?:\/.*)?|merchants\/[^/]+\/members\/[^/]+\/impersonations)$/.test(
+      pathname
+    )
   )
 }
 

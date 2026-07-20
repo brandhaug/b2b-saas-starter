@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Field, OperationsShell, SubmitButton } from '@/components/operations-ui.tsx'
+import {
+  Feedback,
+  Field,
+  OperationsShell,
+  SubmitButton
+} from '@/components/operations-ui.tsx'
 import { formValue } from '@/lib/form-value.ts'
 import { inviteOperator } from '@/lib/server/operations.ts'
 
@@ -11,7 +16,7 @@ const roles = [
   'operator-manager'
 ] as const
 
-export const Route = createFileRoute('/operators/invitations/new')({
+export const Route = createFileRoute('/operators_/invitations/new')({
   component: InviteOperatorPage
 })
 
@@ -21,14 +26,14 @@ function InviteOperatorPage() {
   return (
     <OperationsShell eyebrow="Controlled provisioning" title="Invite System Operator">
       <Link
-        className="text-sm text-blue-700"
+        className="text-sm text-primary"
         search={{ result: undefined, error: undefined }}
         to="/operators"
       >
         ← Back to System Operators
       </Link>
       <form
-        className="mt-6 grid max-w-xl gap-5 border border-slate-200 bg-white p-6"
+        className="mt-6 grid max-w-xl gap-6 border border-border bg-card p-6"
         onSubmit={(event) => {
           event.preventDefault()
           const form = new FormData(event.currentTarget)
@@ -64,16 +69,8 @@ function InviteOperatorPage() {
         </fieldset>
         <SubmitButton>Send single-use invitation</SubmitButton>
       </form>
-      {notice ? (
-        <output className="mt-5 rounded bg-emerald-50 p-3 text-sm text-emerald-800">
-          {notice}
-        </output>
-      ) : null}
-      {error ? (
-        <p className="mt-5 rounded bg-red-50 p-3 text-sm text-red-800" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {notice ? <Feedback status>{notice}</Feedback> : null}
+      {error ? <Feedback>{error}</Feedback> : null}
     </OperationsShell>
   )
 }

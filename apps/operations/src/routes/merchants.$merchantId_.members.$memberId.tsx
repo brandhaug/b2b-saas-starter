@@ -11,7 +11,7 @@ import { getMerchantMember } from '@/lib/server/operations.ts'
 import { startImpersonation } from '@/lib/server/operations.ts'
 import { formValue } from '@/lib/form-value.ts'
 
-export const Route = createFileRoute('/merchants/$merchantId/members/$memberId')({
+export const Route = createFileRoute('/merchants/$merchantId_/members/$memberId')({
   loader: ({ params }) => getMerchantMember({ data: params }),
   component: MerchantMemberDetailPage
 })
@@ -35,13 +35,13 @@ function MerchantMemberDetailPage() {
   return (
     <OperationsShell eyebrow="Merchant Member detail" title={member.name}>
       <Link
-        className="text-sm text-blue-700"
+        className="text-sm text-primary"
         params={{ merchantId }}
         to="/merchants/$merchantId"
       >
         ← Back to Merchant
       </Link>
-      <div className="mt-5">
+      <div className="mt-6">
         <DefinitionList>
           <Fact term="Member ID">
             <code>{member.id}</code>
@@ -64,15 +64,15 @@ function MerchantMemberDetailPage() {
         </DefinitionList>
       </div>
       {member.impersonationEligibility.eligible ? (
-        <section className="mt-8 max-w-2xl border border-blue-200 bg-blue-50 p-6">
+        <section className="mt-8 max-w-2xl border border-border bg-accent p-6 text-accent-foreground">
           <h2 className="text-xl font-semibold">Create accountable Pending Handoff</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-700">
+          <p className="mt-2 text-sm leading-6">
             A fresh authentication code and an internal reason are required. The
             single-use handoff expires after 60 seconds.
           </p>
           {!handoff ? (
             <form
-              className="mt-5 grid gap-4"
+              className="mt-6 grid gap-4"
               onSubmit={(event) => {
                 event.preventDefault()
                 const form = new FormData(event.currentTarget)
@@ -95,7 +95,7 @@ function MerchantMemberDetailPage() {
             >
               <Field label="Internal Impersonation Reason" name="reason" required>
                 <textarea
-                  className="min-h-28 rounded border border-slate-300 bg-white p-3"
+                  className="min-h-28 rounded-md border border-input bg-card p-4 text-foreground"
                   maxLength={1000}
                   name="reason"
                   required
@@ -109,7 +109,7 @@ function MerchantMemberDetailPage() {
               <SubmitButton>Create Pending Handoff</SubmitButton>
             </form>
           ) : (
-            <div className="mt-5">
+            <div className="mt-6">
               <p className="text-sm">
                 Pending Handoff created. It expires at{' '}
                 <time dateTime={handoff.expiresAt}>{handoff.expiresAt}</time>.
@@ -125,7 +125,10 @@ function MerchantMemberDetailPage() {
             </div>
           )}
           {message ? (
-            <p className="mt-4 rounded bg-red-50 p-3 text-sm text-red-800" role="alert">
+            <p
+              className="mt-4 rounded-md border border-border bg-muted p-4 text-sm text-foreground"
+              role="alert"
+            >
               {message}
             </p>
           ) : null}

@@ -274,7 +274,7 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 - [x] Dedicated rate limits and repeated-failure auditing still protect authentication, TOTP, reads, search, management, impersonation start, and handoff exchange at authoritative server boundaries.
 - [x] Operator Session replacement, idle and absolute expiry, immediate role changes, disablement, emergency recovery, and derived impersonation revocation retain their existing behavior.
 - [x] Merchant search, Member search, details, eligibility, reason capture, fresh TOTP, concurrency rejection, audit review, and permission denial are exercised through the hydrated TanStack UI.
-- [ ] Browser tests drive the real TanStack routes and prove sign-in, enrollment, management, discovery, impersonation start, audit review, navigation, form errors, authorization failures, and session expiry without relying on raw HTML implementation details.
+- [x] Browser tests drive the real TanStack routes and prove sign-in, enrollment, management, discovery, impersonation start, audit review, navigation, form errors, authorization failures, and session expiry without relying on raw HTML implementation details.
 - [x] Existing capability, D1 integration, Better Auth, handoff, notification, rate-limit, and security-matrix tests continue to pass without weakening assertions.
 - [x] A fast architecture regression test fails when a browser-facing Operations application lacks the required TanStack Start dependency, Vite integration, router, server entry, or generated route tree.
 - [x] Operations intent, architecture, ADR, source specification, and operating documentation explicitly state that the Operations App is a TanStack Start application deployed as its own Cloudflare Worker.

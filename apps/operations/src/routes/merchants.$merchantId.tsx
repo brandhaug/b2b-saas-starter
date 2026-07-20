@@ -24,13 +24,13 @@ function MerchantDetailPage() {
   return (
     <OperationsShell eyebrow="Merchant detail" title={merchant.publicName}>
       <Link
-        className="text-sm text-blue-700"
+        className="text-sm text-primary"
         search={{ merchantQuery: '', memberQuery: '' }}
         to="/"
       >
         ← Back to discovery
       </Link>
-      <div className="mt-5">
+      <div className="mt-6">
         <DefinitionList>
           <Fact term="Merchant ID">
             <code>{merchant.id}</code>
@@ -50,19 +50,19 @@ function MerchantDetailPage() {
       </div>
       <h2 className="mt-8 text-xl font-semibold">Members</h2>
       {merchant.members.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-600">No Merchant Members.</p>
+        <p className="mt-4 text-sm text-muted-foreground">No Merchant Members.</p>
       ) : (
-        <ul className="mt-4 divide-y divide-slate-200 border border-slate-200 bg-white">
+        <ul className="mt-4 divide-y divide-border border border-border bg-card">
           {merchant.members.map((member) => (
             <li className="p-4" key={member.id}>
               <Link
-                className="font-medium text-blue-700"
+                className="font-medium text-primary"
                 params={{ merchantId: merchant.id, memberId: member.id }}
                 to="/merchants/$merchantId/members/$memberId"
               >
                 {member.name}
               </Link>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {member.email} · {member.role} · {member.status}
               </p>
             </li>

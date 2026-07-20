@@ -55,24 +55,24 @@ function OperationsHome() {
       eyebrow="Protected Operations shell"
       title={`Welcome, ${principal.name}`}
     >
-      <section className="grid gap-3 border border-slate-200 bg-white p-5 sm:grid-cols-2">
+      <section className="grid gap-4 border border-border bg-card p-6 sm:grid-cols-2">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">
+          <p className="text-sm font-medium text-muted-foreground">
             Dedicated identity
           </p>
           <p className="mt-1 font-mono text-sm">{principal.email}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Roles</p>
+          <p className="text-sm font-medium text-muted-foreground">Roles</p>
           <p className="mt-1 text-sm">{principal.roles.join(', ')}</p>
         </div>
       </section>
       <section className="mt-8">
         <h2 className="text-xl font-semibold">Merchant discovery</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-muted-foreground">
           Search by Merchant id, public name, or slug; or by Member id, name, or email.
         </p>
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <SearchForm label="Find Merchants" name="merchantQuery" />
           <SearchForm label="Find Merchant Members" name="memberQuery" />
         </div>
@@ -90,11 +90,11 @@ function SearchForm({
   readonly name: string
 }) {
   return (
-    <form className="grid gap-3 border border-slate-200 bg-white p-5" method="get">
+    <form className="grid gap-4 border border-border bg-card p-6" method="get">
       <label className="grid gap-1.5 text-sm font-medium">
         {label}
         <input
-          className="h-10 rounded border border-slate-300 px-3"
+          className="h-9 rounded-md border border-input bg-card px-3"
           maxLength={100}
           name={name}
           required
@@ -121,11 +121,11 @@ function DiscoveryResults({
     <section className="mt-8" aria-live="polite">
       <h2 className="text-xl font-semibold">Search results</h2>
       {results.length === 0 ? (
-        <p className="mt-4 border border-slate-200 bg-white p-5 text-sm text-slate-600">
+        <p className="mt-4 border border-border bg-card p-6 text-sm text-muted-foreground">
           No matching Merchants or Merchant Members.
         </p>
       ) : (
-        <ul className="mt-4 divide-y divide-slate-200 border border-slate-200 bg-white">
+        <ul className="mt-4 divide-y divide-border border border-border bg-card">
           {results.map((item) =>
             item.kind === 'merchant' ? (
               <MerchantResult key={item.id} result={item as MerchantSearchResult} />
@@ -147,13 +147,13 @@ function MerchantResult({ result }: { readonly result: MerchantSearchResult }) {
     <li className="flex items-center justify-between gap-4 p-4">
       <div>
         <Link
-          className="font-medium text-blue-700"
+          className="font-medium text-primary"
           params={{ merchantId: result.id }}
           to="/merchants/$merchantId"
         >
           {result.publicName}
         </Link>
-        <p className="mt-1 font-mono text-xs text-slate-500">{result.slug}</p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">{result.slug}</p>
       </div>
       <span className="text-xs capitalize">{result.status}</span>
     </li>
@@ -165,13 +165,13 @@ function MemberResult({ result }: { readonly result: MerchantMemberSearchResult 
     <li className="flex items-center justify-between gap-4 p-4">
       <div>
         <Link
-          className="font-medium text-blue-700"
+          className="font-medium text-primary"
           params={{ merchantId: result.merchant.id, memberId: result.id }}
           to="/merchants/$merchantId/members/$memberId"
         >
           {result.name}
         </Link>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-muted-foreground">
           {result.email} · {result.merchant.publicName}
         </p>
       </div>

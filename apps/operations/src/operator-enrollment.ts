@@ -237,9 +237,15 @@ export const handleOperatorEnrollmentRoutes = async (input: {
     return redirect('/sign-in', [enrollmentCookie('', config, 0)])
   }
 
-  if (!url.pathname.startsWith('/enroll/security')) return null
+  const enrollmentStateRequest =
+    request.method === 'GET' && url.pathname === '/api/operations/enrollment'
+  if (!url.pathname.startsWith('/enroll/security') && !enrollmentStateRequest)
+    return null
   const credential = cookieValue(request)
-  if (!credential) return enrollmentError('Enrollment session is unavailable.', 401)
+  if (!credential)
+    return wantsJson
+      ? Response.json({ error: 'enrollment_expired' }, { status: 410 })
+      : enrollmentError('Enrollment session is unavailable.', 401)
   const enrollmentTokenHash = await hashCredential(credential)
   let state
   try {
@@ -247,8 +253,12 @@ export const handleOperatorEnrollmentRoutes = async (input: {
       invitations.inspect({ enrollmentTokenHash })
     )
   } catch {
-    return enrollmentError('Enrollment session expired. Sign in to resume.', 401)
+    return wantsJson
+      ? Response.json({ error: 'enrollment_expired' }, { status: 410 })
+      : enrollmentError('Enrollment session expired. Sign in to resume.', 401)
   }
+
+  if (enrollmentStateRequest) return Response.json({ email: state.email })
 
   if (request.method === 'GET' && url.pathname === '/enroll/security') {
     return html(

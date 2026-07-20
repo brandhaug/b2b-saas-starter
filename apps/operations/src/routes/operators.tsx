@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import {
+  Feedback,
   OperationsShell,
   ScreenState,
   SubmitButton
@@ -35,34 +36,24 @@ function OperatorsPage() {
   return (
     <OperationsShell eyebrow="Operator management" title="System Operators">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="max-w-2xl text-sm text-slate-600">
+        <p className="max-w-2xl text-sm text-muted-foreground">
           Roles and enabled state are read from the authoritative Operations Auth realm
           on every protected request.
         </p>
         <Link
-          className="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
           search={{ result: undefined, error: undefined }}
           to="/operators/invitations/new"
         >
           Invite System Operator
         </Link>
       </div>
-      {search.result ? (
-        <output className="mt-5 rounded bg-emerald-50 p-3 text-sm text-emerald-800">
-          Management change completed.
-        </output>
-      ) : null}
-      {search.error ? (
-        <p className="mt-5 rounded bg-red-50 p-3 text-sm text-red-800" role="alert">
-          {search.error}
-        </p>
-      ) : null}
+      {search.result ? <Feedback status>Management change completed.</Feedback> : null}
+      {search.error ? <Feedback>{search.error}</Feedback> : null}
       {result.data.operators.length === 0 ? (
-        <p className="mt-8 border border-slate-200 bg-white p-5">
-          No System Operators.
-        </p>
+        <p className="mt-8 border border-border bg-card p-6">No System Operators.</p>
       ) : (
-        <div className="mt-8 grid gap-5">
+        <div className="mt-8 grid gap-6">
           {result.data.operators.map((operator) => (
             <OperatorCard
               actorOperatorId={result.data.actorOperatorId}
@@ -85,34 +76,40 @@ function OperatorCard({
 }) {
   const isSelf = operator.id === actorOperatorId
   return (
-    <article className="border border-slate-200 bg-white p-5">
+    <article className="border border-border bg-card p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">{operator.name}</h2>
-          <p className="font-mono text-xs text-slate-500">{operator.email}</p>
+          <p className="font-mono text-xs text-muted-foreground">{operator.email}</p>
         </div>
-        <span
-          className={`rounded px-2 py-1 text-xs ${operator.enabled ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}
-        >
+        <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
           {operator.enabled ? 'Enabled' : 'Disabled'} · enrollment{' '}
           {operator.enrollmentState}
         </span>
       </div>
       <p className="mt-4 text-sm">
-        {operator.activeSession.active
-          ? `Active Operator Session until ${operator.activeSession.absoluteExpiresAt ?? 'unknown'}`
-          : 'No active Operator Session'}{' '}
-        · last sign-in {operator.lastSignInAt ?? 'never'}
+        {operator.activeSession.active ? (
+          <>
+            Active Operator Session until{' '}
+            <time className="font-mono">
+              {operator.activeSession.absoluteExpiresAt ?? 'unknown'}
+            </time>
+          </>
+        ) : (
+          'No active Operator Session'
+        )}{' '}
+        · last sign-in{' '}
+        <time className="font-mono">{operator.lastSignInAt ?? 'never'}</time>
       </p>
       {isSelf ? (
-        <p className="mt-5 rounded bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="mt-6 rounded-md border border-border bg-muted p-4 text-sm">
           Another Operator Manager must manage your roles or enabled state.
         </p>
       ) : (
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <form
             action={`/operators/${encodeURIComponent(operator.id)}/roles`}
-            className="grid gap-3 border border-slate-200 p-4"
+            className="grid gap-4 border border-border p-4"
             method="post"
           >
             <input name="expectedUpdatedAt" type="hidden" value={operator.updatedAt} />
@@ -132,7 +129,7 @@ function OperatorCard({
             </fieldset>
             <SubmitButton>Save roles</SubmitButton>
           </form>
-          <div className="grid content-start gap-3">
+          <div className="grid content-start gap-4">
             <form
               action={`/operators/${encodeURIComponent(operator.id)}/enabled`}
               method="post"
@@ -151,13 +148,13 @@ function OperatorCard({
                 {operator.enabled ? 'Disable operator' : 'Enable operator'}
               </SubmitButton>
             </form>
-            <details className="border border-red-200 p-4">
-              <summary className="cursor-pointer text-sm font-medium text-red-800">
+            <details className="border border-destructive p-4">
+              <summary className="cursor-pointer text-sm font-medium text-destructive">
                 Delete operator
               </summary>
               <form
                 action={`/operators/${encodeURIComponent(operator.id)}/delete`}
-                className="mt-3"
+                className="mt-4"
                 method="post"
               >
                 <input
@@ -166,7 +163,7 @@ function OperatorCard({
                   value={operator.updatedAt}
                 />
                 <button
-                  className="rounded bg-red-700 px-4 py-2 text-sm text-white"
+                  className="rounded-md bg-destructive px-4 py-2 text-sm text-destructive-foreground"
                   type="submit"
                 >
                   Confirm delete

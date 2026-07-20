@@ -7,7 +7,7 @@ import {
 } from '@/components/operations-ui.tsx'
 import { getAuditEvent } from '@/lib/server/operations.ts'
 
-export const Route = createFileRoute('/audit/$eventId')({
+export const Route = createFileRoute('/audit_/$eventId')({
   loader: ({ params }) => getAuditEvent({ data: params.eventId }),
   component: AuditDetailPage
 })
@@ -23,27 +23,41 @@ function AuditDetailPage() {
   const event = result.data.event
   return (
     <OperationsShell eyebrow="Audit event" title={event.action}>
-      <Link className="text-sm text-blue-700" to="/audit">
+      <Link className="text-sm text-primary" to="/audit">
         ← Back to global audit
       </Link>
-      <div className="mt-5">
+      <div className="mt-6">
         <DefinitionList>
           <Fact term="Result">{event.result}</Fact>
-          <Fact term="Timestamp">{event.occurredAt}</Fact>
+          <Fact term="Timestamp">
+            <time className="font-mono" dateTime={event.occurredAt}>
+              {event.occurredAt}
+            </time>
+          </Fact>
           <Fact term="Real operator">
-            {event.actor?.displayName ?? 'Not applicable'}
+            <AuditIdentity identity={event.actor} />
           </Fact>
           <Fact term="Operator Session">
-            {event.operatorSessionId ?? 'Not applicable'}
+            <span className="font-mono">
+              {event.operatorSessionId ?? 'Not applicable'}
+            </span>
           </Fact>
-          <Fact term="Target">{event.target?.displayName ?? 'Not applicable'}</Fact>
-          <Fact term="Merchant">{event.merchant?.displayName ?? 'Not applicable'}</Fact>
+          <Fact term="Target">
+            <AuditIdentity identity={event.target} />
+          </Fact>
+          <Fact term="Merchant">
+            <AuditIdentity identity={event.merchant} />
+          </Fact>
           <Fact term="Retention">
             {event.retentionPolicy === 'impersonation-two-years'
               ? `Two years, through ${event.retainUntil ?? ''}`
               : 'Operations standard'}
           </Fact>
-          <Fact term="Impersonation">{event.impersonationId ?? 'Not applicable'}</Fact>
+          <Fact term="Impersonation">
+            <span className="font-mono">
+              {event.impersonationId ?? 'Not applicable'}
+            </span>
+          </Fact>
           <Fact term="Internal reason">{event.internalReason ?? 'Not provided'}</Fact>
           <Fact term="Support reference">
             {event.supportReference ?? 'Not provided'}
@@ -51,5 +65,19 @@ function AuditDetailPage() {
         </DefinitionList>
       </div>
     </OperationsShell>
+  )
+}
+
+function AuditIdentity({
+  identity
+}: {
+  readonly identity: { readonly id: string; readonly displayName: string } | null
+}) {
+  return identity ? (
+    <>
+      {identity.displayName} <span className="font-mono">{identity.id}</span>
+    </>
+  ) : (
+    <>Not applicable</>
   )
 }

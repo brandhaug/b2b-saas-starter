@@ -40,14 +40,14 @@ function AuditPage() {
   return (
     <OperationsShell eyebrow="Global evidence" title="Operations audit">
       <form
-        className="grid gap-4 border border-slate-200 bg-white p-5 md:grid-cols-3"
+        className="grid gap-4 border border-border bg-card p-6 md:grid-cols-3"
         method="get"
       >
         <Field label="Action" name="action" />
         <label className="grid gap-1.5 text-sm font-medium">
           Result
           <select
-            className="h-10 rounded border border-slate-300 bg-white px-3"
+            className="h-9 rounded-md border border-input bg-card px-3"
             name="result"
             defaultValue={search.result ?? ''}
           >
@@ -62,41 +62,41 @@ function AuditPage() {
         <SubmitButton>Filter audit</SubmitButton>
       </form>
       {page.data.events.length === 0 ? (
-        <p className="mt-8 border border-slate-200 bg-white p-5 text-sm text-slate-600">
+        <p className="mt-8 border border-border bg-card p-6 text-sm text-muted-foreground">
           No matching Operations audit events.
         </p>
       ) : (
-        <div className="mt-8 overflow-x-auto border border-slate-200 bg-white">
+        <div className="mt-8 overflow-x-auto border border-border bg-card">
           <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-slate-100">
+            <thead className="bg-muted">
               <tr>
-                <th className="p-3">Action</th>
-                <th className="p-3">Result</th>
-                <th className="p-3">Real operator</th>
-                <th className="p-3">Merchant</th>
-                <th className="p-3">Timestamp</th>
+                <th className="p-4">Action</th>
+                <th className="p-4">Result</th>
+                <th className="p-4">Real operator</th>
+                <th className="p-4">Merchant</th>
+                <th className="p-4">Timestamp</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-border">
               {page.data.events.map((event) => (
                 <tr key={event.id}>
-                  <td className="p-3">
+                  <td className="p-4">
                     <Link
-                      className="text-blue-700"
+                      className="text-primary"
                       params={{ eventId: event.id }}
                       to="/audit/$eventId"
                     >
                       {event.action}
                     </Link>
                   </td>
-                  <td className="p-3 capitalize">{event.result}</td>
-                  <td className="p-3">
+                  <td className="p-4 capitalize">{event.result}</td>
+                  <td className="p-4">
                     {event.actor?.displayName ?? 'Not applicable'}
                   </td>
-                  <td className="p-3">
+                  <td className="p-4">
                     {event.merchant?.displayName ?? 'Not applicable'}
                   </td>
-                  <td className="p-3">
+                  <td className="p-4 font-mono">
                     <time dateTime={event.occurredAt}>{event.occurredAt}</time>
                   </td>
                 </tr>
@@ -107,7 +107,7 @@ function AuditPage() {
       )}
       {page.data.nextCursor ? (
         <Link
-          className="mt-5 inline-flex text-sm text-blue-700"
+          className="mt-6 text-sm text-primary"
           search={{ ...search, cursor: page.data.nextCursor }}
           to="/audit"
         >

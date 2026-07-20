@@ -11,15 +11,21 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyTotpRouteImport } from './routes/verify-totp'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as ReadyRouteImport } from './routes/ready'
 import { Route as OperatorsRouteImport } from './routes/operators'
 import { Route as EnrollRouteImport } from './routes/enroll'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MerchantsMerchantIdRouteImport } from './routes/merchants.$merchantId'
-import { Route as EnrollSecurityRouteImport } from './routes/enroll.security'
-import { Route as AuditEventIdRouteImport } from './routes/audit.$eventId'
-import { Route as OperatorsInvitationsNewRouteImport } from './routes/operators.invitations.new'
-import { Route as MerchantsMerchantIdMembersMemberIdRouteImport } from './routes/merchants.$merchantId.members.$memberId'
+import { Route as EnrollSecurityRouteImport } from './routes/enroll_.security'
+import { Route as AuditEventIdRouteImport } from './routes/audit_.$eventId'
+import { Route as _localOperatorInvitationEmailRouteImport } from './routes/__local.operator-invitation-email'
+import { Route as OperatorsInvitationsNewRouteImport } from './routes/operators_.invitations.new'
+import { Route as ApiOperationsSplatRouteImport } from './routes/api.operations.$'
+import { Route as ApiMerchantsSplatRouteImport } from './routes/api.merchants.$'
+import { Route as ApiMembersSearchRouteImport } from './routes/api.members.search'
+import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
+import { Route as MerchantsMerchantIdMembersMemberIdRouteImport } from './routes/merchants.$merchantId_.members.$memberId'
 
 const VerifyTotpRoute = VerifyTotpRouteImport.update({
   id: '/verify-totp',
@@ -29,6 +35,11 @@ const VerifyTotpRoute = VerifyTotpRouteImport.update({
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReadyRoute = ReadyRouteImport.update({
+  id: '/ready',
+  path: '/ready',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperatorsRoute = OperatorsRouteImport.update({
@@ -57,66 +68,110 @@ const MerchantsMerchantIdRoute = MerchantsMerchantIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const EnrollSecurityRoute = EnrollSecurityRouteImport.update({
-  id: '/security',
-  path: '/security',
-  getParentRoute: () => EnrollRoute,
+  id: '/enroll_/security',
+  path: '/enroll/security',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuditEventIdRoute = AuditEventIdRouteImport.update({
-  id: '/$eventId',
-  path: '/$eventId',
-  getParentRoute: () => AuditRoute,
+  id: '/audit_/$eventId',
+  path: '/audit/$eventId',
+  getParentRoute: () => rootRouteImport,
 } as any)
+const _localOperatorInvitationEmailRoute =
+  _localOperatorInvitationEmailRouteImport.update({
+    id: '/__local/operator-invitation-email',
+    path: '/operator-invitation-email',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const OperatorsInvitationsNewRoute = OperatorsInvitationsNewRouteImport.update({
-  id: '/invitations/new',
-  path: '/invitations/new',
-  getParentRoute: () => OperatorsRoute,
+  id: '/operators_/invitations/new',
+  path: '/operators/invitations/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOperationsSplatRoute = ApiOperationsSplatRouteImport.update({
+  id: '/api/operations/$',
+  path: '/api/operations/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMerchantsSplatRoute = ApiMerchantsSplatRouteImport.update({
+  id: '/api/merchants/$',
+  path: '/api/merchants/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMembersSearchRoute = ApiMembersSearchRouteImport.update({
+  id: '/api/members/search',
+  path: '/api/members/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const MerchantsMerchantIdMembersMemberIdRoute =
   MerchantsMerchantIdMembersMemberIdRouteImport.update({
-    id: '/members/$memberId',
-    path: '/members/$memberId',
-    getParentRoute: () => MerchantsMerchantIdRoute,
+    id: '/merchants/$merchantId_/members/$memberId',
+    path: '/merchants/$merchantId/members/$memberId',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/audit': typeof AuditRouteWithChildren
-  '/enroll': typeof EnrollRouteWithChildren
-  '/operators': typeof OperatorsRouteWithChildren
+  '/audit': typeof AuditRoute
+  '/enroll': typeof EnrollRoute
+  '/operators': typeof OperatorsRoute
+  '/ready': typeof ReadyRoute
   '/sign-in': typeof SignInRoute
   '/verify-totp': typeof VerifyTotpRoute
+  '/operator-invitation-email': typeof _localOperatorInvitationEmailRoute
   '/audit/$eventId': typeof AuditEventIdRoute
   '/enroll/security': typeof EnrollSecurityRoute
-  '/merchants/$merchantId': typeof MerchantsMerchantIdRouteWithChildren
+  '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/members/search': typeof ApiMembersSearchRoute
+  '/api/merchants/$': typeof ApiMerchantsSplatRoute
+  '/api/operations/$': typeof ApiOperationsSplatRoute
   '/operators/invitations/new': typeof OperatorsInvitationsNewRoute
   '/merchants/$merchantId/members/$memberId': typeof MerchantsMerchantIdMembersMemberIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/audit': typeof AuditRouteWithChildren
-  '/enroll': typeof EnrollRouteWithChildren
-  '/operators': typeof OperatorsRouteWithChildren
+  '/audit': typeof AuditRoute
+  '/enroll': typeof EnrollRoute
+  '/operators': typeof OperatorsRoute
+  '/ready': typeof ReadyRoute
   '/sign-in': typeof SignInRoute
   '/verify-totp': typeof VerifyTotpRoute
+  '/operator-invitation-email': typeof _localOperatorInvitationEmailRoute
   '/audit/$eventId': typeof AuditEventIdRoute
   '/enroll/security': typeof EnrollSecurityRoute
-  '/merchants/$merchantId': typeof MerchantsMerchantIdRouteWithChildren
+  '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/members/search': typeof ApiMembersSearchRoute
+  '/api/merchants/$': typeof ApiMerchantsSplatRoute
+  '/api/operations/$': typeof ApiOperationsSplatRoute
   '/operators/invitations/new': typeof OperatorsInvitationsNewRoute
   '/merchants/$merchantId/members/$memberId': typeof MerchantsMerchantIdMembersMemberIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/audit': typeof AuditRouteWithChildren
-  '/enroll': typeof EnrollRouteWithChildren
-  '/operators': typeof OperatorsRouteWithChildren
+  '/audit': typeof AuditRoute
+  '/enroll': typeof EnrollRoute
+  '/operators': typeof OperatorsRoute
+  '/ready': typeof ReadyRoute
   '/sign-in': typeof SignInRoute
   '/verify-totp': typeof VerifyTotpRoute
-  '/audit/$eventId': typeof AuditEventIdRoute
-  '/enroll/security': typeof EnrollSecurityRoute
-  '/merchants/$merchantId': typeof MerchantsMerchantIdRouteWithChildren
-  '/operators/invitations/new': typeof OperatorsInvitationsNewRoute
-  '/merchants/$merchantId/members/$memberId': typeof MerchantsMerchantIdMembersMemberIdRoute
+  '/__local/operator-invitation-email': typeof _localOperatorInvitationEmailRoute
+  '/audit_/$eventId': typeof AuditEventIdRoute
+  '/enroll_/security': typeof EnrollSecurityRoute
+  '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/members/search': typeof ApiMembersSearchRoute
+  '/api/merchants/$': typeof ApiMerchantsSplatRoute
+  '/api/operations/$': typeof ApiOperationsSplatRoute
+  '/operators_/invitations/new': typeof OperatorsInvitationsNewRoute
+  '/merchants/$merchantId_/members/$memberId': typeof MerchantsMerchantIdMembersMemberIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -125,11 +180,17 @@ export interface FileRouteTypes {
     | '/audit'
     | '/enroll'
     | '/operators'
+    | '/ready'
     | '/sign-in'
     | '/verify-totp'
+    | '/operator-invitation-email'
     | '/audit/$eventId'
     | '/enroll/security'
     | '/merchants/$merchantId'
+    | '/api/auth/$'
+    | '/api/members/search'
+    | '/api/merchants/$'
+    | '/api/operations/$'
     | '/operators/invitations/new'
     | '/merchants/$merchantId/members/$memberId'
   fileRoutesByTo: FileRoutesByTo
@@ -138,11 +199,17 @@ export interface FileRouteTypes {
     | '/audit'
     | '/enroll'
     | '/operators'
+    | '/ready'
     | '/sign-in'
     | '/verify-totp'
+    | '/operator-invitation-email'
     | '/audit/$eventId'
     | '/enroll/security'
     | '/merchants/$merchantId'
+    | '/api/auth/$'
+    | '/api/members/search'
+    | '/api/merchants/$'
+    | '/api/operations/$'
     | '/operators/invitations/new'
     | '/merchants/$merchantId/members/$memberId'
   id:
@@ -151,23 +218,39 @@ export interface FileRouteTypes {
     | '/audit'
     | '/enroll'
     | '/operators'
+    | '/ready'
     | '/sign-in'
     | '/verify-totp'
-    | '/audit/$eventId'
-    | '/enroll/security'
+    | '/__local/operator-invitation-email'
+    | '/audit_/$eventId'
+    | '/enroll_/security'
     | '/merchants/$merchantId'
-    | '/operators/invitations/new'
-    | '/merchants/$merchantId/members/$memberId'
+    | '/api/auth/$'
+    | '/api/members/search'
+    | '/api/merchants/$'
+    | '/api/operations/$'
+    | '/operators_/invitations/new'
+    | '/merchants/$merchantId_/members/$memberId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuditRoute: typeof AuditRouteWithChildren
-  EnrollRoute: typeof EnrollRouteWithChildren
-  OperatorsRoute: typeof OperatorsRouteWithChildren
+  AuditRoute: typeof AuditRoute
+  EnrollRoute: typeof EnrollRoute
+  OperatorsRoute: typeof OperatorsRoute
+  ReadyRoute: typeof ReadyRoute
   SignInRoute: typeof SignInRoute
   VerifyTotpRoute: typeof VerifyTotpRoute
-  MerchantsMerchantIdRoute: typeof MerchantsMerchantIdRouteWithChildren
+  _localOperatorInvitationEmailRoute: typeof _localOperatorInvitationEmailRoute
+  AuditEventIdRoute: typeof AuditEventIdRoute
+  EnrollSecurityRoute: typeof EnrollSecurityRoute
+  MerchantsMerchantIdRoute: typeof MerchantsMerchantIdRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiMembersSearchRoute: typeof ApiMembersSearchRoute
+  ApiMerchantsSplatRoute: typeof ApiMerchantsSplatRoute
+  ApiOperationsSplatRoute: typeof ApiOperationsSplatRoute
+  OperatorsInvitationsNewRoute: typeof OperatorsInvitationsNewRoute
+  MerchantsMerchantIdMembersMemberIdRoute: typeof MerchantsMerchantIdMembersMemberIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -184,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ready': {
+      id: '/ready'
+      path: '/ready'
+      fullPath: '/ready'
+      preLoaderRoute: typeof ReadyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operators': {
@@ -221,90 +311,91 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantsMerchantIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/enroll/security': {
-      id: '/enroll/security'
-      path: '/security'
+    '/enroll_/security': {
+      id: '/enroll_/security'
+      path: '/enroll/security'
       fullPath: '/enroll/security'
       preLoaderRoute: typeof EnrollSecurityRouteImport
-      parentRoute: typeof EnrollRoute
+      parentRoute: typeof rootRouteImport
     }
-    '/audit/$eventId': {
-      id: '/audit/$eventId'
-      path: '/$eventId'
+    '/audit_/$eventId': {
+      id: '/audit_/$eventId'
+      path: '/audit/$eventId'
       fullPath: '/audit/$eventId'
       preLoaderRoute: typeof AuditEventIdRouteImport
-      parentRoute: typeof AuditRoute
+      parentRoute: typeof rootRouteImport
     }
-    '/operators/invitations/new': {
-      id: '/operators/invitations/new'
-      path: '/invitations/new'
+    '/__local/operator-invitation-email': {
+      id: '/__local/operator-invitation-email'
+      path: '/operator-invitation-email'
+      fullPath: '/operator-invitation-email'
+      preLoaderRoute: typeof _localOperatorInvitationEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operators_/invitations/new': {
+      id: '/operators_/invitations/new'
+      path: '/operators/invitations/new'
       fullPath: '/operators/invitations/new'
       preLoaderRoute: typeof OperatorsInvitationsNewRouteImport
-      parentRoute: typeof OperatorsRoute
+      parentRoute: typeof rootRouteImport
     }
-    '/merchants/$merchantId/members/$memberId': {
-      id: '/merchants/$merchantId/members/$memberId'
-      path: '/members/$memberId'
+    '/api/operations/$': {
+      id: '/api/operations/$'
+      path: '/api/operations/$'
+      fullPath: '/api/operations/$'
+      preLoaderRoute: typeof ApiOperationsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/merchants/$': {
+      id: '/api/merchants/$'
+      path: '/api/merchants/$'
+      fullPath: '/api/merchants/$'
+      preLoaderRoute: typeof ApiMerchantsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/members/search': {
+      id: '/api/members/search'
+      path: '/api/members/search'
+      fullPath: '/api/members/search'
+      preLoaderRoute: typeof ApiMembersSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/merchants/$merchantId_/members/$memberId': {
+      id: '/merchants/$merchantId_/members/$memberId'
+      path: '/merchants/$merchantId/members/$memberId'
       fullPath: '/merchants/$merchantId/members/$memberId'
       preLoaderRoute: typeof MerchantsMerchantIdMembersMemberIdRouteImport
-      parentRoute: typeof MerchantsMerchantIdRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface AuditRouteChildren {
-  AuditEventIdRoute: typeof AuditEventIdRoute
-}
-
-const AuditRouteChildren: AuditRouteChildren = {
-  AuditEventIdRoute: AuditEventIdRoute,
-}
-
-const AuditRouteWithChildren = AuditRoute._addFileChildren(AuditRouteChildren)
-
-interface EnrollRouteChildren {
-  EnrollSecurityRoute: typeof EnrollSecurityRoute
-}
-
-const EnrollRouteChildren: EnrollRouteChildren = {
-  EnrollSecurityRoute: EnrollSecurityRoute,
-}
-
-const EnrollRouteWithChildren =
-  EnrollRoute._addFileChildren(EnrollRouteChildren)
-
-interface OperatorsRouteChildren {
-  OperatorsInvitationsNewRoute: typeof OperatorsInvitationsNewRoute
-}
-
-const OperatorsRouteChildren: OperatorsRouteChildren = {
-  OperatorsInvitationsNewRoute: OperatorsInvitationsNewRoute,
-}
-
-const OperatorsRouteWithChildren = OperatorsRoute._addFileChildren(
-  OperatorsRouteChildren,
-)
-
-interface MerchantsMerchantIdRouteChildren {
-  MerchantsMerchantIdMembersMemberIdRoute: typeof MerchantsMerchantIdMembersMemberIdRoute
-}
-
-const MerchantsMerchantIdRouteChildren: MerchantsMerchantIdRouteChildren = {
-  MerchantsMerchantIdMembersMemberIdRoute:
-    MerchantsMerchantIdMembersMemberIdRoute,
-}
-
-const MerchantsMerchantIdRouteWithChildren =
-  MerchantsMerchantIdRoute._addFileChildren(MerchantsMerchantIdRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuditRoute: AuditRouteWithChildren,
-  EnrollRoute: EnrollRouteWithChildren,
-  OperatorsRoute: OperatorsRouteWithChildren,
+  AuditRoute: AuditRoute,
+  EnrollRoute: EnrollRoute,
+  OperatorsRoute: OperatorsRoute,
+  ReadyRoute: ReadyRoute,
   SignInRoute: SignInRoute,
   VerifyTotpRoute: VerifyTotpRoute,
-  MerchantsMerchantIdRoute: MerchantsMerchantIdRouteWithChildren,
+  _localOperatorInvitationEmailRoute: _localOperatorInvitationEmailRoute,
+  AuditEventIdRoute: AuditEventIdRoute,
+  EnrollSecurityRoute: EnrollSecurityRoute,
+  MerchantsMerchantIdRoute: MerchantsMerchantIdRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiMembersSearchRoute: ApiMembersSearchRoute,
+  ApiMerchantsSplatRoute: ApiMerchantsSplatRoute,
+  ApiOperationsSplatRoute: ApiOperationsSplatRoute,
+  OperatorsInvitationsNewRoute: OperatorsInvitationsNewRoute,
+  MerchantsMerchantIdMembersMemberIdRoute:
+    MerchantsMerchantIdMembersMemberIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
