@@ -25,7 +25,7 @@ function AppointmentsPage() {
       section={{ kind: 'merchant' }}
       title="Appointments"
       description="Your returning-user home: a Provider-oriented day view of accepted Appointment facts."
-      mobileLayout="immersive"
+      mobileLayout="home"
     >
       <MerchantPresentationBoundary
         desktop={<DesktopAppointmentsScreen calendar={calendar} selectedDate={date} />}

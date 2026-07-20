@@ -8,13 +8,13 @@ export function MerchantShell({
   section,
   title,
   description,
-  mobileLayout = 'standard',
+  mobileLayout = 'sheet',
   children
 }: {
   readonly section: MerchantShellSection
   readonly title: string
   readonly description: string
-  readonly mobileLayout?: 'standard' | 'immersive'
+  readonly mobileLayout?: 'home' | 'sheet' | 'task'
   readonly children: ReactNode
 }) {
   const destinations = merchantDestinations()
@@ -32,13 +32,13 @@ export function MerchantShell({
         </DesktopShell>
       }
       mobile={
-        mobileLayout === 'immersive' ? (
-          <MobileShell layout="immersive" section={section} destinations={destinations}>
+        mobileLayout === 'home' ? (
+          <MobileShell layout="home" section={section} destinations={destinations}>
             {children}
           </MobileShell>
         ) : (
           <MobileShell
-            layout="standard"
+            layout={mobileLayout}
             section={section}
             destinations={destinations}
             title={title}
