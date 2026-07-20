@@ -15,22 +15,11 @@ import {
   stopImpersonation
 } from '@/lib/server/impersonation-lifecycle.ts'
 import { MerchantPresentationProvider } from '@/components/merchant-shell/merchant-presentation.tsx'
+import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 import { getMerchantPresentation } from '@/lib/server/merchant-presentation.ts'
 import appCss from '../index.css?url'
 
 export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Merchant App' },
-      {
-        name: 'description',
-        content: 'The authenticated Merchant App for the Booking Product.'
-      }
-    ],
-    links: [{ rel: 'stylesheet', href: appCss }]
-  }),
   beforeLoad: async () => {
     const [lifecycle, presentation] = await Promise.all([
       getImpersonationLifecycle(),
@@ -39,6 +28,17 @@ export const Route = createRootRoute({
     if (lifecycle?.state === 'terminated') throw redirect({ href: lifecycle.returnTo })
     return { impersonationLifecycle: lifecycle, merchantPresentation: presentation }
   },
+  head: () => ({
+    meta: [
+      { charSet: 'utf-8' },
+      { title: 'Merchant App' },
+      {
+        name: 'description',
+        content: 'The authenticated Merchant App for the Booking Product.'
+      }
+    ],
+    links: [{ rel: 'stylesheet', href: appCss }]
+  }),
   component: RootComponent
 })
 
@@ -47,7 +47,7 @@ function RootComponent() {
     Route.useRouteContext()
   const router = useRouter()
   return (
-    <RootDocument>
+    <RootDocument presentation={presentation}>
       {lifecycle?.state === 'active' ? (
         <ImpersonationBanner
           presentation={lifecycle}
@@ -68,10 +68,27 @@ function RootComponent() {
   )
 }
 
-function RootDocument({ children }: { readonly children: ReactNode }) {
+function RootDocument({
+  presentation,
+  children
+}: {
+  readonly presentation: MerchantPresentation
+  readonly children: ReactNode
+}) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={presentation === 'mobile' ? 'merchant-mobile-document' : undefined}
+    >
       <head>
+        <meta
+          name="viewport"
+          content={
+            presentation === 'mobile'
+              ? 'width=375, minimum-scale=1, shrink-to-fit=no'
+              : 'width=device-width, initial-scale=1'
+          }
+        />
         <HeadContent />
       </head>
       <body>

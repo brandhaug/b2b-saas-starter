@@ -63,6 +63,11 @@
   --destructive: oklch(0.68 0.2 25);
 }
 
+html.merchant-mobile-document {
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
+}
+
 * {
   border-color: var(--border);
   outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
