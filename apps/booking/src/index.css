@@ -72,12 +72,6 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 
-[data-popup-layout='legacyPhoneCode'] button:focus-visible,
-[data-popup-layout='legacyPhoneCode'] input:focus-visible {
-  outline: none;
-  outline-offset: 0;
-}
-
 ::selection {
   background: rgb(79 126 232 / 24%);
 }

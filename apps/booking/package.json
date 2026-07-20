@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "bun src/dev.ts",
     "build": "vite build",
-    "prototype:parity-harness": "bun prototypes/parity-harness/tui.ts",
     "parity:smoke": "bun scripts/run-parity-smoke.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
@@ -24,8 +23,7 @@
     "lucide-react": "catalog:",
     "motion": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "react-grab": "^0.1.48"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
