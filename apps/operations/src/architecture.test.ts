@@ -85,3 +85,13 @@ it('keeps browser page rendering exclusively in TanStack React routes', async ()
     expect(boundary).not.toContain('<!doctype')
   }
 })
+
+it('keeps Operations integration tests isolated from the persisted development D1', async () => {
+  const localRuntimeTest = await readFile(
+    appFile('src/lib/server/operations-worker.local.integration.test.ts'),
+    'utf8'
+  )
+
+  expect(localRuntimeTest).not.toContain('cloudflare-workers-shim-dev')
+  expect(localRuntimeTest).toContain('@b2b-saas-starter/db/testing')
+})

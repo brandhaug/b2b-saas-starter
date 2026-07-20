@@ -1,10 +1,36 @@
-import { describe, expect, it } from 'vitest'
-import { env } from '../cloudflare-workers-shim-dev.ts'
-import { createOperationsWorker, localOperatorFixture } from './operations-worker.ts'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
+import {
+  createOperationsWorker,
+  localOperatorFixture,
+  type OperationsWorkerEnv
+} from './operations-worker.ts'
 
 const origin = 'http://localhost:3076'
 
 describe('Operations local TanStack runtime', () => {
+  let testD1: TestD1
+  let env: OperationsWorkerEnv
+
+  beforeAll(async () => {
+    testD1 = await provisionTestD1()
+    env = {
+      DB: testD1.d1,
+      ENVIRONMENT: 'test',
+      MERCHANT_APP_ORIGIN: 'http://localhost:3072',
+      OPERATIONS_APP_ORIGIN: origin,
+      OPERATIONS_AUTH_SECRET:
+        'isolated-operations-auth-secret-change-me-minimum-32-chars',
+      OPERATIONS_AUTH_TRUSTED_ORIGINS: origin,
+      OPERATIONS_LOCAL_SEED: 'enabled',
+      OPERATIONS_SECURITY_CONTACT: 'security@operations.test'
+    }
+  }, 30_000)
+
+  afterAll(async () => {
+    await testD1?.dispose()
+  })
+
   it('redirects an anonymous authoritative session read to sign-in', async () => {
     const response = await createOperationsWorker().fetch(
       new Request(`${origin}/api/operations/session`, {
@@ -18,7 +44,7 @@ describe('Operations local TanStack runtime', () => {
     expect(response.headers.get('location')).toBe('/sign-in')
   })
 
-  it('authenticates and signs out through the persisted development binding', async () => {
+  it('authenticates and signs out through an isolated local binding', async () => {
     const form = new FormData()
     form.set('email', localOperatorFixture.email)
     form.set('password', localOperatorFixture.password)
