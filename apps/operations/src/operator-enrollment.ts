@@ -111,6 +111,7 @@ export const handleOperatorEnrollmentRoutes = async (input: {
 }): Promise<Response | null> => {
   const { request, config, db, auth, invitationDelivery } = input
   const url = new URL(request.url)
+  const wantsJson = request.headers.get('accept')?.includes('application/json') ?? false
 
   if (request.method === 'GET' && url.pathname === '/operators/invitations/new') {
     const reference = await readOperatorSessionReference({
@@ -151,10 +152,18 @@ export const handleOperatorEnrollmentRoutes = async (input: {
         )
         throw new Error('operator invitation email could not be delivered')
       }
-      return html(
-        'Operator invitation sent',
-        `<h1>Operator invitation sent</h1><p>A single-use email-verification and enrollment link was sent to ${escapeHtml(invitation.email)}. It expires at ${escapeHtml(invitation.expiresAt.toISOString())}.</p><form method="post" action="/operators/invitations/${encodeURIComponent(invitation.id)}/revoke"><button type="submit">Revoke invitation</button></form>`
-      )
+      return wantsJson
+        ? Response.json({
+            invitation: {
+              id: invitation.id,
+              email: invitation.email,
+              expiresAt: invitation.expiresAt.toISOString()
+            }
+          })
+        : html(
+            'Operator invitation sent',
+            `<h1>Operator invitation sent</h1><p>A single-use email-verification and enrollment link was sent to ${escapeHtml(invitation.email)}. It expires at ${escapeHtml(invitation.expiresAt.toISOString())}.</p><form method="post" action="/operators/invitations/${encodeURIComponent(invitation.id)}/revoke"><button type="submit">Revoke invitation</button></form>`
+          )
     } catch (error) {
       return enrollmentError(
         error instanceof Error ? error.message : 'invitation could not be created',
@@ -257,10 +266,12 @@ export const handleOperatorEnrollmentRoutes = async (input: {
         operatorId: state.operatorId,
         password: text(form, 'password')
       })
-      return html(
-        'Confirm operator security',
-        `<h1>Confirm operator security</h1><p>Authenticator URI: <code>${escapeHtml(setup.totpURI)}</code></p><h2>Backup codes</h2><ul>${setup.backupCodes.map((code) => `<li><code>${escapeHtml(code)}</code></li>`).join('')}</ul><form method="post" action="/enroll/security/complete"><label>Authentication code<input name="code" inputmode="numeric" required autocomplete="one-time-code"></label><label><input name="backupCodesConfirmed" type="checkbox" value="yes" required>I stored my backup codes</label><button type="submit">Complete enrollment</button></form><form method="post" action="/enroll/sign-out"><button type="submit">Sign out of enrollment</button></form>`
-      )
+      return wantsJson
+        ? Response.json(setup)
+        : html(
+            'Confirm operator security',
+            `<h1>Confirm operator security</h1><p>Authenticator URI: <code>${escapeHtml(setup.totpURI)}</code></p><h2>Backup codes</h2><ul>${setup.backupCodes.map((code) => `<li><code>${escapeHtml(code)}</code></li>`).join('')}</ul><form method="post" action="/enroll/security/complete"><label>Authentication code<input name="code" inputmode="numeric" required autocomplete="one-time-code"></label><label><input name="backupCodesConfirmed" type="checkbox" value="yes" required>I stored my backup codes</label><button type="submit">Complete enrollment</button></form><form method="post" action="/enroll/sign-out"><button type="submit">Sign out of enrollment</button></form>`
+          )
     } catch (error) {
       return enrollmentError(error instanceof Error ? error.message : 'setup failed')
     }

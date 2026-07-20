@@ -26,9 +26,11 @@ Server client ─────> Platform API                         │
   Better Auth sessions are host-only and Merchant membership resolves the
   authorization boundary.
 - `apps/operations` is the staff-only platform operations application. It uses
-  a separate Better Auth realm and host-only Operator Session, shares D1 and
-  application capabilities, and reaches Merchant authority only through an
-  explicit audited impersonation handoff.
+  TanStack Start and typed React routes, deployed through its own Vite-built
+  Cloudflare Worker. It uses a separate Better Auth realm and host-only Operator
+  Session, shares D1 and application capabilities, and reaches Merchant authority
+  only through an explicit audited impersonation handoff. Route loaders and
+  server functions adapt the existing Effect contracts; they do not own policy.
 - `apps/booking` owns Booking Sessions, provider/service selection, availability,
   Time Slot Holds, checkout review, atomic confirmation, and Confirmation. It is
   private in production and reachable through the Public Site service binding.

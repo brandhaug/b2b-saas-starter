@@ -79,15 +79,15 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 
 **Blocked by:** Establish Operations Auth and Contract Seams.
 
-- [ ] Operator Managers can list operators and inspect enabled state, enrollment state, assigned roles, active-session state, and relevant timestamps without seeing credentials.
-- [ ] Operator Managers can assign and remove multiple predefined Better Auth roles from another operator.
-- [ ] Operators cannot change their own roles or enabled state.
-- [ ] Removing, disabling, or deleting the last enabled Operator Manager is rejected atomically.
-- [ ] Role changes are effective on the affected operator's next protected request.
-- [ ] Disabling an operator atomically revokes the active Operator Session.
-- [ ] Re-enabling an operator does not restore a revoked session or bypass TOTP.
-- [ ] Management actions and rejected attempts are durably audited with real actor, target, result, and timestamp.
-- [ ] UI and integration tests cover composed roles, immediate removal, self-change denial, last-manager protection, disablement, and stale-page submissions.
+- [x] Operator Managers can list operators and inspect enabled state, enrollment state, assigned roles, active-session state, and relevant timestamps without seeing credentials.
+- [x] Operator Managers can assign and remove multiple predefined Better Auth roles from another operator.
+- [x] Operators cannot change their own roles or enabled state.
+- [x] Removing, disabling, or deleting the last enabled Operator Manager is rejected atomically.
+- [x] Role changes are effective on the affected operator's next protected request.
+- [x] Disabling an operator atomically revokes the active Operator Session.
+- [x] Re-enabling an operator does not restore a revoked session or bypass TOTP.
+- [x] Management actions and rejected attempts are durably audited with real actor, target, result, and timestamp.
+- [x] UI and integration tests cover composed roles, immediate removal, self-change denial, last-manager protection, disablement, and stale-page submissions.
 
 ## Discover Merchants and Merchant Members
 
@@ -255,3 +255,28 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 - [x] Builds, migrations, unit and integration tests, browser tests, formatting, linting, and the complete release matrix pass from a clean setup.
 - [x] The first production operator can be established before public Operations traffic is enabled.
 - [x] The Operations Vertical Slice is demoable from operator sign-in through discovery, impersonation, visible disclosure, safe action, termination, target notification, and global audit review.
+
+## Migrate the Operations App to TanStack Start
+
+**What to build:** Replace the raw HTML Cloudflare Worker application boundary with a TanStack Start web application that gives System Operators the same completed Operations journeys through typed React routes while preserving the separate auth realm and every existing security, audit, notification, and impersonation invariant.
+
+**Blocked by:** Cut Over to the Operations Model.
+
+- [x] The Operations App uses the repository's established TanStack Start, TanStack Router, React, Vite, and Cloudflare deployment conventions for browser-facing product applications.
+- [x] Development and production builds run through the TanStack Start/Vite pipeline while retaining the dedicated Operations Worker, origin, bindings, secrets, and deployment identity.
+- [x] A typed route tree and application shell cover sign-in, TOTP, enrollment, Merchant discovery, Merchant detail, Member detail, operator management, global audit review, and impersonation initiation.
+- [x] Existing server-rendered HTML strings are replaced by accessible React screens and components with loading, empty, validation, forbidden, expired, and unavailable states.
+- [x] Better Auth remains a separate Operations Auth realm with its existing host-only cookie namespace, trusted origins, session policy, custom roles, TOTP requirements, endpoint allowlist, and stock-admin endpoint denial.
+- [x] Existing Effect capabilities remain the sole owners of Operations authorization, discovery, audit, impersonation, lifecycle, and mutation policy; route loaders, server functions, and React components do not duplicate business rules.
+- [x] Existing D1 schema and persisted operator, invitation, audit, handoff, impersonation, and notification facts remain compatible without destructive migration or data loss.
+- [x] Auth callbacks, readiness, deterministic local email capture, and other non-page HTTP contracts are preserved as explicit server routes with their current status, privacy, and cache behavior.
+- [x] The top-level POST Impersonation Handoff remains URL-free, single-use, cross-origin isolated, and compatible with the Merchant App's atomic exchange contract.
+- [x] Dedicated rate limits and repeated-failure auditing still protect authentication, TOTP, reads, search, management, impersonation start, and handoff exchange at authoritative server boundaries.
+- [x] Operator Session replacement, idle and absolute expiry, immediate role changes, disablement, emergency recovery, and derived impersonation revocation retain their existing behavior.
+- [x] Merchant search, Member search, details, eligibility, reason capture, fresh TOTP, concurrency rejection, audit review, and permission denial are exercised through the hydrated TanStack UI.
+- [ ] Browser tests drive the real TanStack routes and prove sign-in, enrollment, management, discovery, impersonation start, audit review, navigation, form errors, authorization failures, and session expiry without relying on raw HTML implementation details.
+- [x] Existing capability, D1 integration, Better Auth, handoff, notification, rate-limit, and security-matrix tests continue to pass without weakening assertions.
+- [x] A fast architecture regression test fails when a browser-facing Operations application lacks the required TanStack Start dependency, Vite integration, router, server entry, or generated route tree.
+- [x] Operations intent, architecture, ADR, source specification, and operating documentation explicitly state that the Operations App is a TanStack Start application deployed as its own Cloudflare Worker.
+- [ ] Obsolete raw Worker page rendering and response helpers are removed only after every route and test has moved to the TanStack boundary.
+- [x] Formatting, linting, type checking, unit and integration tests, browser tests, production build, and the complete Operations security evidence matrix pass after migration.

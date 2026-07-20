@@ -6,6 +6,11 @@ The Operations App is a sixth Worker on a staff-only origin with its own Better
 Auth secret, trusted origins, host-only cookie namespace, and rate limits. Do not
 send traffic to that origin until the following sequence is complete:
 
+Its browser application is TanStack Start. Local development runs the Vite
+pipeline with `bun run dev:operations`; production artifacts are generated with
+`bun --cwd apps/operations build` and retain the same dedicated Worker name,
+origin, D1/email/rate-limit bindings, and Operations Auth configuration.
+
 1. Configure distinct `MERCHANT_AUTH_SECRET` and `OPERATIONS_AUTH_SECRET` values,
    the exact `OPERATIONS_APP_ORIGIN`, `OPERATIONS_AUTH_TRUSTED_ORIGINS`,
    `OPERATIONS_SECURITY_CONTACT`, every Operations rate limit, and a verified

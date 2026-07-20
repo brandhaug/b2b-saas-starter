@@ -168,11 +168,18 @@ export const handleOperatorManagementRoutes = async (
     }
   }
 
-  if (options.request.method !== 'GET' || url.pathname !== '/operators') return null
+  const isJsonRequest = url.pathname === '/api/operations/operators'
+  if (
+    options.request.method !== 'GET' ||
+    (url.pathname !== '/operators' && !isJsonRequest)
+  )
+    return null
   try {
     const operators = await runManagement((management) =>
       management.list(options.reference)
     )
+    if (isJsonRequest)
+      return Response.json({ actorOperatorId: options.actor.id, operators })
     const result = url.searchParams.get('result')
     const notice =
       result === 'roles-updated'

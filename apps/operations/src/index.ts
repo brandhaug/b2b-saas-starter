@@ -409,6 +409,10 @@ export const createOperationsWorker = () => ({
     const principal = reference ? await authorize(db, reference) : null
     if (!principal) return redirect('/sign-in')
 
+    if (request.method === 'GET' && url.pathname === '/api/operations/session') {
+      return Response.json({ principal })
+    }
+
     const runDiscovery = <A>(
       use: (
         discovery: OperationsDiscovery['Service']
@@ -537,6 +541,13 @@ export const createOperationsWorker = () => ({
         const result = await runImpersonation((impersonation) =>
           impersonation.start(startRequest)
         )
+        if (request.headers.get('accept')?.includes('application/json')) {
+          return Response.json({
+            handoffTicket: result.handoffTicket,
+            expiresAt: result.expiresAt,
+            merchantAppOrigin: config.merchantBaseURL
+          })
+        }
         return html(
           'Pending Handoff created',
           `<h1>Pending Handoff created</h1><p>This single-use handoff expires at <time datetime="${escapeHtml(result.expiresAt)}">${escapeHtml(result.expiresAt)}</time>.</p><form method="post" action="${escapeHtml(config.merchantBaseURL)}/impersonation/handoffs/exchange"><input type="hidden" name="ticket" value="${escapeHtml(result.handoffTicket)}"><button type="submit">Continue to Merchant App</button></form>`
@@ -553,18 +564,25 @@ export const createOperationsWorker = () => ({
       }
     }
 
-    const auditDetailRoute = url.pathname.match(/^\/audit\/([^/]+)$/)
+    const auditDetailRoute = url.pathname.match(
+      /^\/(?:api\/operations\/)?audit\/([^/]+)$/
+    )
     if (request.method === 'GET' && auditDetailRoute) {
       try {
         const event = await runAudit((audit) =>
           audit.get(reference!, decodeURIComponent(auditDetailRoute[1]!))
         )
-        return html(`${event.action} — Global audit`, auditDetailHtml(event))
+        return url.pathname.startsWith('/api/')
+          ? Response.json({ event })
+          : html(`${event.action} — Global audit`, auditDetailHtml(event))
       } catch (error) {
         return auditErrorResponse(error)
       }
     }
-    if (request.method === 'GET' && url.pathname === '/audit') {
+    if (
+      request.method === 'GET' &&
+      (url.pathname === '/audit' || url.pathname === '/api/operations/audit')
+    ) {
       const action = url.searchParams.get('action')?.trim().slice(0, 120) || undefined
       const resultValue = url.searchParams.get('result')
       const result =
@@ -588,6 +606,7 @@ export const createOperationsWorker = () => ({
             ...(cursor ? { cursor } : {})
           })
         )
+        if (url.pathname.startsWith('/api/')) return Response.json(page)
         const rows = page.events.length
           ? page.events.map(auditResultHtml).join('')
           : '<tr><td colspan="7">No matching Operations audit events.</td></tr>'

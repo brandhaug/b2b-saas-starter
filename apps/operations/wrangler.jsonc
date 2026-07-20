@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "b2b-saas-starter-operations",
-  "main": "src/index.ts",
+  "main": "src/server.ts",
   "workers_dev": false,
   "compatibility_date": "2026-05-16",
   "compatibility_flags": ["nodejs_compat"],
