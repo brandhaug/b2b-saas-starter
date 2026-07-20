@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { CatalogShell } from '@/components/catalog-shell.tsx'
+import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import type { ScheduleRule } from '@b2b-saas-starter/capabilities/scheduling'
 import {
   getSchedulingConfiguration,
@@ -34,8 +34,8 @@ function AvailabilityPage() {
   const rules = data.rules[providerId] ?? []
 
   return (
-    <CatalogShell
-      catalog={data.snapshot}
+    <MerchantShell
+      section={{ kind: 'catalog', presentation: data.snapshot.presentation }}
       title="Availability"
       description={`Recurring weekly Provider hours use ${data.merchant.timezone}. Availability is derived live; generated Time Slots are never stored.`}
     >
@@ -117,7 +117,7 @@ function AvailabilityPage() {
         </section>
       </div>
       {message ? <p className="mt-4 text-sm text-muted-foreground">{message}</p> : null}
-    </CatalogShell>
+    </MerchantShell>
   )
 }
 

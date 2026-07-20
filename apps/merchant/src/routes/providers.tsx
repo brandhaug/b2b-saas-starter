@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import type { ProviderRecord } from '@b2b-saas-starter/capabilities/merchant-catalog'
-import { CatalogShell } from '@/components/catalog-shell.tsx'
+import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import { formValue } from '@/lib/form-value.ts'
 import {
   getMerchantCatalog,
@@ -26,8 +26,8 @@ function ProvidersPage() {
 
   if (catalog.presentation === 'solo') {
     return (
-      <CatalogShell
-        catalog={catalog}
+      <MerchantShell
+        section={{ kind: 'catalog', presentation: catalog.presentation }}
         title="Provider administration is hidden"
         description="Solo uses the persisted default Provider automatically, so there is no separate Provider setup to maintain."
       >
@@ -37,13 +37,13 @@ function ProvidersPage() {
         >
           Configure services
         </Link>
-      </CatalogShell>
+      </MerchantShell>
     )
   }
 
   return (
-    <CatalogShell
-      catalog={catalog}
+    <MerchantShell
+      section={{ kind: 'catalog', presentation: catalog.presentation }}
       title="Providers"
       description="Team Provider editing keeps the reduced Profile, Services, and Schedule vocabulary. Schedule rules arrive in the next configuration slice."
     >
@@ -74,7 +74,7 @@ function ProvidersPage() {
         </aside>
         <ProviderEditor key={provider?.id ?? 'new'} provider={provider} />
       </div>
-    </CatalogShell>
+    </MerchantShell>
   )
 }
 

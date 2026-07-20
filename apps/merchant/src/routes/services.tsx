@@ -4,7 +4,7 @@ import type {
   MerchantCatalogSnapshot,
   ServiceRecord
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
-import { CatalogShell } from '@/components/catalog-shell.tsx'
+import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import { serviceProviderChoices } from '@/lib/catalog-workflow.ts'
 import { formValue } from '@/lib/form-value.ts'
 import {
@@ -31,8 +31,8 @@ function ServicesPage() {
   const selected = catalog.services.find((service) => service.id === selectedId) ?? null
 
   return (
-    <CatalogShell
-      catalog={catalog}
+    <MerchantShell
+      section={{ kind: 'catalog', presentation: catalog.presentation }}
       title="Services"
       description="Configure customer-facing details first, then choose the Providers who can perform each Service. Inactive Services stay available for history."
     >
@@ -89,7 +89,7 @@ function ServicesPage() {
           }}
         />
       </div>
-    </CatalogShell>
+    </MerchantShell>
   )
 }
 

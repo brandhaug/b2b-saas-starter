@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { OperationsShell } from '@/components/operations-shell.tsx'
+import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import { formatAppointmentDateTime } from '@/lib/appointment-format.ts'
 import { getCustomerDirectory } from '@/lib/server/appointment-operations.ts'
 import { requireMerchantSession } from '@/lib/server/merchant-session.ts'
@@ -13,7 +13,8 @@ export const Route = createFileRoute('/customers')({
 function CustomersPage() {
   const directory = Route.useLoaderData()
   return (
-    <OperationsShell
+    <MerchantShell
+      section={{ kind: 'operations' }}
       title="Customers"
       description="One captured Customer Details entry per Appointment. Matching contact details are not merged into identities."
     >
@@ -57,6 +58,6 @@ function CustomersPage() {
           </table>
         </div>
       )}
-    </OperationsShell>
+    </MerchantShell>
   )
 }

@@ -14,6 +14,8 @@ import {
   getImpersonationLifecycle,
   stopImpersonation
 } from '@/lib/server/impersonation-lifecycle.ts'
+import { MerchantPresentationProvider } from '@/components/merchant-shell/merchant-presentation.tsx'
+import { getMerchantPresentation } from '@/lib/server/merchant-presentation.ts'
 import appCss from '../index.css?url'
 
 export const Route = createRootRoute({
@@ -30,15 +32,19 @@ export const Route = createRootRoute({
     links: [{ rel: 'stylesheet', href: appCss }]
   }),
   beforeLoad: async () => {
-    const lifecycle = await getImpersonationLifecycle()
+    const [lifecycle, presentation] = await Promise.all([
+      getImpersonationLifecycle(),
+      getMerchantPresentation()
+    ])
     if (lifecycle?.state === 'terminated') throw redirect({ href: lifecycle.returnTo })
-    return { impersonationLifecycle: lifecycle }
+    return { impersonationLifecycle: lifecycle, merchantPresentation: presentation }
   },
   component: RootComponent
 })
 
 function RootComponent() {
-  const { impersonationLifecycle: lifecycle } = Route.useRouteContext()
+  const { impersonationLifecycle: lifecycle, merchantPresentation: presentation } =
+    Route.useRouteContext()
   const router = useRouter()
   return (
     <RootDocument>
@@ -55,7 +61,9 @@ function RootComponent() {
           }}
         />
       ) : null}
-      <Outlet />
+      <MerchantPresentationProvider presentation={presentation}>
+        <Outlet />
+      </MerchantPresentationProvider>
     </RootDocument>
   )
 }
