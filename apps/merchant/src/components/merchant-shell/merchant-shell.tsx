@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useDesktopWorkspaceMemory } from './desktop-workspace-memory.tsx'
 import { DesktopShell } from './desktop/desktop-shell.tsx'
 import { MerchantPresentationBoundary } from './merchant-presentation.tsx'
 import { merchantDestinations, type MerchantShellSection } from './navigation.tsx'
@@ -18,12 +19,14 @@ export function MerchantShell({
   readonly children: ReactNode
 }) {
   const destinations = merchantDestinations()
+  const desktopWorkspace = useDesktopWorkspaceMemory()
 
   return (
     <MerchantPresentationBoundary
       desktop={
         <DesktopShell
           layout={layout === 'home' ? 'home' : 'modal'}
+          backgroundContent={desktopWorkspace.current}
           section={section}
           destinations={destinations}
           title={title}

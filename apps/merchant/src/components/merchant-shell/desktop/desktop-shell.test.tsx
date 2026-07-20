@@ -41,7 +41,12 @@ function renderShell(layout: 'home' | 'modal') {
   return renderToStaticMarkup(
     <DesktopShell
       layout={layout}
-      section={{ kind: 'merchant' }}
+      backgroundContent={<p>Loaded appointments dashboard</p>}
+      section={
+        layout === 'home'
+          ? { kind: 'merchant' }
+          : { kind: 'catalog', presentation: 'solo' }
+      }
       destinations={destinations}
       title={layout === 'home' ? 'Appointments' : 'Customers'}
       description="Route description"
@@ -52,31 +57,28 @@ function renderShell(layout: 'home' | 'modal') {
 }
 
 describe('DesktopShell', () => {
-  it('renders Appointments as a compact centered home with five primary actions', () => {
+  it('renders Appointments as the full desktop workspace with standard navigation', () => {
     const html = renderShell('home')
-    const actions = html.match(
-      /<nav aria-label="Merchant desktop home actions"[\s\S]*?<\/nav>/
-    )?.[0]
 
-    expect(html).toContain('aria-label="Merchant desktop home"')
-    expect(html).not.toContain('aria-label="Merchant App"')
+    expect(html).toContain('aria-label="Merchant App"')
+    expect(html).toContain('Appointments')
+    expect(html).toContain('Route content')
     expect(html).not.toContain('<dialog')
-    expect(actions?.match(/data-desktop-home-action="true"/g)).toHaveLength(5)
-    expect(actions).toMatch(
-      /Walk-ins[\s\S]*Customers[\s\S]*Services[\s\S]*Providers[\s\S]*More/
-    )
+    expect(html).not.toContain('Merchant desktop home actions')
   })
 
-  it('renders secondary URLs as a modal over the desktop home canvas', () => {
+  it('renders secondary URLs as a modal over an inert desktop workspace', () => {
     const html = renderShell('modal')
 
-    expect(html).toContain('aria-label="Merchant desktop home"')
+    expect(html).toContain('aria-label="Merchant App"')
     expect(html).toContain('aria-hidden="true"')
+    expect(html).toContain('inert=""')
     expect(html).toContain('<dialog')
     expect(html).toContain('aria-modal="true"')
     expect(html).toContain('aria-label="Close Customers"')
     expect(html).toContain('data-search-date="2026-07-27"')
     expect(html).toContain('Route content')
-    expect(html).not.toContain('aria-label="Merchant App"')
+    expect(html).toContain('Loaded appointments dashboard')
+    expect(html.match(/Merchant catalog/g)).toHaveLength(1)
   })
 })

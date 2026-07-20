@@ -14,18 +14,26 @@ import {
   stopImpersonation
 } from '@/lib/server/impersonation-lifecycle.ts'
 import { MerchantPresentationProvider } from '@/components/merchant-shell/merchant-presentation.tsx'
+import { DesktopWorkspaceMemoryProvider } from '@/components/merchant-shell/desktop-workspace-memory.tsx'
+import { DesktopAppointmentsScreen } from '@/features/appointments/desktop/desktop-appointments-screen.tsx'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
+import { loadDesktopWorkspaceCalendar } from '@/lib/server/desktop-workspace.ts'
 import { getMerchantPresentation } from '@/lib/server/merchant-presentation.ts'
 import appCss from '../index.css?url'
 
 export const Route = createRootRoute({
-  beforeLoad: async () => {
-    const [lifecycle, presentation] = await Promise.all([
+  beforeLoad: async ({ location }) => {
+    const [lifecycle, presentation, desktopAppointmentCalendar] = await Promise.all([
       getImpersonationLifecycle(),
-      getMerchantPresentation()
+      getMerchantPresentation(),
+      loadDesktopWorkspaceCalendar(location)
     ])
     if (lifecycle?.state === 'terminated') throw redirect({ href: lifecycle.returnTo })
-    return { impersonationLifecycle: lifecycle, merchantPresentation: presentation }
+    return {
+      impersonationLifecycle: lifecycle,
+      merchantPresentation: presentation,
+      desktopAppointmentCalendar
+    }
   },
   head: () => ({
     meta: [
@@ -42,8 +50,11 @@ export const Route = createRootRoute({
 })
 
 function RootComponent() {
-  const { impersonationLifecycle: lifecycle, merchantPresentation: presentation } =
-    Route.useRouteContext()
+  const {
+    impersonationLifecycle: lifecycle,
+    merchantPresentation: presentation,
+    desktopAppointmentCalendar
+  } = Route.useRouteContext()
   const router = useRouter()
   return (
     <RootDocument presentation={presentation}>
@@ -61,7 +72,19 @@ function RootComponent() {
         />
       ) : null}
       <MerchantPresentationProvider presentation={presentation}>
-        <Outlet />
+        <DesktopWorkspaceMemoryProvider
+          key={desktopAppointmentCalendar ? 'merchant' : 'public'}
+          fallback={
+            desktopAppointmentCalendar ? (
+              <DesktopAppointmentsScreen
+                calendar={desktopAppointmentCalendar}
+                selectedDate={desktopAppointmentCalendar.date}
+              />
+            ) : null
+          }
+        >
+          <Outlet />
+        </DesktopWorkspaceMemoryProvider>
       </MerchantPresentationProvider>
     </RootDocument>
   )
