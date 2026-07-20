@@ -12,7 +12,7 @@ import type {
   BookingAvailability,
   BookingTimeSlot
 } from '@b2b-saas-starter/capabilities/booking'
-import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
+import { BookingIcon } from '../presentation/booking-icon.tsx'
 import {
   translateBookingMessage,
   type BookingLocale,
@@ -178,8 +178,8 @@ export function BookingSchedulingFlow({
             onClick={onBack}
             {...stylex.props(styles.iconButton, styles.backButton)}
           >
-            <BookingVisualAsset
-              assetRole="navigation-back"
+            <BookingIcon
+              iconRole="navigation-back"
               {...stylex.props(styles.backIcon)}
             />
           </button>
@@ -216,8 +216,8 @@ export function BookingSchedulingFlow({
         {availability.slots.length === 0 && availability.hold ? (
           <div {...stylex.props(styles.empty)}>
             <span {...stylex.props(styles.emptyIcon)}>
-              <BookingVisualAsset
-                assetRole="calendar-scheduling"
+              <BookingIcon
+                iconRole="calendar-scheduling"
                 {...stylex.props(styles.icon20)}
               />
             </span>
@@ -237,8 +237,8 @@ export function BookingSchedulingFlow({
         ) : availability.slots.length === 0 ? (
           <div {...stylex.props(styles.empty)}>
             <span {...stylex.props(styles.emptyIcon)}>
-              <BookingVisualAsset
-                assetRole="calendar-scheduling"
+              <BookingIcon
+                iconRole="calendar-scheduling"
                 {...stylex.props(styles.icon20)}
               />
             </span>

@@ -321,20 +321,6 @@ accept(
 )
 
 accept(
-  'asset-policy',
-  'booking-app/assets',
-  'implemented',
-  {
-    manifest: 'Every shipped visual binary has provenance and integrity metadata.',
-    'prohibited-fonts': 'Legacy SF Pro and password-mask binaries are prohibited.',
-    'licensed-bebas': 'Bebas Neue comes from a traceable OFL upstream artifact.',
-    'product-owned-replacements': 'Unknown UI art is independently owned or licensed.',
-    'official-provider-marks': 'Provider marks come from approved official sources.'
-  },
-  'issues/13-establish-visual-asset-provenance-and-replacement-policy.md'
-)
-
-accept(
   'retirement',
   'architecture/cutover',
   'planned',

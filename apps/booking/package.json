@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun src/dev.ts",
     "build": "vite build",
+    "prototype:parity-harness": "bun prototypes/parity-harness/tui.ts",
     "parity:smoke": "bun scripts/run-parity-smoke.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
@@ -14,8 +15,6 @@
     "@b2b-saas-starter/capabilities": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
-    "@fontsource-variable/geist": "catalog:",
-    "@fontsource-variable/geist-mono": "catalog:",
     "@stylexjs/stylex": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
@@ -25,7 +24,8 @@
     "lucide-react": "catalog:",
     "motion": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "react-grab": "^0.1.48"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",

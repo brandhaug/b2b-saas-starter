@@ -1,38 +1,40 @@
 import {
   CalendarDays,
-  Check,
-  CreditCard,
   MapPin,
   Search,
   Scissors,
   Store,
-  UsersRound,
   X,
   type LucideIcon,
   type LucideProps
 } from 'lucide-react'
 import type { ComponentType } from 'react'
-import { visualAssetManifest } from './visual-asset-manifest.ts'
-import { resolveVisualAsset, type VisualAssetRole } from './visual-asset-policy.ts'
-import './booking-visual-asset.css'
 
-const bundledShippingAssets = import.meta.glob<string>('./shipping/*', {
-  eager: true,
-  import: 'default',
-  query: '?url'
-})
+export type BookingIconRole =
+  | 'navigation-back'
+  | 'navigation-menu'
+  | 'language-selector'
+  | 'location-nearby'
+  | 'location-search'
+  | 'booking-shop'
+  | 'dismiss'
+  | 'calendar-scheduling'
+  | 'service-category'
+  | 'any-provider-selection'
+  | 'gift-card-selection'
+  | 'sign-in-cta'
+  | 'popup-close'
+  | 'policy-cancellation'
+  | 'policy-status-check'
+  | 'identity-apple'
+  | 'identity-google'
 
 const iconByName: Readonly<Record<string, LucideIcon>> = {
   'calendar-days': CalendarDays,
-  check: Check,
-  'credit-card': CreditCard,
-  'group-appointment-motion': UsersRound,
   'map-pin': MapPin,
   search: Search,
   scissors: Scissors,
   store: Store,
-  'users-round': UsersRound,
-  'walk-in-status-composition': Store,
   x: X
 }
 
@@ -203,53 +205,46 @@ const codeNativeIconByName: Readonly<Record<string, ComponentType<LucideProps>>>
   'legacy-policy-status-check': LegacyPolicyStatusCheck
 }
 
-export function BookingVisualAsset({
-  assetRole,
-  enabledProviders = [],
-  today = new Date().toISOString().slice(0, 10),
+const iconNameByRole: Readonly<
+  Partial<Record<BookingIconRole, keyof typeof codeNativeIconByName>>
+> = {
+  'navigation-back': 'legacy-back-chevron',
+  'navigation-menu': 'legacy-widget-menu',
+  'language-selector': 'legacy-language-globe',
+  'location-nearby': 'map-pin',
+  'location-search': 'search',
+  'booking-shop': 'store',
+  dismiss: 'x',
+  'calendar-scheduling': 'calendar-days',
+  'service-category': 'scissors',
+  'any-provider-selection': 'legacy-any-provider-arrows',
+  'gift-card-selection': 'legacy-gift-card',
+  'sign-in-cta': 'legacy-sign-in-cta',
+  'popup-close': 'legacy-popup-close',
+  'policy-cancellation': 'legacy-policy-cancellation',
+  'policy-status-check': 'legacy-policy-status-check'
+}
+
+const textByRole: Readonly<Partial<Record<BookingIconRole, string>>> = {
+  'identity-apple': 'Continue with Apple',
+  'identity-google': 'Continue with Google'
+}
+
+export function BookingIcon({
+  iconRole,
   label,
   ...iconProps
 }: LucideProps & {
-  readonly assetRole: VisualAssetRole
-  readonly enabledProviders?: readonly string[]
-  readonly today?: string
+  readonly iconRole: BookingIconRole
   readonly label?: string
 }) {
-  const asset = resolveVisualAsset({
-    role: assetRole,
-    enabledProviders,
-    entries: visualAssetManifest,
-    today
-  })
+  const iconName = iconNameByRole[iconRole]
+  if (!iconName) {
+    const text = textByRole[iconRole]
+    return text ? <span className={iconProps.className}>{label ?? text}</span> : null
+  }
 
-  if (asset.kind === 'code-native') {
-    const Icon = codeNativeIconByName[asset.name]
-    if (!Icon) return null
-    const motionClass =
-      asset.name === 'group-appointment-motion'
-        ? 'booking-group-appointment-motion'
-        : undefined
-    const className = [iconProps.className, motionClass].filter(Boolean).join(' ')
-    return <Icon {...iconProps} className={className || undefined} />
-  }
-  if (asset.kind === 'local-manifest-asset') {
-    const shippingPath = asset.file.replace(/^src\/assets\//, './')
-    const source = asset.file.startsWith('public/')
-      ? `/${asset.file.slice('public/'.length)}`
-      : bundledShippingAssets[shippingPath]
-    if (!source) return null
-    return (
-      <img
-        src={source}
-        alt={label ?? ''}
-        data-asset-id={asset.assetId}
-        data-integrity={asset.integrity}
-        className={iconProps.className}
-      />
-    )
-  }
-  if (asset.kind === 'text') {
-    return <span className={iconProps.className}>{label ?? asset.label}</span>
-  }
-  return null
+  const Icon = codeNativeIconByName[iconName]
+  if (!Icon) return null
+  return <Icon {...iconProps} />
 }

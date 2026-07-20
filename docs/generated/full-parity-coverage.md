@@ -2,8 +2,8 @@
 
 Generated from `apps/booking/src/parity/full-parity-manifest.ts`. Do not edit this report by hand.
 
-- Accepted inventory items: 168
-- Assigned entries: 168
+- Accepted inventory items: 163
+- Assigned entries: 163
 - Unowned entries: 0
 - Duplicate assignments: 0
 - Orphan assignments: 0
@@ -11,7 +11,7 @@ Generated from `apps/booking/src/parity/full-parity-manifest.ts`. Do not edit th
 
 | Status      | Entries |
 | ----------- | ------: |
-| planned     |     157 |
-| implemented |      11 |
-| verified    |       0 |
+| planned     |     132 |
+| implemented |      15 |
+| verified    |      16 |
 | waived      |       0 |

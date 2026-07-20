@@ -23,7 +23,7 @@ import type {
   ServiceSelection,
   TimeSlotHold
 } from '@b2b-saas-starter/capabilities/booking'
-import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
+import { BookingIcon } from '../presentation/booking-icon.tsx'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
 import type { BookingLocale } from '../localization/booking-localization.ts'
 import { formatProviderAvailability } from '../presentation/provider-availability-format.ts'
@@ -50,10 +50,9 @@ type BookingSelectionFlowProps = {
   readonly continuation?: {
     readonly title: string
     readonly content: ReactNode
-    readonly busy: boolean
-    readonly busyLabel: string
     readonly onBack: () => void
     readonly overlay?: (target: HTMLElement | null) => ReactNode
+    readonly cartFullscreen?: boolean
     readonly pendingCheckout?: {
       readonly ctaLabel: string
     }
@@ -261,10 +260,7 @@ function BookingSelectionFlowContent({
     titleScrollState.presenceKey === routePresenceKey && titleScrollState.scrolled
 
   return (
-    <BookingWidgetShell
-      busy={continuation?.busy ?? false}
-      {...(continuation ? { busyLabel: continuation.busyLabel } : {})}
-    >
+    <BookingWidgetShell>
       <div
         data-testid="container:title"
         {...stylex.props(styles.header, titleScrolled && styles.headerScrolled)}
@@ -298,8 +294,8 @@ function BookingSelectionFlowContent({
                 }}
                 {...stylex.props(styles.iconButton, styles.backButton)}
               >
-                <BookingVisualAsset
-                  assetRole="navigation-back"
+                <BookingIcon
+                  iconRole="navigation-back"
                   {...stylex.props(styles.backIcon)}
                 />
               </m.button>
@@ -467,6 +463,7 @@ function BookingSelectionFlowContent({
                   : {})}
               {...(heldOrder ? { continueLabel: heldOrder.continueLabel } : {})}
               keepOpenOnContinue={Boolean(heldOrder)}
+              fullscreen={Boolean(continuation?.cartFullscreen)}
             />
           ) : null}
         </AnimatePresence>
@@ -544,10 +541,7 @@ function LocationGrid({
           {...stylex.props(styles.locationAction)}
         >
           <span>{messages.nearby}</span>
-          <BookingVisualAsset
-            assetRole="location-nearby"
-            {...stylex.props(styles.icon16)}
-          />
+          <BookingIcon iconRole="location-nearby" {...stylex.props(styles.icon16)} />
         </button>
         <button
           type="button"
@@ -557,19 +551,13 @@ function LocationGrid({
           {...stylex.props(styles.locationAction)}
         >
           <span>{messages.search}</span>
-          <BookingVisualAsset
-            assetRole="location-search"
-            {...stylex.props(styles.icon16)}
-          />
+          <BookingIcon iconRole="location-search" {...stylex.props(styles.icon16)} />
         </button>
       </div>
       {searchOpen ? (
         <label {...stylex.props(styles.locationSearch)}>
           <span {...stylex.props(styles.srOnly)}>{messages.search}</span>
-          <BookingVisualAsset
-            assetRole="location-search"
-            {...stylex.props(styles.icon16)}
-          />
+          <BookingIcon iconRole="location-search" {...stylex.props(styles.icon16)} />
           <input
             type="search"
             value={query}
@@ -591,8 +579,8 @@ function LocationGrid({
             {...stylex.props(styles.locationCard)}
           >
             <span {...stylex.props(styles.locationImage)}>
-              <BookingVisualAsset
-                assetRole="booking-shop"
+              <BookingIcon
+                iconRole="booking-shop"
                 {...stylex.props(styles.locationPlaceholder)}
               />
             </span>
@@ -666,8 +654,8 @@ function ProviderGrid({
           !publicProviderAvailable && styles.providerCardDisabled
         )}
       >
-        <BookingVisualAsset
-          assetRole="any-provider-selection"
+        <BookingIcon
+          iconRole="any-provider-selection"
           {...stylex.props(styles.anyProviderIcon)}
         />
         <p
@@ -801,8 +789,8 @@ function ProviderGrid({
             busy && styles.providerCardBusy
           )}
         >
-          <BookingVisualAsset
-            assetRole="gift-card-selection"
+          <BookingIcon
+            iconRole="gift-card-selection"
             {...stylex.props(styles.giftCardIcon)}
           />
           <p data-testid="text:title" {...stylex.props(styles.giftCardTitle)}>
@@ -860,10 +848,7 @@ function ServiceGrid({
     return (
       <div {...stylex.props(styles.empty)}>
         <span {...stylex.props(styles.emptyIcon)}>
-          <BookingVisualAsset
-            assetRole="service-category"
-            {...stylex.props(styles.icon20)}
-          />
+          <BookingIcon iconRole="service-category" {...stylex.props(styles.icon20)} />
         </span>
         <h2 {...stylex.props(styles.emptyTitle)}>{messages.noServicesTitle}</h2>
         <p {...stylex.props(styles.emptyCopy)}>
@@ -1545,6 +1530,7 @@ function OrderSummary({
   onClose,
   onContinue,
   keepOpenOnContinue = false,
+  fullscreen = false,
   continueLabel,
   quote,
   timeZone = 'UTC'
@@ -1557,6 +1543,7 @@ function OrderSummary({
   readonly onClose: () => void
   readonly onContinue?: () => void
   readonly keepOpenOnContinue?: boolean
+  readonly fullscreen?: boolean
   readonly continueLabel?: string
   readonly quote?: TimeSlotHold['quote']
   readonly timeZone?: string
@@ -1605,11 +1592,15 @@ function OrderSummary({
       aria-modal="true"
       aria-label="Order summary"
       data-testid="cart:booking"
-      data-cart-state="expanded"
+      data-cart-state={fullscreen ? 'fullscreen' : 'expanded'}
       data-cart-mode={quote ? 'scheduleChosen' : undefined}
       tabIndex={-1}
       initial={{ y: '100%' }}
-      animate={{ y: 0, height: 'calc(100% + 1px)' }}
+      animate={{
+        y: 0,
+        height: fullscreen ? '100%' : 'calc(100% + 1px)',
+        borderRadius: fullscreen ? 0 : '20px 20px 0 0'
+      }}
       exit={{ y: '100%', transition: { duration: 0.15, ease: 'easeInOut' } }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       onKeyDown={(event) => {
@@ -1796,14 +1787,17 @@ function OrderSummary({
               </div>
               <button
                 type="button"
-                disabled={!onContinue}
+                data-testid="btn:chooseTime"
+                disabled={!interactive || !onContinue}
                 onClick={() => {
                   if (!keepOpenOnContinue) onClose()
                   onContinue?.()
                 }}
-                {...stylex.props(styles.primaryButton, styles.drawerButton)}
+                {...stylex.props(styles.drawerButton)}
               >
-                {displayedContinueLabel}
+                <p {...stylex.props(styles.drawerButtonText)}>
+                  {displayedContinueLabel}
+                </p>
               </button>
             </m.div>
           </div>

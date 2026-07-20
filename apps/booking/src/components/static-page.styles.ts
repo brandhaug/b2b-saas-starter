@@ -31,7 +31,7 @@ export const staticPageStyles = stylex.create({
     fontWeight: 650
   },
   mono: {
-    fontFamily: 'Geist Mono, ui-monospace, monospace'
+    fontFamily: 'ui-monospace, monospace'
   },
   title: {
     marginTop: 8,

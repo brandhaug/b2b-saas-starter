@@ -1,13 +1,13 @@
 import * as stylex from '@stylexjs/stylex'
 
 export const bookingTheme = stylex.defineVars({
-  fontText: '"Geist Variable", ui-sans-serif, sans-serif, system-ui',
-  fontDisplay: '"Geist Variable", ui-sans-serif, sans-serif, system-ui',
+  fontText: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+  fontDisplay: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
   fontLegacyText:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
   fontLegacyDisplay:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-  fontPrice: 'Geist Mono, ui-monospace, monospace',
+  fontPrice: 'ui-monospace, monospace',
   textCaption: '12px',
   textFootnote: '13px',
   textBody: '15px',

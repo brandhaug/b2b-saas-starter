@@ -1,14 +1,15 @@
 import * as stylex from '@stylexjs/stylex'
 import { useEffect, useRef, useState } from 'react'
-import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
+import { BookingIcon } from '../presentation/booking-icon.tsx'
 import {
   BOOKING_LANGUAGE_NAMES,
-  BOOKING_LOCALES,
   type BookingLocale
 } from '../localization/booking-localization.ts'
 import { useBookingLocalization } from '../localization/booking-localization-provider.tsx'
 import { BookingPopupSheet } from '../presentation/booking-primitives.tsx'
 import { bookingTheme } from '../presentation/booking-theme.stylex.ts'
+
+const LEGACY_BOOKING_MENU_LOCALES = ['en', 'fr', 'es'] as const
 
 const styles = stylex.create({
   trigger: {
@@ -91,7 +92,7 @@ const styles = stylex.create({
         ':hover': '0 8px 16px -5px rgb(0 0 0 / 10%)'
       }
     },
-    fontFamily: bookingTheme.fontText,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 12,
     fontWeight: 600,
     lineHeight: '16px',
@@ -131,7 +132,7 @@ const styles = stylex.create({
     borderWidth: 0,
     backgroundColor: { default: '#ffffff', ':hover': '#f7f7f7' },
     color: bookingTheme.colorText,
-    fontFamily: bookingTheme.fontText,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 15,
     lineHeight: '18px',
     letterSpacing: '-0.24px',
@@ -175,14 +176,22 @@ const styles = stylex.create({
   },
   closeIcon: { width: 14, height: 14 },
   body: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
     paddingTop: 8,
     paddingRight: 16,
     paddingBottom: 32,
-    paddingLeft: 16,
-    textAlign: 'center'
+    paddingLeft: 16
+  },
+  hero: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 24
+  },
+  heroCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6
   },
   accountIcon: {
     display: 'grid',
@@ -194,27 +203,34 @@ const styles = stylex.create({
   },
   accountIconSvg: { width: 72, height: 72 },
   title: {
-    marginTop: 20,
+    marginTop: 0,
     marginBottom: 0,
-    fontFamily: bookingTheme.fontDisplay,
+    paddingRight: 24,
+    paddingLeft: 24,
+    fontFamily: bookingTheme.fontLegacyDisplay,
     fontSize: 20,
     fontWeight: 600,
     lineHeight: '24px',
-    letterSpacing: '0.75px'
+    letterSpacing: '0.75px',
+    textAlign: 'center'
   },
   subtitle: {
-    maxWidth: 280,
-    marginTop: 6,
+    marginTop: 0,
     marginBottom: 0,
+    paddingRight: 24,
+    paddingLeft: 24,
     color: bookingTheme.colorTertiaryLabel,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: bookingTheme.textFootnote,
-    lineHeight: '18px'
+    lineHeight: '18px',
+    letterSpacing: '-0.078px',
+    textAlign: 'center'
   },
+  bodySpacer: { height: 40 },
   authControls: {
     display: 'grid',
     width: '100%',
-    gap: 10,
-    marginTop: 28
+    gap: 12
   },
   authButton: {
     display: 'flex',
@@ -227,40 +243,66 @@ const styles = stylex.create({
     paddingLeft: 16,
     borderWidth: 1,
     borderStyle: 'solid',
-    borderColor: bookingTheme.colorCartAuxBorderLight,
+    borderColor: {
+      default: bookingTheme.colorCartAuxBorderLight,
+      ':active': bookingTheme.colorCartAuxBorderLight
+    },
     borderRadius: 12,
-    backgroundColor: bookingTheme.colorSurface,
+    backgroundColor: {
+      default: 'transparent',
+      '@media (hover: hover)': { default: 'transparent', ':hover': '#ffffff' },
+      ':active': 'rgb(238 238 238)'
+    },
     color: bookingTheme.colorText,
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': {
+        default: 'none',
+        ':hover': '0 4px 16px -5px rgb(0 0 0 / 10%)'
+      },
+      ':active': 'none'
+    },
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: bookingTheme.textBody,
     fontWeight: bookingTheme.fontWeightSemibold,
-    opacity: 0.45,
-    cursor: 'not-allowed'
+    lineHeight: '20px',
+    letterSpacing: '-0.24px'
   },
   authButtonPrimary: {
+    borderWidth: 0,
     borderColor: 'transparent',
     backgroundColor: bookingTheme.colorPrimary,
     color: bookingTheme.colorPrimaryFont
   },
   authProviderIcon: { minWidth: 14, fontSize: 14, lineHeight: '14px' },
   googleIcon: { color: '#4285f4', fontWeight: bookingTheme.fontWeightSemibold },
-  footerActions: {
+  footerRow: {
     display: 'flex',
-    gap: 16,
-    marginTop: 22
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 8
+  },
+  footerRowSecondary: {
+    marginTop: 4
+  },
+  footerCopy: {
+    margin: 0,
+    color: bookingTheme.colorTertiaryLabel,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: bookingTheme.textFootnote,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
   },
   footerButton: {
     padding: 0,
     borderWidth: 0,
     backgroundColor: 'transparent',
-    color: bookingTheme.colorSecondaryLabel,
+    color: bookingTheme.colorLink,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: bookingTheme.textFootnote,
-    opacity: 0.5
-  },
-  unavailable: {
-    marginTop: 16,
-    color: bookingTheme.colorTertiaryLabel,
-    fontSize: bookingTheme.textCaption,
-    lineHeight: '16px'
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
   }
 })
 
@@ -316,24 +358,15 @@ export function BookingWidgetMenu({
           onClick={() => setLanguageOpen((value) => !value)}
           {...stylex.props(styles.languageButton)}
         >
-          <BookingVisualAsset
-            assetRole="language-selector"
-            {...stylex.props(styles.globe)}
-          />
+          <BookingIcon iconRole="language-selector" {...stylex.props(styles.globe)} />
           {locale.toUpperCase()}
         </button>
         {languageOpen ? (
-          <div
-            role="menu"
-            aria-label={message('label.language')}
-            {...stylex.props(styles.languageList)}
-          >
-            {BOOKING_LOCALES.map((value) => (
+          <div {...stylex.props(styles.languageList)}>
+            {LEGACY_BOOKING_MENU_LOCALES.map((value) => (
               <button
                 key={value}
                 type="button"
-                role="menuitemradio"
-                aria-checked={value === locale}
                 data-testid={`lang:${value}`}
                 onClick={() => {
                   setLocale(value as BookingLocale)
@@ -354,7 +387,7 @@ export function BookingWidgetMenu({
         onClick={close}
         {...stylex.props(styles.closeButton)}
       >
-        <BookingVisualAsset assetRole="dismiss" {...stylex.props(styles.closeIcon)} />
+        <BookingIcon iconRole="dismiss" {...stylex.props(styles.closeIcon)} />
       </button>
     </div>
   )
@@ -377,10 +410,7 @@ export function BookingWidgetMenu({
         }}
         {...stylex.props(styles.trigger)}
       >
-        <BookingVisualAsset
-          assetRole="navigation-menu"
-          {...stylex.props(styles.triggerIcon)}
-        />
+        <BookingIcon iconRole="navigation-menu" {...stylex.props(styles.triggerIcon)} />
       </button>
       <BookingPopupSheet
         target={popupTarget}
@@ -391,14 +421,21 @@ export function BookingWidgetMenu({
         header={header}
       >
         <div {...stylex.props(styles.body)}>
-          <div aria-hidden="true" {...stylex.props(styles.accountIcon)}>
-            <BookingVisualAsset
-              assetRole="sign-in-cta"
-              {...stylex.props(styles.accountIconSvg)}
-            />
+          <div {...stylex.props(styles.hero)}>
+            <div aria-hidden="true" {...stylex.props(styles.accountIcon)}>
+              <BookingIcon
+                iconRole="sign-in-cta"
+                {...stylex.props(styles.accountIconSvg)}
+              />
+            </div>
+            <div {...stylex.props(styles.heroCopy)}>
+              <p {...stylex.props(styles.title)}>{message('menu.sign_in_title')}</p>
+              <p {...stylex.props(styles.subtitle)}>
+                {message('menu.sign_in_subtitle')}
+              </p>
+            </div>
           </div>
-          <p {...stylex.props(styles.title)}>{message('menu.sign_in_title')}</p>
-          <p {...stylex.props(styles.subtitle)}>{message('menu.sign_in_subtitle')}</p>
+          <div aria-hidden="true" {...stylex.props(styles.bodySpacer)} />
           <div {...stylex.props(styles.authControls)}>
             <button
               type="button"
@@ -415,8 +452,8 @@ export function BookingWidgetMenu({
               {...stylex.props(styles.authButton)}
             >
               <span aria-hidden="true">
-                <BookingVisualAsset
-                  assetRole="identity-apple"
+                <BookingIcon
+                  iconRole="identity-apple"
                   label=""
                   {...stylex.props(styles.authProviderIcon)}
                 />
@@ -430,8 +467,8 @@ export function BookingWidgetMenu({
               {...stylex.props(styles.authButton)}
             >
               <span aria-hidden="true">
-                <BookingVisualAsset
-                  assetRole="identity-google"
+                <BookingIcon
+                  iconRole="identity-google"
                   label="G"
                   {...stylex.props(styles.authProviderIcon, styles.googleIcon)}
                 />
@@ -439,7 +476,10 @@ export function BookingWidgetMenu({
               {message('menu.sign_in_google')}
             </button>
           </div>
-          <div {...stylex.props(styles.footerActions)}>
+          <div {...stylex.props(styles.footerRow)}>
+            <p {...stylex.props(styles.footerCopy)}>
+              {message('menu.create_account_copy')}
+            </p>
             <button
               type="button"
               disabled
@@ -448,6 +488,11 @@ export function BookingWidgetMenu({
             >
               {message('menu.create_account')}
             </button>
+          </div>
+          <div {...stylex.props(styles.footerRow, styles.footerRowSecondary)}>
+            <p {...stylex.props(styles.footerCopy)}>
+              {message('menu.manage_choices_copy')}
+            </p>
             <button
               type="button"
               disabled
@@ -457,9 +502,6 @@ export function BookingWidgetMenu({
               {message('menu.manage_choices')}
             </button>
           </div>
-          <p data-state="needs-configuration" {...stylex.props(styles.unavailable)}>
-            {message('menu.sign_in_needs_configuration')}
-          </p>
         </div>
       </BookingPopupSheet>
     </>

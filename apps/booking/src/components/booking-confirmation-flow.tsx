@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex'
 import { Schema } from 'effect'
 import { AnimatePresence, LazyMotion, domAnimation, m } from 'motion/react'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
+import { BookingIcon } from '../presentation/booking-icon.tsx'
 import {
   clearBookingProcessingSuccess,
   readBookingProcessingSuccess
@@ -739,8 +739,8 @@ function TaxesAndFeesExpandable({
               {...stylex.props(styles.taxesToggle)}
             >
               {label}
-              <BookingVisualAsset
-                assetRole="navigation-back"
+              <BookingIcon
+                iconRole="navigation-back"
                 {...stylex.props(styles.taxesChevron)}
               />
             </p>

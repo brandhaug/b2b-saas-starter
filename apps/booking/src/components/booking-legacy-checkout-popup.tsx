@@ -3,7 +3,7 @@ import { AnimatePresence, m } from 'motion/react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { bookingTheme } from '../presentation/booking-theme.stylex.ts'
 import { BookingPopupSheet } from '../presentation/booking-primitives.tsx'
-import { BookingVisualAsset } from '../assets/index.ts'
+import { BookingIcon } from '../presentation/booking-icon.tsx'
 import type {
   LegacyBookingPolicyStep,
   PendingMarketingConsentTarget
@@ -20,7 +20,7 @@ function LegacyCloseButton({ label, onClose }: { label: string; onClose: () => v
       onClick={onClose}
       {...stylex.props(styles.close)}
     >
-      <BookingVisualAsset assetRole="popup-close" width={24} height={24} />
+      <BookingIcon iconRole="popup-close" width={24} height={24} />
     </button>
   )
 }
@@ -41,7 +41,7 @@ function LegacyPolicyStatus({
       {...stylex.props(styles.status, active && styles.statusActive)}
     >
       {complete ? (
-        <BookingVisualAsset assetRole="policy-status-check" width={6} height={5} />
+        <BookingIcon iconRole="policy-status-check" width={6} height={5} />
       ) : null}
     </span>
   )
@@ -304,8 +304,8 @@ export function BookingLegacyCheckoutPopup({
                     </>
                   ) : (
                     <div {...stylex.props(styles.noCancellation)}>
-                      <BookingVisualAsset
-                        assetRole="policy-cancellation"
+                      <BookingIcon
+                        iconRole="policy-cancellation"
                         width={81}
                         height={80}
                       />

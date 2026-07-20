@@ -26,7 +26,7 @@ import {
   type BookingTranslationKey
 } from './booking-localization.ts'
 import { bookingTheme } from '../presentation/booking-theme.stylex.ts'
-import { BookingVisualAsset } from '../assets/booking-visual-asset.tsx'
+import { BookingIcon } from '../presentation/booking-icon.tsx'
 
 type BookingLocalization = {
   readonly locale: BookingLocale
@@ -194,8 +194,8 @@ export function BookingLanguagePicker({
           onClick={() => setOpen((value) => !value)}
           {...stylex.props(styles.toolbarButton)}
         >
-          <BookingVisualAsset
-            assetRole="navigation-menu"
+          <BookingIcon
+            iconRole="navigation-menu"
             {...stylex.props(styles.toolbarIcon)}
           />
         </button>

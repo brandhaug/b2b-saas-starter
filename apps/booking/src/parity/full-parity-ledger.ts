@@ -10,7 +10,6 @@ export const parityInventoryKinds = [
   'inferred-branch',
   'vocabulary',
   'module-boundary',
-  'asset-policy',
   'retirement'
 ] as const
 
