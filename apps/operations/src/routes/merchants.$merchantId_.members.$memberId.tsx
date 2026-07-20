@@ -7,11 +7,13 @@ import {
   ScreenState,
   SubmitButton
 } from '@/components/operations-ui.tsx'
+import { requireOperationsSession } from '@/lib/require-operations-session.ts'
 import { getMerchantMember } from '@/lib/server/operations.ts'
 import { startImpersonation } from '@/lib/server/operations.ts'
 import { formValue } from '@/lib/form-value.ts'
 
 export const Route = createFileRoute('/merchants/$merchantId_/members/$memberId')({
+  beforeLoad: requireOperationsSession,
   loader: ({ params }) => getMerchantMember({ data: params }),
   component: MerchantMemberDetailPage
 })

@@ -22,7 +22,12 @@ const server = vi.hoisted(() => ({
   verifyOperatorTotp: vi.fn()
 }))
 
+const authClient = vi.hoisted(() => ({ signOut: vi.fn() }))
+
 vi.mock('@/lib/server/operations.ts', () => server)
+vi.mock('@/lib/auth-client.ts', () => ({
+  operationsAuthClient: authClient
+}))
 
 import { getRouter } from './router.tsx'
 
@@ -71,6 +76,7 @@ async function renderRoute(path: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  authClient.signOut.mockResolvedValue({ data: { success: true }, error: null })
   server.getOperationsSession.mockResolvedValue(
     ready({
       principal: {
@@ -100,6 +106,28 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Operations TanStack routes', () => {
+  it('redirects an anonymous protected navigation to sign-in', async () => {
+    server.getOperationsSession.mockResolvedValueOnce({ state: 'unauthenticated' })
+    const router = await renderRoute('/')
+
+    expect(router.state.location.pathname).toBe('/sign-in')
+    expect(
+      await screen.findByRole('heading', { name: 'Operations sign in' })
+    ).toBeTruthy()
+  })
+
+  it('signs out through the Better Auth browser client', async () => {
+    authClient.signOut.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Sign out rejected' }
+    })
+    await renderRoute('/')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+
+    await waitFor(() => expect(authClient.signOut).toHaveBeenCalledOnce())
+  })
+
   it('renders sign-in and reports an authoritative form rejection', async () => {
     server.signInOperator.mockResolvedValue({
       state: 'rejected',

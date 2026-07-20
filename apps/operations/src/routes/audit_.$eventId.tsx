@@ -5,9 +5,11 @@ import {
   OperationsShell,
   ScreenState
 } from '@/components/operations-ui.tsx'
+import { requireOperationsSession } from '@/lib/require-operations-session.ts'
 import { getAuditEvent } from '@/lib/server/operations.ts'
 
 export const Route = createFileRoute('/audit_/$eventId')({
+  beforeLoad: requireOperationsSession,
   loader: ({ params }) => getAuditEvent({ data: params.eventId }),
   component: AuditDetailPage
 })

@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createAccessControl } from 'better-auth/plugins/access'
 import { admin as adminPlugin } from 'better-auth/plugins/admin'
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins/two-factor'
+import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import {
   hashPassword,
   symmetricDecrypt,
@@ -188,7 +189,8 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
         twoFactorCookieMaxAge: 5 * 60,
         trustDeviceMaxAge: 0,
         backupCodeOptions: { storeBackupCodes: 'encrypted' }
-      })
+      }),
+      tanstackStartCookies()
     ]
   })
 

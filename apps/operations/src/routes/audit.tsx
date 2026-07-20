@@ -5,6 +5,7 @@ import {
   ScreenState,
   SubmitButton
 } from '@/components/operations-ui.tsx'
+import { requireOperationsSession } from '@/lib/require-operations-session.ts'
 import { getAuditEvents } from '@/lib/server/operations.ts'
 
 type AuditSearch = {
@@ -17,6 +18,7 @@ type AuditSearch = {
 }
 
 export const Route = createFileRoute('/audit')({
+  beforeLoad: requireOperationsSession,
   validateSearch: (search: Record<string, unknown>): AuditSearch =>
     Object.fromEntries(
       Object.entries(search).filter(

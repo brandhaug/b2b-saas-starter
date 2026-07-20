@@ -7,6 +7,7 @@ import {
   SubmitButton
 } from '@/components/operations-ui.tsx'
 import { formValue } from '@/lib/form-value.ts'
+import { requireOperationsSession } from '@/lib/require-operations-session.ts'
 import { inviteOperator } from '@/lib/server/operations.ts'
 
 const roles = [
@@ -17,6 +18,7 @@ const roles = [
 ] as const
 
 export const Route = createFileRoute('/operators_/invitations/new')({
+  beforeLoad: requireOperationsSession,
   component: InviteOperatorPage
 })
 

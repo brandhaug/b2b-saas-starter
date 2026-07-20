@@ -5,9 +5,11 @@ import {
   OperationsShell,
   ScreenState
 } from '@/components/operations-ui.tsx'
+import { requireOperationsSession } from '@/lib/require-operations-session.ts'
 import { getMerchant } from '@/lib/server/operations.ts'
 
 export const Route = createFileRoute('/merchants/$merchantId')({
+  beforeLoad: requireOperationsSession,
   loader: ({ params }) => getMerchant({ data: params.merchantId }),
   component: MerchantDetailPage
 })

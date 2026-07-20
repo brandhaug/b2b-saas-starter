@@ -5,6 +5,7 @@ import {
   ScreenState,
   SubmitButton
 } from '@/components/operations-ui.tsx'
+import { requireOperationsSession } from '@/lib/require-operations-session.ts'
 import { getManagedOperators } from '@/lib/server/operations.ts'
 import type { ManagedOperatorView } from '@/lib/server/operations.ts'
 
@@ -16,6 +17,7 @@ const roles = [
 ] as const
 
 export const Route = createFileRoute('/operators')({
+  beforeLoad: requireOperationsSession,
   validateSearch: (search: Record<string, unknown>) => ({
     result: typeof search.result === 'string' ? search.result : undefined,
     error: typeof search.error === 'string' ? search.error : undefined

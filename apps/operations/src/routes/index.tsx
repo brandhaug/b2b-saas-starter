@@ -8,7 +8,8 @@ import {
   ScreenState,
   SubmitButton
 } from '@/components/operations-ui.tsx'
-import { getOperationsSession, searchOperations } from '@/lib/server/operations.ts'
+import { requireOperationsSession } from '@/lib/require-operations-session.ts'
+import { searchOperations } from '@/lib/server/operations.ts'
 
 type DiscoverySearch = { readonly merchantQuery: string; readonly memberQuery: string }
 
@@ -21,9 +22,10 @@ export const Route = createFileRoute('/')({
     memberQuery:
       typeof search.memberQuery === 'string' ? search.memberQuery.slice(0, 100) : ''
   }),
+  beforeLoad: requireOperationsSession,
   loaderDeps: ({ search }) => search,
-  loader: async ({ deps }) => {
-    const session = await getOperationsSession()
+  loader: async ({ context, deps }) => {
+    const session = context.session
     const discovery = deps.merchantQuery
       ? await searchOperations({
           data: { kind: 'merchant', query: deps.merchantQuery }

@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import type { ScreenResult } from '@/lib/server/operations.ts'
+import { operationsAuthClient } from '@/lib/auth-client.ts'
 
 export function OperationsShell({
   eyebrow,
@@ -40,6 +41,7 @@ export function OperationsShell({
             <Link activeProps={{ 'aria-current': 'page' }} to="/audit">
               Audit
             </Link>
+            <SignOutButton />
           </nav>
         </div>
       </header>
@@ -49,6 +51,26 @@ export function OperationsShell({
         <div className="mt-8">{children}</div>
       </main>
     </div>
+  )
+}
+
+function SignOutButton() {
+  const [pending, setPending] = useState(false)
+  return (
+    <button
+      className="h-9 rounded-md border-0 bg-transparent px-3 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
+      disabled={pending}
+      onClick={() => {
+        setPending(true)
+        void operationsAuthClient.signOut().then(({ error }) => {
+          if (!error) window.location.assign('/sign-in')
+          else setPending(false)
+        })
+      }}
+      type="button"
+    >
+      {pending ? 'Signing out…' : 'Sign out'}
+    </button>
   )
 }
 
