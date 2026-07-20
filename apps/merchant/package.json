@@ -21,7 +21,8 @@
     "effect": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "react-grab": "^0.1.48"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
