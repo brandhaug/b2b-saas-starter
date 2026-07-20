@@ -23,7 +23,7 @@ import {
 import {
   makeD1OperatorMaintenanceDatabase,
   makeSystemOperatorMaintenance
-} from '@b2b-saas-starter/capabilities/governance'
+} from '@b2b-saas-starter/capabilities/operations'
 import {
   createOperationsAuth,
   createOperationsAuthHandler,

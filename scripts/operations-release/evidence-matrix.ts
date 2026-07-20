@@ -49,11 +49,11 @@ export const operationsSecurityEvidenceMatrix = [
     evidence: [
       ...evidence(
         'packages/capabilities',
-        'src/governance/operations-audit.live.test.ts',
-        'src/governance/operations-discovery.live.test.ts',
-        'src/governance/operations-impersonation.live.test.ts',
-        'src/governance/operations-impersonation-authority.live.test.ts',
-        'src/governance/operations-impersonation-lifecycle.live.test.ts'
+        'src/operations/operations-audit.live.test.ts',
+        'src/operations/operations-discovery.live.test.ts',
+        'src/operations/operations-impersonation.live.test.ts',
+        'src/operations/operations-impersonation-authority.live.test.ts',
+        'src/operations/operations-impersonation-lifecycle.live.test.ts'
       ),
       ...evidence('apps/operations', 'src/tanstack-routes.browser.test.tsx')
     ]
@@ -74,7 +74,7 @@ export const operationsSecurityEvidenceMatrix = [
     evidence: [
       ...evidence(
         'packages/capabilities',
-        'src/governance/operations-rate-limit.test.ts'
+        'src/operations/operations-rate-limit.test.ts'
       ),
       ...evidence(
         'apps/operations',
@@ -103,8 +103,8 @@ export const operationsSecurityEvidenceMatrix = [
     evidence: [
       ...evidence(
         'packages/capabilities',
-        'src/governance/operations-impersonation.live.test.ts',
-        'src/governance/operations-impersonation-lifecycle.live.test.ts'
+        'src/operations/operations-impersonation.live.test.ts',
+        'src/operations/operations-impersonation-lifecycle.live.test.ts'
       ),
       ...evidence('apps/background', 'src/operations-notifications.integration.test.ts')
     ]
@@ -150,7 +150,7 @@ export const operationsSecurityEvidenceMatrix = [
       ...evidence('packages/auth', 'src/operations.integration.test.ts'),
       ...evidence(
         'packages/capabilities',
-        'src/governance/operations-management.integration.test.ts'
+        'src/operations/operations-management.integration.test.ts'
       ),
       ...evidence('apps/operations', 'src/tanstack-routes.browser.test.tsx')
     ]
@@ -171,8 +171,8 @@ export const operationsSecurityEvidenceMatrix = [
       ...evidence('packages/auth', 'src/operations.integration.test.ts'),
       ...evidence(
         'packages/capabilities',
-        'src/governance/operator-invitations.integration.test.ts',
-        'src/governance/system-operator-maintenance.live.test.ts'
+        'src/operations/operator-invitations.integration.test.ts',
+        'src/operations/system-operator-maintenance.live.test.ts'
       ),
       ...evidence(
         'apps/operations',
@@ -197,10 +197,10 @@ export const operationsSecurityEvidenceMatrix = [
     evidence: [
       ...evidence(
         'packages/capabilities',
-        'src/governance/operations-impersonation.live.test.ts',
-        'src/governance/operations-impersonation-authority.live.test.ts',
-        'src/governance/operations-impersonation-lifecycle.live.test.ts',
-        'src/governance/operations-management.integration.test.ts'
+        'src/operations/operations-impersonation.live.test.ts',
+        'src/operations/operations-impersonation-authority.live.test.ts',
+        'src/operations/operations-impersonation-lifecycle.live.test.ts',
+        'src/operations/operations-management.integration.test.ts'
       ),
       ...evidence(
         'apps/merchant',

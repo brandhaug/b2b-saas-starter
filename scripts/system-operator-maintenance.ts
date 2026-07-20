@@ -6,7 +6,7 @@ import {
   type OperatorMaintenanceEnvironment,
   type OperatorMaintenanceStatement,
   type OperatorRole
-} from '@b2b-saas-starter/capabilities/governance'
+} from '@b2b-saas-starter/capabilities/operations'
 
 type Command = 'bootstrap' | 'recover'
 
