@@ -16,7 +16,9 @@ export default defineConfig(({ command, mode }) => ({
             'cloudflare:workers': resolve(
               import.meta.dirname,
               command === 'serve'
-                ? './src/lib/cloudflare-workers-shim-dev.ts'
+                ? mode === 'operations-browser-test'
+                  ? './src/lib/cloudflare-workers-shim-browser-test.ts'
+                  : './src/lib/cloudflare-workers-shim-dev.ts'
                 : './src/lib/cloudflare-workers-shim.ts'
             )
           }

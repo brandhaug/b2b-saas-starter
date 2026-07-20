@@ -1,17 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { chromium, expect as browserExpect, type Browser } from '@playwright/test'
+import type { D1Database } from '@cloudflare/workers-types'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer, type ViteDevServer } from 'vite'
-import { createOperationsAuth } from '@b2b-saas-starter/auth/operations'
-import { createDb } from '@b2b-saas-starter/db/client'
-import { provisionLocalD1 } from '@b2b-saas-starter/db/local-development'
 import {
-  auditEvents,
-  impersonationRecords,
+  createOperationsAuth,
+  provisionLocalOperator
+} from '@b2b-saas-starter/auth/operations'
+import { createDb } from '@b2b-saas-starter/db/client'
+import { applyMigrations } from '@b2b-saas-starter/db/testing'
+import {
   merchantMemberships,
   merchants,
   operationsAuditEvents,
-  operatorInvitations,
   session,
   user
 } from '@b2b-saas-starter/db/schema'
@@ -23,33 +27,43 @@ const memberId = 'mem_tanstack_browser'
 const operatorId = 'opr_tanstack_browser'
 const auditId = 'oaud_tanstack_browser'
 const enrollmentEmail = 'tanstack-browser-enrollment@example.test'
-
 describe('Operations real TanStack runtime', () => {
   let app: ViteDevServer
   let browser: Browser
+  let db: ReturnType<typeof createDb>
+  let disposeD1: () => Promise<void>
+  let testStatePath: string
   let origin: string
+  let authSecret: string
 
   beforeAll(async () => {
-    const d1 = await provisionLocalD1()
-    const db = createDb(d1)
-    await db
-      .delete(impersonationRecords)
-      .where(eq(impersonationRecords.targetMemberId, memberId))
-    await db.delete(operationsAuditEvents).where(eq(operationsAuditEvents.id, auditId))
-    await db.delete(merchants).where(eq(merchants.id, merchantId))
-    await db.delete(user).where(eq(user.id, memberId))
-    await db.delete(user).where(eq(user.id, operatorId))
-    const existingEnrollmentUsers = await db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.email, enrollmentEmail))
-    for (const enrolled of existingEnrollmentUsers) {
-      await db.delete(auditEvents).where(eq(auditEvents.actorUserId, enrolled.id))
-      await db.delete(user).where(eq(user.id, enrolled.id))
+    testStatePath = await mkdtemp(join(tmpdir(), 'operations-browser-test-'))
+    process.env.OPERATIONS_BROWSER_TEST_D1_PATH = testStatePath
+    app = await createServer({
+      configFile: fileURLToPath(new URL('../../vite.config.ts', import.meta.url)),
+      mode: 'operations-browser-test',
+      server: { host: '127.0.0.1', port: 0, strictPort: false }
+    })
+    await app.listen()
+    origin = app.resolvedUrls?.local[0]?.replace(/\/$/, '') ?? ''
+    if (!origin) throw new Error('Vite did not expose a local Operations URL')
+    const bindings = (await app.ssrLoadModule('cloudflare:workers')) as {
+      readonly env: {
+        readonly DB: D1Database
+        readonly OPERATIONS_AUTH_SECRET: string
+      }
+      readonly disposeBrowserTestD1: () => Promise<void>
     }
-    await db
-      .delete(operatorInvitations)
-      .where(eq(operatorInvitations.email, enrollmentEmail))
+    db = createDb(bindings.env.DB)
+    authSecret = bindings.env.OPERATIONS_AUTH_SECRET
+    disposeD1 = bindings.disposeBrowserTestD1
+    await applyMigrations(bindings.env.DB)
+    await provisionLocalOperator({
+      db,
+      secret: authSecret,
+      mode: 'test',
+      operator: localOperatorFixture
+    })
 
     const now = new Date('2026-07-20T12:00:00.000Z')
     await db.insert(user).values([
@@ -108,39 +122,15 @@ describe('Operations real TanStack runtime', () => {
       supportReference: 'OPS-TANSTACK-BROWSER',
       createdAt: now.toISOString()
     })
-
-    app = await createServer({
-      configFile: fileURLToPath(new URL('../../vite.config.ts', import.meta.url)),
-      server: { host: '127.0.0.1', port: 0, strictPort: false }
-    })
-    await app.listen()
-    origin = app.resolvedUrls?.local[0]?.replace(/\/$/, '') ?? ''
-    if (!origin) throw new Error('Vite did not expose a local Operations URL')
     browser = await chromium.launch({ headless: true })
   }, 30_000)
 
   afterAll(async () => {
     await browser?.close()
     await app?.close()
-    const db = createDb(await provisionLocalD1())
-    await db
-      .delete(impersonationRecords)
-      .where(eq(impersonationRecords.targetMemberId, memberId))
-    await db.delete(operationsAuditEvents).where(eq(operationsAuditEvents.id, auditId))
-    await db.delete(merchants).where(eq(merchants.id, merchantId))
-    await db.delete(user).where(eq(user.id, memberId))
-    await db.delete(user).where(eq(user.id, operatorId))
-    const enrolledUsers = await db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.email, enrollmentEmail))
-    for (const enrolled of enrolledUsers) {
-      await db.delete(auditEvents).where(eq(auditEvents.actorUserId, enrolled.id))
-      await db.delete(user).where(eq(user.id, enrolled.id))
-    }
-    await db
-      .delete(operatorInvitations)
-      .where(eq(operatorInvitations.email, enrollmentEmail))
+    await disposeD1?.()
+    delete process.env.OPERATIONS_BROWSER_TEST_D1_PATH
+    if (testStatePath) await rm(testStatePath, { recursive: true, force: true })
   })
 
   it('drives authenticated discovery, management, and audit through hydrated routes', async () => {
@@ -154,8 +144,8 @@ describe('Operations real TanStack runtime', () => {
     await browserExpect(page).toHaveURL(`${origin}/verify-totp`)
 
     const auth = createOperationsAuth({
-      db: createDb(await provisionLocalD1()),
-      secret: 'development-operations-auth-secret-change-me',
+      db,
+      secret: authSecret,
       baseURL: origin,
       trustedOrigins: [origin],
       production: false,
@@ -284,7 +274,6 @@ describe('Operations real TanStack runtime', () => {
       page.getByRole('link', { name: 'operations.tanstack_browser.proven' })
     ).toBeVisible()
 
-    const db = createDb(await provisionLocalD1())
     await db
       .update(user)
       .set({ role: 'merchant-impersonator,operator-manager' })

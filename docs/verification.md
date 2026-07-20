@@ -31,6 +31,11 @@ The migration contract also verifies the final pre-contract schema upgrades to
 the contracted Booking Product tables. Playwright enters through the Public Site;
 it must not use the Booking App's development-only direct origin.
 
+Operations Worker and hydrated TanStack runtime tests use isolated, migrated D1
+state. They must not import the development Worker shim or attach
+`packages/db/.wrangler/state/v3`; authentication inside validation must never
+replace a developer's active Operator Session.
+
 ## Coverage map
 
 | Contract                                             | Primary automated evidence                                    |
@@ -44,6 +49,7 @@ it must not use the Booking App's development-only direct origin.
 | scoped Platform API and non-disclosure               | API and developer-platform Live tests                         |
 | PII-free durable events, retry/recovery              | notification Live and Background Worker tests                 |
 | Public Site ingress and route ownership              | dispatch tests and Playwright                                 |
+| isolated Operations auth and hydrated runtime        | Operations Worker integration and browser runtime tests       |
 | clean/upgrade D1 and persisted local startup         | `packages/db/src/live-d1.test.ts` and local-development tests |
 
 Provider outages are deliberately tested without live third parties. Confirmation

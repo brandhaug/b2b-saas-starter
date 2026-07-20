@@ -87,11 +87,21 @@ it('keeps browser page rendering exclusively in TanStack React routes', async ()
 })
 
 it('keeps Operations integration tests isolated from the persisted development D1', async () => {
-  const localRuntimeTest = await readFile(
-    appFile('src/lib/server/operations-worker.local.integration.test.ts'),
-    'utf8'
-  )
+  const [integrationTests, browserTestShim] = await Promise.all([
+    Promise.all(
+      [
+        'src/lib/server/operations-worker.local.integration.test.ts',
+        'src/routes/-operations-runtime.browser.test.ts'
+      ].map((path) => readFile(appFile(path), 'utf8'))
+    ),
+    readFile(appFile('src/lib/cloudflare-workers-shim-browser-test.ts'), 'utf8')
+  ])
+  const testBoundary = integrationTests.join('\n')
 
-  expect(localRuntimeTest).not.toContain('cloudflare-workers-shim-dev')
-  expect(localRuntimeTest).toContain('@b2b-saas-starter/db/testing')
+  expect(testBoundary).not.toContain('cloudflare-workers-shim-dev')
+  expect(testBoundary).not.toContain('@b2b-saas-starter/db/local-development')
+  expect(testBoundary).toContain('@b2b-saas-starter/db/testing')
+  expect(browserTestShim).toContain('OPERATIONS_BROWSER_TEST_D1_PATH is required')
+  expect(browserTestShim).not.toContain('provisionLocalD1')
+  expect(browserTestShim).not.toContain('localD1Paths.persistPath')
 })
