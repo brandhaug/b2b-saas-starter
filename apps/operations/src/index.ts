@@ -62,7 +62,10 @@ export const localOperatorFixture = {
   name: 'Local System Operator',
   email: 'operator@operations.local',
   password: 'local-operations-password',
+  // Better Auth stores raw string key material and Base32-encodes it for the
+  // otpauth URI. Authenticator apps must receive this encoded setup key.
   totpSecret: 'JBSWY3DPEHPK3PXP',
+  totpAuthenticatorKey: 'JJBFGV2ZGNCFARKIKBFTGUCYKA',
   roles: ['merchant-impersonator', 'impersonation-auditor', 'operator-manager']
 } as const
 

@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { createOperationsAuth } from '@b2b-saas-starter/auth/operations'
-import { createDb } from '@b2b-saas-starter/db/client'
 import { createOperationsWorker, localOperatorFixture } from './index.ts'
 import { env } from './lib/cloudflare-workers-shim-dev.ts'
 
@@ -38,17 +36,7 @@ describe('Operations local TanStack runtime', () => {
     expect(passwordResponse.headers.get('location')).toBe('/verify-totp')
     const challengeCookie = cookieFor(passwordResponse, 'operations.two_factor')
 
-    const auth = createOperationsAuth({
-      db: createDb(env.DB),
-      secret: env.OPERATIONS_AUTH_SECRET,
-      baseURL: origin,
-      trustedOrigins: [origin],
-      production: false,
-      securityContact: env.OPERATIONS_SECURITY_CONTACT
-    })
-    const { code } = await auth.api.generateTOTP({
-      body: { secret: localOperatorFixture.totpSecret }
-    })
+    const code = await authenticatorTotp(localOperatorFixture.totpAuthenticatorKey)
     const verificationForm = new FormData()
     verificationForm.set('code', code)
     const verificationResponse = await createOperationsWorker().fetch(
@@ -93,4 +81,31 @@ const cookieFor = (response: Response, name: string): string => {
     .find((value) => value.startsWith(`${name}=`))
   if (!cookie) throw new Error(`Missing ${name} cookie`)
   return cookie.split(';', 1)[0]!
+}
+
+const authenticatorTotp = async (base32Secret: string): Promise<string> => {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  const bits = [...base32Secret.toUpperCase()]
+    .map((character) => alphabet.indexOf(character).toString(2).padStart(5, '0'))
+    .join('')
+  const secret = Uint8Array.from(
+    bits.match(/.{8}/g)?.map((byte) => Number.parseInt(byte, 2)) ?? []
+  )
+  const counter = new ArrayBuffer(8)
+  new DataView(counter).setBigUint64(0, BigInt(Math.floor(Date.now() / 30_000)))
+  const key = await crypto.subtle.importKey(
+    'raw',
+    secret,
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  )
+  const digest = new Uint8Array(await crypto.subtle.sign('HMAC', key, counter))
+  const offset = digest.at(-1)! & 0x0f
+  const binary =
+    ((digest[offset]! & 0x7f) << 24) |
+    ((digest[offset + 1]! & 0xff) << 16) |
+    ((digest[offset + 2]! & 0xff) << 8) |
+    (digest[offset + 3]! & 0xff)
+  return (binary % 1_000_000).toString().padStart(6, '0')
 }

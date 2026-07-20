@@ -37,12 +37,12 @@ then run `bun run dev:operations`. The local-only fixture is:
 
 - email: `operator@operations.local`
 - password: `local-operations-password`
-- TOTP seed: `JBSWY3DPEHPK3PXP`
+- authenticator setup key: `JJBFGV2ZGNCFARKIKBFTGUCYKA`
 - roles: Merchant Impersonator, Impersonation Auditor, and Operator Manager
 
 The fixture is rejected outside development and test. Sign in at
-`http://localhost:3076/sign-in`; use an authenticator configured with the TOTP
-seed, then exercise discovery, impersonation, audit, and operator management.
+`http://localhost:3076/sign-in`; use an authenticator configured with the setup
+key above, then exercise discovery, impersonation, audit, and operator management.
 
 ## System Operator bootstrap
 
