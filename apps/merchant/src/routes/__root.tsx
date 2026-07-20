@@ -1,5 +1,4 @@
-import '@fontsource-variable/geist/index.css'
-import '@fontsource-variable/geist-mono/index.css'
+import '@fontsource-variable/onest/index.css'
 import type { ReactNode } from 'react'
 import {
   createRootRoute,

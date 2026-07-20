@@ -39,8 +39,8 @@
   --input: oklch(0.9276 0.0058 264.5313);
   --ring: oklch(0.6231 0.188 259.8145);
   --destructive: oklch(0.6368 0.2078 25.3313);
-  --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
-  --font-mono: Geist Mono, ui-monospace, monospace;
+  --font-sans: 'Onest Variable', ui-sans-serif, sans-serif, system-ui;
+  --font-mono: 'Onest Variable', ui-sans-serif, sans-serif, system-ui;
 }
 
 .merchant-mobile {
