@@ -101,20 +101,29 @@ export function SidebarProvider({
         _setOpen(openState)
       }
 
-      // This sets the cookie to keep the sidebar state.
-      await cookieStore.set({
-        expires: Date.now() + SIDEBAR_COOKIE_MAX_AGE * 1000,
-        name: SIDEBAR_COOKIE_NAME,
-        path: '/',
-        value: String(openState)
-      })
+      // Persist the state when the browser supports cookies. CookieStore is not
+      // available in every browser, so retain the document.cookie fallback.
+      if (typeof cookieStore !== 'undefined') {
+        await cookieStore.set({
+          expires: Date.now() + SIDEBAR_COOKIE_MAX_AGE * 1000,
+          name: SIDEBAR_COOKIE_NAME,
+          path: '/',
+          value: String(openState)
+        })
+      } else if (typeof document !== 'undefined') {
+        document.cookie = `${SIDEBAR_COOKIE_NAME}=${String(openState)}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      }
     },
     [setOpenProp, open]
   )
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
+    if (isMobile) {
+      setOpenMobile((open) => !open)
+    } else {
+      void setOpen((open) => !open)
+    }
   }, [isMobile, setOpen])
 
   // Adds a keyboard shortcut to toggle the sidebar.

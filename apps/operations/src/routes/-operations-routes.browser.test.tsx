@@ -110,6 +110,24 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Operations TanStack routes', () => {
+  it('renders protected routes inside the Operations sidebar shell', async () => {
+    await renderRoute('/')
+
+    const sidebarTrigger = screen.getByRole('button', { name: 'Toggle Sidebar' })
+    expect(sidebarTrigger).toBeTruthy()
+    expect(screen.getByRole('navigation', { name: 'breadcrumb' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Discovery' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Operators' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Audit' })).toBeTruthy()
+
+    fireEvent.click(sidebarTrigger)
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot=sidebar][data-state=collapsed]')
+      ).toBeTruthy()
+    )
+  })
+
   it('redirects an anonymous protected navigation to sign-in', async () => {
     server.getOperationsSession.mockResolvedValueOnce({ state: 'unauthenticated' })
     const router = await renderRoute('/')

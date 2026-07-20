@@ -1,5 +1,6 @@
 'use client'
 
+import { Link, useRouterState } from '@tanstack/react-router'
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 
 import {
@@ -24,7 +25,7 @@ export function NavMain({
 }: {
   items: {
     title: string
-    url: string
+    url: '/' | '/operators' | '/audit'
     icon: LucideIcon
     isActive?: boolean
     items?: {
@@ -33,9 +34,11 @@ export function NavMain({
     }[]
   }[]
 }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
+      <SidebarGroupLabel>Operations</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <Collapsible
@@ -44,7 +47,17 @@ export function NavMain({
             render={<SidebarMenuItem />}
           >
             <SidebarMenuButton
-              render={<a aria-label={item.title} href={item.url} />}
+              className="min-h-9"
+              isActive={
+                item.url === '/' ? pathname === '/' : pathname.startsWith(item.url)
+              }
+              render={
+                <Link
+                  activeProps={{ 'aria-current': 'page' }}
+                  aria-label={item.title}
+                  to={item.url}
+                />
+              }
               tooltip={item.title}
             >
               <item.icon />
@@ -53,7 +66,7 @@ export function NavMain({
             {item.items?.length ? (
               <>
                 <CollapsibleTrigger
-                  render={<SidebarMenuAction className="data-[state=open]:rotate-90" />}
+                  render={<SidebarMenuAction className="data-panel-open:rotate-90" />}
                 >
                   <ChevronRight />
                   <span className="sr-only">Toggle</span>

@@ -1,6 +1,17 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { operationsAuthClient } from '@b2b-saas-starter/auth/operations/client'
+import { AppSidebar } from '@/components/app-sidebar'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from '@/components/ui/breadcrumb'
+import { Separator } from '@/components/ui/separator'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import type { ScreenResult } from '@/lib/server/operations-server-functions.ts'
 
 export function OperationsShell({
@@ -13,44 +24,48 @@ export function OperationsShell({
   readonly children: ReactNode
 }) {
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <header className="sticky top-0 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link
-            className="font-semibold tracking-tight"
-            search={{ merchantQuery: '', memberQuery: '' }}
-            to="/"
-          >
-            Operations
-          </Link>
-          <nav aria-label="Operations navigation" className="flex gap-4 text-sm">
-            <Link
-              activeProps={{ 'aria-current': 'page' }}
-              search={{ merchantQuery: '', memberQuery: '' }}
-              to="/"
-            >
-              Discovery
-            </Link>
-            <Link
-              activeProps={{ 'aria-current': 'page' }}
-              search={{ result: undefined, error: undefined }}
-              to="/operators"
-            >
-              Operators
-            </Link>
-            <Link activeProps={{ 'aria-current': 'page' }} to="/audit">
-              Audit
-            </Link>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset className="md:rounded-none! md:shadow-none!">
+        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background/90 backdrop-blur">
+          <div className="flex min-w-0 items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1 min-h-9 min-w-9" />
+            <Separator
+              className="mr-2 data-[orientation=vertical]:h-4"
+              orientation="vertical"
+            />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem className="hidden md:block">
+                  <BreadcrumbLink
+                    className="inline-flex min-h-9 items-center"
+                    render={
+                      <Link search={{ merchantQuery: '', memberQuery: '' }} to="/" />
+                    }
+                  >
+                    Operations
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="truncate">{title}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+          <div className="ml-auto pr-4">
             <SignOutButton />
-          </nav>
+          </div>
+        </header>
+        <div className="flex flex-1 flex-col p-4 pt-0">
+          <div className="mx-auto w-full max-w-6xl py-8">
+            <p className="text-sm font-medium text-primary">{eyebrow}</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
+            <div className="mt-8">{children}</div>
+          </div>
         </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-6 py-12">
-        <p className="text-sm font-medium text-primary">{eyebrow}</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
-        <div className="mt-8">{children}</div>
-      </main>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
 
