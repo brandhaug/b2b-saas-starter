@@ -149,7 +149,6 @@
         "@fontsource-variable/geist-mono": "catalog:",
         "@tanstack/react-router": "catalog:",
         "@tanstack/react-start": "catalog:",
-        "better-auth": "catalog:",
         "effect": "catalog:",
         "lucide-react": "catalog:",
         "react": "catalog:",

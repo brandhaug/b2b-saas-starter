@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./operations": "./src/operations.ts"
+    "./operations": "./src/operations.ts",
+    "./operations/client": "./src/operations-client.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

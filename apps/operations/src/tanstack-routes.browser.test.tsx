@@ -25,7 +25,7 @@ const server = vi.hoisted(() => ({
 const authClient = vi.hoisted(() => ({ signOut: vi.fn() }))
 
 vi.mock('@/lib/server/operations.ts', () => server)
-vi.mock('@/lib/auth-client.ts', () => ({
+vi.mock('@b2b-saas-starter/auth/operations/client', () => ({
   operationsAuthClient: authClient
 }))
 
