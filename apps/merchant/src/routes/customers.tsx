@@ -14,7 +14,7 @@ function CustomersPage() {
   const directory = Route.useLoaderData()
   return (
     <MerchantShell
-      section={{ kind: 'operations' }}
+      section={{ kind: 'merchant' }}
       title="Customers"
       description="One captured Customer Details entry per Appointment. Matching contact details are not merged into identities."
     >

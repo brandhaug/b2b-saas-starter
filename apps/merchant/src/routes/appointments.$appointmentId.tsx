@@ -22,7 +22,7 @@ function AppointmentDetailPage() {
   const appointment = Route.useLoaderData()
   return (
     <MerchantShell
-      section={{ kind: 'operations' }}
+      section={{ kind: 'merchant' }}
       title="Appointment detail"
       description="An inspect-only record of the facts accepted when this Appointment was confirmed."
     >

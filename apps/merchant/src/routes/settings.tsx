@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import { formValue } from '@/lib/form-value.ts'
 import { bootstrapPlatformApiToken } from '@/lib/server/platform-api-tokens.ts'
 import { rotatePlatformWebhookSecret } from '@/lib/server/platform-webhooks.ts'
@@ -52,8 +53,11 @@ function MerchantSettings() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="text-2xl font-semibold">Merchant settings</h1>
+    <MerchantShell
+      section={{ kind: 'merchant' }}
+      title="Settings"
+      description="Manage Merchant integration credentials and webhook security."
+    >
       <section className="mt-8 border bg-card p-6">
         <h2 className="text-lg font-semibold">Platform API Tokens</h2>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -144,6 +148,6 @@ function MerchantSettings() {
           </div>
         ) : null}
       </section>
-    </main>
+    </MerchantShell>
   )
 }

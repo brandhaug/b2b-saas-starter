@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 
@@ -13,8 +13,9 @@ export function MerchantPresentationProvider({
   readonly presentation: MerchantPresentation
   readonly children: ReactNode
 }) {
+  const [initialPresentation] = useState(presentation)
   return (
-    <MerchantPresentationContext value={presentation}>
+    <MerchantPresentationContext value={initialPresentation}>
       {children}
     </MerchantPresentationContext>
   )

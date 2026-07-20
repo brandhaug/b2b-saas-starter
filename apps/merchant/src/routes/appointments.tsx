@@ -23,7 +23,7 @@ function AppointmentsPage() {
   const { date } = Route.useSearch()
   return (
     <MerchantShell
-      section={{ kind: 'operations' }}
+      section={{ kind: 'merchant' }}
       title="Appointments"
       description="Your returning-user home: a Provider-oriented day view of accepted Appointment facts."
     >

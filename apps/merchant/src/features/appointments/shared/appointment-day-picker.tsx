@@ -1,3 +1,5 @@
+import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
+
 export function AppointmentDayPicker({
   date,
   timezone,
@@ -5,7 +7,7 @@ export function AppointmentDayPicker({
 }: {
   readonly date: string
   readonly timezone: string
-  readonly presentation: 'desktop' | 'mobile'
+  readonly presentation: MerchantPresentation
 }) {
   return (
     <form

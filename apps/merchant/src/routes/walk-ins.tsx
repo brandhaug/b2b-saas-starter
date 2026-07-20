@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { walkInMerchantTransitions } from '@b2b-saas-starter/capabilities/walk-ins'
+import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import {
   getWalkInQueue,
   getWalkInShops,
@@ -31,19 +32,15 @@ function WalkInQueuePage() {
   const [pending, setPending] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   return (
-    <main className="mx-auto min-h-dvh max-w-5xl p-6">
-      <nav className="mb-8 flex gap-4 text-sm">
-        <Link to="/appointments" search={{ date: undefined }}>
-          Appointments
-        </Link>
-        <Link to="/walk-ins">Walk-ins</Link>
-      </nav>
-      <h1 className="text-3xl font-semibold">Walk-in queue</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {queues.length > 0
+    <MerchantShell
+      section={{ kind: 'merchant' }}
+      title="Walk-in queue"
+      description={
+        queues.length > 0
           ? 'Manage every Shop queue from one authenticated view.'
-          : 'No Shop is configured for this Merchant.'}
-      </p>
+          : 'No Shop is configured for this Merchant.'
+      }
+    >
       {message ? (
         <p className="mt-4 text-sm text-destructive" role="alert">
           {message}{' '}
@@ -107,6 +104,6 @@ function WalkInQueuePage() {
           </section>
         ))}
       </div>
-    </main>
+    </MerchantShell>
   )
 }
