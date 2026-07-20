@@ -15,7 +15,7 @@ export function MerchantShell({
   readonly description: string
   readonly children: ReactNode
 }) {
-  const destinations = merchantDestinations(section)
+  const destinations = merchantDestinations()
   const shared = { section, destinations, title, description, children }
 
   return (

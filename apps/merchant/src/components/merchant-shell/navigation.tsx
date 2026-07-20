@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/react-router'
-import { catalogDestinations } from '@/lib/catalog-workflow.ts'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 
 export type MerchantShellSection =
@@ -28,12 +27,8 @@ const merchantSectionDestinations: readonly MerchantDestination[] = [
   { label: 'Settings', to: '/settings' }
 ]
 
-export function merchantDestinations(
-  section: MerchantShellSection
-): readonly MerchantDestination[] {
-  return section.kind === 'merchant'
-    ? merchantSectionDestinations
-    : catalogDestinations(section.presentation)
+export function merchantDestinations(): readonly MerchantDestination[] {
+  return merchantSectionDestinations
 }
 
 export function MerchantNavigation({
