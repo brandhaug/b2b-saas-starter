@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { operationsReleaseEvidence } from '../packages/capabilities/src/governance/operations-security-evidence-matrix.ts'
+import { operationsReleaseEvidence } from './evidence-matrix.ts'
 
 export type OperationsReleasePlanEntry = {
   readonly workspace: string
@@ -20,7 +20,7 @@ export const buildOperationsReleasePlan = (): readonly OperationsReleasePlanEntr
 }
 
 export const runOperationsReleaseMatrix = async (): Promise<void> => {
-  const repositoryRoot = resolve(import.meta.dirname, '..')
+  const repositoryRoot = resolve(import.meta.dirname, '../..')
   for (const entry of buildOperationsReleasePlan()) {
     console.log(`\nOperations release evidence: ${entry.workspace}`)
     const process = Bun.spawn(['bunx', 'vitest', 'run', ...entry.testFiles], {

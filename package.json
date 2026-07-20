@@ -30,7 +30,7 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
-    "test:operations-release": "bun scripts/operations-security-evidence-matrix.ts",
+    "test:operations-release": "bun scripts/operations-release/run.ts",
     "test:e2e": "bun --cwd apps/web test:e2e",
     "assets:check": "bun apps/booking/scripts/check-visual-assets.ts",
     "lint": "oxlint --type-aware --ignore-pattern '.context/**'",

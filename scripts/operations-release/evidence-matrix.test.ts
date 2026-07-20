@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { operationsSecurityEvidenceMatrix } from './operations-security-evidence-matrix.ts'
+import { operationsSecurityEvidenceMatrix } from './evidence-matrix.ts'
 
-const repositoryRoot = resolve(import.meta.dirname, '../../../..')
+const repositoryRoot = resolve(import.meta.dirname, '../..')
 const requiredClaims = [
   'audit:start-attempt',
   'audit:handoff',

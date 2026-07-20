@@ -274,13 +274,13 @@ export const operationsReleaseEvidence = [
   ...new Map(
     [
       {
-        workspace: 'packages/capabilities',
-        testFile: 'src/governance/operations-security-evidence-matrix.test.ts'
+        workspace: 'scripts',
+        testFile: 'operations-release/evidence-matrix.test.ts'
       },
       ...operationsSecurityEvidenceMatrix.flatMap((control) => control.evidence),
       {
         workspace: 'scripts',
-        testFile: 'operations-security-evidence-matrix.test.ts'
+        testFile: 'operations-release/run.test.ts'
       }
     ].map((reference) => [`${reference.workspace}/${reference.testFile}`, reference])
   ).values()
