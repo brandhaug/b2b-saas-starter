@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const server = vi.hoisted(() => ({
   acceptOperatorInvitation: vi.fn(),
   completeOperatorSecurityEnrollment: vi.fn(),
+  deleteOperator: vi.fn(),
   getAuditEvent: vi.fn(),
   getAuditEvents: vi.fn(),
   getManagedOperators: vi.fn(),
@@ -15,10 +16,13 @@ const server = vi.hoisted(() => ({
   getOperationsSession: vi.fn(),
   getOperatorEnrollment: vi.fn(),
   inviteOperator: vi.fn(),
+  revokeOperatorInvitation: vi.fn(),
   searchOperations: vi.fn(),
+  setOperatorEnabled: vi.fn(),
   signInOperator: vi.fn(),
   startImpersonation: vi.fn(),
   startOperatorSecurityEnrollment: vi.fn(),
+  updateOperatorRoles: vi.fn(),
   verifyOperatorTotp: vi.fn()
 }))
 
@@ -145,6 +149,70 @@ describe('Operations TanStack routes', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain(
       'Authentication was not accepted.'
+    )
+  })
+
+  it('creates and revokes an operator invitation through typed mutations', async () => {
+    server.inviteOperator.mockResolvedValueOnce(
+      ready({
+        invitation: {
+          id: 'invitation-1',
+          email: 'new-operator@example.com',
+          expiresAt: '2026-07-21T10:00:00.000Z'
+        }
+      })
+    )
+    server.revokeOperatorInvitation.mockResolvedValueOnce(ready(null))
+    await renderRoute('/operators/invitations/new')
+
+    fireEvent.change(screen.getByLabelText('Dedicated operator email'), {
+      target: { value: 'new-operator@example.com' }
+    })
+    fireEvent.click(screen.getByLabelText('merchant-reader'))
+    fireEvent.submit(
+      screen
+        .getByRole('button', { name: 'Send single-use invitation' })
+        .closest('form')!
+    )
+    expect(await screen.findByText(/invitation sent to new-operator/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke invitation' }))
+
+    await waitFor(() =>
+      expect(server.revokeOperatorInvitation).toHaveBeenCalledWith({
+        data: { invitationId: 'invitation-1' }
+      })
+    )
+  })
+
+  it('completes TOTP and backup-code enrollment through the TanStack route', async () => {
+    server.startOperatorSecurityEnrollment.mockResolvedValueOnce(
+      ready({
+        totpURI: 'otpauth://totp/Operations:invitee?secret=SETUPKEY',
+        backupCodes: ['backup-one', 'backup-two']
+      })
+    )
+    server.completeOperatorSecurityEnrollment.mockResolvedValueOnce(ready(null))
+    await renderRoute('/enroll/security')
+
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'enrollment-password' }
+    })
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Set up authenticator' }).closest('form')!
+    )
+    expect(await screen.findByText('backup-one')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Authentication code'), {
+      target: { value: '123456' }
+    })
+    fireEvent.click(screen.getByLabelText('I stored my backup codes'))
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Complete enrollment' }).closest('form')!
+    )
+
+    await waitFor(() =>
+      expect(server.completeOperatorSecurityEnrollment).toHaveBeenCalledWith({
+        data: { code: '123456', backupCodesConfirmed: 'yes' }
+      })
     )
   })
 
@@ -275,6 +343,117 @@ describe('Operations TanStack routes', () => {
     await router.navigate({ to: '/audit', search: {} })
     await waitFor(() =>
       expect(screen.getByText('operations.impersonation.started')).toBeTruthy()
+    )
+  })
+
+  it('submits operator role changes through the typed TanStack mutation', async () => {
+    server.getManagedOperators.mockResolvedValueOnce(
+      ready({
+        actorOperatorId: 'operator-1',
+        operators: [
+          {
+            id: 'operator-2',
+            name: 'Morgan Support',
+            email: 'morgan@example.com',
+            enabled: true,
+            enrollmentState: 'complete',
+            roles: ['merchant-reader'],
+            activeSession: { active: false, absoluteExpiresAt: null },
+            lastSignInAt: null,
+            createdAt: '2026-07-01T10:00:00.000Z',
+            updatedAt: '2026-07-20T10:00:00.000Z'
+          }
+        ]
+      })
+    )
+    server.updateOperatorRoles.mockResolvedValueOnce(ready(null))
+    await renderRoute('/operators')
+
+    fireEvent.click(screen.getByLabelText('impersonation-auditor'))
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Save roles' }).closest('form')!
+    )
+
+    await waitFor(() =>
+      expect(server.updateOperatorRoles).toHaveBeenCalledWith({
+        data: {
+          operatorId: 'operator-2',
+          expectedUpdatedAt: '2026-07-20T10:00:00.000Z',
+          roles: ['merchant-reader', 'impersonation-auditor']
+        }
+      })
+    )
+  })
+
+  it('submits operator enabled-state changes through the typed TanStack mutation', async () => {
+    server.getManagedOperators.mockResolvedValueOnce(
+      ready({
+        actorOperatorId: 'operator-1',
+        operators: [
+          {
+            id: 'operator-2',
+            name: 'Morgan Support',
+            email: 'morgan@example.com',
+            enabled: true,
+            enrollmentState: 'complete',
+            roles: ['merchant-reader'],
+            activeSession: { active: false, absoluteExpiresAt: null },
+            lastSignInAt: null,
+            createdAt: '2026-07-01T10:00:00.000Z',
+            updatedAt: '2026-07-20T10:00:00.000Z'
+          }
+        ]
+      })
+    )
+    server.setOperatorEnabled.mockResolvedValueOnce(ready(null))
+    await renderRoute('/operators')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disable operator' }))
+
+    await waitFor(() =>
+      expect(server.setOperatorEnabled).toHaveBeenCalledWith({
+        data: {
+          operatorId: 'operator-2',
+          expectedUpdatedAt: '2026-07-20T10:00:00.000Z',
+          enabled: false
+        }
+      })
+    )
+  })
+
+  it('submits confirmed operator deletion through the typed TanStack mutation', async () => {
+    server.getManagedOperators.mockResolvedValueOnce(
+      ready({
+        actorOperatorId: 'operator-1',
+        operators: [
+          {
+            id: 'operator-2',
+            name: 'Morgan Support',
+            email: 'morgan@example.com',
+            enabled: false,
+            enrollmentState: 'complete',
+            roles: ['merchant-reader'],
+            activeSession: { active: false, absoluteExpiresAt: null },
+            lastSignInAt: null,
+            createdAt: '2026-07-01T10:00:00.000Z',
+            updatedAt: '2026-07-20T10:00:00.000Z'
+          }
+        ]
+      })
+    )
+    server.deleteOperator.mockResolvedValueOnce(ready(null))
+    await renderRoute('/operators')
+
+    fireEvent.click(screen.getByText('Delete operator'))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+
+    await waitFor(() =>
+      expect(server.deleteOperator).toHaveBeenCalledWith({
+        data: {
+          operatorId: 'operator-2',
+          expectedUpdatedAt: '2026-07-20T10:00:00.000Z'
+        }
+      })
     )
   })
 })

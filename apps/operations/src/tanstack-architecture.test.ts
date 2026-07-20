@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { expect, it } from 'vitest'
 
 const appFile = (path: string) => new URL(`../${path}`, import.meta.url)
@@ -52,4 +52,22 @@ it('deploys the Operations App through the repository TanStack Start boundary', 
     expect(routeTree).toContain(`'${route}'`)
   }
   expect(routeTree).toContain('routeTree')
+})
+
+it('keeps browser page rendering exclusively in TanStack React routes', async () => {
+  const [sourceFiles, worker, enrollment, management] = await Promise.all([
+    readdir(appFile('src')),
+    readFile(appFile('src/index.ts'), 'utf8'),
+    readFile(appFile('src/operator-enrollment.ts'), 'utf8'),
+    readFile(appFile('src/operator-management.ts'), 'utf8')
+  ])
+
+  expect(sourceFiles).not.toContain('operations-response.ts')
+  expect(sourceFiles).not.toContain('worker.browser.test.ts')
+  expect(sourceFiles).not.toContain('operator-management.browser.test.ts')
+  for (const boundary of [worker, enrollment, management]) {
+    expect(boundary).not.toContain('text/html')
+    expect(boundary).not.toMatch(/\bhtml\(/)
+    expect(boundary).not.toContain('<!doctype')
+  }
 })

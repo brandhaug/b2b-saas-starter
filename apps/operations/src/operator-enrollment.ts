@@ -16,7 +16,7 @@ import {
 import { Effect } from 'effect'
 import type { OperationsConfig } from './config.ts'
 import type { OperatorInvitationDelivery } from './operations-email.ts'
-import { escapeHtml, html, redirect } from './operations-response.ts'
+import { redirect } from './http-response.ts'
 
 const enrollmentCookieName = 'operations.enrollment'
 
@@ -79,14 +79,10 @@ const invitationRoles = (form: FormData): readonly OperatorRole[] =>
         typeof role === 'string' && operatorRoleNames.includes(role as OperatorRole)
     )
 
-const invitationForm = (): string =>
-  `<p><a href="/operators">Back to System Operators</a></p><h1>Invite System Operator</h1><form method="post" action="/operators/invitations"><label>Email<input name="email" type="email" required></label>${operatorRoleNames.map((role) => `<label><input type="checkbox" name="roles" value="${role}">${escapeHtml(role)}</label>`).join('')}<button type="submit">Create invitation</button></form>`
-
 const enrollmentError = (message: string, status = 400): Response =>
-  html(
-    'Operator enrollment',
-    `<h1>Enrollment unavailable</h1><p>${escapeHtml(message)}</p>`,
-    status
+  Response.json(
+    { error: 'operator_enrollment_unavailable', reason: message },
+    { status }
   )
 
 export const resumeOperatorEnrollment = async (input: {
@@ -111,16 +107,6 @@ export const handleOperatorEnrollmentRoutes = async (input: {
 }): Promise<Response | null> => {
   const { request, config, db, auth, invitationDelivery } = input
   const url = new URL(request.url)
-  const wantsJson = request.headers.get('accept')?.includes('application/json') ?? false
-
-  if (request.method === 'GET' && url.pathname === '/operators/invitations/new') {
-    const reference = await readOperatorSessionReference({
-      auth,
-      headers: request.headers
-    })
-    if (!reference) return redirect('/sign-in')
-    return html('Invite System Operator', invitationForm())
-  }
 
   if (request.method === 'POST' && url.pathname === '/operators/invitations') {
     const reference = await readOperatorSessionReference({
@@ -152,18 +138,13 @@ export const handleOperatorEnrollmentRoutes = async (input: {
         )
         throw new Error('operator invitation email could not be delivered')
       }
-      return wantsJson
-        ? Response.json({
-            invitation: {
-              id: invitation.id,
-              email: invitation.email,
-              expiresAt: invitation.expiresAt.toISOString()
-            }
-          })
-        : html(
-            'Operator invitation sent',
-            `<h1>Operator invitation sent</h1><p>A single-use email-verification and enrollment link was sent to ${escapeHtml(invitation.email)}. It expires at ${escapeHtml(invitation.expiresAt.toISOString())}.</p><form method="post" action="/operators/invitations/${encodeURIComponent(invitation.id)}/revoke"><button type="submit">Revoke invitation</button></form>`
-          )
+      return Response.json({
+        invitation: {
+          id: invitation.id,
+          email: invitation.email,
+          expiresAt: invitation.expiresAt.toISOString()
+        }
+      })
     } catch (error) {
       return enrollmentError(
         error instanceof Error ? error.message : 'invitation could not be created',
@@ -193,15 +174,6 @@ export const handleOperatorEnrollmentRoutes = async (input: {
         403
       )
     }
-  }
-
-  if (request.method === 'GET' && url.pathname === '/enroll') {
-    const token = url.searchParams.get('token') ?? ''
-    if (!token) return enrollmentError('Invitation token is required.')
-    return html(
-      'Accept operator invitation',
-      `<h1>Accept operator invitation</h1><form method="post" action="/enroll/accept"><input type="hidden" name="token" value="${escapeHtml(token)}"><label>Name<input name="name" required autocomplete="name"></label><label>Password<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><button type="submit">Begin security enrollment</button></form>`
-    )
   }
 
   if (request.method === 'POST' && url.pathname === '/enroll/accept') {
@@ -243,9 +215,7 @@ export const handleOperatorEnrollmentRoutes = async (input: {
     return null
   const credential = cookieValue(request)
   if (!credential)
-    return wantsJson
-      ? Response.json({ error: 'enrollment_expired' }, { status: 410 })
-      : enrollmentError('Enrollment session is unavailable.', 401)
+    return Response.json({ error: 'enrollment_expired' }, { status: 410 })
   const enrollmentTokenHash = await hashCredential(credential)
   let state
   try {
@@ -253,19 +223,10 @@ export const handleOperatorEnrollmentRoutes = async (input: {
       invitations.inspect({ enrollmentTokenHash })
     )
   } catch {
-    return wantsJson
-      ? Response.json({ error: 'enrollment_expired' }, { status: 410 })
-      : enrollmentError('Enrollment session expired. Sign in to resume.', 401)
+    return Response.json({ error: 'enrollment_expired' }, { status: 410 })
   }
 
   if (enrollmentStateRequest) return Response.json({ email: state.email })
-
-  if (request.method === 'GET' && url.pathname === '/enroll/security') {
-    return html(
-      'Operator security enrollment',
-      `<h1>Secure ${escapeHtml(state.email)}</h1><p>This enrollment-only session has no Operations permissions.</p><form method="post" action="/enroll/security/start"><label>Confirm password<input name="password" type="password" required autocomplete="current-password"></label><button type="submit">Set up authenticator and backup codes</button></form><form method="post" action="/enroll/sign-out"><button type="submit">Sign out of enrollment</button></form>`
-    )
-  }
 
   if (request.method === 'POST' && url.pathname === '/enroll/security/start') {
     const form = await request.formData()
@@ -276,12 +237,7 @@ export const handleOperatorEnrollmentRoutes = async (input: {
         operatorId: state.operatorId,
         password: text(form, 'password')
       })
-      return wantsJson
-        ? Response.json(setup)
-        : html(
-            'Confirm operator security',
-            `<h1>Confirm operator security</h1><p>Authenticator URI: <code>${escapeHtml(setup.totpURI)}</code></p><h2>Backup codes</h2><ul>${setup.backupCodes.map((code) => `<li><code>${escapeHtml(code)}</code></li>`).join('')}</ul><form method="post" action="/enroll/security/complete"><label>Authentication code<input name="code" inputmode="numeric" required autocomplete="one-time-code"></label><label><input name="backupCodesConfirmed" type="checkbox" value="yes" required>I stored my backup codes</label><button type="submit">Complete enrollment</button></form><form method="post" action="/enroll/sign-out"><button type="submit">Sign out of enrollment</button></form>`
-          )
+      return Response.json(setup)
     } catch (error) {
       return enrollmentError(error instanceof Error ? error.message : 'setup failed')
     }

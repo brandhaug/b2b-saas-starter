@@ -278,5 +278,5 @@ Work the **frontier**: any ticket whose blockers are all done. Tickets are order
 - [x] Existing capability, D1 integration, Better Auth, handoff, notification, rate-limit, and security-matrix tests continue to pass without weakening assertions.
 - [x] A fast architecture regression test fails when a browser-facing Operations application lacks the required TanStack Start dependency, Vite integration, router, server entry, or generated route tree.
 - [x] Operations intent, architecture, ADR, source specification, and operating documentation explicitly state that the Operations App is a TanStack Start application deployed as its own Cloudflare Worker.
-- [ ] Obsolete raw Worker page rendering and response helpers are removed only after every route and test has moved to the TanStack boundary.
+- [x] Obsolete raw Worker page rendering and response helpers are removed only after every route and test has moved to the TanStack boundary.
 - [x] Formatting, linting, type checking, unit and integration tests, browser tests, production build, and the complete Operations security evidence matrix pass after migration.

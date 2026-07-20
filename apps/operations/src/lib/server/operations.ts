@@ -346,6 +346,65 @@ export const inviteOperator = createServerFn({ method: 'POST' })
     )
   )
 
+export const revokeOperatorInvitation = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(Schema.Struct({ invitationId: Identifier })))
+  .handler(({ data }) =>
+    submit(
+      `/operators/invitations/${encodeURIComponent(data.invitationId)}/revoke`,
+      data,
+      Schema.Null
+    )
+  )
+
+export const updateOperatorRoles = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        operatorId: Identifier,
+        expectedUpdatedAt: Schema.String,
+        roles: Schema.Array(OperatorRole)
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(`/operators/${encodeURIComponent(data.operatorId)}/roles`, data, Schema.Null)
+  )
+
+export const setOperatorEnabled = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        operatorId: Identifier,
+        expectedUpdatedAt: Schema.String,
+        enabled: Schema.Boolean
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/operators/${encodeURIComponent(data.operatorId)}/enabled`,
+      { ...data, enabled: String(data.enabled) },
+      Schema.Null
+    )
+  )
+
+export const deleteOperator = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        operatorId: Identifier,
+        expectedUpdatedAt: Schema.String
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/operators/${encodeURIComponent(data.operatorId)}/delete`,
+      data,
+      Schema.Null
+    )
+  )
+
 export const startImpersonation = createServerFn({ method: 'POST' })
   .validator(
     Schema.decodeUnknownSync(

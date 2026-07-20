@@ -8,7 +8,7 @@ import {
 } from '@/components/operations-ui.tsx'
 import { formValue } from '@/lib/form-value.ts'
 import { requireOperationsSession } from '@/lib/require-operations-session.ts'
-import { inviteOperator } from '@/lib/server/operations.ts'
+import { inviteOperator, revokeOperatorInvitation } from '@/lib/server/operations.ts'
 
 const roles = [
   'merchant-reader',
@@ -25,6 +25,11 @@ export const Route = createFileRoute('/operators_/invitations/new')({
 function InviteOperatorPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [invitation, setInvitation] = useState<{
+    readonly id: string
+    readonly email: string
+    readonly expiresAt: string
+  } | null>(null)
   return (
     <OperationsShell eyebrow="Controlled provisioning" title="Invite System Operator">
       <Link
@@ -49,11 +54,12 @@ function InviteOperatorPage() {
                 .filter((role): role is string => typeof role === 'string')
             }
           }).then((result) => {
-            if (result.state === 'ready')
+            if (result.state === 'ready') {
+              setInvitation(result.data.invitation)
               setNotice(
                 `Invitation sent to ${result.data.invitation.email}. It expires at ${result.data.invitation.expiresAt}.`
               )
-            else if (result.state === 'redirect')
+            } else if (result.state === 'redirect')
               window.location.assign(result.location)
             else setError(result.message)
           })
@@ -72,6 +78,26 @@ function InviteOperatorPage() {
         <SubmitButton>Send single-use invitation</SubmitButton>
       </form>
       {notice ? <Feedback status>{notice}</Feedback> : null}
+      {invitation ? (
+        <button
+          className="mt-4 h-9 rounded-md border border-destructive px-3 text-sm font-medium text-destructive"
+          onClick={() => {
+            setError(null)
+            void revokeOperatorInvitation({
+              data: { invitationId: invitation.id }
+            }).then((result) => {
+              if (result.state === 'redirect') window.location.assign(result.location)
+              else if (result.state === 'ready') {
+                setInvitation(null)
+                setNotice('Invitation revoked.')
+              } else setError(result.message)
+            })
+          }}
+          type="button"
+        >
+          Revoke invitation
+        </button>
+      ) : null}
       {error ? <Feedback>{error}</Feedback> : null}
     </OperationsShell>
   )

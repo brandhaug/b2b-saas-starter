@@ -55,7 +55,7 @@ export const operationsSecurityEvidenceMatrix = [
         'src/governance/operations-impersonation-authority.live.test.ts',
         'src/governance/operations-impersonation-lifecycle.live.test.ts'
       ),
-      ...evidence('apps/operations', 'src/worker.browser.test.ts')
+      ...evidence('apps/operations', 'src/tanstack-routes.browser.test.tsx')
     ]
   },
   {
@@ -129,7 +129,8 @@ export const operationsSecurityEvidenceMatrix = [
       ...evidence(
         'apps/operations',
         'src/config.test.ts',
-        'src/worker.browser.test.ts'
+        'src/local-runtime.integration.test.ts',
+        'src/tanstack-routes.browser.test.tsx'
       ),
       ...evidence('apps/merchant', 'src/lib/impersonation-handoff.integration.test.ts')
     ]
@@ -151,11 +152,7 @@ export const operationsSecurityEvidenceMatrix = [
         'packages/capabilities',
         'src/governance/operations-management.integration.test.ts'
       ),
-      ...evidence(
-        'apps/operations',
-        'src/operator-management.browser.test.ts',
-        'src/worker.browser.test.ts'
-      )
+      ...evidence('apps/operations', 'src/tanstack-routes.browser.test.tsx')
     ]
   },
   {
@@ -177,7 +174,11 @@ export const operationsSecurityEvidenceMatrix = [
         'src/governance/operator-invitations.integration.test.ts',
         'src/governance/system-operator-maintenance.live.test.ts'
       ),
-      ...evidence('apps/operations', 'src/worker.browser.test.ts'),
+      ...evidence(
+        'apps/operations',
+        'src/local-runtime.integration.test.ts',
+        'src/tanstack-routes.browser.test.tsx'
+      ),
       ...evidence('scripts', 'system-operator-maintenance.test.ts')
     ]
   },
@@ -226,7 +227,7 @@ export const operationsSecurityEvidenceMatrix = [
     ],
     seams: ['http-boundary', 'browser-boundary', 'd1-integration'],
     evidence: [
-      ...evidence('apps/operations', 'src/worker.browser.test.ts'),
+      ...evidence('apps/operations', 'src/tanstack-routes.browser.test.tsx'),
       ...evidence(
         'packages/auth',
         'src/isolated-impersonation-handoff.integration.test.ts'

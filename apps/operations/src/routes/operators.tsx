@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   Feedback,
@@ -6,7 +7,13 @@ import {
   SubmitButton
 } from '@/components/operations-ui.tsx'
 import { requireOperationsSession } from '@/lib/require-operations-session.ts'
-import { getManagedOperators } from '@/lib/server/operations.ts'
+import { formValue } from '@/lib/form-value.ts'
+import {
+  deleteOperator,
+  getManagedOperators,
+  setOperatorEnabled,
+  updateOperatorRoles
+} from '@/lib/server/operations.ts'
 import type { ManagedOperatorView } from '@/lib/server/operations.ts'
 
 const roles = [
@@ -77,6 +84,7 @@ function OperatorCard({
   readonly operator: ManagedOperatorView
 }) {
   const isSelf = operator.id === actorOperatorId
+  const [message, setMessage] = useState<string | null>(null)
   return (
     <article className="border border-border bg-card p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -110,9 +118,24 @@ function OperatorCard({
       ) : (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <form
-            action={`/operators/${encodeURIComponent(operator.id)}/roles`}
             className="grid gap-4 border border-border p-4"
-            method="post"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const form = new FormData(event.currentTarget)
+              setMessage(null)
+              void updateOperatorRoles({
+                data: {
+                  operatorId: operator.id,
+                  expectedUpdatedAt: formValue(form, 'expectedUpdatedAt'),
+                  roles: form
+                    .getAll('roles')
+                    .filter((role): role is string => typeof role === 'string')
+                }
+              }).then((result) => {
+                if (result.state === 'redirect') window.location.assign(result.location)
+                else if (result.state !== 'ready') setMessage(result.message)
+              })
+            }}
           >
             <input name="expectedUpdatedAt" type="hidden" value={operator.updatedAt} />
             <fieldset className="grid gap-2">
@@ -133,8 +156,22 @@ function OperatorCard({
           </form>
           <div className="grid content-start gap-4">
             <form
-              action={`/operators/${encodeURIComponent(operator.id)}/enabled`}
-              method="post"
+              onSubmit={(event) => {
+                event.preventDefault()
+                const form = new FormData(event.currentTarget)
+                setMessage(null)
+                void setOperatorEnabled({
+                  data: {
+                    operatorId: operator.id,
+                    expectedUpdatedAt: formValue(form, 'expectedUpdatedAt'),
+                    enabled: formValue(form, 'enabled') === 'true'
+                  }
+                }).then((result) => {
+                  if (result.state === 'redirect')
+                    window.location.assign(result.location)
+                  else if (result.state !== 'ready') setMessage(result.message)
+                })
+              }}
             >
               <input
                 name="expectedUpdatedAt"
@@ -155,9 +192,22 @@ function OperatorCard({
                 Delete operator
               </summary>
               <form
-                action={`/operators/${encodeURIComponent(operator.id)}/delete`}
                 className="mt-4"
-                method="post"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const form = new FormData(event.currentTarget)
+                  setMessage(null)
+                  void deleteOperator({
+                    data: {
+                      operatorId: operator.id,
+                      expectedUpdatedAt: formValue(form, 'expectedUpdatedAt')
+                    }
+                  }).then((result) => {
+                    if (result.state === 'redirect')
+                      window.location.assign(result.location)
+                    else if (result.state !== 'ready') setMessage(result.message)
+                  })
+                }}
               >
                 <input
                   name="expectedUpdatedAt"
@@ -175,6 +225,7 @@ function OperatorCard({
           </div>
         </div>
       )}
+      {message ? <Feedback>{message}</Feedback> : null}
     </article>
   )
 }
