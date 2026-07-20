@@ -22,9 +22,9 @@ import {
 import {
   SidebarMenu,
   SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar
+  SidebarMenuItem
 } from '@/components/ui/sidebar'
+import { useSidebar } from '@/components/ui/sidebar-context'
 
 export function NavUser({
   user
