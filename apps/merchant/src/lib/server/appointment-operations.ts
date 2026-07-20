@@ -13,9 +13,10 @@ import {
   MerchantContext
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { CalendarDate } from '../appointment-calendar-date.ts'
 import { runMerchantRequest } from './merchant-session.ts'
 
-const DateInput = Schema.Struct({ date: Schema.optional(Schema.String) })
+const DateInput = Schema.Struct({ date: Schema.optional(CalendarDate) })
 const DetailInput = Schema.Struct({ appointmentId: Schema.String })
 
 const run = async <A>(

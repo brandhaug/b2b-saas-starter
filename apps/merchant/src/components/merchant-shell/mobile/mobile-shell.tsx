@@ -3,37 +3,40 @@ import type { MerchantDestination, MerchantShellSection } from '../navigation.ts
 import { MerchantShellHeader } from '../shell-header.tsx'
 import { MobileBottomDock } from './mobile-bottom-dock.tsx'
 
-export function MobileShell({
-  section,
-  destinations,
-  title,
-  description,
-  heading,
-  children
-}: {
+type MobileShellProps = {
   readonly section: MerchantShellSection
   readonly destinations: readonly MerchantDestination[]
-  readonly title: string
-  readonly description: string
-  readonly heading: 'shell' | 'screen'
   readonly children: ReactNode
-}) {
+} & (
+  | {
+      readonly layout: 'standard'
+      readonly title: string
+      readonly description: string
+    }
+  | {
+      readonly layout: 'immersive'
+    }
+)
+
+export function MobileShell(props: MobileShellProps) {
+  const { section, destinations, layout, children } = props
+
   return (
     <main className="merchant-mobile min-h-dvh bg-background pb-32 text-foreground">
-      {heading === 'shell' ? (
+      {layout === 'standard' ? (
         <MerchantShellHeader section={section} presentation="mobile" />
       ) : null}
       <section
-        className={`min-w-0 px-5 ${heading === 'screen' ? 'pt-[max(2rem,env(safe-area-inset-top))]' : 'py-7'}`}
+        className={`min-w-0 px-5 ${layout === 'immersive' ? 'pt-[max(2rem,env(safe-area-inset-top))]' : 'py-7'}`}
       >
-        {heading === 'shell' ? (
+        {layout === 'standard' ? (
           <>
             <p className="text-xs font-medium text-primary">
               {section.kind === 'catalog' ? 'Merchant catalog' : 'Merchant App'}
             </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight">{title}</h1>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">{props.title}</h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {description}
+              {props.description}
             </p>
           </>
         ) : null}
