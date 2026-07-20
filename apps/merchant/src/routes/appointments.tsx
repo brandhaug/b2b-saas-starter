@@ -1,9 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  MerchantPresentationBoundary,
-  MerchantShell
-} from '@/components/merchant-shell/index.ts'
-import { DesktopAppointmentsScreen } from '@/features/appointments/desktop/desktop-appointments-screen.tsx'
+import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import { MobileAppointmentsScreen } from '@/features/appointments/mobile/mobile-appointments-screen.tsx'
 import { decodeAppointmentCalendarSearch } from '@/lib/appointment-calendar-date.ts'
 import { getAppointmentCalendar } from '@/lib/server/appointment-operations.ts'
@@ -25,12 +21,9 @@ function AppointmentsPage() {
       section={{ kind: 'merchant' }}
       title="Appointments"
       description="Your returning-user home: a Provider-oriented day view of accepted Appointment facts."
-      mobileLayout="home"
+      layout="home"
     >
-      <MerchantPresentationBoundary
-        desktop={<DesktopAppointmentsScreen calendar={calendar} selectedDate={date} />}
-        mobile={<MobileAppointmentsScreen calendar={calendar} selectedDate={date} />}
-      />
+      <MobileAppointmentsScreen calendar={calendar} selectedDate={date} />
     </MerchantShell>
   )
 }

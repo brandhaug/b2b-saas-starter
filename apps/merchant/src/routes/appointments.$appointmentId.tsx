@@ -25,7 +25,7 @@ function AppointmentDetailPage() {
       section={{ kind: 'merchant' }}
       title="Appointment detail"
       description="An inspect-only record of the facts accepted when this Appointment was confirmed."
-      mobileLayout="task"
+      layout="task"
     >
       <MerchantPresentationBoundary
         desktop={<DesktopAppointmentDetailScreen appointment={appointment} />}
