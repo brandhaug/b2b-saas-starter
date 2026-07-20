@@ -8,20 +8,40 @@ export function MerchantShell({
   section,
   title,
   description,
+  mobileHeading = 'shell',
   children
 }: {
   readonly section: MerchantShellSection
   readonly title: string
   readonly description: string
+  readonly mobileHeading?: 'shell' | 'screen'
   readonly children: ReactNode
 }) {
   const destinations = merchantDestinations()
-  const shared = { section, destinations, title, description, children }
 
   return (
     <MerchantPresentationBoundary
-      desktop={<DesktopShell {...shared} />}
-      mobile={<MobileShell {...shared} />}
+      desktop={
+        <DesktopShell
+          section={section}
+          destinations={destinations}
+          title={title}
+          description={description}
+        >
+          {children}
+        </DesktopShell>
+      }
+      mobile={
+        <MobileShell
+          section={section}
+          destinations={destinations}
+          title={title}
+          description={description}
+          heading={mobileHeading}
+        >
+          {children}
+        </MobileShell>
+      }
     />
   )
 }
