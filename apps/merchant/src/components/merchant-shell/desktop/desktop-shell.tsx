@@ -1,7 +1,7 @@
 import { Link, useLocation, useRouter } from '@tanstack/react-router'
 import { UserRound, X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { AnimationEvent, ReactNode } from 'react'
 import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
 import { DesktopHomeActions, DesktopHomePlaceholder } from './desktop-home-actions.tsx'
 
@@ -61,6 +61,11 @@ function DesktopRouteModal({
   readonly children: ReactNode
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasNavigatedRef = useRef(false)
+  const [modalState, setModalState] = useState<'entering' | 'open' | 'closing'>(
+    'entering'
+  )
   const location = useLocation()
   const router = useRouter()
   const appointmentDate = appointmentDateFromSearch(location.search)
@@ -68,17 +73,53 @@ function DesktopRouteModal({
   useEffect(() => {
     const dialog = dialogRef.current
     if (dialog && !dialog.open) dialog.showModal()
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
   }, [])
+
+  const navigateHome = () => {
+    if (hasNavigatedRef.current) return
+    hasNavigatedRef.current = true
+    void router.navigate({
+      to: '/appointments',
+      search: { date: appointmentDate }
+    })
+  }
+
+  const closeModal = () => {
+    if (modalState === 'closing') return
+    setModalState('closing')
+    closeTimerRef.current = setTimeout(navigateHome, 170)
+  }
+
+  const handleAnimationEnd = (event: AnimationEvent<HTMLDialogElement>) => {
+    if (event.target !== event.currentTarget) return
+    if (
+      modalState === 'entering' &&
+      event.animationName === 'merchant-desktop-modal-enter'
+    ) {
+      setModalState('open')
+    }
+    if (
+      modalState === 'closing' &&
+      event.animationName === 'merchant-desktop-modal-exit'
+    ) {
+      navigateHome()
+    }
+  }
 
   return (
     <dialog
       ref={dialogRef}
       aria-modal="true"
       aria-labelledby="merchant-desktop-modal-title"
+      data-desktop-modal-state={modalState}
       className="merchant-desktop-modal"
+      onAnimationEnd={handleAnimationEnd}
       onCancel={(event) => {
         event.preventDefault()
-        void router.navigate({ to: '/appointments', search: { date: appointmentDate } })
+        closeModal()
       }}
     >
       <header className="sticky top-0 z-20 grid grid-cols-[3rem_1fr_3rem] items-center border-b bg-background/92 px-4 py-3 backdrop-blur-xl">
@@ -89,14 +130,14 @@ function DesktopRouteModal({
         >
           {title}
         </h1>
-        <Link
-          to="/appointments"
-          search={{ date: appointmentDate }}
+        <button
+          type="button"
           aria-label={`Close ${title}`}
           className="grid size-8 place-items-center justify-self-end rounded-full bg-muted text-muted-foreground hover:text-foreground"
+          onClick={closeModal}
         >
           <X aria-hidden className="size-4" strokeWidth={2.5} />
-        </Link>
+        </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 py-6">
         <p className="text-xs font-semibold tracking-[0.08em] text-primary uppercase">
