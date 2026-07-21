@@ -1,23 +1,18 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 import {
-  applyMerchantTheme,
+  merchantThemeChangeEvent,
   merchantThemeStorageKey,
+  readStoredMerchantTheme,
   type MerchantTheme
 } from '@/lib/merchant-theme.ts'
 
 const themes = ['light', 'dark', 'system'] as const
-const themeChangeEvent = 'merchant-theme-change'
-
-function readStoredTheme(): MerchantTheme {
-  const stored = localStorage.getItem(merchantThemeStorageKey)
-  return stored === 'light' || stored === 'dark' ? stored : 'system'
-}
 
 function subscribeToTheme(onStoreChange: () => void) {
-  window.addEventListener(themeChangeEvent, onStoreChange)
+  window.addEventListener(merchantThemeChangeEvent, onStoreChange)
   window.addEventListener('storage', onStoreChange)
   return () => {
-    window.removeEventListener(themeChangeEvent, onStoreChange)
+    window.removeEventListener(merchantThemeChangeEvent, onStoreChange)
     window.removeEventListener('storage', onStoreChange)
   }
 }
@@ -25,19 +20,9 @@ function subscribeToTheme(onStoreChange: () => void) {
 export function MerchantThemeControl() {
   const theme = useSyncExternalStore<MerchantTheme>(
     subscribeToTheme,
-    readStoredTheme,
+    readStoredMerchantTheme,
     () => 'system'
   )
-
-  useEffect(() => {
-    applyMerchantTheme(theme)
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const syncSystemTheme = () => {
-      if (theme === 'system') applyMerchantTheme('system')
-    }
-    media.addEventListener('change', syncSystemTheme)
-    return () => media.removeEventListener('change', syncSystemTheme)
-  }, [theme])
 
   return (
     <fieldset className="mt-5 grid gap-2">
@@ -52,7 +37,7 @@ export function MerchantThemeControl() {
             onClick={() => {
               if (option === 'system') localStorage.removeItem(merchantThemeStorageKey)
               else localStorage.setItem(merchantThemeStorageKey, option)
-              window.dispatchEvent(new Event(themeChangeEvent))
+              window.dispatchEvent(new Event(merchantThemeChangeEvent))
             }}
           >
             {option}

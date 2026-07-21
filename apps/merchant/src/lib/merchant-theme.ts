@@ -1,6 +1,7 @@
 export type MerchantTheme = 'light' | 'dark' | 'system'
 
 export const merchantThemeStorageKey = 'merchant-theme'
+export const merchantThemeChangeEvent = 'merchant-theme-change'
 
 export const merchantThemeBootScript = `(() => {
   try {
@@ -19,4 +20,9 @@ export function applyMerchantTheme(theme: MerchantTheme) {
   document.documentElement.classList.toggle('dark', dark)
   document.documentElement.classList.toggle('light', !dark)
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+}
+
+export function readStoredMerchantTheme(): MerchantTheme {
+  const stored = localStorage.getItem(merchantThemeStorageKey)
+  return stored === 'light' || stored === 'dark' ? stored : 'system'
 }

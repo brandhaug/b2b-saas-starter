@@ -8,6 +8,7 @@ import {
   useRouter
 } from '@tanstack/react-router'
 import { ImpersonationBanner } from '@/components/impersonation-banner.tsx'
+import { MerchantThemeSync } from '@/components/merchant-theme-sync.tsx'
 import {
   getImpersonationLifecycle,
   stopImpersonation
@@ -144,6 +145,7 @@ function RootDocument({
         <HeadContent />
       </head>
       <body>
+        <MerchantThemeSync />
         {children}
         <Scripts />
       </body>
