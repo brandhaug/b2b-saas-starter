@@ -23,11 +23,7 @@ export function DesktopShell({
   if (layout === 'home')
     return (
       <DesktopStage>
-        <DesktopHomeCard
-          destinations={destinations}
-          title={title}
-          description={description}
-        >
+        <DesktopHomeCard destinations={destinations} title={title}>
           {children}
         </DesktopHomeCard>
       </DesktopStage>
@@ -39,7 +35,6 @@ export function DesktopShell({
         <DesktopHomeCard
           destinations={destinations}
           title="Appointments"
-          description="Your day at a glance."
           interactive={false}
         >
           <DesktopHomePlaceholder />
@@ -131,13 +126,11 @@ function DesktopStage({ children }: { readonly children: ReactNode }) {
 function DesktopHomeCard({
   destinations,
   title,
-  description,
   interactive = true,
   children
 }: {
   readonly destinations: readonly MerchantDestination[]
   readonly title: string
-  readonly description: string
   readonly interactive?: boolean
   readonly children: ReactNode
 }) {
@@ -167,7 +160,6 @@ function DesktopHomeCard({
           Today
         </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-1 text-sm leading-5 text-white/55">{description}</p>
         <div className="mt-5">{children}</div>
       </div>
       <div className="shrink-0 bg-gradient-to-t from-[#111720] via-[#111720]/98 to-transparent px-4 pt-3 pb-4">

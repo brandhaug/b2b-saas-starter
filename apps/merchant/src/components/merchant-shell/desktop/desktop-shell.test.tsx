@@ -62,6 +62,7 @@ describe('DesktopShell', () => {
     expect(html).toContain('aria-label="Open Settings"')
     expect(html).toContain('lucide-user-round')
     expect(html).not.toContain('lucide-settings')
+    expect(html).not.toContain('Route description')
     expect(html).not.toContain('aria-label="Merchant App"')
     expect(html).not.toContain('<dialog')
     expect(actions?.match(/data-desktop-home-action="true"/g)).toHaveLength(5)
