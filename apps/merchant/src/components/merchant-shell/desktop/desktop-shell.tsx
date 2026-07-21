@@ -132,7 +132,7 @@ function DesktopHomeCard({
       className="merchant-desktop-home-card relative z-10 flex h-[750px] w-[448px] flex-col overflow-hidden rounded-3xl border border-white/10 text-white shadow-2xl"
     >
       <header className="flex h-16 shrink-0 items-center justify-between px-5">
-        <span className="text-sm font-semibold tracking-tight">Merchant App</span>
+        <MerchantLogo />
         {interactive ? (
           <Link
             to="/settings"
@@ -154,5 +154,38 @@ function DesktopHomeCard({
         <DesktopHomeActions destinations={destinations} interactive={interactive} />
       </div>
     </section>
+  )
+}
+
+function MerchantLogo() {
+  return (
+    <div className="relative flex size-[25.59375px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-white">
+      <svg
+        aria-hidden="true"
+        className="h-full w-full"
+        fill="none"
+        focusable="false"
+        viewBox="0 0 126 126"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M0 0H126V126H0V0Z" fill="white" />
+        <path
+          d="M40.3 64.4L61.3 76.5V100.8L40.3 113L19.3 100.8V76.5L40.3 64.4Z"
+          fill="black"
+        />
+        <path
+          d="M84.7 13L105.7 25.2V49.5L84.7 61.6L63.7 49.5V25.2L84.7 13Z"
+          fill="black"
+        />
+        <path
+          d="M40.3 13L61.3 25.1V49.4L40.3 61.6L19.3 49.4V25.1L40.3 13Z"
+          fill="black"
+        />
+        <path
+          d="M84.7 64.4L105.7 76.6V100.9L84.7 113L63.7 100.9V76.6L84.7 64.4Z"
+          fill="black"
+        />
+      </svg>
+    </div>
   )
 }
