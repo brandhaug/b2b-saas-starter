@@ -60,6 +60,8 @@ describe('DesktopShell', () => {
 
     expect(html).toContain('aria-label="Merchant desktop home"')
     expect(html).toContain('aria-label="Open Settings"')
+    expect(html).toContain('grid-cols-[2.75rem_1fr_2.75rem]')
+    expect(html).toContain('>Mon, Jul 27</span>')
     expect(html).toContain('viewBox="0 0 126 126"')
     expect(html).toContain('size-8')
     expect(html).not.toContain('>Merchant App</span>')

@@ -11,6 +11,7 @@ export function DesktopShell({
   destinations,
   title,
   description,
+  headerDate,
   children
 }: {
   readonly layout: 'home' | 'modal'
@@ -18,19 +19,26 @@ export function DesktopShell({
   readonly destinations: readonly MerchantDestination[]
   readonly title: string
   readonly description: string
+  readonly headerDate?: string | undefined
   readonly children: ReactNode
 }) {
   if (layout === 'home')
     return (
       <DesktopStage>
-        <DesktopHomeCard destinations={destinations}>{children}</DesktopHomeCard>
+        <DesktopHomeCard destinations={destinations} headerDate={headerDate}>
+          {children}
+        </DesktopHomeCard>
       </DesktopStage>
     )
 
   return (
     <DesktopStage>
       <div aria-hidden="true" className="merchant-desktop-home-behind">
-        <DesktopHomeCard destinations={destinations} interactive={false}>
+        <DesktopHomeCard
+          destinations={destinations}
+          headerDate={headerDate}
+          interactive={false}
+        >
           <DesktopHomePlaceholder />
         </DesktopHomeCard>
       </div>
@@ -55,13 +63,7 @@ function DesktopRouteModal({
   const dialogRef = useRef<HTMLDialogElement>(null)
   const location = useLocation()
   const router = useRouter()
-  const appointmentDate =
-    typeof location.search === 'object' &&
-    location.search !== null &&
-    'date' in location.search &&
-    typeof location.search.date === 'string'
-      ? location.search.date
-      : undefined
+  const appointmentDate = appointmentDateFromSearch(location.search)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -119,31 +121,45 @@ function DesktopStage({ children }: { readonly children: ReactNode }) {
 
 function DesktopHomeCard({
   destinations,
+  headerDate,
   interactive = true,
   children
 }: {
   readonly destinations: readonly MerchantDestination[]
+  readonly headerDate?: string | undefined
   readonly interactive?: boolean
   readonly children: ReactNode
 }) {
+  const location = useLocation()
+  const appointmentDate = headerDate ?? appointmentDateFromSearch(location.search)
+
   return (
     <section
       aria-label="Merchant desktop home"
       className="merchant-desktop-home-card relative z-10 flex h-[750px] w-[448px] flex-col overflow-hidden rounded-3xl border border-white/10 text-white shadow-2xl"
     >
-      <header className="flex h-16 shrink-0 items-center justify-between px-5">
-        <MerchantLogo />
+      <header className="grid h-16 shrink-0 grid-cols-[2.75rem_1fr_2.75rem] items-center px-5">
+        <span className="grid size-11 place-items-center">
+          <MerchantLogo />
+        </span>
+        <span className="justify-self-center text-sm font-medium text-white/45">
+          {formatDesktopHeaderDate(appointmentDate)}
+        </span>
         {interactive ? (
           <Link
             to="/settings"
             aria-label="Open Settings"
-            className="grid size-10 place-items-center rounded-full bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
+            className="grid size-11 place-items-center rounded-full text-white/70 transition-transform hover:text-white active:scale-[0.98]"
           >
-            <UserRound aria-hidden className="size-5" />
+            <span className="grid size-9 place-items-center rounded-full bg-white/8">
+              <UserRound aria-hidden className="size-5" />
+            </span>
           </Link>
         ) : (
-          <span className="grid size-10 place-items-center rounded-full bg-white/8 text-white/70">
-            <UserRound aria-hidden className="size-5" />
+          <span className="grid size-11 place-items-center rounded-full text-white/70">
+            <span className="grid size-9 place-items-center rounded-full bg-white/8">
+              <UserRound aria-hidden className="size-5" />
+            </span>
           </span>
         )}
       </header>
@@ -188,4 +204,31 @@ function MerchantLogo() {
       </svg>
     </div>
   )
+}
+
+function appointmentDateFromSearch(search: unknown) {
+  return typeof search === 'object' &&
+    search !== null &&
+    'date' in search &&
+    typeof search.date === 'string'
+    ? search.date
+    : undefined
+}
+
+function formatDesktopHeaderDate(appointmentDate: string | undefined) {
+  if (!appointmentDate) return ''
+
+  const date = new Date(`${appointmentDate}T12:00:00.000Z`)
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== appointmentDate
+  )
+    return ''
+
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  }).format(date)
 }

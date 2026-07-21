@@ -8,12 +8,14 @@ export function MerchantShell({
   section,
   title,
   description,
+  headerDate,
   layout = 'sheet',
   children
 }: {
   readonly section: MerchantShellSection
   readonly title: string
   readonly description: string
+  readonly headerDate?: string | undefined
   readonly layout?: 'home' | 'sheet' | 'task'
   readonly children: ReactNode
 }) {
@@ -28,6 +30,7 @@ export function MerchantShell({
           destinations={destinations}
           title={title}
           description={description}
+          headerDate={headerDate}
         >
           {children}
         </DesktopShell>
