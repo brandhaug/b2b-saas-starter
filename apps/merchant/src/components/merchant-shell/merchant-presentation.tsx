@@ -5,20 +5,40 @@ import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 export type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 
 const MerchantPresentationContext = createContext<MerchantPresentation | null>(null)
-const MobileHomeUnderlayContext = createContext<RefObject<ReactNode> | null>(null)
+type MobileHomeUnderlayOrigin = 'none' | 'reconstructed' | 'retained'
+type MobileHomeUnderlay = {
+  readonly content: RefObject<ReactNode>
+  readonly date: RefObject<string | undefined>
+  readonly origin: RefObject<MobileHomeUnderlayOrigin>
+}
+const MobileHomeUnderlayContext = createContext<MobileHomeUnderlay | null>(null)
 
 export function MerchantPresentationProvider({
   presentation,
+  mobileHomeUnderlay,
+  mobileHomeDate,
   children
 }: {
   readonly presentation: MerchantPresentation
+  readonly mobileHomeUnderlay?: ReactNode
+  readonly mobileHomeDate?: string | undefined
   readonly children: ReactNode
 }) {
   const [initialPresentation] = useState(presentation)
-  const mobileHomeUnderlayRef = useRef<ReactNode>(null)
+  const mobileHomeUnderlayRef = useRef<ReactNode>(mobileHomeUnderlay ?? null)
+  const mobileHomeDateRef = useRef<string | undefined>(mobileHomeDate)
+  const mobileHomeUnderlayOriginRef = useRef<MobileHomeUnderlayOrigin>(
+    mobileHomeUnderlay === undefined ? 'none' : 'reconstructed'
+  )
   return (
     <MerchantPresentationContext value={initialPresentation}>
-      <MobileHomeUnderlayContext value={mobileHomeUnderlayRef}>
+      <MobileHomeUnderlayContext
+        value={{
+          content: mobileHomeUnderlayRef,
+          date: mobileHomeDateRef,
+          origin: mobileHomeUnderlayOriginRef
+        }}
+      >
         {children}
       </MobileHomeUnderlayContext>
     </MerchantPresentationContext>

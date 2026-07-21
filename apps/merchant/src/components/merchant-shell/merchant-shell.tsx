@@ -37,7 +37,12 @@ export function MerchantShell({
       }
       mobile={
         layout === 'home' ? (
-          <MobileShell layout="home" section={section} destinations={destinations}>
+          <MobileShell
+            layout="home"
+            section={section}
+            destinations={destinations}
+            date={headerDate}
+          >
             {children}
           </MobileShell>
         ) : (

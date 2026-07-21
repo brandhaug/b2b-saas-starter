@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { MerchantDestination } from '../navigation.tsx'
+import { MerchantPresentationProvider } from '../merchant-presentation.tsx'
 import { MobileShell } from './mobile-shell.tsx'
 import {
   getMobileSheetDragOffset,
@@ -57,11 +58,12 @@ type TestShellProps =
       readonly description: string
     }
 
-function renderShell(props: TestShellProps) {
+function renderShell(props: TestShellProps, reconstructedHome?: ReactNode) {
   const shell =
     props.layout === 'home' ? (
       <MobileShell
         layout="home"
+        date="2026-07-27"
         section={{ kind: 'merchant' }}
         destinations={destinations}
       >
@@ -79,7 +81,14 @@ function renderShell(props: TestShellProps) {
       </MobileShell>
     )
 
-  return renderToStaticMarkup(shell)
+  return renderToStaticMarkup(
+    <MerchantPresentationProvider
+      presentation="mobile"
+      mobileHomeUnderlay={reconstructedHome}
+    >
+      {shell}
+    </MerchantPresentationProvider>
+  )
 }
 
 describe('MobileShell', () => {
@@ -98,31 +107,38 @@ describe('MobileShell', () => {
     expect(homeActions).toMatch(
       /Walk-ins[\s\S]*Customers[\s\S]*Services[\s\S]*Providers[\s\S]*More/
     )
+    expect(homeActions?.match(/data-search-date="2026-07-27"/g)).toHaveLength(4)
     expect(homeActions?.match(/col-span-3/g)).toHaveLength(2)
     expect(homeActions?.match(/col-span-2/g)).toHaveLength(3)
     expect(moreNavigation).toContain('Availability')
     expect(moreNavigation).toContain('Settings')
+    expect(moreNavigation?.match(/data-search-date="2026-07-27"/g)).toHaveLength(2)
     expect(moreNavigation).not.toMatch(
       /Appointments|Walk-ins|Customers|Services|Providers/
     )
     expect(html).not.toContain('aria-modal="true"')
   })
 
-  it('presents secondary routes over an inert native home layer', () => {
-    const html = renderShell({
-      layout: 'sheet',
-      title: 'Customers',
-      description: 'Customer history'
-    })
+  it('keeps a refreshed secondary route as a sheet over reconstructed home', () => {
+    const html = renderShell(
+      {
+        layout: 'sheet',
+        title: 'Customers',
+        description: 'Customer history'
+      },
+      <p>Reconstructed appointments page</p>
+    )
 
     expect(html).toContain('<section')
     expect(html).not.toContain('aria-modal="true"')
     expect(html).toContain('aria-label="Close Customers"')
-    expect(html).toContain('data-mobile-sheet-state="entering"')
+    expect(html).toContain('data-mobile-underlay-origin="reconstructed"')
+    expect(html).toContain('data-mobile-sheet-state="open"')
     expect(html).toContain('data-mobile-sheet-handle="true"')
     expect(html).toContain('Customers')
     expect(html).toContain('aria-hidden="true" inert=""')
     expect(html).toContain('aria-label="Merchant home actions"')
+    expect(html).toContain('Reconstructed appointments page')
   })
 
   it('tracks downward movement directly and resists an overextended drag', () => {

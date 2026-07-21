@@ -38,6 +38,7 @@ type MobileShellProps = {
     }
   | {
       readonly layout: 'home'
+      readonly date?: string | undefined
     }
 )
 
@@ -46,13 +47,20 @@ export function MobileShell(props: MobileShellProps) {
   const router = useRouter()
   const location = useLocation()
   const mobileHomeUnderlay = useMobileHomeUnderlay()
+  const homeUnderlay = mobileHomeUnderlay?.content.current ?? null
+  const homeDate = mobileHomeUnderlay?.date.current
+  const homeUnderlayOrigin = mobileHomeUnderlay?.origin.current ?? 'none'
+  const hasHomeUnderlay = homeUnderlay !== null
+  const currentHomeDate = layout === 'home' ? props.date : undefined
   const sheetRef = useRef<HTMLElement>(null)
   const dragRef = useRef<MobileSheetDrag | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clickResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasNavigatedRef = useRef(false)
   const suppressClickRef = useRef(false)
-  const [sheetState, setSheetState] = useState<MobileSheetState>('entering')
+  const [sheetState, setSheetState] = useState<MobileSheetState>(() =>
+    layout !== 'home' && homeUnderlayOrigin === 'retained' ? 'entering' : 'open'
+  )
 
   useEffect(
     () => () => {
@@ -64,9 +72,11 @@ export function MobileShell(props: MobileShellProps) {
 
   useEffect(() => {
     if (layout === 'home' && mobileHomeUnderlay) {
-      mobileHomeUnderlay.current = children
+      mobileHomeUnderlay.content.current = children
+      mobileHomeUnderlay.date.current = currentHomeDate
+      mobileHomeUnderlay.origin.current = 'retained'
     }
-  }, [children, layout, mobileHomeUnderlay])
+  }, [children, currentHomeDate, layout, mobileHomeUnderlay])
 
   if (layout === 'home') {
     return (
@@ -74,7 +84,10 @@ export function MobileShell(props: MobileShellProps) {
         <section className="min-w-0 px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-60">
           {children}
         </section>
-        <MobileHomeActions destinations={destinations} />
+        <MobileHomeActions
+          destinations={destinations}
+          appointmentDate={currentHomeDate}
+        />
       </main>
     )
   }
@@ -194,22 +207,23 @@ export function MobileShell(props: MobileShellProps) {
 
   return (
     <main className="merchant-mobile relative min-h-dvh overflow-hidden bg-background text-foreground">
-      <div
-        aria-hidden
-        inert
-        className="absolute inset-0 z-0 overflow-hidden bg-background opacity-65"
-      >
-        <section className="min-w-0 px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-60">
-          {mobileHomeUnderlay?.current ?? (
-            <p className="text-sm font-semibold">Merchant App</p>
-          )}
-        </section>
-        <MobileHomeActions destinations={destinations} />
-      </div>
+      {hasHomeUnderlay ? (
+        <div
+          aria-hidden
+          inert
+          className="absolute inset-0 z-0 overflow-hidden bg-background opacity-65"
+        >
+          <section className="min-w-0 px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-60">
+            {homeUnderlay}
+          </section>
+          <MobileHomeActions destinations={destinations} appointmentDate={homeDate} />
+        </div>
+      ) : null}
       <section
         ref={sheetRef}
         aria-labelledby="merchant-mobile-sheet-title"
         data-mobile-surface={layout}
+        data-mobile-underlay-origin={homeUnderlayOrigin}
         data-mobile-sheet-state={sheetState}
         onAnimationEnd={handleAnimationEnd}
         onTransitionEnd={handleTransitionEnd}

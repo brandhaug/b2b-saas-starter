@@ -13,8 +13,12 @@ import {
   stopImpersonation
 } from '@/lib/server/impersonation-lifecycle.ts'
 import { MerchantPresentationProvider } from '@/components/merchant-shell/merchant-presentation.tsx'
+import { MobileAppointmentsScreen } from '@/features/appointments/mobile/mobile-appointments-screen.tsx'
+import { decodeAppointmentCalendarSearch } from '@/lib/appointment-calendar-date.ts'
+import { shouldReconstructMobileHomeUnderlay } from '@/lib/mobile-sheet-underlay.ts'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 import { getMerchantPresentation } from '@/lib/server/merchant-presentation.ts'
+import { getMobileSheetUnderlayCalendar } from '@/lib/server/mobile-sheet-underlay.ts'
 import onestLatinFont from '@fontsource-variable/onest/files/onest-latin-wght-normal.woff2?url'
 import appCss from '../index.css?url'
 
@@ -30,13 +34,34 @@ export const merchantHeadLinks = [
 ] satisfies ComponentProps<'link'>[]
 
 export const Route = createRootRoute({
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const [lifecycle, presentation] = await Promise.all([
       getImpersonationLifecycle(),
       getMerchantPresentation()
     ])
     if (lifecycle?.state === 'terminated') throw redirect({ href: lifecycle.returnTo })
-    return { impersonationLifecycle: lifecycle, merchantPresentation: presentation }
+    const reconstructMobileHome = shouldReconstructMobileHomeUnderlay({
+      pathname: location.pathname,
+      presentation,
+      navigationState: location.state,
+      documentRequest: typeof document === 'undefined'
+    })
+    let requestedDate: string | undefined
+    try {
+      requestedDate = decodeAppointmentCalendarSearch(location.search).date
+    } catch {
+      requestedDate = undefined
+    }
+    const mobileHomeCalendar = reconstructMobileHome
+      ? await getMobileSheetUnderlayCalendar({
+          data: { date: requestedDate, redirectTo: location.href }
+        })
+      : null
+    return {
+      impersonationLifecycle: lifecycle,
+      merchantPresentation: presentation,
+      mobileHomeCalendar
+    }
   },
   head: () => ({
     meta: [
@@ -53,8 +78,11 @@ export const Route = createRootRoute({
 })
 
 function RootComponent() {
-  const { impersonationLifecycle: lifecycle, merchantPresentation: presentation } =
-    Route.useRouteContext()
+  const {
+    impersonationLifecycle: lifecycle,
+    merchantPresentation: presentation,
+    mobileHomeCalendar
+  } = Route.useRouteContext()
   const router = useRouter()
   return (
     <RootDocument presentation={presentation}>
@@ -71,7 +99,18 @@ function RootComponent() {
           }}
         />
       ) : null}
-      <MerchantPresentationProvider presentation={presentation}>
+      <MerchantPresentationProvider
+        presentation={presentation}
+        mobileHomeUnderlay={
+          mobileHomeCalendar ? (
+            <MobileAppointmentsScreen
+              calendar={mobileHomeCalendar}
+              selectedDate={mobileHomeCalendar.date}
+            />
+          ) : undefined
+        }
+        mobileHomeDate={mobileHomeCalendar?.date}
+      >
         <Outlet />
       </MerchantPresentationProvider>
     </RootDocument>

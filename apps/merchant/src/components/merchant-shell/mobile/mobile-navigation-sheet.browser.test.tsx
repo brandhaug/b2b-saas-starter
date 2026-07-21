@@ -69,6 +69,7 @@ describe('MobileNavigationSheet', () => {
       return (
         <MobileNavigationSheet
           destinations={destinations}
+          appointmentDate="2026-07-27"
           open={open}
           onRequestClose={() => {
             onDismiss()
@@ -102,6 +103,7 @@ describe('MobileNavigationSheet', () => {
       return (
         <MobileNavigationSheet
           destinations={destinations}
+          appointmentDate="2026-07-27"
           open={open}
           onRequestClose={() => {
             onDismiss()

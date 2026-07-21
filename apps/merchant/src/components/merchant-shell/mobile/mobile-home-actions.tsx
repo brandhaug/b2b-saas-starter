@@ -19,9 +19,11 @@ const homeRoutePaths = new Set<string>([
 ])
 
 export function MobileHomeActions({
-  destinations
+  destinations,
+  appointmentDate
 }: {
   readonly destinations: readonly MerchantDestination[]
+  readonly appointmentDate: string | undefined
 }) {
   const [navigationOpen, setNavigationOpen] = useState(false)
   const destinationsByRoute = new Map(
@@ -47,6 +49,7 @@ export function MobileHomeActions({
                 destination={destination}
                 icon={action.icon}
                 className={index < 2 ? 'col-span-3' : 'col-span-2'}
+                appointmentDate={appointmentDate}
               />
             )
           })}
@@ -64,6 +67,7 @@ export function MobileHomeActions({
       </nav>
       <MobileNavigationSheet
         destinations={moreDestinations}
+        appointmentDate={appointmentDate}
         open={navigationOpen}
         onRequestClose={() => setNavigationOpen(false)}
       />
@@ -74,17 +78,20 @@ export function MobileHomeActions({
 function HomeAction({
   destination,
   icon,
-  className
+  className,
+  appointmentDate
 }: {
   readonly destination: MerchantDestination
   readonly icon: ReactNode
   readonly className: string
+  readonly appointmentDate: string | undefined
 }) {
   return (
     <Link
       to={destination.to}
       viewTransition={false}
       state={mobileSheetNavigationState}
+      search={appointmentDate ? { date: appointmentDate } : {}}
       className={`${className} grid min-h-[4.75rem] place-content-center gap-1 rounded-3xl border bg-card/95 px-3 text-center text-sm font-bold text-foreground shadow-xl backdrop-blur active:scale-[0.98] active:bg-muted`}
     >
       <span className="mx-auto [&>svg]:size-6">{icon}</span>

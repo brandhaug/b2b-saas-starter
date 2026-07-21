@@ -5,10 +5,12 @@ import { mobileSheetNavigationState } from './mobile-sheet-gesture.ts'
 
 export function MobileNavigationSheet({
   destinations,
+  appointmentDate,
   open,
   onRequestClose
 }: {
   readonly destinations: readonly MerchantDestination[]
+  readonly appointmentDate: string | undefined
   readonly open: boolean
   readonly onRequestClose: () => void
 }) {
@@ -63,6 +65,7 @@ export function MobileNavigationSheet({
               to={destination.to}
               viewTransition={false}
               state={mobileSheetNavigationState}
+              search={appointmentDate ? { date: appointmentDate } : {}}
               className="flex min-h-14 items-center justify-between rounded-2xl border bg-card px-4 text-base font-bold text-foreground active:scale-[0.99] active:bg-muted"
               activeProps={{ className: 'border-primary/40 bg-accent text-primary' }}
             >

@@ -1,24 +1,11 @@
+export {
+  hasMobileSheetNavigationOrigin,
+  mobileSheetNavigationState
+} from '@/lib/mobile-sheet-underlay.ts'
+
 export type MobileSheetRelease = {
   readonly distance: number
   readonly duration: number
-}
-
-const MOBILE_SHEET_APP_ORIGIN = 'merchant-app'
-
-export function mobileSheetNavigationState<TState extends object>(previous: TState) {
-  return {
-    ...previous,
-    mobileSheetOrigin: MOBILE_SHEET_APP_ORIGIN
-  }
-}
-
-export function hasMobileSheetNavigationOrigin(state: unknown) {
-  return (
-    typeof state === 'object' &&
-    state !== null &&
-    'mobileSheetOrigin' in state &&
-    state.mobileSheetOrigin === MOBILE_SHEET_APP_ORIGIN
-  )
 }
 
 const DISMISS_DISTANCE = 104
