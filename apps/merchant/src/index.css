@@ -145,7 +145,7 @@
 
 .merchant-desktop-action {
   border: 1px solid var(--border);
-  background: color-mix(in oklab, var(--card) 94%, var(--primary));
+  background: var(--card);
   color: var(--foreground);
   transition:
     transform 160ms ease,
@@ -155,7 +155,7 @@
 a.merchant-desktop-action:hover,
 summary.merchant-desktop-action:hover {
   transform: translateY(-1px);
-  background: color-mix(in oklab, var(--card) 86%, var(--primary));
+  background: var(--accent);
 }
 
 .merchant-desktop-home-behind {

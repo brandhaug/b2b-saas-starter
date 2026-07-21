@@ -27,7 +27,7 @@ export function MobileWeekStrip({
           ) : null}
           <span className="text-xl font-bold tabular-nums">{day.day}</span>
           <span
-            className={`mt-1 text-[0.65rem] font-bold tracking-[0.08em] uppercase ${day.selected ? 'text-primary' : ''}`}
+            className={`mt-1 text-[0.65rem] font-bold tracking-[0.08em] uppercase ${day.selected ? 'text-foreground' : ''}`}
           >
             {day.weekday}
           </span>

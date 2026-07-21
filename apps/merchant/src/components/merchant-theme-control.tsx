@@ -48,7 +48,7 @@ export function MerchantThemeControl() {
             key={option}
             type="button"
             aria-pressed={theme === option}
-            className="min-h-10 rounded-md px-3 text-sm font-medium capitalize text-muted-foreground transition-colors hover:text-foreground aria-pressed:bg-card aria-pressed:text-card-foreground aria-pressed:shadow-sm"
+            className="min-h-11 rounded-md px-3 text-sm font-medium capitalize text-muted-foreground transition-colors hover:text-foreground aria-pressed:bg-card aria-pressed:text-card-foreground aria-pressed:shadow-sm"
             onClick={() => {
               if (option === 'system') localStorage.removeItem(merchantThemeStorageKey)
               else localStorage.setItem(merchantThemeStorageKey, option)

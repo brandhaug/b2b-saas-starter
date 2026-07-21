@@ -43,7 +43,9 @@ function VerificationRequired() {
   return (
     <main className="grid min-h-dvh place-items-center p-6">
       <section className="w-full max-w-lg border bg-card p-6">
-        <p className="text-xs font-medium text-primary">Email verification required</p>
+        <p className="text-xs font-medium text-foreground">
+          Email verification required
+        </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight">
           Verify before creating a Merchant
         </h1>
@@ -89,7 +91,7 @@ function MerchantOnboardingForm() {
   return (
     <main className="mx-auto grid min-h-dvh max-w-5xl items-center gap-10 p-6 lg:grid-cols-[0.9fr_1.1fr]">
       <section>
-        <p className="text-xs font-medium text-primary">Merchant Onboarding</p>
+        <p className="text-xs font-medium text-foreground">Merchant Onboarding</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight">
           Create your public booking identity
         </h1>

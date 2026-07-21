@@ -127,7 +127,7 @@ export function DesktopHomePlaceholder() {
       </div>
       <div className="h-16 rounded-xl bg-muted" />
       <div className="flex items-center gap-3 border-b py-3">
-        <CalendarClock className="size-5 text-primary" />
+        <CalendarClock className="size-5 text-muted-foreground" />
         <span className="text-sm font-semibold">Today’s appointments</span>
       </div>
       <div className="h-12 rounded-lg bg-muted/80" />
