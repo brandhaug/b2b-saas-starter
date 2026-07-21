@@ -61,6 +61,19 @@ function presentation(children: ReactNode) {
   )
 }
 
+function touchEvent(
+  type: 'touchstart' | 'touchmove' | 'touchend',
+  { x, y }: { readonly x: number; readonly y: number }
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  const touch = { identifier: 1, clientX: x, clientY: y }
+  Object.defineProperties(event, {
+    touches: { value: type === 'touchend' ? [] : [touch] },
+    changedTouches: { value: [touch] }
+  })
+  return event
+}
+
 describe('MobileShell retained underlay', () => {
   it('animates one sheet over the real page during an in-app transition', async () => {
     const container = document.createElement('div')
@@ -109,5 +122,50 @@ describe('MobileShell retained underlay', () => {
     expect(sheet?.dataset.mobileUnderlayOrigin).toBe('retained')
     expect(sheet?.dataset.mobileSheetState).toBe('entering')
     expect(container.textContent).toContain('Real appointments page')
+  })
+
+  it('closes from a downward touch pull on sheet content without activating it', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    const onActivate = vi.fn()
+
+    await act(async () =>
+      root?.render(
+        <MerchantPresentationProvider
+          presentation="mobile"
+          mobileHomeUnderlay={<p>Appointments page</p>}
+          mobileHomeDate="2026-07-27"
+        >
+          <MobileShell
+            layout="sheet"
+            title="Customers"
+            description="Customer history"
+            section={{ kind: 'merchant' }}
+            destinations={destinations}
+          >
+            <button type="button" onClick={onActivate}>
+              Customer action
+            </button>
+          </MobileShell>
+        </MerchantPresentationProvider>
+      )
+    )
+
+    const sheet = container.querySelector<HTMLElement>('[data-mobile-surface="sheet"]')
+    const action = container.querySelector<HTMLButtonElement>(
+      '[data-mobile-sheet-scroll] button'
+    )
+
+    await act(async () => {
+      action?.dispatchEvent(touchEvent('touchstart', { x: 120, y: 240 }))
+      action?.dispatchEvent(touchEvent('touchmove', { x: 124, y: 380 }))
+      action?.dispatchEvent(touchEvent('touchend', { x: 124, y: 380 }))
+      action?.click()
+    })
+
+    expect(sheet?.dataset.mobileSheetState).toBe('closing')
+    expect(sheet?.style.getPropertyValue('--merchant-sheet-drag-y')).toBe('100dvh')
+    expect(onActivate).not.toHaveBeenCalled()
   })
 })

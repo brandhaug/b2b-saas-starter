@@ -4,8 +4,10 @@ import {
   useRef,
   useState,
   type AnimationEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type TouchEvent as ReactTouchEvent,
   type TransitionEvent
 } from 'react'
 import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
@@ -14,6 +16,7 @@ import { MobileHomeActions } from './mobile-home-actions.tsx'
 import {
   getMobileSheetDragOffset,
   hasMobileSheetNavigationOrigin,
+  shouldBeginMobileSheetSurfaceDrag,
   shouldDismissMobileSheet
 } from './mobile-sheet-gesture.ts'
 
@@ -23,6 +26,16 @@ type MobileSheetDrag = {
   readonly pointerId: number
   readonly startY: number
   readonly startTime: number
+  distance: number
+}
+
+type MobileSheetTouchDrag = {
+  readonly identifier: number
+  readonly scrollElement: HTMLElement | null
+  readonly startX: number
+  readonly startY: number
+  readonly startTime: number
+  active: boolean
   distance: number
 }
 
@@ -54,6 +67,7 @@ export function MobileShell(props: MobileShellProps) {
   const currentHomeDate = layout === 'home' ? props.date : undefined
   const sheetRef = useRef<HTMLElement>(null)
   const dragRef = useRef<MobileSheetDrag | null>(null)
+  const touchDragRef = useRef<MobileSheetTouchDrag | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clickResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasNavigatedRef = useRef(false)
@@ -77,6 +91,37 @@ export function MobileShell(props: MobileShellProps) {
       mobileHomeUnderlay.origin.current = 'retained'
     }
   }, [children, currentHomeDate, layout, mobileHomeUnderlay])
+
+  useEffect(() => {
+    if (layout === 'home') return
+    const sheet = sheetRef.current
+    if (!sheet) return
+
+    const preventPageScrollDuringSheetDrag = (event: TouchEvent) => {
+      const drag = touchDragRef.current
+      if (!drag) return
+      const touch = Array.from(event.touches).find(
+        (candidate) => candidate.identifier === drag.identifier
+      )
+      if (!touch) return
+
+      const shouldTakeOver =
+        drag.active ||
+        shouldBeginMobileSheetSurfaceDrag({
+          deltaX: touch.clientX - drag.startX,
+          deltaY: touch.clientY - drag.startY,
+          scrollTop: drag.scrollElement?.scrollTop ?? 0
+        })
+      if (shouldTakeOver) event.preventDefault()
+    }
+
+    sheet.addEventListener('touchmove', preventPageScrollDuringSheetDrag, {
+      passive: false
+    })
+    return () => {
+      sheet.removeEventListener('touchmove', preventPageScrollDuringSheetDrag)
+    }
+  }, [layout])
 
   if (layout === 'home') {
     return (
@@ -122,6 +167,7 @@ export function MobileShell(props: MobileShellProps) {
   const closeSheet = () => {
     if (sheetState === 'closing') return
     dragRef.current = null
+    touchDragRef.current = null
     setSheetState('closing')
     sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', '100dvh')
     closeTimerRef.current = setTimeout(navigateBack, 320)
@@ -129,6 +175,7 @@ export function MobileShell(props: MobileShellProps) {
 
   const settleSheet = () => {
     dragRef.current = null
+    touchDragRef.current = null
     setSheetState('settling')
     sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', '0px')
   }
@@ -168,7 +215,7 @@ export function MobileShell(props: MobileShellProps) {
     if (clickResetTimerRef.current) clearTimeout(clickResetTimerRef.current)
     clickResetTimerRef.current = setTimeout(() => {
       suppressClickRef.current = false
-    })
+    }, 350)
 
     if (
       shouldDismissMobileSheet({
@@ -186,6 +233,103 @@ export function MobileShell(props: MobileShellProps) {
   const handlePointerCancel = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (dragRef.current?.pointerId !== event.pointerId) return
     settleSheet()
+  }
+
+  const handleTouchStart = (event: ReactTouchEvent<HTMLElement>) => {
+    if (event.touches.length !== 1 || sheetState === 'closing') return
+    const target = event.target instanceof Element ? event.target : null
+    if (target?.closest('[data-mobile-sheet-handle="true"]')) return
+
+    const touch = event.touches[0]
+    if (!touch) return
+    touchDragRef.current = {
+      identifier: touch.identifier,
+      scrollElement: target?.closest<HTMLElement>('[data-mobile-sheet-scroll]') ?? null,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startTime: performance.now(),
+      active: false,
+      distance: 0
+    }
+  }
+
+  const handleTouchMove = (event: ReactTouchEvent<HTMLElement>) => {
+    const drag = touchDragRef.current
+    if (!drag) return
+    const touch = Array.from(event.touches).find(
+      (candidate) => candidate.identifier === drag.identifier
+    )
+    if (!touch) return
+
+    const deltaX = touch.clientX - drag.startX
+    const deltaY = touch.clientY - drag.startY
+    if (!drag.active) {
+      if (
+        !shouldBeginMobileSheetSurfaceDrag({
+          deltaX,
+          deltaY,
+          scrollTop: drag.scrollElement?.scrollTop ?? 0
+        })
+      ) {
+        if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 8) {
+          touchDragRef.current = null
+        }
+        return
+      }
+      drag.active = true
+      setSheetState('dragging')
+      sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', '0px')
+    }
+
+    event.preventDefault()
+    drag.distance = Math.max(0, deltaY)
+    const offset = getMobileSheetDragOffset(drag.distance, window.innerHeight)
+    sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', `${offset}px`)
+  }
+
+  const handleTouchEnd = (event: ReactTouchEvent<HTMLElement>) => {
+    const drag = touchDragRef.current
+    if (!drag) return
+    const touch = Array.from(event.changedTouches).find(
+      (candidate) => candidate.identifier === drag.identifier
+    )
+    if (!touch || !drag.active) {
+      touchDragRef.current = null
+      return
+    }
+
+    suppressClickRef.current = drag.distance > 6
+    if (clickResetTimerRef.current) clearTimeout(clickResetTimerRef.current)
+    clickResetTimerRef.current = setTimeout(() => {
+      suppressClickRef.current = false
+    }, 350)
+
+    if (
+      shouldDismissMobileSheet({
+        distance: drag.distance,
+        duration: performance.now() - drag.startTime
+      })
+    ) {
+      closeSheet()
+      return
+    }
+
+    settleSheet()
+  }
+
+  const handleTouchCancel = () => {
+    if (touchDragRef.current?.active) {
+      settleSheet()
+      return
+    }
+    touchDragRef.current = null
+  }
+
+  const handleClickCapture = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!suppressClickRef.current) return
+    suppressClickRef.current = false
+    event.preventDefault()
+    event.stopPropagation()
   }
 
   const handleTransitionEnd = (event: TransitionEvent<HTMLElement>) => {
@@ -225,7 +369,12 @@ export function MobileShell(props: MobileShellProps) {
         data-mobile-surface={layout}
         data-mobile-underlay-origin={homeUnderlayOrigin}
         data-mobile-sheet-state={sheetState}
+        onClickCapture={handleClickCapture}
         onAnimationEnd={handleAnimationEnd}
+        onTouchCancel={handleTouchCancel}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+        onTouchStart={handleTouchStart}
         onTransitionEnd={handleTransitionEnd}
         className="merchant-route-sheet relative z-10 mt-6 flex min-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-t-[2.25rem] border-t bg-background"
       >
@@ -253,7 +402,10 @@ export function MobileShell(props: MobileShellProps) {
             {props.title}
           </h1>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(2rem,env(safe-area-inset-bottom))]">
+        <div
+          data-mobile-sheet-scroll="true"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(2rem,env(safe-area-inset-bottom))]"
+        >
           <p className="text-xs font-semibold tracking-[0.08em] text-primary uppercase">
             {section.kind === 'catalog' ? 'Merchant catalog' : 'Merchant App'}
           </p>

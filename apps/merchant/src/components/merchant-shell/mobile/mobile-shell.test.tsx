@@ -8,6 +8,7 @@ import {
   getMobileSheetDragOffset,
   hasMobileSheetNavigationOrigin,
   mobileSheetNavigationState,
+  shouldBeginMobileSheetSurfaceDrag,
   shouldDismissMobileSheet
 } from './mobile-sheet-gesture.ts'
 
@@ -151,6 +152,37 @@ describe('MobileShell', () => {
     expect(shouldDismissMobileSheet({ distance: 120, duration: 500 })).toBe(true)
     expect(shouldDismissMobileSheet({ distance: 52, duration: 70 })).toBe(true)
     expect(shouldDismissMobileSheet({ distance: 52, duration: 500 })).toBe(false)
+  })
+
+  it('takes over a downward surface pull only from the scroll top', () => {
+    expect(
+      shouldBeginMobileSheetSurfaceDrag({
+        deltaX: 4,
+        deltaY: 18,
+        scrollTop: 0
+      })
+    ).toBe(true)
+    expect(
+      shouldBeginMobileSheetSurfaceDrag({
+        deltaX: 4,
+        deltaY: 18,
+        scrollTop: 12
+      })
+    ).toBe(false)
+    expect(
+      shouldBeginMobileSheetSurfaceDrag({
+        deltaX: 20,
+        deltaY: 10,
+        scrollTop: 0
+      })
+    ).toBe(false)
+    expect(
+      shouldBeginMobileSheetSurfaceDrag({
+        deltaX: 2,
+        deltaY: -18,
+        scrollTop: 0
+      })
+    ).toBe(false)
   })
 
   it('marks links that can safely pop back inside the merchant app', () => {

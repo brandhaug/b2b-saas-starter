@@ -8,6 +8,18 @@ export type MobileSheetRelease = {
   readonly duration: number
 }
 
+export function shouldBeginMobileSheetSurfaceDrag({
+  deltaX,
+  deltaY,
+  scrollTop
+}: {
+  readonly deltaX: number
+  readonly deltaY: number
+  readonly scrollTop: number
+}) {
+  return scrollTop <= 0 && deltaY >= 8 && deltaY > Math.abs(deltaX) * 1.15
+}
+
 const DISMISS_DISTANCE = 104
 const FLICK_DISTANCE = 44
 const FLICK_VELOCITY = 0.55
