@@ -1,17 +1,62 @@
 import { describe, expect, it } from 'vitest'
-import { mobileAppointmentLedger, mobileWeek } from './mobile-appointments-model.ts'
+import {
+  mobileAppointmentLedger,
+  mobileCalendarDate,
+  mobileCalendarDateRefreshDelay,
+  mobileWeek
+} from './mobile-appointments-model.ts'
 
 describe('mobileWeek', () => {
   it('builds a Monday-first week around the selected day', () => {
-    expect(mobileWeek('2026-07-22')).toEqual([
-      { date: '2026-07-20', day: '20', weekday: 'Mon', selected: false },
-      { date: '2026-07-21', day: '21', weekday: 'Tue', selected: false },
-      { date: '2026-07-22', day: '22', weekday: 'Wed', selected: true },
-      { date: '2026-07-23', day: '23', weekday: 'Thu', selected: false },
-      { date: '2026-07-24', day: '24', weekday: 'Fri', selected: false },
-      { date: '2026-07-25', day: '25', weekday: 'Sat', selected: false },
-      { date: '2026-07-26', day: '26', weekday: 'Sun', selected: false }
+    expect(mobileWeek('2026-07-22', '2026-07-20')).toEqual([
+      { date: '2026-07-20', day: '20', weekday: 'Mon', selected: false, current: true },
+      {
+        date: '2026-07-21',
+        day: '21',
+        weekday: 'Tue',
+        selected: false,
+        current: false
+      },
+      { date: '2026-07-22', day: '22', weekday: 'Wed', selected: true, current: false },
+      {
+        date: '2026-07-23',
+        day: '23',
+        weekday: 'Thu',
+        selected: false,
+        current: false
+      },
+      {
+        date: '2026-07-24',
+        day: '24',
+        weekday: 'Fri',
+        selected: false,
+        current: false
+      },
+      {
+        date: '2026-07-25',
+        day: '25',
+        weekday: 'Sat',
+        selected: false,
+        current: false
+      },
+      { date: '2026-07-26', day: '26', weekday: 'Sun', selected: false, current: false }
     ])
+  })
+
+  it('derives today from the Merchant calendar timezone', () => {
+    expect(
+      mobileCalendarDate('America/New_York', new Date('2026-07-21T02:00:00.000Z'))
+    ).toBe('2026-07-20')
+  })
+
+  it('schedules a refresh at the next Merchant-local day', () => {
+    const delay = mobileCalendarDateRefreshDelay(
+      'America/New_York',
+      new Date('2026-07-21T02:00:00.000Z')
+    )
+
+    expect(delay).toBeGreaterThanOrEqual(7_199_000)
+    expect(delay).toBeLessThanOrEqual(7_201_000)
   })
 })
 

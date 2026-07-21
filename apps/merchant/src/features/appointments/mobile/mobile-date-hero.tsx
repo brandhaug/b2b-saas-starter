@@ -2,9 +2,11 @@ import { mobileDateHeading } from './mobile-appointments-model.ts'
 
 export function MobileDateHero({
   date,
+  currentDate,
   timezone
 }: {
   readonly date: string
+  readonly currentDate: string
   readonly timezone: string
 }) {
   const heading = mobileDateHeading(date)
@@ -15,7 +17,13 @@ export function MobileDateHero({
         <h1 className="text-[6.5rem] leading-[0.8] font-black tracking-[-0.08em] text-foreground">
           {heading.day}
         </h1>
-        <span className="mt-8 size-7 shrink-0 rounded-full bg-primary" aria-hidden />
+        {date === currentDate ? (
+          <span
+            data-current-day-marker="true"
+            className="mt-8 size-7 shrink-0 rounded-full bg-primary"
+            aria-hidden
+          />
+        ) : null}
       </div>
       <div className="pb-1 text-right">
         <p className="text-xl leading-tight font-bold text-muted-foreground">

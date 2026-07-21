@@ -13,6 +13,7 @@ const dateHeadingFormatter = new Intl.DateTimeFormat('en', {
 })
 
 const timeFormatters = new Map<string, Intl.DateTimeFormat>()
+const calendarDateFormatters = new Map<string, Intl.DateTimeFormat>()
 
 function timeFormatter(timezone: string) {
   const existing = timeFormatters.get(timezone)
@@ -48,6 +49,7 @@ export type MobileWeekDay = {
   readonly day: string
   readonly weekday: string
   readonly selected: boolean
+  readonly current: boolean
 }
 
 export type MobileAppointmentLedgerEntry = {
@@ -60,8 +62,12 @@ export type MobileAppointmentLedgerEntry = {
   readonly time: string
 }
 
-export function mobileWeek(selectedDate: string): readonly MobileWeekDay[] {
+export function mobileWeek(
+  selectedDate: string,
+  currentDate: string
+): readonly MobileWeekDay[] {
   const dateOnly = decodeCalendarDate(selectedDate)
+  const today = decodeCalendarDate(currentDate)
   const selected = new Date(`${dateOnly}T12:00:00.000Z`)
   const mondayOffset = (selected.getUTCDay() + 6) % 7
   const monday = new Date(selected)
@@ -75,9 +81,51 @@ export function mobileWeek(selectedDate: string): readonly MobileWeekDay[] {
       date: isoDate,
       day: String(date.getUTCDate()),
       weekday: weekdayFormatter.format(date),
-      selected: isoDate === dateOnly
+      selected: isoDate === dateOnly,
+      current: isoDate === today
     }
   })
+}
+
+export function mobileCalendarDate(timezone: string, now = new Date()): string {
+  let formatter = calendarDateFormatters.get(timezone)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+    calendarDateFormatters.set(timezone, formatter)
+  }
+
+  const parts = new Map(
+    formatter
+      .formatToParts(now)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value])
+  )
+  return decodeCalendarDate(
+    `${parts.get('year')}-${parts.get('month')}-${parts.get('day')}`
+  )
+}
+
+export function mobileCalendarDateRefreshDelay(
+  timezone: string,
+  now = new Date()
+): number {
+  const currentDate = mobileCalendarDate(timezone, now)
+  let sameDay = now.getTime()
+  let nextDay = sameDay + 36 * 60 * 60 * 1000
+
+  while (nextDay - sameDay > 1_000) {
+    const midpoint = Math.floor((sameDay + nextDay) / 2)
+    if (mobileCalendarDate(timezone, new Date(midpoint)) === currentDate)
+      sameDay = midpoint
+    else nextDay = midpoint
+  }
+
+  return Math.max(1_000, nextDay - now.getTime())
 }
 
 export function mobileAppointmentLedger(
