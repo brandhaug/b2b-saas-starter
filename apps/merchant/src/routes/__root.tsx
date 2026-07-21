@@ -1,5 +1,5 @@
 import '@fontsource-variable/onest/index.css'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import {
   createRootRoute,
   HeadContent,
@@ -16,7 +16,19 @@ import {
 import { MerchantPresentationProvider } from '@/components/merchant-shell/merchant-presentation.tsx'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 import { getMerchantPresentation } from '@/lib/server/merchant-presentation.ts'
+import onestLatinFont from '@fontsource-variable/onest/files/onest-latin-wght-normal.woff2?url'
 import appCss from '../index.css?url'
+
+export const merchantHeadLinks = [
+  { rel: 'stylesheet', href: appCss },
+  {
+    rel: 'preload',
+    href: onestLatinFont,
+    as: 'font',
+    type: 'font/woff2',
+    crossOrigin: 'anonymous'
+  }
+] satisfies ComponentProps<'link'>[]
 
 export const Route = createRootRoute({
   beforeLoad: async () => {
@@ -36,7 +48,7 @@ export const Route = createRootRoute({
         content: 'The authenticated Merchant App for the Booking Product.'
       }
     ],
-    links: [{ rel: 'stylesheet', href: appCss }]
+    links: merchantHeadLinks
   }),
   component: RootComponent
 })
