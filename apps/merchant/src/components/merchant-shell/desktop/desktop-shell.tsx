@@ -23,20 +23,14 @@ export function DesktopShell({
   if (layout === 'home')
     return (
       <DesktopStage>
-        <DesktopHomeCard destinations={destinations} title={title}>
-          {children}
-        </DesktopHomeCard>
+        <DesktopHomeCard destinations={destinations}>{children}</DesktopHomeCard>
       </DesktopStage>
     )
 
   return (
     <DesktopStage>
       <div aria-hidden="true" className="merchant-desktop-home-behind">
-        <DesktopHomeCard
-          destinations={destinations}
-          title="Appointments"
-          interactive={false}
-        >
+        <DesktopHomeCard destinations={destinations} interactive={false}>
           <DesktopHomePlaceholder />
         </DesktopHomeCard>
       </div>
@@ -125,12 +119,10 @@ function DesktopStage({ children }: { readonly children: ReactNode }) {
 
 function DesktopHomeCard({
   destinations,
-  title,
   interactive = true,
   children
 }: {
   readonly destinations: readonly MerchantDestination[]
-  readonly title: string
   readonly interactive?: boolean
   readonly children: ReactNode
 }) {
@@ -156,10 +148,6 @@ function DesktopHomeCard({
         )}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
-        <p className="text-xs font-semibold tracking-[0.08em] text-primary uppercase">
-          Today
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h1>
         <div className="mt-5">{children}</div>
       </div>
       <div className="shrink-0 bg-gradient-to-t from-[#111720] via-[#111720]/98 to-transparent px-4 pt-3 pb-4">
