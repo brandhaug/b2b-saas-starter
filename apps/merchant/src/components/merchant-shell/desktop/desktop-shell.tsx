@@ -1,5 +1,5 @@
 import { Link, useLocation, useRouter } from '@tanstack/react-router'
-import { Settings, X } from 'lucide-react'
+import { UserRound, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
@@ -154,11 +154,11 @@ function DesktopHomeCard({
             aria-label="Open Settings"
             className="grid size-10 place-items-center rounded-full bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
           >
-            <Settings aria-hidden className="size-5" />
+            <UserRound aria-hidden className="size-5" />
           </Link>
         ) : (
           <span className="grid size-10 place-items-center rounded-full bg-white/8 text-white/70">
-            <Settings aria-hidden className="size-5" />
+            <UserRound aria-hidden className="size-5" />
           </span>
         )}
       </header>
