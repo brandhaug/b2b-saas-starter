@@ -1,4 +1,3 @@
-import '../onest.css'
 import type { ComponentProps, ReactNode } from 'react'
 import {
   createRootRoute,
