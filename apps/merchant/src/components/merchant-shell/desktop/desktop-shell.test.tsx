@@ -61,6 +61,7 @@ describe('DesktopShell', () => {
     expect(html).toContain('aria-label="Merchant desktop home"')
     expect(html).toContain('aria-label="Open Settings"')
     expect(html).toContain('viewBox="0 0 126 126"')
+    expect(html).toContain('size-8')
     expect(html).not.toContain('>Merchant App</span>')
     expect(html).toContain('lucide-user-round')
     expect(html).not.toContain('lucide-settings')

@@ -159,7 +159,7 @@ function DesktopHomeCard({
 
 function MerchantLogo() {
   return (
-    <div className="relative flex size-[25.59375px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-white">
+    <div className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-white">
       <svg
         aria-hidden="true"
         className="h-full w-full"
