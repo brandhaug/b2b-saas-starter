@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { MerchantShell } from '@/components/merchant-shell/index.ts'
+import { mobileSheetNavigationState } from '@/components/merchant-shell/mobile/mobile-sheet-gesture.ts'
 import { formatAppointmentDateTime } from '@/lib/appointment-format.ts'
 import { getCustomerDirectory } from '@/lib/server/appointment-operations.ts'
 import { requireMerchantSession } from '@/lib/server/merchant-session.ts'
@@ -46,6 +47,8 @@ function CustomersPage() {
                     <Link
                       className="text-primary underline underline-offset-4"
                       to="/appointments/$appointmentId"
+                      viewTransition={false}
+                      state={mobileSheetNavigationState}
                       params={{ appointmentId: entry.appointmentId }}
                       search={{ date: entry.scheduledAt.slice(0, 10) }}
                     >

@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect, useId, useRef } from 'react'
 import type { MerchantDestination } from '../navigation.tsx'
+import { mobileSheetNavigationState } from './mobile-sheet-gesture.ts'
 
 export function MobileNavigationSheet({
   destinations,
@@ -60,6 +61,8 @@ export function MobileNavigationSheet({
             <Link
               key={destination.to}
               to={destination.to}
+              viewTransition={false}
+              state={mobileSheetNavigationState}
               className="flex min-h-14 items-center justify-between rounded-2xl border bg-card px-4 text-base font-bold text-foreground active:scale-[0.99] active:bg-muted"
               activeProps={{ className: 'border-primary/40 bg-accent text-primary' }}
             >

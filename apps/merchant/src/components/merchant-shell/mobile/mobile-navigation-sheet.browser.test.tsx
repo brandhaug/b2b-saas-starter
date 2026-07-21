@@ -14,11 +14,15 @@ vi.mock('@tanstack/react-router', () => ({
     children,
     to,
     activeProps: _activeProps,
+    state: _state,
+    viewTransition: _viewTransition,
     ...props
   }: {
     children: ReactNode
     to: string
     activeProps?: unknown
+    state?: unknown
+    viewTransition?: boolean
   }) => (
     <a href={to} {...props}>
       {children}

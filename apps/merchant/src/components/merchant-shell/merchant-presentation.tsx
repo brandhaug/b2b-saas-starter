@@ -1,10 +1,11 @@
-import { createContext, useContext, useState } from 'react'
-import type { ReactNode } from 'react'
+import { createContext, useContext, useRef, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 
 export type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 
 const MerchantPresentationContext = createContext<MerchantPresentation | null>(null)
+const MobileHomeUnderlayContext = createContext<RefObject<ReactNode> | null>(null)
 
 export function MerchantPresentationProvider({
   presentation,
@@ -14,9 +15,12 @@ export function MerchantPresentationProvider({
   readonly children: ReactNode
 }) {
   const [initialPresentation] = useState(presentation)
+  const mobileHomeUnderlayRef = useRef<ReactNode>(null)
   return (
     <MerchantPresentationContext value={initialPresentation}>
-      {children}
+      <MobileHomeUnderlayContext value={mobileHomeUnderlayRef}>
+        {children}
+      </MobileHomeUnderlayContext>
     </MerchantPresentationContext>
   )
 }
@@ -28,6 +32,10 @@ export function useMerchantPresentation(): MerchantPresentation {
       'useMerchantPresentation must be used within MerchantPresentationProvider.'
     )
   return presentation
+}
+
+export function useMobileHomeUnderlay() {
+  return useContext(MobileHomeUnderlayContext)
 }
 
 export function MerchantPresentationBoundary({

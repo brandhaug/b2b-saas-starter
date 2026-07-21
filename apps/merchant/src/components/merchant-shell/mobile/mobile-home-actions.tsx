@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { MerchantDestination } from '../navigation.tsx'
 import { MobileNavigationSheet } from './mobile-navigation-sheet.tsx'
+import { mobileSheetNavigationState } from './mobile-sheet-gesture.ts'
 
 const visibleActions = [
   { to: '/walk-ins', icon: <ListOrdered aria-hidden /> },
@@ -82,6 +83,8 @@ function HomeAction({
   return (
     <Link
       to={destination.to}
+      viewTransition={false}
+      state={mobileSheetNavigationState}
       className={`${className} grid min-h-[4.75rem] place-content-center gap-1 rounded-3xl border bg-card/95 px-3 text-center text-sm font-bold text-foreground shadow-xl backdrop-blur active:scale-[0.98] active:bg-muted`}
     >
       <span className="mx-auto [&>svg]:size-6">{icon}</span>

@@ -3,6 +3,12 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { MerchantDestination } from '../navigation.tsx'
 import { MobileShell } from './mobile-shell.tsx'
+import {
+  getMobileSheetDragOffset,
+  hasMobileSheetNavigationOrigin,
+  mobileSheetNavigationState,
+  shouldDismissMobileSheet
+} from './mobile-sheet-gesture.ts'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -10,12 +16,16 @@ vi.mock('@tanstack/react-router', () => ({
     to,
     activeProps: _activeProps,
     search,
+    state: _state,
+    viewTransition: _viewTransition,
     ...props
   }: {
     children: ReactNode
     to: string
     activeProps?: unknown
     search?: unknown
+    state?: unknown
+    viewTransition?: boolean
   }) => (
     <a
       href={to}
@@ -98,7 +108,7 @@ describe('MobileShell', () => {
     expect(html).not.toContain('aria-modal="true"')
   })
 
-  it('presents secondary routes as a dismissible mobile sheet without the home actions', () => {
+  it('presents secondary routes over an inert native home layer', () => {
     const html = renderShell({
       layout: 'sheet',
       title: 'Customers',
@@ -107,9 +117,31 @@ describe('MobileShell', () => {
 
     expect(html).toContain('<section')
     expect(html).not.toContain('aria-modal="true"')
-    expect(html).toContain('aria-label="Back to appointments"')
-    expect(html).toContain('data-search-date="2026-07-27"')
+    expect(html).toContain('aria-label="Close Customers"')
+    expect(html).toContain('data-mobile-sheet-state="entering"')
+    expect(html).toContain('data-mobile-sheet-handle="true"')
     expect(html).toContain('Customers')
-    expect(html).not.toContain('aria-label="Merchant home actions"')
+    expect(html).toContain('aria-hidden="true" inert=""')
+    expect(html).toContain('aria-label="Merchant home actions"')
+  })
+
+  it('tracks downward movement directly and resists an overextended drag', () => {
+    expect(getMobileSheetDragOffset(-20, 844)).toBe(0)
+    expect(getMobileSheetDragOffset(84, 844)).toBe(84)
+    expect(getMobileSheetDragOffset(700, 844)).toBeLessThan(700)
+  })
+
+  it('dismisses on a committed pull or a short fast flick', () => {
+    expect(shouldDismissMobileSheet({ distance: 120, duration: 500 })).toBe(true)
+    expect(shouldDismissMobileSheet({ distance: 52, duration: 70 })).toBe(true)
+    expect(shouldDismissMobileSheet({ distance: 52, duration: 500 })).toBe(false)
+  })
+
+  it('marks links that can safely pop back inside the merchant app', () => {
+    const state = mobileSheetNavigationState({ key: 'existing' })
+
+    expect(state.key).toBe('existing')
+    expect(hasMobileSheetNavigationOrigin(state)).toBe(true)
+    expect(hasMobileSheetNavigationOrigin({})).toBe(false)
   })
 })

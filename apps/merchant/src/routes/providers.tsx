@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import type { ProviderRecord } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { MerchantShell } from '@/components/merchant-shell/index.ts'
+import { mobileSheetNavigationState } from '@/components/merchant-shell/mobile/mobile-sheet-gesture.ts'
 import { formValue } from '@/lib/form-value.ts'
 import {
   getMerchantCatalog,
@@ -33,6 +34,8 @@ function ProvidersPage() {
       >
         <Link
           to="/services"
+          viewTransition={false}
+          state={mobileSheetNavigationState}
           className="mt-6 inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
         >
           Configure services
@@ -221,6 +224,8 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
           </p>
           <Link
             to="/availability"
+            viewTransition={false}
+            state={mobileSheetNavigationState}
             className="mt-4 inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
           >
             Configure schedule

@@ -189,14 +189,36 @@ html.merchant-mobile-document {
 }
 
 .merchant-route-sheet {
+  --merchant-sheet-drag-y: 0px;
   width: 100%;
   max-width: none;
   margin-right: 0;
   margin-left: 0;
   padding: 0;
   color: inherit;
-  animation: merchant-sheet-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform: translate3d(0, var(--merchant-sheet-drag-y), 0);
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 -18px 60px color-mix(in oklab, black 42%, transparent);
+  will-change: transform;
+}
+
+.merchant-route-sheet[data-mobile-sheet-state='entering'] {
+  animation: merchant-route-sheet-enter 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.merchant-route-sheet[data-mobile-sheet-state='dragging'] {
+  transition: none;
+}
+
+.merchant-route-sheet[data-mobile-sheet-state='settling'] {
+  transition-duration: 320ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.merchant-route-sheet[data-mobile-sheet-state='closing'] {
+  pointer-events: none;
+  transition-duration: 260ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
 }
 
 .merchant-more-dialog {
@@ -255,6 +277,15 @@ html.merchant-mobile-document {
   }
 }
 
+@keyframes merchant-route-sheet-enter {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 * {
   border-color: var(--border);
   outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
@@ -277,6 +308,17 @@ a,
 input,
 select {
   touch-action: manipulation;
+}
+
+.merchant-sheet-drag-zone {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.merchant-sheet-drag-zone:active {
+  cursor: grabbing;
 }
 
 button:not(:disabled),
@@ -333,5 +375,9 @@ select:focus-visible {
   .merchant-route-sheet,
   .merchant-more-panel {
     animation: none;
+  }
+
+  .merchant-route-sheet {
+    transition-duration: 1ms;
   }
 }

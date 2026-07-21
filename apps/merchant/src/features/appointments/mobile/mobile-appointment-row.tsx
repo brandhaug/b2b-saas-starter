@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { mobileSheetNavigationState } from '@/components/merchant-shell/mobile/mobile-sheet-gesture.ts'
 import { Check, Circle, Minus, X } from 'lucide-react'
 import type { MobileAppointmentLedgerEntry } from './mobile-appointments-model.ts'
 
@@ -22,6 +23,8 @@ export function MobileAppointmentRow({
     <li className="border-b border-dashed border-border/70 last:border-b-0">
       <Link
         to="/appointments/$appointmentId"
+        viewTransition={false}
+        state={mobileSheetNavigationState}
         params={{ appointmentId: appointment.id }}
         search={{ date }}
         className="grid min-h-24 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 py-4"
