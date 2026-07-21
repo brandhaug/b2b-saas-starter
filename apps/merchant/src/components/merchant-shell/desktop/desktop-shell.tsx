@@ -138,7 +138,7 @@ function DesktopHomeCard({
       aria-label="Merchant desktop home"
       className="merchant-desktop-home-card relative z-10 flex h-[750px] w-[448px] flex-col overflow-hidden rounded-3xl border border-white/10 text-white shadow-2xl"
     >
-      <header className="grid h-16 shrink-0 grid-cols-[2.75rem_1fr_2.75rem] items-center px-5">
+      <header className="grid h-20 shrink-0 grid-cols-[2.75rem_1fr_2.75rem] items-center px-5">
         <span className="grid size-11 place-items-center">
           <MerchantLogo />
         </span>
