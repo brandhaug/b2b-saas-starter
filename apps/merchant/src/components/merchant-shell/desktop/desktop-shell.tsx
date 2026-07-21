@@ -1,17 +1,12 @@
 import { Link, useLocation, useRouter } from '@tanstack/react-router'
-import { X } from 'lucide-react'
+import { Settings, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import {
-  MerchantNavigation,
-  type MerchantDestination,
-  type MerchantShellSection
-} from '../navigation.tsx'
-import { MerchantShellHeader } from '../shell-header.tsx'
+import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
+import { DesktopHomeActions, DesktopHomePlaceholder } from './desktop-home-actions.tsx'
 
 export function DesktopShell({
   layout,
-  backgroundContent,
   section,
   destinations,
   title,
@@ -19,7 +14,6 @@ export function DesktopShell({
   children
 }: {
   readonly layout: 'home' | 'modal'
-  readonly backgroundContent?: ReactNode
   readonly section: MerchantShellSection
   readonly destinations: readonly MerchantDestination[]
   readonly title: string
@@ -28,34 +22,33 @@ export function DesktopShell({
 }) {
   if (layout === 'home')
     return (
-      <main className="min-h-dvh bg-background">
-        <DesktopWorkspace
-          section={{ kind: 'merchant' }}
+      <DesktopStage>
+        <DesktopHomeCard
           destinations={destinations}
           title={title}
           description={description}
         >
           {children}
-        </DesktopWorkspace>
-      </main>
+        </DesktopHomeCard>
+      </DesktopStage>
     )
 
   return (
-    <main className="relative min-h-dvh bg-background">
-      <div aria-hidden="true" inert className="merchant-desktop-workspace-behind">
-        <DesktopWorkspace
-          section={{ kind: 'merchant' }}
+    <DesktopStage>
+      <div aria-hidden="true" className="merchant-desktop-home-behind">
+        <DesktopHomeCard
           destinations={destinations}
           title="Appointments"
-          description="Your Provider-oriented day view of accepted Appointment facts."
+          description="Your day at a glance."
+          interactive={false}
         >
-          {backgroundContent ?? <DesktopAppointmentsBackdrop />}
-        </DesktopWorkspace>
+          <DesktopHomePlaceholder />
+        </DesktopHomeCard>
       </div>
       <DesktopRouteModal section={section} title={title} description={description}>
         {children}
       </DesktopRouteModal>
-    </main>
+    </DesktopStage>
   )
 }
 
@@ -97,7 +90,7 @@ function DesktopRouteModal({
         void router.navigate({ to: '/appointments', search: { date: appointmentDate } })
       }}
     >
-      <header className="sticky top-0 z-20 grid grid-cols-[3rem_1fr_3rem] items-center border-b bg-background/95 px-5 py-4 backdrop-blur-xl">
+      <header className="sticky top-0 z-20 grid grid-cols-[3rem_1fr_3rem] items-center border-b bg-background/92 px-4 py-3 backdrop-blur-xl">
         <span aria-hidden />
         <h1
           id="merchant-desktop-modal-title"
@@ -109,12 +102,12 @@ function DesktopRouteModal({
           to="/appointments"
           search={{ date: appointmentDate }}
           aria-label={`Close ${title}`}
-          className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="grid size-8 place-items-center justify-self-end rounded-full bg-muted text-muted-foreground hover:text-foreground"
         >
           <X aria-hidden className="size-4" strokeWidth={2.5} />
         </Link>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 py-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 py-6">
         <p className="text-xs font-semibold tracking-[0.08em] text-primary uppercase">
           {section.kind === 'catalog' ? 'Merchant catalog' : 'Merchant App'}
         </p>
@@ -125,56 +118,61 @@ function DesktopRouteModal({
   )
 }
 
-function DesktopWorkspace({
-  section,
-  destinations,
-  title,
-  description,
-  children
-}: {
-  readonly section: MerchantShellSection
-  readonly destinations: readonly MerchantDestination[]
-  readonly title: string
-  readonly description: string
-  readonly children: ReactNode
-}) {
+function DesktopStage({ children }: { readonly children: ReactNode }) {
   return (
-    <>
-      <MerchantShellHeader section={section} presentation="desktop" />
-      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 md:grid-cols-[12rem_minmax(0,1fr)]">
-        <nav aria-label="Merchant App" className="flex flex-col gap-2">
-          <MerchantNavigation destinations={destinations} presentation="desktop" />
-        </nav>
-        <section className="min-w-0">
-          <p className="text-xs font-medium text-primary">
-            {section.kind === 'catalog' ? 'Merchant catalog' : 'Merchant App'}
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
-          <div className="mt-6">{children}</div>
-        </section>
-      </div>
-    </>
+    <main className="merchant-desktop-stage relative grid min-h-dvh place-items-center overflow-hidden p-6">
+      <div aria-hidden className="merchant-desktop-orbit merchant-desktop-orbit-one" />
+      <div aria-hidden className="merchant-desktop-orbit merchant-desktop-orbit-two" />
+      {children}
+    </main>
   )
 }
 
-function DesktopAppointmentsBackdrop() {
+function DesktopHomeCard({
+  destinations,
+  title,
+  description,
+  interactive = true,
+  children
+}: {
+  readonly destinations: readonly MerchantDestination[]
+  readonly title: string
+  readonly description: string
+  readonly interactive?: boolean
+  readonly children: ReactNode
+}) {
   return (
-    <div className="grid gap-6">
-      <div className="flex items-end justify-between border-b pb-5">
-        <div>
-          <p className="text-sm font-medium">Today</p>
-          <p className="mt-1 text-3xl font-semibold tracking-tight">Your schedule</p>
-        </div>
-        <span className="text-sm text-muted-foreground">Appointments</span>
+    <section
+      aria-label="Merchant desktop home"
+      className="merchant-desktop-home-card relative z-10 flex h-[750px] w-[448px] flex-col overflow-hidden rounded-3xl border border-white/10 text-white shadow-2xl"
+    >
+      <header className="flex h-16 shrink-0 items-center justify-between px-5">
+        <span className="text-sm font-semibold tracking-tight">Merchant App</span>
+        {interactive ? (
+          <Link
+            to="/settings"
+            aria-label="Open Settings"
+            className="grid size-10 place-items-center rounded-full bg-white/8 text-white/70 hover:bg-white/12 hover:text-white"
+          >
+            <Settings aria-hidden className="size-5" />
+          </Link>
+        ) : (
+          <span className="grid size-10 place-items-center rounded-full bg-white/8 text-white/70">
+            <Settings aria-hidden className="size-5" />
+          </span>
+        )}
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
+        <p className="text-xs font-semibold tracking-[0.08em] text-primary uppercase">
+          Today
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-1 text-sm leading-5 text-white/55">{description}</p>
+        <div className="mt-5">{children}</div>
       </div>
-      <div className="grid gap-3">
-        <div className="h-20 rounded-lg border bg-card" />
-        <div className="h-20 rounded-lg border bg-card" />
-        <div className="h-20 rounded-lg border bg-card" />
+      <div className="shrink-0 bg-gradient-to-t from-[#111720] via-[#111720]/98 to-transparent px-4 pt-3 pb-4">
+        <DesktopHomeActions destinations={destinations} interactive={interactive} />
       </div>
-    </div>
+    </section>
   )
 }
