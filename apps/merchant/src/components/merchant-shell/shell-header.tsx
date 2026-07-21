@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { BeeSoloLogo } from '@/components/beesolo-logo.tsx'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 import type { MerchantShellSection } from './navigation.tsx'
 
@@ -22,13 +23,13 @@ export function MerchantShellHeader({
           <Link
             to="/appointments"
             search={{ date: undefined }}
-            className="font-semibold tracking-tight"
+            className="rounded-md focus-visible:outline-none"
           >
-            Merchant App
+            <BeeSoloLogo />
           </Link>
         ) : (
-          <Link to="/" className="font-semibold tracking-tight">
-            Merchant App
+          <Link to="/" className="rounded-md focus-visible:outline-none">
+            <BeeSoloLogo />
           </Link>
         )}
         {section.kind === 'catalog' ? (

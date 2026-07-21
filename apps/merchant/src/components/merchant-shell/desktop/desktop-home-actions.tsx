@@ -63,12 +63,12 @@ export function DesktopHomeActions({
             <Ellipsis aria-hidden className="mx-auto size-6" strokeWidth={2.25} />
             More
           </summary>
-          <div className="absolute right-0 bottom-[calc(100%+0.625rem)] z-20 grid min-w-48 gap-1 rounded-3xl border border-white/10 bg-[#1d2532]/98 p-2 shadow-2xl backdrop-blur-xl">
+          <div className="absolute right-0 bottom-[calc(100%+0.625rem)] z-20 grid min-w-48 gap-1 rounded-xl border bg-card/98 p-2 text-card-foreground shadow-lg backdrop-blur-xl">
             {moreDestinations.map((destination) => (
               <Link
                 key={destination.to}
                 to={destination.to}
-                className="flex min-h-11 items-center justify-between rounded-2xl px-3 text-sm font-semibold text-white/85 hover:bg-white/10"
+                className="flex min-h-11 items-center justify-between rounded-lg px-3 text-sm font-semibold hover:bg-accent"
               >
                 {destination.label}
                 <span aria-hidden>›</span>
@@ -119,19 +119,19 @@ export function DesktopHomePlaceholder() {
     <div className="grid gap-3" aria-hidden>
       <div className="flex items-end justify-between">
         <span className="text-6xl font-bold tracking-[-0.08em]">20</span>
-        <span className="text-right text-sm font-semibold text-white/60">
+        <span className="text-right text-sm font-semibold text-muted-foreground">
           Your day
           <br />
           at a glance
         </span>
       </div>
-      <div className="h-16 rounded-3xl bg-white/5" />
-      <div className="flex items-center gap-3 border-b border-white/10 py-3">
+      <div className="h-16 rounded-xl bg-muted" />
+      <div className="flex items-center gap-3 border-b py-3">
         <CalendarClock className="size-5 text-primary" />
         <span className="text-sm font-semibold">Today’s appointments</span>
       </div>
-      <div className="h-12 rounded-2xl bg-white/[0.04]" />
-      <div className="h-12 rounded-2xl bg-white/[0.04]" />
+      <div className="h-12 rounded-lg bg-muted/80" />
+      <div className="h-12 rounded-lg bg-muted/80" />
     </div>
   )
 }

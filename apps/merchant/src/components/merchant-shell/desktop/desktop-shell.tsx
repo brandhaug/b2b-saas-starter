@@ -2,6 +2,7 @@ import { Link, useLocation, useRouter } from '@tanstack/react-router'
 import { UserRound, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { AnimationEvent, ReactNode } from 'react'
+import { BeeSoloLogo } from '@/components/beesolo-logo.tsx'
 import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
 import { DesktopHomeActions, DesktopHomePlaceholder } from './desktop-home-actions.tsx'
 
@@ -140,7 +141,7 @@ function DesktopRouteModal({
         </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 py-6">
-        <p className="text-xs font-semibold tracking-[0.08em] text-primary uppercase">
+        <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
           {section.kind === 'catalog' ? 'Merchant catalog' : 'Merchant App'}
         </p>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
@@ -153,8 +154,6 @@ function DesktopRouteModal({
 function DesktopStage({ children }: { readonly children: ReactNode }) {
   return (
     <main className="merchant-desktop-stage relative grid min-h-dvh place-items-center overflow-hidden p-6">
-      <div aria-hidden className="merchant-desktop-orbit merchant-desktop-orbit-one" />
-      <div aria-hidden className="merchant-desktop-orbit merchant-desktop-orbit-two" />
       {children}
     </main>
   )
@@ -177,7 +176,7 @@ function DesktopHomeCard({
   return (
     <section
       aria-label="Merchant desktop home"
-      className="merchant-desktop-home-card relative z-10 flex h-[750px] w-[448px] flex-col overflow-hidden rounded-3xl border border-white/10 text-white shadow-2xl"
+      className="merchant-desktop-home-card relative z-10 flex h-[750px] w-[448px] flex-col overflow-hidden rounded-xl border text-foreground shadow-lg"
     >
       <header className="grid h-20 shrink-0 grid-cols-[2.75rem_1fr_2.75rem] items-center px-5">
         <span className="grid size-11 place-items-center">
@@ -190,15 +189,15 @@ function DesktopHomeCard({
           <Link
             to="/settings"
             aria-label="Open Settings"
-            className="grid size-11 place-items-center rounded-full text-white/70 transition-transform hover:text-white active:scale-[0.98]"
+            className="grid size-11 place-items-center rounded-full text-muted-foreground transition-transform hover:text-foreground active:scale-[0.98]"
           >
-            <span className="grid size-9 place-items-center rounded-full bg-white/8">
+            <span className="grid size-9 place-items-center rounded-full bg-muted">
               <UserRound aria-hidden className="size-5" />
             </span>
           </Link>
         ) : (
-          <span className="grid size-11 place-items-center rounded-full text-white/70">
-            <span className="grid size-9 place-items-center rounded-full bg-white/8">
+          <span className="grid size-11 place-items-center rounded-full text-muted-foreground">
+            <span className="grid size-9 place-items-center rounded-full bg-muted">
               <UserRound aria-hidden className="size-5" />
             </span>
           </span>
@@ -207,7 +206,7 @@ function DesktopHomeCard({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
         <div className="mt-5">{children}</div>
       </div>
-      <div className="shrink-0 bg-gradient-to-t from-[#111720] via-[#111720]/98 to-transparent px-4 pt-3 pb-4">
+      <div className="shrink-0 border-t bg-background px-4 pt-3 pb-4">
         <DesktopHomeActions destinations={destinations} interactive={interactive} />
       </div>
     </section>
@@ -215,36 +214,7 @@ function DesktopHomeCard({
 }
 
 function MerchantLogo() {
-  return (
-    <div className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-white">
-      <svg
-        aria-hidden="true"
-        className="h-full w-full"
-        fill="none"
-        focusable="false"
-        viewBox="0 0 126 126"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path d="M0 0H126V126H0V0Z" fill="white" />
-        <path
-          d="M40.3 64.4L61.3 76.5V100.8L40.3 113L19.3 100.8V76.5L40.3 64.4Z"
-          fill="black"
-        />
-        <path
-          d="M84.7 13L105.7 25.2V49.5L84.7 61.6L63.7 49.5V25.2L84.7 13Z"
-          fill="black"
-        />
-        <path
-          d="M40.3 13L61.3 25.1V49.4L40.3 61.6L19.3 49.4V25.1L40.3 13Z"
-          fill="black"
-        />
-        <path
-          d="M84.7 64.4L105.7 76.6V100.9L84.7 113L63.7 100.9V76.6L84.7 64.4Z"
-          fill="black"
-        />
-      </svg>
-    </div>
-  )
+  return <BeeSoloLogo iconOnly />
 }
 
 function appointmentDateFromSearch(search: unknown) {

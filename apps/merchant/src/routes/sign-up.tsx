@@ -76,7 +76,7 @@ function SignUpPage() {
       <Link
         to="/sign-in"
         search={{ redirect: undefined }}
-        className="mt-5 block text-sm text-primary underline underline-offset-4"
+        className="mt-5 block text-sm text-foreground underline underline-offset-4 hover:text-muted-foreground"
       >
         Already have an account? Sign in
       </Link>

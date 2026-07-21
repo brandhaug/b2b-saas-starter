@@ -17,6 +17,7 @@ import { MobileAppointmentsScreen } from '@/features/appointments/mobile/mobile-
 import { decodeAppointmentCalendarSearch } from '@/lib/appointment-calendar-date.ts'
 import { shouldReconstructMobileHomeUnderlay } from '@/lib/mobile-sheet-underlay.ts'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
+import { merchantThemeBootScript } from '@/lib/merchant-theme.ts'
 import { getMerchantPresentation } from '@/lib/server/merchant-presentation.ts'
 import { getMobileSheetUnderlayCalendar } from '@/lib/server/mobile-sheet-underlay.ts'
 import onestLatinFont from '@fontsource-variable/onest/files/onest-latin-wght-normal.woff2?url'
@@ -127,9 +128,11 @@ function RootDocument({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={presentation === 'mobile' ? 'merchant-mobile-document' : undefined}
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: merchantThemeBootScript }} />
         <meta
           name="viewport"
           content={

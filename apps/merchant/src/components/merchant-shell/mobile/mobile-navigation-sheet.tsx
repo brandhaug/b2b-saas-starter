@@ -52,7 +52,7 @@ export function MobileNavigationSheet({
           </h2>
           <button
             type="button"
-            className="min-h-11 justify-self-end px-1 text-sm font-bold text-primary"
+            className="min-h-11 justify-self-end px-1 text-sm font-bold text-foreground"
             onClick={onRequestClose}
           >
             Done
@@ -67,7 +67,9 @@ export function MobileNavigationSheet({
               state={mobileSheetNavigationState}
               search={appointmentDate ? { date: appointmentDate } : {}}
               className="flex min-h-14 items-center justify-between rounded-2xl border bg-card px-4 text-base font-bold text-foreground active:scale-[0.99] active:bg-muted"
-              activeProps={{ className: 'border-primary/40 bg-accent text-primary' }}
+              activeProps={{
+                className: 'border-primary bg-primary text-primary-foreground'
+              }}
             >
               {destination.label}
               <span aria-hidden className="text-muted-foreground">

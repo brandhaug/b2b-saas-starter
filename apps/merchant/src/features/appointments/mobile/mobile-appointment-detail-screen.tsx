@@ -29,14 +29,14 @@ export function MobileAppointmentDetailScreen({
       <section className="rounded-xl border bg-card p-5">
         <h2 className="font-semibold">Contact</h2>
         <a
-          className="mt-4 block text-sm font-medium text-primary"
+          className="mt-4 block text-sm font-medium text-foreground underline underline-offset-4"
           href={`mailto:${snapshot.customerDetails.email}`}
         >
           {snapshot.customerDetails.email}
         </a>
         {snapshot.customerDetails.phone ? (
           <a
-            className="mt-3 block text-sm font-medium text-primary"
+            className="mt-3 block text-sm font-medium text-foreground underline underline-offset-4"
             href={`tel:${snapshot.customerDetails.phone}`}
           >
             {snapshot.customerDetails.phone}

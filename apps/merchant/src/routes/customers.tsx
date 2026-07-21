@@ -45,7 +45,7 @@ function CustomersPage() {
                   </td>
                   <td className="p-4">
                     <Link
-                      className="text-primary underline underline-offset-4"
+                      className="text-foreground underline underline-offset-4 hover:text-muted-foreground"
                       to="/appointments/$appointmentId"
                       viewTransition={false}
                       state={mobileSheetNavigationState}

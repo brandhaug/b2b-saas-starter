@@ -406,7 +406,7 @@ export function MobileShell(props: MobileShellProps) {
           data-mobile-sheet-scroll="true"
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(2rem,env(safe-area-inset-bottom))]"
         >
-          <p className="text-xs font-semibold tracking-[0.08em] text-primary uppercase">
+          <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
             {section.kind === 'catalog' ? 'Merchant catalog' : 'Merchant App'}
           </p>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">

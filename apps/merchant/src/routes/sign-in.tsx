@@ -71,7 +71,7 @@ function SignInPage() {
           {pending ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-      <div className="mt-5 flex justify-between text-sm text-primary underline underline-offset-4">
+      <div className="mt-5 flex justify-between text-sm text-foreground underline underline-offset-4 [&_a:hover]:text-muted-foreground">
         <Link to="/sign-up">Create an account</Link>
         <Link to="/forgot-password">Forgot password?</Link>
       </div>

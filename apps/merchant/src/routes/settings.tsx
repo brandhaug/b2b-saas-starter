@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { MerchantShell } from '@/components/merchant-shell/index.ts'
+import { MerchantThemeControl } from '@/components/merchant-theme-control.tsx'
 import { formValue } from '@/lib/form-value.ts'
 import { bootstrapPlatformApiToken } from '@/lib/server/platform-api-tokens.ts'
 import { rotatePlatformWebhookSecret } from '@/lib/server/platform-webhooks.ts'
@@ -58,7 +59,14 @@ function MerchantSettings() {
       title="Settings"
       description="Manage Merchant integration credentials and webhook security."
     >
-      <section className="mt-8 border bg-card p-6">
+      <section className="mt-8 rounded-xl border bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-semibold">Display</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Choose how the BeeSolo merchant workspace appears on this device.
+        </p>
+        <MerchantThemeControl />
+      </section>
+      <section className="mt-8 rounded-xl border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Platform API Tokens</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Create the first server credential. Your password is verified and is never
@@ -106,7 +114,7 @@ function MerchantSettings() {
           </div>
         ) : null}
       </section>
-      <section className="mt-8 border bg-card p-6">
+      <section className="mt-8 rounded-xl border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Webhook signing secret</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Rotation requires your current password. The new secret is shown once.
