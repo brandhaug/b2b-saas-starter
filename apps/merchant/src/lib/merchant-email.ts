@@ -52,9 +52,9 @@ export const createMerchantEmailDelivery = (
   }
 
   if (!binding || !from) {
-    // The HTTP boundary rejects every operation that might send email before
-    // Better Auth calls this fallback. It remains a no-op only to keep the
-    // provider callback total if Better Auth introduces another email path.
+    // The HTTP boundary rejects explicit email-delivery operations before
+    // Better Auth calls this fallback. Sign-in remains available to verified
+    // Merchants, while an unverified sign-in cannot manufacture delivery.
     const unavailable = async (): Promise<void> => undefined
     return {
       isConfigured: false,

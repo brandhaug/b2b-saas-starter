@@ -82,6 +82,37 @@ describe('Merchant Owner Better Auth lifecycle', () => {
     expect(cookie).not.toMatch(/Domain=/i)
   })
 
+  it('keeps verified sign-in available when production email delivery is unavailable', async () => {
+    const email = `delivery-outage-${crypto.randomUUID()}@merchant.test`
+    await call('/sign-up/email', {
+      name: 'Delivery Outage Owner',
+      email,
+      password,
+      callbackURL: `${origin}/verify-email`
+    })
+    await auth.handler(new Request(verificationLinks[0]!))
+
+    const handler = createMerchantAuthHandler({
+      auth: {
+        handler: auth.handler,
+        getSession: (headers) => auth.api.getSession({ headers })
+      },
+      emailDelivery: { isConfigured: false },
+      environment: 'production',
+      rateLimiter: { take: async () => true }
+    })
+    const response = await handler(
+      new Request(`${origin}/api/auth/sign-in/email`, {
+        method: 'POST',
+        headers: { origin, 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('set-cookie')).toContain('merchant.session_token=')
+  })
+
   it('returns an indistinguishable recovery response and revokes every existing session on reset', async () => {
     const email = `recovery-${crypto.randomUUID()}@merchant.test`
     await call('/sign-up/email', {

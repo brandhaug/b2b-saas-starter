@@ -50,9 +50,10 @@ export const makeMerchantRequestAuthority = <
     throw lastError
   }
 
-  const authorize = async (action: ImpersonatedMerchantAction) => {
-    const session = await dependencies.readSession()
-    if (!session) throw dependencies.unauthorized()
+  const authorizeSession = async (
+    session: Session,
+    action: ImpersonatedMerchantAction
+  ) => {
     const authorization = session.session.impersonatedBy
       ? await dependencies.authority.authorize({
           merchantSessionId: session.session.id,
@@ -62,8 +63,21 @@ export const makeMerchantRequestAuthority = <
     return { session, authorization }
   }
 
+  const authorize = async (action: ImpersonatedMerchantAction) => {
+    const session = await dependencies.readSession()
+    if (!session) throw dependencies.unauthorized()
+    return authorizeSession(session, action)
+  }
+
+  const authorizeOptional = async (action: ImpersonatedMerchantAction) => {
+    const session = await dependencies.readSession()
+    if (!session) return null
+    return authorizeSession(session, action)
+  }
+
   return {
     authorize,
+    authorizeOptional,
     run: async <Result>(
       action: ImpersonatedMerchantAction,
       use: (session: Session) => Promise<Result>

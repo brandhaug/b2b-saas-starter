@@ -2,6 +2,31 @@ import { describe, expect, it, vi } from 'vitest'
 import { createMerchantAuthHandler } from './merchant-auth-handler.ts'
 
 describe('Merchant authentication HTTP boundary', () => {
+  it('allows an existing verified Merchant to sign in while email delivery is unavailable', async () => {
+    const auth = {
+      handler: vi.fn().mockResolvedValue(Response.json({ token: null }))
+    }
+    const handler = createMerchantAuthHandler({
+      auth,
+      emailDelivery: { isConfigured: false },
+      environment: 'production',
+      rateLimiter: { take: vi.fn().mockResolvedValue(true) }
+    })
+
+    const request = new Request('https://app.example.test/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        email: 'verified@example.test',
+        password: 'correct-horse-battery-staple'
+      })
+    })
+    const response = await handler(request)
+
+    expect(response.status).toBe(200)
+    expect(auth.handler).toHaveBeenCalledWith(request)
+  })
+
   it('returns a needs-configuration response before production sign-up when verification email is unavailable', async () => {
     const auth = { handler: vi.fn() }
     const handler = createMerchantAuthHandler({

@@ -1,4 +1,3 @@
-import { redirect } from '@tanstack/react-router'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { env } from 'cloudflare:workers'
@@ -9,6 +8,7 @@ import {
   makeOperationsImpersonationAuthorityLayer
 } from '@b2b-saas-starter/capabilities/operations'
 import { createMerchantServerContext } from '../server-context.ts'
+import { merchantSessionOrRedirect } from './merchant-navigation-session.ts'
 import { makeMerchantRequestAuthority } from './merchant-request-authority.ts'
 
 const readSession = createServerOnlyFn(() => {
@@ -47,16 +47,13 @@ const merchantRequests = () => {
 }
 
 const getSession = createServerFn({ method: 'GET' }).handler(
-  async () => (await merchantRequests().authorize('merchant.navigate')).session
+  async () =>
+    (await merchantRequests().authorizeOptional('merchant.navigate'))?.session ?? null
 )
 
 /** Navigation uses a redirect; server mutations must use UnauthorizedError. */
 export const requireMerchantSession = async (redirectTo: string) => {
-  const session = await getSession()
-  if (!session) {
-    throw redirect({ to: '/sign-in', search: { redirect: redirectTo } })
-  }
-  return session
+  return merchantSessionOrRedirect(await getSession(), redirectTo)
 }
 
 export class MerchantUnauthorizedError extends Schema.TaggedErrorClass<MerchantUnauthorizedError>()(

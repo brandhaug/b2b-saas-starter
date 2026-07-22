@@ -16,6 +16,23 @@ const authorization = {
 }
 
 describe('Merchant request impersonation boundary', () => {
+  it('returns null for optional navigation authorization without manufacturing an error', async () => {
+    const unauthorized = vi.fn(() => new Error('unauthorized'))
+    const authority = {
+      authorize: vi.fn(),
+      recordMutation: vi.fn()
+    }
+    const requests = makeMerchantRequestAuthority({
+      readSession: async () => null,
+      authority,
+      unauthorized
+    })
+
+    await expect(requests.authorizeOptional('merchant.navigate')).resolves.toBeNull()
+    expect(unauthorized).not.toHaveBeenCalled()
+    expect(authority.authorize).not.toHaveBeenCalled()
+  })
+
   it('reauthorizes an impersonated request and records the real outcome of mutations', async () => {
     const authority = {
       authorize: vi.fn().mockResolvedValue(authorization),

@@ -38,7 +38,10 @@ function SignInPage() {
                 setError('Unable to sign in with those credentials.')
                 return
               }
-              router.history.push(safeMerchantReturnPath(redirect))
+              void router.navigate({
+                href: safeMerchantReturnPath(redirect),
+                replace: true
+              })
             })
             .finally(() => setPending(false))
         }}

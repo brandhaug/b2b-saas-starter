@@ -1,10 +1,8 @@
 import { env } from 'cloudflare:workers'
 import { createDb } from '@b2b-saas-starter/db/client'
 import { createMerchantAuth } from '@b2b-saas-starter/auth'
+import { resolveMerchantAuthConfig } from './merchant-auth-config.ts'
 import { createMerchantEmailDelivery } from './merchant-email.ts'
-
-const localSecret = 'local-merchant-auth-secret-change-me-minimum-32-chars'
-const localOrigin = 'http://localhost:3072'
 
 const production = (): boolean =>
   env.ENVIRONMENT === 'production' || import.meta.env.PROD
@@ -19,16 +17,10 @@ export const createMerchantServerContext = () => {
     if (!authInstance) {
       const isProduction = production()
       const emailDelivery = createMerchantEmailDelivery(env, isProduction)
-      const baseURL = env.MERCHANT_AUTH_URL ?? localOrigin
-      const trustedOrigins = (env.MERCHANT_AUTH_TRUSTED_ORIGINS ?? baseURL)
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean)
+      const config = resolveMerchantAuthConfig(env, isProduction)
       authInstance = createMerchantAuth({
         db: db(),
-        secret: env.MERCHANT_AUTH_SECRET ?? localSecret,
-        baseURL,
-        trustedOrigins,
+        ...config,
         production: isProduction,
         sendVerificationEmail: emailDelivery.sendVerificationEmail,
         sendResetPassword: emailDelivery.sendResetPassword
@@ -42,7 +34,7 @@ export const createMerchantServerContext = () => {
     db,
     emailDelivery: () => createMerchantEmailDelivery(env, production()),
     production,
-    merchantOrigin: () => env.MERCHANT_AUTH_URL ?? localOrigin,
-    merchantSecret: () => env.MERCHANT_AUTH_SECRET ?? localSecret
+    merchantOrigin: () => resolveMerchantAuthConfig(env, production()).baseURL,
+    merchantSecret: () => resolveMerchantAuthConfig(env, production()).secret
   }
 }
