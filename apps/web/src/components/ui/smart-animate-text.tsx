@@ -1,20 +1,10 @@
 'use client'
 
-import {
-  AnimatePresence,
-  motion,
-  usePresenceData,
-  useReducedMotion,
-  type Variants
-} from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion, type Variants } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
 import { cn } from '@/lib/utils'
-import {
-  createRemovedCharacterMotion,
-  isAnimatedCharacter,
-  type CharacterMotion
-} from './smart-animate-text-motion'
+import { isAnimatedCharacter, type CharacterMotion } from './smart-animate-text-motion'
 
 type AnimationDirection = 'dynamic' | 'up' | 'down'
 
@@ -73,10 +63,6 @@ const characterVariants = {
   })
 } satisfies Variants
 
-const removedCharacterVariants = {
-  exit: characterVariants.exit
-} satisfies Variants
-
 function readNumericValue(value: string) {
   const match = value.replaceAll(',', '').match(/-?(?:\d+\.?\d*|\.\d+)/)
   if (!match) return undefined
@@ -114,31 +100,24 @@ function staticCharacterKey(characters: string[], index: number) {
   return `static:${character}:${occurrenceFromEnd}`
 }
 
-function AnimatedCharacter({
-  character,
-  digitClassName,
-  initial,
-  motion: characterMotion,
-  reverseIndex
-}: {
+type AnimatedCharacterProps = {
   character: string
   digitClassName: string | undefined
   initial: boolean
   motion: CharacterMotion
-  reverseIndex: number
-}) {
-  const removedCharacterMotion = usePresenceData() as
-    | Record<number, CharacterMotion>
-    | undefined
+}
 
+function AnimatedCharacter({
+  character,
+  digitClassName,
+  initial,
+  motion: characterMotion
+}: AnimatedCharacterProps) {
   return (
     <motion.span
       aria-hidden="true"
       className={cn('inline-grid overflow-hidden align-baseline', digitClassName)}
-      custom={removedCharacterMotion?.[reverseIndex] ?? characterMotion}
       data-character-kind="animated"
-      exit="exit"
-      variants={removedCharacterVariants}
     >
       <AnimatePresence custom={characterMotion} initial={initial}>
         <motion.span
@@ -187,16 +166,7 @@ function SmartAnimateText({
     sign,
     stiffness: enterStiffness
   }
-  const { count: removedCharacterCount, motion: removedCharacterMotion } =
-    createRemovedCharacterMotion({
-      baseMotion,
-      characters,
-      prefersReducedMotion: prefersReducedMotion === true,
-      previousCharacters,
-      staggerDelay
-    })
-
-  let changedCharacterIndex = removedCharacterCount
+  let changedCharacterIndex = 0
 
   useEffect(() => {
     previousValueRef.current = value
@@ -210,7 +180,7 @@ function SmartAnimateText({
       data-slot="smart-animate-text"
       style={{ gap }}
     >
-      <AnimatePresence custom={removedCharacterMotion} initial={false}>
+      <>
         {characters.map((character, index) => {
           const reverseIndex = characters.length - index - 1
 
@@ -244,11 +214,10 @@ function SmartAnimateText({
               initial={isInitialRender ? animateOnMount && !prefersReducedMotion : true}
               key={`animated:${reverseIndex}`}
               motion={motion}
-              reverseIndex={reverseIndex}
             />
           )
         })}
-      </AnimatePresence>
+      </>
     </span>
   )
 }
