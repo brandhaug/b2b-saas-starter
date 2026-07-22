@@ -1,6 +1,12 @@
 'use client'
 
-import { AnimatePresence, m, useReducedMotion, type Variants } from 'motion/react'
+import {
+  AnimatePresence,
+  m,
+  usePresenceData,
+  useReducedMotion,
+  type Variants
+} from 'motion/react'
 import { useEffect, useRef } from 'react'
 
 import { cn } from '@/lib/utils'
@@ -74,6 +80,10 @@ const characterVariants = {
   })
 } satisfies Variants
 
+const removedCharacterVariants = {
+  exit: characterVariants.exit
+} satisfies Variants
+
 function readNumericValue(value: string) {
   const match = value.replaceAll(',', '').match(/-?(?:\d+\.?\d*|\.\d+)/)
   if (!match) return undefined
@@ -111,6 +121,49 @@ function staticCharacterKey(characters: string[], index: number) {
   return `static:${character}:${occurrenceFromEnd}`
 }
 
+function AnimatedCharacter({
+  character,
+  digitClassName,
+  initial,
+  motion,
+  reverseIndex
+}: {
+  character: string
+  digitClassName: string | undefined
+  initial: boolean
+  motion: CharacterMotion
+  reverseIndex: number
+}) {
+  const removedCharacterMotion = usePresenceData() as
+    | Record<number, CharacterMotion>
+    | undefined
+
+  return (
+    <m.span
+      aria-hidden="true"
+      className={cn('inline-grid overflow-hidden align-baseline', digitClassName)}
+      custom={removedCharacterMotion?.[reverseIndex] ?? motion}
+      data-character-kind="animated"
+      exit="exit"
+      variants={removedCharacterVariants}
+    >
+      <AnimatePresence custom={motion} initial={initial}>
+        <m.span
+          animate="center"
+          custom={motion}
+          exit="exit"
+          initial="enter"
+          key={character}
+          style={{ gridColumn: 1, gridRow: 1 }}
+          variants={characterVariants}
+        >
+          {character}
+        </m.span>
+      </AnimatePresence>
+    </m.span>
+  )
+}
+
 function SmartAnimateText({
   value,
   gap = 2,
@@ -133,7 +186,30 @@ function SmartAnimateText({
   const characters = Array.from(value)
   const previousCharacters = Array.from(previousValue)
   const sign = resolveDirection(direction, previousValue, value)
-  let changedCharacterIndex = 0
+  const baseMotion = {
+    damping: enterDamping,
+    enterBlur: prefersReducedMotion ? 0 : enterBlur,
+    enterScale: prefersReducedMotion ? 1 : enterScale,
+    enterY: prefersReducedMotion ? 0 : enterY,
+    sign,
+    stiffness: enterStiffness
+  }
+  const removedCharacterMotion: Record<number, CharacterMotion> = {}
+  let removedCharacterCount = 0
+
+  previousCharacters.forEach((character, index) => {
+    const reverseIndex = previousCharacters.length - index - 1
+    if (reverseIndex < characters.length || !animatedCharacterPattern.test(character))
+      return
+
+    removedCharacterMotion[reverseIndex] = {
+      ...baseMotion,
+      delay: prefersReducedMotion ? 0 : removedCharacterCount * staggerDelay
+    }
+    removedCharacterCount += 1
+  })
+
+  let changedCharacterIndex = removedCharacterCount
 
   useEffect(() => {
     previousValueRef.current = value
@@ -147,66 +223,45 @@ function SmartAnimateText({
       data-slot="smart-animate-text"
       style={{ gap }}
     >
-      {characters.map((character, index) => {
-        const reverseIndex = characters.length - index - 1
+      <AnimatePresence custom={removedCharacterMotion} initial={false}>
+        {characters.map((character, index) => {
+          const reverseIndex = characters.length - index - 1
 
-        if (!animatedCharacterPattern.test(character)) {
-          return (
-            <span
-              aria-hidden="true"
-              data-character-kind="static"
-              key={staticCharacterKey(characters, index)}
-            >
-              {character}
-            </span>
-          )
-        }
-
-        const previousCharacter =
-          previousCharacters[previousCharacters.length - reverseIndex - 1]
-        const changed = isInitialRender
-          ? animateOnMount
-          : previousCharacter !== character
-        const delay =
-          changed && !prefersReducedMotion ? changedCharacterIndex * staggerDelay : 0
-        if (changed) changedCharacterIndex += 1
-
-        const motion: CharacterMotion = {
-          delay,
-          damping: enterDamping,
-          enterBlur: prefersReducedMotion ? 0 : enterBlur,
-          enterScale: prefersReducedMotion ? 1 : enterScale,
-          enterY: prefersReducedMotion ? 0 : enterY,
-          sign,
-          stiffness: enterStiffness
-        }
-
-        return (
-          <span
-            aria-hidden="true"
-            className={cn('inline-grid overflow-hidden align-baseline', digitClassName)}
-            data-character-kind="animated"
-            key={`animated:${reverseIndex}`}
-          >
-            <AnimatePresence
-              custom={motion}
-              initial={isInitialRender ? animateOnMount && !prefersReducedMotion : true}
-            >
-              <m.span
-                animate="center"
-                custom={motion}
-                exit="exit"
-                initial="enter"
-                key={character}
-                style={{ gridColumn: 1, gridRow: 1 }}
-                variants={characterVariants}
+          if (!animatedCharacterPattern.test(character)) {
+            return (
+              <span
+                aria-hidden="true"
+                data-character-kind="static"
+                key={staticCharacterKey(characters, index)}
               >
                 {character}
-              </m.span>
-            </AnimatePresence>
-          </span>
-        )
-      })}
+              </span>
+            )
+          }
+
+          const previousCharacter =
+            previousCharacters[previousCharacters.length - reverseIndex - 1]
+          const changed = isInitialRender
+            ? animateOnMount
+            : previousCharacter !== character
+          const delay =
+            changed && !prefersReducedMotion ? changedCharacterIndex * staggerDelay : 0
+          if (changed) changedCharacterIndex += 1
+
+          const motion: CharacterMotion = { ...baseMotion, delay }
+
+          return (
+            <AnimatedCharacter
+              character={character}
+              digitClassName={digitClassName}
+              initial={isInitialRender ? animateOnMount && !prefersReducedMotion : true}
+              key={`animated:${reverseIndex}`}
+              motion={motion}
+              reverseIndex={reverseIndex}
+            />
+          )
+        })}
+      </AnimatePresence>
     </span>
   )
 }
