@@ -45,6 +45,7 @@ replace a developer's active Operator Session.
 | Specific/Any Provider, Hold, fixed Quote             | Booking selection/scheduling Live tests                       |
 | Pay In Person, idempotent atomic confirmation        | checkout and confirmation Live tests                          |
 | Merchant Appointment/Customer views                  | appointment operations tests                                  |
+| Merchant PWA install, viewport, and network policy   | `apps/merchant/src/lib/merchant-pwa*.test.ts` and shell tests |
 | secure Confirmation and secret non-persistence       | booking HTTP and confirmation Live tests                      |
 | scoped Platform API and non-disclosure               | API and developer-platform Live tests                         |
 | PII-free durable events, retry/recovery              | notification Live and Background Worker tests                 |
