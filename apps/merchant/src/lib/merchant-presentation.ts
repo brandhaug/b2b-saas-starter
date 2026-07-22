@@ -1,5 +1,7 @@
 export type MerchantPresentation = 'desktop' | 'mobile'
 
+export const MOBILE_MERCHANT_PRESENTATION_QUERY = '(max-width: 767px)' as const
+
 export function merchantPresentationFromHeaders(
   headers: Headers
 ): MerchantPresentation {

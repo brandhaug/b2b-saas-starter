@@ -9,7 +9,7 @@ export function AuthShell({
   readonly children: ReactNode
 }) {
   return (
-    <main className="grid min-h-dvh place-items-center bg-background p-6">
+    <main className="merchant-safe-area-page grid min-h-dvh place-items-center bg-background p-6">
       <section className="w-full max-w-md rounded-xl border bg-card p-8 shadow-sm">
         <BeeSoloLogo />
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">

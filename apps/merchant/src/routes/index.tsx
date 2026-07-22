@@ -41,7 +41,7 @@ function IndexPage() {
 function VerificationRequired() {
   const router = useRouter()
   return (
-    <main className="grid min-h-dvh place-items-center p-6">
+    <main className="merchant-safe-area-page grid min-h-dvh place-items-center p-6">
       <section className="w-full max-w-lg border bg-card p-6">
         <p className="text-xs font-medium text-foreground">
           Email verification required
@@ -89,7 +89,7 @@ function MerchantOnboardingForm() {
   const [message, setMessage] = useState<string | null>(null)
 
   return (
-    <main className="mx-auto grid min-h-dvh max-w-5xl items-center gap-10 p-6 lg:grid-cols-[0.9fr_1.1fr]">
+    <main className="merchant-safe-area-page mx-auto grid min-h-dvh max-w-5xl items-center gap-10 p-6 lg:grid-cols-[0.9fr_1.1fr]">
       <section>
         <p className="text-xs font-medium text-foreground">Merchant Onboarding</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight">

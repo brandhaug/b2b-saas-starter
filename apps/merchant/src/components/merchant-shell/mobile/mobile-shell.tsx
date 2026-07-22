@@ -19,6 +19,7 @@ import {
   shouldBeginMobileSheetSurfaceDrag,
   shouldDismissMobileSheet
 } from './mobile-sheet-gesture.ts'
+import { mobileViewportHeight } from './mobile-viewport.ts'
 
 type MobileSheetState = 'entering' | 'open' | 'dragging' | 'settling' | 'closing'
 
@@ -126,7 +127,7 @@ export function MobileShell(props: MobileShellProps) {
   if (layout === 'home') {
     return (
       <main className="merchant-mobile min-h-dvh bg-background text-foreground">
-        <section className="min-w-0 px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-60">
+        <section className="merchant-safe-area-inline min-w-0 px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-60">
           {children}
         </section>
         <MobileHomeActions
@@ -199,7 +200,7 @@ export function MobileShell(props: MobileShellProps) {
     if (!drag || drag.pointerId !== event.pointerId) return
 
     drag.distance = Math.max(0, event.clientY - drag.startY)
-    const offset = getMobileSheetDragOffset(drag.distance, window.innerHeight)
+    const offset = getMobileSheetDragOffset(drag.distance, mobileViewportHeight())
     sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', `${offset}px`)
   }
 
@@ -283,7 +284,7 @@ export function MobileShell(props: MobileShellProps) {
 
     event.preventDefault()
     drag.distance = Math.max(0, deltaY)
-    const offset = getMobileSheetDragOffset(drag.distance, window.innerHeight)
+    const offset = getMobileSheetDragOffset(drag.distance, mobileViewportHeight())
     sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', `${offset}px`)
   }
 
@@ -357,7 +358,7 @@ export function MobileShell(props: MobileShellProps) {
           inert
           className="absolute inset-0 z-0 overflow-hidden bg-background opacity-65"
         >
-          <section className="min-w-0 px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-60">
+          <section className="merchant-safe-area-inline min-w-0 px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-60">
             {homeUnderlay}
           </section>
           <MobileHomeActions destinations={destinations} appointmentDate={homeDate} />
@@ -394,7 +395,7 @@ export function MobileShell(props: MobileShellProps) {
         >
           <span aria-hidden className="h-1 w-10 rounded-full bg-muted-foreground/20" />
         </button>
-        <header className="sticky top-0 z-20 bg-background/92 px-5 pb-3 backdrop-blur-xl">
+        <header className="merchant-safe-area-inline sticky top-0 z-20 bg-background/92 px-5 pb-3 backdrop-blur-xl">
           <h1
             id="merchant-mobile-sheet-title"
             className="truncate text-2xl font-bold tracking-tight"
@@ -404,7 +405,7 @@ export function MobileShell(props: MobileShellProps) {
         </header>
         <div
           data-mobile-sheet-scroll="true"
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(2rem,env(safe-area-inset-bottom))]"
+          className="merchant-safe-area-inline min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(2rem,env(safe-area-inset-bottom))]"
         >
           <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
             {section.kind === 'catalog' ? 'Merchant catalog' : 'Merchant App'}

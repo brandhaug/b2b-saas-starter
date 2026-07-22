@@ -1,0 +1,9 @@
+# Installable, network-fresh authenticated Merchant App
+
+The authenticated Merchant App at `app.<domain>` is one origin-wide installable PWA, distinct from the per-Merchant customer PWA defined by [0055](./0055-merchant-scoped-network-fresh-pwa.md). Its stable manifest identity, launch URL, navigation scope, and service-worker scope are rooted at `/`; sign-in, recovery, onboarding, appointments, and settings therefore remain within the installed application boundary while Operations and other external origins remain visibly external.
+
+Installability does not promise offline Merchant data or mutations. The initial service worker handles installation and activation only and has no fetch listener. Authenticated documents, Better Auth requests, TanStack server functions, APIs, impersonation handoffs, and every mutation remain network-authoritative and are never stored in Cache Storage or silently queued. Any future offline fallback, static-asset cache, background delivery, or push capability requires a separate decision defining privacy, invalidation, account switching, idempotency, conflicts, consent, and update behavior.
+
+Every render uses the zoomable `width=device-width, initial-scale=1, viewport-fit=cover` viewport. Phone and desktop interaction presentations use the request classification only for hydration continuity, then follow the available window width so installed desktop windows, split-view tablets, foldables, and rotated devices can adapt. Edge-to-edge layouts protect all four safe areas, and mobile sheet geometry uses the visible viewport when virtual keyboards or browser chrome reduce it.
+
+This decision narrowly supersedes [0021](./0021-no-initial-pwa.md) for authenticated Merchant App installability and installed-window presentation. It preserves 0021's exclusion of general authenticated offline behavior and does not change the separate customer-facing identity or routing contract in 0055.

@@ -45,7 +45,7 @@ export function MobileNavigationSheet({
       />
       <section className="merchant-more-panel">
         <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-muted-foreground/35" />
-        <header className="grid grid-cols-[4rem_1fr_4rem] items-center px-5 pt-4 pb-3">
+        <header className="merchant-safe-area-inline grid grid-cols-[4rem_1fr_4rem] items-center px-5 pt-4 pb-3">
           <span aria-hidden />
           <h2 id={titleId} className="text-center text-base font-bold">
             Merchant areas
@@ -58,7 +58,10 @@ export function MobileNavigationSheet({
             Done
           </button>
         </header>
-        <nav aria-label="Merchant navigation" className="grid gap-2 px-4 pb-4">
+        <nav
+          aria-label="Merchant navigation"
+          className="merchant-safe-area-inline grid gap-2 px-4 pb-4"
+        >
           {destinations.map((destination) => (
             <Link
               key={destination.to}

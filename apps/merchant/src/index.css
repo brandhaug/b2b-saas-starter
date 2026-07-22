@@ -47,6 +47,10 @@
 
 :root {
   color-scheme: light;
+  --merchant-safe-area-top: env(safe-area-inset-top, 0px);
+  --merchant-safe-area-right: env(safe-area-inset-right, 0px);
+  --merchant-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --merchant-safe-area-left: env(safe-area-inset-left, 0px);
   --background: oklch(1 0 0);
   --foreground: oklch(0 0 0);
   --card: oklch(1 0 0);
@@ -238,6 +242,7 @@ summary.merchant-desktop-action:hover {
 }
 
 html.merchant-mobile-document {
+  --safe-area-inset-top: var(--merchant-safe-area-top);
   overscroll-behavior-x: none;
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
@@ -384,6 +389,18 @@ body {
   min-width: 320px;
   background: var(--background);
   color: var(--foreground);
+}
+
+.merchant-safe-area-inline {
+  padding-right: max(1.25rem, var(--merchant-safe-area-right));
+  padding-left: max(1.25rem, var(--merchant-safe-area-left));
+}
+
+.merchant-safe-area-page {
+  padding-top: max(1.5rem, var(--merchant-safe-area-top));
+  padding-right: max(1.5rem, var(--merchant-safe-area-right));
+  padding-bottom: max(1.5rem, var(--merchant-safe-area-bottom));
+  padding-left: max(1.5rem, var(--merchant-safe-area-left));
 }
 
 button,

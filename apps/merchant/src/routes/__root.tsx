@@ -8,6 +8,7 @@ import {
   useRouter
 } from '@tanstack/react-router'
 import { ImpersonationBanner } from '@/components/impersonation-banner.tsx'
+import { MerchantPwaRegistration } from '@/components/merchant-pwa-registration.tsx'
 import { MerchantThemeSync } from '@/components/merchant-theme-sync.tsx'
 import {
   getImpersonationLifecycle,
@@ -18,6 +19,11 @@ import { MobileAppointmentsScreen } from '@/features/appointments/mobile/mobile-
 import { decodeAppointmentCalendarSearch } from '@/lib/appointment-calendar-date.ts'
 import { shouldReconstructMobileHomeUnderlay } from '@/lib/mobile-sheet-underlay.ts'
 import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
+import {
+  MERCHANT_PWA_VIEWPORT,
+  merchantPwaHeadLinks,
+  merchantPwaHeadMeta
+} from '@/lib/merchant-pwa.ts'
 import { merchantThemeBootScript } from '@/lib/merchant-theme.ts'
 import { getMerchantPresentation } from '@/lib/server/merchant-presentation.ts'
 import { getMobileSheetUnderlayCalendar } from '@/lib/server/mobile-sheet-underlay.ts'
@@ -25,6 +31,7 @@ import onestLatinFont from '@fontsource-variable/onest/files/onest-latin-wght-no
 import appCss from '../index.css?url'
 
 export const merchantHeadLinks = [
+  ...merchantPwaHeadLinks,
   { rel: 'stylesheet', href: appCss },
   {
     rel: 'preload',
@@ -72,7 +79,8 @@ export const Route = createRootRoute({
       {
         name: 'description',
         content: 'The authenticated Merchant App for the Booking Product.'
-      }
+      },
+      ...merchantPwaHeadMeta
     ],
     links: merchantHeadLinks
   }),
@@ -136,16 +144,13 @@ function RootDocument({
         <script dangerouslySetInnerHTML={{ __html: merchantThemeBootScript }} />
         <meta
           name="viewport"
-          content={
-            presentation === 'mobile'
-              ? 'width=375, minimum-scale=1, shrink-to-fit=no'
-              : 'width=device-width, initial-scale=1'
-          }
+          content={MERCHANT_PWA_VIEWPORT}
         />
         <HeadContent />
       </head>
       <body>
         <MerchantThemeSync />
+        <MerchantPwaRegistration />
         {children}
         <Scripts />
       </body>

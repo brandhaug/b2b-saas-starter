@@ -1,6 +1,9 @@
-import { createContext, useContext, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
+import {
+  MOBILE_MERCHANT_PRESENTATION_QUERY,
+  type MerchantPresentation
+} from '@/lib/merchant-presentation.ts'
 
 export type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 
@@ -24,14 +27,35 @@ export function MerchantPresentationProvider({
   readonly mobileHomeDate?: string | undefined
   readonly children: ReactNode
 }) {
-  const [initialPresentation] = useState(presentation)
+  const [responsivePresentation, setResponsivePresentation] = useState(presentation)
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia(MOBILE_MERCHANT_PRESENTATION_QUERY)
+    const synchronize = () =>
+      setResponsivePresentation(media.matches ? 'mobile' : 'desktop')
+
+    synchronize()
+    media.addEventListener('change', synchronize)
+    return () => media.removeEventListener('change', synchronize)
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'merchant-mobile-document',
+      responsivePresentation === 'mobile'
+    )
+    return () =>
+      document.documentElement.classList.remove('merchant-mobile-document')
+  }, [responsivePresentation])
+
   const mobileHomeUnderlayRef = useRef<ReactNode>(mobileHomeUnderlay ?? null)
   const mobileHomeDateRef = useRef<string | undefined>(mobileHomeDate)
   const mobileHomeUnderlayOriginRef = useRef<MobileHomeUnderlayOrigin>(
     mobileHomeUnderlay === undefined ? 'none' : 'reconstructed'
   )
   return (
-    <MerchantPresentationContext value={initialPresentation}>
+    <MerchantPresentationContext value={responsivePresentation}>
       <MobileHomeUnderlayContext
         value={{
           content: mobileHomeUnderlayRef,
