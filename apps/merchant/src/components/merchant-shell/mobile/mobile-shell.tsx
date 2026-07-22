@@ -19,7 +19,10 @@ import {
   shouldBeginMobileSheetSurfaceDrag,
   shouldDismissMobileSheet
 } from './mobile-sheet-gesture.ts'
-import { mobileViewportHeight } from './mobile-viewport.ts'
+import {
+  listenForMobileViewportChanges,
+  mobileViewportHeight
+} from './mobile-viewport.ts'
 
 type MobileSheetState = 'entering' | 'open' | 'dragging' | 'settling' | 'closing'
 
@@ -84,6 +87,25 @@ export function MobileShell(props: MobileShellProps) {
     },
     []
   )
+
+  useEffect(() => {
+    if (layout === 'home') return
+
+    return listenForMobileViewportChanges(
+      () => {
+        if (!dragRef.current && !touchDragRef.current?.active) return
+
+        if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+        closeTimerRef.current = null
+        dragRef.current = null
+        touchDragRef.current = null
+        sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', '0px')
+        setSheetState('open')
+      },
+      window,
+      window.visualViewport
+    )
+  }, [layout])
 
   useEffect(() => {
     if (layout === 'home' && mobileHomeUnderlay) {

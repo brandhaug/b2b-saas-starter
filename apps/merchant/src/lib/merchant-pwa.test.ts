@@ -75,6 +75,10 @@ describe('authenticated Merchant App PWA assets', () => {
 
   it('defines four-sided safe-area composition for edge-to-edge windows', async () => {
     const styles = await readFile(new URL('../index.css', import.meta.url), 'utf8')
+    const homeActions = await readFile(
+      new URL('../components/merchant-shell/mobile/mobile-home-actions.tsx', import.meta.url),
+      'utf8'
+    )
 
     expect(styles).toContain('--merchant-safe-area-top: env(safe-area-inset-top, 0px)')
     expect(styles).toContain(
@@ -88,5 +92,6 @@ describe('authenticated Merchant App PWA assets', () => {
     )
     expect(styles).toContain('.merchant-safe-area-inline')
     expect(styles).toContain('.merchant-safe-area-page')
+    expect(homeActions).toContain('merchant-safe-area-inline')
   })
 })

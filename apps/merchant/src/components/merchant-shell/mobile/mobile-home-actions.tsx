@@ -37,7 +37,7 @@ export function MobileHomeActions({
     <>
       <nav
         aria-label="Merchant home actions"
-        className="fixed inset-x-0 bottom-0 z-40 border-t bg-background px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        className="merchant-safe-area-inline fixed inset-x-0 bottom-0 z-40 border-t bg-background px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         <div className="mx-auto grid max-w-md grid-cols-6 gap-2">
           {visibleActions.map((action, index) => {
