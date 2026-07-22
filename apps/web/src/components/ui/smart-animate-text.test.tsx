@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { SmartAnimateText } from './smart-animate-text'
@@ -22,6 +22,25 @@ describe('SmartAnimateText', () => {
       3
     )
     expect(container.querySelectorAll('[data-character-kind="static"]')).toHaveLength(1)
+  })
+
+  it('settles changed characters in their visible state', async () => {
+    const { container, rerender } = render(<SmartAnimateText value="mon." />)
+
+    rerender(<SmartAnimateText value="tue." />)
+
+    await waitFor(
+      () => {
+        const animatedCharacters = container.querySelectorAll(
+          '[data-character-kind="animated"] > span'
+        )
+        expect(animatedCharacters).toHaveLength(3)
+        animatedCharacters.forEach((character) => {
+          expect(character.getAttribute('style')).toContain('opacity: 1')
+        })
+      },
+      { timeout: 1500 }
+    )
   })
 
   it('applies spacing and character wrapper classes', () => {

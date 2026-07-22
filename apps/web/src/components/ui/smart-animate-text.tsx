@@ -2,7 +2,7 @@
 
 import {
   AnimatePresence,
-  m,
+  motion,
   usePresenceData,
   useReducedMotion,
   type Variants
@@ -118,7 +118,7 @@ function AnimatedCharacter({
   character,
   digitClassName,
   initial,
-  motion,
+  motion: characterMotion,
   reverseIndex
 }: {
   character: string
@@ -132,18 +132,18 @@ function AnimatedCharacter({
     | undefined
 
   return (
-    <m.span
+    <motion.span
       aria-hidden="true"
       className={cn('inline-grid overflow-hidden align-baseline', digitClassName)}
-      custom={removedCharacterMotion?.[reverseIndex] ?? motion}
+      custom={removedCharacterMotion?.[reverseIndex] ?? characterMotion}
       data-character-kind="animated"
       exit="exit"
       variants={removedCharacterVariants}
     >
-      <AnimatePresence custom={motion} initial={initial}>
-        <m.span
+      <AnimatePresence custom={characterMotion} initial={initial}>
+        <motion.span
           animate="center"
-          custom={motion}
+          custom={characterMotion}
           exit="exit"
           initial="enter"
           key={character}
@@ -151,9 +151,9 @@ function AnimatedCharacter({
           variants={characterVariants}
         >
           {character}
-        </m.span>
+        </motion.span>
       </AnimatePresence>
-    </m.span>
+    </motion.span>
   )
 }
 
