@@ -10,6 +10,11 @@ import {
 import { useEffect, useRef } from 'react'
 
 import { cn } from '@/lib/utils'
+import {
+  createRemovedCharacterMotion,
+  isAnimatedCharacter,
+  type CharacterMotion
+} from './smart-animate-text-motion'
 
 type AnimationDirection = 'dynamic' | 'up' | 'down'
 
@@ -27,18 +32,6 @@ type SmartAnimateTextProps = {
   enterScale?: number
   animateOnMount?: boolean
 }
-
-type CharacterMotion = {
-  delay: number
-  damping: number
-  enterBlur: number
-  enterScale: number
-  enterY: number
-  sign: 1 | -1
-  stiffness: number
-}
-
-const animatedCharacterPattern = /^[a-zA-Z0-9]$/
 
 const characterVariants = {
   enter: ({
@@ -194,20 +187,14 @@ function SmartAnimateText({
     sign,
     stiffness: enterStiffness
   }
-  const removedCharacterMotion: Record<number, CharacterMotion> = {}
-  let removedCharacterCount = 0
-
-  previousCharacters.forEach((character, index) => {
-    const reverseIndex = previousCharacters.length - index - 1
-    if (reverseIndex < characters.length || !animatedCharacterPattern.test(character))
-      return
-
-    removedCharacterMotion[reverseIndex] = {
-      ...baseMotion,
-      delay: prefersReducedMotion ? 0 : removedCharacterCount * staggerDelay
-    }
-    removedCharacterCount += 1
-  })
+  const { count: removedCharacterCount, motion: removedCharacterMotion } =
+    createRemovedCharacterMotion({
+      baseMotion,
+      characters,
+      prefersReducedMotion: prefersReducedMotion === true,
+      previousCharacters,
+      staggerDelay
+    })
 
   let changedCharacterIndex = removedCharacterCount
 
@@ -227,7 +214,7 @@ function SmartAnimateText({
         {characters.map((character, index) => {
           const reverseIndex = characters.length - index - 1
 
-          if (!animatedCharacterPattern.test(character)) {
+          if (!isAnimatedCharacter(character)) {
             return (
               <span
                 aria-hidden="true"

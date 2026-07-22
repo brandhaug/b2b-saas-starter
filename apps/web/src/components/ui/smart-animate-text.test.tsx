@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { SmartAnimateText } from './smart-animate-text'
+import { createRemovedCharacterMotion } from './smart-animate-text-motion'
 
 describe('SmartAnimateText', () => {
   it('exposes the current value once to assistive technology', () => {
@@ -31,5 +32,26 @@ describe('SmartAnimateText', () => {
     const root = container.querySelector('[data-slot="smart-animate-text"]')
     expect(root?.getAttribute('style')).toContain('gap: 6px')
     expect(container.querySelectorAll('.tabular-nums')).toHaveLength(2)
+  })
+
+  it('staggers removed characters before surviving changed characters', () => {
+    const result = createRemovedCharacterMotion({
+      baseMotion: {
+        damping: 10,
+        enterBlur: 52,
+        enterScale: 0.7,
+        enterY: 32,
+        sign: -1,
+        stiffness: 170
+      },
+      characters: Array.from('$0.00'),
+      prefersReducedMotion: false,
+      previousCharacters: Array.from('$100.00'),
+      staggerDelay: 0.04
+    })
+
+    expect(result.count).toBe(2)
+    expect(result.motion[5]).toMatchObject({ delay: 0, sign: -1 })
+    expect(result.motion[4]).toMatchObject({ delay: 0.04, sign: -1 })
   })
 })
