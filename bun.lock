@@ -207,6 +207,7 @@
         "effect": "catalog:",
         "lucide-react": "catalog:",
         "mermaid": "catalog:",
+        "motion": "catalog:",
         "next-themes": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
