@@ -8,6 +8,12 @@ import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import { serviceProviderChoices } from '@/lib/catalog-workflow.ts'
 import { formValue } from '@/lib/form-value.ts'
 import {
+  formatMerchantPrice,
+  merchantPriceInputStep,
+  merchantPriceInputValue,
+  merchantPriceMinorFromMajor
+} from '@/lib/merchant-money.ts'
+import {
   getMerchantCatalog,
   saveMerchantService,
   saveServiceEligibility
@@ -65,8 +71,8 @@ function ServicesPage() {
                 <span>
                   <span className="block text-sm font-medium">{service.name}</span>
                   <span className="mt-1 block text-xs text-muted-foreground">
-                    {service.durationMinutes} min · {service.priceMinor}{' '}
-                    {service.currency} minor units
+                    {service.durationMinutes} min ·{' '}
+                    {formatMerchantPrice(service.priceMinor, service.currency)}
                   </span>
                 </span>
                 <Lifecycle status={service.status} />
@@ -106,6 +112,7 @@ function ServiceEditor({
 }) {
   const router = useRouter()
   const [step, setStep] = useState<'details' | 'providers'>(initialStep)
+  const [currency, setCurrency] = useState(service?.currency ?? 'RON')
   const choices = service ? serviceProviderChoices(catalog, service.id) : []
   const [providerIds, setProviderIds] = useState(
     () => new Set(choices.flatMap((choice) => (choice.selected ? [choice.id] : [])))
@@ -139,6 +146,7 @@ function ServiceEditor({
           onSubmit={(event) => {
             event.preventDefault()
             const form = new FormData(event.currentTarget)
+            const currency = formValue(form, 'currency').toUpperCase()
             setPending(true)
             setMessage(null)
             void saveMerchantService({
@@ -148,8 +156,11 @@ function ServiceEditor({
                 description: formValue(form, 'description') || null,
                 category: formValue(form, 'category') || null,
                 durationMinutes: Number(formValue(form, 'durationMinutes')),
-                priceMinor: Number(formValue(form, 'priceMinor')),
-                currency: formValue(form, 'currency').toUpperCase(),
+                priceMinor: merchantPriceMinorFromMajor(
+                  Number(formValue(form, 'priceMajor')),
+                  currency
+                ),
+                currency,
                 status: formValue(form, 'status') as 'active' | 'inactive'
               }
             })
@@ -190,11 +201,15 @@ function ServiceEditor({
               required
             />
             <Field
-              label="Price (minor units)"
-              name="priceMinor"
+              label="Price"
+              name="priceMajor"
               type="number"
-              min={1}
-              defaultValue={service?.priceMinor ?? 5000}
+              min={merchantPriceInputStep(currency)}
+              step={merchantPriceInputStep(currency)}
+              defaultValue={merchantPriceInputValue(
+                service?.priceMinor ?? 5000,
+                service?.currency ?? 'RON'
+              )}
               required
             />
           </div>
@@ -202,7 +217,8 @@ function ServiceEditor({
             <Field
               label="Currency"
               name="currency"
-              defaultValue={service?.currency ?? 'RON'}
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value.toUpperCase())}
               minLength={3}
               maxLength={3}
               required
