@@ -259,21 +259,36 @@ const styles = stylex.create({
     overflowX: 'hidden',
     overflowY: 'hidden'
   },
+  popupSheetLegacyPhoneCode: {
+    display: 'flex',
+    height: '100%',
+    overflowX: 'hidden',
+    overflowY: 'hidden'
+  },
   popupSheetLegacyReschedule: {
     height: '100%'
   },
   popupStickyHeader: {
     position: 'sticky',
     zIndex: 1,
+    top: 0
+  },
+  popupStickyHeaderBackground: {
+    position: 'absolute',
     top: 0,
-    backgroundColor: 'transparent',
+    left: 0,
+    width: '100%',
+    height: '100%',
+    backgroundColor: bookingTheme.colorSurface,
+    boxShadow: '0 2px 8px rgb(0 0 0 / 8%)',
     transitionProperty: 'background-color, box-shadow',
     transitionDuration: '150ms'
   },
-  popupStickyHeaderScrolled: {
-    backgroundColor: bookingTheme.colorSurface,
-    boxShadow: '0 2px 8px rgb(0 0 0 / 8%)'
+  popupStickyHeaderBackgroundTransparent: {
+    backgroundColor: bookingTheme.whiteA00,
+    boxShadow: '0 2px 8px rgb(0 0 0 / 0%)'
   },
+  popupStickyHeaderContent: { position: 'relative' },
   overlayHeading: {
     margin: 0,
     paddingRight: bookingTheme.space12,
@@ -810,6 +825,7 @@ export function BookingPopupSheet({
     | 'content'
     | 'legacyCheckout'
     | 'legacyPolicy'
+    | 'legacyPhoneCode'
     | 'legacyReschedule'
   readonly header?: ReactNode
   readonly children: ReactNode
@@ -861,24 +877,28 @@ export function BookingPopupSheet({
                   data-booking-popup-scrollable=""
                   data-popup-layout={layout}
                   tabIndex={-1}
-                  onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
+                  onScroll={(event) => setScrolled(event.currentTarget.scrollTop !== 0)}
                   {...stylex.props(
                     styles.popupSheet,
                     legacyGeometry && styles.legacyPopupSheet,
                     layout === 'legacyCheckout' && styles.popupSheetLegacyCheckout,
                     layout === 'legacyPolicy' && styles.popupSheetLegacyPolicy,
-                    layout === 'legacyReschedule' &&
-                      styles.popupSheetLegacyReschedule
+                    layout === 'legacyPhoneCode' && styles.popupSheetLegacyPhoneCode,
+                    layout === 'legacyReschedule' && styles.popupSheetLegacyReschedule
                   )}
                 >
                   {header ? (
-                    <div
-                      {...stylex.props(
-                        styles.popupStickyHeader,
-                        scrolled && styles.popupStickyHeaderScrolled
-                      )}
-                    >
-                      {header}
+                    <div {...stylex.props(styles.popupStickyHeader)}>
+                      <div
+                        aria-hidden="true"
+                        {...stylex.props(
+                          styles.popupStickyHeaderBackground,
+                          !scrolled && styles.popupStickyHeaderBackgroundTransparent
+                        )}
+                      />
+                      <div {...stylex.props(styles.popupStickyHeaderContent)}>
+                        {header}
+                      </div>
                     </div>
                   ) : null}
                   {children}

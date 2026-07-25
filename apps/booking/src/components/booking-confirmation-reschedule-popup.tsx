@@ -88,7 +88,11 @@ export function BookingConfirmationReschedulePopup({
         }
         const availabilityResponse = await fetch(
           `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(begun.bookingSessionId)}/availability?days=${BOOKING_AVAILABILITY_HORIZON_DAYS}`,
-          { credentials: 'same-origin', signal: controller.signal }
+          {
+            credentials: 'same-origin',
+            headers: { 'x-booking-session-capability': capability },
+            signal: controller.signal
+          }
         )
         if (!availabilityResponse.ok) throw new Error('availability unavailable')
         const availability = Schema.decodeUnknownSync(BookingAvailabilitySchema)(
@@ -118,7 +122,10 @@ export function BookingConfirmationReschedulePopup({
         {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            'x-booking-session-capability': state.session.capability
+          },
           body: JSON.stringify({ startsAt })
         }
       )
@@ -147,7 +154,10 @@ export function BookingConfirmationReschedulePopup({
       const sessionBase = `/${encodeURIComponent(merchantSlug)}/booking/session/${encodeURIComponent(state.session.bookingSessionId)}`
       const prepare = async () => {
         const response = await fetch(`${sessionBase}/checkout-prepare`, {
-          credentials: 'same-origin'
+          credentials: 'same-origin',
+          headers: {
+            'x-booking-session-capability': state.session.capability
+          }
         })
         if (!response.ok) throw new Error('reschedule preparation unavailable')
         return Schema.decodeUnknownSync(CheckoutPreparationSchema)(
@@ -160,7 +170,10 @@ export function BookingConfirmationReschedulePopup({
         const response = await fetch(`${sessionBase}/quote-accept`, {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            'x-booking-session-capability': state.session.capability
+          },
           body: JSON.stringify({ quoteId: preparation.quote.id })
         })
         if (!response.ok) throw new Error('quote acceptance unavailable')
@@ -176,7 +189,10 @@ export function BookingConfirmationReschedulePopup({
         const response = await fetch(`${sessionBase}/policy-accept`, {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            'x-booking-session-capability': state.session.capability
+          },
           body: JSON.stringify({ policyId: preparation.policy.id })
         })
         if (!response.ok) throw new Error('policy acceptance unavailable')

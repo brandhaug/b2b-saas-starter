@@ -37,6 +37,8 @@ export const BookingConfiguration = Schema.Struct({
   descriptionTranslations: Schema.optional(OptionalCatalogTranslations),
   shortName: Schema.optional(Schema.String),
   shortNameTranslations: Schema.optional(OptionalCatalogTranslations),
+  alias: Schema.optional(Schema.String),
+  coverPhotoUrl: Schema.optional(Schema.String),
   adultsOnly: Schema.optional(Schema.Boolean),
   premiumPalette: Schema.optional(Schema.NullOr(PartialBookingPremiumPalette))
 })

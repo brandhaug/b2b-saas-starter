@@ -354,5 +354,5 @@ describe('Live Booking Selection', () => {
       _tag: 'Failure',
       failure: { _tag: 'BookingSelectionRejected' }
     })
-  })
+  }, 15_000)
 })

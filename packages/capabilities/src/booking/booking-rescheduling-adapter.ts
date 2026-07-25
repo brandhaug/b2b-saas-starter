@@ -413,7 +413,7 @@ export const LiveBookingRescheduling: Layer.Layer<
           const id = `rsc_${stableSuffix(`${input.appointmentId}:${input.capabilityHash}`)}`
           const bookingSessionId = `bsn_${id}`
           const bookingPartyId = `bpt_${id}`
-          const bookingRequestId = `bkr_${id}`
+          const bookingRequestId = `brq_${id}`
           const services = appointment.snapshot.services ?? []
           const primaryService =
             services.find((service) => service.role === 'primary') ?? services[0]

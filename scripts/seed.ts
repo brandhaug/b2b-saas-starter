@@ -17,6 +17,7 @@ import {
   scheduleRules,
   services,
   shopProviders,
+  shopAddresses,
   shops,
   shopServices,
   user
@@ -101,6 +102,11 @@ const statements = [
     publicName: scenario.merchant.publicName,
     timezone: scenario.merchant.timezone,
     currency: scenario.merchant.currency,
+    bookingConfigJson: {
+      alias: 'Mara Ionescu',
+      coverPhotoUrl:
+        'https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=1200&q=80'
+    },
     createdAt: scenario.anchorTime,
     updatedAt: scenario.anchorTime
   }),
@@ -112,6 +118,20 @@ const statements = [
     feeMinor: 0,
     feeLabel: 'Fee',
     version: 1,
+    createdAt: scenario.anchorTime,
+    updatedAt: scenario.anchorTime
+  }),
+  insert(shopAddresses, {
+    id: 'sad_seed_booking_studio',
+    shopId,
+    addressJson: JSON.stringify({
+      street: 'Strada Lipscani 21',
+      city: 'București',
+      postalCode: '030167',
+      country: 'RO'
+    }),
+    latitude: '44.4314',
+    longitude: '26.1002',
     createdAt: scenario.anchorTime,
     updatedAt: scenario.anchorTime
   }),
@@ -184,7 +204,10 @@ const statements = [
     })
   ),
   ...scenario.appointments.map(({ customerDetails: _, ...appointment }) =>
-    insert(appointments, appointment)
+    insert(appointments, {
+      ...appointment,
+      updatedAt: scenario.anchorTime
+    })
   ),
   ...scenario.confirmationAccess.map((access) => insert(confirmationAccess, access)),
   insert(publicBookingPages, {

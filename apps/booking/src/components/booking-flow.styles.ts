@@ -318,16 +318,44 @@ export const styles = stylex.create({
     borderRadius: 12,
     backgroundColor: 'transparent'
   },
+  legacyCheckoutShopImageElement: {
+    position: 'absolute',
+    inset: 0,
+    display: 'block',
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover'
+  },
   legacyCheckoutShopDetails: {
     minWidth: 0,
-    flex: 1
+    overflow: 'hidden',
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 6
+  },
+  legacyCheckoutShopIdentity: {
+    minWidth: 0
+  },
+  legacyCheckoutShopAlias: {
+    overflow: 'hidden',
+    margin: '1px 0 0',
+    color: bookingTheme.colorPrimaryLabel,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
   },
   legacyCheckoutShopAddress: {
     display: '-webkit-box',
     overflow: 'hidden',
-    margin: '6px 0 0',
-    color: '#8e8e93',
-    fontFamily: 'SF Pro Text, system-ui, sans-serif',
+    margin: 0,
+    color: bookingTheme.colorSystemGray1,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 13,
     lineHeight: '18px',
     letterSpacing: '-0.078px',
@@ -451,19 +479,21 @@ export const styles = stylex.create({
     flex: 1
   },
   legacyPhoneCountries: {
+    position: 'relative',
     display: 'flex',
     width: '100%',
     maxWidth: 'none',
+    height: 'auto',
     flexDirection: 'column',
     boxSizing: 'border-box',
-    minHeight: 'calc(100dvh - 36px)',
     margin: 0,
-    paddingTop: 8,
+    overflow: 'auto',
+    paddingTop: 16,
     paddingRight: 16,
     paddingBottom: 16,
     paddingLeft: 16,
     borderWidth: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: bookingTheme.colorChrome,
     color: '#1c1c1e'
   },
   legacyPhonePopupClose: {
@@ -474,9 +504,12 @@ export const styles = stylex.create({
     height: 44,
     padding: 0,
     borderWidth: 0,
+    borderStyle: 'none',
+    appearance: 'none',
     backgroundColor: 'transparent',
     color: '#616163',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent'
   },
   legacyPhonePopupTitle: {
     flexShrink: 0,
@@ -498,9 +531,12 @@ export const styles = stylex.create({
   legacyPhoneSearchIcon: {
     position: 'absolute',
     zIndex: 1,
-    top: 11,
+    top: 15,
     left: 16,
     color: '#87878b'
+  },
+  legacyPhoneSearchIconActive: {
+    color: 'inherit'
   },
   legacyPhoneSearch: {
     width: '100%',
@@ -514,12 +550,13 @@ export const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: 'transparent',
     borderRadius: 4,
-    outline: 'none',
+    appearance: 'none',
     backgroundColor: '#ebebeb',
     color: '#1c1c1e',
     fontFamily: 'SF Pro Text, Roboto, sans-serif',
     fontSize: 15,
-    lineHeight: '20px'
+    lineHeight: '20px',
+    WebkitTapHighlightColor: 'transparent'
   },
   legacyPhoneSearchReset: {
     display: 'flex',
@@ -550,10 +587,15 @@ export const styles = stylex.create({
     lineHeight: '13px',
     textTransform: 'uppercase'
   },
+  legacyPhonePopupCountryLabel: {
+    marginTop: 16
+  },
   legacyPhoneCountryScroll: {
-    minHeight: 0,
+    width: '100%',
+    height: '100%',
+    overflowX: 'hidden',
     overflowY: 'auto',
-    flex: 1
+    scrollbarWidth: 'none'
   },
   legacyPhoneCountryOption: {
     display: 'flex',
@@ -564,10 +606,7 @@ export const styles = stylex.create({
     marginLeft: -2,
     padding: 0,
     borderWidth: 0,
-    backgroundColor: {
-      default: '#ffffff',
-      ':hover': '#ebebeb'
-    },
+    backgroundColor: 'transparent',
     color: '#000000',
     fontFamily: 'SF Pro Text, Roboto, sans-serif',
     fontSize: 16,
@@ -682,12 +721,16 @@ export const styles = stylex.create({
     overflow: 'visible'
   },
   checkoutShopName: {
+    overflow: 'hidden',
     margin: 0,
-    color: bookingTheme.colorPrimaryFont,
+    color: bookingTheme.colorPrimaryLabel,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 17,
     fontWeight: 600,
     lineHeight: '22px',
-    letterSpacing: '-0.408px'
+    letterSpacing: '-0.408px',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
   },
   gridTwo: {
     display: 'grid',
@@ -1204,7 +1247,6 @@ export const styles = stylex.create({
   },
   serviceCardBusy: { pointerEvents: 'none' },
   serviceName: {
-    position: 'relative',
     display: '-webkit-box',
     width: '100%',
     overflow: 'hidden',
@@ -1274,8 +1316,12 @@ export const styles = stylex.create({
     right: 9,
     width: 20,
     height: 20,
+    boxSizing: 'border-box',
     padding: 5,
-    border: 0,
+    borderWidth: 0,
+    borderStyle: 'none',
+    outline: 'none',
+    appearance: 'none',
     backgroundColor: 'transparent',
     color: {
       default: bookingTheme.colorSystemGray3,
@@ -1285,7 +1331,8 @@ export const styles = stylex.create({
       }
     },
     textAlign: 'center',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent'
   },
   serviceCardInfoIcon: { display: 'block' },
   pricePill: {
@@ -2237,15 +2284,34 @@ export const styles = stylex.create({
     letterSpacing: '0.75px'
   },
   drawerButton: {
+    display: 'inline-flex',
     width: '100%',
     height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    borderWidth: 0,
     borderRadius: 8,
     backgroundColor: {
       default: bookingTheme.colorPrimary,
-      ':hover': bookingTheme.colorPrimary,
-      ':disabled': '#b8c8ee'
+      ':disabled': bookingTheme.colorSystemGray2
     },
-    fontFamily: 'SF Pro Text, Roboto, sans-serif',
+    color: {
+      default: bookingTheme.colorPrimaryFont,
+      ':disabled': bookingTheme.colorSystemGray9
+    },
+    cursor: {
+      default: 'pointer',
+      ':disabled': 'not-allowed'
+    },
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 12,
+    fontWeight: 600,
+    textAlign: 'center'
+  },
+  drawerButtonText: {
+    margin: 0,
+    fontFamily: bookingTheme.fontLegacyText,
     fontSize: 15,
     fontWeight: 600,
     lineHeight: '20px',

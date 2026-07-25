@@ -16,3 +16,9 @@ it('aliases Booking Vite to the local Worker bindings during development', async
     'cloudflare:workers': expect.stringMatching(/cloudflare-workers-shim-dev\.ts$/)
   })
 })
+
+it('keeps StyleX media queries out of the broken reordering pass', async () => {
+  const { bookingStylexOptions } = await import('./vite.config.ts')
+
+  expect(bookingStylexOptions.enableMediaQueryOrder).toBe(false)
+})

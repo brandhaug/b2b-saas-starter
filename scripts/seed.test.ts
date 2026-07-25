@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { buildSeedSql } from './seed.ts'
 
 describe('Booking seed SQL', () => {
+  it('authors the legacy ShopInfo cover, alias, and address', () => {
+    const sql = buildSeedSql()
+
+    expect(sql).toContain('photo-1621605815971-fbc98d665033')
+    expect(sql).toContain('Mara Ionescu')
+    expect(sql).toContain('INSERT OR REPLACE INTO shop_addresses')
+    expect(sql).toContain('Strada Lipscani 21')
+  })
+
   it('persists the checkout policy required by the legacy policy step', () => {
     const sql = buildSeedSql()
     const policyInsert = sql

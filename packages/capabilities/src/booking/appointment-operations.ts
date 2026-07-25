@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lt } from 'drizzle-orm'
 import {
   appointments,
   Database,
@@ -115,6 +115,40 @@ const dateInTimezone = (instant: string, timezone: string) => {
   return `${value('year')}-${value('month')}-${value('day')}`
 }
 
+const addCalendarDays = (date: string, days: number): string => {
+  const value = new Date(`${date}T12:00:00.000Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+
+const zonedMidnight = (date: string, timezone: string): Date => {
+  const desired = Date.parse(`${date}T00:00:00.000Z`)
+  let candidate = desired
+  for (let index = 0; index < 3; index += 1) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).formatToParts(new Date(candidate))
+    const read = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value ?? ''
+    const represented = Date.parse(
+      `${read('year')}-${read('month')}-${read('day')}T${read('hour')}:${read('minute')}:00.000Z`
+    )
+    candidate += desired - represented
+  }
+  return new Date(candidate)
+}
+
+export const appointmentCalendarUtcRange = (date: string, timezone: string) => ({
+  startsAt: zonedMidnight(date, timezone).toISOString(),
+  endsAt: zonedMidnight(addCalendarDays(date, 1), timezone).toISOString()
+})
+
 const calendarProjection = (
   records: ReadonlyArray<OperationalAppointment>,
   date: string,
@@ -218,13 +252,34 @@ export const LiveAppointmentOperations: Layer.Layer<
         ),
         (rows) => rows.map(toAppointment).filter((row) => row !== null)
       )
+    const listCalendarDay = (merchantId: string, date: string, timezone: string) => {
+      const range = appointmentCalendarUtcRange(date, timezone)
+      return Effect.map(
+        orUnavailable('appointment-operations')(
+          db
+            .select()
+            .from(appointments)
+            .where(
+              and(
+                eq(appointments.merchantId, merchantId),
+                gte(appointments.startsAt, range.startsAt),
+                lt(appointments.startsAt, range.endsAt)
+              )
+            )
+            .orderBy(asc(appointments.startsAt))
+        ),
+        (rows) => rows.map(toAppointment).filter((row) => row !== null)
+      )
+    }
     return {
       calendar: (date) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
+          const selectedDate =
+            date ?? dateInTimezone(new Date().toISOString(), merchant.timezone)
           return calendarProjection(
-            yield* list(merchant.id, 'asc'),
-            date ?? dateInTimezone(new Date().toISOString(), merchant.timezone),
+            yield* listCalendarDay(merchant.id, selectedDate, merchant.timezone),
+            selectedDate,
             merchant.timezone
           )
         }),

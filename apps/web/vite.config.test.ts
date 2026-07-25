@@ -25,6 +25,12 @@ it('proxies local Booking pages, mutations, and assets before Web SSR', async ()
     }
   })
   expect(resolved.server?.allowedHosts).toEqual(['.trycloudflare.com'])
+  expect(resolved.server?.cors).toEqual({
+    origin: [
+      /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/,
+      /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/
+    ]
+  })
 
   const routeProxy =
     resolved.server?.proxy?.['^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)']
@@ -47,7 +53,6 @@ it('proxies local Booking pages, mutations, and assets before Web SSR', async ()
     { method: 'POST' }
   )
   expect(Object.fromEntries(headers)).toEqual({
-    host: 'localhost:3071',
     origin: 'http://localhost:3071',
     'sec-fetch-site': 'same-origin'
   })

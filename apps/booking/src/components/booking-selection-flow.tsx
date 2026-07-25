@@ -50,10 +50,9 @@ type BookingSelectionFlowProps = {
   readonly continuation?: {
     readonly title: string
     readonly content: ReactNode
-    readonly busy: boolean
-    readonly busyLabel: string
     readonly onBack: () => void
     readonly overlay?: (target: HTMLElement | null) => ReactNode
+    readonly cartFullscreen?: boolean
     readonly pendingCheckout?: {
       readonly ctaLabel: string
     }
@@ -261,10 +260,7 @@ function BookingSelectionFlowContent({
     titleScrollState.presenceKey === routePresenceKey && titleScrollState.scrolled
 
   return (
-    <BookingWidgetShell
-      busy={continuation?.busy ?? false}
-      {...(continuation ? { busyLabel: continuation.busyLabel } : {})}
-    >
+    <BookingWidgetShell>
       <div
         data-testid="container:title"
         {...stylex.props(styles.header, titleScrolled && styles.headerScrolled)}
@@ -467,6 +463,7 @@ function BookingSelectionFlowContent({
                   : {})}
               {...(heldOrder ? { continueLabel: heldOrder.continueLabel } : {})}
               keepOpenOnContinue={Boolean(heldOrder)}
+              fullscreen={Boolean(continuation?.cartFullscreen)}
             />
           ) : null}
         </AnimatePresence>
@@ -1533,6 +1530,7 @@ function OrderSummary({
   onClose,
   onContinue,
   keepOpenOnContinue = false,
+  fullscreen = false,
   continueLabel,
   quote,
   timeZone = 'UTC'
@@ -1545,6 +1543,7 @@ function OrderSummary({
   readonly onClose: () => void
   readonly onContinue?: () => void
   readonly keepOpenOnContinue?: boolean
+  readonly fullscreen?: boolean
   readonly continueLabel?: string
   readonly quote?: TimeSlotHold['quote']
   readonly timeZone?: string
@@ -1593,11 +1592,15 @@ function OrderSummary({
       aria-modal="true"
       aria-label="Order summary"
       data-testid="cart:booking"
-      data-cart-state="expanded"
+      data-cart-state={fullscreen ? 'fullscreen' : 'expanded'}
       data-cart-mode={quote ? 'scheduleChosen' : undefined}
       tabIndex={-1}
       initial={{ y: '100%' }}
-      animate={{ y: 0, height: 'calc(100% + 1px)' }}
+      animate={{
+        y: 0,
+        height: fullscreen ? '100%' : 'calc(100% + 1px)',
+        borderRadius: fullscreen ? 0 : '20px 20px 0 0'
+      }}
       exit={{ y: '100%', transition: { duration: 0.15, ease: 'easeInOut' } }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       onKeyDown={(event) => {
@@ -1784,14 +1787,17 @@ function OrderSummary({
               </div>
               <button
                 type="button"
-                disabled={!onContinue}
+                data-testid="btn:chooseTime"
+                disabled={!interactive || !onContinue}
                 onClick={() => {
                   if (!keepOpenOnContinue) onClose()
                   onContinue?.()
                 }}
-                {...stylex.props(styles.primaryButton, styles.drawerButton)}
+                {...stylex.props(styles.drawerButton)}
               >
-                {displayedContinueLabel}
+                <p {...stylex.props(styles.drawerButtonText)}>
+                  {displayedContinueLabel}
+                </p>
               </button>
             </m.div>
           </div>

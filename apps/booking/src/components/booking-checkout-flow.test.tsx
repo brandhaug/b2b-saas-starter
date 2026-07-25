@@ -15,6 +15,8 @@ describe('Booking checkout', () => {
         presentation="withinBookingShell"
         popupTarget={document.body}
         shopName="Main Shop"
+        shopAlias="Downtown"
+        shopImageUrl="/shop-cover.jpg"
         shopAddressLines={['21 Mercer Street', 'New York, NY 10013']}
         review={null}
         preparation={null}
@@ -77,6 +79,12 @@ describe('Booking checkout', () => {
     fireEvent.click(closeButton)
     expect(close).toHaveBeenCalledOnce()
     expect(screen.getByText('Main Shop')).toBeTruthy()
+    expect(screen.getByText('Downtown')).toBeTruthy()
+    const shopImage = within(
+      popup.querySelector('[data-checkout-section="shop"]') as HTMLElement
+    ).getByRole('img', { name: 'Main Shop' })
+    expect(shopImage.getAttribute('src')).toBe('/shop-cover.jpg')
+    expect(shopImage.getAttribute('loading')).toBe('eager')
     expect(screen.getByText('21 Mercer Street New York, NY 10013')).toBeTruthy()
     expect(screen.getByText('Payment method')).toBeTruthy()
     expect(screen.getByTestId('btn:payInStore')).toBeTruthy()
@@ -111,13 +119,17 @@ describe('Booking checkout', () => {
     const countryButton = screen.getByTestId('btn:phoneCountry')
     expect(countryButton.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(countryButton)
-    expect(screen.getByTestId('popup:phoneCountry')).toBeTruthy()
-    fireEvent.change(
-      screen.getByRole('searchbox', { name: 'Search country or region' }),
-      {
-        target: { value: 'Romania' }
-      }
-    )
+    const phonePopup = screen.getByTestId('popup:phoneCountry')
+    expect(phonePopup.getAttribute('data-popup-layout')).toBe('legacyPhoneCode')
+    expect(within(phonePopup).getByText('Choose country').tagName).toBe('P')
+    expect(
+      within(phonePopup)
+        .getByRole('searchbox', { name: 'Search country' })
+        .getAttribute('autocomplete')
+    ).toBe('new-off')
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search country' }), {
+      target: { value: 'Romania' }
+    })
     fireEvent.click(
       within(screen.getByTestId('popup:phoneCountry')).getByTestId('btn:close')
     )
@@ -125,16 +137,13 @@ describe('Booking checkout', () => {
     expect(
       (
         screen.getByRole('searchbox', {
-          name: 'Search country or region'
+          name: 'Search country'
         }) as HTMLInputElement
       ).value
     ).toBe('')
-    fireEvent.change(
-      screen.getByRole('searchbox', { name: 'Search country or region' }),
-      {
-        target: { value: 'Romania' }
-      }
-    )
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search country' }), {
+      target: { value: 'Romania' }
+    })
     fireEvent.click(screen.getByRole('button', { name: /Romania/ }))
     expect(countryButton.getAttribute('aria-label')).toContain('Romania +40')
     expect(screen.getByTestId('input:email')).toBeTruthy()

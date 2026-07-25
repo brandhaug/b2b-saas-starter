@@ -656,7 +656,12 @@ describe('Booking selection flow', () => {
     expect(appointmentsParent?.parentElement).toBe(top)
     expect(within(bottom).getByTestId('text:cart:subtotal')).toBeTruthy()
     expect(screen.getAllByText('$45.00').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getByRole('button', { name: 'Choose a time' }))
+    const chooseTime = within(bottom).getByTestId('btn:chooseTime')
+    expect(chooseTime.tagName).toBe('BUTTON')
+    expect(chooseTime.firstElementChild?.tagName).toBe('P')
+    expect(chooseTime.firstElementChild?.textContent).toBe('Choose a time')
+    expect(chooseTime).toHaveProperty('disabled', false)
+    fireEvent.click(chooseTime)
     expect(continueToTime).toHaveBeenCalledOnce()
   })
 
@@ -672,6 +677,7 @@ describe('Booking selection flow', () => {
         busy
         onChooseProvider={vi.fn()}
         onChooseServices={vi.fn()}
+        onContinue={vi.fn()}
       />
     )
 
@@ -679,6 +685,7 @@ describe('Booking selection flow', () => {
     expect(
       screen.getByTestId('container:appointments').getAttribute('aria-disabled')
     ).toBe('true')
+    expect(screen.getByTestId('btn:chooseTime')).toHaveProperty('disabled', true)
   })
 
   it('closes the order summary without moving the page behind it', async () => {

@@ -3,6 +3,7 @@ import { Effect, Layer } from 'effect'
 import type { StoredAppointmentSnapshot } from '@b2b-saas-starter/db'
 import {
   AppointmentOperations,
+  appointmentCalendarUtcRange,
   SeedAppointmentOperations,
   type OperationalAppointment
 } from './appointment-operations.ts'
@@ -91,6 +92,17 @@ const run = <A>(
   )
 
 describe('AppointmentOperations', () => {
+  it('builds timezone-correct UTC ranges across daylight-saving changes', () => {
+    expect(appointmentCalendarUtcRange('2026-03-29', 'Europe/Bucharest')).toEqual({
+      startsAt: '2026-03-28T22:00:00.000Z',
+      endsAt: '2026-03-29T21:00:00.000Z'
+    })
+    expect(appointmentCalendarUtcRange('2026-10-25', 'Europe/Bucharest')).toEqual({
+      startsAt: '2026-10-24T21:00:00.000Z',
+      endsAt: '2026-10-25T22:00:00.000Z'
+    })
+  })
+
   it('groups the selected day by the immutable assigned Provider snapshot', async () => {
     const calendar = await run(
       Effect.flatMap(AppointmentOperations, (service) => service.calendar('2026-07-11'))

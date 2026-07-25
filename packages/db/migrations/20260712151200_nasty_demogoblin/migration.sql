@@ -20,7 +20,7 @@ CREATE TABLE `__new_appointments` (
 	CONSTRAINT "appointments_valid_interval" CHECK("starts_at" < "ends_at")
 );
 --> statement-breakpoint
-INSERT INTO `__new_appointments`(`id`, `merchant_id`, `provider_id`, `booking_session_id`, `status`, `starts_at`, `ends_at`, `snapshot`, `created_at`, `updated_at`) SELECT `id`, `merchant_id`, `provider_id`, `booking_session_id`, `status`, `starts_at`, `ends_at`, `snapshot`, `created_at`, `updated_at` FROM `appointments`;--> statement-breakpoint
+INSERT INTO `__new_appointments`(`id`, `merchant_id`, `provider_id`, `booking_session_id`, `status`, `starts_at`, `ends_at`, `snapshot`, `created_at`, `updated_at`) SELECT `id`, `merchant_id`, `provider_id`, `booking_session_id`, `status`, `starts_at`, `ends_at`, `snapshot`, `created_at`, COALESCE(`updated_at`, `created_at`) FROM `appointments`;--> statement-breakpoint
 DROP TABLE `appointments`;--> statement-breakpoint
 ALTER TABLE `__new_appointments` RENAME TO `appointments`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint

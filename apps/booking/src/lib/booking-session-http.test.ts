@@ -953,9 +953,9 @@ describe('Booking Session HTTP boundary', () => {
 
   it('serves authorized Availability and returns a safe slot-lost recovery state', async () => {
     const capability = '7'.repeat(64)
-    const base = 'https://www.example.test/mara-studio/booking/session/bsn_private'
+    const base = 'https://www.example.test/mara-studio/booking/session/bsn_rsc_private'
     const session = {
-      id: 'bsn_private',
+      id: 'bsn_rsc_private',
       merchantSlug: 'mara-studio',
       checkoutPath: 'pay_in_person' as const,
       lifecycle: 'active' as const,
@@ -1001,7 +1001,7 @@ describe('Booking Session HTTP boundary', () => {
       fallback: () => Effect.die(new Error('not called')),
       now: () => '2026-07-10T09:30:00.000Z'
     }
-    const headers = { cookie: `booking_session_bsn_private=${capability}` }
+    const headers = { cookie: `booking_session_bsn_rsc_private=${capability}` }
     const availability = await Effect.runPromise(
       handleBookingSessionRequest(
         new Request(`${base}/availability`, { headers }),
@@ -1011,6 +1011,16 @@ describe('Booking Session HTTP boundary', () => {
     expect(availability.status).toBe(200)
     expect(await availability.json()).toMatchObject({ timezone: 'UTC', hold: null })
     expect(requestedDays).toBeUndefined()
+
+    const rescheduleAvailability = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`${base}/availability`, {
+          headers: { 'x-booking-session-capability': capability }
+        }),
+        dependencies
+      )
+    )
+    expect(rescheduleAvailability.status).toBe(200)
 
     const lost = await Effect.runPromise(
       handleBookingSessionRequest(

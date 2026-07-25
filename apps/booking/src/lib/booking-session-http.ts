@@ -1281,8 +1281,17 @@ export const handleBookingSessionRequest = (
       if (invalid) return invalid
     }
     const endpoint = segments.length === 5 ? segments[4] : null
-    const candidates = readBookingSessionCapabilities(request.headers.get('cookie'))
     const publicRoute = sessionLocator.startsWith('brt_')
+    const explicitCapability = request.headers.get('x-booking-session-capability')
+    const candidates = [
+      ...(!publicRoute &&
+      sessionLocator.startsWith('bsn_rsc_') &&
+      explicitCapability &&
+      CAPABILITY.test(explicitCapability)
+        ? [{ sessionId: sessionLocator, capability: explicitCapability }]
+        : []),
+      ...readBookingSessionCapabilities(request.headers.get('cookie'))
+    ]
     const presented = candidates.find(
       (candidate) => candidate.sessionId === sessionLocator
     )

@@ -87,9 +87,20 @@ describe('Canonical Booking Shell', () => {
     })
     expect(languageSelector.querySelector('span')).toBeNull()
     fireEvent.click(languageSelector)
-    expect(within(popup).getByRole('menu', { name: 'Language' })).toBeTruthy()
+    const languageMenu = languageSelector.parentElement?.lastElementChild
+    expect(languageMenu).toBeTruthy()
+    expect(languageMenu).not.toBe(languageSelector)
+    expect(languageMenu?.hasAttribute('role')).toBe(false)
+    expect(
+      Array.from(languageMenu?.children ?? []).map((option) => option.textContent)
+    ).toEqual(['English', 'Français', 'Español'])
+    expect(
+      Array.from(languageMenu?.children ?? []).every(
+        (option) => !option.hasAttribute('role') && !option.hasAttribute('aria-checked')
+      )
+    ).toBe(true)
     fireEvent.click(within(popup).getByText('Sign in'))
-    expect(within(popup).queryByRole('menu', { name: 'Language' })).toBeNull()
+    expect(languageSelector.parentElement?.children).toHaveLength(1)
     expect(
       (
         within(popup).getByRole('button', {
@@ -154,10 +165,10 @@ describe('Canonical Booking Shell', () => {
     expect(menu.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 10 10')
     fireEvent.click(screen.getByRole('button', { name: 'Menu de réservation' }))
     fireEvent.click(screen.getByRole('button', { name: 'Langue: Français' }))
-    fireEvent.click(screen.getByTestId('lang:ro'))
+    fireEvent.click(screen.getByTestId('lang:es'))
 
     expect(new URLSearchParams(window.location.search).get('locale')).toBe('fr')
-    expect(screen.getByRole('status').textContent).toBe('Pregătim rezervarea…')
+    expect(screen.getByRole('status').textContent).toBe('Preparando tu reserva…')
     expect(
       container.querySelector('[data-booking-shell="canonical"]')?.getAttribute('style')
     ).toContain('#111111')
@@ -169,11 +180,11 @@ describe('Canonical Booking Shell', () => {
         '/mara/booking/session/bsn_tab/context',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ locale: 'ro', embedding: 'widget' })
+          body: JSON.stringify({ locale: 'es', embedding: 'widget' })
         })
       )
     )
     expect(window.location.pathname).toBe('/mara/booking/downtown/any/services')
-    expect(new URLSearchParams(window.location.search).get('locale')).toBe('ro')
+    expect(new URLSearchParams(window.location.search).get('locale')).toBe('es')
   })
 })

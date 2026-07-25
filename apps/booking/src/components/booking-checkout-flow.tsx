@@ -106,10 +106,10 @@ const defaultCopy: CheckoutCopy = {
   lastName: 'Last name',
   phoneNumber: 'Phone number',
   chooseCountry: 'Choose country',
-  searchCountry: 'Search country or region',
+  searchCountry: 'Search country',
   clearSearch: 'Clear search',
   yourRegion: 'Your region',
-  countryRegion: 'Country or region',
+  countryRegion: 'country / region',
   firstNameRequired: 'First name is required',
   lastNameRequired: 'Last name is required',
   emailInvalid: 'Enter a valid email address',
@@ -154,6 +154,8 @@ export function BookingCheckoutFlow({
   premiumPalette = null,
   presentation = 'standalone',
   shopName,
+  shopAlias,
+  shopImageUrl,
   shopAddressLines,
   countryCode = 'US',
   locale = 'en',
@@ -210,6 +212,8 @@ export function BookingCheckoutFlow({
   readonly premiumPalette?: BookingPremiumPalette | null
   readonly presentation?: 'standalone' | 'withinBookingShell'
   readonly shopName?: string
+  readonly shopAlias?: string
+  readonly shopImageUrl?: string
   readonly shopAddressLines?: readonly string[]
   readonly countryCode?: CountryCode
   readonly locale?: string
@@ -338,12 +342,23 @@ export function BookingCheckoutFlow({
             data-checkout-section="shop"
             {...stylex.props(styles.legacyCheckoutShop)}
           >
-            <span
-              aria-hidden="true"
-              {...stylex.props(styles.legacyCheckoutShopImage)}
-            />
+            <div {...stylex.props(styles.legacyCheckoutShopImage)}>
+              {shopImageUrl ? (
+                <img
+                  src={shopImageUrl}
+                  alt={shopName ?? ''}
+                  loading="eager"
+                  {...stylex.props(styles.legacyCheckoutShopImageElement)}
+                />
+              ) : null}
+            </div>
             <div {...stylex.props(styles.legacyCheckoutShopDetails)}>
-              <p {...stylex.props(styles.checkoutShopName)}>{shopName}</p>
+              <div {...stylex.props(styles.legacyCheckoutShopIdentity)}>
+                <p {...stylex.props(styles.checkoutShopName)}>{shopName}</p>
+                {shopAlias ? (
+                  <p {...stylex.props(styles.legacyCheckoutShopAlias)}>{shopAlias}</p>
+                ) : null}
+              </div>
               {shopAddressLines?.length ? (
                 <p {...stylex.props(styles.legacyCheckoutShopAddress)}>
                   {shopAddressLines.join(' ')}
@@ -803,6 +818,7 @@ function LegacyPhoneField(props: {
         testId="popup:phoneCountry"
         presenceKey="phoneCode"
         legacyGeometry
+        layout="legacyPhoneCode"
       >
         <div {...stylex.props(styles.legacyPhoneCountries)}>
           <button
@@ -822,16 +838,19 @@ function LegacyPhoneField(props: {
               />
             </svg>
           </button>
-          <h2 {...stylex.props(styles.legacyPhonePopupTitle)}>
+          <p {...stylex.props(styles.legacyPhonePopupTitle)}>
             {props.copy.chooseCountry}
-          </h2>
+          </p>
           <div {...stylex.props(styles.legacyPhoneSearchWrap)}>
             <svg
               aria-hidden="true"
               width="14"
               height="14"
               viewBox="0 0 14 14"
-              {...stylex.props(styles.legacyPhoneSearchIcon)}
+              {...stylex.props(
+                styles.legacyPhoneSearchIcon,
+                Boolean(search) && styles.legacyPhoneSearchIconActive
+              )}
             >
               <path
                 d="M6.048 11.378c1.046 0 2.03-.3 2.864-.82l2.816 2.816c.226.226.534.335.848.335.663 0 1.162-.513 1.162-1.176 0-.3-.102-.601-.335-.827L10.614 8.91c.574-.868.903-1.9.903-3.008 0-3.007-2.461-5.475-5.47-5.475C3.04.427.573 2.887.573 5.902c0 3.008 2.468 5.476 5.476 5.476Zm0-1.668a3.823 3.823 0 0 1-3.815-3.808 3.823 3.823 0 0 1 3.815-3.807 3.822 3.822 0 0 1 3.807 3.807A3.822 3.822 0 0 1 6.048 9.71Z"
@@ -841,7 +860,7 @@ function LegacyPhoneField(props: {
             <input
               autoFocus
               type="search"
-              autoComplete="off"
+              autoComplete="new-off"
               value={search}
               aria-label={props.copy.searchCountry}
               placeholder={props.copy.searchCountry}
@@ -877,7 +896,12 @@ function LegacyPhoneField(props: {
               />
             </>
           ) : null}
-          <p {...stylex.props(styles.legacyPhonePopupLabel)}>
+          <p
+            {...stylex.props(
+              styles.legacyPhonePopupLabel,
+              styles.legacyPhonePopupCountryLabel
+            )}
+          >
             {props.copy.countryRegion}
           </p>
           <div {...stylex.props(styles.legacyPhoneCountryScroll)}>

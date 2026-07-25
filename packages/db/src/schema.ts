@@ -697,7 +697,7 @@ export const appointments = sqliteTable(
     updatedAt: isoUpdatedAt()
   },
   (table) => [
-    index('appointments_merchant_id_idx').on(table.merchantId),
+    index('appointments_merchant_starts_at_idx').on(table.merchantId, table.startsAt),
     index('appointments_booking_session_id_idx').on(table.bookingSessionId),
     index('appointments_booking_party_id_idx').on(table.bookingPartyId),
     index('appointments_provider_interval_idx').on(

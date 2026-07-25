@@ -30,6 +30,8 @@ const fixture = (presentation: 'solo' | 'team' = 'team') => {
         brandId: 'brd_mara',
         slug: 'mara-studio',
         publicName: 'Mara Studio',
+        alias: 'Downtown',
+        coverPhotoUrl: 'https://images.example.test/mara-cover.jpg',
         brandName: 'Mara Studio',
         timezone: 'UTC'
       }
@@ -157,6 +159,10 @@ describe('Booking Selection', () => {
 
     expect(loaded.canSellUnassignedGiftCard).toBe(true)
     expect(loaded.shops[0]?.timezone).toBe('UTC')
+    expect(loaded.shops[0]).toMatchObject({
+      alias: 'Downtown',
+      coverPhotoUrl: 'https://images.example.test/mara-cover.jpg'
+    })
     expect(
       loaded.providers.find((provider) => provider.id === 'prv_ava')?.nextAvailableAt
     ).toBe('2026-07-11T09:00:00.000Z')

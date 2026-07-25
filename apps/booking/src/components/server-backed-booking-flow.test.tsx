@@ -268,11 +268,15 @@ describe('server-backed Booking scheduling', () => {
     })
     expect(pendingCheckoutOrder.getAttribute('data-order-state')).toBe('checkout')
     expect(pendingCheckoutOrder).toHaveProperty('disabled', true)
+    expect(screen.getByTestId('calendarLine')).toBeTruthy()
+    expect(screen.queryByText('Preparing your booking…')).toBeNull()
     resolveHold(Response.json(hold))
     await waitFor(() => expect(pendingCheckoutOrder).toHaveProperty('disabled', false))
     fireEvent.click(screen.getByTestId('btn:chooseTime:time:3:00PM'))
     await screen.findByTestId('btn:chooseTime:time:3:00PM:selected')
     expect(pendingCheckoutOrder).toHaveProperty('disabled', true)
+    expect(screen.getByTestId('calendarLine')).toBeTruthy()
+    expect(screen.queryByText('Preparing your booking…')).toBeNull()
     resolveReplacementHold(Response.json(replacementHold))
     await waitFor(() => expect(pendingCheckoutOrder).toHaveProperty('disabled', false))
     expect(screen.getAllByTestId('btn:viewOrder')).toHaveLength(1)
@@ -311,6 +315,11 @@ describe('server-backed Booking scheduling', () => {
     expect(checkout).not.toBe(policy)
     expect(await within(checkout).findByLabelText('First name')).toBeTruthy()
     expect(within(checkout).queryByText(/Cancel up to .* before/i)).toBeNull()
+    expect(
+      screen
+        .getByRole('dialog', { name: 'Order summary' })
+        .getAttribute('data-cart-state')
+    ).toBe('fullscreen')
     expect(screen.getByTestId('calendarLine')).toBeTruthy()
     fireEvent.change(within(checkout).getByLabelText('First name'), {
       target: { value: 'Mia' }
@@ -342,6 +351,11 @@ describe('server-backed Booking scheduling', () => {
         { name: 'Close order summary' }
       )
     )
+    expect(
+      screen
+        .getByRole('dialog', { name: 'Order summary' })
+        .getAttribute('data-cart-state')
+    ).toBe('expanded')
     const forwardRoute = canonicalShell?.querySelector(
       '[data-presence-variant="route"][data-route-direction="forward"]'
     )

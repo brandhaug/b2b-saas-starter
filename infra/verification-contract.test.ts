@@ -24,5 +24,14 @@ describe('Booking Product verification contract', () => {
     expect(first).not.toMatch(/DELETE FROM merchants(?:;|\s+WHERE id !=)/)
     expect(first).toContain("'mara-booking-studio'")
     expect(first).toContain("'apt_seed_future'")
+    const appointmentInserts = first
+      .split('\n')
+      .filter((statement) =>
+        statement.startsWith('INSERT OR REPLACE INTO appointments')
+      )
+    expect(appointmentInserts).toHaveLength(2)
+    expect(
+      appointmentInserts.every((statement) => statement.includes('updated_at'))
+    ).toBe(true)
   })
 })

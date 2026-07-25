@@ -214,6 +214,7 @@ describe('Live Booking rescheduling', () => {
       provider_id: 'prv_old',
       primary_service_id: 'svc_reschedule'
     })
+    expect(selection.results[0]?.active_request_id).toMatch(/^brq_/)
     await persistReplacementFacts(session, replacement())
     await run(
       Effect.flatMap(BookingRescheduling, (service) =>

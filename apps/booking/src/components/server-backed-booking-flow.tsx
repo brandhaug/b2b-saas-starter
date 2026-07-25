@@ -739,6 +739,7 @@ export function ServerBackedBookingFlow({
     )
   let schedulingContent: ReactNode = null
   let checkoutOverlay: ((target: HTMLElement | null) => ReactNode) | null = null
+  let checkoutFormOpen = false
   const nextPartyRequest = party.data?.requests.find(
     (request) => request.id !== party.data.activeRequestId && !request.startsAt
   )
@@ -805,10 +806,18 @@ export function ServerBackedBookingFlow({
           }
           shopName={journey.data.resolvedConfiguration.shopName.text}
           {...(() => {
-            const addressLines = journey.data.shops.find(
+            const selectedShop = journey.data.shops.find(
               (shop) => shop.id === journey.data.shopId
-            )?.addressLines
-            return addressLines ? { shopAddressLines: addressLines } : {}
+            )
+            return {
+              ...(selectedShop?.alias ? { shopAlias: selectedShop.alias } : {}),
+              ...(selectedShop?.coverPhotoUrl
+                ? { shopImageUrl: selectedShop.coverPhotoUrl }
+                : {}),
+              ...(selectedShop?.addressLines
+                ? { shopAddressLines: selectedShop.addressLines }
+                : {})
+            }
           })()}
           {...(availability.data?.hold
             ? {
@@ -1025,14 +1034,18 @@ export function ServerBackedBookingFlow({
       : []
     if (checkout && (paymentReturn || initialRouteKind === 'checkout'))
       return checkoutFlow('standalone')
+    const effectiveLegacyCheckoutPhase =
+      applicableLegacyPolicyKinds.length === 0 ? 'userInfo' : legacyCheckoutPhase
+    checkoutFormOpen =
+      checkout &&
+      Boolean(preparationForCheckout) &&
+      effectiveLegacyCheckoutPhase === 'userInfo'
     checkoutOverlay = (target) => (
       <>
         <BookingLegacyCheckoutPopup
           open={checkout && Boolean(preparationForCheckout)}
           target={target}
-          phase={
-            applicableLegacyPolicyKinds.length === 0 ? 'userInfo' : legacyCheckoutPhase
-          }
+          phase={effectiveLegacyCheckoutPhase}
           policyKinds={applicableLegacyPolicyKinds}
           appointmentCount={party.data?.requests.length ?? 1}
           onClose={closeCheckout}
@@ -1271,11 +1284,6 @@ export function ServerBackedBookingFlow({
               continuation: {
                 title: message('scheduling.choose_title'),
                 content: schedulingContent,
-                busy:
-                  holdMutation.isPending ||
-                  releaseMutation.isPending ||
-                  groupHoldMutation.isPending,
-                busyLabel: message('feedback.loading'),
                 onBack: () => {
                   setScheduling(false)
                   replaceBookingPath(
@@ -1284,7 +1292,8 @@ export function ServerBackedBookingFlow({
                 },
                 ...(checkoutOverlay
                   ? {
-                      overlay: checkoutOverlay
+                      overlay: checkoutOverlay,
+                      cartFullscreen: checkoutFormOpen
                     }
                   : {}),
                 ...(availability.data?.hold && !pendingReplacement

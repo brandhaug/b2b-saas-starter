@@ -46,7 +46,6 @@ const configureBookingProxy =
   (proxy) => {
     proxy.on('proxyReq', (proxyRequest, request) => {
       if (request.method === 'GET' || request.method === 'HEAD') return
-      proxyRequest.setHeader('host', publicSite.host)
       proxyRequest.setHeader('origin', publicSite.origin)
       proxyRequest.setHeader('sec-fetch-site', 'same-origin')
     })
@@ -95,6 +94,12 @@ export default defineConfig(({ command, mode }) => {
       // Quick Tunnels use a random subdomain. Restricting the suffix keeps
       // Vite's DNS-rebinding protection while allowing Cloudflare ingress.
       allowedHosts: ['.trycloudflare.com'],
+      cors: {
+        origin: [
+          /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/,
+          /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/
+        ]
+      },
       ...(bookingProxy ? { proxy: bookingProxy } : {})
     },
     preview: { port: 3071, host: true },

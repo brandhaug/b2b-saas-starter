@@ -11,6 +11,13 @@ const workersShim = resolve(
     : './src/lib/cloudflare-workers-shim.ts'
 )
 
+export const bookingStylexOptions = {
+  useCSSLayers: true,
+  // StyleX 0.19's reordering pass crashes while transforming valid nested
+  // hover media queries in the development SSR environment.
+  enableMediaQueryOrder: false
+} as const
+
 export default defineConfig(() => ({
   // Customer URLs stay merchant-scoped. Production's output directory gives
   // compiled assets the stable internal prefix without mounting the app there.
@@ -28,7 +35,7 @@ export default defineConfig(() => ({
   },
   plugins: [
     tanstackStart({ router: { basepath: '/' } }),
-    stylex.vite({ useCSSLayers: true }),
+    stylex.vite(bookingStylexOptions),
     viteReact()
   ]
 }))

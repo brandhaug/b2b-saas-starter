@@ -116,9 +116,16 @@ describe('Booking presentation primitives', () => {
 
     const fade = target.children.item(0) as HTMLElement
     const popup = screen.getByRole('dialog', { name: 'Booking menu' })
+    const stickyHeader = popup.firstElementChild as HTMLElement
+    const headerBackground = stickyHeader.firstElementChild as HTMLElement
+    const headerContent = stickyHeader.lastElementChild as HTMLElement
     expect(fade).toBeTruthy()
     expect(popup.tagName).toBe('DIV')
     expect(popup.hasAttribute('data-booking-popup-scrollable')).toBe(true)
+    expect(stickyHeader.children).toHaveLength(2)
+    expect(headerBackground.getAttribute('aria-hidden')).toBe('true')
+    expect(headerContent.textContent).toBe('Close menu')
+    expect(headerBackground.className).not.toBe(stickyHeader.className)
     expect(document.activeElement).toBe(trigger)
     expect(fade.hasAttribute('aria-hidden')).toBe(false)
     fireEvent.click(fade)

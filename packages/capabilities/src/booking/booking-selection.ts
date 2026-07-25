@@ -95,6 +95,8 @@ export const BookingJourney = Schema.Struct({
       name: Schema.String,
       adultsOnly: Schema.optional(Schema.Boolean),
       timezone: Schema.optional(Schema.String),
+      alias: Schema.optional(Schema.String),
+      coverPhotoUrl: Schema.optional(Schema.String),
       addressLines: Schema.optional(Schema.Array(Schema.String)),
       coordinates: Schema.optional(
         Schema.Struct({ latitude: Schema.Number, longitude: Schema.Number })
@@ -219,6 +221,8 @@ export type SeedBookingSelectionStore = {
       readonly publicName: string
       readonly brandName: string
       readonly timezone?: string
+      readonly alias?: string
+      readonly coverPhotoUrl?: string
       readonly addressLines?: readonly string[]
       readonly coordinates?: { readonly latitude: number; readonly longitude: number }
       readonly bookingConfiguration?: BookingConfiguration | null
@@ -278,6 +282,8 @@ export const emptySeedBookingSelectionStore = (
       readonly publicName: string
       readonly brandName: string
       readonly timezone?: string
+      readonly alias?: string
+      readonly coverPhotoUrl?: string
       readonly addressLines?: readonly string[]
       readonly coordinates?: { readonly latitude: number; readonly longitude: number }
       readonly bookingConfiguration?: BookingConfiguration | null
@@ -362,6 +368,8 @@ type Catalog = {
     readonly slug: string
     readonly name: string
     readonly timezone?: string
+    readonly alias?: string
+    readonly coverPhotoUrl?: string
     readonly addressLines?: readonly string[]
     readonly coordinates?: { readonly latitude: number; readonly longitude: number }
     readonly localizedName?: ResolvedCatalogText
@@ -646,6 +654,8 @@ const seedCatalog = (
       id: candidate.id,
       slug: candidate.slug,
       ...(candidate.timezone ? { timezone: candidate.timezone } : {}),
+      ...(candidate.alias ? { alias: candidate.alias } : {}),
+      ...(candidate.coverPhotoUrl ? { coverPhotoUrl: candidate.coverPhotoUrl } : {}),
       ...(candidate.addressLines ? { addressLines: [...candidate.addressLines] } : {}),
       ...(candidate.coordinates ? { coordinates: candidate.coordinates } : {}),
       ...localizedName(candidate.publicName, candidate.bookingConfiguration)
@@ -1178,6 +1188,12 @@ const readLiveState = (
           id: shop.id,
           slug: shop.slug,
           timezone: shop.timezone,
+          ...(configuration?.alias?.trim()
+            ? { alias: configuration.alias.trim() }
+            : {}),
+          ...(configuration?.coverPhotoUrl?.trim()
+            ? { coverPhotoUrl: configuration.coverPhotoUrl.trim() }
+            : {}),
           adultsOnly: resolveBookingConfiguration({
             locale: session.locale ?? 'en',
             merchant: {
