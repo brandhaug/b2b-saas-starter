@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { MobileCalendarSheet } from './mobile-calendar-sheet.tsx'
 import { MobileCreateActionSheet } from './mobile-create-action-sheet.tsx'
 import { mobileCalendarDockAction } from './mobile-home-actions-model.ts'
+import { MobileNewAppointmentSheet } from './mobile-new-appointment-sheet.tsx'
 import { useMobileSheetStack } from './mobile-sheet-stack.tsx'
 
 export function MobileHomeActions({
@@ -17,6 +18,7 @@ export function MobileHomeActions({
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createGeneration, setCreateGeneration] = useState(0)
+  const [newAppointmentOpen, setNewAppointmentOpen] = useState(false)
   const settingsOpen = stack?.enabled === true && stack.menuOpen
   const calendarAction = mobileCalendarDockAction(appointmentDate, currentDate)
   const sideActionClass =
@@ -97,7 +99,13 @@ export function MobileHomeActions({
         key={createGeneration}
         open={createOpen}
         onRequestClose={() => setCreateOpen(false)}
-        onSelect={() => undefined}
+        onSelect={(intent) => {
+          if (intent === 'appointment') setNewAppointmentOpen(true)
+        }}
+      />
+      <MobileNewAppointmentSheet
+        open={newAppointmentOpen}
+        onRequestClose={() => setNewAppointmentOpen(false)}
       />
     </>
   )
