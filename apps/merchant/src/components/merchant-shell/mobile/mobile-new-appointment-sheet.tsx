@@ -324,7 +324,11 @@ function AppointmentFieldRow({
       data-mobile-new-appointment-field={field}
       className="group flex min-h-16 w-full items-center gap-4 text-left disabled:cursor-default"
     >
-      <span className="grid size-5 shrink-0 place-items-center text-muted-foreground [&_svg]:size-5 [&_svg]:stroke-[1.7]">
+      <span
+        className={`grid shrink-0 place-items-center text-muted-foreground [&_svg]:size-5 [&_svg]:stroke-[1.7] ${
+          tone === 'selected' ? 'size-8' : 'size-5'
+        }`}
+      >
         {icon}
       </span>
       <span className="min-w-0 flex-1 py-2">
