@@ -10,7 +10,7 @@ import {
   Scissors,
   X
 } from 'lucide-react'
-import { useLayoutEffect, useState, type ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
 import { useMobileRouteSheet } from './use-mobile-route-sheet.ts'
 
@@ -34,14 +34,18 @@ function MobileNewAppointmentSheetDialog({
   const sheetRef = sheet.sheetRef
   const [notifyCustomer, setNotifyCustomer] = useState(true)
 
-  useLayoutEffect(() => {
-    const dialog = sheetRef.current
-    if (!dialog || typeof dialog.showModal !== 'function') return
-    if (!dialog.open) dialog.showModal()
-    return () => {
-      if (dialog.open) dialog.close()
-    }
-  }, [sheetRef])
+  const activateDialog = useCallback(
+    (dialog: HTMLDialogElement | null) => {
+      sheetRef.current = dialog
+      if (!dialog) return
+      if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal()
+      return () => {
+        if (dialog.open && typeof dialog.close === 'function') dialog.close()
+        sheetRef.current = null
+      }
+    },
+    [sheetRef]
+  )
 
   return (
     <div
@@ -50,7 +54,7 @@ function MobileNewAppointmentSheetDialog({
       className="merchant-mobile fixed inset-0 z-50 overflow-hidden text-foreground"
     >
       <dialog
-        ref={sheetRef}
+        ref={activateDialog}
         aria-label="Book an appointment"
         aria-modal="true"
         data-mobile-surface="sheet"

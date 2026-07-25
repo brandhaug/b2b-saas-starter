@@ -21,6 +21,39 @@ afterEach(async () => {
 })
 
 describe('MobileNewAppointmentSheet interaction', () => {
+  it('puts the native modal in the top layer before scheduling its entrance spring', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    const events: string[] = []
+    const originalShowModal = HTMLDialogElement.prototype.showModal
+    const frame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => {
+      events.push('spring-frame')
+      return 1
+    })
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        events.push('show-modal')
+        this.setAttribute('open', '')
+      }
+    })
+
+    try {
+      await act(async () =>
+        root?.render(<MobileNewAppointmentSheet open onRequestClose={vi.fn()} />)
+      )
+      expect(events[0]).toBe('show-modal')
+      expect(events).toContain('spring-frame')
+    } finally {
+      frame.mockRestore()
+      Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+        configurable: true,
+        value: originalShowModal
+      })
+    }
+  })
+
   it('lets the merchant toggle customer notifications', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
