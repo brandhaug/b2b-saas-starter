@@ -19,18 +19,13 @@ type MobileShellProps = {
       readonly layout: 'home'
       readonly date: string
       readonly timezone: string
-      readonly bookingUrl?: string | undefined
     }
 )
 
 export function MobileShell(props: MobileShellProps) {
   if (props.layout === 'home') {
     return (
-      <MobileHomeLayout
-        appointmentDate={props.date}
-        timezone={props.timezone}
-        bookingUrl={props.bookingUrl}
-      >
+      <MobileHomeLayout appointmentDate={props.date} timezone={props.timezone}>
         {props.children}
       </MobileHomeLayout>
     )

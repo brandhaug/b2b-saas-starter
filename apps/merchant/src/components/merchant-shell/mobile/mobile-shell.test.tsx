@@ -74,7 +74,6 @@ function renderShell(props: TestShellProps) {
         layout="home"
         date={props.date ?? '2026-07-21'}
         timezone="UTC"
-        bookingUrl="/mara-booking-studio/booking"
         section={{ kind: 'merchant' }}
         destinations={destinations}
       >
@@ -111,7 +110,9 @@ describe('MobileShell', () => {
 
     expect(homeActions).toBeDefined()
     expect(homeActions).toContain('aria-label="Open settings"')
-    expect(homeActions).toContain('aria-label="New appointment"')
+    expect(homeActions).toContain('aria-label="Add to schedule"')
+    expect(homeActions).toContain('aria-haspopup="dialog"')
+    expect(homeActions).toContain('aria-expanded="false"')
     expect(homeActions).toContain('aria-label="Open calendar"')
     expect(homeActions).toContain('data-mobile-home-action="settings"')
     expect(homeActions).toContain('data-mobile-home-action="new-appointment"')

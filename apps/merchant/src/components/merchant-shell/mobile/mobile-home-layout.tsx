@@ -6,12 +6,10 @@ import { MobileHomeActions } from './mobile-home-actions.tsx'
 export function MobileHomeLayout({
   appointmentDate,
   timezone,
-  bookingUrl,
   children
 }: {
   readonly appointmentDate: string
   readonly timezone: string
-  readonly bookingUrl: string | undefined
   readonly children: ReactNode
 }) {
   const currentDate = useMobileCalendarDate(timezone)
@@ -28,11 +26,7 @@ export function MobileHomeLayout({
       >
         {children}
       </section>
-      <MobileHomeActions
-        appointmentDate={appointmentDate}
-        currentDate={currentDate}
-        bookingUrl={bookingUrl}
-      />
+      <MobileHomeActions appointmentDate={appointmentDate} currentDate={currentDate} />
     </main>
   )
 }

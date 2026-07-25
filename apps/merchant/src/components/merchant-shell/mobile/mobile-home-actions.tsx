@@ -2,20 +2,21 @@ import { Link } from '@tanstack/react-router'
 import { ArrowLeft, CalendarDays, Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { MobileCalendarSheet } from './mobile-calendar-sheet.tsx'
+import { MobileCreateActionSheet } from './mobile-create-action-sheet.tsx'
 import { mobileCalendarDockAction } from './mobile-home-actions-model.ts'
 import { useMobileSheetStack } from './mobile-sheet-stack.tsx'
 
 export function MobileHomeActions({
   appointmentDate,
-  currentDate,
-  bookingUrl
+  currentDate
 }: {
   readonly appointmentDate: string
   readonly currentDate: string
-  readonly bookingUrl: string | undefined
 }) {
   const stack = useMobileSheetStack()
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createGeneration, setCreateGeneration] = useState(0)
   const settingsOpen = stack?.enabled === true && stack.menuOpen
   const calendarAction = mobileCalendarDockAction(appointmentDate, currentDate)
   const sideActionClass =
@@ -43,27 +44,20 @@ export function MobileHomeActions({
             <Settings aria-hidden className="size-6" strokeWidth={2.25} />
           </button>
 
-          {bookingUrl ? (
-            <a
-              href={bookingUrl}
-              aria-label="New appointment"
-              data-mobile-home-action="new-appointment"
-              className={primaryActionClass}
-            >
-              <Plus aria-hidden className="size-8" strokeWidth={2.5} />
-            </a>
-          ) : (
-            <button
-              type="button"
-              disabled
-              aria-label="New appointment"
-              title="Publish the booking page to add appointments"
-              data-mobile-home-action="new-appointment"
-              className={`${primaryActionClass} disabled:cursor-not-allowed disabled:opacity-45`}
-            >
-              <Plus aria-hidden className="size-8" strokeWidth={2.5} />
-            </button>
-          )}
+          <button
+            type="button"
+            aria-label="Add to schedule"
+            aria-haspopup="dialog"
+            aria-expanded={createOpen}
+            data-mobile-home-action="new-appointment"
+            className={primaryActionClass}
+            onClick={() => {
+              setCreateGeneration((generation) => generation + 1)
+              setCreateOpen(true)
+            }}
+          >
+            <Plus aria-hidden className="size-8" strokeWidth={2.5} />
+          </button>
 
           {calendarAction === 'return-today' ? (
             <Link
@@ -98,6 +92,12 @@ export function MobileHomeActions({
         selectedDate={appointmentDate}
         currentDate={currentDate}
         onRequestClose={() => setCalendarOpen(false)}
+      />
+      <MobileCreateActionSheet
+        key={createGeneration}
+        open={createOpen}
+        onRequestClose={() => setCreateOpen(false)}
+        onSelect={() => undefined}
       />
     </>
   )

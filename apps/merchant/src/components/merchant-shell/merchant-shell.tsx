@@ -11,7 +11,6 @@ export function MerchantShell({
   description,
   headerDate,
   headerTimezone,
-  bookingUrl,
   layout = 'sheet',
   children
 }: {
@@ -20,7 +19,6 @@ export function MerchantShell({
   readonly description: string
   readonly headerDate?: string | undefined
   readonly headerTimezone?: string | undefined
-  readonly bookingUrl?: string | undefined
   readonly layout?: 'home' | 'sheet' | 'task'
   readonly children: ReactNode
 }) {
@@ -59,7 +57,6 @@ export function MerchantShell({
             destinations={destinations}
             date={headerDate!}
             timezone={headerTimezone!}
-            bookingUrl={bookingUrl}
           >
             {children}
           </MobileShell>
