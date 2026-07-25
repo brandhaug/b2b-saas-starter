@@ -40,3 +40,17 @@ bun run test
 4. Use Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, and Alchemy.
 5. Keep Contributor's visual patterns but do not import Contributor's developer-productivity domain language.
 6. Keep Hexwardens' architecture discipline but do not copy game, PWA, realtime, or Durable Object requirements without a starter use case.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked as local Markdown under `.scratch/`; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The canonical triage labels are `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repository uses a single-context domain-doc layout. See `docs/agents/domain.md`.

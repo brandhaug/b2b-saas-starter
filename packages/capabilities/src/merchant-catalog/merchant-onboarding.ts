@@ -66,6 +66,17 @@ export const MerchantRecord = Schema.Struct({
 })
 export type MerchantRecord = typeof MerchantRecord.Type
 
+export const merchantPublicBookingUrl = (
+  merchant: MerchantRecord,
+  publicSiteOrigin: string
+): string | undefined =>
+  merchant.publicBookingPage.status === 'published'
+    ? new URL(
+        `/${encodeURIComponent(merchant.slug)}/booking`,
+        publicSiteOrigin
+      ).toString()
+    : undefined
+
 export class MerchantOnboardingDenied extends Schema.TaggedErrorClass<MerchantOnboardingDenied>()(
   'MerchantOnboardingDenied',
   {

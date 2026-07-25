@@ -38,6 +38,7 @@
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "lucide-react": "catalog:",
+    "maplibre-gl": "catalog:",
     "mermaid": "catalog:",
     "motion": "catalog:",
     "next-themes": "catalog:",

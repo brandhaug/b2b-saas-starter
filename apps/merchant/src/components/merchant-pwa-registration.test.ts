@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { registerMerchantServiceWorker } from './merchant-pwa-registration.tsx'
+import { registerMerchantServiceWorker } from './merchant-service-worker.ts'
 
 describe('Merchant App service worker registration', () => {
   it('registers the lifecycle worker at the authenticated origin root', async () => {
@@ -19,11 +19,9 @@ describe('Merchant App service worker registration', () => {
     expect(register).not.toHaveBeenCalled()
   })
 
-  it('reports registration failures without exposing request details', async () => {
+  it('treats registration failures as an unavailable optional enhancement', async () => {
     const register = vi.fn().mockRejectedValue(new Error('token in a URL'))
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     await expect(registerMerchantServiceWorker({ register }, true)).resolves.toBeNull()
-    expect(warn).toHaveBeenCalledWith('Merchant service worker registration failed.')
   })
 })

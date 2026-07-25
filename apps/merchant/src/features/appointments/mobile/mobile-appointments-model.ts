@@ -102,8 +102,9 @@ export function mobileCalendarDate(timezone: string, now = new Date()): string {
   const parts = new Map(
     formatter
       .formatToParts(now)
-      .filter((part) => part.type !== 'literal')
-      .map((part) => [part.type, part.value])
+      .flatMap((part) =>
+        part.type === 'literal' ? [] : [[part.type, part.value] as const]
+      )
   )
   return decodeCalendarDate(
     `${parts.get('year')}-${parts.get('month')}-${parts.get('day')}`

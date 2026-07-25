@@ -7,7 +7,8 @@ import {
   buildSeedBookingScenario,
   deriveIncompleteSeedBookingScenario,
   deriveSoloSeedBookingScenario,
-  emptySeedMerchantCatalog
+  emptySeedMerchantCatalog,
+  merchantPublicBookingUrl
 } from './merchant-onboarding.ts'
 
 const verifiedOwner = {
@@ -22,6 +23,39 @@ const onboardingInput = {
   timezone: 'Europe/Bucharest',
   currency: 'EUR'
 } as const
+
+describe('Merchant public booking destination', () => {
+  const scenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
+  const merchant = {
+    ...scenario.merchant,
+    defaultProvider: scenario.provider,
+    publicBookingPage: scenario.publicBookingPage
+  }
+
+  it('exposes a published booking page on the public origin', () => {
+    expect(
+      merchantPublicBookingUrl(
+        {
+          ...merchant,
+          publicBookingPage: { id: 'page_1', status: 'published' }
+        },
+        'https://book.example/'
+      )
+    ).toBe('https://book.example/mara-booking-studio/booking')
+  })
+
+  it('keeps an unpublished booking page unavailable', () => {
+    expect(
+      merchantPublicBookingUrl(
+        {
+          ...merchant,
+          publicBookingPage: { id: 'page_1', status: 'unpublished' }
+        },
+        'https://book.example/'
+      )
+    ).toBeUndefined()
+  })
+})
 
 const runSeed = <A, E>(
   effect: Effect.Effect<A, E, MerchantOnboarding | MerchantMembership>

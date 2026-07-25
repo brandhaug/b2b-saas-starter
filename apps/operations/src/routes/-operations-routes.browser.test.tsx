@@ -119,6 +119,18 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Operations TanStack routes', () => {
+  it('renders when browser storage is unavailable', async () => {
+    const browserStorage = globalThis.localStorage
+    vi.stubGlobal('localStorage', {})
+
+    try {
+      await renderRoute('/')
+      expect(await screen.findByText('System Operator')).toBeTruthy()
+    } finally {
+      vi.stubGlobal('localStorage', browserStorage)
+    }
+  })
+
   it('renders protected routes inside the Operations sidebar shell', async () => {
     await renderRoute('/')
 

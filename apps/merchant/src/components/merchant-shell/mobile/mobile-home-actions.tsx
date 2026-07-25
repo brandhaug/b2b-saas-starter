@@ -2,13 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { ArrowLeft, CalendarDays, Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { MobileCalendarSheet } from './mobile-calendar-sheet.tsx'
+import { mobileCalendarDockAction } from './mobile-home-actions-model.ts'
 import { useMobileSheetStack } from './mobile-sheet-stack.tsx'
-
-export const mobileCalendarDockAction = (
-  selectedDate: string,
-  currentDate: string
-): 'open-calendar' | 'return-today' =>
-  selectedDate === currentDate ? 'open-calendar' : 'return-today'
 
 export function MobileHomeActions({
   appointmentDate,

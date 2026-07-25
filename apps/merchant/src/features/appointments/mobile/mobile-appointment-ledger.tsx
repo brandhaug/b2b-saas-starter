@@ -8,15 +8,16 @@ import {
 } from 'react'
 import { flushSync } from 'react-dom'
 import { EmptyAppointmentDay } from '../shared/empty-appointment-day.tsx'
+import {
+  appointmentDaySwipeVelocity,
+  shouldCommitAppointmentDaySwipe
+} from './mobile-appointment-day-swipe.ts'
 import { MobileAppointmentRow } from './mobile-appointment-row.tsx'
 import { mobileAppointmentLedger } from './mobile-appointments-model.ts'
 import type { AppointmentDayDirection } from './week-navigation.ts'
 
 const DAY_SWIPE_START_DISTANCE = 8
 const DAY_SWIPE_AXIS_RATIO = 1.15
-const DAY_SWIPE_DISTANCE_RATIO = 0.25
-const DAY_SWIPE_MIN_DISTANCE = 44
-const DAY_SWIPE_VELOCITY = 0.45
 const DAY_SWIPE_MAX_VELOCITY = 3.2
 const DAY_SWIPE_SPRING_RESPONSE = 0.32
 const DAY_SWIPE_SPRING_DAMPING_RATIO = 0.86
@@ -43,25 +44,6 @@ type DaySwipeGesture = {
   lastTime: number
   lastX: number
   velocityX: number
-}
-
-export function shouldCommitAppointmentDaySwipe({
-  distance,
-  duration,
-  velocity = 0,
-  width
-}: {
-  readonly distance: number
-  readonly duration: number
-  readonly velocity?: number
-  readonly width: number
-}) {
-  return (
-    Math.abs(distance) >=
-      Math.max(DAY_SWIPE_MIN_DISTANCE, width * DAY_SWIPE_DISTANCE_RATIO) ||
-    Math.max(Math.abs(distance) / Math.max(duration, 1), Math.abs(velocity)) >=
-      DAY_SWIPE_VELOCITY
-  )
 }
 
 export function MobileAppointmentLedger({
@@ -276,7 +258,9 @@ export function MobileAppointmentLedger({
       return
     }
     const direction =
-      (Math.abs(swipe.velocityX) >= DAY_SWIPE_VELOCITY ? swipe.velocityX : distance) < 0
+      (Math.abs(swipe.velocityX) >= appointmentDaySwipeVelocity
+        ? swipe.velocityX
+        : distance) < 0
         ? 'next'
         : 'previous'
     animateCommittedSwipe(event.currentTarget, direction, swipe.width, swipe.velocityX)

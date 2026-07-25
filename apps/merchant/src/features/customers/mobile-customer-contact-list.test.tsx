@@ -4,9 +4,9 @@ import { describe, expect, it, vi } from 'vitest'
 import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
 import {
   customerInitials,
-  filterCustomerEntries,
-  MobileCustomerContactList
-} from './mobile-customer-contact-list.tsx'
+  filterCustomerEntries
+} from './mobile-customer-contact-model.ts'
+import { MobileCustomerContactList } from './mobile-customer-contact-list.tsx'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({

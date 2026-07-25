@@ -39,6 +39,29 @@ function applyTheme(theme: Theme) {
   root.style.colorScheme = resolved
 }
 
+function readStoredTheme(storageKey: string): string | null {
+  try {
+    return typeof localStorage !== 'undefined' &&
+      typeof localStorage.getItem === 'function'
+      ? localStorage.getItem(storageKey)
+      : null
+  } catch {
+    return null
+  }
+}
+
+function storeTheme(storageKey: string, theme: Theme) {
+  try {
+    if (
+      typeof localStorage !== 'undefined' &&
+      typeof localStorage.setItem === 'function'
+    )
+      localStorage.setItem(storageKey, theme)
+  } catch {
+    // Theme selection still applies for the current document without persistence.
+  }
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
@@ -48,7 +71,7 @@ export function ThemeProvider({
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const stored = localStorage.getItem(storageKey)
+    const stored = readStoredTheme(storageKey)
     setThemeState(
       stored === 'light' || stored === 'dark' || stored === 'system'
         ? stored
@@ -73,7 +96,7 @@ export function ThemeProvider({
   }, [theme, mounted])
 
   const setTheme = (next: Theme) => {
-    localStorage.setItem(storageKey, next)
+    storeTheme(storageKey, next)
     setThemeState(next)
   }
 

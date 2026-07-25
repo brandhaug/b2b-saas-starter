@@ -17,6 +17,12 @@ import {
   type MouseEvent as ReactMouseEvent
 } from 'react'
 import type { PublicBookingPage } from '@b2b-saas-starter/capabilities/scheduling'
+import {
+  Map as BookingMap,
+  MapControls,
+  MapMarker,
+  MarkerContent
+} from '@/components/ui/map'
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>()
 
@@ -265,14 +271,13 @@ function useBookingPageTransition(bookingPath: string) {
 
 function BookingPageTransition({ onComplete }: { readonly onComplete: () => void }) {
   return (
-    <div
+    <output
       aria-label="Opening booking"
       aria-live="polite"
       className="booking-page-transition fixed inset-0 z-50 min-h-dvh bg-neutral-100"
       onAnimationEnd={(event) => {
         if (event.target === event.currentTarget) onComplete()
       }}
-      role="status"
     />
   )
 }
@@ -342,25 +347,6 @@ function GalleryCard({
 
 type PublicLocation = NonNullable<PublicBookingPage['location']>
 
-const openStreetMapUrl = (location: PublicLocation) => {
-  const longitudeOffset = 0.006
-  const latitudeOffset = 0.0054
-  const bbox = [
-    location.longitude - longitudeOffset,
-    location.latitude - latitudeOffset,
-    location.longitude + longitudeOffset,
-    location.latitude + latitudeOffset
-  ]
-    .map((coordinate) => coordinate.toFixed(4))
-    .join(',')
-  const params = new URLSearchParams({
-    bbox,
-    layer: 'mapnik',
-    marker: `${location.latitude},${location.longitude}`
-  })
-  return `https://www.openstreetmap.org/export/embed.html?${params.toString()}`
-}
-
 function StudioMapCard({
   location,
   onOpen
@@ -370,14 +356,27 @@ function StudioMapCard({
 }) {
   return (
     <article className="group relative h-60 overflow-hidden rounded-3xl bg-card shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-      <iframe
+      <BookingMap
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 size-full border-0 grayscale invert-[0.88] contrast-125"
-        loading="lazy"
-        src={openStreetMapUrl(location)}
-        tabIndex={-1}
-        title="Map preview"
-      />
+        attributionControl={false}
+        bearing={-18}
+        center={[location.longitude, location.latitude]}
+        className="pointer-events-none absolute inset-0"
+        interactive={false}
+        pitch={48}
+        theme="dark"
+        zoom={15.2}
+      >
+        <MapMarker
+          anchor="bottom"
+          latitude={location.latitude}
+          longitude={location.longitude}
+        >
+          <MarkerContent>
+            <StudioMapPin compact />
+          </MarkerContent>
+        </MapMarker>
+      </BookingMap>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4">
         <div className="min-w-0">
@@ -396,6 +395,16 @@ function StudioMapCard({
         </button>
       </div>
     </article>
+  )
+}
+
+function StudioMapPin({ compact = false }: { readonly compact?: boolean }) {
+  return (
+    <MapPin
+      aria-hidden="true"
+      className={`${compact ? 'size-6' : 'size-8'} fill-background/85 text-foreground drop-shadow-sm`}
+      strokeWidth={1.8}
+    />
   )
 }
 
@@ -631,11 +640,29 @@ function StudioLocationMap({
       }}
       ref={dialogRef}
     >
-      <iframe
-        className="absolute inset-0 size-full border-0 grayscale invert-[0.88] contrast-125"
-        src={openStreetMapUrl(location)}
-        title={`Map of ${location.label}`}
-      />
+      <BookingMap
+        bearing={-22}
+        center={[location.longitude, location.latitude]}
+        className="absolute inset-0"
+        pitch={58}
+        theme="dark"
+        zoom={16}
+      >
+        <MapMarker
+          anchor="bottom"
+          latitude={location.latitude}
+          longitude={location.longitude}
+        >
+          <MarkerContent>
+            <StudioMapPin />
+          </MarkerContent>
+        </MapMarker>
+        <MapControls
+          className="[&>div]:border-white/10 [&>div]:bg-black/55 [&_button]:text-white"
+          controls={{ compass: true }}
+          position="bottom-right"
+        />
+      </BookingMap>
       <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-background to-transparent" />
       <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-4 px-5 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
         <div className="flex min-h-12 items-center gap-3 rounded-full bg-background/85 px-4 text-foreground shadow-lg backdrop-blur-md">

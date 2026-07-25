@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateFramesPerSecond } from './dev-fps-pill.tsx'
+import { calculateFramesPerSecond } from './dev-fps.ts'
 
 describe('development FPS pill', () => {
   it('turns a sampled frame count into a rounded FPS value', () => {

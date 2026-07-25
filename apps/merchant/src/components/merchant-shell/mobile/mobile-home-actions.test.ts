@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mobileCalendarDockAction } from './mobile-home-actions.tsx'
-import { mobileCalendarMonth } from './mobile-calendar-sheet.tsx'
+import { mobileCalendarMonth } from './mobile-calendar-model.ts'
+import { mobileCalendarDockAction } from './mobile-home-actions-model.ts'
 
 describe('mobile appointment action dock', () => {
   it('opens the calendar while the current day is selected', () => {

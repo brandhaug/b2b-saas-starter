@@ -1,0 +1,3 @@
+# Persist impersonation lifecycle state
+
+Each impersonation has one first-class Impersonation Record linking its System Operator and Operator Session, target Merchant Member and Merchant, Impersonation Reason and optional support reference, hashed handoff ticket, resulting Better Auth Merchant session, timestamps, and termination cause. Its states are Pending Handoff, Active, Stopped, Expired, and Revoked; rejected start attempts create audit events without creating records. This record is the authoritative current state for atomic ticket consumption, single-flight concurrency, and revocation. Better Auth sessions remain the browser credential and append-only audit events remain history; neither is overloaded as the impersonation state model.

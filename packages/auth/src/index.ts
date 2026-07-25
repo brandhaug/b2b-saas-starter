@@ -1,4 +1,4 @@
-import { betterAuth } from 'better-auth'
+import { betterAuth, type BetterAuthOptions } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import type { BetterAuthPlugin } from 'better-auth/types'
@@ -54,7 +54,7 @@ const impersonationProvenance = () =>
 export type CreateMerchantAuthOptions = {
   readonly db: Database
   readonly secret: string
-  readonly baseURL: string
+  readonly baseURL: NonNullable<BetterAuthOptions['baseURL']>
   readonly trustedOrigins?: string[]
   readonly production: boolean
   readonly sendVerificationEmail: MerchantAuthEmailSender

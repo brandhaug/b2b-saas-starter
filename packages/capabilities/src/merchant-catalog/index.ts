@@ -24,7 +24,8 @@ export {
   buildSeedBookingScenario,
   deriveIncompleteSeedBookingScenario,
   deriveSoloSeedBookingScenario,
-  emptySeedMerchantCatalog
+  emptySeedMerchantCatalog,
+  merchantPublicBookingUrl
 } from './merchant-onboarding.ts'
 export type {
   MerchantMembershipShape,

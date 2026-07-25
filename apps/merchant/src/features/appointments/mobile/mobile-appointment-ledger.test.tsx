@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  MobileAppointmentLedger,
-  shouldCommitAppointmentDaySwipe
-} from './mobile-appointment-ledger.tsx'
+import { shouldCommitAppointmentDaySwipe } from './mobile-appointment-day-swipe.ts'
+import { MobileAppointmentLedger } from './mobile-appointment-ledger.tsx'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({

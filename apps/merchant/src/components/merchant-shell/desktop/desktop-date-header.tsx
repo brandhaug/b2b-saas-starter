@@ -19,8 +19,9 @@ export function DesktopDateHeader({
   const parts = new Map(
     desktopDateFormatter
       .formatToParts(value)
-      .filter((part) => part.type !== 'literal')
-      .map((part) => [part.type, part.value])
+      .flatMap((part) =>
+        part.type === 'literal' ? [] : [[part.type, part.value] as const]
+      )
   )
   const weekday = parts.get('weekday')
   const monthAndDay = `${parts.get('month')} ${parts.get('day')}`

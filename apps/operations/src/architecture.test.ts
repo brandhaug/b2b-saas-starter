@@ -18,7 +18,7 @@ it('deploys the Operations App through the repository TanStack Start boundary', 
           'src/routes/api.operations.$.ts',
           'src/routes/api.merchants.$.ts',
           'src/routes/api.members.search.ts',
-          'src/routes/__local.operator-invitation-email.ts'
+          'src/routes/[_][_]local.operator-invitation-email.ts'
         ].map((path) => readFile(appFile(path), 'utf8'))
       )
     ])

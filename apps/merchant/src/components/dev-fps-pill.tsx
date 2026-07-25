@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react'
+import { calculateFramesPerSecond } from './dev-fps.ts'
 
 const SAMPLE_WINDOW_MS = 500
-
-export function calculateFramesPerSecond(frameCount: number, elapsedMs: number) {
-  if (elapsedMs <= 0) return 0
-  return Math.round((frameCount * 1_000) / elapsedMs)
-}
 
 export function DevFpsPill() {
   const [fps, setFps] = useState<number | null>(null)

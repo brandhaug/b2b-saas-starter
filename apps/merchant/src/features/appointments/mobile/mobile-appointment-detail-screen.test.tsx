@@ -1,10 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { OperationalAppointment } from '@b2b-saas-starter/capabilities/booking'
-import {
-  MobileAppointmentDetailScreen,
-  mobileAppointmentPaymentLabel
-} from './mobile-appointment-detail-screen.tsx'
+import { mobileAppointmentPaymentLabel } from './mobile-appointment-detail-model.ts'
+import { MobileAppointmentDetailScreen } from './mobile-appointment-detail-screen.tsx'
 
 const appointment = (
   overrides: Partial<OperationalAppointment> = {}

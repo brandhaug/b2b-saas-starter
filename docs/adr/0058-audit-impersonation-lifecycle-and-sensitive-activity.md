@@ -1,0 +1,3 @@
+# Audit impersonation lifecycle and sensitive activity
+
+The persisted audit-event system records every impersonation attempt, successful handoff, manual stop, expiry, rejection, mutation result, and access to Customer Details, financial data, credential metadata, or other sensitive records. Each event preserves the real System Operator, target Merchant Member, Merchant, impersonation session, Impersonation Reason, optional support reference, action, result, and timestamp. Ordinary navigation and non-sensitive reads do not emit individual events, avoiding high-volume noise while retaining attribution for consequential activity.

@@ -2,6 +2,7 @@ import type { OperationalAppointment } from '@b2b-saas-starter/capabilities/book
 import { CalendarPlus, Check, Circle, Mail, Minus, Phone, X } from 'lucide-react'
 import type { ComponentType, SVGProps } from 'react'
 import { appointmentDetailValues } from '../shared/appointment-detail-values.ts'
+import { mobileAppointmentPaymentLabel } from './mobile-appointment-detail-model.ts'
 
 type AppointmentStatus = OperationalAppointment['status']
 
@@ -32,14 +33,6 @@ const statusPresentations: Record<AppointmentStatus, StatusPresentation> = {
     className: 'bg-destructive/12 text-destructive',
     icon: Minus
   }
-}
-
-export function mobileAppointmentPaymentLabel(
-  appointment: Pick<OperationalAppointment, 'status' | 'snapshot'>
-) {
-  if (appointment.snapshot.checkoutPath === 'online_payment')
-    return appointment.status === 'cancelled' ? 'Online payment' : 'Paid online'
-  return appointment.status === 'scheduled' ? 'Due in person' : 'Pay in person'
 }
 
 export function MobileAppointmentDetailScreen({
