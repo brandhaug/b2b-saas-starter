@@ -105,6 +105,7 @@ export function MobileHomeActions({
       />
       <MobileNewAppointmentSheet
         open={newAppointmentOpen}
+        appointmentDate={appointmentDate}
         onRequestClose={() => setNewAppointmentOpen(false)}
       />
     </>

@@ -1,8 +1,9 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gt, lt, ne } from 'drizzle-orm'
 import {
   batch,
   Database,
+  appointments,
   merchants,
   providerServiceEligibility,
   providers,
@@ -132,6 +133,7 @@ type SchedulingShape = {
     readonly serviceId: string
     readonly from: string
     readonly days?: number
+    readonly durationMinutes?: number
   }) => Effect.Effect<
     Availability,
     SchedulingValidationError | CapabilityUnavailable,
@@ -284,6 +286,40 @@ export const deriveSlots = (
   return { timezone, slots }
 }
 
+type OccupiedInterval = {
+  readonly startsAt: string
+  readonly endsAt: string
+}
+
+const withoutOccupiedSlots = (
+  availability: Availability,
+  occupied: readonly OccupiedInterval[]
+): Availability => ({
+  ...availability,
+  slots: availability.slots.filter(
+    (slot) =>
+      !occupied.some(
+        (appointment) =>
+          slot.startsAt < appointment.endsAt && slot.endsAt > appointment.startsAt
+      )
+  )
+})
+
+const validDuration = (durationMinutes: number) =>
+  Number.isInteger(durationMinutes) && durationMinutes >= 15 && durationMinutes <= 1440
+
+const seedOccupiedIntervals = (
+  store: SeedSchedulingStore,
+  merchantId: string,
+  providerId: string
+) =>
+  store.scenario.appointments.filter(
+    (appointment) =>
+      appointment.merchantId === merchantId &&
+      appointment.providerId === providerId &&
+      appointment.status !== 'cancelled'
+  )
+
 const seedRulesFor = (
   store: SeedSchedulingStore,
   merchantId: string,
@@ -362,16 +398,25 @@ export const SeedScheduling = (store: SeedSchedulingStore): Layer.Layer<Scheduli
             new SchedulingValidationError({ reason: 'service_not_found' })
           )
         const days = input.days ?? 14
-        if (!Number.isFinite(Date.parse(input.from)) || days < 1 || days > 31)
+        const durationMinutes = input.durationMinutes ?? service.durationMinutes
+        if (
+          !Number.isFinite(Date.parse(input.from)) ||
+          days < 1 ||
+          days > 31 ||
+          !validDuration(durationMinutes)
+        )
           return yield* Effect.fail(
             new SchedulingValidationError({ reason: 'invalid_range' })
           )
-        return deriveSlots(
-          seedRulesFor(store, merchant.id, input.providerId),
-          merchant.timezone,
-          service.durationMinutes,
-          input.from,
-          days
+        return withoutOccupiedSlots(
+          deriveSlots(
+            seedRulesFor(store, merchant.id, input.providerId),
+            merchant.timezone,
+            durationMinutes,
+            input.from,
+            days
+          ),
+          seedOccupiedIntervals(store, merchant.id, input.providerId)
         )
       }),
     previewAvailability: (input) =>
@@ -397,12 +442,15 @@ export const SeedScheduling = (store: SeedSchedulingStore): Layer.Layer<Scheduli
           return yield* Effect.fail(
             new SchedulingValidationError({ reason: 'invalid_range' })
           )
-        return deriveSlots(
-          seedRulesFor(store, merchant.id, provider.id),
-          merchant.timezone,
-          service.durationMinutes,
-          input.from,
-          days
+        return withoutOccupiedSlots(
+          deriveSlots(
+            seedRulesFor(store, merchant.id, provider.id),
+            merchant.timezone,
+            service.durationMinutes,
+            input.from,
+            days
+          ),
+          seedOccupiedIntervals(store, merchant.id, provider.id)
         )
       })
   })
@@ -626,17 +674,42 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
               new SchedulingValidationError({ reason: 'service_not_found' })
             )
           const days = input.days ?? 14
-          if (!Number.isFinite(Date.parse(input.from)) || days < 1 || days > 31)
+          const durationMinutes =
+            input.durationMinutes ?? rows[0].service.durationMinutes
+          if (
+            !Number.isFinite(Date.parse(input.from)) ||
+            days < 1 ||
+            days > 31 ||
+            !validDuration(durationMinutes)
+          )
             return yield* Effect.fail(
               new SchedulingValidationError({ reason: 'invalid_range' })
             )
-          return deriveSlots(
+          const availability = deriveSlots(
             (yield* liveRules(db, merchant.id, input.providerId)).map(toRule),
             merchant.timezone,
-            rows[0].service.durationMinutes,
+            durationMinutes,
             input.from,
             days
           )
+          const first = availability.slots[0]
+          const last = availability.slots.at(-1)
+          if (!first || !last) return availability
+          const occupied = yield* orUnavailable('scheduling')(
+            db
+              .select({ startsAt: appointments.startsAt, endsAt: appointments.endsAt })
+              .from(appointments)
+              .where(
+                and(
+                  eq(appointments.merchantId, merchant.id),
+                  eq(appointments.providerId, input.providerId),
+                  ne(appointments.status, 'cancelled'),
+                  lt(appointments.startsAt, last.endsAt),
+                  gt(appointments.endsAt, first.startsAt)
+                )
+              )
+          )
+          return withoutOccupiedSlots(availability, occupied)
         }),
       previewAvailability: (input) =>
         Effect.gen(function* () {
@@ -672,13 +745,31 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
             return yield* Effect.fail(
               new SchedulingValidationError({ reason: 'invalid_range' })
             )
-          return deriveSlots(
+          const availability = deriveSlots(
             (yield* liveRules(db, merchant.id, row.providerId)).map(toRule),
             merchant.timezone,
             row.durationMinutes,
             input.from,
             days
           )
+          const first = availability.slots[0]
+          const last = availability.slots.at(-1)
+          if (!first || !last) return availability
+          const occupied = yield* orUnavailable('scheduling')(
+            db
+              .select({ startsAt: appointments.startsAt, endsAt: appointments.endsAt })
+              .from(appointments)
+              .where(
+                and(
+                  eq(appointments.merchantId, merchant.id),
+                  eq(appointments.providerId, row.providerId),
+                  ne(appointments.status, 'cancelled'),
+                  lt(appointments.startsAt, last.endsAt),
+                  gt(appointments.endsAt, first.startsAt)
+                )
+              )
+          )
+          return withoutOccupiedSlots(availability, occupied)
         })
     }
   })

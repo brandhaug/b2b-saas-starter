@@ -36,6 +36,77 @@ vi.mock('@/lib/server/appointment-operations.ts', () => ({
   }))
 }))
 
+vi.mock('@/lib/server/merchant-catalog.ts', () => ({
+  getMerchantCatalog: vi.fn(async () => ({
+    presentation: 'solo',
+    services: [
+      {
+        id: 'svc_deal',
+        name: 'Take a deal',
+        description: null,
+        category: null,
+        priceMinor: 9999,
+        currency: 'USD',
+        durationMinutes: 60,
+        status: 'active',
+        eligibleProviderIds: ['prv_mara']
+      },
+      {
+        id: 'svc_beard',
+        name: 'Beard Trimming',
+        description: null,
+        category: null,
+        priceMinor: 2300,
+        currency: 'USD',
+        durationMinutes: 15,
+        status: 'active',
+        eligibleProviderIds: ['prv_mara']
+      }
+    ],
+    providers: [
+      {
+        id: 'prv_mara',
+        displayName: 'Mara Ionescu',
+        isDefault: true,
+        status: 'active',
+        eligibleServiceIds: ['svc_deal', 'svc_beard']
+      }
+    ]
+  }))
+}))
+
+vi.mock('@/lib/server/scheduling.ts', () => ({
+  getAppointmentAvailability: vi.fn(async () => ({
+    timezone: 'Europe/Bucharest',
+    slots: [
+      {
+        startsAt: '2026-07-25T06:00:00.000Z',
+        endsAt: '2026-07-25T06:15:00.000Z'
+      },
+      {
+        startsAt: '2026-07-25T06:15:00.000Z',
+        endsAt: '2026-07-25T06:30:00.000Z'
+      },
+      {
+        startsAt: '2026-07-25T06:30:00.000Z',
+        endsAt: '2026-07-25T06:45:00.000Z'
+      },
+      {
+        startsAt: '2026-07-25T06:45:00.000Z',
+        endsAt: '2026-07-25T07:00:00.000Z'
+      },
+      {
+        startsAt: '2026-07-25T07:00:00.000Z',
+        endsAt: '2026-07-25T07:15:00.000Z'
+      },
+      {
+        startsAt: '2026-07-25T07:15:00.000Z',
+        endsAt: '2026-07-25T07:30:00.000Z'
+      }
+    ]
+  }))
+}))
+
 let root: Root | undefined
 
 const setNativeInputValue = (input: HTMLInputElement, value: string) => {
@@ -56,7 +127,7 @@ afterEach(async () => {
 })
 
 describe('MobileNewAppointmentSheet interaction', () => {
-  it('puts the native modal in the top layer before scheduling its entrance spring', async () => {
+  it('opens the native modal on-screen before scheduling its entrance spring', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -70,7 +141,9 @@ describe('MobileNewAppointmentSheet interaction', () => {
     Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
       configurable: true,
       value(this: HTMLDialogElement) {
-        events.push('show-modal')
+        events.push(
+          `show-modal:${this.style.getPropertyValue('--merchant-sheet-translate-y')}`
+        )
         this.setAttribute('open', '')
       }
     })
@@ -79,7 +152,7 @@ describe('MobileNewAppointmentSheet interaction', () => {
       await act(async () =>
         root?.render(<MobileNewAppointmentSheet open onRequestClose={vi.fn()} />)
       )
-      expect(events[0]).toBe('show-modal')
+      expect(events[0]).toBe('show-modal:0px')
       expect(events).toContain('spring-frame')
       expect(document.activeElement).toBe(
         container.querySelector('[data-mobile-new-appointment-sheet="true"]')
@@ -159,6 +232,57 @@ describe('MobileNewAppointmentSheet interaction', () => {
     ).toBe(false)
   })
 
+  it('lets the merchant deselect a misclicked customer before confirming', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(<MobileNewAppointmentSheet open onRequestClose={vi.fn()} />)
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-mobile-new-appointment-field="client"]'
+        )
+        ?.click()
+    )
+    await act(async () => Promise.resolve())
+
+    const customer = container.querySelector<HTMLButtonElement>(
+      '[data-mobile-client-option="apt_alex"]'
+    )
+    const search = container.querySelector<HTMLInputElement>(
+      '[data-mobile-client-search="true"]'
+    )
+    const resultsScrollport = customer?.closest<HTMLElement>(
+      '[data-mobile-sheet-scroll="true"]'
+    )
+    const results = customer?.closest<HTMLElement>(
+      '[data-mobile-client-results="true"]'
+    )
+
+    expect(search?.closest('[data-mobile-sheet-scroll="true"]')).toBeNull()
+    expect(resultsScrollport).not.toBeNull()
+    expect(results).not.toBeNull()
+    expect(results?.className).toContain('env(safe-area-inset-bottom)')
+
+    await act(async () => customer?.click())
+
+    expect(customer?.getAttribute('aria-pressed')).toBe('true')
+    expect(
+      container.querySelector('[data-mobile-client-confirm="true"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[data-mobile-client-confirm-dock="true"]')?.className
+    ).toContain('bg-linear-to-t')
+
+    await act(async () => customer?.click())
+
+    expect(customer?.getAttribute('aria-pressed')).toBe('false')
+    expect(container.querySelector('[data-mobile-client-confirm="true"]')).toBeNull()
+  })
+
   it('filters clients and adds draft customer details to the appointment', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -216,6 +340,98 @@ describe('MobileNewAppointmentSheet interaction', () => {
     expect(
       container.querySelector('[data-mobile-new-appointment-form="true"]')
     ).not.toBeNull()
+  })
+
+  it('selects a catalog service and expands the scheduling controls', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-07-25T05:00:00.000Z'))
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(
+        <MobileNewAppointmentSheet
+          open
+          appointmentDate="2026-07-25"
+          onRequestClose={vi.fn()}
+        />
+      )
+    )
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-mobile-new-appointment-field="service"]'
+        )
+        ?.click()
+    )
+    await act(async () => Promise.resolve())
+
+    const service = container.querySelector<HTMLButtonElement>(
+      '[data-mobile-service-option="svc_beard"]'
+    )
+    expect(
+      container.querySelector('[data-mobile-service-picker="true"]')
+    ).not.toBeNull()
+    expect(service?.getAttribute('aria-pressed')).toBe('false')
+
+    await act(async () => service?.click())
+    expect(service?.getAttribute('aria-pressed')).toBe('true')
+    expect(
+      container.querySelector('[data-mobile-service-confirm="true"]')
+    ).not.toBeNull()
+
+    await act(async () => service?.click())
+    expect(service?.getAttribute('aria-pressed')).toBe('false')
+    expect(container.querySelector('[data-mobile-service-confirm="true"]')).toBeNull()
+
+    await act(async () => service?.click())
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-mobile-service-confirm="true"]')
+        ?.click()
+    )
+
+    expect(
+      container.querySelector('[data-mobile-new-appointment-form="true"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[data-mobile-new-appointment-field="service"]')
+        ?.textContent
+    ).toContain('Beard Trimming')
+    expect(
+      container.querySelector('[data-mobile-appointment-duration="true"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[data-mobile-appointment-date="2026-07-25"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[data-mobile-appointment-date="2026-07-24"]'
+      )?.disabled
+    ).toBe(true)
+    expect(
+      container.querySelector<HTMLInputElement>(
+        '[aria-label="Choose appointment date"]'
+      )?.min
+    ).toBe('2026-07-25')
+    expect(
+      container.querySelector('[data-mobile-appointment-time="09:00"]')
+    ).not.toBeNull()
+
+    const scrollport = container.querySelector<HTMLElement>(
+      '[data-mobile-new-appointment-form="true"] [data-mobile-sheet-scroll="true"]'
+    )
+    Object.defineProperty(scrollport, 'scrollTop', {
+      configurable: true,
+      value: 100
+    })
+    await act(async () => scrollport?.dispatchEvent(new Event('scroll')))
+    expect(
+      container
+        .querySelector('[data-mobile-new-appointment-compact-header="true"]')
+        ?.getAttribute('data-visible')
+    ).toBe('true')
   })
 
   it('routes native cancellation through the spring close lifecycle', async () => {

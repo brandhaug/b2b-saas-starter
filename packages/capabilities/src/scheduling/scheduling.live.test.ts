@@ -2,6 +2,7 @@ import { Effect, Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   Database,
+  appointments,
   brands,
   layerFromD1,
   merchants,
@@ -116,6 +117,16 @@ beforeAll(async () => {
         serviceId: 'svc_live_schedule',
         createdAt: now
       })
+      yield* db.insert(appointments).values({
+        id: 'apt_live_schedule_busy',
+        merchantId: merchant.id,
+        providerId: 'prv_live_schedule',
+        status: 'scheduled',
+        startsAt: '2026-07-13T07:00:00.000Z',
+        endsAt: '2026-07-13T08:00:00.000Z',
+        createdAt: now,
+        updatedAt: now
+      })
       yield* db.insert(publicBookingPages).values({
         id: 'pg_live_schedule',
         merchantId: merchant.id,
@@ -158,6 +169,9 @@ describe('Live Scheduling and publication', () => {
     )
 
     expect(result.availability.slots[0]?.startsAt).toBe('2026-07-13T06:00:00.000Z')
+    expect(result.availability.slots.map((slot) => slot.startsAt)).not.toContain(
+      '2026-07-13T07:00:00.000Z'
+    )
     expect(result.readiness.ready).toBe(true)
     expect(result.page.publicName).toBe('Live Schedule Studio')
     expect(result.page.bookingPath).toBe('/live-schedule-studio/booking')

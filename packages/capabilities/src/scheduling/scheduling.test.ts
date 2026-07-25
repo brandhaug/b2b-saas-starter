@@ -70,6 +70,28 @@ describe('Scheduling and Public Booking Page', () => {
     ])
   })
 
+  it('removes slots that overlap an existing provider appointment', async () => {
+    const result = await run(
+      Effect.gen(function* () {
+        const scheduling = yield* Scheduling
+        yield* scheduling.saveProviderRules(scenario.provider.id, [
+          { weekday: 1, startTime: '12:00', endTime: '14:00' }
+        ])
+        return yield* scheduling.availability({
+          providerId: scenario.provider.id,
+          serviceId: scenario.services[1]!.id,
+          from: '2026-07-13T00:00:00.000Z',
+          days: 1
+        })
+      })
+    )
+
+    expect(result.slots.map((slot) => slot.startsAt)).toEqual([
+      '2026-07-13T09:00:00.000Z',
+      '2026-07-13T10:30:00.000Z'
+    ])
+  })
+
   it('publishes only when readiness is complete and unpublishes without deleting rules', async () => {
     const result = await run(
       Effect.gen(function* () {

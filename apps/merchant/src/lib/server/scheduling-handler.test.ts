@@ -52,6 +52,13 @@ describe('Merchant scheduling request boundary', () => {
 
     expect(result.rules[scenario.provider.id]).toHaveLength(2)
     expect(result.availability?.slots[0]?.startsAt).toBe('2026-07-13T06:00:00.000Z')
+    const appointmentAvailability = await requests.availability({
+      providerId: scenario.provider.id,
+      serviceId: scenario.services[0]!.id,
+      from: '2026-07-13T00:00:00.000Z',
+      days: 1
+    })
+    expect(appointmentAvailability.slots.length).toBeGreaterThan(0)
     await requests.setPublished(false)
     expect((await requests.read()).publication.status).toBe('unpublished')
   })

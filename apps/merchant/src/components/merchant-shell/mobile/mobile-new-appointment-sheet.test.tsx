@@ -10,10 +10,15 @@ vi.mock('@tanstack/react-router', () => ({
 describe('MobileNewAppointmentSheet', () => {
   it('renders the first appointment-booking step with required fields', () => {
     const html = renderToStaticMarkup(
-      <MobileNewAppointmentSheet open onRequestClose={vi.fn()} />
+      <MobileNewAppointmentSheet
+        open
+        appointmentDate="2026-07-25"
+        onRequestClose={vi.fn()}
+      />
     )
 
     expect(html).toContain('aria-label="Book an appointment"')
+    expect(html).toContain('tabindex="-1"')
     expect(html).toContain('data-mobile-new-appointment-sheet="true"')
     expect(html).toContain('data-mobile-new-appointment-field="client"')
     expect(html).toContain('data-mobile-new-appointment-field="service"')
@@ -30,7 +35,11 @@ describe('MobileNewAppointmentSheet', () => {
   it('does not mount while closed', () => {
     expect(
       renderToStaticMarkup(
-        <MobileNewAppointmentSheet open={false} onRequestClose={vi.fn()} />
+        <MobileNewAppointmentSheet
+          open={false}
+          appointmentDate="2026-07-25"
+          onRequestClose={vi.fn()}
+        />
       )
     ).toBe('')
   })

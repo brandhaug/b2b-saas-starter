@@ -53,6 +53,19 @@ export const makeSchedulingRequestHandler = (dependencies: {
       })
     )
   },
+  availability: async (input: {
+    readonly providerId: string
+    readonly serviceId: string
+    readonly from: string
+    readonly days?: number
+    readonly durationMinutes?: number
+  }) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(Scheduling, (scheduling) => scheduling.availability(input))
+    )
+  },
   saveRules: async (input: {
     readonly providerId: string
     readonly rules: readonly ScheduleRuleInput[]

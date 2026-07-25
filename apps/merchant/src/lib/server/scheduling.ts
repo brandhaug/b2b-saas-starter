@@ -17,6 +17,13 @@ const SaveRules = Schema.Struct({
   rules: Schema.Array(ScheduleRuleInput)
 })
 const SetPublished = Schema.Struct({ published: Schema.Boolean })
+const AppointmentAvailabilityInput = Schema.Struct({
+  providerId: Schema.String,
+  serviceId: Schema.String,
+  from: Schema.String,
+  days: Schema.optional(Schema.Number),
+  durationMinutes: Schema.optional(Schema.Number)
+})
 
 const run: SchedulingRunner = async (userId, effect) => {
   if (!env.DB)
@@ -46,6 +53,22 @@ export const getSchedulingConfiguration = createServerFn({ method: 'GET' }).hand
       requestsFor(session.user.id).read()
     )
 )
+
+export const getAppointmentAvailability = createServerFn({ method: 'GET' })
+  .validator(Schema.decodeUnknownSync(AppointmentAvailabilityInput))
+  .handler(({ data }) =>
+    runMerchantRequest('financial.read', (session) =>
+      requestsFor(session.user.id).availability({
+        providerId: data.providerId,
+        serviceId: data.serviceId,
+        from: data.from,
+        ...(data.days === undefined ? {} : { days: data.days }),
+        ...(data.durationMinutes === undefined
+          ? {}
+          : { durationMinutes: data.durationMinutes })
+      })
+    )
+  )
 
 export const saveScheduleRules = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(SaveRules))
