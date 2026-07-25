@@ -19,6 +19,7 @@ import type { OperatorInvitationDelivery } from './operations-email.ts'
 import { redirect } from './http-response.ts'
 
 const enrollmentCookieName = 'operations.enrollment'
+const operatorRoleNameSet = new Set(operatorRoleNames)
 
 const text = (form: FormData, name: string): string => {
   const value = form.get(name)
@@ -76,7 +77,7 @@ const invitationRoles = (form: FormData): readonly OperatorRole[] =>
     .getAll('roles')
     .filter(
       (role): role is OperatorRole =>
-        typeof role === 'string' && operatorRoleNames.includes(role as OperatorRole)
+        typeof role === 'string' && operatorRoleNameSet.has(role as OperatorRole)
     )
 
 const enrollmentError = (message: string, status = 400): Response =>

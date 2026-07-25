@@ -22,8 +22,8 @@ export const Route = createFileRoute('/')({
     memberQuery:
       typeof search.memberQuery === 'string' ? search.memberQuery.slice(0, 100) : ''
   }),
-  beforeLoad: requireOperationsSession,
   loaderDeps: ({ search }) => search,
+  beforeLoad: requireOperationsSession,
   loader: async ({ context, deps }) => {
     const session = context.session
     const discovery = deps.merchantQuery

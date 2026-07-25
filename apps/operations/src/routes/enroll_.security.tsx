@@ -50,12 +50,14 @@ function SecurityEnrollmentPage() {
             setMessage(null)
             void startOperatorSecurityEnrollment({
               data: { password: formValue(form, 'password') }
-            }).then((result) => {
-              if (result.state === 'ready') setSetup(result.data)
-              else if (result.state === 'redirect')
-                window.location.assign(result.location)
-              else setMessage(result.message)
             })
+              .then((result) => {
+                if (result.state === 'ready') setSetup(result.data)
+                else if (result.state === 'redirect')
+                  window.location.assign(result.location)
+                else setMessage(result.message)
+              })
+              .catch(() => setMessage('Security enrollment could not be started.'))
           }}
         >
           <Field label="Confirm password" name="password" type="password" required />
@@ -86,15 +88,18 @@ function SecurityEnrollmentPage() {
                   code: formValue(form, 'code'),
                   backupCodesConfirmed: formValue(form, 'backupCodesConfirmed')
                 }
-              }).then((result) => {
-                if (result.state === 'redirect') window.location.assign(result.location)
-                else
-                  setMessage(
-                    'message' in result
-                      ? result.message
-                      : 'Security enrollment could not be completed.'
-                  )
               })
+                .then((result) => {
+                  if (result.state === 'redirect')
+                    window.location.assign(result.location)
+                  else
+                    setMessage(
+                      'message' in result
+                        ? result.message
+                        : 'Security enrollment could not be completed.'
+                    )
+                })
+                .catch(() => setMessage('Security enrollment could not be completed.'))
             }}
           >
             <Field label="Authentication code" name="code" required />

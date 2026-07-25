@@ -166,7 +166,6 @@
         "tw-animate-css": "catalog:",
       },
       "devDependencies": {
-        "@b2b-saas-starter/config": "workspace:*",
         "@cloudflare/workers-types": "catalog:",
         "@playwright/test": "catalog:",
         "@tailwindcss/vite": "catalog:",

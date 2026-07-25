@@ -45,15 +45,17 @@ function SignInPage() {
               email: formValue(form, 'email'),
               password: formValue(form, 'password')
             }
-          }).then((result) => {
-            if (result.state === 'redirect') window.location.assign(result.location)
-            else
-              setMessage(
-                'message' in result
-                  ? result.message
-                  : 'Authentication was not accepted.'
-              )
           })
+            .then((result) => {
+              if (result.state === 'redirect') window.location.assign(result.location)
+              else
+                setMessage(
+                  'message' in result
+                    ? result.message
+                    : 'Authentication was not accepted.'
+                )
+            })
+            .catch(() => setMessage('Authentication was not accepted.'))
         }}
       >
         <Field label="Email" name="email" type="email" required />

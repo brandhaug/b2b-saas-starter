@@ -36,9 +36,7 @@ function RootDocument({ children }: { readonly children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <ThemeProvider defaultTheme="system" storageKey="theme">
-          {children}
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
         <Scripts />
       </body>
     </html>

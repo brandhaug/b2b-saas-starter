@@ -18,7 +18,6 @@ type AuditSearch = {
 }
 
 export const Route = createFileRoute('/audit')({
-  beforeLoad: requireOperationsSession,
   validateSearch: (search: Record<string, unknown>): AuditSearch => {
     const text = (name: string) => {
       const value = search[name]
@@ -40,6 +39,7 @@ export const Route = createFileRoute('/audit')({
     }
   },
   loaderDeps: ({ search }) => search,
+  beforeLoad: requireOperationsSession,
   loader: ({ deps }) => getAuditEvents({ data: deps }),
   component: AuditPage
 })

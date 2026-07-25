@@ -1,12 +1,10 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { ScriptOnce } from '@tanstack/react-router'
 
 type Theme = 'dark' | 'light' | 'system'
 
 type ThemeProviderProps = {
   children: React.ReactNode
-  defaultTheme?: Theme
-  storageKey?: string
 }
 
 type ThemeProviderState = {
@@ -22,6 +20,8 @@ function getThemeScript(storageKey: string, defaultTheme: Theme) {
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined)
+const defaultTheme: Theme = 'system'
+const storageKey = 'theme'
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement
@@ -62,11 +62,7 @@ function storeTheme(storageKey: string, theme: Theme) {
   }
 }
 
-export function ThemeProvider({
-  children,
-  defaultTheme = 'system',
-  storageKey = 'theme'
-}: ThemeProviderProps) {
+export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(defaultTheme)
   const [mounted, setMounted] = useState(false)
 
@@ -78,7 +74,7 @@ export function ThemeProvider({
         : defaultTheme
     )
     setMounted(true)
-  }, [defaultTheme, storageKey])
+  }, [])
 
   useEffect(() => {
     if (!mounted) return
@@ -95,13 +91,19 @@ export function ThemeProvider({
     return () => media.removeEventListener('change', onChange)
   }, [theme, mounted])
 
-  const setTheme = (next: Theme) => {
-    storeTheme(storageKey, next)
-    setThemeState(next)
-  }
+  const value = useMemo<ThemeProviderState>(
+    () => ({
+      theme,
+      setTheme: (next) => {
+        storeTheme(storageKey, next)
+        setThemeState(next)
+      }
+    }),
+    [theme]
+  )
 
   return (
-    <ThemeProviderContext value={{ theme, setTheme }}>
+    <ThemeProviderContext value={value}>
       <ScriptOnce>{getThemeScript(storageKey, defaultTheme)}</ScriptOnce>
       {children}
     </ThemeProviderContext>

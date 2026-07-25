@@ -56,16 +56,18 @@ function InviteOperatorPage() {
                 .getAll('roles')
                 .filter((role): role is string => typeof role === 'string')
             }
-          }).then((result) => {
-            if (result.state === 'ready') {
-              setInvitation(result.data.invitation)
-              setNotice(
-                `Invitation sent to ${result.data.invitation.email}. It expires at ${result.data.invitation.expiresAt}.`
-              )
-            } else if (result.state === 'redirect')
-              window.location.assign(result.location)
-            else setError(result.message)
           })
+            .then((result) => {
+              if (result.state === 'ready') {
+                setInvitation(result.data.invitation)
+                setNotice(
+                  `Invitation sent to ${result.data.invitation.email}. It expires at ${result.data.invitation.expiresAt}.`
+                )
+              } else if (result.state === 'redirect')
+                window.location.assign(result.location)
+              else setError(result.message)
+            })
+            .catch(() => setError('The invitation could not be sent.'))
         }}
       >
         <Field label="Dedicated operator email" name="email" type="email" required />
@@ -95,13 +97,16 @@ function InviteOperatorPage() {
               setError(null)
               void revokeOperatorInvitation({
                 data: { invitationId: invitation.id }
-              }).then((result) => {
-                if (result.state === 'redirect') window.location.assign(result.location)
-                else if (result.state === 'ready') {
-                  setInvitation(null)
-                  setNotice('Invitation revoked.')
-                } else setError(result.message)
               })
+                .then((result) => {
+                  if (result.state === 'redirect')
+                    window.location.assign(result.location)
+                  else if (result.state === 'ready') {
+                    setInvitation(null)
+                    setNotice('Invitation revoked.')
+                  } else setError(result.message)
+                })
+                .catch(() => setError('The invitation could not be revoked.'))
             }}
             type="button"
           >

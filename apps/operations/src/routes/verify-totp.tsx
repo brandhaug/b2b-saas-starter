@@ -34,8 +34,8 @@ function VerifyTotpPage() {
           event.preventDefault()
           const form = new FormData(event.currentTarget)
           setMessage(null)
-          void verifyOperatorTotp({ data: { code: formValue(form, 'code') } }).then(
-            (result) => {
+          void verifyOperatorTotp({ data: { code: formValue(form, 'code') } })
+            .then((result) => {
               if (result.state === 'redirect') window.location.assign(result.location)
               else
                 setMessage(
@@ -43,8 +43,8 @@ function VerifyTotpPage() {
                     ? result.message
                     : 'That authentication code was not accepted.'
                 )
-            }
-          )
+            })
+            .catch(() => setMessage('That authentication code was not accepted.'))
         }}
       >
         <Field label="Authentication code" name="code" required />

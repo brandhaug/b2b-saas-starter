@@ -15,6 +15,20 @@ import { useOperationsSignOut } from '@/hooks/use-operations-sign-out'
 import type { ScreenResult } from '@/lib/server/operations-server-functions.ts'
 import { ModeToggle } from './mode-toggle'
 
+const screenStateCopy = {
+  unauthenticated: ['Session expired', 'Sign in again to continue.'],
+  expired: ['Enrollment expired', 'Sign in to resume incomplete security enrollment.'],
+  forbidden: [
+    'Permission required',
+    'Your current Operator Permissions do not allow this view.'
+  ],
+  'not-found': ['Not found', 'The requested Operations record is unavailable.'],
+  unavailable: [
+    'Operations unavailable',
+    'The authoritative service could not complete this request. Try again shortly.'
+  ]
+} as const
+
 export function OperationsShell({
   eyebrow,
   title,
@@ -118,23 +132,7 @@ export function ScreenState({
 }: {
   readonly result: Exclude<ScreenResult<never>, { state: 'ready' }>
 }) {
-  const copy = {
-    unauthenticated: ['Session expired', 'Sign in again to continue.'],
-    expired: [
-      'Enrollment expired',
-      'Sign in to resume incomplete security enrollment.'
-    ],
-    forbidden: [
-      'Permission required',
-      'Your current Operator Permissions do not allow this view.'
-    ],
-    'not-found': ['Not found', 'The requested Operations record is unavailable.'],
-    unavailable: [
-      'Operations unavailable',
-      'The authoritative service could not complete this request. Try again shortly.'
-    ]
-  } as const
-  const [title, message] = copy[result.state]
+  const [title, message] = screenStateCopy[result.state]
   return (
     <section className="max-w-xl border border-border bg-card p-6" role="alert">
       <h2 className="text-xl font-semibold">{title}</h2>

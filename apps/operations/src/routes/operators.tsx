@@ -38,11 +38,11 @@ const reportMutation = (
 }
 
 export const Route = createFileRoute('/operators')({
-  beforeLoad: requireOperationsSession,
   validateSearch: (search: Record<string, unknown>) => ({
     result: typeof search.result === 'string' ? search.result : undefined,
     error: typeof search.error === 'string' ? search.error : undefined
   }),
+  beforeLoad: requireOperationsSession,
   loader: () => getManagedOperators(),
   component: OperatorsPage
 })
@@ -146,11 +146,13 @@ function OperatorCard({
                     .getAll('roles')
                     .filter((role): role is string => typeof role === 'string')
                 }
-              }).then((result) => {
-                reportMutation(result, 'Operator roles updated.', setMessage, () => {
-                  void router.invalidate()
-                })
               })
+                .then((result) => {
+                  reportMutation(result, 'Operator roles updated.', setMessage, () => {
+                    void router.invalidate()
+                  })
+                })
+                .catch(() => setMessage('Operator roles could not be updated.'))
             }}
           >
             <input name="expectedUpdatedAt" type="hidden" value={operator.updatedAt} />
@@ -182,16 +184,20 @@ function OperatorCard({
                     expectedUpdatedAt: formValue(form, 'expectedUpdatedAt'),
                     enabled: formValue(form, 'enabled') === 'true'
                   }
-                }).then((result) => {
-                  reportMutation(
-                    result,
-                    'Operator enabled state updated.',
-                    setMessage,
-                    () => {
-                      void router.invalidate()
-                    }
-                  )
                 })
+                  .then((result) => {
+                    reportMutation(
+                      result,
+                      'Operator enabled state updated.',
+                      setMessage,
+                      () => {
+                        void router.invalidate()
+                      }
+                    )
+                  })
+                  .catch(() =>
+                    setMessage('Operator enabled state could not be updated.')
+                  )
               }}
             >
               <input
@@ -223,11 +229,13 @@ function OperatorCard({
                       operatorId: operator.id,
                       expectedUpdatedAt: formValue(form, 'expectedUpdatedAt')
                     }
-                  }).then((result) => {
-                    reportMutation(result, 'Operator deleted.', setMessage, () => {
-                      void router.invalidate()
-                    })
                   })
+                    .then((result) => {
+                      reportMutation(result, 'Operator deleted.', setMessage, () => {
+                        void router.invalidate()
+                      })
+                    })
+                    .catch(() => setMessage('Operator could not be deleted.'))
                 }}
               >
                 <input

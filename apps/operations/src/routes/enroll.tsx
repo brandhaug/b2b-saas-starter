@@ -39,15 +39,17 @@ function EnrollmentAcceptancePage() {
                 name: formValue(form, 'name'),
                 password: formValue(form, 'password')
               }
-            }).then((result) => {
-              if (result.state === 'redirect') window.location.assign(result.location)
-              else
-                setMessage(
-                  'message' in result
-                    ? result.message
-                    : 'The invitation could not be accepted.'
-                )
             })
+              .then((result) => {
+                if (result.state === 'redirect') window.location.assign(result.location)
+                else
+                  setMessage(
+                    'message' in result
+                      ? result.message
+                      : 'The invitation could not be accepted.'
+                  )
+              })
+              .catch(() => setMessage('The invitation could not be accepted.'))
           }}
         >
           <input name="token" type="hidden" value={token} />

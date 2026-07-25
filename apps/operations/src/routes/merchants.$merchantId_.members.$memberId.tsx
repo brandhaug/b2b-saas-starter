@@ -88,12 +88,14 @@ function MerchantMemberDetailPage() {
                     supportReference: formValue(form, 'supportReference'),
                     code: formValue(form, 'code')
                   }
-                }).then((result) => {
-                  if (result.state === 'ready') setHandoff(result.data)
-                  else if (result.state === 'redirect')
-                    window.location.assign(result.location)
-                  else setMessage(result.message)
                 })
+                  .then((result) => {
+                    if (result.state === 'ready') setHandoff(result.data)
+                    else if (result.state === 'redirect')
+                      window.location.assign(result.location)
+                    else setMessage(result.message)
+                  })
+                  .catch(() => setMessage('The Pending Handoff could not be created.'))
               }}
             >
               <Field label="Internal Impersonation Reason" name="reason" required>

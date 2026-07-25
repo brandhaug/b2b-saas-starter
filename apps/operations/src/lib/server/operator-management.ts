@@ -17,6 +17,8 @@ import {
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { clientKey } from '@b2b-saas-starter/rate-limit'
 
+const operatorRoleNameSet = new Set(operatorRoleNames)
+
 const formText = (form: FormData, name: string): string => {
   const value = form.get(name)
   return typeof value === 'string' ? value : ''
@@ -106,8 +108,7 @@ export const handleOperatorManagementRoutes = async (
           .getAll('roles')
           .filter(
             (role): role is OperatorRole =>
-              typeof role === 'string' &&
-              operatorRoleNames.includes(role as OperatorRole)
+              typeof role === 'string' && operatorRoleNameSet.has(role as OperatorRole)
           )
         await runManagement((management) =>
           management.updateRoles(
