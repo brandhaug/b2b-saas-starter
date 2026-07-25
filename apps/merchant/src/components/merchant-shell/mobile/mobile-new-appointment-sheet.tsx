@@ -223,11 +223,8 @@ function AppointmentDraft({
               )
             }
             label={selectedClient?.name ?? 'Choose a client'}
-            detail={
-              selectedClient ? selectedClient.phone || selectedClient.email : undefined
-            }
             field="client"
-            tone="action"
+            tone={selectedClient ? 'selected' : 'action'}
             onClick={onChooseClient}
           />
           <AppointmentFieldRow
@@ -307,16 +304,14 @@ function AppointmentDraft({
 function AppointmentFieldRow({
   icon,
   label,
-  detail,
   field,
   tone,
   onClick
 }: {
   readonly icon: ReactNode
   readonly label: string
-  readonly detail?: string | undefined
   readonly field: string
-  readonly tone: 'action' | 'disabled'
+  readonly tone: 'action' | 'disabled' | 'selected'
   readonly onClick?: MouseEventHandler<HTMLButtonElement> | undefined
 }) {
   const disabled = tone === 'disabled'
@@ -337,18 +332,13 @@ function AppointmentFieldRow({
           className={`block truncate text-[1.0625rem] font-medium ${
             disabled
               ? 'text-muted-foreground'
-              : detail
+              : tone === 'selected'
                 ? 'text-foreground'
                 : 'text-info'
           }`}
         >
           {label}
         </span>
-        {detail ? (
-          <span className="mt-0.5 block truncate text-sm text-muted-foreground">
-            {detail}
-          </span>
-        ) : null}
       </span>
       {disabled ? null : (
         <ChevronRight

@@ -146,7 +146,12 @@ describe('MobileNewAppointmentSheet interaction', () => {
     expect(
       container.querySelector('[data-mobile-new-appointment-form="true"]')
     ).not.toBeNull()
-    expect(container.textContent).toContain('Alex Raucescu')
+    const selectedClientRow = container.querySelector(
+      '[data-mobile-new-appointment-field="client"]'
+    )
+    expect(selectedClientRow?.textContent).toContain('Alex Raucescu')
+    expect(selectedClientRow?.textContent).not.toContain('+40711111111')
+    expect(selectedClientRow?.textContent).not.toContain('alex@example.test')
     expect(
       container.querySelector<HTMLButtonElement>(
         '[data-mobile-new-appointment-field="client-notes"]'
