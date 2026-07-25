@@ -14,17 +14,21 @@
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/rate-limit": "workspace:*",
     "@fontsource-variable/onest": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
+    "@tanstack/react-router-ssr-query": "catalog:",
     "@tanstack/react-start": "catalog:",
     "better-auth": "catalog:",
+    "clsx": "catalog:",
     "effect": "catalog:",
     "lucide-react": "catalog:",
+    "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-grab": "^0.1.48"
+    "react-grab": "^0.1.48",
+    "tailwind-merge": "catalog:"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@types/react": "catalog:",

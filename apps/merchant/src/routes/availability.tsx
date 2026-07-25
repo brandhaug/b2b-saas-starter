@@ -39,12 +39,12 @@ function AvailabilityPage() {
       title="Availability"
       description={`Recurring weekly Provider hours use ${data.merchant.timezone}. Availability is derived live; generated Time Slots are never stored.`}
     >
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <section className="border bg-card p-5">
+      <div className="mt-2 grid gap-3 md:mt-8 md:gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border bg-muted/25 p-4 md:rounded-none md:bg-card md:p-5">
           <label className="grid gap-2 text-sm font-medium">
             Provider
             <select
-              className="h-9 rounded-md border bg-card px-3"
+              className="h-10 rounded-xl border bg-card px-3 md:h-9 md:rounded-md"
               value={providerId}
               onChange={(event) => setProviderId(event.target.value)}
             >
@@ -72,7 +72,7 @@ function AvailabilityPage() {
             ))}
           </ul>
         </section>
-        <section className="border bg-card p-5">
+        <section className="rounded-2xl border bg-muted/25 p-4 md:rounded-none md:bg-card md:p-5">
           <p className="text-sm font-semibold">Booking Readiness</p>
           <p className="mt-2 text-sm text-muted-foreground">
             {data.publication.readiness.ready
@@ -100,7 +100,7 @@ function AvailabilityPage() {
                 )
                 .finally(() => setPending(false))
             }}
-            className="mt-3 h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+            className="mt-3 h-10 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground md:h-9 md:rounded-md md:px-3"
           >
             {data.publication.status === 'published' ? 'Unpublish' : 'Publish'}
           </button>
@@ -156,7 +156,7 @@ function ProviderRulesForm({
       {drafts.map((rule) => (
         <div
           key={rule.key}
-          className="grid grid-cols-[6rem_1fr_1fr_auto] items-center gap-2"
+          className="grid grid-cols-2 items-center gap-2 md:grid-cols-[6rem_1fr_1fr_auto]"
         >
           <select
             aria-label="Weekday"
@@ -164,7 +164,7 @@ function ProviderRulesForm({
             onChange={(event) =>
               update(rule.key, { weekday: Number(event.target.value) })
             }
-            className="h-9 rounded-md border bg-card px-2 text-xs"
+            className="col-span-2 h-10 rounded-xl border bg-card px-3 text-sm md:col-span-1 md:h-9 md:rounded-md md:px-2 md:text-xs"
           >
             {weekdays.map((day, weekday) => (
               <option key={day} value={weekday}>
@@ -178,7 +178,7 @@ function ProviderRulesForm({
             required
             value={rule.startTime}
             onChange={(event) => update(rule.key, { startTime: event.target.value })}
-            className="h-9 rounded-md border bg-card px-2 text-xs"
+            className="h-10 rounded-xl border bg-card px-2 text-sm md:h-9 md:rounded-md md:text-xs"
           />
           <input
             aria-label="End time"
@@ -186,14 +186,14 @@ function ProviderRulesForm({
             required
             value={rule.endTime}
             onChange={(event) => update(rule.key, { endTime: event.target.value })}
-            className="h-9 rounded-md border bg-card px-2 text-xs"
+            className="h-10 rounded-xl border bg-card px-2 text-sm md:h-9 md:rounded-md md:text-xs"
           />
           <button
             type="button"
             onClick={() =>
               setDrafts((current) => current.filter((item) => item.key !== rule.key))
             }
-            className="h-9 px-2 text-xs text-muted-foreground"
+            className="col-span-2 h-9 justify-self-end px-2 text-xs text-muted-foreground md:col-span-1 md:justify-self-auto"
           >
             Remove
           </button>
@@ -212,7 +212,7 @@ function ProviderRulesForm({
             }
           ])
         }
-        className="h-9 rounded-md border px-3 text-sm"
+        className="h-10 rounded-xl border px-3 text-sm md:h-9 md:rounded-md"
       >
         Add interval
       </button>
@@ -236,7 +236,7 @@ function ProviderRulesForm({
             )
             .finally(() => onPending(false))
         }}
-        className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+        className="h-10 rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground md:h-9 md:rounded-md"
       >
         Save weekly hours
       </button>

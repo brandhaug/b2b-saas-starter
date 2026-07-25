@@ -34,7 +34,7 @@ export const createMerchantServerContext = () => {
     db,
     emailDelivery: () => createMerchantEmailDelivery(env, production()),
     production,
-    merchantOrigin: () => resolveMerchantAuthConfig(env, production()).baseURL,
+    merchantOrigin: () => resolveMerchantAuthConfig(env, production()).canonicalOrigin,
     merchantSecret: () => resolveMerchantAuthConfig(env, production()).secret
   }
 }

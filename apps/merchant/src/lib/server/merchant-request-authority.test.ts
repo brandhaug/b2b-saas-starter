@@ -99,6 +99,35 @@ describe('Merchant request impersonation boundary', () => {
     expect(authority.recordMutation).not.toHaveBeenCalled()
   })
 
+  it('authorizes a reused impersonated session without reading it again', async () => {
+    const readSession = vi.fn()
+    const authority = {
+      authorize: vi.fn().mockResolvedValue(authorization),
+      recordMutation: vi.fn()
+    }
+    const requests = makeMerchantRequestAuthority({
+      readSession,
+      authority,
+      unauthorized: () => new Error('unauthorized')
+    })
+    const session = {
+      session: { id: 'mss_request', impersonatedBy: 'opr_request' },
+      user: { id: 'mem_request' }
+    }
+
+    await expect(
+      requests.runSession(session, 'appointment.read', async (current) =>
+        Promise.resolve(current.user.id)
+      )
+    ).resolves.toBe('mem_request')
+
+    expect(readSession).not.toHaveBeenCalled()
+    expect(authority.authorize).toHaveBeenCalledWith({
+      merchantSessionId: 'mss_request',
+      action: 'appointment.read'
+    })
+  })
+
   it('does not misreport a completed mutation when accepted evidence persistence fails', async () => {
     const authority = {
       authorize: vi.fn().mockResolvedValue(authorization),

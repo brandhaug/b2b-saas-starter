@@ -1,27 +1,99 @@
 import type { ProviderCalendar } from '@b2b-saas-starter/capabilities/booking'
+import { useRouter } from '@tanstack/react-router'
+import { useMerchantPresentation } from '@/components/merchant-shell/merchant-presentation.tsx'
+import { MobileAppointmentSummary } from './mobile-appointment-summary.tsx'
 import { MobileAppointmentLedger } from './mobile-appointment-ledger.tsx'
 import { MobileDateHero } from './mobile-date-hero.tsx'
+import {
+  mobileAppointmentLedger,
+  mobileDateHeading
+} from './mobile-appointments-model.ts'
+import { MobileSchedulePullSurface } from './mobile-schedule-pull-surface.tsx'
+import { mobileScheduleGreeting } from './mobile-schedule-pull.ts'
 import { MobileWeekStrip } from './mobile-week-strip.tsx'
 import { useMobileCalendarDate } from './use-mobile-calendar-date.ts'
+import { appointmentDayTarget } from './week-navigation.ts'
 
 export function MobileAppointmentsScreen({
   calendar,
-  selectedDate
+  selectedDate,
+  pending = false,
+  previousCalendar,
+  nextCalendar,
+  viewerName
 }: {
   readonly calendar: ProviderCalendar
   readonly selectedDate: string | undefined
+  readonly pending?: boolean
+  readonly previousCalendar?: ProviderCalendar | undefined
+  readonly nextCalendar?: ProviderCalendar | undefined
+  readonly viewerName?: string | undefined
 }) {
   const date = selectedDate ?? calendar.date
   const currentDate = useMobileCalendarDate(calendar.timezone)
-  return (
+  const presentation = useMerchantPresentation()
+  const router = useRouter()
+  const mobile = presentation === 'mobile'
+  const appointmentCount = mobileAppointmentLedger(
+    calendar.providers,
+    calendar.timezone
+  ).length
+  const [weekday = 'Selected day'] = mobileDateHeading(date).fullDate.split(',')
+  const appointmentSummary = (
+    <MobileAppointmentSummary
+      appointmentCount={appointmentCount}
+      isToday={date === currentDate}
+      pending={pending}
+      weekday={weekday}
+    />
+  )
+  const selectDate = (nextDate: string) => {
+    void router.navigate({
+      to: '/appointments',
+      search: { date: nextDate },
+      viewTransition: false
+    })
+  }
+  const schedule = (
     <>
-      <MobileDateHero
-        date={date}
+      <MobileWeekStrip
+        selectedDate={date}
         currentDate={currentDate}
-        timezone={calendar.timezone}
+        spacing={presentation === 'desktop' ? 'desktop' : 'mobile'}
+        onSelectDate={selectDate}
       />
-      <MobileWeekStrip selectedDate={date} currentDate={currentDate} />
-      <MobileAppointmentLedger calendar={calendar} />
+      <MobileAppointmentLedger
+        calendar={calendar}
+        previousCalendar={previousCalendar}
+        nextCalendar={nextCalendar}
+        pending={pending}
+        scrollable={mobile}
+        onSwipeDay={(direction) => selectDate(appointmentDayTarget(date, direction))}
+      />
     </>
+  )
+  return (
+    <div
+      data-mobile-appointments-layout={mobile ? 'scrolling-ledger' : undefined}
+      className={mobile ? 'flex min-h-0 flex-1 flex-col' : 'contents'}
+    >
+      {mobile ? (
+        <>
+          <MobileDateHero
+            date={date}
+            currentDate={currentDate}
+            timezone={calendar.timezone}
+          />
+          <MobileSchedulePullSurface
+            greeting={mobileScheduleGreeting(calendar.timezone, undefined, viewerName)}
+            summary={appointmentSummary}
+          >
+            {schedule}
+          </MobileSchedulePullSurface>
+        </>
+      ) : (
+        schedule
+      )}
+    </div>
   )
 }

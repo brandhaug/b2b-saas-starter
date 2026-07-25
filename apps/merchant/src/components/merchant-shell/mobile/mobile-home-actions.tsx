@@ -1,101 +1,109 @@
 import { Link } from '@tanstack/react-router'
-import { Ellipsis, ListOrdered, Scissors, UserRound, UsersRound } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
-import type { ReactNode } from 'react'
-import type { MerchantDestination } from '../navigation.tsx'
-import { MobileNavigationSheet } from './mobile-navigation-sheet.tsx'
-import { mobileSheetNavigationState } from './mobile-sheet-gesture.ts'
+import { MobileCalendarSheet } from './mobile-calendar-sheet.tsx'
+import { useMobileSheetStack } from './mobile-sheet-stack.tsx'
 
-const visibleActions = [
-  { to: '/walk-ins', icon: <ListOrdered aria-hidden /> },
-  { to: '/customers', icon: <UsersRound aria-hidden /> },
-  { to: '/services', icon: <Scissors aria-hidden /> },
-  { to: '/providers', icon: <UserRound aria-hidden /> }
-] as const
-
-const homeRoutePaths = new Set<string>([
-  '/appointments',
-  ...visibleActions.map((action) => action.to)
-])
+export const mobileCalendarDockAction = (
+  selectedDate: string,
+  currentDate: string
+): 'open-calendar' | 'return-today' =>
+  selectedDate === currentDate ? 'open-calendar' : 'return-today'
 
 export function MobileHomeActions({
-  destinations,
-  appointmentDate
+  appointmentDate,
+  currentDate,
+  bookingUrl
 }: {
-  readonly destinations: readonly MerchantDestination[]
-  readonly appointmentDate: string | undefined
+  readonly appointmentDate: string
+  readonly currentDate: string
+  readonly bookingUrl: string | undefined
 }) {
-  const [navigationOpen, setNavigationOpen] = useState(false)
-  const destinationsByRoute = new Map(
-    destinations.map((destination) => [destination.to, destination])
-  )
-  const moreDestinations = destinations.filter(
-    (destination) => !homeRoutePaths.has(destination.to)
-  )
+  const stack = useMobileSheetStack()
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const settingsOpen = stack?.enabled === true && stack.menuOpen
+  const calendarAction = mobileCalendarDockAction(appointmentDate, currentDate)
+  const sideActionClass =
+    'merchant-home-action-surface grid size-14 shrink-0 place-items-center rounded-full border text-foreground transition-transform active:scale-[0.94]'
+  const primaryActionClass =
+    'merchant-home-action-surface grid h-14 w-24 shrink-0 place-items-center rounded-[1.75rem] border text-foreground transition-transform active:scale-[0.96]'
 
   return (
     <>
+      <div className="merchant-home-action-fade pointer-events-none fixed inset-x-0 bottom-0 z-40 h-32" />
       <nav
         aria-label="Merchant home actions"
-        className="merchant-safe-area-inline fixed inset-x-0 bottom-0 z-40 border-t bg-background px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        className="merchant-safe-area-inline pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4"
       >
-        <div className="mx-auto grid max-w-md grid-cols-6 gap-2">
-          {visibleActions.map((action, index) => {
-            const destination = destinationsByRoute.get(action.to)
-            if (!destination) return null
-            return (
-              <HomeAction
-                key={destination.to}
-                destination={destination}
-                icon={action.icon}
-                className={index < 2 ? 'col-span-3' : 'col-span-2'}
-                appointmentDate={appointmentDate}
-              />
-            )
-          })}
+        <div className="merchant-mobile-home-action-group pointer-events-auto flex w-full items-center justify-between">
           <button
             type="button"
+            aria-label="Open settings"
             aria-haspopup="dialog"
-            aria-expanded={navigationOpen}
-            className="col-span-2 grid min-h-[4.75rem] place-content-center gap-1 rounded-3xl border bg-card/95 px-3 text-sm font-bold text-foreground shadow-xl backdrop-blur active:scale-[0.98] active:bg-muted"
-            onClick={() => setNavigationOpen(true)}
+            aria-expanded={settingsOpen}
+            data-mobile-home-action="settings"
+            className={sideActionClass}
+            onClick={() => stack?.openMenu()}
           >
-            <Ellipsis aria-hidden className="mx-auto size-6" strokeWidth={2.5} />
-            More
+            <Settings aria-hidden className="size-6" strokeWidth={2.25} />
           </button>
+
+          {bookingUrl ? (
+            <a
+              href={bookingUrl}
+              aria-label="New appointment"
+              data-mobile-home-action="new-appointment"
+              className={primaryActionClass}
+            >
+              <Plus aria-hidden className="size-8" strokeWidth={2.5} />
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              aria-label="New appointment"
+              title="Publish the booking page to add appointments"
+              data-mobile-home-action="new-appointment"
+              className={`${primaryActionClass} disabled:cursor-not-allowed disabled:opacity-45`}
+            >
+              <Plus aria-hidden className="size-8" strokeWidth={2.5} />
+            </button>
+          )}
+
+          {calendarAction === 'return-today' ? (
+            <Link
+              to="/appointments"
+              search={{ date: currentDate }}
+              replace
+              viewTransition={false}
+              aria-label="Return to today"
+              data-mobile-home-action="calendar"
+              className={sideActionClass}
+            >
+              <ArrowLeft aria-hidden className="size-7" strokeWidth={2.5} />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              aria-label="Open calendar"
+              aria-haspopup="dialog"
+              aria-expanded={calendarOpen}
+              data-mobile-home-action="calendar"
+              className={sideActionClass}
+              onClick={() => setCalendarOpen(true)}
+            >
+              <CalendarDays aria-hidden className="size-6" strokeWidth={2.25} />
+            </button>
+          )}
         </div>
       </nav>
-      <MobileNavigationSheet
-        destinations={moreDestinations}
-        appointmentDate={appointmentDate}
-        open={navigationOpen}
-        onRequestClose={() => setNavigationOpen(false)}
+
+      <MobileCalendarSheet
+        open={calendarOpen}
+        selectedDate={appointmentDate}
+        currentDate={currentDate}
+        onRequestClose={() => setCalendarOpen(false)}
       />
     </>
-  )
-}
-
-function HomeAction({
-  destination,
-  icon,
-  className,
-  appointmentDate
-}: {
-  readonly destination: MerchantDestination
-  readonly icon: ReactNode
-  readonly className: string
-  readonly appointmentDate: string | undefined
-}) {
-  return (
-    <Link
-      to={destination.to}
-      viewTransition={false}
-      state={mobileSheetNavigationState}
-      search={appointmentDate ? { date: appointmentDate } : {}}
-      className={`${className} grid min-h-[4.75rem] place-content-center gap-1 rounded-3xl border bg-card/95 px-3 text-center text-sm font-bold text-foreground shadow-xl backdrop-blur active:scale-[0.98] active:bg-muted`}
-    >
-      <span className="mx-auto [&>svg]:size-6">{icon}</span>
-      {destination.label}
-    </Link>
   )
 }

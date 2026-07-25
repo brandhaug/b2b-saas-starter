@@ -3,8 +3,15 @@ import { UserRound, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { AnimationEvent, ReactNode } from 'react'
 import { BeeSoloLogo } from '@/components/beesolo-logo.tsx'
+import { useMobileCalendarDate } from '@/features/appointments/mobile/use-mobile-calendar-date.ts'
+import {
+  hasMerchantOverlayNavigationOrigin,
+  merchantOverlayNavigationState
+} from '@/lib/merchant-home-route.ts'
 import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
-import { DesktopHomeActions, DesktopHomePlaceholder } from './desktop-home-actions.tsx'
+import { MerchantHomeAtmosphere } from '../home-atmosphere.tsx'
+import { DesktopDateHeader } from './desktop-date-header.tsx'
+import { DesktopHomeActions } from './desktop-home-actions.tsx'
 
 export function DesktopShell({
   layout,
@@ -13,6 +20,7 @@ export function DesktopShell({
   title,
   description,
   headerDate,
+  headerTimezone,
   children
 }: {
   readonly layout: 'home' | 'modal'
@@ -21,32 +29,26 @@ export function DesktopShell({
   readonly title: string
   readonly description: string
   readonly headerDate?: string | undefined
+  readonly headerTimezone?: string | undefined
   readonly children: ReactNode
 }) {
   if (layout === 'home')
     return (
       <DesktopStage>
-        <DesktopHomeCard destinations={destinations} headerDate={headerDate}>
+        <DesktopHomeCard
+          destinations={destinations}
+          headerDate={headerDate}
+          headerTimezone={headerTimezone}
+        >
           {children}
         </DesktopHomeCard>
       </DesktopStage>
     )
 
   return (
-    <DesktopStage>
-      <div aria-hidden="true" className="merchant-desktop-home-behind">
-        <DesktopHomeCard
-          destinations={destinations}
-          headerDate={headerDate}
-          interactive={false}
-        >
-          <DesktopHomePlaceholder />
-        </DesktopHomeCard>
-      </div>
-      <DesktopRouteModal section={section} title={title} description={description}>
-        {children}
-      </DesktopRouteModal>
-    </DesktopStage>
+    <DesktopRouteModal section={section} title={title} description={description}>
+      {children}
+    </DesktopRouteModal>
   )
 }
 
@@ -82,6 +84,10 @@ function DesktopRouteModal({
   const navigateHome = () => {
     if (hasNavigatedRef.current) return
     hasNavigatedRef.current = true
+    if (hasMerchantOverlayNavigationOrigin(location.state)) {
+      router.history.back()
+      return
+    }
     void router.navigate({
       to: '/appointments',
       search: { date: appointmentDate }
@@ -162,32 +168,44 @@ function DesktopStage({ children }: { readonly children: ReactNode }) {
 function DesktopHomeCard({
   destinations,
   headerDate,
+  headerTimezone,
   interactive = true,
   children
 }: {
   readonly destinations: readonly MerchantDestination[]
   readonly headerDate?: string | undefined
+  readonly headerTimezone?: string | undefined
   readonly interactive?: boolean
   readonly children: ReactNode
 }) {
   const location = useLocation()
   const appointmentDate = headerDate ?? appointmentDateFromSearch(location.search)
+  const timezone = headerTimezone ?? 'UTC'
+  const currentDate = useMobileCalendarDate(timezone)
 
   return (
     <section
       aria-label="Merchant desktop home"
-      className="merchant-desktop-home-card relative z-10 flex h-[750px] w-[448px] flex-col overflow-hidden rounded-xl border text-foreground shadow-lg"
+      className="merchant-desktop-home-card relative z-10 flex h-full w-full max-w-md md:h-[750px] flex-col overflow-hidden md:rounded-3xl text-foreground shadow-alyn"
     >
-      <header className="grid h-20 shrink-0 grid-cols-[2.75rem_1fr_2.75rem] items-center px-5">
+      <MerchantHomeAtmosphere />
+      <header className="relative z-10 grid h-20 shrink-0 grid-cols-[2.75rem_1fr_2.75rem] items-center px-4">
         <span className="grid size-11 place-items-center">
           <MerchantLogo />
         </span>
-        <span className="justify-self-center text-sm font-medium text-white/45">
-          {formatDesktopHeaderDate(appointmentDate)}
-        </span>
+        <div className="min-w-0 justify-self-stretch px-2">
+          {appointmentDate ? (
+            <DesktopDateHeader date={appointmentDate} currentDate={currentDate} />
+          ) : null}
+        </div>
         {interactive ? (
           <Link
             to="/settings"
+            search={appointmentDate ? { date: appointmentDate } : {}}
+            state={(previous) =>
+              merchantOverlayNavigationState(previous, appointmentDate)
+            }
+            viewTransition={false}
             aria-label="Open Settings"
             className="grid size-11 place-items-center rounded-full text-muted-foreground transition-transform hover:text-foreground active:scale-[0.98]"
           >
@@ -203,11 +221,15 @@ function DesktopHomeCard({
           </span>
         )}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
-        <div className="mt-5">{children}</div>
+      <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
+        <div>{children}</div>
       </div>
-      <div className="shrink-0 border-t bg-background px-4 pt-3 pb-4">
-        <DesktopHomeActions destinations={destinations} interactive={interactive} />
+      <div className="relative z-10 shrink-0 px-4 pt-3 pb-4">
+        <DesktopHomeActions
+          destinations={destinations}
+          appointmentDate={appointmentDate}
+          interactive={interactive}
+        />
       </div>
     </section>
   )
@@ -224,22 +246,4 @@ function appointmentDateFromSearch(search: unknown) {
     typeof search.date === 'string'
     ? search.date
     : undefined
-}
-
-function formatDesktopHeaderDate(appointmentDate: string | undefined) {
-  if (!appointmentDate) return ''
-
-  const date = new Date(`${appointmentDate}T12:00:00.000Z`)
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.toISOString().slice(0, 10) !== appointmentDate
-  )
-    return ''
-
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC'
-  }).format(date)
 }

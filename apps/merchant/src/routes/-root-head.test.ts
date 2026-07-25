@@ -29,11 +29,15 @@ describe('merchant head links', () => {
     expect(merchantThemeBootScript).toContain("localStorage.getItem('merchant-theme')")
     expect(merchantThemeBootScript).toContain('prefers-color-scheme: dark')
     expect(merchantThemeBootScript).toContain("classList.toggle('dark', dark)")
+    expect(merchantThemeBootScript).toContain('dataset.merchantTimeTheme')
   })
 
   it('allows the pre-paint theme script to change the document class before hydration', () => {
     const rootSource = readFileSync(new URL('./__root.tsx', import.meta.url), 'utf8')
 
     expect(rootSource).toContain('suppressHydrationWarning')
+    expect(rootSource.indexOf('<HeadContent />')).toBeLessThan(
+      rootSource.indexOf('<script dangerouslySetInnerHTML')
+    )
   })
 })

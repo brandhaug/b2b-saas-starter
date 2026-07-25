@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import {
   MOBILE_MERCHANT_PRESENTATION_QUERY,
   type MerchantPresentation
@@ -8,23 +8,12 @@ import {
 export type { MerchantPresentation } from '@/lib/merchant-presentation.ts'
 
 const MerchantPresentationContext = createContext<MerchantPresentation | null>(null)
-type MobileHomeUnderlayOrigin = 'none' | 'reconstructed' | 'retained'
-type MobileHomeUnderlay = {
-  readonly content: RefObject<ReactNode>
-  readonly date: RefObject<string | undefined>
-  readonly origin: RefObject<MobileHomeUnderlayOrigin>
-}
-const MobileHomeUnderlayContext = createContext<MobileHomeUnderlay | null>(null)
 
 export function MerchantPresentationProvider({
   presentation,
-  mobileHomeUnderlay,
-  mobileHomeDate,
   children
 }: {
   readonly presentation: MerchantPresentation
-  readonly mobileHomeUnderlay?: ReactNode
-  readonly mobileHomeDate?: string | undefined
   readonly children: ReactNode
 }) {
   const [responsivePresentation, setResponsivePresentation] = useState(presentation)
@@ -45,26 +34,12 @@ export function MerchantPresentationProvider({
       'merchant-mobile-document',
       responsivePresentation === 'mobile'
     )
-    return () =>
-      document.documentElement.classList.remove('merchant-mobile-document')
+    return () => document.documentElement.classList.remove('merchant-mobile-document')
   }, [responsivePresentation])
 
-  const mobileHomeUnderlayRef = useRef<ReactNode>(mobileHomeUnderlay ?? null)
-  const mobileHomeDateRef = useRef<string | undefined>(mobileHomeDate)
-  const mobileHomeUnderlayOriginRef = useRef<MobileHomeUnderlayOrigin>(
-    mobileHomeUnderlay === undefined ? 'none' : 'reconstructed'
-  )
   return (
     <MerchantPresentationContext value={responsivePresentation}>
-      <MobileHomeUnderlayContext
-        value={{
-          content: mobileHomeUnderlayRef,
-          date: mobileHomeDateRef,
-          origin: mobileHomeUnderlayOriginRef
-        }}
-      >
-        {children}
-      </MobileHomeUnderlayContext>
+      {children}
     </MerchantPresentationContext>
   )
 }
@@ -78,10 +53,6 @@ export function useMerchantPresentation(): MerchantPresentation {
   return presentation
 }
 
-export function useMobileHomeUnderlay() {
-  return useContext(MobileHomeUnderlayContext)
-}
-
 export function MerchantPresentationBoundary({
   desktop,
   mobile
@@ -90,5 +61,5 @@ export function MerchantPresentationBoundary({
   readonly mobile: ReactNode
 }) {
   const presentation = useMerchantPresentation()
-  return presentation === 'mobile' ? mobile : desktop
+  return <>{presentation === 'mobile' ? mobile : desktop}</>
 }

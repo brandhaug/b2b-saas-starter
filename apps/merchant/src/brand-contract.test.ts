@@ -1,7 +1,18 @@
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
 const stylesUrl = new URL('./index.css', import.meta.url)
+const pokeAtmosphereAssets = [
+  'poke-morning-sky.jpg',
+  'poke-afternoon-sky.jpg',
+  'poke-evening-sky.jpg',
+  'poke-night-sky.jpg',
+  'poke-beach-morning.jpeg',
+  'poke-beach-afternoon.jpeg',
+  'poke-beach-evening.jpeg',
+  'poke-beach-night.jpeg',
+  'poke-noise.png'
+].map((asset) => new URL(`../public/brand/backgrounds/poke/${asset}`, import.meta.url))
 
 describe('merchant BeeSolo brand contract', () => {
   it('uses the canonical honey primary with black foreground in both themes', async () => {
@@ -20,11 +31,41 @@ describe('merchant BeeSolo brand contract', () => {
     expect(mobilePresentation).not.toContain('color-scheme:')
   })
 
-  it('uses the BeeSolo sky asset without CSS gradients', async () => {
+  it('uses the four time-specific Poke atmosphere pairs', async () => {
+    const css = await readFile(stylesUrl, 'utf8')
+    await Promise.all(pokeAtmosphereAssets.map((asset) => access(asset)))
+
+    for (const theme of ['morning', 'afternoon', 'evening', 'night']) {
+      expect(css).toContain(`:root[data-merchant-time-theme='${theme}']`)
+      expect(css).toContain(`url('/brand/backgrounds/poke/poke-${theme}-sky.jpg')`)
+      expect(css).toContain(`url('/brand/backgrounds/poke/poke-beach-${theme}.jpeg')`)
+    }
+    expect(css).toContain('background: var(--merchant-sky-gradient)')
+    expect(css).toContain('background-image: var(--merchant-sky-image)')
+    expect(css).toContain('width: max(100%, 125rem)')
+    expect(css).toContain('height: max(100%, 75rem)')
+    expect(css).toContain('opacity: 0.9')
+    expect(css).not.toContain('--merchant-sky-image-filter')
+  })
+
+  it('composes the retained home surface from an opaque theme color and grain', async () => {
     const css = await readFile(stylesUrl, 'utf8')
 
-    expect(css).toContain("background-image: url('/brand/hero-sky.svg')")
-    expect(css).not.toContain('gradient')
+    expect(css).toContain('--merchant-home-surface: rgb(224 242 254)')
+    expect(css).toContain('--merchant-home-surface: rgb(17 23 32)')
+    expect(css).toContain(
+      "background-image: url('/brand/backgrounds/poke/poke-noise.png')"
+    )
+    expect(css).toContain('background-image: var(--merchant-home-hero-image)')
+    expect(css).toContain('background-blend-mode: overlay')
+    expect(css).toContain(
+      'mask-image: linear-gradient(to bottom, transparent 0%, black 30px)'
+    )
+    expect(css).toContain('opacity: var(--merchant-home-sheet-dim-opacity)')
+    expect(css).not.toContain(
+      'filter: brightness(var(--merchant-home-sheet-brightness))'
+    )
+    expect(css).toContain('scale(var(--merchant-home-sheet-scale))')
   })
 
   it('exposes sidebar and status roles to Tailwind', async () => {

@@ -43,6 +43,10 @@
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
+  --shadow-alyn:
+    0 0 1px 0 var(--tw-shadow-color, #0003),
+    0 2px 4px 0 var(--tw-shadow-color, #0000000a),
+    0 16px 22px 0 var(--tw-shadow-color, #00000008);
 }
 
 :root {
@@ -89,6 +93,21 @@
   --shadow-sm: 0 1px 3px rgb(26 26 26 / 10%), 0 1px 2px -1px rgb(26 26 26 / 10%);
   --shadow-md: 0 1px 3px rgb(26 26 26 / 10%), 0 2px 4px -1px rgb(26 26 26 / 10%);
   --shadow-lg: 0 1px 3px rgb(26 26 26 / 10%), 0 4px 6px -1px rgb(26 26 26 / 10%);
+  --merchant-sky-gradient: linear-gradient(
+    0deg,
+    rgb(56 189 248 / 60%) 0%,
+    rgb(186 230 253 / 60%) 50%,
+    rgb(224 242 254 / 70%) 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-afternoon-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-afternoon.jpeg');
+  --merchant-home-hero-scale: 1.45;
+  --merchant-home-surface: rgb(224 242 254);
+  --merchant-home-surface-rgb: 224 242 254;
+  --merchant-home-foreground: rgb(75 85 99);
+  --merchant-home-muted-foreground: rgb(156 163 175);
+  --merchant-home-action-surface: rgb(224 242 254 / 30%);
+  --merchant-home-action-hover: rgb(240 249 255 / 50%);
 }
 
 .dark {
@@ -124,6 +143,91 @@
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-border: oklch(0.28 0 0);
   --sidebar-ring: oklch(0.9 0.1739 96.8561);
+  --merchant-sky-gradient: linear-gradient(
+    #010203 0%,
+    #020508 25%,
+    #030a12 50%,
+    #040d1a 75%,
+    #071a2a 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-night-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-night.jpeg');
+  --merchant-home-hero-scale: 1.3;
+  --merchant-home-surface: rgb(17 23 32);
+  --merchant-home-surface-rgb: 17 23 32;
+  --merchant-home-foreground: rgb(255 255 255);
+  --merchant-home-muted-foreground: rgb(255 255 255 / 70%);
+  --merchant-home-action-surface: rgb(46 49 62 / 30%);
+  --merchant-home-action-hover: rgb(240 249 255 / 25%);
+}
+
+:root[data-merchant-time-theme='morning'] {
+  --merchant-sky-gradient: linear-gradient(
+    180deg,
+    #ced6eb 0%,
+    #e9e2e8 50%,
+    #ced6eb 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-morning-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-morning.jpeg');
+  --merchant-home-hero-scale: 1.4;
+  --merchant-home-surface: rgb(248 250 252);
+  --merchant-home-surface-rgb: 248 250 252;
+  --merchant-home-foreground: rgb(75 85 99);
+  --merchant-home-muted-foreground: rgb(156 163 175);
+  --merchant-home-action-surface: rgb(248 250 252 / 30%);
+  --merchant-home-action-hover: rgb(237 233 254 / 50%);
+}
+
+:root[data-merchant-time-theme='afternoon'] {
+  --merchant-sky-gradient: linear-gradient(
+    0deg,
+    rgb(56 189 248 / 60%) 0%,
+    rgb(186 230 253 / 60%) 50%,
+    rgb(224 242 254 / 70%) 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-afternoon-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-afternoon.jpeg');
+  --merchant-home-hero-scale: 1.45;
+  --merchant-home-surface: rgb(224 242 254);
+  --merchant-home-surface-rgb: 224 242 254;
+  --merchant-home-foreground: rgb(75 85 99);
+  --merchant-home-muted-foreground: rgb(156 163 175);
+  --merchant-home-action-surface: rgb(224 242 254 / 30%);
+  --merchant-home-action-hover: rgb(240 249 255 / 50%);
+}
+
+:root[data-merchant-time-theme='evening'] {
+  --merchant-sky-gradient: linear-gradient(0deg, #f7b385 0%, #f0bea9 50%, #fff3ef 100%);
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-evening-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-evening.jpeg');
+  --merchant-home-hero-scale: 1.4;
+  --merchant-home-surface: rgb(255 247 237);
+  --merchant-home-surface-rgb: 255 247 237;
+  --merchant-home-foreground: rgb(75 85 99);
+  --merchant-home-muted-foreground: rgb(156 163 175);
+  --merchant-home-action-surface: rgb(255 247 237 / 30%);
+  --merchant-home-action-hover: rgb(255 237 213 / 50%);
+}
+
+:root[data-merchant-time-theme='night'] {
+  --merchant-sky-gradient: linear-gradient(
+    180deg,
+    #010203 0%,
+    #020508 25%,
+    #030a12 50%,
+    #040d1a 75%,
+    #071a2a 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-night-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-night.jpeg');
+  --merchant-home-hero-scale: 1.3;
+  --merchant-home-surface: rgb(17 23 32);
+  --merchant-home-surface-rgb: 17 23 32;
+  --merchant-home-foreground: rgb(255 255 255);
+  --merchant-home-muted-foreground: rgb(255 255 255 / 70%);
+  --merchant-home-action-surface: rgb(46 49 62 / 30%);
+  --merchant-home-action-hover: rgb(240 249 255 / 25%);
 }
 
 .merchant-mobile {
@@ -131,42 +235,136 @@
 }
 
 .merchant-desktop-stage {
-  background-color: #ddf2ff;
-  background-image: url('/brand/hero-sky.svg');
-  background-position: top center;
-  background-size: cover;
+  background: var(--merchant-sky-gradient);
   isolation: isolate;
 }
 
 .merchant-desktop-stage::before {
-  content: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: max(100%, 125rem);
+  height: max(100%, 75rem);
+  content: '';
+  pointer-events: none;
+  background-image: var(--merchant-sky-image);
+  background-position: top left;
+  background-size: 100% 100%;
+  opacity: 0.9;
 }
 
 .merchant-desktop-home-card {
-  background: var(--background);
+  --foreground: var(--merchant-home-foreground);
+  --muted-foreground: var(--merchant-home-muted-foreground);
+  --card: var(--merchant-home-action-surface);
+  --card-foreground: var(--merchant-home-foreground);
+  --border: color-mix(in oklab, var(--merchant-home-foreground) 14%, transparent);
+  background: var(--merchant-home-surface);
   color: var(--foreground);
 }
 
+.merchant-mobile-home {
+  --merchant-schedule-pull-progress: 0;
+  --foreground: var(--merchant-home-foreground);
+  --muted-foreground: var(--merchant-home-muted-foreground);
+  --card: var(--merchant-home-action-surface);
+  --card-foreground: var(--merchant-home-foreground);
+  --border: color-mix(in oklab, var(--merchant-home-foreground) 14%, transparent);
+  isolation: isolate;
+  background: var(--merchant-home-surface);
+}
+
+.merchant-home-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('/brand/backgrounds/poke/poke-noise.png');
+  background-repeat: repeat;
+  background-position: 0 0;
+  background-size: 100px;
+  background-blend-mode: overlay;
+  opacity: 0.6;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30px);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 30px);
+}
+
+.merchant-home-hero {
+  position: absolute;
+  top: 4rem;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  height: 24rem;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.merchant-home-hero-image {
+  position: absolute;
+  inset: 0;
+  background-image: var(--merchant-home-hero-image);
+  background-position: center;
+  background-size: cover;
+  transform: scale(var(--merchant-home-hero-scale));
+  transform-origin: center;
+}
+
+.merchant-home-hero-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(
+    ellipse 90% 65% at center,
+    rgb(var(--merchant-home-surface-rgb) / 0%) 0%,
+    rgb(var(--merchant-home-surface-rgb) / 0%) 5%,
+    rgb(var(--merchant-home-surface-rgb) / 90%) 55%,
+    rgb(var(--merchant-home-surface-rgb) / 100%) 80%
+  );
+}
+
+.merchant-home-hero-grain {
+  z-index: 2;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
 .merchant-desktop-action {
-  border: 1px solid var(--border);
-  background: var(--card);
+  border: 1px solid var(--merchant-home-action-surface);
+  background: var(--merchant-home-action-surface);
   color: var(--foreground);
-  transition:
-    transform 160ms ease,
-    background-color 160ms ease;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: transform 160ms ease;
 }
 
 a.merchant-desktop-action:hover,
 summary.merchant-desktop-action:hover {
   transform: translateY(-1px);
-  background: var(--accent);
+  background: var(--merchant-home-action-hover);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
-.merchant-desktop-home-behind {
-  position: absolute;
-  z-index: 1;
-  filter: saturate(0.72) brightness(0.64);
-  transform: scale(0.985);
+.merchant-home-action-surface {
+  border-color: var(--merchant-home-action-surface);
+  background: var(--merchant-home-action-surface);
+  box-shadow:
+    0 0 1px #0003,
+    0 2px 4px #0000000a,
+    0 16px 22px #00000008;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.merchant-home-action-fade {
+  background: linear-gradient(
+    to top,
+    var(--merchant-home-surface),
+    color-mix(in oklab, var(--merchant-home-surface) 82%, transparent),
+    transparent
+  );
 }
 
 .merchant-desktop-modal {
@@ -183,7 +381,9 @@ summary.merchant-desktop-action:hover {
   border-radius: 1.5rem;
   background: var(--background);
   color: var(--foreground);
-  box-shadow: 0 28px 100px rgb(0 0 0 / 58%);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 10%),
+    0 4px 6px -4px rgb(0 0 0 / 10%);
 }
 
 .merchant-desktop-modal[open] {
@@ -191,33 +391,34 @@ summary.merchant-desktop-action:hover {
 }
 
 .merchant-desktop-modal::backdrop {
-  background: rgb(2 6 14 / 52%);
-  backdrop-filter: blur(5px);
+  background: transparent;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 .merchant-desktop-modal[data-desktop-modal-state='entering'] {
-  animation: merchant-desktop-modal-enter 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: merchant-desktop-modal-enter 150ms ease both;
 }
 
 .merchant-desktop-modal[data-desktop-modal-state='entering']::backdrop {
-  animation: merchant-desktop-backdrop-enter 180ms ease-out both;
+  animation: merchant-overlay-backdrop-enter 150ms ease both;
 }
 
 .merchant-desktop-modal[data-desktop-modal-state='closing'] {
   pointer-events: none;
-  animation: merchant-desktop-modal-exit 130ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: merchant-desktop-modal-exit 150ms ease both;
+}
+
+.merchant-desktop-modal[data-desktop-modal-state='closing']::backdrop {
+  animation: merchant-overlay-backdrop-exit 150ms ease both;
 }
 
 @keyframes merchant-desktop-modal-enter {
-  0% {
+  from {
     opacity: 0;
-    transform: scale(0.965);
+    transform: translateY(2%) scale(0.95);
   }
-  68% {
-    opacity: 1;
-    transform: scale(1.006);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: scale(1);
   }
@@ -229,14 +430,33 @@ summary.merchant-desktop-action:hover {
     transform: scale(1);
   }
   to {
-    opacity: 1;
-    transform: scale(0.96);
+    opacity: 0;
+    transform: translateY(2%) scale(0.95);
   }
 }
 
-@keyframes merchant-desktop-backdrop-enter {
+@keyframes merchant-overlay-backdrop-enter {
   from {
-    background: transparent;
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0);
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+}
+
+@keyframes merchant-overlay-backdrop-exit {
+  from {
+    opacity: 1;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  to {
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0);
     backdrop-filter: blur(0);
   }
 }
@@ -248,37 +468,91 @@ html.merchant-mobile-document {
   -webkit-tap-highlight-color: transparent;
 }
 
+html.merchant-mobile-document body {
+  background: var(--merchant-home-surface);
+}
+
+html.merchant-mobile-document body::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: black;
+  content: '';
+  pointer-events: none;
+  opacity: var(--merchant-mobile-sheet-outside-dim-opacity, 0);
+}
+
+html.merchant-mobile-document body[data-mobile-sheet-underlay='active']::before {
+  will-change: opacity;
+}
+
+html.merchant-mobile-document .merchant-home-layer {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  transform-origin: 50% 0;
+  transition:
+    transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, border-radius;
+}
+
+html.merchant-mobile-document
+  .merchant-home-layer[data-mobile-sheet-underlay='active'] {
+  overflow: hidden;
+  border-radius: var(--merchant-home-sheet-radius) !important;
+  transform: translate3d(0, var(--merchant-home-sheet-translate-y), 0)
+    scale(var(--merchant-home-sheet-scale)) !important;
+  transition-duration: 0ms !important;
+}
+
+html.merchant-mobile-document
+  .merchant-home-layer[data-mobile-sheet-underlay='active']::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2147483646;
+  border-radius: inherit;
+  background: black;
+  content: '';
+  pointer-events: none;
+  opacity: var(--merchant-home-sheet-dim-opacity);
+  will-change: opacity;
+}
+
 .merchant-route-sheet {
-  --merchant-sheet-drag-y: 0px;
+  --merchant-sheet-translate-y: 0px;
   width: 100%;
   max-width: none;
   margin-right: 0;
   margin-left: 0;
   padding: 0;
   color: inherit;
-  transform: translate3d(0, var(--merchant-sheet-drag-y), 0);
-  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translate3d(0, var(--merchant-sheet-translate-y), 0);
+  transition: none;
   box-shadow: 0 -18px 60px color-mix(in oklab, black 42%, transparent);
   will-change: transform;
 }
 
 .merchant-route-sheet[data-mobile-sheet-state='entering'] {
-  animation: merchant-route-sheet-enter 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-
-.merchant-route-sheet[data-mobile-sheet-state='dragging'] {
-  transition: none;
-}
-
-.merchant-route-sheet[data-mobile-sheet-state='settling'] {
-  transition-duration: 320ms;
-  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  --merchant-sheet-translate-y: 100dvh;
+  transform: translate3d(0, var(--merchant-sheet-translate-y), 0);
 }
 
 .merchant-route-sheet[data-mobile-sheet-state='closing'] {
   pointer-events: none;
-  transition-duration: 260ms;
-  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+.merchant-floating-sheet-panel.merchant-route-sheet,
+.merchant-floating-sheet-panel.merchant-calendar-panel {
+  --merchant-floating-sheet-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  position: absolute;
+  right: 0.5rem;
+  bottom: var(--merchant-floating-sheet-bottom);
+  left: 0.5rem;
+  width: auto;
+  min-height: min(29rem, calc(100dvh - var(--merchant-floating-sheet-bottom) - 0.5rem));
+  max-height: calc(100dvh - var(--merchant-floating-sheet-bottom) - 0.5rem);
+  border-radius: 2.25rem;
 }
 
 .merchant-more-dialog {
@@ -298,6 +572,30 @@ html.merchant-mobile-document {
 .merchant-more-dialog::backdrop {
   background: color-mix(in oklab, black 58%, transparent);
   backdrop-filter: blur(3px);
+}
+
+.merchant-calendar-dialog::backdrop {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.merchant-calendar-dialog[data-calendar-sheet-state='entering']::backdrop {
+  animation: none;
+}
+
+.merchant-more-panel.merchant-calendar-panel {
+  --merchant-calendar-drag-y: 0px;
+  padding-bottom: 0;
+  border-bottom: 1px solid var(--border);
+  transform: translate3d(0, var(--merchant-calendar-drag-y), 0);
+  transition: none;
+  animation: none;
+  will-change: transform;
+}
+
+.merchant-calendar-dialog[data-calendar-sheet-state='closing']::backdrop {
+  animation: none;
 }
 
 .merchant-more-dismiss {
@@ -396,6 +694,11 @@ body {
   padding-left: max(1.25rem, var(--merchant-safe-area-left));
 }
 
+.merchant-sheet-safe-inline {
+  padding-right: max(1rem, var(--merchant-safe-area-right));
+  padding-left: max(1rem, var(--merchant-safe-area-left));
+}
+
 .merchant-safe-area-page {
   padding-top: max(1.5rem, var(--merchant-safe-area-top));
   padding-right: max(1.5rem, var(--merchant-safe-area-right));
@@ -421,6 +724,102 @@ select {
   cursor: grabbing;
 }
 
+.merchant-sheet-scrollport {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.merchant-sheet-scrollport::-webkit-scrollbar {
+  display: none;
+}
+
+.merchant-mobile-appointment-carousel {
+  --merchant-appointment-day-swipe-x: 0px;
+  width: calc(100% + 2 * var(--merchant-schedule-content-inline));
+  margin-inline-start: calc(-1 * var(--merchant-schedule-content-inline));
+}
+
+.merchant-mobile-appointment-scrollport {
+  scrollbar-width: none;
+  scroll-behavior: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-bottom: calc(8rem + var(--merchant-safe-area-bottom));
+}
+
+.merchant-mobile-appointment-carousel-track {
+  transform: translate3d(var(--merchant-appointment-day-swipe-x), 0, 0);
+  will-change: transform;
+}
+
+.merchant-mobile-appointment-scrollport::-webkit-scrollbar {
+  display: none;
+}
+
+.merchant-mobile-schedule-pull-region {
+  --merchant-schedule-pull-progress: 0;
+  --merchant-schedule-pull-reveal-progress: 0;
+}
+
+.merchant-mobile-home-action-group {
+  width: calc(100% - (100% - 14.5rem) * var(--merchant-schedule-pull-progress));
+  will-change: width;
+}
+
+.merchant-mobile-day-summary {
+  opacity: var(--merchant-schedule-pull-progress);
+  transform: translate3d(
+    0,
+    calc((1 - var(--merchant-schedule-pull-progress)) * 1rem),
+    0
+  );
+  will-change: opacity, transform;
+}
+
+.merchant-mobile-day-summary-hero {
+  top: -2rem;
+  right: -1.25rem;
+  left: -1.25rem;
+  height: 26rem;
+}
+
+.merchant-mobile-schedule-pull-surface {
+  --merchant-schedule-pull-y: 0px;
+  width: calc(100% + 2.5rem - 1rem * var(--merchant-schedule-pull-progress));
+  margin-inline-start: calc(-1.25rem + 0.5rem * var(--merchant-schedule-pull-progress));
+  padding-top: calc(1.25rem * var(--merchant-schedule-pull-progress));
+  border-radius: calc(2.5rem * var(--merchant-schedule-pull-reveal-progress))
+    calc(2.5rem * var(--merchant-schedule-pull-reveal-progress)) 0 0;
+  background: color-mix(
+    in oklab,
+    var(--merchant-home-surface)
+      calc(var(--merchant-schedule-pull-reveal-progress) * 82%),
+    transparent
+  );
+  box-shadow:
+    inset 0 1px 0
+      color-mix(
+        in oklab,
+        var(--border) calc(var(--merchant-schedule-pull-reveal-progress) * 80%),
+        transparent
+      ),
+    0 calc(-18px * var(--merchant-schedule-pull-reveal-progress)) 48px
+      color-mix(
+        in oklab,
+        black calc(var(--merchant-schedule-pull-reveal-progress) * 12%),
+        transparent
+      );
+  transform: translate3d(0, var(--merchant-schedule-pull-y), 0);
+  will-change: transform, border-radius, background-color, box-shadow;
+}
+
+.merchant-mobile-schedule-pull-content {
+  --merchant-schedule-content-inline: calc(
+    1.25rem - 0.5rem * var(--merchant-schedule-pull-progress)
+  );
+  padding-inline: var(--merchant-schedule-content-inline);
+  will-change: padding;
+}
+
 button:not(:disabled),
 [role='button']:not(:disabled) {
   cursor: pointer;
@@ -432,10 +831,6 @@ input:focus-visible,
 select:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-}
-
-::selection {
-  background: color-mix(in oklab, var(--primary) 24%, transparent);
 }
 
 .prototype-grid {
@@ -475,6 +870,14 @@ select:focus-visible {
   }
 
   .merchant-route-sheet {
+    transition-duration: 1ms;
+  }
+
+  .merchant-more-panel.merchant-calendar-panel {
+    transition-duration: 1ms;
+  }
+
+  html.merchant-mobile-document .merchant-home-layer {
     transition-duration: 1ms;
   }
 }

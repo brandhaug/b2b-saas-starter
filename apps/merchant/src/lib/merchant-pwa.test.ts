@@ -76,7 +76,10 @@ describe('authenticated Merchant App PWA assets', () => {
   it('defines four-sided safe-area composition for edge-to-edge windows', async () => {
     const styles = await readFile(new URL('../index.css', import.meta.url), 'utf8')
     const homeActions = await readFile(
-      new URL('../components/merchant-shell/mobile/mobile-home-actions.tsx', import.meta.url),
+      new URL(
+        '../components/merchant-shell/mobile/mobile-home-actions.tsx',
+        import.meta.url
+      ),
       'utf8'
     )
 

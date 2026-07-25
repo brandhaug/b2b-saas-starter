@@ -12,8 +12,13 @@ describe('Merchant Better Auth runtime configuration', () => {
   it('keeps provider-light local defaults in development', () => {
     expect(resolveMerchantAuthConfig({}, false)).toEqual({
       secret: 'local-merchant-auth-secret-change-me-minimum-32-chars',
-      baseURL: 'http://localhost:3072',
-      trustedOrigins: ['http://localhost:3072']
+      baseURL: {
+        allowedHosts: ['localhost:*', '192.168.*.*:*', 'localhost:3072'],
+        protocol: 'auto',
+        fallback: 'http://localhost:3072'
+      },
+      canonicalOrigin: 'http://localhost:3072',
+      trustedOrigins: []
     })
   })
 
@@ -75,6 +80,7 @@ describe('Merchant Better Auth runtime configuration', () => {
     expect(resolveMerchantAuthConfig(production, true)).toEqual({
       secret: production.MERCHANT_AUTH_SECRET,
       baseURL: production.MERCHANT_AUTH_URL,
+      canonicalOrigin: production.MERCHANT_AUTH_URL,
       trustedOrigins: [production.MERCHANT_AUTH_URL]
     })
   })

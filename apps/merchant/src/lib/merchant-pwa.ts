@@ -17,7 +17,7 @@ export const merchantPwaHeadMeta = [
     content: '#171717',
     media: '(prefers-color-scheme: dark)'
   },
+  { name: 'mobile-web-app-capable', content: 'yes' },
   { name: 'apple-mobile-web-app-capable', content: 'yes' },
-  { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
   { name: 'apple-mobile-web-app-title', content: 'BeeSolo' }
 ] as const

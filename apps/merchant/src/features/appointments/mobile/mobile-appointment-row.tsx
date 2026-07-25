@@ -20,14 +20,14 @@ export function MobileAppointmentRow({
   const status = statusPresentation[appointment.status]
   const StatusIcon = status.icon
   return (
-    <li className="border-b border-dashed border-border/70 last:border-b-0">
+    <li className="relative after:pointer-events-none after:absolute after:inset-x-5 after:bottom-0 after:border-b after:border-dashed after:border-border/70 after:content-[''] last:after:hidden">
       <Link
         to="/appointments/$appointmentId"
         viewTransition={false}
         state={mobileSheetNavigationState}
         params={{ appointmentId: appointment.id }}
         search={{ date }}
-        className="grid min-h-24 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 py-4"
+        className="grid min-h-24 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 px-7 py-4"
         aria-label={`${appointment.customerName}, ${appointment.time}, ${status.label}`}
       >
         <StatusIcon className={`size-6 ${status.className}`} strokeWidth={2.5} />

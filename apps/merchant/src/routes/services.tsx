@@ -42,9 +42,9 @@ function ServicesPage() {
       title="Services"
       description="Configure customer-facing details first, then choose the Providers who can perform each Service. Inactive Services stay available for history."
     >
-      <div className="mt-8 grid overflow-hidden border bg-card lg:grid-cols-[minmax(18rem,0.8fr)_minmax(22rem,1.2fr)]">
-        <div className="border-b lg:border-r lg:border-b-0">
-          <div className="flex items-center justify-between border-b px-4 py-3">
+      <div className="mt-2 grid gap-3 md:mt-8 md:gap-0 md:overflow-hidden md:border md:bg-card lg:grid-cols-[minmax(18rem,0.8fr)_minmax(22rem,1.2fr)]">
+        <div className="overflow-hidden rounded-2xl border bg-muted/30 md:rounded-none md:border-0 md:border-b md:bg-transparent lg:border-r lg:border-b-0">
+          <div className="flex min-h-14 items-center justify-between border-b border-border/70 px-4">
             <p className="text-sm font-semibold">Catalog</p>
             <button
               type="button"
@@ -52,7 +52,7 @@ function ServicesPage() {
                 setContinueToProvidersId(null)
                 setSelectedId(null)
               }}
-              className="h-9 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"
+              className="h-8 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground md:h-9 md:rounded-md"
             >
               New service
             </button>
@@ -66,7 +66,7 @@ function ServicesPage() {
                   setContinueToProvidersId(null)
                   setSelectedId(service.id)
                 }}
-                className={`grid w-full grid-cols-[1fr_auto] gap-3 border-b px-4 py-4 text-left last:border-b-0 ${service.id === selected?.id ? 'bg-accent' : 'hover:bg-muted'}`}
+                className={`grid min-h-16 w-full grid-cols-[1fr_auto] items-center gap-3 border-b border-border/70 px-4 py-3 text-left last:border-b-0 active:bg-muted/70 md:py-4 ${service.id === selected?.id ? 'bg-accent' : 'md:hover:bg-muted'}`}
               >
                 <span>
                   <span className="block text-sm font-medium">{service.name}</span>
@@ -79,7 +79,7 @@ function ServicesPage() {
               </button>
             ))
           ) : (
-            <p className="p-5 text-sm text-muted-foreground">
+            <p className="p-4 text-sm leading-5 text-muted-foreground md:p-5">
               Create the first Service customers will be able to book.
             </p>
           )}
@@ -127,8 +127,8 @@ function ServiceEditor({
   }
 
   return (
-    <div className="min-w-0">
-      <div className="grid grid-cols-2 border-b bg-muted p-1">
+    <div className="min-w-0 overflow-hidden rounded-2xl border bg-muted/20 md:rounded-none md:border-0 md:bg-transparent">
+      <div className="grid grid-cols-2 border-b border-border/70 bg-muted p-1">
         <StepButton active={step === 'details'} onClick={() => setStep('details')}>
           1 · Details
         </StepButton>
@@ -142,7 +142,7 @@ function ServiceEditor({
       </div>
       {step === 'details' ? (
         <form
-          className="grid gap-4 p-5"
+          className="grid gap-3 p-4 md:gap-4 md:p-5"
           onSubmit={(event) => {
             event.preventDefault()
             const form = new FormData(event.currentTarget)
@@ -183,7 +183,7 @@ function ServiceEditor({
               name="description"
               defaultValue={service?.description ?? ''}
               maxLength={300}
-              className="min-h-24 rounded-md border bg-card px-3 py-2"
+              className="min-h-24 rounded-xl border bg-card px-3 py-2 md:rounded-md"
             />
           </label>
           <Field
@@ -233,7 +233,7 @@ function ServiceEditor({
           <button
             type="submit"
             disabled={pending}
-            className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+            className="h-10 rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground md:h-9 md:rounded-md"
           >
             {pending
               ? 'Saving…'
@@ -243,7 +243,7 @@ function ServiceEditor({
           </button>
         </form>
       ) : service ? (
-        <div className="p-5">
+        <div className="p-4 md:p-5">
           <p className="text-sm font-semibold">Provider eligibility</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Eligibility is stored explicitly. Default status and Merchant membership do
@@ -253,7 +253,7 @@ function ServiceEditor({
             {choices.map((choice) => (
               <label
                 key={choice.id}
-                className="flex items-center gap-3 rounded-md border p-3 text-sm font-medium"
+                className="flex min-h-12 items-center gap-3 rounded-xl border p-3 text-sm font-medium md:rounded-md"
               >
                 <input
                   type="checkbox"
@@ -282,7 +282,7 @@ function ServiceEditor({
                 .then(() => finish('Provider eligibility saved.'))
                 .catch(() => finish('Eligibility could not be saved.'))
             }}
-            className="mt-5 h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+            className="mt-5 h-10 rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground md:h-9 md:rounded-md"
           >
             {pending ? 'Saving…' : 'Save eligibility'}
           </button>
@@ -302,7 +302,7 @@ function StepButton({
   return (
     <button
       type="button"
-      className={`h-9 rounded-md text-sm font-medium ${active ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
+      className={`h-9 rounded-xl text-sm font-medium md:rounded-md ${active ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
       {...props}
     />
   )
@@ -315,7 +315,10 @@ function Field({
   return (
     <label className="grid gap-1.5 text-sm">
       {label}
-      <input className="h-9 rounded-md border bg-card px-3" {...props} />
+      <input
+        className="h-10 rounded-xl border bg-card px-3 md:h-9 md:rounded-md"
+        {...props}
+      />
     </label>
   )
 }
@@ -327,7 +330,10 @@ function SelectField({
   return (
     <label className="grid gap-1.5 text-sm">
       {label}
-      <select className="h-9 rounded-md border bg-card px-3" {...props}>
+      <select
+        className="h-10 rounded-xl border bg-card px-3 md:h-9 md:rounded-md"
+        {...props}
+      >
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
       </select>

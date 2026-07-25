@@ -47,6 +47,10 @@ export const getWalkInShops = createServerFn({ method: 'GET' }).handler(
     )
 )
 
+export const getWalkInQueues = createServerFn({ method: 'GET' }).handler(async () =>
+  runMerchantRequest('walk-in.read', (session) => requestsFor(session.user.id).queues())
+)
+
 export const getWalkInQueue = createServerFn({ method: 'GET' })
   .validator(Schema.decodeUnknownSync(QueueInput))
   .handler(

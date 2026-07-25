@@ -3,12 +3,15 @@ import { DesktopShell } from './desktop/desktop-shell.tsx'
 import { MerchantPresentationBoundary } from './merchant-presentation.tsx'
 import { merchantDestinations, type MerchantShellSection } from './navigation.tsx'
 import { MobileShell } from './mobile/mobile-shell.tsx'
+import { useMobileSheetRouteRegistration } from './mobile/mobile-sheet-stack.tsx'
 
 export function MerchantShell({
   section,
   title,
   description,
   headerDate,
+  headerTimezone,
+  bookingUrl,
   layout = 'sheet',
   children
 }: {
@@ -16,10 +19,22 @@ export function MerchantShell({
   readonly title: string
   readonly description: string
   readonly headerDate?: string | undefined
+  readonly headerTimezone?: string | undefined
+  readonly bookingUrl?: string | undefined
   readonly layout?: 'home' | 'sheet' | 'task'
   readonly children: ReactNode
 }) {
   const destinations = merchantDestinations()
+  const managedMobileSheet = useMobileSheetRouteRegistration(
+    layout === 'home'
+      ? null
+      : {
+          section,
+          title,
+          description,
+          layout: layout === 'task' ? 'task' : 'sheet'
+        }
+  )
 
   return (
     <MerchantPresentationBoundary
@@ -31,6 +46,7 @@ export function MerchantShell({
           title={title}
           description={description}
           headerDate={headerDate}
+          headerTimezone={headerTimezone}
         >
           {children}
         </DesktopShell>
@@ -41,10 +57,14 @@ export function MerchantShell({
             layout="home"
             section={section}
             destinations={destinations}
-            date={headerDate}
+            date={headerDate!}
+            timezone={headerTimezone!}
+            bookingUrl={bookingUrl}
           >
             {children}
           </MobileShell>
+        ) : managedMobileSheet ? (
+          <>{children}</>
         ) : (
           <MobileShell
             layout={layout}

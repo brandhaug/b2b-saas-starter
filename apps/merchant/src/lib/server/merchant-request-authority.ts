@@ -75,38 +75,50 @@ export const makeMerchantRequestAuthority = <
     return authorizeSession(session, action)
   }
 
-  return {
-    authorize,
-    authorizeOptional,
-    run: async <Result>(
-      action: ImpersonatedMerchantAction,
-      use: (session: Session) => Promise<Result>
-    ): Promise<Result> => {
-      const { session, authorization } = await authorize(action)
-      const businessEventId = `impersonation-mutation:${crypto.randomUUID()}`
-      let result: Result
-      try {
-        result = await use(session)
-      } catch (error) {
-        if (authorization && isImpersonatedMerchantMutation(action)) {
-          await recordMutation({
-            businessEventId,
-            authorization,
-            action,
-            result: 'rejected'
-          })
-        }
-        throw error
-      }
+  const useAuthorizedSession = async <Result>(
+    authorized: Awaited<ReturnType<typeof authorizeSession>>,
+    action: ImpersonatedMerchantAction,
+    use: (session: Session) => Promise<Result>
+  ): Promise<Result> => {
+    const { session, authorization } = authorized
+    const businessEventId = `impersonation-mutation:${crypto.randomUUID()}`
+    let result: Result
+    try {
+      result = await use(session)
+    } catch (error) {
       if (authorization && isImpersonatedMerchantMutation(action)) {
         await recordMutation({
           businessEventId,
           authorization,
           action,
-          result: 'accepted'
+          result: 'rejected'
         })
       }
-      return result
+      throw error
     }
+    if (authorization && isImpersonatedMerchantMutation(action)) {
+      await recordMutation({
+        businessEventId,
+        authorization,
+        action,
+        result: 'accepted'
+      })
+    }
+    return result
+  }
+
+  return {
+    authorize,
+    authorizeOptional,
+    runSession: async <Result>(
+      session: Session,
+      action: ImpersonatedMerchantAction,
+      use: (session: Session) => Promise<Result>
+    ): Promise<Result> =>
+      useAuthorizedSession(await authorizeSession(session, action), action, use),
+    run: async <Result>(
+      action: ImpersonatedMerchantAction,
+      use: (session: Session) => Promise<Result>
+    ): Promise<Result> => useAuthorizedSession(await authorize(action), action, use)
   }
 }

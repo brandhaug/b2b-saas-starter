@@ -1,9 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import {
-  ImpersonationBanner,
-  remainingImpersonationSeconds
-} from './impersonation-banner.tsx'
+import { ImpersonationBanner } from './impersonation-banner.tsx'
+import { remainingImpersonationSeconds } from './impersonation-banner-utils.ts'
 
 describe('ImpersonationBanner', () => {
   it('shows an unmistakable non-dismissible disclosure and stop action', () => {

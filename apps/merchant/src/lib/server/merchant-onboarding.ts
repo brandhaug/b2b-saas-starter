@@ -4,6 +4,7 @@ import { Effect, Schema } from 'effect'
 import {
   MerchantOnboarding,
   MerchantOnboardingPayload,
+  merchantPublicBookingUrl,
   type MerchantOnboardingStatus,
   type MerchantRecord
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
@@ -21,15 +22,28 @@ const runMerchantCatalog = <A, E>(effect: Effect.Effect<A, E, MerchantOnboarding
   )
 }
 
-export const getMerchantOnboardingStatus = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<MerchantOnboardingStatus> => {
-    return runMerchantRequest('merchant.read', (session) =>
-      runMerchantCatalog(
-        Effect.flatMap(MerchantOnboarding, (onboarding) =>
-          onboarding.status(session.user.id)
-        )
+const readMerchantOnboardingStatus = (): Promise<MerchantOnboardingStatus> =>
+  runMerchantRequest('merchant.read', (session) =>
+    runMerchantCatalog(
+      Effect.flatMap(MerchantOnboarding, (onboarding) =>
+        onboarding.status(session.user.id)
       )
     )
+  )
+
+export const getMerchantOnboardingStatus = createServerFn({ method: 'GET' }).handler(
+  readMerchantOnboardingStatus
+)
+
+export const getMerchantPublicBookingUrl = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<string | undefined> => {
+    const status = await readMerchantOnboardingStatus()
+    return status.state === 'merchant'
+      ? merchantPublicBookingUrl(
+          status.merchant,
+          env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071'
+        )
+      : undefined
   }
 )
 

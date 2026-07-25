@@ -51,6 +51,12 @@ const getSession = createServerFn({ method: 'GET' }).handler(
     (await merchantRequests().authorizeOptional('merchant.navigate'))?.session ?? null
 )
 
+export const getMerchantViewer = createServerFn({ method: 'GET' }).handler(async () => {
+  const authorized = await merchantRequests().authorizeOptional('merchant.navigate')
+  const name = authorized?.session.user.name?.trim()
+  return name ? { name } : null
+})
+
 /** Navigation uses a redirect; server mutations must use UnauthorizedError. */
 export const requireMerchantSession = async (redirectTo: string) => {
   return merchantSessionOrRedirect(await getSession(), redirectTo)
@@ -69,3 +75,9 @@ export const runMerchantRequest = <Result>(
   action: ImpersonatedMerchantAction,
   use: (session: Awaited<ReturnType<typeof readSession>> & {}) => Promise<Result>
 ): Promise<Result> => merchantRequests().run(action, use)
+
+export const runMerchantRequestWithSession = <Result>(
+  session: Awaited<ReturnType<typeof readSession>> & {},
+  action: ImpersonatedMerchantAction,
+  use: (session: Awaited<ReturnType<typeof readSession>> & {}) => Promise<Result>
+): Promise<Result> => merchantRequests().runSession(session, action, use)

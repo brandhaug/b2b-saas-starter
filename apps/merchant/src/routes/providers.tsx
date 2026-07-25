@@ -34,9 +34,10 @@ function ProvidersPage() {
       >
         <Link
           to="/services"
+          replace
           viewTransition={false}
           state={mobileSheetNavigationState}
-          className="mt-6 inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+          className="mt-2 inline-flex h-10 items-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground md:mt-6 md:rounded-md"
         >
           Configure services
         </Link>
@@ -50,12 +51,12 @@ function ProvidersPage() {
       title="Providers"
       description="Team Provider editing keeps the reduced Profile, Services, and Schedule vocabulary. Schedule rules arrive in the next configuration slice."
     >
-      <div className="mt-8 grid overflow-hidden border bg-card lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <aside className="border-b p-3 lg:border-r lg:border-b-0">
+      <div className="mt-2 grid gap-3 md:mt-8 md:gap-0 md:overflow-hidden md:border md:bg-card lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <aside className="overflow-hidden rounded-2xl border bg-muted/30 p-2 md:rounded-none md:border-0 md:border-b md:bg-transparent md:p-3 lg:border-r lg:border-b-0">
           <button
             type="button"
             onClick={() => setSelectedId(null)}
-            className="mb-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+            className="mb-2 h-10 w-full rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground md:mb-3 md:h-auto md:rounded-md md:py-2"
           >
             New provider
           </button>
@@ -64,7 +65,7 @@ function ProvidersPage() {
               key={item.id}
               type="button"
               onClick={() => setSelectedId(item.id)}
-              className={`mb-1 w-full rounded-md px-3 py-3 text-left ${provider?.id === item.id ? 'bg-accent' : 'hover:bg-muted'}`}
+              className={`mb-1 min-h-14 w-full rounded-xl px-3 py-2 text-left active:bg-muted/70 md:rounded-md md:py-3 ${provider?.id === item.id ? 'bg-accent' : 'md:hover:bg-muted'}`}
             >
               <span className="block truncate text-sm font-medium">
                 {item.displayName}
@@ -127,22 +128,22 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
   }
 
   return (
-    <div className="min-w-0">
-      <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-w-0 overflow-hidden rounded-2xl border bg-muted/20 md:rounded-none md:border-0 md:bg-transparent">
+      <div className="flex flex-col gap-3 border-b border-border/70 p-4 md:gap-4 md:p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-semibold">{provider?.displayName ?? 'Create provider'}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {provider?.isDefault ? 'Default provider' : 'Team provider'}
           </p>
         </div>
-        <div className="flex rounded-md bg-secondary p-1">
+        <div className="flex rounded-xl bg-secondary p-1 md:rounded-md">
           {(['profile', 'services', 'schedule'] as const).map((item) => (
             <button
               key={item}
               type="button"
               disabled={!provider && item !== 'profile'}
               onClick={() => setTab(item)}
-              className={`h-9 rounded-md px-3 text-xs font-medium capitalize ${tab === item ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
+              className={`h-9 flex-1 rounded-lg px-3 text-xs font-medium capitalize md:flex-none md:rounded-md ${tab === item ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
             >
               {item}
             </button>
@@ -150,7 +151,7 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
         </div>
       </div>
       {tab === 'profile' ? (
-        <form className="grid gap-4 p-5" onSubmit={saveProfile}>
+        <form className="grid gap-3 p-4 md:gap-4 md:p-5" onSubmit={saveProfile}>
           <label className="grid gap-1.5 text-sm">
             Display name
             <input
@@ -159,7 +160,7 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
               minLength={2}
               maxLength={80}
               required
-              className="h-9 rounded-md border bg-card px-3"
+              className="h-10 rounded-xl border bg-card px-3 md:h-9 md:rounded-md"
             />
           </label>
           <label className="grid gap-1.5 text-sm">
@@ -167,13 +168,13 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
             <select
               name="status"
               defaultValue={provider?.status ?? 'active'}
-              className="h-9 rounded-md border bg-card px-3"
+              className="h-10 rounded-xl border bg-card px-3 md:h-9 md:rounded-md"
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
           </label>
-          <label className="flex items-center gap-3 rounded-md border p-3 text-sm">
+          <label className="flex min-h-12 items-center gap-3 rounded-xl border p-3 text-sm md:rounded-md">
             <input
               name="isDefault"
               type="checkbox"
@@ -184,14 +185,14 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
           <button
             type="submit"
             disabled={pending}
-            className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+            className="h-10 rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground md:h-9 md:rounded-md"
           >
             {pending ? 'Saving…' : provider ? 'Save profile' : 'Create provider'}
           </button>
         </form>
       ) : null}
       {tab === 'services' && provider ? (
-        <div className="p-5">
+        <div className="p-4 md:p-5">
           <p className="text-sm font-semibold">Eligible services</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             These switches update the same explicit associations used by Service
@@ -201,7 +202,7 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
             {catalog.services.map((service) => (
               <label
                 key={service.id}
-                className="flex items-center justify-between rounded-md border p-3 text-sm font-medium"
+                className="flex min-h-12 items-center justify-between rounded-xl border p-3 text-sm font-medium md:rounded-md"
               >
                 {service.name}
                 <input
@@ -216,7 +217,7 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
         </div>
       ) : null}
       {tab === 'schedule' && provider ? (
-        <div className="p-5">
+        <div className="p-4 md:p-5">
           <p className="text-sm font-semibold">Schedule</p>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
             Configure recurring weekly hours in the Merchant timezone and inspect
@@ -224,9 +225,10 @@ function ProviderEditor({ provider }: { readonly provider: ProviderRecord | null
           </p>
           <Link
             to="/availability"
+            replace
             viewTransition={false}
             state={mobileSheetNavigationState}
-            className="mt-4 inline-flex rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+            className="mt-4 inline-flex h-10 items-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground md:h-auto md:rounded-md md:px-3 md:py-2"
           >
             Configure schedule
           </Link>

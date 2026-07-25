@@ -1,13 +1,7 @@
 import { Link } from '@tanstack/react-router'
-import {
-  CalendarClock,
-  Ellipsis,
-  ListOrdered,
-  Scissors,
-  UserRound,
-  UsersRound
-} from 'lucide-react'
+import { Ellipsis, ListOrdered, Scissors, UserRound, UsersRound } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { merchantOverlayNavigationState } from '@/lib/merchant-home-route.ts'
 import type { MerchantDestination } from '../navigation.tsx'
 
 const primaryActions = [
@@ -24,9 +18,11 @@ const primaryPaths = new Set<string>([
 
 export function DesktopHomeActions({
   destinations,
+  appointmentDate,
   interactive = true
 }: {
   readonly destinations: readonly MerchantDestination[]
+  readonly appointmentDate: string | undefined
   readonly interactive?: boolean
 }) {
   const destinationsByRoute = new Map(
@@ -49,6 +45,7 @@ export function DesktopHomeActions({
             key={destination.to}
             destination={destination}
             icon={action.icon}
+            appointmentDate={appointmentDate}
             interactive={interactive}
             className={index < 2 ? 'col-span-3' : 'col-span-2'}
           />
@@ -58,16 +55,21 @@ export function DesktopHomeActions({
         <details className="group relative col-span-2">
           <summary
             data-desktop-home-action="true"
-            className="merchant-desktop-action grid h-[4.875rem] list-none place-content-center gap-1 rounded-3xl px-3 text-center text-sm font-semibold marker:content-none"
+            className="merchant-desktop-action grid h-[4.875rem] list-none place-content-center gap-1 rounded-3xl px-3 text-center text-sm font-semibold marker:content-none shadow-alyn"
           >
             <Ellipsis aria-hidden className="mx-auto size-6" strokeWidth={2.25} />
             More
           </summary>
-          <div className="absolute right-0 bottom-[calc(100%+0.625rem)] z-20 grid min-w-48 gap-1 rounded-xl border bg-card/98 p-2 text-card-foreground shadow-lg backdrop-blur-xl">
+          <div className="absolute right-0 bottom-[calc(100%+0.625rem)] z-20 grid min-w-48 gap-1 rounded-xl border bg-card/98 p-2 text-card-foreground backdrop-blur-xl">
             {moreDestinations.map((destination) => (
               <Link
                 key={destination.to}
                 to={destination.to}
+                search={appointmentDate ? { date: appointmentDate } : {}}
+                state={(previous) =>
+                  merchantOverlayNavigationState(previous, appointmentDate)
+                }
+                viewTransition={false}
                 className="flex min-h-11 items-center justify-between rounded-lg px-3 text-sm font-semibold hover:bg-accent"
               >
                 {destination.label}
@@ -89,15 +91,17 @@ export function DesktopHomeActions({
 function DesktopAction({
   destination,
   icon,
+  appointmentDate,
   interactive,
   className
 }: {
   readonly destination: MerchantDestination
   readonly icon: ReactNode
+  readonly appointmentDate: string | undefined
   readonly interactive: boolean
   readonly className: string
 }) {
-  const styles = `${className} merchant-desktop-action grid h-[4.875rem] place-content-center gap-1 rounded-3xl px-3 text-center text-sm font-semibold`
+  const styles = `${className} merchant-desktop-action grid h-[4.875rem] place-content-center gap-1 rounded-3xl px-3 text-center text-sm font-semibold shadow-alyn`
   if (!interactive)
     return (
       <span className={styles}>
@@ -107,31 +111,16 @@ function DesktopAction({
     )
 
   return (
-    <Link data-desktop-home-action="true" to={destination.to} className={styles}>
+    <Link
+      data-desktop-home-action="true"
+      to={destination.to}
+      search={appointmentDate ? { date: appointmentDate } : {}}
+      state={(previous) => merchantOverlayNavigationState(previous, appointmentDate)}
+      viewTransition={false}
+      className={styles}
+    >
       <span className="mx-auto [&>svg]:size-6">{icon}</span>
       {destination.label}
     </Link>
-  )
-}
-
-export function DesktopHomePlaceholder() {
-  return (
-    <div className="grid gap-3" aria-hidden>
-      <div className="flex items-end justify-between">
-        <span className="text-6xl font-bold tracking-[-0.08em]">20</span>
-        <span className="text-right text-sm font-semibold text-muted-foreground">
-          Your day
-          <br />
-          at a glance
-        </span>
-      </div>
-      <div className="h-16 rounded-xl bg-muted" />
-      <div className="flex items-center gap-3 border-b py-3">
-        <CalendarClock className="size-5 text-muted-foreground" />
-        <span className="text-sm font-semibold">Today’s appointments</span>
-      </div>
-      <div className="h-12 rounded-lg bg-muted/80" />
-      <div className="h-12 rounded-lg bg-muted/80" />
-    </div>
   )
 }

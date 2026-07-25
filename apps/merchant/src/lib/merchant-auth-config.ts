@@ -1,3 +1,5 @@
+import type { BetterAuthOptions } from 'better-auth'
+
 export type MerchantAuthEnvironment = {
   readonly MERCHANT_AUTH_SECRET?: string
   readonly MERCHANT_AUTH_URL?: string
@@ -6,15 +8,17 @@ export type MerchantAuthEnvironment = {
 
 export type MerchantAuthConfig = {
   readonly secret: string
-  readonly baseURL: string
+  readonly baseURL: NonNullable<BetterAuthOptions['baseURL']>
+  readonly canonicalOrigin: string
   readonly trustedOrigins: string[]
 }
 
-const localConfig: MerchantAuthConfig = {
+const localConfig = {
   secret: 'local-merchant-auth-secret-change-me-minimum-32-chars',
-  baseURL: 'http://localhost:3072',
-  trustedOrigins: ['http://localhost:3072']
-}
+  canonicalOrigin: 'http://localhost:3072'
+} as const
+
+const localAllowedHosts = ['localhost:*', '192.168.*.*:*']
 
 const required = (
   value: string | undefined,
@@ -65,18 +69,26 @@ export const resolveMerchantAuthConfig = (
   production: boolean
 ): MerchantAuthConfig => {
   if (!production) {
-    const baseURL = origin(
-      environment.MERCHANT_AUTH_URL ?? localConfig.baseURL,
+    const canonicalOrigin = origin(
+      environment.MERCHANT_AUTH_URL ?? localConfig.canonicalOrigin,
       'MERCHANT_AUTH_URL'
     )
-    const trustedOrigins = (environment.MERCHANT_AUTH_TRUSTED_ORIGINS ?? baseURL)
+    const trustedOrigins = (environment.MERCHANT_AUTH_TRUSTED_ORIGINS ?? '')
       .split(',')
       .map((candidate) => candidate.trim())
       .filter(Boolean)
       .map((candidate) => origin(candidate, 'MERCHANT_AUTH_TRUSTED_ORIGINS'))
+    const configuredHosts = [canonicalOrigin, ...trustedOrigins].map(
+      (candidate) => new URL(candidate).host
+    )
     return {
       secret: environment.MERCHANT_AUTH_SECRET ?? localConfig.secret,
-      baseURL,
+      baseURL: {
+        allowedHosts: [...new Set([...localAllowedHosts, ...configuredHosts])],
+        protocol: 'auto',
+        fallback: canonicalOrigin
+      },
+      canonicalOrigin,
       trustedOrigins
     }
   }
@@ -102,5 +114,5 @@ export const resolveMerchantAuthConfig = (
   if (!trustedOrigins.includes(baseURL)) {
     throw new Error('MERCHANT_AUTH_TRUSTED_ORIGINS must include the Merchant base URL')
   }
-  return { secret, baseURL, trustedOrigins }
+  return { secret, baseURL, canonicalOrigin: baseURL, trustedOrigins }
 }

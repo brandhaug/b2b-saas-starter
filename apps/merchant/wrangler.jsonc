@@ -13,7 +13,8 @@
     "OPERATIONS_APP_ORIGIN": "http://operations.localhost:3076",
     "OPERATIONS_SECURITY_CONTACT": "security@operations.local",
     "OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE": "10",
-    "OPERATIONS_RATE_LIMIT_WINDOW_SECONDS": "60"
+    "OPERATIONS_RATE_LIMIT_WINDOW_SECONDS": "60",
+    "PUBLIC_SITE_ORIGIN": "http://localhost:3071"
   },
   "d1_databases": [
     {

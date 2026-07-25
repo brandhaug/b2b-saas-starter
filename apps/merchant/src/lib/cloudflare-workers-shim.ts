@@ -12,6 +12,7 @@ export const env = {
     process.env.OPERATIONS_APP_ORIGIN ?? 'http://operations.localhost:3076',
   OPERATIONS_SECURITY_CONTACT:
     process.env.OPERATIONS_SECURITY_CONTACT ?? 'security@operations.local',
+  PUBLIC_SITE_ORIGIN: process.env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071',
   CLOUDFLARE_EMAIL_FROM: process.env.CLOUDFLARE_EMAIL_FROM,
   ENVIRONMENT: process.env.ENVIRONMENT,
   RATE_LIMITER_AUTH_READ: undefined,

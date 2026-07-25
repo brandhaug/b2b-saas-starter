@@ -1,30 +1,26 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { MerchantShell } from '@/components/merchant-shell/index.ts'
-import { MobileAppointmentsScreen } from '@/features/appointments/mobile/mobile-appointments-screen.tsx'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { decodeAppointmentCalendarSearch } from '@/lib/appointment-calendar-date.ts'
-import { getAppointmentCalendar } from '@/lib/server/appointment-operations.ts'
+import { merchantHomeCalendarQuery } from '@/lib/merchant-home-queries.ts'
 import { requireMerchantSession } from '@/lib/server/merchant-session.ts'
 
 export const Route = createFileRoute('/appointments')({
   validateSearch: decodeAppointmentCalendarSearch,
   loaderDeps: ({ search }) => ({ date: search.date }),
-  beforeLoad: async ({ location }) => requireMerchantSession(location.href),
-  loader: ({ deps }) => getAppointmentCalendar({ data: deps }),
-  component: AppointmentsPage
+  beforeLoad: async ({ cause, location }) => {
+    if (cause !== 'enter') return
+    await requireMerchantSession(location.href)
+  },
+  loader: ({ cause, context, deps, location }) => {
+    const calendarQuery = merchantHomeCalendarQuery(deps.date, location.href)
+    if (cause === 'stay') {
+      void context.queryClient.prefetchQuery(calendarQuery)
+      return
+    }
+    return context.queryClient.ensureQueryData(calendarQuery)
+  },
+  component: AppointmentsRoute
 })
 
-function AppointmentsPage() {
-  const calendar = Route.useLoaderData()
-  const { date } = Route.useSearch()
-  return (
-    <MerchantShell
-      section={{ kind: 'merchant' }}
-      title="Appointments"
-      description="Your returning-user home: a Provider-oriented day view of accepted Appointment facts."
-      headerDate={date ?? calendar.date}
-      layout="home"
-    >
-      <MobileAppointmentsScreen calendar={calendar} selectedDate={date} />
-    </MerchantShell>
-  )
+function AppointmentsRoute() {
+  return <Outlet />
 }

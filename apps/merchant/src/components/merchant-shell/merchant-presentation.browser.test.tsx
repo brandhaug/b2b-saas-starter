@@ -5,8 +5,13 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   MerchantPresentationBoundary,
-  MerchantPresentationProvider
+  MerchantPresentationProvider,
+  useMerchantPresentation
 } from './merchant-presentation.tsx'
+import {
+  MobileSheetStackProvider,
+  useMobileSheetStack
+} from './mobile/mobile-sheet-stack.tsx'
 import {
   MOBILE_MERCHANT_PRESENTATION_QUERY,
   type MerchantPresentation
@@ -22,6 +27,39 @@ afterEach(() => {
 })
 
 describe('responsive Merchant App presentation', () => {
+  it('enables the mobile sheet stack from client geometry, not the entry hint', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn()
+      })
+    )
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    function StackState() {
+      const presentation = useMerchantPresentation()
+      const stack = useMobileSheetStack()
+      return <p>{`${presentation}:${stack?.enabled ? 'enabled' : 'disabled'}`}</p>
+    }
+
+    await act(async () =>
+      root.render(
+        <MerchantPresentationProvider presentation="desktop">
+          <MobileSheetStackProvider>
+            <StackState />
+          </MobileSheetStackProvider>
+        </MerchantPresentationProvider>
+      )
+    )
+
+    expect(container.textContent).toBe('mobile:enabled')
+    await act(async () => root.unmount())
+  })
+
   it('keeps the entry presentation when viewport observation is unavailable', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)

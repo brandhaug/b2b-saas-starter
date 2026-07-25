@@ -4,6 +4,7 @@ import { createMerchantAuth } from '@b2b-saas-starter/auth'
 import { createDb } from '@b2b-saas-starter/db/client'
 import { session as authSession } from '@b2b-saas-starter/db/schema'
 import { createMerchantAuthHandler } from './merchant-auth-handler.ts'
+import { resolveMerchantAuthConfig } from './merchant-auth-config.ts'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 
 const origin = 'https://app.merchant.test'
@@ -80,6 +81,41 @@ describe('Merchant Owner Better Auth lifecycle', () => {
     expect(cookie).toContain('Secure')
     expect(cookie).toContain('SameSite=Lax')
     expect(cookie).not.toMatch(/Domain=/i)
+  })
+
+  it('accepts the request origin when the development server is opened over the LAN', async () => {
+    const lanOrigin = 'http://192.168.0.157:3072'
+    const developmentConfig = resolveMerchantAuthConfig({}, false)
+    const links: string[] = []
+    auth = createMerchantAuth({
+      db: createDb(testD1.d1),
+      ...developmentConfig,
+      production: false,
+      sendVerificationEmail: async ({ url }) => {
+        links.push(url)
+      },
+      sendResetPassword: async () => undefined
+    })
+
+    const response = await auth.handler(
+      new Request(`${lanOrigin}/api/auth/sign-up/email`, {
+        method: 'POST',
+        headers: {
+          origin: lanOrigin,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: 'LAN Merchant Owner',
+          email: `lan-${crypto.randomUUID()}@merchant.test`,
+          password,
+          callbackURL: `${lanOrigin}/verify-email`
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(links).toHaveLength(1)
+    expect(new URL(links[0]!).origin).toBe(lanOrigin)
   })
 
   it('keeps verified sign-in available when production email delivery is unavailable', async () => {

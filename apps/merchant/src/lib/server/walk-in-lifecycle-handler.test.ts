@@ -17,6 +17,12 @@ const shop = {
   timezone: 'Europe/Bucharest',
   currency: 'RON'
 } as const
+const shopWithoutWalkIns = {
+  ...shop,
+  id: 'shp_without_walk_ins',
+  slug: 'south',
+  publicName: 'South'
+} as const
 const entry = {
   id: 'wie_one',
   shopId: shop.id,
@@ -24,7 +30,7 @@ const entry = {
   position: 1
 } as const
 const layer = Layer.mergeAll(
-  SeedShopTopology([shop]),
+  SeedShopTopology([shop, shopWithoutWalkIns]),
   SeedWalkIns({
     records: [entry],
     configurations: [
@@ -52,12 +58,26 @@ const run: WalkInLifecycleRunner = (_userId, effect) =>
   Effect.runPromise(Effect.provide(effect, layer))
 
 describe('Merchant walk-in lifecycle boundary', () => {
+  it('omits owned Shops that have not configured walk-ins', async () => {
+    const requests = makeWalkInLifecycleRequestHandler({
+      currentUserId: async () => 'usr_owner',
+      run
+    })
+
+    await expect(requests.queues()).resolves.toEqual([
+      {
+        shop,
+        entries: expect.arrayContaining([expect.objectContaining({ id: entry.id })])
+      }
+    ])
+  })
+
   it('lists the owned queue and drives called through served', async () => {
     const requests = makeWalkInLifecycleRequestHandler({
       currentUserId: async () => 'usr_owner',
       run
     })
-    expect(await requests.shops()).toEqual([shop])
+    expect(await requests.shops()).toEqual([shop, shopWithoutWalkIns])
     expect(await requests.queue(shop.id)).toHaveLength(1)
     expect(
       (await requests.transition({ shopId: shop.id, entryId: entry.id, to: 'called' }))

@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ImpersonationLifecyclePresentation } from '@b2b-saas-starter/capabilities/operations'
+import { remainingImpersonationSeconds } from './impersonation-banner-utils.ts'
 
 const currentDate = () => new Date()
-
-export const remainingImpersonationSeconds = (expiresAt: string, now: Date): number =>
-  Math.max(0, Math.ceil((Date.parse(expiresAt) - now.getTime()) / 1_000))
 
 const countdown = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60)
