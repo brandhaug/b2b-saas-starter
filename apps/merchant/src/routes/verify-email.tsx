@@ -18,20 +18,20 @@ function VerifyEmailPage() {
       </p>
       <form
         className="mt-5 grid gap-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          const form = new FormData(event.currentTarget)
+        action={async (form) => {
           setPending(true)
           setMessage(null)
-          void merchantAuthClient
-            .sendVerificationEmail({
+          try {
+            await merchantAuthClient.sendVerificationEmail({
               email: formValue(form, 'email'),
               callbackURL: '/verify-email'
             })
-            .then(() => {
-              setMessage('If that account needs verification, a link is on the way.')
-            })
-            .finally(() => setPending(false))
+          } catch {
+            // Keep the same response so this flow cannot reveal account ownership.
+          } finally {
+            setMessage('If that account needs verification, a link is on the way.')
+            setPending(false)
+          }
         }}
       >
         <label className="grid gap-1 text-sm">
@@ -43,7 +43,7 @@ function VerifyEmailPage() {
             required
           />
         </label>
-        <button className="border px-4 py-2" disabled={pending}>
+        <button type="submit" className="border px-4 py-2" disabled={pending}>
           {pending ? 'Sending…' : 'Resend verification link'}
         </button>
       </form>

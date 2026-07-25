@@ -74,20 +74,11 @@ export function useMobileSheetRouteRegistration(
   descriptor: MobileSheetDescriptor | null
 ) {
   const stack = useMobileSheetStack()
-  const presentation =
-    descriptor?.section.kind === 'catalog' ? descriptor.section.presentation : undefined
 
   useLayoutEffect(() => {
     if (!stack?.enabled || !descriptor) return
     stack.registerRoute(descriptor)
-  }, [
-    descriptor?.description,
-    descriptor?.layout,
-    descriptor?.section.kind,
-    descriptor?.title,
-    presentation,
-    stack
-  ])
+  }, [descriptor, stack])
 
   return stack?.enabled === true
 }

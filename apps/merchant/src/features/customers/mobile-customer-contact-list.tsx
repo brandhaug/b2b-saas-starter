@@ -12,12 +12,22 @@ import { useMobileEdgeScrollSpring } from './use-mobile-edge-scroll-spring.ts'
 
 type CustomerEntry = CustomerDirectory['entries'][number]
 
-const formatCustomerAppointmentStamp = (instant: string, timezone: string) =>
-  new Intl.DateTimeFormat(undefined, {
+const customerAppointmentFormatters = new Map<string, Intl.DateTimeFormat>()
+
+const customerAppointmentFormatter = (timezone: string) => {
+  const existing = customerAppointmentFormatters.get(timezone)
+  if (existing) return existing
+  const formatter = Intl.DateTimeFormat(undefined, {
     timeZone: timezone,
     month: 'short',
     day: 'numeric'
-  }).format(new Date(instant))
+  })
+  customerAppointmentFormatters.set(timezone, formatter)
+  return formatter
+}
+
+const formatCustomerAppointmentStamp = (instant: string, timezone: string) =>
+  customerAppointmentFormatter(timezone).format(new Date(instant))
 
 export function MobileCustomerContactList({
   directory

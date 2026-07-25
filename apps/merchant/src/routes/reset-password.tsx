@@ -21,20 +21,23 @@ function ResetPasswordPage() {
       {token ? (
         <form
           className="grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const form = new FormData(event.currentTarget)
+          action={async (form) => {
             setPending(true)
-            void merchantAuthClient
-              .resetPassword({ newPassword: formValue(form, 'password'), token })
-              .then((result) => {
-                setMessage(
-                  result.error
-                    ? 'This recovery link is invalid or has expired.'
-                    : 'Your password has been reset. Sign in with your new password.'
-                )
+            try {
+              const result = await merchantAuthClient.resetPassword({
+                newPassword: formValue(form, 'password'),
+                token
               })
-              .finally(() => setPending(false))
+              setMessage(
+                result.error
+                  ? 'This recovery link is invalid or has expired.'
+                  : 'Your password has been reset. Sign in with your new password.'
+              )
+            } catch {
+              setMessage('We could not reset your password. Please try again.')
+            } finally {
+              setPending(false)
+            }
           }}
         >
           <label className="grid gap-1 text-sm">
@@ -48,6 +51,7 @@ function ResetPasswordPage() {
             />
           </label>
           <button
+            type="submit"
             className="bg-primary px-4 py-2 text-primary-foreground"
             disabled={pending}
           >

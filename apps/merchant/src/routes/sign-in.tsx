@@ -22,28 +22,28 @@ function SignInPage() {
     <AuthShell title="Sign in to your Merchant App">
       <form
         className="grid gap-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          const form = new FormData(event.currentTarget)
+        action={async (form) => {
           setPending(true)
           setError(null)
-          void merchantAuthClient.signIn
-            .email({
+          try {
+            const result = await merchantAuthClient.signIn.email({
               email: formValue(form, 'email'),
               password: formValue(form, 'password'),
               callbackURL: safeMerchantReturnPath(redirect)
             })
-            .then((result) => {
-              if (result.error) {
-                setError('Unable to sign in with those credentials.')
-                return
-              }
-              void router.navigate({
-                href: safeMerchantReturnPath(redirect),
-                replace: true
-              })
+            if (result.error) {
+              setError('Unable to sign in with those credentials.')
+              return
+            }
+            await router.navigate({
+              href: safeMerchantReturnPath(redirect),
+              replace: true
             })
-            .finally(() => setPending(false))
+          } catch {
+            setError('Sign in is temporarily unavailable. Please try again.')
+          } finally {
+            setPending(false)
+          }
         }}
       >
         <label className="grid gap-1 text-sm">
@@ -68,6 +68,7 @@ function SignInPage() {
         </label>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <button
+          type="submit"
           className="bg-primary px-4 py-2 text-primary-foreground"
           disabled={pending}
         >

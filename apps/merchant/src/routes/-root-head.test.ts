@@ -33,11 +33,14 @@ describe('merchant head links', () => {
   })
 
   it('allows the pre-paint theme script to change the document class before hydration', () => {
-    const rootSource = readFileSync(new URL('./__root.tsx', import.meta.url), 'utf8')
+    const documentSource = readFileSync(
+      new URL('../components/merchant-root-document.tsx', import.meta.url),
+      'utf8'
+    )
 
-    expect(rootSource).toContain('suppressHydrationWarning')
-    expect(rootSource.indexOf('<HeadContent />')).toBeLessThan(
-      rootSource.indexOf('<script dangerouslySetInnerHTML')
+    expect(documentSource).toContain('suppressHydrationWarning')
+    expect(documentSource.indexOf('<HeadContent />')).toBeLessThan(
+      documentSource.indexOf('<script dangerouslySetInnerHTML')
     )
   })
 })

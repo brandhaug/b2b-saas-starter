@@ -7,13 +7,11 @@ import {
   type PointerEvent as ReactPointerEvent
 } from 'react'
 import { flushSync } from 'react-dom'
-import { EmptyAppointmentDay } from '../shared/empty-appointment-day.tsx'
 import {
   appointmentDaySwipeVelocity,
   shouldCommitAppointmentDaySwipe
 } from './mobile-appointment-day-swipe.ts'
-import { MobileAppointmentRow } from './mobile-appointment-row.tsx'
-import { mobileAppointmentLedger } from './mobile-appointments-model.ts'
+import { MobileAppointmentCarousel } from './mobile-appointment-carousel.tsx'
 import type { AppointmentDayDirection } from './week-navigation.ts'
 
 const DAY_SWIPE_START_DISTANCE = 8
@@ -313,99 +311,11 @@ export function MobileAppointmentLedger({
   }
 
   return (
-    <section
-      {...carouselProps}
-      className={`${carouselProps.className} mt-4`}
-      aria-label={
-        pending
-          ? 'Loading appointments for selected day'
-          : 'Appointments for selected day'
-      }
-      aria-live={pending ? 'polite' : undefined}
-    >
-      <div
-        className={`merchant-mobile-appointment-carousel-track relative ${
-          scrollable ? 'h-full min-h-0' : ''
-        }`}
-      >
-        <AppointmentDayPanel
-          calendar={displayedCalendars.previous}
-          position="previous"
-          scrollable={scrollable}
-        />
-        <AppointmentDayPanel
-          calendar={displayedCalendars.current}
-          pending={pending}
-          position="current"
-          scrollable={scrollable}
-        />
-        <AppointmentDayPanel
-          calendar={displayedCalendars.next}
-          position="next"
-          scrollable={scrollable}
-        />
-      </div>
-    </section>
-  )
-}
-
-function AppointmentDayPanel({
-  calendar,
-  pending = false,
-  position,
-  scrollable
-}: {
-  readonly calendar: ProviderCalendar | undefined
-  readonly pending?: boolean
-  readonly position: 'current' | 'next' | 'previous'
-  readonly scrollable: boolean
-}) {
-  const appointments =
-    calendar && !pending
-      ? mobileAppointmentLedger(calendar.providers, calendar.timezone)
-      : []
-  const current = position === 'current'
-  const mobilePanelClass = current
-    ? `merchant-mobile-appointment-scrollport relative h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain ${
-        appointments.length > 0 ? 'pb-[calc(8rem+env(safe-area-inset-bottom))]' : ''
-      }`
-    : `absolute top-0 h-full min-h-0 overflow-hidden ${
-        position === 'previous' ? 'right-full' : 'left-full'
-      }`
-  return (
-    <div
-      data-mobile-appointment-day-panel={position}
-      data-mobile-appointment-day={calendar?.date}
-      data-mobile-appointment-scroll={scrollable && current ? 'true' : undefined}
-      className={`merchant-mobile-appointment-day-panel w-full px-0.5 ${
-        scrollable ? mobilePanelClass : current ? 'relative' : 'hidden'
-      }`}
-      aria-hidden={current ? undefined : true}
-      inert={current ? undefined : true}
-    >
-      {!calendar || pending ? (
-        <>
-          {position === 'current' ? (
-            <span className="sr-only">Loading appointments…</span>
-          ) : null}
-          <div className="grid gap-2 px-1" aria-hidden>
-            <div className="h-16 animate-pulse rounded-2xl bg-card/70" />
-            <div className="h-16 animate-pulse rounded-2xl bg-card/45" />
-          </div>
-        </>
-      ) : appointments.length === 0 ? (
-        <EmptyAppointmentDay />
-      ) : (
-        <ol>
-          {appointments.map((appointment) => (
-            <MobileAppointmentRow
-              key={appointment.id}
-              appointment={appointment}
-              date={calendar.date}
-            />
-          ))}
-        </ol>
-      )}
-    </div>
+    <MobileAppointmentCarousel
+      calendars={displayedCalendars}
+      carouselProps={carouselProps}
+      pending={pending}
+      scrollable={scrollable}
+    />
   )
 }

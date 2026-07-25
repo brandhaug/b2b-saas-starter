@@ -3,11 +3,18 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { domMax, LazyMotion } from 'motion/react'
 import { MobileDateHero } from './mobile-date-hero.tsx'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let root: Root | undefined
+
+const hero = (date: string, currentDate: string) => (
+  <LazyMotion features={domMax}>
+    <MobileDateHero date={date} currentDate={currentDate} timezone="Europe/Bucharest" />
+  </LazyMotion>
+)
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -32,13 +39,7 @@ describe('MobileDateHero current-day marker', () => {
     root = createRoot(container)
 
     await act(async () => {
-      root?.render(
-        <MobileDateHero
-          date="2026-07-20"
-          currentDate="2026-07-20"
-          timezone="Europe/Bucharest"
-        />
-      )
+      root?.render(hero('2026-07-20', '2026-07-20'))
     })
 
     const marker = container.querySelector<HTMLElement>(
@@ -65,13 +66,7 @@ describe('MobileDateHero current-day marker', () => {
     expect(marker?.style.filter).toBe('blur(0px)')
 
     await act(async () => {
-      root?.render(
-        <MobileDateHero
-          date="2026-07-21"
-          currentDate="2026-07-20"
-          timezone="Europe/Bucharest"
-        />
-      )
+      root?.render(hero('2026-07-21', '2026-07-20'))
     })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_500)
@@ -83,13 +78,7 @@ describe('MobileDateHero current-day marker', () => {
     expect(marker?.style.filter).toBe('blur(6px)')
 
     await act(async () => {
-      root?.render(
-        <MobileDateHero
-          date="2026-07-20"
-          currentDate="2026-07-20"
-          timezone="Europe/Bucharest"
-        />
-      )
+      root?.render(hero('2026-07-20', '2026-07-20'))
     })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_500)

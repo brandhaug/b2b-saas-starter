@@ -3,7 +3,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { Effect, Layer, Schema } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import { liveMerchantContext } from '@b2b-saas-starter/capabilities/merchant-catalog'
-import type { Shop } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   WalkInStatus,
   type WalkInQueueEntry
@@ -15,7 +14,6 @@ import {
 } from './walk-in-lifecycle-handler.ts'
 import { runMerchantRequest } from './merchant-session.ts'
 
-const QueueInput = Schema.Struct({ shopId: Schema.String })
 const TransitionInput = Schema.Struct({
   shopId: Schema.String,
   entryId: Schema.String,
@@ -40,25 +38,9 @@ const requestsFor = (userId: string) =>
     run
   })
 
-export const getWalkInShops = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<readonly Shop[]> =>
-    runMerchantRequest('walk-in.read', (session) =>
-      requestsFor(session.user.id).shops()
-    )
-)
-
 export const getWalkInQueues = createServerFn({ method: 'GET' }).handler(async () =>
   runMerchantRequest('walk-in.read', (session) => requestsFor(session.user.id).queues())
 )
-
-export const getWalkInQueue = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(QueueInput))
-  .handler(
-    async ({ data }): Promise<readonly WalkInQueueEntry[]> =>
-      runMerchantRequest('walk-in.read', (session) =>
-        requestsFor(session.user.id).queue(data.shopId)
-      )
-  )
 
 export const transitionWalkInEntry = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(TransitionInput))

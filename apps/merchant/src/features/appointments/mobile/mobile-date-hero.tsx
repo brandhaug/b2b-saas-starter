@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { m } from 'motion/react'
 import { SmartAnimateText } from '@/components/ui/smart-text-animate.tsx'
 import { mobileDateHeading } from './mobile-appointments-model.ts'
 
@@ -30,7 +30,7 @@ export function MobileDateHero({
           enterBlur={16}
           digitClassName="text-[4rem] leading-[0.8] font-black text-foreground"
         />
-        <motion.span
+        <m.span
           data-current-day-marker={isCurrentDay ? 'true' : undefined}
           data-current-day-marker-slot="true"
           data-current-day-marker-state={isCurrentDay ? 'visible' : 'hidden'}

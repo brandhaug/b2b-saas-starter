@@ -19,7 +19,7 @@ function timeFormatter(timezone: string) {
   const existing = timeFormatters.get(timezone)
   if (existing) return existing
 
-  const formatter = new Intl.DateTimeFormat('en-GB', {
+  const formatter = Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
     hour: '2-digit',
     minute: '2-digit',
@@ -90,7 +90,7 @@ export function mobileWeek(
 export function mobileCalendarDate(timezone: string, now = new Date()): string {
   let formatter = calendarDateFormatters.get(timezone)
   if (!formatter) {
-    formatter = new Intl.DateTimeFormat('en-CA', {
+    formatter = Intl.DateTimeFormat('en-CA', {
       timeZone: timezone,
       year: 'numeric',
       month: '2-digit',

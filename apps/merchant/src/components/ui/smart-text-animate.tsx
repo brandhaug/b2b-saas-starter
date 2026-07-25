@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { motion, useSpring, useTransform } from 'motion/react'
+import { m, useSpring, useTransform } from 'motion/react'
 
 import { cn } from '@/lib/utils'
 
@@ -31,7 +31,7 @@ interface CharacterItem {
 function getCharacterItems(
   value: string,
   previousItems: readonly CharacterItem[] = [],
-  version = 0
+  version = ''
 ): CharacterItem[] {
   let digitPlace = 0
 
@@ -160,15 +160,6 @@ function DigitCell({
       scale.set(1)
       blur.set(0)
     }
-    const startAnimation = () => {
-      if (animationDelay <= 0) {
-        animateIn()
-        return undefined
-      }
-
-      return setTimeout(animateIn, animationDelay * 1000)
-    }
-
     let timeout: ReturnType<typeof setTimeout> | undefined
 
     if (isFirstRender.current) {
@@ -179,25 +170,20 @@ function DigitCell({
         scale.jump(enterScale)
         blur.jump(enterBlur)
 
-        timeout = startAnimation()
+        if (animationDelay <= 0) animateIn()
+        else timeout = setTimeout(animateIn, animationDelay * 1000)
       }
-      return () => {
-        if (timeout) clearTimeout(timeout)
-      }
-    }
-
-    if (char === prev) {
+    } else if (char === prev) {
       animateIn()
-      return
+    } else {
+      y.jump(enterDirection === 'up' ? enterY : -enterY)
+      opacity.jump(0)
+      scale.jump(enterScale)
+      blur.jump(enterBlur)
+
+      if (animationDelay <= 0) animateIn()
+      else timeout = setTimeout(animateIn, animationDelay * 1000)
     }
-
-    y.jump(enterDirection === 'up' ? enterY : -enterY)
-    opacity.jump(0)
-    scale.jump(enterScale)
-    blur.jump(enterBlur)
-
-    timeout = startAnimation()
-
     return () => {
       if (timeout) clearTimeout(timeout)
     }
@@ -218,18 +204,18 @@ function DigitCell({
 
   if (!isAnimatable) {
     return (
-      <motion.span
+      <m.span
         layout
         className={className}
         transition={{ type: 'spring', stiffness: 320, damping: 28 }}
       >
         {char}
-      </motion.span>
+      </m.span>
     )
   }
 
   return (
-    <motion.div
+    <m.div
       layout
       className={cn(
         'relative grid place-items-center [&>*]:col-start-1 [&>*]:row-start-1',
@@ -237,8 +223,8 @@ function DigitCell({
       )}
       transition={{ type: 'spring', stiffness: 320, damping: 28 }}
     >
-      <motion.span style={{ opacity, scale, filter, y }}>{char}</motion.span>
-    </motion.div>
+      <m.span style={{ opacity, scale, filter, y }}>{char}</m.span>
+    </m.div>
   )
 }
 
@@ -258,15 +244,8 @@ function SmartAnimateText({
   const hasMounted = useRef(false)
   const previousValue = useRef(value)
   const previousCharacters = useRef<readonly CharacterItem[]>([])
-  const characterVersion = useRef(0)
   const characters = useMemo(() => {
-    const items = getCharacterItems(
-      value,
-      previousCharacters.current,
-      characterVersion.current
-    )
-    characterVersion.current += 1
-    return items
+    return getCharacterItems(value, previousCharacters.current, value)
   }, [value])
   const { animatedCharacterIndexes, dynamicDirection } = useMemo(() => {
     const previousCharacterMap = new Map(
@@ -312,7 +291,7 @@ function SmartAnimateText({
   }, [characters, value])
 
   return (
-    <motion.div
+    <m.div
       layout
       className={cn('flex items-center tabular-nums', className)}
       style={{ gap }}
@@ -334,7 +313,7 @@ function SmartAnimateText({
           enterScale={enterScale}
         />
       ))}
-    </motion.div>
+    </m.div>
   )
 }
 

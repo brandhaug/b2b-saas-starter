@@ -28,6 +28,9 @@ import {
   resolveMerchantImpersonationLifecycle,
   verifiedMerchantSessionToken
 } from './lib/server/impersonation-lifecycle.ts'
+import type { ImpersonationBrowserHarnessEntry } from '../test/impersonation-browser-harness.tsx'
+
+const _harnessEntry: ImpersonationBrowserHarnessEntry = true
 
 const secret = 'merchant-browser-secret-that-is-at-least-thirty-two-characters'
 const securityContact = 'security@example.test'

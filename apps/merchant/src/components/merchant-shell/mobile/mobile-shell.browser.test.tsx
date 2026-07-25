@@ -74,9 +74,10 @@ const waitForSheetSpring = () =>
 
 function touchEvent(
   type: 'touchstart' | 'touchmove' | 'touchend',
-  { x, y }: { readonly x: number; readonly y: number }
+  { x, y }: { readonly x: number; readonly y: number },
+  { cancelable = true }: { readonly cancelable?: boolean } = {}
 ) {
-  const event = new Event(type, { bubbles: true, cancelable: true })
+  const event = new Event(type, { bubbles: true, cancelable })
   const touch = { identifier: 1, clientX: x, clientY: y }
   Object.defineProperties(event, {
     touches: { value: type === 'touchend' ? [] : [touch] },
@@ -391,6 +392,17 @@ describe('MobileShell retained underlay', () => {
       action?.dispatchEvent(sheetDragMove)
       expect(sheetDragMove.defaultPrevented).toBe(true)
       expect(preventDefault).toHaveBeenCalledOnce()
+    })
+
+    await act(async () => {
+      const browserOwnedMove = touchEvent(
+        'touchmove',
+        { x: 120, y: 390 },
+        { cancelable: false }
+      )
+      const preventDefault = vi.spyOn(browserOwnedMove, 'preventDefault')
+      action?.dispatchEvent(browserOwnedMove)
+      expect(preventDefault).not.toHaveBeenCalled()
     })
 
     expect(

@@ -1,5 +1,4 @@
 import { useRouter } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   useEffect,
   useId,
@@ -22,6 +21,7 @@ import {
   scheduleAfterNextPaint
 } from './mobile-sheet-motion.ts'
 import { mobileCalendarMonth, monthAnchor } from './mobile-calendar-model.ts'
+import { MobileCalendarSheetView } from './mobile-calendar-sheet-view.tsx'
 import { useMobileSurfaceChrome } from './use-mobile-surface-chrome.ts'
 
 type CalendarSheetState = 'closed' | 'entering' | 'open' | 'dragging' | 'closing'
@@ -38,11 +38,6 @@ type CalendarDrag = {
   distance: number
 }
 
-const calendarDayLabel = new Intl.DateTimeFormat('en', {
-  dateStyle: 'full',
-  timeZone: 'UTC'
-})
-
 export function MobileCalendarSheet({
   open,
   selectedDate,
@@ -50,6 +45,26 @@ export function MobileCalendarSheet({
   onRequestClose
 }: {
   readonly open: boolean
+  readonly selectedDate: string
+  readonly currentDate: string
+  readonly onRequestClose: () => void
+}) {
+  if (!open) return null
+  return (
+    <MobileCalendarSheetDialog
+      key={selectedDate}
+      selectedDate={selectedDate}
+      currentDate={currentDate}
+      onRequestClose={onRequestClose}
+    />
+  )
+}
+
+function MobileCalendarSheetDialog({
+  selectedDate,
+  currentDate,
+  onRequestClose
+}: {
   readonly selectedDate: string
   readonly currentDate: string
   readonly onRequestClose: () => void
@@ -65,7 +80,7 @@ export function MobileCalendarSheet({
   const router = useRouter()
   const [sheetState, setSheetState] = useState<CalendarSheetState>('closed')
   const [visibleMonth, setVisibleMonth] = useState(() => monthAnchor(selectedDate))
-  useMobileSurfaceChrome(open && sheetState !== 'closing')
+  useMobileSurfaceChrome(sheetState !== 'closing')
   const month = mobileCalendarMonth(visibleMonth, selectedDate)
 
   useEffect(
@@ -79,40 +94,32 @@ export function MobileCalendarSheet({
 
   useEffect(() => {
     const dialog = dialogRef.current
-    if (!dialog) return
-    if (open && !dialog.open) {
-      setVisibleMonth(monthAnchor(selectedDate))
-      const panel = panelRef.current
-      const viewportHeight = window.innerHeight
-      panel?.style.setProperty('--merchant-calendar-drag-y', `${viewportHeight}px`)
-      dialog.showModal()
-      setSheetState('entering')
-      beginMobileSheetUnderlayDrag()
-      updateMobileSheetUnderlayDrag(viewportHeight, viewportHeight)
-      if (panel) {
-        sheetAnimationRef.current = animateMobileSheetSpring({
-          from: viewportHeight,
-          max: viewportHeight,
-          to: 0,
-          onUpdate: (position) => {
-            panel.style.setProperty('--merchant-calendar-drag-y', `${position}px`)
-            updateMobileSheetUnderlayDrag(position, viewportHeight)
-          },
-          onComplete: () => {
-            sheetAnimationRef.current = null
-            setSheetState('open')
-          }
-        })
+    const panel = panelRef.current
+    if (!dialog || !panel) return
+    const viewportHeight = window.innerHeight
+    panel.style.setProperty('--merchant-calendar-drag-y', `${viewportHeight}px`)
+    dialog.showModal()
+    setSheetState('entering')
+    beginMobileSheetUnderlayDrag()
+    updateMobileSheetUnderlayDrag(viewportHeight, viewportHeight)
+    sheetAnimationRef.current = animateMobileSheetSpring({
+      from: viewportHeight,
+      max: viewportHeight,
+      to: 0,
+      onUpdate: (position) => {
+        panel.style.setProperty('--merchant-calendar-drag-y', `${position}px`)
+        updateMobileSheetUnderlayDrag(position, viewportHeight)
+      },
+      onComplete: () => {
+        sheetAnimationRef.current = null
+        setSheetState('open')
       }
-    }
-    if (!open && dialog.open) {
+    })
+    return () => {
       sheetAnimationRef.current?.()
       sheetAnimationRef.current = null
-      finishMobileSheetUnderlayDrag()
-      dialog.close()
-      setSheetState('closed')
     }
-  }, [open, selectedDate])
+  }, [])
 
   const finishClose = () => {
     dialogRef.current?.close()
@@ -274,91 +281,20 @@ export function MobileCalendarSheet({
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby={titleId}
-      data-calendar-sheet-state={sheetState}
-      className="merchant-more-dialog merchant-calendar-dialog"
-      onCancel={(event) => {
-        event.preventDefault()
-        requestClose()
-      }}
-    >
-      <button
-        type="button"
-        aria-label="Close calendar"
-        className="merchant-more-dismiss"
-        onClick={() => requestClose()}
-      />
-      <section
-        ref={panelRef}
-        className="merchant-more-panel merchant-calendar-panel merchant-floating-sheet-panel touch-pan-x"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
-      >
-        <header className="flex items-center justify-between gap-2 px-4 pt-5 pb-3">
-          <h2
-            id={titleId}
-            className="whitespace-nowrap text-xl leading-7 font-semibold"
-          >
-            {month.monthName}{' '}
-            <span className="text-muted-foreground">{month.year}</span>
-          </h2>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              aria-label="Previous month"
-              className="grid size-10 place-items-center rounded-full text-muted-foreground active:bg-muted"
-              onClick={() => changeMonth(month.previousMonth)}
-            >
-              <ChevronLeft aria-hidden className="size-5" strokeWidth={2} />
-            </button>
-            <button
-              type="button"
-              className="min-h-10 rounded-full px-2 text-sm font-semibold text-muted-foreground active:bg-muted"
-              onClick={() => chooseDate(currentDate)}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              aria-label="Next month"
-              className="grid size-10 place-items-center rounded-full text-muted-foreground active:bg-muted"
-              onClick={() => changeMonth(month.nextMonth)}
-            >
-              <ChevronRight aria-hidden className="size-5" strokeWidth={2} />
-            </button>
-          </div>
-        </header>
-        <div className="grid grid-cols-7 px-4 text-center text-xs font-semibold text-muted-foreground uppercase">
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((weekday, index) => (
-            <span key={`${weekday}-${index}`} className="py-3">
-              {weekday}
-            </span>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-y-1 px-4 pb-6">
-          {Array.from({ length: month.leadingBlankDays }, (_, index) => (
-            <span key={`blank-${index}`} aria-hidden className="size-10" />
-          ))}
-          {month.days.map((day) => (
-            <button
-              key={day.date}
-              type="button"
-              aria-label={calendarDayLabel.format(
-                new Date(`${day.date}T12:00:00.000Z`)
-              )}
-              aria-pressed={day.selected}
-              className={`mx-auto grid size-10 place-items-center rounded-full text-base font-medium tabular-nums active:scale-95 ${day.selected ? 'bg-primary text-primary-foreground' : 'text-foreground active:bg-muted'}`}
-              onClick={() => chooseDate(day.date)}
-            >
-              {day.day}
-            </button>
-          ))}
-        </div>
-      </section>
-    </dialog>
+    <MobileCalendarSheetView
+      dialogRef={dialogRef}
+      panelRef={panelRef}
+      titleId={titleId}
+      sheetState={sheetState}
+      month={month}
+      currentDate={currentDate}
+      requestClose={requestClose}
+      chooseDate={chooseDate}
+      changeMonth={changeMonth}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+    />
   )
 }

@@ -2,28 +2,15 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 import {
   type AppointmentDetailResult,
-  type CustomerDirectory,
-  type ProviderCalendar
+  type CustomerDirectory
 } from '@b2b-saas-starter/capabilities/booking'
-import { CalendarDate } from '../appointment-calendar-date.ts'
 import { runMerchantRequest } from './merchant-session.ts'
 import {
-  readAppointmentCalendar,
   readAppointmentDetail,
   readCustomerDirectory
 } from './appointment-operations.server.ts'
 
-const DateInput = Schema.Struct({ date: Schema.optional(CalendarDate) })
 const DetailInput = Schema.Struct({ appointmentId: Schema.String })
-
-export const getAppointmentCalendar = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(DateInput))
-  .handler(
-    async ({ data }): Promise<ProviderCalendar> =>
-      runMerchantRequest('appointment.read', (session) =>
-        readAppointmentCalendar(session.user.id, data.date)
-      )
-  )
 
 export const getAppointmentDetail = createServerFn({ method: 'GET' })
   .validator(Schema.decodeUnknownSync(DetailInput))

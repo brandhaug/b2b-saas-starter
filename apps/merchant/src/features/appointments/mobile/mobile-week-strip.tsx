@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent
 } from 'react'
 import { mobileWeek } from './mobile-appointments-model.ts'
@@ -34,7 +35,6 @@ type ExternalWeekTransition = {
   readonly direction: AppointmentWeekDirection
   readonly fromDate: string
   readonly toDate: string
-  started: boolean
 }
 
 export function MobileWeekStrip({
@@ -60,6 +60,7 @@ export function MobileWeekStrip({
     useState<AppointmentWeekDirection | null>(null)
   const [externalTransition, setExternalTransition] =
     useState<ExternalWeekTransition | null>(null)
+  const [externalTransitionStarted, setExternalTransitionStarted] = useState(false)
 
   useEffect(
     () => () => {
@@ -68,43 +69,34 @@ export function MobileWeekStrip({
     []
   )
 
-  useEffect(() => {
-    if (pendingDateRef.current) {
-      if (selectedDate !== pendingDateRef.current) return
-      if (settlingDirection) return
-      pendingDateRef.current = null
+  if (pendingDateRef.current) {
+    if (selectedDate === pendingDateRef.current && !settlingDirection) {
       if (selectedDate !== renderedDate) setRenderedDate(selectedDate)
-      return
     }
-    if (selectedDate === renderedDate || externalTransition) return
-
+  } else if (selectedDate !== renderedDate && !externalTransition) {
     const direction = appointmentWeekDirection(renderedDate, selectedDate)
     if (!direction) {
       setRenderedDate(selectedDate)
-      return
+    } else {
+      setExternalTransition({
+        direction,
+        fromDate: renderedDate,
+        toDate: selectedDate
+      })
+      setExternalTransitionStarted(false)
     }
-
-    setExternalTransition({
-      direction,
-      fromDate: renderedDate,
-      toDate: selectedDate,
-      started: false
-    })
-    navigationTimerRef.current = setTimeout(() => {
-      setRenderedDate(selectedDate)
-      setExternalTransition(null)
-    }, WEEK_TRANSITION_MS + 80)
-  }, [externalTransition, renderedDate, selectedDate, settlingDirection])
+  }
 
   useEffect(() => {
-    if (!externalTransition || externalTransition.started) return
-    const frame = requestAnimationFrame(() =>
-      setExternalTransition((current) =>
-        current ? { ...current, started: true } : current
-      )
-    )
+    if (pendingDateRef.current === selectedDate && !settlingDirection)
+      pendingDateRef.current = null
+  }, [selectedDate, settlingDirection])
+
+  useEffect(() => {
+    if (!externalTransition || externalTransitionStarted) return
+    const frame = requestAnimationFrame(() => setExternalTransitionStarted(true))
     return () => cancelAnimationFrame(frame)
-  }, [externalTransition])
+  }, [externalTransition, externalTransitionStarted])
 
   const moveWeek = (
     direction: AppointmentWeekDirection,
@@ -204,6 +196,19 @@ export function MobileWeekStrip({
     navigationTimerRef.current = setTimeout(settleCurrentWeek, WEEK_TRANSITION_MS)
   }
 
+  const handleClickCapture = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (!suppressClickRef.current) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const finishExternalTransition = () => {
+    if (!externalTransition) return
+    setRenderedDate(externalTransition.toDate)
+    setExternalTransition(null)
+    setExternalTransitionStarted(false)
+  }
+
   const trackTransition = `transform ${settleDuration}ms cubic-bezier(0.22, 1, 0.36, 1)`
   const externalTrackTransition = `transform ${WEEK_TRANSITION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
   const desktop = spacing === 'desktop'
@@ -237,11 +242,6 @@ export function MobileWeekStrip({
         ref={viewportRef}
         data-week-strip-viewport="true"
         className={`${desktop ? 'mx-8' : ''} overflow-hidden touch-pan-y select-none`}
-        onClickCapture={(event) => {
-          if (!suppressClickRef.current) return
-          event.preventDefault()
-          event.stopPropagation()
-        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -250,8 +250,11 @@ export function MobileWeekStrip({
         {externalTransition ? (
           <ExternalWeekTrack
             transition={externalTransition}
+            started={externalTransitionStarted}
             currentDate={currentDate}
             trackTransition={externalTrackTransition}
+            onClickCapture={handleClickCapture}
+            onTransitionEnd={finishExternalTransition}
           />
         ) : (
           <div
@@ -268,16 +271,19 @@ export function MobileWeekStrip({
               selectedDate={appointmentWeekTarget(renderedDate, 'previous')}
               currentDate={currentDate}
               interactive={false}
+              onClickCapture={handleClickCapture}
             />
             <WeekPanel
               selectedDate={renderedDate}
               currentDate={currentDate}
               interactive
+              onClickCapture={handleClickCapture}
             />
             <WeekPanel
               selectedDate={appointmentWeekTarget(renderedDate, 'next')}
               currentDate={currentDate}
               interactive={false}
+              onClickCapture={handleClickCapture}
             />
           </div>
         )}
@@ -298,12 +304,18 @@ export function MobileWeekStrip({
 
 function ExternalWeekTrack({
   transition,
+  started,
   currentDate,
-  trackTransition
+  trackTransition,
+  onClickCapture,
+  onTransitionEnd
 }: {
   readonly transition: ExternalWeekTransition
+  readonly started: boolean
   readonly currentDate: string
   readonly trackTransition: string
+  readonly onClickCapture: (event: ReactMouseEvent<HTMLAnchorElement>) => void
+  readonly onTransitionEnd: () => void
 }) {
   const next = transition.direction === 'next'
   return (
@@ -312,9 +324,13 @@ function ExternalWeekTrack({
       className="flex w-[200%]"
       style={{
         transform: next
-          ? `translate3d(${transition.started ? '-50%' : '0%'}, 0, 0)`
-          : `translate3d(${transition.started ? '0%' : '-50%'}, 0, 0)`,
-        transition: transition.started ? trackTransition : 'none'
+          ? `translate3d(${started ? '-50%' : '0%'}, 0, 0)`
+          : `translate3d(${started ? '0%' : '-50%'}, 0, 0)`,
+        transition: started ? trackTransition : 'none'
+      }}
+      onTransitionEnd={(event) => {
+        if (event.target === event.currentTarget && event.propertyName === 'transform')
+          onTransitionEnd()
       }}
     >
       <WeekPanel
@@ -322,12 +338,14 @@ function ExternalWeekTrack({
         currentDate={currentDate}
         width="half"
         interactive={!next}
+        onClickCapture={onClickCapture}
       />
       <WeekPanel
         selectedDate={next ? transition.toDate : transition.fromDate}
         currentDate={currentDate}
         width="half"
         interactive={next}
+        onClickCapture={onClickCapture}
       />
     </div>
   )
@@ -337,11 +355,13 @@ function WeekPanel({
   selectedDate,
   currentDate,
   interactive,
+  onClickCapture,
   width = 'third'
 }: {
   readonly selectedDate: string
   readonly currentDate: string
   readonly interactive: boolean
+  readonly onClickCapture: (event: ReactMouseEvent<HTMLAnchorElement>) => void
   readonly width?: 'third' | 'half'
 }) {
   return (
@@ -356,6 +376,7 @@ function WeekPanel({
           to="/appointments"
           search={{ date: day.date }}
           viewTransition={false}
+          onClickCapture={onClickCapture}
           tabIndex={interactive ? undefined : -1}
           aria-current={day.selected ? 'date' : undefined}
           className={`relative grid min-h-15 place-content-center rounded-xl pt-3 pb-2 text-center transition-colors ${day.selected ? 'scale-[1.05] bg-card text-foreground' : 'text-muted-foreground hover:bg-card/60'}`}

@@ -1,11 +1,17 @@
+const currencyMetadataFormatters = new Map<string, Intl.NumberFormat>()
+const decimalFormatters = new Map<number, Intl.NumberFormat>()
+
 const currencyMinorUnitDigits = (currency: string) => {
   try {
-    return (
-      new Intl.NumberFormat('en-US', {
+    const existing = currencyMetadataFormatters.get(currency)
+    const formatter =
+      existing ??
+      Intl.NumberFormat('en-US', {
         style: 'currency',
         currency
-      }).resolvedOptions().maximumFractionDigits ?? 2
-    )
+      })
+    if (!existing) currencyMetadataFormatters.set(currency, formatter)
+    return formatter.resolvedOptions().maximumFractionDigits ?? 2
   } catch {
     return 2
   }
@@ -17,11 +23,16 @@ const currencyMinorUnitDivisor = (currency: string) =>
 export function formatMerchantPrice(amountMinor: number, currency: string) {
   const fractionDigits = currencyMinorUnitDigits(currency)
   const amountMajor = amountMinor / currencyMinorUnitDivisor(currency)
+  const existing = decimalFormatters.get(fractionDigits)
+  const formatter =
+    existing ??
+    Intl.NumberFormat('en-US', {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits
+    })
+  if (!existing) decimalFormatters.set(fractionDigits, formatter)
 
-  return `${new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits
-  }).format(amountMajor)} ${currency}`
+  return `${formatter.format(amountMajor)} ${currency}`
 }
 
 export function merchantPriceInputValue(amountMinor: number, currency: string) {

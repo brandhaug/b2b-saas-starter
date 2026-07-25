@@ -1,0 +1,38 @@
+import type { ReactNode } from 'react'
+import { useMobileCalendarDate } from '@/features/appointments/mobile/use-mobile-calendar-date.ts'
+import { MerchantHomeAtmosphere } from '../home-atmosphere.tsx'
+import { MobileHomeActions } from './mobile-home-actions.tsx'
+
+export function MobileHomeLayout({
+  appointmentDate,
+  timezone,
+  bookingUrl,
+  children
+}: {
+  readonly appointmentDate: string
+  readonly timezone: string
+  readonly bookingUrl: string | undefined
+  readonly children: ReactNode
+}) {
+  const currentDate = useMobileCalendarDate(timezone)
+
+  return (
+    <main
+      data-mobile-home-viewport="true"
+      className="merchant-mobile merchant-mobile-home relative h-dvh min-h-dvh overflow-hidden text-foreground"
+    >
+      <MerchantHomeAtmosphere showHero={false} />
+      <section
+        data-mobile-home-content="true"
+        className="merchant-safe-area-inline relative z-10 flex h-full min-h-0 min-w-0 flex-col px-5 pt-[max(2rem,env(safe-area-inset-top))]"
+      >
+        {children}
+      </section>
+      <MobileHomeActions
+        appointmentDate={appointmentDate}
+        currentDate={currentDate}
+        bookingUrl={bookingUrl}
+      />
+    </main>
+  )
+}

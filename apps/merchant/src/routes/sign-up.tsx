@@ -14,32 +14,32 @@ function SignUpPage() {
     <AuthShell title="Create your Merchant App account">
       <form
         className="grid gap-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          const form = new FormData(event.currentTarget)
+        action={async (form) => {
           setPending(true)
           setMessage(null)
-          void merchantAuthClient.signUp
-            .email({
+          try {
+            const result = await merchantAuthClient.signUp.email({
               name: formValue(form, 'name'),
               email: formValue(form, 'email'),
               password: formValue(form, 'password'),
               callbackURL: '/verify-email'
             })
-            .then((result) => {
-              if (result.error) {
-                setMessage(
-                  result.error.code === 'merchant_email_needs_configuration'
-                    ? 'Email verification is not configured for this Merchant App yet.'
-                    : 'We could not create that account. Try again or sign in.'
-                )
-                return
-              }
+            if (result.error) {
               setMessage(
-                'Check your verification email. In local development, use the link printed in the Merchant App server terminal.'
+                result.error.code === 'merchant_email_needs_configuration'
+                  ? 'Email verification is not configured for this Merchant App yet.'
+                  : 'We could not create that account. Try again or sign in.'
               )
-            })
-            .finally(() => setPending(false))
+              return
+            }
+            setMessage(
+              'Check your verification email. In local development, use the link printed in the Merchant App server terminal.'
+            )
+          } catch {
+            setMessage('Account creation is temporarily unavailable. Please try again.')
+          } finally {
+            setPending(false)
+          }
         }}
       >
         <label className="grid gap-1 text-sm">
@@ -67,6 +67,7 @@ function SignUpPage() {
         </label>
         {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
         <button
+          type="submit"
           className="bg-primary px-4 py-2 text-primary-foreground"
           disabled={pending}
         >

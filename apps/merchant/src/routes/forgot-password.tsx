@@ -20,21 +20,20 @@ function ForgotPasswordPage() {
       </p>
       <form
         className="grid gap-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          const form = new FormData(event.currentTarget)
+        action={async (form) => {
           setPending(true)
-          void merchantAuthClient
-            .requestPasswordReset({
+          try {
+            await merchantAuthClient.requestPasswordReset({
               email: formValue(form, 'email'),
               redirectTo: `${window.location.origin}/reset-password`
             })
-            .finally(() => {
-              // This message stays identical regardless of whether the account
-              // exists, preventing recovery from disclosing account ownership.
-              setSubmitted(true)
-              setPending(false)
-            })
+          } catch {
+            // The response stays identical so recovery cannot disclose account
+            // ownership or whether the email provider is temporarily unavailable.
+          } finally {
+            setSubmitted(true)
+            setPending(false)
+          }
         }}
       >
         <label className="grid gap-1 text-sm">
@@ -47,6 +46,7 @@ function ForgotPasswordPage() {
           />
         </label>
         <button
+          type="submit"
           className="bg-primary px-4 py-2 text-primary-foreground"
           disabled={pending}
         >
