@@ -1,13 +1,6 @@
 'use client'
 
-import {
-  BadgeCheck,
-  Bell,
-  ChevronsUpDown,
-  CreditCard,
-  LogOut,
-  Sparkles
-} from 'lucide-react'
+import { ChevronsUpDown, LogOut } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -25,6 +18,7 @@ import {
   SidebarMenuItem
 } from '@/components/ui/sidebar'
 import { useSidebar } from '@/components/ui/sidebar-context'
+import { useOperationsSignOut } from '@/hooks/use-operations-sign-out'
 
 export function NavUser({
   user
@@ -36,6 +30,13 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const { pending, signOut } = useOperationsSignOut()
+  const initials = user.name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 
   return (
     <SidebarMenu>
@@ -50,8 +51,8 @@ export function NavUser({
             }
           >
             <Avatar className="h-8 w-8 rounded-lg">
-              <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+              {user.avatar ? <AvatarImage src={user.avatar} alt={user.name} /> : null}
+              <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{user.name}</span>
@@ -69,8 +70,10 @@ export function NavUser({
               <MenuGroupLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={user.avatar} alt={user.name} />
-                    <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                    {user.avatar ? (
+                      <AvatarImage src={user.avatar} alt={user.name} />
+                    ) : null}
+                    <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">{user.name}</span>
@@ -80,31 +83,9 @@ export function NavUser({
               </MenuGroupLabel>
             </MenuGroup>
             <MenuSeparator />
-            <MenuGroup>
-              <MenuItem>
-                <Sparkles />
-                Upgrade to Pro
-              </MenuItem>
-            </MenuGroup>
-            <MenuSeparator />
-            <MenuGroup>
-              <MenuItem>
-                <BadgeCheck />
-                Account
-              </MenuItem>
-              <MenuItem>
-                <CreditCard />
-                Billing
-              </MenuItem>
-              <MenuItem>
-                <Bell />
-                Notifications
-              </MenuItem>
-            </MenuGroup>
-            <MenuSeparator />
-            <MenuItem>
+            <MenuItem disabled={pending} onClick={signOut}>
               <LogOut />
-              Log out
+              {pending ? 'Signing out…' : 'Sign out'}
             </MenuItem>
           </MenuPopup>
         </Menu>

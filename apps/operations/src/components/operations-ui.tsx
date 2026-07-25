@@ -1,6 +1,5 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { operationsAuthClient } from '@b2b-saas-starter/auth/operations/client'
 import { AppSidebar } from '@/components/app-sidebar'
 import {
   Breadcrumb,
@@ -12,7 +11,9 @@ import {
 } from '@/components/ui/breadcrumb'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { useOperationsSignOut } from '@/hooks/use-operations-sign-out'
 import type { ScreenResult } from '@/lib/server/operations-server-functions.ts'
+import { ModeToggle } from './mode-toggle'
 
 export function OperationsShell({
   eyebrow,
@@ -26,7 +27,7 @@ export function OperationsShell({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="md:rounded-none! md:shadow-none!">
+      <SidebarInset>
         <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background/90 backdrop-blur">
           <div className="flex min-w-0 items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1 min-h-9 min-w-9" />
@@ -54,7 +55,7 @@ export function OperationsShell({
             </Breadcrumb>
           </div>
           <div className="ml-auto pr-4">
-            <SignOutButton />
+            <ModeToggle />
           </div>
         </header>
         <div className="flex flex-1 flex-col p-4 pt-0">
@@ -66,26 +67,6 @@ export function OperationsShell({
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
-}
-
-function SignOutButton() {
-  const [pending, setPending] = useState(false)
-  return (
-    <button
-      className="h-9 rounded-md border-0 bg-transparent px-3 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
-      disabled={pending}
-      onClick={() => {
-        setPending(true)
-        void operationsAuthClient.signOut().then(({ error }) => {
-          if (!error) window.location.assign('/sign-in')
-          else setPending(false)
-        })
-      }}
-      type="button"
-    >
-      {pending ? 'Signing out…' : 'Sign out'}
-    </button>
   )
 }
 

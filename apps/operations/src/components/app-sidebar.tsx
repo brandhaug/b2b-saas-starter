@@ -5,9 +5,11 @@ import { Link } from '@tanstack/react-router'
 import { Command, Search, ScrollText, ShieldCheck, type LucideIcon } from 'lucide-react'
 
 import { NavMain } from '@/components/nav-main'
+import { NavUser } from '@/components/nav-user'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -23,6 +25,12 @@ const navigation = [
   url: '/' | '/operators' | '/audit'
   icon: LucideIcon
 }[]
+
+const operator = {
+  name: 'System Operator',
+  email: 'Operations realm',
+  avatar: ''
+}
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -55,6 +63,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={navigation} />
       </SidebarContent>
+      <SidebarFooter>
+        <NavUser user={operator} />
+      </SidebarFooter>
     </Sidebar>
   )
 }

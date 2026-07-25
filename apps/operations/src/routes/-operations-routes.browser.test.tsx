@@ -1,6 +1,14 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor
+} from '@testing-library/react'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,6 +42,7 @@ vi.mock('@b2b-saas-starter/auth/operations/client', () => ({
 }))
 
 import { getRouter } from '../router.tsx'
+import { useOperationsSignOut } from '@/hooks/use-operations-sign-out.ts'
 
 const ready = <A,>(data: A) => ({ state: 'ready' as const, data })
 
@@ -119,6 +128,7 @@ describe('Operations TanStack routes', () => {
     expect(screen.getByRole('link', { name: 'Discovery' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Operators' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Audit' })).toBeTruthy()
+    expect(screen.getByText('System Operator')).toBeTruthy()
 
     fireEvent.click(sidebarTrigger)
     await waitFor(() =>
@@ -143,11 +153,12 @@ describe('Operations TanStack routes', () => {
       data: null,
       error: { message: 'Sign out rejected' }
     })
-    await renderRoute('/')
+    const { result } = renderHook(() => useOperationsSignOut())
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+    act(() => result.current.signOut())
 
     await waitFor(() => expect(authClient.signOut).toHaveBeenCalledOnce())
+    await waitFor(() => expect(result.current.pending).toBe(false))
   })
 
   it('renders sign-in and reports an authoritative form rejection', async () => {
