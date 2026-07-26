@@ -2,6 +2,7 @@ import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
 import {
   Ban,
   Check,
+  ChevronLeft,
   ChevronRight,
   CircleDollarSign,
   Info,
@@ -35,12 +36,13 @@ const formValue = (data: FormData, key: string) => {
   return typeof value === 'string' ? value : ''
 }
 
-const useAppointmentStepEntrance = () => {
+const useAppointmentStepEntrance = (enabled: boolean) => {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const element = ref.current
     if (
       !element ||
+      !enabled ||
       typeof element.animate !== 'function' ||
       window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
     )
@@ -57,7 +59,7 @@ const useAppointmentStepEntrance = () => {
       }
     )
     return () => animation.cancel()
-  }, [])
+  }, [enabled])
   return ref
 }
 
@@ -68,7 +70,8 @@ export function MobileAppointmentClientPicker({
   selectedClient,
   onBack,
   onAddClient,
-  onConfirm
+  onConfirm,
+  desktop = false
 }: {
   readonly directory: CustomerDirectory | null
   readonly loading: boolean
@@ -77,12 +80,13 @@ export function MobileAppointmentClientPicker({
   readonly onBack: () => void
   readonly onAddClient: () => void
   readonly onConfirm: (client: AppointmentClient) => void
+  readonly desktop?: boolean
 }) {
   const [query, setQuery] = useState('')
   const [pendingClient, setPendingClient] = useState(selectedClient)
   const searchId = useId()
   const sectionPrefix = useId().replace(/:/g, '')
-  const entranceRef = useAppointmentStepEntrance()
+  const entranceRef = useAppointmentStepEntrance(!desktop)
   const groups = useMemo(
     () => groupAppointmentClients(directory?.entries ?? [], query),
     [directory?.entries, query]
@@ -98,7 +102,7 @@ export function MobileAppointmentClientPicker({
       data-mobile-client-picker="true"
       className="flex h-full min-h-0 flex-col"
     >
-      <ClientStepHeader title="Select a client" onBack={onBack} />
+      <ClientStepHeader title="Select a client" onBack={onBack} desktop={desktop} />
       <MobileSheetScrollport className="px-4 pb-[max(7rem,env(safe-area-inset-bottom))]">
         <div className="relative min-h-full pr-5">
           <div className="mt-3 rounded-xl bg-muted p-3">
@@ -259,16 +263,18 @@ export function MobileAppointmentClientPicker({
 
 export function MobileAppointmentAddClient({
   onBack,
-  onSave
+  onSave,
+  desktop = false
 }: {
   readonly onBack: () => void
   readonly onSave: (client: AppointmentClient) => void
+  readonly desktop?: boolean
 }) {
   const [blockBooking, setBlockBooking] = useState(false)
   const [prepaidOnly, setPrepaidOnly] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
   const [valid, setValid] = useState(false)
-  const entranceRef = useAppointmentStepEntrance()
+  const entranceRef = useAppointmentStepEntrance(!desktop)
 
   const updateValidity = (form: HTMLFormElement) => {
     const data = new FormData(form)
@@ -308,7 +314,12 @@ export function MobileAppointmentAddClient({
       data-mobile-add-client-form="true"
       className="flex h-full min-h-0 flex-col"
     >
-      <ClientStepHeader title="Add a new client" onBack={onBack} compact />
+      <ClientStepHeader
+        title="Add a new client"
+        onBack={onBack}
+        compact
+        desktop={desktop}
+      />
       <MobileSheetScrollport className="px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <form
           className="flex min-h-full flex-col"
@@ -401,11 +412,13 @@ export function MobileAppointmentAddClient({
 function ClientStepHeader({
   title,
   onBack,
-  compact = false
+  compact = false,
+  desktop = false
 }: {
   readonly title: string
   readonly onBack: () => void
   readonly compact?: boolean
+  readonly desktop?: boolean
 }) {
   return (
     <header
@@ -415,11 +428,19 @@ function ClientStepHeader({
     >
       <button
         type="button"
-        aria-label={`Close ${title.toLocaleLowerCase()}`}
+        aria-label={
+          desktop
+            ? `Back from ${title.toLocaleLowerCase()}`
+            : `Close ${title.toLocaleLowerCase()}`
+        }
         onClick={onBack}
         className="grid size-11 place-items-center rounded-full text-muted-foreground active:bg-muted"
       >
-        <X aria-hidden className="size-7" strokeWidth={1.5} />
+        {desktop ? (
+          <ChevronLeft aria-hidden className="size-6" strokeWidth={2} />
+        ) : (
+          <X aria-hidden className="size-7" strokeWidth={1.5} />
+        )}
       </button>
       <h1 className="truncate text-[1.0625rem] font-semibold">{title}</h1>
     </header>

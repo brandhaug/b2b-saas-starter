@@ -122,18 +122,23 @@ describe('DesktopRouteModal motion', () => {
     expect(
       sidecar?.querySelector('[data-desktop-new-appointment-recurrence="true"]')
     ).not.toBeNull()
-    expect(document.activeElement?.getAttribute('aria-label')).toBe(
-      'Close recurrence picker'
-    )
+    expect(sidecar?.dataset.desktopSubstepState).toBe('preparing')
+
+    await act(async () => vi.advanceTimersByTime(16))
+    expect(sidecar?.dataset.desktopSubstepState).toBe('entering')
+
+    await act(async () => vi.advanceTimersByTime(500))
+    expect(sidecar?.dataset.desktopSubstepState).toBe('open')
+    expect(document.activeElement).toBe(sidecar)
 
     await act(async () =>
       sidecar
-        ?.querySelector<HTMLButtonElement>('[aria-label="Close recurrence picker"]')
+        ?.querySelector<HTMLButtonElement>('[aria-label="Back from recurrence picker"]')
         ?.click()
     )
     expect(sidecar?.dataset.desktopSubstepState).toBe('closing')
 
-    await act(async () => vi.advanceTimersByTime(200))
+    await act(async () => vi.advanceTimersByTime(500))
     expect(
       container.querySelector('.merchant-desktop-new-appointment-sidecar')
     ).toBeNull()

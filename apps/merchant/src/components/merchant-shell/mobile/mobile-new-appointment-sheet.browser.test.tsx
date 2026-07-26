@@ -3,7 +3,10 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MobileNewAppointmentSheet } from './mobile-new-appointment-sheet.tsx'
+import {
+  MobileNewAppointmentSheet,
+  NewAppointmentDialog
+} from './mobile-new-appointment-sheet.tsx'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -136,6 +139,177 @@ afterEach(async () => {
 })
 
 describe('MobileNewAppointmentSheet interaction', () => {
+  it('paints the desktop substep start pose before entering and exits before restoring the draft', async () => {
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    let entranceFrame: FrameRequestCallback | undefined
+    const frame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        entranceFrame = callback
+        return 1
+      })
+
+    try {
+      await act(async () =>
+        root?.render(
+          <NewAppointmentDialog
+            open
+            presentation="desktop"
+            appointmentDate="2026-07-25"
+            onRequestClose={vi.fn()}
+          />
+        )
+      )
+
+      const clientField = container.querySelector<HTMLButtonElement>(
+        '[data-mobile-new-appointment-field="client"]'
+      )
+      await act(async () => clientField?.click())
+
+      const sidecar = container.querySelector<HTMLDialogElement>(
+        '[data-desktop-substep="clients"]'
+      )
+      expect(sidecar?.dataset.desktopSubstepState).toBe('preparing')
+      expect(document.activeElement).not.toBe(sidecar)
+
+      await act(async () => entranceFrame?.(performance.now()))
+      expect(sidecar?.dataset.desktopSubstepState).toBe('entering')
+
+      await act(async () => vi.advanceTimersByTime(500))
+      expect(sidecar?.dataset.desktopSubstepState).toBe('open')
+      expect(document.activeElement).toBe(sidecar)
+
+      await act(async () =>
+        sidecar?.querySelector<HTMLButtonElement>('header button')?.click()
+      )
+      expect(sidecar?.dataset.desktopSubstepState).toBe('closing')
+      expect(container.querySelector('[data-desktop-substep="clients"]')).not.toBeNull()
+
+      await act(async () => vi.advanceTimersByTime(500))
+      expect(container.querySelector('[data-desktop-substep]')).toBeNull()
+      expect(document.activeElement).toBe(clientField)
+    } finally {
+      frame.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the desktop sidecar mounted while an internal substep slides in', async () => {
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    let entranceFrame: FrameRequestCallback | undefined
+    const frame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        entranceFrame = callback
+        return 1
+      })
+
+    try {
+      await act(async () =>
+        root?.render(
+          <NewAppointmentDialog
+            open
+            presentation="desktop"
+            appointmentDate="2026-07-25"
+            onRequestClose={vi.fn()}
+          />
+        )
+      )
+
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-mobile-new-appointment-field="client"]'
+          )
+          ?.click()
+      )
+      await act(async () => entranceFrame?.(performance.now()))
+      await act(async () => vi.advanceTimersByTime(500))
+
+      const sidecar = container.querySelector<HTMLDialogElement>(
+        '[data-desktop-substep="clients"]'
+      )
+      expect(sidecar?.dataset.desktopSubstepState).toBe('open')
+
+      await act(async () =>
+        sidecar
+          ?.querySelector<HTMLButtonElement>('[data-mobile-add-client="true"]')
+          ?.click()
+      )
+
+      const addClientSidecar = container.querySelector<HTMLDialogElement>(
+        '[data-desktop-substep="add-client"]'
+      )
+      expect(addClientSidecar).toBe(sidecar)
+      expect(addClientSidecar?.dataset.desktopSubstepState).toBe('open')
+      expect(
+        addClientSidecar?.querySelector('[data-desktop-substep-route-motion="true"]')
+      ).not.toBeNull()
+
+      await act(async () =>
+        addClientSidecar?.querySelector<HTMLButtonElement>('header button')?.click()
+      )
+      expect(
+        container.querySelector<HTMLDialogElement>('[data-desktop-substep="clients"]')
+      ).toBe(sidecar)
+      expect(sidecar?.dataset.desktopSubstepState).toBe('open')
+    } finally {
+      frame.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens and returns immediately when desktop motion is reduced', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    const matchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn(() => ({ matches: true }))
+    })
+
+    try {
+      await act(async () =>
+        root?.render(
+          <NewAppointmentDialog
+            open
+            presentation="desktop"
+            appointmentDate="2026-07-25"
+            onRequestClose={vi.fn()}
+          />
+        )
+      )
+
+      const clientField = container.querySelector<HTMLButtonElement>(
+        '[data-mobile-new-appointment-field="client"]'
+      )
+      await act(async () => clientField?.click())
+
+      const sidecar = container.querySelector<HTMLDialogElement>(
+        '[data-desktop-substep="clients"]'
+      )
+      expect(sidecar?.dataset.desktopSubstepState).toBe('open')
+      expect(sidecar?.hasAttribute('inert')).toBe(false)
+
+      await act(async () =>
+        sidecar?.querySelector<HTMLButtonElement>('header button')?.click()
+      )
+      expect(container.querySelector('[data-desktop-substep]')).toBeNull()
+      expect(document.activeElement).toBe(clientField)
+    } finally {
+      if (matchMediaDescriptor)
+        Object.defineProperty(window, 'matchMedia', matchMediaDescriptor)
+      else Reflect.deleteProperty(window, 'matchMedia')
+    }
+  })
+
   it('opens non-modally before scheduling its entrance spring', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)

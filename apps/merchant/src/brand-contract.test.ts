@@ -69,18 +69,20 @@ describe('merchant BeeSolo brand contract', () => {
         )
       ]
         .map((match) => match[1] ?? '')
-        .find((rule) => rule.includes('transform: translate(0.9375rem, -50%)')) ?? ''
+        .find((rule) => rule.includes('transform: translate3d(0.9375rem, -50%, 0)')) ??
+      ''
     const sidecarBackdropRule =
       css.match(
         /dialog\.merchant-desktop-new-appointment-sidecar::backdrop\s*\{([^}]*)\}/
       )?.[1] ?? ''
 
     expect(sidecarRule).toContain('left: 50%')
-    expect(sidecarRule).toContain('transform: translate(0.9375rem, -50%)')
+    expect(sidecarRule).toContain('height: min(47rem, calc(100dvh + 2rem))')
+    expect(sidecarRule).toContain('transform: translate3d(0.9375rem, -50%, 0)')
     expect(sidecarBackdropRule).toContain('background: transparent')
     expect(sidecarBackdropRule).toContain('backdrop-filter: none')
     expect(css).toContain(
-      'animation: merchant-desktop-sidecar-enter 200ms ease-out both'
+      'animation: merchant-desktop-sidecar-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both'
     )
   })
 

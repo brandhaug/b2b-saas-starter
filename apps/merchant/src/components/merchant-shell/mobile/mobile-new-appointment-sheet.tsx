@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleUserRound,
   Clock3,
@@ -63,6 +64,8 @@ type NewAppointmentDialogProps = {
 }
 
 const ignoreNewAppointmentGesture = () => undefined
+const desktopMotionReduced = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
 
 export function MobileNewAppointmentSheet({
   open,
@@ -172,8 +175,9 @@ function NewAppointmentSheetSurface({
   const [notifyCustomer, setNotifyCustomer] = useState(true)
   const [step, setStep] = useState<NewAppointmentStep>('appointment')
   const [desktopSubstepState, setDesktopSubstepState] = useState<
-    'entering' | 'open' | 'closing'
+    'preparing' | 'entering' | 'open' | 'closing'
   >('open')
+  const [desktopSubstepRouteMotion, setDesktopSubstepRouteMotion] = useState(false)
   const [selectedClient, setSelectedClient] = useState<AppointmentClient | null>(null)
   const [selectedService, setSelectedService] = useState<ServiceRecord | null>(null)
   const [durationMinutes, setDurationMinutes] = useState(0)
@@ -204,9 +208,22 @@ function NewAppointmentSheetSurface({
   const componentMounted = useRef(false)
   const appointmentContentRef = useRef<HTMLDivElement>(null)
   const stepContentRef = useRef<HTMLDivElement>(null)
+  const desktopSubstepRef = useRef<HTMLDialogElement>(null)
   const stepOriginFocusRef = useRef<HTMLElement | null>(null)
   const stepOriginFieldRef = useRef<string | null>(null)
+  const desktopSubstepFrameRef = useRef<number | null>(null)
   const desktopSubstepTimerRef = useRef<number | null>(null)
+
+  const clearDesktopSubstepLifecycle = useCallback(() => {
+    if (desktopSubstepFrameRef.current) {
+      window.cancelAnimationFrame(desktopSubstepFrameRef.current)
+      desktopSubstepFrameRef.current = null
+    }
+    if (desktopSubstepTimerRef.current) {
+      window.clearTimeout(desktopSubstepTimerRef.current)
+      desktopSubstepTimerRef.current = null
+    }
+  }, [])
 
   const openStep = (
     nextStep: Exclude<NewAppointmentStep, 'appointment'>,
@@ -216,13 +233,12 @@ function NewAppointmentSheetSurface({
       stepOriginFocusRef.current = document.activeElement
       stepOriginFieldRef.current = originField ?? null
     }
-    if (desktopSubstepTimerRef.current)
-      window.clearTimeout(desktopSubstepTimerRef.current)
+    clearDesktopSubstepLifecycle()
     if (presentation === 'desktop') {
-      setDesktopSubstepState('entering')
-      desktopSubstepTimerRef.current = window.setTimeout(
-        () => setDesktopSubstepState('open'),
-        200
+      const routeWithinSidecar = step !== 'appointment'
+      setDesktopSubstepRouteMotion(routeWithinSidecar)
+      setDesktopSubstepState(
+        routeWithinSidecar || desktopMotionReduced() ? 'open' : 'preparing'
       )
     }
     setStep(nextStep)
@@ -233,15 +249,65 @@ function NewAppointmentSheetSurface({
       setStep('appointment')
       return
     }
-    if (desktopSubstepTimerRef.current)
-      window.clearTimeout(desktopSubstepTimerRef.current)
-    setDesktopSubstepState('closing')
-    desktopSubstepTimerRef.current = window.setTimeout(() => {
+    clearDesktopSubstepLifecycle()
+    setDesktopSubstepRouteMotion(false)
+    if (desktopMotionReduced()) {
       setStep('appointment')
       setDesktopSubstepState('open')
-      desktopSubstepTimerRef.current = null
-    }, 200)
+      return
+    }
+    setDesktopSubstepState('closing')
   }
+
+  const finishDesktopSubstepAnimation = useCallback(
+    (state: 'preparing' | 'entering' | 'open' | 'closing') => {
+      if (state === 'entering') {
+        clearDesktopSubstepLifecycle()
+        setDesktopSubstepState('open')
+        return
+      }
+      if (state !== 'closing') return
+      clearDesktopSubstepLifecycle()
+      setStep('appointment')
+      setDesktopSubstepState('open')
+    },
+    [clearDesktopSubstepLifecycle]
+  )
+
+  useEffect(() => {
+    if (
+      presentation !== 'desktop' ||
+      step === 'appointment' ||
+      desktopSubstepState !== 'preparing'
+    )
+      return
+    desktopSubstepFrameRef.current = window.requestAnimationFrame(() => {
+      desktopSubstepFrameRef.current = null
+      setDesktopSubstepState('entering')
+    })
+    return () => {
+      if (!desktopSubstepFrameRef.current) return
+      window.cancelAnimationFrame(desktopSubstepFrameRef.current)
+      desktopSubstepFrameRef.current = null
+    }
+  }, [desktopSubstepState, presentation, step])
+
+  useEffect(() => {
+    if (
+      presentation !== 'desktop' ||
+      (desktopSubstepState !== 'entering' && desktopSubstepState !== 'closing')
+    )
+      return
+    desktopSubstepTimerRef.current = window.setTimeout(
+      () => finishDesktopSubstepAnimation(desktopSubstepState),
+      500
+    )
+    return () => {
+      if (!desktopSubstepTimerRef.current) return
+      window.clearTimeout(desktopSubstepTimerRef.current)
+      desktopSubstepTimerRef.current = null
+    }
+  }, [desktopSubstepState, finishDesktopSubstepAnimation, presentation])
 
   useLayoutEffect(() => {
     if (presentation !== 'desktop') return
@@ -259,21 +325,17 @@ function NewAppointmentSheetSurface({
       if (restoredOrigin?.isConnected) restoredOrigin.focus({ preventScroll: true })
       return
     }
-    stepContentRef.current
-      ?.querySelector<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), textarea:not([disabled])'
-      )
-      ?.focus({ preventScroll: true })
-  }, [presentation, step])
+    if (desktopSubstepState !== 'open') return
+    desktopSubstepRef.current?.focus({ preventScroll: true })
+  }, [desktopSubstepState, presentation, step])
 
   useEffect(() => {
     componentMounted.current = true
     return () => {
       componentMounted.current = false
-      if (desktopSubstepTimerRef.current)
-        window.clearTimeout(desktopSubstepTimerRef.current)
+      clearDesktopSubstepLifecycle()
     }
-  }, [])
+  }, [clearDesktopSubstepLifecycle])
 
   useEffect(() => {
     if (
@@ -364,10 +426,10 @@ function NewAppointmentSheetSurface({
   }, [availability, selectedDate])
 
   const activateDialog = useNewAppointmentDialogActivation(sheetRef, presentation)
-  const desktopSubstepRef = useRef<HTMLDialogElement>(null)
   const activateDesktopSubstepDialog = useNewAppointmentDialogActivation(
     desktopSubstepRef,
-    'desktop'
+    'desktop',
+    false
   )
   const desktop = presentation === 'desktop'
   const appointmentDraft = (
@@ -415,6 +477,7 @@ function NewAppointmentSheetSurface({
           loading={customerDirectoryState === 'loading'}
           error={customerDirectoryState === 'error'}
           selectedClient={selectedClient}
+          desktop={desktop}
           onBack={returnToAppointment}
           onAddClient={() => openStep('add-client')}
           onConfirm={(client) => {
@@ -427,6 +490,7 @@ function NewAppointmentSheetSurface({
     if (step === 'add-client')
       return (
         <MobileAppointmentAddClient
+          desktop={desktop}
           onBack={() => openStep('clients')}
           onSave={(client) => {
             setSelectedClient(client)
@@ -440,6 +504,7 @@ function NewAppointmentSheetSurface({
         <MobileAppointmentNotesEditor
           kind="appointment"
           note={appointmentNote}
+          presentation={presentation}
           onClose={returnToAppointment}
           onSave={(note) => {
             setAppointmentNote(note)
@@ -452,6 +517,7 @@ function NewAppointmentSheetSurface({
         <MobileAppointmentNotesEditor
           kind="client"
           note={clientNote}
+          presentation={presentation}
           onClose={returnToAppointment}
           onSave={(note) => {
             setClientNote(note)
@@ -483,6 +549,7 @@ function NewAppointmentSheetSurface({
           loading={catalogState === 'loading'}
           error={catalogState === 'error'}
           selectedService={selectedService}
+          desktop={desktop}
           onBack={returnToAppointment}
           onConfirm={(service) => {
             setSelectedService(service)
@@ -591,6 +658,8 @@ function NewAppointmentSheetSurface({
           tabIndex={-1}
           data-desktop-substep={step}
           data-desktop-substep-state={desktopSubstepState}
+          data-new-appointment-presentation="desktop"
+          inert={desktopSubstepState === 'open' ? undefined : true}
           className="merchant-desktop-new-appointment-sidecar merchant-route-sheet merchant-mobile-sheet-theme z-20 m-0 flex flex-col overflow-hidden border bg-background p-0 text-foreground outline-none"
           onCancel={(event) => {
             event.preventDefault()
@@ -606,11 +675,21 @@ function NewAppointmentSheetSurface({
               event.clientY > bounds.bottom
             if (outside) returnToAppointment()
           }}
+          onAnimationEnd={(event) => {
+            if (event.target !== event.currentTarget) return
+            const state = event.currentTarget.dataset.desktopSubstepState
+            if (state === 'entering' || state === 'closing')
+              finishDesktopSubstepAnimation(state)
+          }}
         >
           <div
+            key={step}
             ref={stepContentRef}
             data-new-appointment-step={step}
-            className="contents"
+            data-desktop-substep-route-motion={
+              desktopSubstepRouteMotion ? 'true' : undefined
+            }
+            className="merchant-desktop-substep-route h-full min-h-0"
           >
             {renderSubstep()}
           </div>
@@ -685,7 +764,8 @@ function useDesktopAppointmentDialogSurface(
 
 function useNewAppointmentDialogActivation(
   sheetRef: RefObject<HTMLDialogElement | null>,
-  presentation: NewAppointmentPresentation
+  presentation: NewAppointmentPresentation,
+  focusOnOpen = true
 ) {
   return useCallback(
     (dialog: HTMLDialogElement | null) => {
@@ -698,13 +778,13 @@ function useNewAppointmentDialogActivation(
       ) {
         dialog.showModal()
       }
-      dialog.focus({ preventScroll: true })
+      if (focusOnOpen) dialog.focus({ preventScroll: true })
       return () => {
         if (dialog.open && typeof dialog.close === 'function') dialog.close()
         sheetRef.current = null
       }
     },
-    [presentation, sheetRef]
+    [focusOnOpen, presentation, sheetRef]
   )
 }
 
@@ -960,11 +1040,13 @@ function AppointmentDraft({
 function MobileAppointmentNotesEditor({
   kind,
   note,
+  presentation,
   onClose,
   onSave
 }: {
   readonly kind: 'appointment' | 'client'
   readonly note: string
+  readonly presentation: NewAppointmentPresentation
   readonly onClose: () => void
   readonly onSave: (note: string) => void
 }) {
@@ -1017,11 +1099,19 @@ function MobileAppointmentNotesEditor({
       <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border/70 bg-background px-2">
         <button
           type="button"
-          aria-label={`Close ${kind} notes`}
+          aria-label={
+            presentation === 'desktop'
+              ? `Back from ${kind} notes`
+              : `Close ${kind} notes`
+          }
           onClick={onClose}
           className="grid size-12 place-items-center rounded-full text-muted-foreground transition-colors active:bg-muted active:text-foreground"
         >
-          <X aria-hidden className="size-7" strokeWidth={1.6} />
+          {presentation === 'desktop' ? (
+            <ChevronLeft aria-hidden className="size-6" strokeWidth={2} />
+          ) : (
+            <X aria-hidden className="size-7" strokeWidth={1.6} />
+          )}
         </button>
         <h1 className="text-[1.25rem] font-semibold tracking-[-0.02em]">
           Notes for {kind}
@@ -1191,11 +1281,11 @@ function AppointmentRecurrencePicker({
           </h1>
           <button
             type="button"
-            aria-label="Close recurrence picker"
+            aria-label="Back from recurrence picker"
             onClick={onClose}
             className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <X aria-hidden className="size-5" strokeWidth={1.6} />
+            <ChevronLeft aria-hidden className="size-5" strokeWidth={2} />
           </button>
         </header>
         {recurrenceWheel}

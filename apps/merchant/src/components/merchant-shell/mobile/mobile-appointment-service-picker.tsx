@@ -1,5 +1,5 @@
 import type { ServiceRecord } from '@b2b-saas-starter/capabilities/merchant-catalog'
-import { Check, X } from 'lucide-react'
+import { Check, ChevronLeft, X } from 'lucide-react'
 import { useState } from 'react'
 import { formatMerchantPrice } from '@/lib/merchant-money.ts'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
@@ -19,7 +19,8 @@ export function MobileAppointmentServicePicker({
   error,
   selectedService,
   onBack,
-  onConfirm
+  onConfirm,
+  desktop = false
 }: {
   readonly services: readonly ServiceRecord[]
   readonly loading: boolean
@@ -27,6 +28,7 @@ export function MobileAppointmentServicePicker({
   readonly selectedService: ServiceRecord | null
   readonly onBack: () => void
   readonly onConfirm: (service: ServiceRecord) => void
+  readonly desktop?: boolean
 }) {
   const [pendingService, setPendingService] = useState(selectedService)
 
@@ -42,7 +44,11 @@ export function MobileAppointmentServicePicker({
           onClick={onBack}
           className="-ml-2 grid size-11 place-items-center rounded-full text-muted-foreground active:bg-muted"
         >
-          <X aria-hidden className="size-7" strokeWidth={1.5} />
+          {desktop ? (
+            <ChevronLeft aria-hidden className="size-6" strokeWidth={2} />
+          ) : (
+            <X aria-hidden className="size-7" strokeWidth={1.5} />
+          )}
         </button>
         <h1 className="text-[1.25rem] font-semibold">Select a service</h1>
       </header>
