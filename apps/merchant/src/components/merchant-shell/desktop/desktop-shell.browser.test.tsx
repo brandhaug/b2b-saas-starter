@@ -85,6 +85,18 @@ afterEach(async () => {
   vi.useRealTimers()
 })
 
+async function finishDialogEntrance(dialog: HTMLDialogElement | null) {
+  await act(async () => {
+    for (const eventName of ['animationend', 'webkitAnimationEnd']) {
+      const event = new Event(eventName, { bubbles: true })
+      Object.defineProperty(event, 'animationName', {
+        value: 'merchant-desktop-modal-enter'
+      })
+      dialog?.dispatchEvent(event)
+    }
+  })
+}
+
 describe('DesktopRouteModal motion', () => {
   it('does not start a second content entrance after the dialog entrance settles', async () => {
     const container = document.createElement('div')
@@ -106,15 +118,7 @@ describe('DesktopRouteModal motion', () => {
     )
 
     const dialog = container.querySelector<HTMLDialogElement>('.merchant-desktop-modal')
-    await act(async () => {
-      for (const eventName of ['animationend', 'webkitAnimationEnd']) {
-        const event = new Event(eventName, { bubbles: true })
-        Object.defineProperty(event, 'animationName', {
-          value: 'merchant-desktop-modal-enter'
-        })
-        dialog?.dispatchEvent(event)
-      }
-    })
+    await finishDialogEntrance(dialog)
 
     expect(dialog?.dataset.desktopModalState).toBe('open')
     expect(
@@ -139,6 +143,60 @@ describe('DesktopRouteModal motion', () => {
     expect(
       container.querySelector('[data-desktop-primary-route-motion="true"]')
     ).not.toBeNull()
+  })
+
+  it('closes from a backdrop click without treating blank dialog space as backdrop', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(
+        <DesktopShell
+          layout="modal"
+          section={{ kind: 'merchant' }}
+          destinations={destinations}
+          title="Settings"
+          description="Merchant settings"
+        >
+          <p>Settings content</p>
+        </DesktopShell>
+      )
+    )
+
+    const dialog = container.querySelector<HTMLDialogElement>('.merchant-desktop-modal')
+    vi.spyOn(dialog as HTMLDialogElement, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 500,
+      left: 100,
+      right: 500,
+      top: 100,
+      width: 400,
+      x: 100,
+      y: 100,
+      toJSON: () => ({})
+    })
+    await finishDialogEntrance(dialog)
+
+    await act(async () =>
+      dialog?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 200, clientY: 200 })
+      )
+    )
+    expect(dialog?.dataset.desktopModalState).toBe('open')
+
+    await act(async () =>
+      dialog?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10 })
+      )
+    )
+    expect(dialog?.dataset.desktopModalState).toBe('closing')
+
+    await act(async () => vi.advanceTimersByTime(200))
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/appointments',
+      search: { date: '2026-07-27' }
+    })
   })
 
   it('opens Appearance in a second desktop dialog and restores row focus', async () => {

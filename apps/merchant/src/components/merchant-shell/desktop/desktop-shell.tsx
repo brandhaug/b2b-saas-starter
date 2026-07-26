@@ -214,7 +214,7 @@ function DesktopRouteModal({
     if (origin?.isConnected) origin.focus({ preventScroll: true })
   }, [secondaryDialog, secondaryState])
 
-  const navigateHome = () => {
+  const navigateHome = useCallback(() => {
     if (hasNavigatedRef.current) return
     hasNavigatedRef.current = true
     if (hasMerchantOverlayNavigationOrigin(location.state)) {
@@ -225,13 +225,30 @@ function DesktopRouteModal({
       to: '/appointments',
       search: { date: appointmentDate }
     })
-  }
+  }, [appointmentDate, location.state, router])
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     if (modalState === 'closing') return
     setModalState('closing')
     closeTimerRef.current = setTimeout(navigateHome, 200)
-  }
+  }, [modalState, navigateHome])
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const handleBackdropClick = (event: globalThis.MouseEvent) => {
+      if (event.target !== dialog) return
+      const { bottom, left, right, top } = dialog.getBoundingClientRect()
+      const clickedOutsideDialog =
+        event.clientX < left ||
+        event.clientX > right ||
+        event.clientY < top ||
+        event.clientY > bottom
+      if (clickedOutsideDialog) closeModal()
+    }
+    dialog.addEventListener('click', handleBackdropClick)
+    return () => dialog.removeEventListener('click', handleBackdropClick)
+  }, [closeModal])
 
   const shouldAnimatePrimaryRoute =
     modalState === 'open' && previousPathnameRef.current !== location.pathname
