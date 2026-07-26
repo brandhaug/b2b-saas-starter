@@ -13,7 +13,8 @@ let root: Root | undefined
 const hero = (
   date: string,
   currentDate: string,
-  onOpenCalendar: () => void = () => undefined
+  onOpenCalendar: () => void = () => undefined,
+  onReturnToCurrentDay: () => void = () => undefined
 ) => (
   <LazyMotion features={domMax}>
     <MobileDateHero
@@ -22,6 +23,7 @@ const hero = (
       timezone="Europe/Bucharest"
       calendarOpen={false}
       onOpenCalendar={onOpenCalendar}
+      onReturnToCurrentDay={onReturnToCurrentDay}
     />
   </LazyMotion>
 )
@@ -48,10 +50,22 @@ describe('MobileDateHero current-day marker', () => {
     document.body.appendChild(container)
     root = createRoot(container)
     const onOpenCalendar = vi.fn()
+    const onReturnToCurrentDay = vi.fn()
 
     await act(async () => {
-      root?.render(hero('2026-07-20', '2026-07-20', onOpenCalendar))
+      root?.render(
+        hero('2026-07-20', '2026-07-20', onOpenCalendar, onReturnToCurrentDay)
+      )
     })
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-mobile-date-current-day-trigger="true"]'
+        )
+        ?.click()
+    )
+    expect(onReturnToCurrentDay).toHaveBeenCalledOnce()
 
     await act(async () =>
       container

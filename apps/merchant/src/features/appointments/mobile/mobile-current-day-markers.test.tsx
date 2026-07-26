@@ -19,6 +19,7 @@ describe('mobile current-day markers', () => {
         timezone="Europe/Bucharest"
         calendarOpen={false}
         onOpenCalendar={() => undefined}
+        onReturnToCurrentDay={() => undefined}
       />
     )
     const anotherDay = renderToStaticMarkup(
@@ -28,6 +29,7 @@ describe('mobile current-day markers', () => {
         timezone="Europe/Bucharest"
         calendarOpen={false}
         onOpenCalendar={() => undefined}
+        onReturnToCurrentDay={() => undefined}
       />
     )
 
@@ -38,6 +40,9 @@ describe('mobile current-day markers', () => {
     expect(today).toContain('data-current-day-marker-state="visible"')
     expect(anotherDay).toContain('data-current-day-marker-state="hidden"')
     expect(anotherDay).toContain('opacity:0')
+    expect(today).toContain('data-mobile-date-current-day-trigger="true"')
+    expect(today).toContain('aria-current="date"')
+    expect(anotherDay).not.toContain('aria-current="date"')
   })
 
   it('shows one dot on the current day in the week strip', () => {

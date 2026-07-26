@@ -50,10 +50,14 @@ export function MobileAppointmentsScreen({
       weekday={weekday}
     />
   )
-  const selectDate = (nextDate: string) => {
+  const selectDate = (
+    nextDate: string,
+    { replace = false }: { readonly replace?: boolean } = {}
+  ) => {
     void router.navigate({
       to: '/appointments',
       search: { date: nextDate },
+      replace,
       viewTransition: false
     })
   }
@@ -88,6 +92,7 @@ export function MobileAppointmentsScreen({
             timezone={calendar.timezone}
             calendarOpen={calendarOpen}
             onOpenCalendar={() => setCalendarOpen(true)}
+            onReturnToCurrentDay={() => selectDate(currentDate, { replace: true })}
           />
           <MobileSchedulePullSurface
             greeting={mobileScheduleGreeting(calendar.timezone, undefined, viewerName)}

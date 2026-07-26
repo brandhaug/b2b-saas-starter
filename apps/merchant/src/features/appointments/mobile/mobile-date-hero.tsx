@@ -7,13 +7,15 @@ export function MobileDateHero({
   currentDate,
   timezone: _timezone,
   calendarOpen,
-  onOpenCalendar
+  onOpenCalendar,
+  onReturnToCurrentDay
 }: {
   readonly date: string
   readonly currentDate: string
   readonly timezone: string
   readonly calendarOpen: boolean
   readonly onOpenCalendar: () => void
+  readonly onReturnToCurrentDay: () => void
 }) {
   const heading = mobileDateHeading(date)
   const [weekday = 'Selected day', ...rest] = heading.fullDate.split(', ')
@@ -23,7 +25,14 @@ export function MobileDateHero({
       data-date-hero-layout="mobile"
       className="flex items-end justify-between gap-6 px-1.5"
     >
-      <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label="Return to today"
+        aria-current={isCurrentDay ? 'date' : undefined}
+        data-mobile-date-current-day-trigger="true"
+        className="flex min-h-11 min-w-11 items-center gap-1 rounded-xl text-left transition-transform active:scale-[0.98]"
+        onClick={onReturnToCurrentDay}
+      >
         {/* <h1 className="text-[4rem] leading-[0.8] font-black text-foreground">
           {heading.day}
         </h1> */}
@@ -53,7 +62,7 @@ export function MobileDateHero({
           className="mt-1 ml-2 size-6 shrink-0 rounded-full bg-primary"
           aria-hidden
         />
-      </div>
+      </button>
       <button
         type="button"
         aria-label={`Open calendar for ${heading.fullDate}`}
