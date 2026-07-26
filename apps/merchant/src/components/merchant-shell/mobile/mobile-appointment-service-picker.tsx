@@ -1,7 +1,8 @@
 import type { ServiceRecord } from '@b2b-saas-starter/capabilities/merchant-catalog'
-import { Check, ChevronLeft, X } from 'lucide-react'
+import { Check, ChevronLeft } from 'lucide-react'
 import { useState } from 'react'
 import { formatMerchantPrice } from '@/lib/merchant-money.ts'
+import { MobileSheetCloseButton, MobileSheetHeader } from './mobile-sheet-header.tsx'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
 
 const durationLabel = (minutes: number) => {
@@ -37,21 +38,26 @@ export function MobileAppointmentServicePicker({
       data-mobile-service-picker="true"
       className="relative flex h-full min-h-0 flex-col"
     >
-      <header className="flex min-h-[4.75rem] shrink-0 items-center gap-3 px-4">
-        <button
-          type="button"
-          aria-label="Back to appointment"
-          onClick={onBack}
-          className="-ml-2 grid size-11 place-items-center rounded-full text-muted-foreground active:bg-muted"
-        >
-          {desktop ? (
+      {desktop ? (
+        <header className="flex min-h-[4.75rem] shrink-0 items-center gap-3 px-4">
+          <button
+            type="button"
+            aria-label="Back to appointment"
+            onClick={onBack}
+            className="-ml-2 grid size-11 place-items-center rounded-full text-muted-foreground active:bg-muted"
+          >
             <ChevronLeft aria-hidden className="size-6" strokeWidth={2} />
-          ) : (
-            <X aria-hidden className="size-7" strokeWidth={1.5} />
-          )}
-        </button>
-        <h1 className="text-[1.25rem] font-semibold">Select a service</h1>
-      </header>
+          </button>
+          <h1 className="text-[1.25rem] font-semibold">Select a service</h1>
+        </header>
+      ) : (
+        <MobileSheetHeader
+          title="Select a service"
+          leading={
+            <MobileSheetCloseButton label="Back to appointment" onClick={onBack} />
+          }
+        />
+      )}
 
       <MobileSheetScrollport className="px-4">
         <div className="mx-auto grid w-full grid-cols-2 gap-2.5 pb-[max(9rem,calc(env(safe-area-inset-bottom)+7.5rem))]">

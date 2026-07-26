@@ -112,6 +112,16 @@ vi.mock('@/lib/server/scheduling.ts', () => ({
 
 let root: Root | undefined
 
+const expectMobileSheetHeader = (header: HTMLElement | undefined) => {
+  expect(header?.classList.contains('merchant-sheet-safe-inline')).toBe(true)
+  expect(header?.classList.contains('grid')).toBe(true)
+  expect(header?.classList.contains('h-10')).toBe(true)
+  expect(header?.classList.contains('grid-cols-[2.5rem_minmax(0,1fr)_2.5rem]')).toBe(
+    true
+  )
+  expect(header?.querySelector('h1')?.classList.contains('text-center')).toBe(true)
+}
+
 const setNativeInputValue = (input: HTMLInputElement, value: string) => {
   // React tracks controlled values; invoking the platform setter makes the input
   // event exercise the same path as a real keyboard edit in jsdom.
@@ -603,6 +613,9 @@ describe('MobileNewAppointmentSheet interaction', () => {
     )
     await act(async () => Promise.resolve())
 
+    const clientHeader = container
+      .querySelector<HTMLElement>('[aria-label="Close select a client"]')
+      ?.closest<HTMLElement>('header')
     const customer = container.querySelector<HTMLButtonElement>(
       '[data-mobile-client-option="apt_alex"]'
     )
@@ -620,6 +633,7 @@ describe('MobileNewAppointmentSheet interaction', () => {
     )
 
     expect(search?.closest('[data-mobile-sheet-scroll="true"]')).toBeNull()
+    expectMobileSheetHeader(clientHeader)
     expect(search?.placeholder).toBe('Search clients')
     expect(searchField?.classList.contains('h-10')).toBe(true)
     expect(searchField?.classList.contains('rounded-2xl')).toBe(true)
@@ -762,6 +776,11 @@ describe('MobileNewAppointmentSheet interaction', () => {
     expect(
       sheetHeader?.classList.contains('grid-cols-[2.5rem_minmax(0,1fr)_2.5rem]')
     ).toBe(true)
+    const dragZone = container.querySelector<HTMLElement>(
+      '[data-mobile-sheet-handle="true"]'
+    )
+    expect(dragZone?.classList.contains('h-9')).toBe(true)
+    expect(dragZone?.classList.contains('-mb-2')).toBe(true)
     expect(
       container.querySelectorAll('[aria-label="Close new appointment"]')
     ).toHaveLength(1)
@@ -807,9 +826,13 @@ describe('MobileNewAppointmentSheet interaction', () => {
     const service = container.querySelector<HTMLButtonElement>(
       '[data-mobile-service-option="svc_beard"]'
     )
+    const serviceHeader = container
+      .querySelector<HTMLElement>('[aria-label="Back to appointment"]')
+      ?.closest<HTMLElement>('header')
     expect(
       container.querySelector('[data-mobile-service-picker="true"]')
     ).not.toBeNull()
+    expectMobileSheetHeader(serviceHeader)
     expect(service?.getAttribute('aria-pressed')).toBe('false')
 
     await act(async () => service?.click())

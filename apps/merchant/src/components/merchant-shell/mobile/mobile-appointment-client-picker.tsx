@@ -21,6 +21,7 @@ import {
 } from 'react'
 import { customerInitials } from '@/features/customers/mobile-customer-contact-model.ts'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
+import { MobileSheetCloseButton, MobileSheetHeader } from './mobile-sheet-header.tsx'
 import { MobileSearchField } from './mobile-search-field.tsx'
 import { useMobileCollapsingSheetTitle } from './use-mobile-collapsing-sheet-title.ts'
 import {
@@ -421,6 +422,28 @@ function ClientStepHeader({
   readonly desktop?: boolean
 }) {
   const showTitle = !collapsible || titleVisible
+  if (!desktop) {
+    return (
+      <MobileSheetHeader
+        title={title}
+        titleVisible={showTitle}
+        divider={collapsible && showTitle}
+        headerDataAttribute={
+          collapsible ? 'data-mobile-add-client-compact-header' : undefined
+        }
+        titleDataAttribute={
+          collapsible ? 'data-mobile-add-client-compact-title' : undefined
+        }
+        leading={
+          <MobileSheetCloseButton
+            label={`Close ${title.toLocaleLowerCase()}`}
+            onClick={onBack}
+          />
+        }
+      />
+    )
+  }
+
   return (
     <header
       data-mobile-add-client-compact-header={collapsible ? 'true' : undefined}
@@ -435,19 +458,11 @@ function ClientStepHeader({
     >
       <button
         type="button"
-        aria-label={
-          desktop
-            ? `Back from ${title.toLocaleLowerCase()}`
-            : `Close ${title.toLocaleLowerCase()}`
-        }
+        aria-label={`Back from ${title.toLocaleLowerCase()}`}
         onClick={onBack}
         className="grid size-11 place-items-center rounded-full text-muted-foreground active:bg-muted"
       >
-        {desktop ? (
-          <ChevronLeft aria-hidden className="size-6" strokeWidth={2} />
-        ) : (
-          <X aria-hidden className="size-7" strokeWidth={1.5} />
-        )}
+        <ChevronLeft aria-hidden className="size-6" strokeWidth={2} />
       </button>
       <h1
         aria-hidden={!showTitle}

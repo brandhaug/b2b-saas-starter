@@ -44,6 +44,11 @@ import {
 import type { AppointmentClient } from './mobile-appointment-client-model.ts'
 import { MobileAppointmentServicePicker } from './mobile-appointment-service-picker.tsx'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
+import {
+  MobileSheetCloseButton,
+  MobileSheetDragHandle,
+  MobileSheetHeader
+} from './mobile-sheet-header.tsx'
 import { useMobileCollapsingSheetTitle } from './use-mobile-collapsing-sheet-title.ts'
 import { useMobileRouteSheet } from './use-mobile-route-sheet.ts'
 
@@ -612,22 +617,14 @@ function NewAppointmentSheetSurface({
         }`}
       >
         {desktop ? null : (
-          <button
-            type="button"
-            aria-label="Drag or tap to close new appointment"
-            data-mobile-sheet-handle="true"
-            className="merchant-sheet-drag-zone flex h-8 shrink-0 justify-center pt-3"
+          <MobileSheetDragHandle
+            label="Drag or tap to close new appointment"
             onClick={sheet.handleCloseClick}
             onPointerDown={sheet.handlePointerDown}
             onPointerMove={sheet.handlePointerMove}
             onPointerUp={sheet.handlePointerUp}
             onPointerCancel={sheet.handlePointerCancel}
-          >
-            <span
-              aria-hidden
-              className="h-1 w-10 rounded-full bg-muted-foreground/20"
-            />
-          </button>
+          />
         )}
 
         <div
@@ -868,35 +865,17 @@ function AppointmentDraft({
           </button>
         </header>
       ) : (
-        <header
-          data-mobile-new-appointment-compact-header="true"
-          data-visible={compactHeader ? 'true' : 'false'}
-          className={`merchant-sheet-safe-inline relative z-30 grid h-10 shrink-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center bg-background transition-colors duration-150 ${
-            compactHeader
-              ? 'border-b border-border/70'
-              : 'border-b-0 border-transparent'
-          }`}
-        >
-          <button
-            type="button"
-            aria-label="Close new appointment"
-            className="grid size-10 place-items-center rounded-full text-foreground active:bg-muted"
-            onClick={onClose}
-          >
-            <X aria-hidden className="size-5" strokeWidth={1.8} />
-          </button>
-          <p
-            aria-hidden={!compactHeader}
-            data-mobile-new-appointment-compact-title="true"
-            data-visible={compactHeader ? 'true' : 'false'}
-            className={`min-w-0 truncate text-center text-[0.9375rem] leading-[1.375rem] font-semibold ${
-              compactHeader ? 'visible opacity-100' : 'invisible opacity-0'
-            }`}
-          >
-            Book an appointment
-          </p>
-          <span aria-hidden />
-        </header>
+        <MobileSheetHeader
+          title="Book an appointment"
+          titleAs="p"
+          titleVisible={compactHeader}
+          divider={compactHeader}
+          headerDataAttribute="data-mobile-new-appointment-compact-header"
+          titleDataAttribute="data-mobile-new-appointment-compact-title"
+          leading={
+            <MobileSheetCloseButton label="Close new appointment" onClick={onClose} />
+          }
+        />
       )}
 
       <MobileSheetScrollport
