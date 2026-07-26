@@ -97,6 +97,20 @@ async function finishDialogEntrance(dialog: HTMLDialogElement | null) {
   })
 }
 
+function mockDialogRect(dialog: HTMLDialogElement | null) {
+  vi.spyOn(dialog as HTMLDialogElement, 'getBoundingClientRect').mockReturnValue({
+    bottom: 600,
+    height: 500,
+    left: 100,
+    right: 500,
+    top: 100,
+    width: 400,
+    x: 100,
+    y: 100,
+    toJSON: () => ({})
+  })
+}
+
 describe('DesktopRouteModal motion', () => {
   it('does not start a second content entrance after the dialog entrance settles', async () => {
     const container = document.createElement('div')
@@ -165,17 +179,7 @@ describe('DesktopRouteModal motion', () => {
     )
 
     const dialog = container.querySelector<HTMLDialogElement>('.merchant-desktop-modal')
-    vi.spyOn(dialog as HTMLDialogElement, 'getBoundingClientRect').mockReturnValue({
-      bottom: 600,
-      height: 500,
-      left: 100,
-      right: 500,
-      top: 100,
-      width: 400,
-      x: 100,
-      y: 100,
-      toJSON: () => ({})
-    })
+    mockDialogRect(dialog)
     await finishDialogEntrance(dialog)
 
     await act(async () =>
@@ -197,6 +201,72 @@ describe('DesktopRouteModal motion', () => {
       to: '/appointments',
       search: { date: '2026-07-27' }
     })
+  })
+
+  it('closes only the latest dialog from a backdrop click', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(
+        <DesktopShell
+          layout="modal"
+          section={{ kind: 'merchant' }}
+          destinations={destinations}
+          title="Settings"
+          description="Merchant settings"
+        >
+          <MerchantSettingsPanel
+            appointmentDate="2026-07-27"
+            signOut={{ error: null, pending: false, signOut: vi.fn() }}
+            viewer={{ name: 'Mara Ionescu', email: 'mara@example.com', image: null }}
+          />
+        </DesktopShell>
+      )
+    )
+
+    const primary = container.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-modal'
+    )
+    mockDialogRect(primary)
+    await finishDialogEntrance(primary)
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Open Appearance settings"]'
+        )
+        ?.click()
+    )
+    await act(async () => vi.advanceTimersByTime(16))
+    await act(async () => vi.advanceTimersByTime(500))
+
+    const sidecar = container.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-sidecar'
+    )
+    expect(sidecar?.dataset.desktopSecondaryState).toBe('open')
+
+    await act(async () =>
+      primary?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10 })
+      )
+    )
+
+    expect(primary?.dataset.desktopModalState).toBe('open')
+    expect(sidecar?.dataset.desktopSecondaryState).toBe('closing')
+    expect(mocks.navigate).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTime(180))
+    expect(container.querySelector('.merchant-desktop-sidecar')).toBeNull()
+    expect(primary?.dataset.desktopModalState).toBe('open')
+
+    await act(async () =>
+      primary?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10 })
+      )
+    )
+
+    expect(primary?.dataset.desktopModalState).toBe('closing')
   })
 
   it('opens Appearance in a second desktop dialog and restores row focus', async () => {

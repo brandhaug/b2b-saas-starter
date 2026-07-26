@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -233,6 +234,14 @@ function DesktopRouteModal({
     closeTimerRef.current = setTimeout(navigateHome, 200)
   }, [modalState, navigateHome])
 
+  const dismissTopDialog = useEffectEvent(() => {
+    if (secondaryDialog) {
+      closeSecondaryDialog()
+      return
+    }
+    closeModal()
+  })
+
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
@@ -244,11 +253,12 @@ function DesktopRouteModal({
         event.clientX > right ||
         event.clientY < top ||
         event.clientY > bottom
-      if (clickedOutsideDialog) closeModal()
+      if (!clickedOutsideDialog) return
+      dismissTopDialog()
     }
     dialog.addEventListener('click', handleBackdropClick)
     return () => dialog.removeEventListener('click', handleBackdropClick)
-  }, [closeModal])
+  }, [])
 
   const shouldAnimatePrimaryRoute =
     modalState === 'open' && previousPathnameRef.current !== location.pathname
