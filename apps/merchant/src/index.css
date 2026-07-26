@@ -55,19 +55,24 @@
   --merchant-safe-area-right: env(safe-area-inset-right, 0px);
   --merchant-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --merchant-safe-area-left: env(safe-area-inset-left, 0px);
+  --merchant-surface-foreground: oklch(0 0 0);
+  --merchant-surface-muted-foreground: oklch(0.45 0 0);
+  --merchant-surface-card: oklch(1 0 0);
+  --merchant-surface-card-foreground: oklch(0 0 0);
+  --merchant-surface-border: oklch(0.92 0 0);
   --background: oklch(1 0 0);
-  --foreground: oklch(0 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0 0 0);
+  --foreground: var(--merchant-surface-foreground);
+  --card: var(--merchant-surface-card);
+  --card-foreground: var(--merchant-surface-card-foreground);
   --primary: oklch(0.9 0.1739 96.8561);
   --primary-foreground: oklch(0 0 0);
   --secondary: oklch(0.96 0 0);
   --secondary-foreground: oklch(0 0 0);
   --muted: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.45 0 0);
+  --muted-foreground: var(--merchant-surface-muted-foreground);
   --accent: oklch(0.96 0 0);
   --accent-foreground: oklch(0 0 0);
-  --border: oklch(0.92 0 0);
+  --border: var(--merchant-surface-border);
   --input: oklch(0.92 0 0);
   --ring: oklch(0 0 0);
   --destructive: oklch(0.5508 0.1798 26.9575);
@@ -112,19 +117,24 @@
 
 .dark {
   color-scheme: dark;
+  --merchant-surface-foreground: oklch(0.98 0 0);
+  --merchant-surface-muted-foreground: oklch(0.65 0 0);
+  --merchant-surface-card: oklch(0.21 0 0);
+  --merchant-surface-card-foreground: oklch(0.98 0 0);
+  --merchant-surface-border: oklch(0.28 0 0);
   --background: oklch(0.17 0 0);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.21 0 0);
-  --card-foreground: oklch(0.98 0 0);
+  --foreground: var(--merchant-surface-foreground);
+  --card: var(--merchant-surface-card);
+  --card-foreground: var(--merchant-surface-card-foreground);
   --primary: oklch(0.9 0.1739 96.8561);
   --primary-foreground: oklch(0 0 0);
   --secondary: oklch(0.25 0 0);
   --secondary-foreground: oklch(0.98 0 0);
   --muted: oklch(0.25 0 0);
-  --muted-foreground: oklch(0.65 0 0);
+  --muted-foreground: var(--merchant-surface-muted-foreground);
   --accent: oklch(0.25 0 0);
   --accent-foreground: oklch(0.98 0 0);
-  --border: oklch(0.28 0 0);
+  --border: var(--merchant-surface-border);
   --input: oklch(0.25 0 0);
   --ring: oklch(0.8 0 0);
   --destructive: oklch(0.5508 0.1798 26.9575);
@@ -273,6 +283,14 @@
   --border: color-mix(in oklab, var(--merchant-home-foreground) 14%, transparent);
   isolation: isolate;
   background: var(--merchant-home-surface);
+}
+
+.merchant-mobile-sheet-theme {
+  --foreground: var(--merchant-surface-foreground);
+  --muted-foreground: var(--merchant-surface-muted-foreground);
+  --card: var(--merchant-surface-card);
+  --card-foreground: var(--merchant-surface-card-foreground);
+  --border: var(--merchant-surface-border);
 }
 
 .merchant-home-grain {

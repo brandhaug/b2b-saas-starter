@@ -31,6 +31,19 @@ describe('merchant BeeSolo brand contract', () => {
     expect(mobilePresentation).not.toContain('color-scheme:')
   })
 
+  it('restores semantic surface colors inside mobile sheets', async () => {
+    const css = await readFile(stylesUrl, 'utf8')
+    const sheetTheme =
+      css.match(/\.merchant-mobile-sheet-theme\s*\{([^}]*)\}/)?.[1] ?? ''
+
+    expect(sheetTheme).toContain('--foreground: var(--merchant-surface-foreground)')
+    expect(sheetTheme).toContain(
+      '--muted-foreground: var(--merchant-surface-muted-foreground)'
+    )
+    expect(sheetTheme).toContain('--card: var(--merchant-surface-card)')
+    expect(sheetTheme).toContain('--border: var(--merchant-surface-border)')
+  })
+
   it('uses the four time-specific Poke atmosphere pairs', async () => {
     const css = await readFile(stylesUrl, 'utf8')
     await Promise.all(pokeAtmosphereAssets.map((asset) => access(asset)))

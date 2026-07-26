@@ -211,7 +211,7 @@ function MobileNewAppointmentSheetDialog({
     <div
       data-mobile-new-appointment-overlay="true"
       data-mobile-overlay-state={sheet.sheetState}
-      className="merchant-mobile fixed inset-0 z-50 overflow-hidden text-foreground"
+      className="merchant-mobile merchant-mobile-sheet-theme fixed inset-0 z-50 overflow-hidden text-foreground"
     >
       <dialog
         open
