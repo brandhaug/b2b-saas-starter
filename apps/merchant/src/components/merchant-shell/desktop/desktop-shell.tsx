@@ -207,8 +207,11 @@ function DesktopHomeCard({
           </span>
         )}
       </header>
-      <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
-        <div>{children}</div>
+      <div
+        data-desktop-home-content="true"
+        className="relative z-10 min-h-0 flex-1 overflow-hidden px-5 pb-4"
+      >
+        {children}
       </div>
       <div className="relative z-10 shrink-0 px-4 pt-3 pb-4">
         <DesktopHomeActions

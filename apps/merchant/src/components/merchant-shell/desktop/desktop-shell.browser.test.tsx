@@ -181,7 +181,7 @@ describe('DesktopRouteModal motion', () => {
 
     const homeBefore = container.querySelector('[data-appointments-home="true"]')
     const homeScroll = container.querySelector<HTMLElement>(
-      '.merchant-desktop-home-card > div'
+      '[data-desktop-home-content="true"]'
     )
     if (homeScroll) homeScroll.scrollTop = 37
 

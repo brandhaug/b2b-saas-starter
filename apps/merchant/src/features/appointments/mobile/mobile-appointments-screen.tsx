@@ -54,23 +54,23 @@ export function MobileAppointmentsScreen({
       viewTransition: false
     })
   }
-  const schedule = (
-    <>
-      <MobileWeekStrip
-        selectedDate={date}
-        currentDate={currentDate}
-        spacing={presentation === 'desktop' ? 'desktop' : 'mobile'}
-        onSelectDate={selectDate}
-      />
-      <MobileAppointmentLedger
-        calendar={calendar}
-        previousCalendar={previousCalendar}
-        nextCalendar={nextCalendar}
-        pending={pending}
-        scrollable={mobile}
-        onSwipeDay={(direction) => selectDate(appointmentDayTarget(date, direction))}
-      />
-    </>
+  const weekStrip = (
+    <MobileWeekStrip
+      selectedDate={date}
+      currentDate={currentDate}
+      spacing={presentation === 'desktop' ? 'desktop' : 'mobile'}
+      onSelectDate={selectDate}
+    />
+  )
+  const appointmentLedger = (
+    <MobileAppointmentLedger
+      calendar={calendar}
+      previousCalendar={previousCalendar}
+      nextCalendar={nextCalendar}
+      pending={pending}
+      scrollable={mobile}
+      onSwipeDay={(direction) => selectDate(appointmentDayTarget(date, direction))}
+    />
   )
   return (
     <div
@@ -88,11 +88,23 @@ export function MobileAppointmentsScreen({
             greeting={mobileScheduleGreeting(calendar.timezone, undefined, viewerName)}
             summary={appointmentSummary}
           >
-            {schedule}
+            {weekStrip}
+            {appointmentLedger}
           </MobileSchedulePullSurface>
         </>
       ) : (
-        schedule
+        <div
+          data-desktop-appointments-layout="fixed-week-strip"
+          className="flex h-full min-h-0 flex-col"
+        >
+          {weekStrip}
+          <div
+            data-desktop-appointment-scroll="true"
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+          >
+            {appointmentLedger}
+          </div>
+        </div>
       )}
     </div>
   )
