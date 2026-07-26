@@ -132,6 +132,7 @@ function RootComponent() {
               pathname={location.pathname}
               appointmentDate={merchantHomeDate(location.search, location.state)}
               overlayOpen={merchantOverlayOpen}
+              viewer={viewer ?? undefined}
             >
               <Outlet />
             </MerchantMobileSheetOutlet>

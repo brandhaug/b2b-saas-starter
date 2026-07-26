@@ -100,6 +100,7 @@ function DesktopRouteModal({
     'preparing' | 'entering' | 'open' | 'closing'
   >('open')
   const location = useLocation()
+  const previousPathnameRef = useRef(location.pathname)
   const router = useRouter()
   const appointmentDate = appointmentDateFromSearch(location.search)
 
@@ -165,6 +166,16 @@ function DesktopRouteModal({
       clearSecondaryLifecycle()
     }
   }, [clearSecondaryLifecycle])
+
+  useLayoutEffect(() => {
+    if (previousPathnameRef.current === location.pathname) return
+    previousPathnameRef.current = location.pathname
+    clearSecondaryLifecycle()
+    secondaryOriginRef.current = null
+    setSecondaryDialog(null)
+    setSecondaryState('open')
+    dialogRef.current?.focus({ preventScroll: true })
+  }, [clearSecondaryLifecycle, location.pathname])
 
   useEffect(() => {
     if (!secondaryDialog || secondaryState !== 'preparing') return
@@ -242,6 +253,7 @@ function DesktopRouteModal({
     <DesktopSecondaryDialogContext.Provider value={secondaryDialogContextValue}>
       <dialog
         ref={dialogRef}
+        tabIndex={-1}
         aria-modal="true"
         aria-labelledby="merchant-desktop-modal-title"
         data-desktop-modal-state={modalState}
@@ -273,7 +285,14 @@ function DesktopRouteModal({
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-2 pb-8">
-          {children}
+          <div
+            key={location.pathname}
+            data-desktop-primary-route-motion={
+              modalState === 'open' ? 'true' : undefined
+            }
+          >
+            {children}
+          </div>
         </div>
 
         {secondaryDialog ? (

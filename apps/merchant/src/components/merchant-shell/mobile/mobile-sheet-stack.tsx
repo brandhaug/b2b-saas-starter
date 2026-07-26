@@ -82,3 +82,16 @@ export function useMobileSheetRouteRegistration(
 
   return stack?.enabled === true
 }
+
+export function useDesktopDialogRouteRegistration(
+  descriptor: MobileSheetDescriptor | null
+) {
+  const stack = useMobileSheetStack()
+
+  useLayoutEffect(() => {
+    if (stack?.enabled !== false || !descriptor) return
+    stack.registerRoute(descriptor)
+  }, [descriptor, stack])
+
+  return stack?.enabled === false
+}

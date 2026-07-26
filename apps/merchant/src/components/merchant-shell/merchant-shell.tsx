@@ -4,7 +4,10 @@ import { DesktopShell } from './desktop/desktop-shell.tsx'
 import { MerchantPresentationBoundary } from './merchant-presentation.tsx'
 import { merchantDestinations, type MerchantShellSection } from './navigation.tsx'
 import { MobileShell } from './mobile/mobile-shell.tsx'
-import { useMobileSheetRouteRegistration } from './mobile/mobile-sheet-stack.tsx'
+import {
+  useDesktopDialogRouteRegistration,
+  useMobileSheetRouteRegistration
+} from './mobile/mobile-sheet-stack.tsx'
 
 export function MerchantShell({
   section,
@@ -36,22 +39,36 @@ export function MerchantShell({
           layout: layout === 'task' ? 'task' : 'sheet'
         }
   )
+  const managedDesktopDialog = useDesktopDialogRouteRegistration(
+    layout === 'home'
+      ? null
+      : {
+          section,
+          title,
+          description,
+          layout: layout === 'task' ? 'task' : 'sheet'
+        }
+  )
 
   return (
     <MerchantPresentationBoundary
       desktop={
-        <DesktopShell
-          layout={layout === 'home' ? 'home' : 'modal'}
-          section={section}
-          destinations={destinations}
-          title={title}
-          description={description}
-          headerDate={headerDate}
-          headerTimezone={headerTimezone}
-          viewer={viewer}
-        >
-          {children}
-        </DesktopShell>
+        layout !== 'home' && managedDesktopDialog ? (
+          <>{children}</>
+        ) : (
+          <DesktopShell
+            layout={layout === 'home' ? 'home' : 'modal'}
+            section={section}
+            destinations={destinations}
+            title={title}
+            description={description}
+            headerDate={headerDate}
+            headerTimezone={headerTimezone}
+            viewer={viewer}
+          >
+            {children}
+          </DesktopShell>
+        )
       }
       mobile={
         layout === 'home' ? (
