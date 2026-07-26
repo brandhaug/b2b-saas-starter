@@ -695,6 +695,8 @@ describe('MobileNewAppointmentSheet interaction', () => {
     )
     expect(sheetHeader?.tagName).toBe('HEADER')
     expect(sheetHeader?.getAttribute('data-visible')).toBe('false')
+    expect(sheetHeader?.classList.contains('border-b-0')).toBe(true)
+    expect(sheetHeader?.classList.contains('border-b')).toBe(false)
     expect(sheetHeader?.classList.contains('merchant-sheet-safe-inline')).toBe(true)
     expect(sheetHeader?.classList.contains('h-10')).toBe(true)
     expect(
@@ -825,6 +827,16 @@ describe('MobileNewAppointmentSheet interaction', () => {
         .querySelector('[data-mobile-new-appointment-compact-header="true"]')
         ?.getAttribute('data-visible')
     ).toBe('true')
+    expect(
+      container
+        .querySelector('[data-mobile-new-appointment-compact-header="true"]')
+        ?.classList.contains('border-b')
+    ).toBe(true)
+    expect(
+      container
+        .querySelector('[data-mobile-new-appointment-compact-header="true"]')
+        ?.classList.contains('border-b-0')
+    ).toBe(false)
     expect(
       container
         .querySelector('[data-mobile-new-appointment-compact-title="true"]')

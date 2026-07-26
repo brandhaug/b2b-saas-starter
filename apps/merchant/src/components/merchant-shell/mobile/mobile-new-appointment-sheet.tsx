@@ -866,8 +866,10 @@ function AppointmentDraft({
         <header
           data-mobile-new-appointment-compact-header="true"
           data-visible={compactHeader ? 'true' : 'false'}
-          className={`merchant-sheet-safe-inline relative z-30 grid h-10 shrink-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center border-b bg-background transition-colors duration-150 ${
-            compactHeader ? 'border-border/70' : 'border-transparent'
+          className={`merchant-sheet-safe-inline relative z-30 grid h-10 shrink-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center bg-background transition-colors duration-150 ${
+            compactHeader
+              ? 'border-b border-border/70'
+              : 'border-b-0 border-transparent'
           }`}
         >
           <button
