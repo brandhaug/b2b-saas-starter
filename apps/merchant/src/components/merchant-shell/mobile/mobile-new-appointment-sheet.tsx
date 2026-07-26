@@ -534,10 +534,8 @@ function AppointmentSchedulingSection({
   readonly onSelectDate: (date: string) => void
   readonly onSelectTime: (time: string) => void
 }) {
-  const [showMoreTimes, setShowMoreTimes] = useState(false)
   const dates = appointmentDateStrip(selectedDate)
   const allTimes = appointmentTimes(availability, selectedDate)
-  const times = showMoreTimes ? allTimes : allTimes.slice(0, 5)
   const minimumDate = minimumBookableDate(availability)
 
   return (
@@ -614,8 +612,11 @@ function AppointmentSchedulingSection({
           No available times on this day.
         </p>
       ) : (
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {times.map((time) => {
+        <div
+          data-mobile-appointment-time-grid="true"
+          className="mt-4 grid grid-cols-[repeat(3,minmax(0,6.8125rem))] justify-between gap-x-2 gap-y-2.5"
+        >
+          {allTimes.map((time) => {
             const selected = selectedTime === time.instant
             return (
               <button
@@ -624,15 +625,15 @@ function AppointmentSchedulingSection({
                 aria-pressed={selected}
                 data-mobile-appointment-time={time.value}
                 onClick={() => onSelectTime(time.instant)}
-                className={`flex h-12 items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-colors active:scale-[0.98] ${
+                className={`flex h-12 min-w-0 items-center justify-center rounded-xl border px-2 text-[0.9375rem] leading-[1.125rem] font-semibold tracking-[-0.015rem] transition-[border-color,background-color,box-shadow,color,transform] duration-150 active:scale-[0.98] ${
                   selected
                     ? 'border-info bg-info text-info-foreground'
-                    : 'border-border bg-background'
+                    : 'border-border bg-transparent hover:bg-background hover:shadow-[0_8px_16px_-5px_rgb(0_0_0/0.1)]'
                 }`}
               >
                 <span
                   aria-hidden
-                  className={`size-2.5 rounded-t-full ${
+                  className={`mr-2 size-2.5 shrink-0 rounded-t-full ${
                     selected ? 'bg-info-foreground' : 'bg-warning'
                   }`}
                 />
@@ -640,16 +641,6 @@ function AppointmentSchedulingSection({
               </button>
             )
           })}
-          {!showMoreTimes && allTimes.length > 5 ? (
-            <button
-              type="button"
-              data-mobile-appointment-more-times="true"
-              onClick={() => setShowMoreTimes(true)}
-              className="h-12 rounded-xl bg-muted text-sm font-semibold active:scale-[0.98]"
-            >
-              See more
-            </button>
-          ) : null}
         </div>
       )}
     </section>

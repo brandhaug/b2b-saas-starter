@@ -418,6 +418,10 @@ describe('MobileNewAppointmentSheet interaction', () => {
     expect(
       container.querySelector('[data-mobile-appointment-time="09:00"]')
     ).not.toBeNull()
+    expect(container.querySelectorAll('[data-mobile-appointment-time]').length).toBe(6)
+    expect(
+      container.querySelector('[data-mobile-appointment-more-times="true"]')
+    ).toBeNull()
 
     const scrollport = container.querySelector<HTMLElement>(
       '[data-mobile-new-appointment-form="true"] [data-mobile-sheet-scroll="true"]'
