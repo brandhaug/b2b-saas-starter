@@ -112,7 +112,6 @@
   --merchant-home-foreground: rgb(75 85 99);
   --merchant-home-muted-foreground: rgb(156 163 175);
   --merchant-home-action-surface: rgb(224 242 254 / 30%);
-  --merchant-home-action-hover: rgb(240 249 255 / 50%);
 }
 
 .dark {
@@ -168,7 +167,6 @@
   --merchant-home-foreground: rgb(255 255 255);
   --merchant-home-muted-foreground: rgb(255 255 255 / 70%);
   --merchant-home-action-surface: rgb(46 49 62 / 30%);
-  --merchant-home-action-hover: rgb(240 249 255 / 25%);
 }
 
 :root[data-merchant-time-theme='morning'] {
@@ -186,7 +184,6 @@
   --merchant-home-foreground: rgb(75 85 99);
   --merchant-home-muted-foreground: rgb(156 163 175);
   --merchant-home-action-surface: rgb(248 250 252 / 30%);
-  --merchant-home-action-hover: rgb(237 233 254 / 50%);
 }
 
 :root[data-merchant-time-theme='afternoon'] {
@@ -204,7 +201,6 @@
   --merchant-home-foreground: rgb(75 85 99);
   --merchant-home-muted-foreground: rgb(156 163 175);
   --merchant-home-action-surface: rgb(224 242 254 / 30%);
-  --merchant-home-action-hover: rgb(240 249 255 / 50%);
 }
 
 :root[data-merchant-time-theme='evening'] {
@@ -217,7 +213,6 @@
   --merchant-home-foreground: rgb(75 85 99);
   --merchant-home-muted-foreground: rgb(156 163 175);
   --merchant-home-action-surface: rgb(255 247 237 / 30%);
-  --merchant-home-action-hover: rgb(255 237 213 / 50%);
 }
 
 :root[data-merchant-time-theme='night'] {
@@ -237,7 +232,6 @@
   --merchant-home-foreground: rgb(255 255 255);
   --merchant-home-muted-foreground: rgb(255 255 255 / 70%);
   --merchant-home-action-surface: rgb(46 49 62 / 30%);
-  --merchant-home-action-hover: rgb(240 249 255 / 25%);
 }
 
 .merchant-mobile {
@@ -357,12 +351,8 @@
   transition: transform 160ms ease;
 }
 
-a.merchant-desktop-action:hover,
-summary.merchant-desktop-action:hover {
-  transform: translateY(-1px);
-  background: var(--merchant-home-action-hover);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+.merchant-desktop-action:active {
+  transform: scale(0.98);
 }
 
 .merchant-home-action-surface {

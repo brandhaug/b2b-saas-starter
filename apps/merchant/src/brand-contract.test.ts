@@ -84,6 +84,12 @@ describe('merchant BeeSolo brand contract', () => {
     )
   })
 
+  it('keeps desktop home actions visually stable on hover', async () => {
+    const css = await readFile(stylesUrl, 'utf8')
+
+    expect(css).not.toMatch(/(?:a|button|summary)\.merchant-desktop-action:hover/)
+  })
+
   it('uses the four time-specific Poke atmosphere pairs', async () => {
     const css = await readFile(stylesUrl, 'utf8')
     await Promise.all(pokeAtmosphereAssets.map((asset) => access(asset)))
