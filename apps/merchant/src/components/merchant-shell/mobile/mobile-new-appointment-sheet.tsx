@@ -863,24 +863,32 @@ function AppointmentDraft({
           </button>
         </header>
       ) : (
-        <div
+        <header
           data-mobile-new-appointment-compact-header="true"
           data-visible={compactHeader ? 'true' : 'false'}
-          className={`pointer-events-none absolute inset-x-0 top-0 z-30 flex h-14 items-center border-b border-border/70 bg-background/95 px-4 transition-opacity duration-150 ${
-            compactHeader ? 'opacity-100' : 'opacity-0'
+          className={`relative z-30 flex h-14 shrink-0 items-center border-b bg-background px-4 transition-colors duration-150 ${
+            compactHeader ? 'border-border/70' : 'border-transparent'
           }`}
         >
           <button
             type="button"
             aria-label="Close new appointment"
-            tabIndex={compactHeader ? 0 : -1}
-            className="pointer-events-auto -ml-2 grid size-11 place-items-center rounded-full text-muted-foreground active:bg-muted"
+            className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors active:bg-muted active:text-foreground"
             onClick={onClose}
           >
             <X aria-hidden className="size-7" strokeWidth={1.6} />
           </button>
-          <p className="ml-2 text-[1.125rem] font-semibold">Book an Appointment</p>
-        </div>
+          <p
+            aria-hidden={!compactHeader}
+            data-mobile-new-appointment-compact-title="true"
+            data-visible={compactHeader ? 'true' : 'false'}
+            className={`ml-2 min-w-0 truncate text-[1.125rem] font-semibold transition-opacity duration-150 ${
+              compactHeader ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            Book an Appointment
+          </p>
+        </header>
       )}
 
       <MobileSheetScrollport
@@ -896,14 +904,6 @@ function AppointmentDraft({
         >
           {desktop ? null : (
             <header className="pt-1">
-              <button
-                type="button"
-                aria-label="Close new appointment"
-                className="-ml-2 grid size-11 place-items-center rounded-full text-muted-foreground transition-colors active:bg-muted active:text-foreground"
-                onClick={onClose}
-              >
-                <X aria-hidden className="size-7" strokeWidth={1.6} />
-              </button>
               <h1 className="mt-1 max-w-64 text-[2.35rem] leading-[1.05] font-bold tracking-[-0.035em]">
                 Book an appointment
               </h1>

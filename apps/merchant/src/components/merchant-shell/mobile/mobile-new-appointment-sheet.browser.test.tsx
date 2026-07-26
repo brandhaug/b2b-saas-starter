@@ -686,6 +686,18 @@ describe('MobileNewAppointmentSheet interaction', () => {
       )
     )
 
+    const sheetHeader = container.querySelector<HTMLElement>(
+      '[data-mobile-new-appointment-compact-header="true"]'
+    )
+    expect(sheetHeader?.tagName).toBe('HEADER')
+    expect(sheetHeader?.getAttribute('data-visible')).toBe('false')
+    expect(
+      container.querySelectorAll('[aria-label="Close new appointment"]')
+    ).toHaveLength(1)
+    expect(
+      sheetHeader?.querySelector('[aria-label="Close new appointment"]')
+    ).not.toBeNull()
+
     const saveButton = () =>
       container.querySelector<HTMLButtonElement>(
         '[data-mobile-new-appointment-save="true"]'
@@ -802,6 +814,11 @@ describe('MobileNewAppointmentSheet interaction', () => {
     expect(
       container
         .querySelector('[data-mobile-new-appointment-compact-header="true"]')
+        ?.getAttribute('data-visible')
+    ).toBe('true')
+    expect(
+      container
+        .querySelector('[data-mobile-new-appointment-compact-title="true"]')
         ?.getAttribute('data-visible')
     ).toBe('true')
   })
