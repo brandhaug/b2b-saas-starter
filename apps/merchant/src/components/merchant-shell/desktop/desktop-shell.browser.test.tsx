@@ -131,8 +131,24 @@ describe('DesktopRouteModal motion', () => {
     expect(sidecar?.dataset.desktopSecondaryState).toBe('open')
     expect(document.activeElement).toBe(sidecar)
 
+    const advanced = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open Advanced settings"]'
+    )
+    advanced?.focus()
+    await act(async () => advanced?.click())
+
+    const switchedSidecar = document.body.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-sidecar'
+    )
+    expect(switchedSidecar).toBe(sidecar)
+    expect(primary?.contains(switchedSidecar ?? null)).toBe(true)
+    expect(switchedSidecar?.hasAttribute('aria-modal')).toBe(false)
+    expect(switchedSidecar?.dataset.desktopSecondaryDialog).toBe('advanced')
+    expect(switchedSidecar?.dataset.desktopSecondaryState).toBe('open')
+    expect(switchedSidecar?.textContent).toContain('Platform API token')
+
     await act(async () =>
-      sidecar
+      switchedSidecar
         ?.querySelector<HTMLButtonElement>('[aria-label="Back to Settings"]')
         ?.click()
     )
@@ -141,7 +157,7 @@ describe('DesktopRouteModal motion', () => {
 
     await act(async () => vi.advanceTimersByTime(180))
     expect(document.body.querySelector('.merchant-desktop-sidecar')).toBeNull()
-    expect(document.activeElement).toBe(appearance)
+    expect(document.activeElement).toBe(advanced)
   })
 
   it('opens Advanced settings in the desktop side dialog', async () => {

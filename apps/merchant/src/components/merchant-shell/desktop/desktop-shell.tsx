@@ -10,7 +10,6 @@ import {
   useRef,
   useState
 } from 'react'
-import { createPortal } from 'react-dom'
 import type { AnimationEvent, ReactNode } from 'react'
 import { BeeSoloMark } from '@/components/beesolo-logo.tsx'
 import { useMobileCalendarDate } from '@/features/appointments/mobile/use-mobile-calendar-date.ts'
@@ -132,13 +131,19 @@ function DesktopRouteModal({
 
   const openSecondaryDialog = useCallback(
     (descriptor: DesktopSecondaryDialogDescriptor) => {
-      clearSecondaryLifecycle()
       secondaryOriginRef.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+      if (secondaryDialog && secondaryState !== 'closing') {
+        setSecondaryDialog(descriptor)
+        return
+      }
+
+      clearSecondaryLifecycle()
       setSecondaryState('preparing')
       setSecondaryDialog(descriptor)
     },
-    [clearSecondaryLifecycle]
+    [clearSecondaryLifecycle, secondaryDialog, secondaryState]
   )
 
   const closeSecondaryDialog = useCallback(() => {
@@ -160,11 +165,6 @@ function DesktopRouteModal({
       clearSecondaryLifecycle()
     }
   }, [clearSecondaryLifecycle])
-
-  useLayoutEffect(() => {
-    const dialog = secondaryDialogRef.current
-    if (secondaryDialog && dialog && !dialog.open) dialog.showModal()
-  }, [secondaryDialog])
 
   useEffect(() => {
     if (!secondaryDialog || secondaryState !== 'preparing') return
@@ -275,52 +275,53 @@ function DesktopRouteModal({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-2 pb-8">
           {children}
         </div>
-      </dialog>
 
-      {secondaryDialog && typeof document !== 'undefined'
-        ? createPortal(
-            <dialog
-              ref={secondaryDialogRef}
-              aria-modal="true"
-              aria-labelledby="merchant-desktop-secondary-title"
-              tabIndex={-1}
-              data-desktop-secondary-dialog={secondaryDialog.id}
-              data-desktop-secondary-state={secondaryState}
-              inert={secondaryState === 'open' ? undefined : true}
-              className="merchant-desktop-sidecar"
-              onAnimationEnd={(event) => {
-                if (event.target !== event.currentTarget) return
-                finishSecondaryAnimation(secondaryState)
-              }}
-              onCancel={(event) => {
-                event.preventDefault()
-                closeSecondaryDialog()
-              }}
-            >
-              <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
-                <button
-                  type="button"
-                  aria-label="Back to Settings"
-                  className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-transform active:scale-[0.98]"
-                  onClick={closeSecondaryDialog}
-                >
-                  <ChevronLeft aria-hidden className="size-5" strokeWidth={1.8} />
-                </button>
-                <h2
-                  id="merchant-desktop-secondary-title"
-                  className="truncate text-center text-sm leading-5 font-medium"
-                >
-                  {secondaryDialog.title}
-                </h2>
-                <span aria-hidden />
-              </header>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-4 pb-8">
+        {secondaryDialog ? (
+          <dialog
+            ref={secondaryDialogRef}
+            open
+            aria-labelledby="merchant-desktop-secondary-title"
+            tabIndex={-1}
+            data-desktop-secondary-dialog={secondaryDialog.id}
+            data-desktop-secondary-state={secondaryState}
+            inert={secondaryState === 'open' ? undefined : true}
+            className="merchant-desktop-sidecar"
+            onAnimationEnd={(event) => {
+              if (event.target !== event.currentTarget) return
+              finishSecondaryAnimation(secondaryState)
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return
+              event.preventDefault()
+              event.stopPropagation()
+              closeSecondaryDialog()
+            }}
+          >
+            <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
+              <button
+                type="button"
+                aria-label="Back to Settings"
+                className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-transform active:scale-[0.98]"
+                onClick={closeSecondaryDialog}
+              >
+                <ChevronLeft aria-hidden className="size-5" strokeWidth={1.8} />
+              </button>
+              <h2
+                id="merchant-desktop-secondary-title"
+                className="truncate text-center text-sm leading-5 font-medium"
+              >
+                {secondaryDialog.title}
+              </h2>
+              <span aria-hidden />
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-4 pb-8">
+              <div key={secondaryDialog.id} data-desktop-secondary-route-motion="true">
                 {secondaryDialog.content}
               </div>
-            </dialog>,
-            document.body
-          )
-        : null}
+            </div>
+          </dialog>
+        ) : null}
+      </dialog>
     </DesktopSecondaryDialogContext.Provider>
   )
 }
