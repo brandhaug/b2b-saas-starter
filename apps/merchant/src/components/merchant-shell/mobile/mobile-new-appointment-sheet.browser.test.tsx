@@ -132,6 +132,28 @@ const setNativeTextareaValue = (textarea: HTMLTextAreaElement, value: string) =>
   if (setter) Reflect.apply(setter, textarea, [value])
 }
 
+const setCollapsingTitleGeometry = (
+  largeTitle: HTMLElement | null,
+  scrollport: HTMLElement | null
+) => {
+  if (!largeTitle || !scrollport) throw new Error('Collapsing title is missing')
+  Object.defineProperties(largeTitle, {
+    offsetTop: { configurable: true, value: 4 },
+    offsetHeight: { configurable: true, value: 84 }
+  })
+  Object.defineProperty(scrollport, 'scrollTop', {
+    configurable: true,
+    writable: true,
+    value: 0
+  })
+}
+
+const scrollSheetTo = async (scrollport: HTMLElement | null, scrollTop: number) => {
+  if (!scrollport) throw new Error('Sheet scrollport is missing')
+  scrollport.scrollTop = scrollTop
+  await act(async () => scrollport.dispatchEvent(new Event('scroll')))
+}
+
 afterEach(async () => {
   if (root) await act(async () => root?.unmount())
   root = undefined
@@ -650,6 +672,38 @@ describe('MobileNewAppointmentSheet interaction', () => {
     )
     expect(container.textContent).toContain('Add a new client')
 
+    const addClientHeader = container.querySelector<HTMLElement>(
+      '[data-mobile-add-client-compact-header="true"]'
+    )
+    const addClientLargeTitle = container.querySelector<HTMLElement>(
+      '[data-mobile-add-client-large-title="true"]'
+    )
+    const addClientScrollport = container.querySelector<HTMLElement>(
+      '[data-mobile-add-client-form="true"] [data-mobile-sheet-scroll="true"]'
+    )
+    expect(addClientHeader?.getAttribute('data-visible')).toBe('false')
+    expect(addClientLargeTitle?.getAttribute('data-visible')).toBe('true')
+    expect(
+      addClientHeader
+        ?.querySelector('[data-mobile-add-client-compact-title="true"]')
+        ?.classList.contains('invisible')
+    ).toBe(true)
+
+    setCollapsingTitleGeometry(addClientLargeTitle, addClientScrollport)
+    await scrollSheetTo(addClientScrollport, 87)
+    expect(addClientHeader?.getAttribute('data-visible')).toBe('false')
+    expect(addClientLargeTitle?.getAttribute('data-visible')).toBe('true')
+
+    await scrollSheetTo(addClientScrollport, 88)
+    expect(addClientHeader?.getAttribute('data-visible')).toBe('true')
+    expect(addClientLargeTitle?.getAttribute('data-visible')).toBe('false')
+    expect(addClientLargeTitle?.classList.contains('invisible')).toBe(true)
+    expect(
+      addClientHeader
+        ?.querySelector('[data-mobile-add-client-compact-title="true"]')
+        ?.classList.contains('visible')
+    ).toBe(true)
+
     const fill = async (name: string, value: string) => {
       const input = container.querySelector<HTMLInputElement>(`[name="${name}"]`)
       await act(async () => {
@@ -814,19 +868,34 @@ describe('MobileNewAppointmentSheet interaction', () => {
     )
     expect(saveButton()?.disabled).toBe(false)
 
+    const largeTitle = container.querySelector<HTMLElement>(
+      '[data-mobile-new-appointment-large-title="true"]'
+    )
     const scrollport = container.querySelector<HTMLElement>(
       '[data-mobile-new-appointment-form="true"] [data-mobile-sheet-scroll="true"]'
     )
-    Object.defineProperty(scrollport, 'scrollTop', {
-      configurable: true,
-      value: 100
-    })
-    await act(async () => scrollport?.dispatchEvent(new Event('scroll')))
+    setCollapsingTitleGeometry(largeTitle, scrollport)
+    await scrollSheetTo(scrollport, 87)
+    expect(
+      container
+        .querySelector('[data-mobile-new-appointment-compact-header="true"]')
+        ?.getAttribute('data-visible')
+    ).toBe('false')
+    expect(largeTitle?.getAttribute('data-visible')).toBe('true')
+
+    await scrollSheetTo(scrollport, 88)
     expect(
       container
         .querySelector('[data-mobile-new-appointment-compact-header="true"]')
         ?.getAttribute('data-visible')
     ).toBe('true')
+    expect(largeTitle?.getAttribute('data-visible')).toBe('false')
+    expect(largeTitle?.classList.contains('invisible')).toBe(true)
+    expect(
+      container
+        .querySelector('[data-mobile-new-appointment-compact-title="true"]')
+        ?.classList.contains('visible')
+    ).toBe(true)
     expect(
       container
         .querySelector('[data-mobile-new-appointment-compact-header="true"]')

@@ -44,6 +44,7 @@ import {
 import type { AppointmentClient } from './mobile-appointment-client-model.ts'
 import { MobileAppointmentServicePicker } from './mobile-appointment-service-picker.tsx'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
+import { useMobileCollapsingSheetTitle } from './use-mobile-collapsing-sheet-title.ts'
 import { useMobileRouteSheet } from './use-mobile-route-sheet.ts'
 
 type NewAppointmentStep =
@@ -835,7 +836,11 @@ function AppointmentDraft({
   readonly onEditClientNote: () => void
   readonly onToggleNotify: () => void
 }) {
-  const [compactHeader, setCompactHeader] = useState(false)
+  const {
+    collapsed: compactHeader,
+    handleScroll: handleTitleScroll,
+    largeTitleRef
+  } = useMobileCollapsingSheetTitle()
   const canSave = Boolean(selectedClient && selectedService && selectedTime)
   const desktop = presentation === 'desktop'
 
@@ -884,8 +889,8 @@ function AppointmentDraft({
             aria-hidden={!compactHeader}
             data-mobile-new-appointment-compact-title="true"
             data-visible={compactHeader ? 'true' : 'false'}
-            className={`min-w-0 truncate text-center text-[0.9375rem] leading-[1.375rem] font-semibold transition-opacity duration-150 ${
-              compactHeader ? 'opacity-100' : 'opacity-0'
+            className={`min-w-0 truncate text-center text-[0.9375rem] leading-[1.375rem] font-semibold ${
+              compactHeader ? 'visible opacity-100' : 'invisible opacity-0'
             }`}
           >
             Book an appointment
@@ -896,17 +901,25 @@ function AppointmentDraft({
 
       <MobileSheetScrollport
         className={desktop ? 'px-8' : 'px-4'}
-        onScroll={(event) => setCompactHeader(event.currentTarget.scrollTop > 76)}
+        onScroll={desktop ? undefined : handleTitleScroll}
       >
         <div
           className={
             desktop
-              ? 'pt-2 pb-24'
-              : 'pb-[max(8rem,calc(env(safe-area-inset-bottom)+6.5rem))]'
+              ? 'relative pt-2 pb-24'
+              : 'relative pb-[max(8rem,calc(env(safe-area-inset-bottom)+6.5rem))]'
           }
         >
           {desktop ? null : (
-            <header className="pt-1">
+            <header
+              ref={largeTitleRef}
+              aria-hidden={compactHeader}
+              data-mobile-new-appointment-large-title="true"
+              data-visible={compactHeader ? 'false' : 'true'}
+              className={`pt-1 ${
+                compactHeader ? 'invisible opacity-0' : 'visible opacity-100'
+              }`}
+            >
               <h1 className="mt-1 max-w-64 text-[2.35rem] leading-[1.05] font-bold tracking-[-0.035em]">
                 Book an appointment
               </h1>

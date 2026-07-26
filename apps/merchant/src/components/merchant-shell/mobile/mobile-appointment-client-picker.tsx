@@ -22,6 +22,7 @@ import {
 } from 'react'
 import { customerInitials } from '@/features/customers/mobile-customer-contact-model.ts'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
+import { useMobileCollapsingSheetTitle } from './use-mobile-collapsing-sheet-title.ts'
 import {
   appointmentClientFromDirectory,
   groupAppointmentClients,
@@ -275,6 +276,11 @@ export function MobileAppointmentAddClient({
   const [notesOpen, setNotesOpen] = useState(false)
   const [valid, setValid] = useState(false)
   const entranceRef = useAppointmentStepEntrance(!desktop)
+  const {
+    collapsed: compactHeader,
+    handleScroll: handleTitleScroll,
+    largeTitleRef
+  } = useMobileCollapsingSheetTitle<HTMLHeadingElement>()
 
   const updateValidity = (form: HTMLFormElement) => {
     const data = new FormData(form)
@@ -318,15 +324,28 @@ export function MobileAppointmentAddClient({
         title="Add a new client"
         onBack={onBack}
         compact
+        collapsible={!desktop}
+        titleVisible={desktop || compactHeader}
         desktop={desktop}
       />
-      <MobileSheetScrollport className="px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <MobileSheetScrollport
+        className="px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        onScroll={desktop ? undefined : handleTitleScroll}
+      >
         <form
-          className="flex min-h-full flex-col"
+          className="relative flex min-h-full flex-col"
           onInput={(event) => updateValidity(event.currentTarget)}
           onSubmit={handleSubmit}
         >
-          <h1 className="max-w-64 pb-7 pt-5 text-[2.25rem] leading-[1.05] font-bold tracking-[-0.035em]">
+          <h1
+            ref={largeTitleRef}
+            aria-hidden={compactHeader}
+            data-mobile-add-client-large-title="true"
+            data-visible={compactHeader ? 'false' : 'true'}
+            className={`max-w-64 pb-7 pt-5 text-[2.25rem] leading-[1.05] font-bold tracking-[-0.035em] ${
+              compactHeader ? 'invisible opacity-0' : 'visible opacity-100'
+            }`}
+          >
             Add a new client
           </h1>
 
@@ -413,17 +432,28 @@ function ClientStepHeader({
   title,
   onBack,
   compact = false,
+  collapsible = false,
+  titleVisible = true,
   desktop = false
 }: {
   readonly title: string
   readonly onBack: () => void
   readonly compact?: boolean
+  readonly collapsible?: boolean
+  readonly titleVisible?: boolean
   readonly desktop?: boolean
 }) {
+  const showTitle = !collapsible || titleVisible
   return (
     <header
-      className={`relative z-20 flex shrink-0 items-center gap-2 border-b border-border/70 bg-background px-2 ${
+      data-mobile-add-client-compact-header={collapsible ? 'true' : undefined}
+      data-visible={collapsible ? (showTitle ? 'true' : 'false') : undefined}
+      className={`relative z-20 flex shrink-0 items-center gap-2 bg-background px-2 transition-colors duration-150 ${
         compact ? 'h-14' : 'h-16'
+      } ${
+        collapsible && !showTitle
+          ? 'border-b-0 border-transparent'
+          : 'border-b border-border/70'
       }`}
     >
       <button
@@ -442,7 +472,15 @@ function ClientStepHeader({
           <X aria-hidden className="size-7" strokeWidth={1.5} />
         )}
       </button>
-      <h1 className="truncate text-[1.0625rem] font-semibold">{title}</h1>
+      <h1
+        aria-hidden={!showTitle}
+        data-mobile-add-client-compact-title={collapsible ? 'true' : undefined}
+        className={`truncate text-[1.0625rem] font-semibold ${
+          showTitle ? 'visible opacity-100' : 'invisible opacity-0'
+        }`}
+      >
+        {title}
+      </h1>
     </header>
   )
 }
