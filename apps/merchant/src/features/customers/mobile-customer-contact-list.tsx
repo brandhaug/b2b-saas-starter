@@ -1,8 +1,8 @@
 import { Link } from '@tanstack/react-router'
-import { Search, X } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
 import { mobileSheetNavigationState } from '@/components/merchant-shell/mobile/mobile-sheet-gesture.ts'
+import { MobileSearchField } from '@/components/merchant-shell/mobile/mobile-search-field.tsx'
 import { formatAppointmentDateTime } from '@/lib/appointment-format.ts'
 import {
   customerInitials,
@@ -48,33 +48,14 @@ export function MobileCustomerContactList({
         data-mobile-customer-search-header="true"
         className="relative sticky top-0 z-30 -mx-4 bg-background px-4 pb-2 before:absolute before:inset-x-0 before:-top-2 before:h-2 before:bg-background before:content-['']"
       >
-        <div className="flex h-10 items-center gap-2 rounded-2xl bg-muted px-3 text-muted-foreground">
-          <Search aria-hidden className="size-[1.125rem] shrink-0" strokeWidth={2} />
-          <label htmlFor={searchId} className="sr-only">
-            Search customers
-          </label>
-          <input
-            id={searchId}
-            type="search"
-            inputMode="search"
-            autoComplete="off"
-            enterKeyHint="search"
-            placeholder="Search customers"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="min-w-0 flex-1 appearance-none bg-transparent text-base leading-6 font-medium text-foreground outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-          />
-          {query ? (
-            <button
-              type="button"
-              aria-label="Clear customer search"
-              onClick={() => setQuery('')}
-              className="grid size-6 shrink-0 place-items-center rounded-full bg-muted-foreground/15 active:scale-95"
-            >
-              <X aria-hidden className="size-3.5" strokeWidth={2.25} />
-            </button>
-          ) : null}
-        </div>
+        <MobileSearchField
+          id={searchId}
+          label="Search customers"
+          placeholder="Search customers"
+          value={query}
+          clearLabel="Clear customer search"
+          onValueChange={setQuery}
+        />
       </div>
 
       {entries.length > 0 ? (

@@ -609,6 +609,9 @@ describe('MobileNewAppointmentSheet interaction', () => {
     const search = container.querySelector<HTMLInputElement>(
       '[data-mobile-client-search="true"]'
     )
+    const searchField = search?.closest<HTMLElement>(
+      '[data-mobile-search-field="true"]'
+    )
     const resultsScrollport = customer?.closest<HTMLElement>(
       '[data-mobile-sheet-scroll="true"]'
     )
@@ -617,6 +620,9 @@ describe('MobileNewAppointmentSheet interaction', () => {
     )
 
     expect(search?.closest('[data-mobile-sheet-scroll="true"]')).toBeNull()
+    expect(search?.placeholder).toBe('Search clients')
+    expect(searchField?.classList.contains('h-10')).toBe(true)
+    expect(searchField?.classList.contains('rounded-2xl')).toBe(true)
     expect(resultsScrollport).not.toBeNull()
     expect(results).not.toBeNull()
     expect(results?.className).toContain('env(safe-area-inset-bottom)')

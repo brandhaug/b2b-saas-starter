@@ -7,7 +7,6 @@ import {
   CircleDollarSign,
   Info,
   Plus,
-  Search,
   X
 } from 'lucide-react'
 import {
@@ -22,6 +21,7 @@ import {
 } from 'react'
 import { customerInitials } from '@/features/customers/mobile-customer-contact-model.ts'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
+import { MobileSearchField } from './mobile-search-field.tsx'
 import { useMobileCollapsingSheetTitle } from './use-mobile-collapsing-sheet-title.ts'
 import {
   appointmentClientFromDirectory,
@@ -104,46 +104,23 @@ export function MobileAppointmentClientPicker({
       className="flex h-full min-h-0 flex-col"
     >
       <ClientStepHeader title="Select a client" onBack={onBack} desktop={desktop} />
-      <MobileSheetScrollport className="px-4 pb-[max(7rem,env(safe-area-inset-bottom))]">
-        <div className="relative min-h-full pr-5">
-          <div className="mt-3 rounded-xl bg-muted p-3">
-            <label
-              htmlFor={searchId}
-              className="block text-[0.6875rem] leading-4 font-semibold tracking-[0.04em] text-muted-foreground uppercase"
-            >
-              Search
-            </label>
-            <div className="mt-1 flex h-11 items-center gap-3">
-              <Search
-                aria-hidden
-                className="size-5 shrink-0 text-muted-foreground"
-                strokeWidth={1.6}
-              />
-              <input
-                id={searchId}
-                type="search"
-                inputMode="search"
-                autoComplete="off"
-                enterKeyHint="search"
-                data-mobile-client-search="true"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Start typing"
-                className="min-w-0 flex-1 appearance-none bg-transparent text-[1.0625rem] font-medium text-foreground outline-none placeholder:text-info [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-              />
-              {query ? (
-                <button
-                  type="button"
-                  aria-label="Clear client search"
-                  onClick={() => setQuery('')}
-                  className="grid size-7 place-items-center rounded-full bg-background/70 text-muted-foreground active:scale-95"
-                >
-                  <X aria-hidden className="size-4" />
-                </button>
-              ) : null}
-            </div>
-          </div>
+      <div data-mobile-client-search-region="true" className="shrink-0 px-4 pt-3 pb-2">
+        <MobileSearchField
+          id={searchId}
+          label="Search clients"
+          placeholder="Search clients"
+          value={query}
+          clearLabel="Clear client search"
+          inputDataAttribute="data-mobile-client-search"
+          onValueChange={setQuery}
+        />
+      </div>
 
+      <MobileSheetScrollport className="px-4">
+        <div
+          data-mobile-client-results="true"
+          className="relative min-h-full pr-5 pb-[max(9rem,calc(env(safe-area-inset-bottom)+7.5rem))]"
+        >
           <button
             type="button"
             data-mobile-add-client="true"
