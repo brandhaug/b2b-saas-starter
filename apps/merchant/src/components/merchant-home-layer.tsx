@@ -4,19 +4,20 @@ import { MobileAppointmentsScreen } from '@/features/appointments/mobile/mobile-
 import { appointmentDayTarget } from '@/features/appointments/mobile/week-navigation.ts'
 import { merchantHomeDate } from '@/lib/merchant-home-date.ts'
 import { merchantHomeCalendarQuery } from '@/lib/merchant-home-queries.ts'
+import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
 
 export function MerchantHomeLayer({
   href,
   search,
   state,
   overlayOpen,
-  viewerName
+  viewer
 }: {
   readonly href: string
   readonly search: unknown
   readonly state: unknown
   readonly overlayOpen: boolean
-  readonly viewerName: string | undefined
+  readonly viewer: MerchantViewer | undefined
 }) {
   const requestedDate = merchantHomeDate(search, state)
   const calendar = useQuery(merchantHomeCalendarQuery(requestedDate, href))
@@ -64,6 +65,7 @@ export function MerchantHomeLayer({
         description="Your returning-user home: a Provider-oriented day view of accepted Appointment facts."
         headerDate={selectedDate}
         headerTimezone={calendar.data.timezone}
+        viewer={viewer}
         layout="home"
       >
         <MobileAppointmentsScreen
@@ -78,7 +80,7 @@ export function MerchantHomeLayer({
           nextCalendar={
             nextCalendar.data?.date === nextDate ? nextCalendar.data : undefined
           }
-          viewerName={viewerName}
+          viewerName={viewer?.name}
         />
       </MerchantShell>
     </div>

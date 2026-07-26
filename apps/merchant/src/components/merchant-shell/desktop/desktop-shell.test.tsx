@@ -49,6 +49,10 @@ function renderShell(layout: 'home' | 'modal') {
       destinations={destinations}
       title={layout === 'home' ? 'Appointments' : 'Customers'}
       description="Route description"
+      viewer={{
+        name: 'Mara Ionescu',
+        image: 'https://images.example.test/mara.jpg'
+      }}
     >
       <p>Route content</p>
     </DesktopShell>
@@ -61,9 +65,19 @@ describe('DesktopShell', () => {
     const actions = html.match(
       /<nav aria-label="Merchant desktop home actions"[\s\S]*?<\/nav>/
     )?.[0]
+    const userButton = html.match(
+      /<a[^>]*data-desktop-user-button="true"[\s\S]*?<\/a>/
+    )?.[0]
 
     expect(html).toContain('aria-label="Merchant desktop home"')
     expect(html).toContain('aria-label="Open Settings"')
+    expect(html).toContain('data-desktop-user-button="true"')
+    expect(html).toContain('src="https://images.example.test/mara.jpg"')
+    expect(html).toContain('alt="Avatar"')
+    expect(html).toContain('width="36"')
+    expect(html).toContain('height="36"')
+    expect(html).toContain('rounded-full p-1 transition-transform')
+    expect(html).toContain('size-9 items-center justify-center overflow-hidden')
     expect(html).toContain('aria-label="About BeeSolo"')
     expect(html).toContain('href="/about"')
     expect(html).toContain('merchant-logo-enter')
@@ -82,7 +96,7 @@ describe('DesktopShell', () => {
     expect(html).toContain('viewBox="0 0 126 126"')
     expect(html).toContain('size-6')
     expect(html).not.toContain('>Merchant App</span>')
-    expect(html).toContain('lucide-user-round')
+    expect(userButton).not.toContain('lucide-user-round')
     expect(html).not.toContain('lucide-settings')
     expect(html).not.toContain('Route description')
     expect(html).not.toContain('>Today</p>')
@@ -108,5 +122,26 @@ describe('DesktopShell', () => {
     expect(html).toContain('<button')
     expect(html).toContain('Route content')
     expect(html).not.toContain('aria-label="Merchant App"')
+  })
+
+  it('falls back to the signed-in viewer initials when no avatar is available', () => {
+    const html = renderToStaticMarkup(
+      <DesktopShell
+        layout="home"
+        section={{ kind: 'merchant' }}
+        destinations={destinations}
+        title="Appointments"
+        description="Route description"
+        viewer={{ name: 'Mara Ionescu', image: null }}
+      >
+        <p>Route content</p>
+      </DesktopShell>
+    )
+    const userButton = html.match(
+      /<a[^>]*data-desktop-user-button="true"[\s\S]*?<\/a>/
+    )?.[0]
+
+    expect(userButton).toContain('>MI</span>')
+    expect(userButton).not.toContain('<img')
   })
 })

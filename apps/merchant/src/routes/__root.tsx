@@ -125,7 +125,7 @@ function RootComponent() {
                 search={location.search}
                 state={location.state}
                 overlayOpen={merchantOverlayOpen}
-                viewerName={viewer?.name}
+                viewer={viewer ?? undefined}
               />
             ) : null}
             <MerchantMobileSheetOutlet

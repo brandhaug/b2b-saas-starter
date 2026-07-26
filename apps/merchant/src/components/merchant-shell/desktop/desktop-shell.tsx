@@ -1,5 +1,5 @@
 import { Link, useLocation, useRouter } from '@tanstack/react-router'
-import { UserRound, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { AnimationEvent, ReactNode } from 'react'
 import { BeeSoloMark } from '@/components/beesolo-logo.tsx'
@@ -8,10 +8,12 @@ import {
   hasMerchantOverlayNavigationOrigin,
   merchantOverlayNavigationState
 } from '@/lib/merchant-home-route.ts'
+import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
 import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
 import { MerchantHomeAtmosphere } from '../home-atmosphere.tsx'
 import { DesktopDateHeader } from './desktop-date-header.tsx'
 import { DesktopHomeActions } from './desktop-home-actions.tsx'
+import { DesktopUserButton } from './desktop-user-button.tsx'
 
 export function DesktopShell({
   layout,
@@ -19,6 +21,7 @@ export function DesktopShell({
   title,
   headerDate,
   headerTimezone,
+  viewer,
   children
 }: {
   readonly layout: 'home' | 'modal'
@@ -28,6 +31,7 @@ export function DesktopShell({
   readonly description: string
   readonly headerDate?: string | undefined
   readonly headerTimezone?: string | undefined
+  readonly viewer?: MerchantViewer | undefined
   readonly children: ReactNode
 }) {
   if (layout === 'home')
@@ -37,6 +41,7 @@ export function DesktopShell({
           destinations={destinations}
           headerDate={headerDate}
           headerTimezone={headerTimezone}
+          viewer={viewer}
         >
           {children}
         </DesktopHomeCard>
@@ -155,12 +160,14 @@ function DesktopHomeCard({
   destinations,
   headerDate,
   headerTimezone,
+  viewer,
   interactive = true,
   children
 }: {
   readonly destinations: readonly MerchantDestination[]
   readonly headerDate?: string | undefined
   readonly headerTimezone?: string | undefined
+  readonly viewer?: MerchantViewer | undefined
   readonly interactive?: boolean
   readonly children: ReactNode
 }) {
@@ -182,28 +189,11 @@ function DesktopHomeCard({
             <DesktopDateHeader date={appointmentDate} currentDate={currentDate} />
           ) : null}
         </div>
-        {interactive ? (
-          <Link
-            to="/settings"
-            search={appointmentDate ? { date: appointmentDate } : {}}
-            state={(previous) =>
-              merchantOverlayNavigationState(previous, appointmentDate)
-            }
-            viewTransition={false}
-            aria-label="Open Settings"
-            className="grid size-11 place-items-center rounded-full text-muted-foreground transition-transform hover:text-foreground active:scale-[0.98]"
-          >
-            <span className="grid size-9 place-items-center rounded-full bg-muted">
-              <UserRound aria-hidden className="size-5" />
-            </span>
-          </Link>
-        ) : (
-          <span className="grid size-11 place-items-center rounded-full text-muted-foreground">
-            <span className="grid size-9 place-items-center rounded-full bg-muted">
-              <UserRound aria-hidden className="size-5" />
-            </span>
-          </span>
-        )}
+        <DesktopUserButton
+          appointmentDate={appointmentDate}
+          interactive={interactive}
+          viewer={viewer}
+        />
       </header>
       <div
         data-desktop-home-content="true"
