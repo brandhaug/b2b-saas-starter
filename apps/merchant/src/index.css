@@ -886,6 +886,19 @@ dialog.merchant-desktop-new-appointment-sidecar
   }
 }
 
+@keyframes merchant-logo-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.merchant-logo-enter {
+  animation: merchant-logo-fade 180ms ease-out both;
+}
+
 .beesolo-logo:hover .beesolo-logo-letter {
   animation: beesolo-logo-jump 400ms ease-out both;
 }
@@ -1087,6 +1100,7 @@ select:focus-visible {
   .merchant-route-sheet,
   .merchant-more-panel,
   .merchant-desktop-substep-route,
+  .merchant-logo-enter,
   .beesolo-logo-letter,
   .beesolo-logo-dot {
     animation: none;

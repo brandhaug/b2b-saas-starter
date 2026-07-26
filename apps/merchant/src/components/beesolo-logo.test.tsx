@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { BeeSoloLogo } from './beesolo-logo.tsx'
+import { BeeSoloLogo, BeeSoloMark } from './beesolo-logo.tsx'
 
 describe('BeeSoloLogo', () => {
   it('renders the canonical mark and lowercase wordmark', () => {
@@ -17,5 +17,15 @@ describe('BeeSoloLogo', () => {
 
     expect(html).toContain('aria-label="BeeSolo"')
     expect(html).not.toContain('beesolo-logo-letter')
+  })
+
+  it('renders a reusable monochrome mark without a tile background', () => {
+    const html = renderToStaticMarkup(<BeeSoloMark className="size-6" />)
+
+    expect(html).toContain('class="size-6"')
+    expect(html).toContain('fill="currentColor"')
+    expect(html).not.toContain('fill="white"')
+    expect(html).not.toContain('bg-white')
+    expect(html).not.toContain('rounded-sm')
   })
 })

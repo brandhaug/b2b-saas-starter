@@ -21,6 +21,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as AvailabilityRouteImport } from './routes/availability'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppointmentsAppointmentIdRouteImport } from './routes/appointments.$appointmentId'
 import { Route as ImpersonationHandoffsExchangeRouteImport } from './routes/impersonation.handoffs.exchange'
@@ -86,6 +87,11 @@ const AppointmentsRoute = AppointmentsRouteImport.update({
   path: '/appointments',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -111,6 +117,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/appointments': typeof AppointmentsRouteWithChildren
   '/availability': typeof AvailabilityRoute
   '/customers': typeof CustomersRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/appointments': typeof AppointmentsRouteWithChildren
   '/availability': typeof AvailabilityRoute
   '/customers': typeof CustomersRoute
@@ -148,6 +156,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/appointments': typeof AppointmentsRouteWithChildren
   '/availability': typeof AvailabilityRoute
   '/customers': typeof CustomersRoute
@@ -168,6 +177,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/appointments'
     | '/availability'
     | '/customers'
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/appointments'
     | '/availability'
     | '/customers'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/appointments'
     | '/availability'
     | '/customers'
@@ -223,6 +235,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   AppointmentsRoute: typeof AppointmentsRouteWithChildren
   AvailabilityRoute: typeof AvailabilityRoute
   CustomersRoute: typeof CustomersRoute
@@ -325,6 +338,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppointmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -370,6 +390,7 @@ const AppointmentsRouteWithChildren = AppointmentsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   AppointmentsRoute: AppointmentsRouteWithChildren,
   AvailabilityRoute: AvailabilityRoute,
   CustomersRoute: CustomersRoute,

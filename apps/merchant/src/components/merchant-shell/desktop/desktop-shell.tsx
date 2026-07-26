@@ -2,7 +2,7 @@ import { Link, useLocation, useRouter } from '@tanstack/react-router'
 import { UserRound, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { AnimationEvent, ReactNode } from 'react'
-import { BeeSoloLogo } from '@/components/beesolo-logo.tsx'
+import { BeeSoloMark } from '@/components/beesolo-logo.tsx'
 import { useMobileCalendarDate } from '@/features/appointments/mobile/use-mobile-calendar-date.ts'
 import {
   hasMerchantOverlayNavigationOrigin,
@@ -176,9 +176,7 @@ function DesktopHomeCard({
     >
       <MerchantHomeAtmosphere />
       <header className="relative z-10 grid h-20 shrink-0 grid-cols-[2.75rem_1fr_2.75rem] items-center px-4">
-        <span className="grid size-11 place-items-center">
-          <MerchantLogo />
-        </span>
+        <MerchantLogo appointmentDate={appointmentDate} />
         <div className="min-w-0 justify-self-stretch px-2">
           {appointmentDate ? (
             <DesktopDateHeader date={appointmentDate} currentDate={currentDate} />
@@ -224,8 +222,23 @@ function DesktopHomeCard({
   )
 }
 
-function MerchantLogo() {
-  return <BeeSoloLogo iconOnly />
+function MerchantLogo({
+  appointmentDate
+}: {
+  readonly appointmentDate: string | undefined
+}) {
+  return (
+    <Link
+      to="/about"
+      search={appointmentDate ? { date: appointmentDate } : {}}
+      state={(previous) => merchantOverlayNavigationState(previous, appointmentDate)}
+      viewTransition={false}
+      aria-label="About BeeSolo"
+      className="merchant-logo-enter grid size-11 place-items-center rounded-xl text-muted-foreground transition-transform active:scale-[0.98]"
+    >
+      <BeeSoloMark className="size-6" />
+    </Link>
+  )
 }
 
 function appointmentDateFromSearch(search: unknown) {

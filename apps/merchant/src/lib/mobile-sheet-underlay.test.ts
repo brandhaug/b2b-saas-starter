@@ -8,8 +8,10 @@ describe('shouldRenderMerchantHome', () => {
   it('renders home for appointments and overlay routes', () => {
     expect(shouldRenderMerchantHome('/appointments')).toBe(true)
     expect(shouldRenderMerchantHome('/customers')).toBe(true)
+    expect(shouldRenderMerchantHome('/about')).toBe(true)
     expect(shouldRenderMerchantHome('/appointments/appointment-1')).toBe(true)
     expect(isMerchantOverlayPath('/customers')).toBe(true)
+    expect(isMerchantOverlayPath('/about')).toBe(true)
     expect(isMerchantOverlayPath('/appointments')).toBe(false)
   })
 

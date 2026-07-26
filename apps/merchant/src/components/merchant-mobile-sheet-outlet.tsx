@@ -19,17 +19,19 @@ function fallbackMobileSheetDescriptor(pathname: string): MobileSheetDescriptor 
     }
   }
   const title =
-    pathname === '/walk-ins'
-      ? 'Walk-in queue'
-      : pathname === '/customers'
-        ? 'Customers'
-        : pathname === '/services'
-          ? 'Services'
-          : pathname === '/providers'
-            ? 'Providers'
-            : pathname === '/availability'
-              ? 'Availability'
-              : 'Settings'
+    pathname === '/about'
+      ? 'About'
+      : pathname === '/walk-ins'
+        ? 'Walk-in queue'
+        : pathname === '/customers'
+          ? 'Customers'
+          : pathname === '/services'
+            ? 'Services'
+            : pathname === '/providers'
+              ? 'Providers'
+              : pathname === '/availability'
+                ? 'Availability'
+                : 'Settings'
   return {
     section:
       pathname === '/services' ||

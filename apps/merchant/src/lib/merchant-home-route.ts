@@ -1,6 +1,7 @@
 const MERCHANT_OVERLAY_ORIGIN = 'merchant-app'
 
 const MERCHANT_OVERLAY_PATHS = [
+  /^\/about\/?$/,
   /^\/appointments\/[^/]+$/,
   /^\/availability\/?$/,
   /^\/customers\/?$/,
