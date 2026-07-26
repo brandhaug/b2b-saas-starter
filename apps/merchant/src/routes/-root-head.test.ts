@@ -43,4 +43,15 @@ describe('merchant head links', () => {
       documentSource.indexOf('<script dangerouslySetInnerHTML')
     )
   })
+
+  it('applies antialiasing to both desktop and mobile documents', () => {
+    const documentSource = readFileSync(
+      new URL('../components/merchant-root-document.tsx', import.meta.url),
+      'utf8'
+    )
+
+    expect(documentSource).toMatch(
+      /presentation === 'mobile'[\s\S]*\? 'merchant-mobile-document antialiased'\s*: 'antialiased'/
+    )
+  })
 })

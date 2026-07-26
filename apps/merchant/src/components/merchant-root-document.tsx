@@ -20,7 +20,9 @@ export function MerchantRootDocument({
       lang="en"
       suppressHydrationWarning
       className={
-        presentation === 'mobile' ? 'merchant-mobile-document antialiased' : undefined
+        presentation === 'mobile'
+          ? 'merchant-mobile-document antialiased'
+          : 'antialiased'
       }
     >
       <head>
