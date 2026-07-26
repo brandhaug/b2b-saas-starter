@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
   type MouseEventHandler,
+  type RefObject,
   type ReactNode
 } from 'react'
 import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
@@ -42,6 +43,14 @@ import type { AppointmentClient } from './mobile-appointment-client-model.ts'
 import { MobileAppointmentServicePicker } from './mobile-appointment-service-picker.tsx'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
 import { useMobileRouteSheet } from './use-mobile-route-sheet.ts'
+
+type NewAppointmentStep =
+  | 'appointment'
+  | 'appointment-notes'
+  | 'client-notes'
+  | 'clients'
+  | 'add-client'
+  | 'services'
 
 export function MobileNewAppointmentSheet({
   open,
@@ -71,9 +80,7 @@ function MobileNewAppointmentSheetDialog({
   const sheet = useMobileRouteSheet({ layout: 'sheet', onRequestClose })
   const sheetRef = sheet.sheetRef
   const [notifyCustomer, setNotifyCustomer] = useState(true)
-  const [step, setStep] = useState<
-    'appointment' | 'appointment-notes' | 'clients' | 'add-client' | 'services'
-  >('appointment')
+  const [step, setStep] = useState<NewAppointmentStep>('appointment')
   const [selectedClient, setSelectedClient] = useState<AppointmentClient | null>(null)
   const [selectedService, setSelectedService] = useState<ServiceRecord | null>(null)
   const [durationMinutes, setDurationMinutes] = useState(0)
@@ -84,6 +91,7 @@ function MobileNewAppointmentSheetDialog({
   const [repeatEveryWeeks, setRepeatEveryWeeks] = useState<number | null>(null)
   const [recurrencePickerOpen, setRecurrencePickerOpen] = useState(false)
   const [appointmentNote, setAppointmentNote] = useState('')
+  const [clientNote, setClientNote] = useState('')
   const [customerDirectory, setCustomerDirectory] = useState<CustomerDirectory | null>(
     null
   )
@@ -197,25 +205,7 @@ function MobileNewAppointmentSheetDialog({
     setSelectedTime(null)
   }, [availability, selectedDate])
 
-  const activateDialog = useCallback(
-    (dialog: HTMLDialogElement | null) => {
-      sheetRef.current = dialog
-      if (!dialog) return
-      if (typeof dialog.showModal === 'function' && !dialog.open) {
-        // Native modal focus scrolls transformed, off-screen dialogs into view.
-        // Activate at the resting position; the sheet layout effect applies the
-        // entrance offset before the browser paints and starts the spring.
-        dialog.style.setProperty('--merchant-sheet-translate-y', '0px')
-        dialog.showModal()
-      }
-      dialog.focus({ preventScroll: true })
-      return () => {
-        if (dialog.open && typeof dialog.close === 'function') dialog.close()
-        sheetRef.current = null
-      }
-    },
-    [sheetRef]
-  )
+  const activateDialog = useNewAppointmentDialogActivation(sheetRef)
 
   return (
     <div
@@ -265,6 +255,7 @@ function MobileNewAppointmentSheetDialog({
             onBack={() => setStep('appointment')}
             onAddClient={() => setStep('add-client')}
             onConfirm={(client) => {
+              if (client.id !== selectedClient?.id) setClientNote('')
               setSelectedClient(client)
               setStep('appointment')
             }}
@@ -274,15 +265,27 @@ function MobileNewAppointmentSheetDialog({
             onBack={() => setStep('clients')}
             onSave={(client) => {
               setSelectedClient(client)
+              setClientNote(client.draftProfile?.notes ?? '')
               setStep('appointment')
             }}
           />
         ) : step === 'appointment-notes' ? (
-          <AppointmentNotesEditor
+          <MobileAppointmentNotesEditor
+            kind="appointment"
             note={appointmentNote}
             onClose={() => setStep('appointment')}
             onSave={(note) => {
               setAppointmentNote(note)
+              setStep('appointment')
+            }}
+          />
+        ) : step === 'client-notes' ? (
+          <MobileAppointmentNotesEditor
+            kind="client"
+            note={clientNote}
+            onClose={() => setStep('appointment')}
+            onSave={(note) => {
+              setClientNote(note)
               setStep('appointment')
             }}
           />
@@ -315,6 +318,7 @@ function MobileNewAppointmentSheetDialog({
             selectedTime={selectedTime}
             repeatEveryWeeks={repeatEveryWeeks}
             appointmentNote={appointmentNote}
+            clientNote={clientNote}
             availability={availability}
             availabilityState={availabilityState}
             onClose={() => sheet.closeSheet()}
@@ -332,6 +336,7 @@ function MobileNewAppointmentSheetDialog({
             onSelectTime={setSelectedTime}
             onChooseRepeat={() => setRecurrencePickerOpen(true)}
             onEditAppointmentNote={() => setStep('appointment-notes')}
+            onEditClientNote={() => setStep('client-notes')}
             onToggleNotify={() => setNotifyCustomer((current) => !current)}
           />
         )}
@@ -351,6 +356,30 @@ function MobileNewAppointmentSheetDialog({
   )
 }
 
+function useNewAppointmentDialogActivation(
+  sheetRef: RefObject<HTMLDialogElement | null>
+) {
+  return useCallback(
+    (dialog: HTMLDialogElement | null) => {
+      sheetRef.current = dialog
+      if (!dialog) return
+      if (typeof dialog.showModal === 'function' && !dialog.open) {
+        // Native modal focus scrolls transformed, off-screen dialogs into view.
+        // Activate at the resting position; the sheet layout effect applies the
+        // entrance offset before the browser paints and starts the spring.
+        dialog.style.setProperty('--merchant-sheet-translate-y', '0px')
+        dialog.showModal()
+      }
+      dialog.focus({ preventScroll: true })
+      return () => {
+        if (dialog.open && typeof dialog.close === 'function') dialog.close()
+        sheetRef.current = null
+      }
+    },
+    [sheetRef]
+  )
+}
+
 function AppointmentDraft({
   notifyCustomer,
   selectedClient,
@@ -360,6 +389,7 @@ function AppointmentDraft({
   selectedTime,
   repeatEveryWeeks,
   appointmentNote,
+  clientNote,
   availability,
   availabilityState,
   onClose,
@@ -370,6 +400,7 @@ function AppointmentDraft({
   onSelectTime,
   onChooseRepeat,
   onEditAppointmentNote,
+  onEditClientNote,
   onToggleNotify
 }: {
   readonly notifyCustomer: boolean
@@ -380,6 +411,7 @@ function AppointmentDraft({
   readonly selectedTime: string | null
   readonly repeatEveryWeeks: number | null
   readonly appointmentNote: string
+  readonly clientNote: string
   readonly availability: Availability | null
   readonly availabilityState: 'idle' | 'loading' | 'ready' | 'error'
   readonly onClose: () => void
@@ -390,6 +422,7 @@ function AppointmentDraft({
   readonly onSelectTime: (time: string) => void
   readonly onChooseRepeat: () => void
   readonly onEditAppointmentNote: () => void
+  readonly onEditClientNote: () => void
   readonly onToggleNotify: () => void
 }) {
   const [compactHeader, setCompactHeader] = useState(false)
@@ -501,9 +534,10 @@ function AppointmentDraft({
             />
             <AppointmentFieldRow
               icon={<Info />}
-              label="Add client notes"
+              label={clientNote || 'Add client notes'}
               field="client-notes"
-              tone={selectedClient ? 'action' : 'disabled'}
+              tone={selectedClient ? (clientNote ? 'selected' : 'action') : 'disabled'}
+              onClick={onEditClientNote}
             />
             <AppointmentFieldRow
               icon={<Repeat2 />}
@@ -557,11 +591,13 @@ function AppointmentDraft({
   )
 }
 
-function AppointmentNotesEditor({
+function MobileAppointmentNotesEditor({
+  kind,
   note,
   onClose,
   onSave
 }: {
+  readonly kind: 'appointment' | 'client'
   readonly note: string
   readonly onClose: () => void
   readonly onSave: (note: string) => void
@@ -605,7 +641,8 @@ function AppointmentNotesEditor({
   return (
     <div
       ref={rootRef}
-      data-mobile-appointment-notes="true"
+      data-mobile-appointment-notes={kind === 'appointment' ? 'true' : undefined}
+      data-mobile-client-notes={kind === 'client' ? 'true' : undefined}
       className="relative flex min-h-0 flex-1 flex-col bg-background"
       style={
         visibleHeight === null ? undefined : { height: visibleHeight, flex: '0 0 auto' }
@@ -614,21 +651,24 @@ function AppointmentNotesEditor({
       <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border/70 bg-background px-2">
         <button
           type="button"
-          aria-label="Close appointment notes"
+          aria-label={`Close ${kind} notes`}
           onClick={onClose}
           className="grid size-12 place-items-center rounded-full text-muted-foreground transition-colors active:bg-muted active:text-foreground"
         >
           <X aria-hidden className="size-7" strokeWidth={1.6} />
         </button>
         <h1 className="text-[1.25rem] font-semibold tracking-[-0.02em]">
-          Notes for appointment
+          Notes for {kind}
         </h1>
       </header>
 
       <textarea
         ref={textareaRef}
-        aria-label="Notes for appointment"
-        data-mobile-appointment-notes-input="true"
+        aria-label={`Notes for ${kind}`}
+        data-mobile-appointment-notes-input={
+          kind === 'appointment' ? 'true' : undefined
+        }
+        data-mobile-client-notes-input={kind === 'client' ? 'true' : undefined}
         value={draft}
         maxLength={2_000}
         spellCheck
@@ -640,7 +680,10 @@ function AppointmentNotesEditor({
         <button
           type="button"
           disabled={!canSave}
-          data-mobile-appointment-notes-save="true"
+          data-mobile-appointment-notes-save={
+            kind === 'appointment' ? 'true' : undefined
+          }
+          data-mobile-client-notes-save={kind === 'client' ? 'true' : undefined}
           onClick={() => onSave(draft.trim())}
           className="flex h-14 w-full items-center justify-center rounded-xl bg-info text-[1.0625rem] font-semibold text-info-foreground transition-[background-color,color,opacity,transform] active:scale-[0.99] disabled:bg-muted disabled:text-muted-foreground disabled:opacity-65"
         >

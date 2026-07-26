@@ -329,6 +329,65 @@ describe('MobileNewAppointmentSheet interaction', () => {
     ).toBe(false)
   })
 
+  it('edits and saves notes for the selected client', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(<MobileNewAppointmentSheet open onRequestClose={vi.fn()} />)
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-mobile-new-appointment-field="client"]'
+        )
+        ?.click()
+    )
+    await act(async () => Promise.resolve())
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-mobile-client-option="apt_alex"]')
+        ?.click()
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-mobile-client-confirm="true"]')
+        ?.click()
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-mobile-new-appointment-field="client-notes"]'
+        )
+        ?.click()
+    )
+
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      '[data-mobile-client-notes-input="true"]'
+    )
+    const save = container.querySelector<HTMLButtonElement>(
+      '[data-mobile-client-notes-save="true"]'
+    )
+    expect(container.querySelector('[data-mobile-client-notes="true"]')).not.toBeNull()
+    expect(container.textContent).toContain('Notes for client')
+    expect(document.activeElement).toBe(textarea)
+    expect(save?.disabled).toBe(true)
+
+    await act(async () => {
+      if (!textarea) return
+      setNativeTextareaValue(textarea, 'Prefers fragrance-free products')
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => save?.click())
+
+    expect(container.querySelector('[data-mobile-client-notes="true"]')).toBeNull()
+    expect(
+      container.querySelector('[data-mobile-new-appointment-field="client-notes"]')
+        ?.textContent
+    ).toContain('Prefers fragrance-free products')
+  })
+
   it('lets the merchant deselect a misclicked customer before confirming', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
