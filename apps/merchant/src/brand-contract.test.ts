@@ -92,6 +92,15 @@ describe('merchant BeeSolo brand contract', () => {
     expect(css).toContain(
       'transition: transform 500ms var(--merchant-desktop-primary-spring)'
     )
+    const primarySpring =
+      css.match(/--merchant-desktop-primary-spring:\s*linear\(([\s\S]*?)\);/)?.[1] ?? ''
+    expect(primarySpring).toContain('0.768 20%')
+    expect(primarySpring).toContain('1.081 40%')
+    const concurrentCloseRule =
+      css.match(
+        /\.merchant-desktop-new-appointment-overlay:has\([\s\S]*?data-desktop-substep-state='closing'[\s\S]*?\)\s*dialog\.merchant-desktop-new-appointment-dialog\[data-desktop-substep-open='true'\]\s*\{([^}]*)\}/
+      )?.[1] ?? ''
+    expect(concurrentCloseRule).toContain('transform: translate(-50%, -50%)')
     expect(css).not.toContain('--merchant-desktop-spring')
 
     const sidecarEntrance = cssSection(

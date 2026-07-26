@@ -567,13 +567,23 @@ html.merchant-mobile-document
 ) {
   --merchant-desktop-primary-spring: linear(
     0,
-    0.26 8%,
-    0.68 20%,
-    0.94 32%,
-    1.07 44%,
-    1.075 52%,
-    1.035 66%,
-    0.998 80%,
+    0.101 5%,
+    0.318 10%,
+    0.559 15%,
+    0.768 20%,
+    0.922 25%,
+    1.004 29%,
+    1.043 32%,
+    1.072 36%,
+    1.081 40%,
+    1.073 45%,
+    1.056 50%,
+    1.037 55%,
+    1.02 60%,
+    1.007 65%,
+    0.999 70%,
+    0.994 80%,
+    0.995 90%,
     1 100%
   );
   --merchant-desktop-sidecar-spring: linear(
@@ -603,6 +613,13 @@ dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet {
 
 dialog.merchant-desktop-new-appointment-dialog[data-desktop-substep-open='true'] {
   transform: translate(-100%, -50%);
+}
+
+.merchant-desktop-new-appointment-overlay:has(
+    dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='closing']
+  )
+  dialog.merchant-desktop-new-appointment-dialog[data-desktop-substep-open='true'] {
+  transform: translate(-50%, -50%);
 }
 
 dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='entering'] {
