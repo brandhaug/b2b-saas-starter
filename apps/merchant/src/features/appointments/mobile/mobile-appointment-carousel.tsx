@@ -1,4 +1,5 @@
 import type { ProviderCalendar } from '@b2b-saas-starter/capabilities/booking'
+import { DesktopAppointmentRow } from '../desktop/desktop-appointment-row.tsx'
 import { EmptyAppointmentDay } from '../shared/empty-appointment-day.tsx'
 import { MobileAppointmentRow } from './mobile-appointment-row.tsx'
 import { mobileAppointmentLedger } from './mobile-appointments-model.ts'
@@ -7,6 +8,7 @@ export function MobileAppointmentCarousel({
   calendars,
   carouselProps,
   pending,
+  rowPresentation,
   scrollable
 }: {
   readonly calendars: {
@@ -16,6 +18,7 @@ export function MobileAppointmentCarousel({
   }
   readonly carouselProps: React.HTMLAttributes<HTMLElement>
   readonly pending: boolean
+  readonly rowPresentation: 'desktop' | 'mobile'
   readonly scrollable: boolean
 }) {
   return (
@@ -37,17 +40,20 @@ export function MobileAppointmentCarousel({
         <AppointmentDayPanel
           calendar={calendars.previous}
           position="previous"
+          rowPresentation={rowPresentation}
           scrollable={scrollable}
         />
         <AppointmentDayPanel
           calendar={calendars.current}
           pending={pending}
           position="current"
+          rowPresentation={rowPresentation}
           scrollable={scrollable}
         />
         <AppointmentDayPanel
           calendar={calendars.next}
           position="next"
+          rowPresentation={rowPresentation}
           scrollable={scrollable}
         />
       </div>
@@ -59,11 +65,13 @@ function AppointmentDayPanel({
   calendar,
   pending = false,
   position,
+  rowPresentation,
   scrollable
 }: {
   readonly calendar: ProviderCalendar | undefined
   readonly pending?: boolean
   readonly position: 'current' | 'next' | 'previous'
+  readonly rowPresentation: 'desktop' | 'mobile'
   readonly scrollable: boolean
 }) {
   const appointments =
@@ -103,13 +111,21 @@ function AppointmentDayPanel({
         <EmptyAppointmentDay />
       ) : (
         <ol>
-          {appointments.map((appointment) => (
-            <MobileAppointmentRow
-              key={appointment.id}
-              appointment={appointment}
-              date={calendar.date}
-            />
-          ))}
+          {appointments.map((appointment) =>
+            rowPresentation === 'desktop' ? (
+              <DesktopAppointmentRow
+                key={appointment.id}
+                appointment={appointment}
+                date={calendar.date}
+              />
+            ) : (
+              <MobileAppointmentRow
+                key={appointment.id}
+                appointment={appointment}
+                date={calendar.date}
+              />
+            )
+          )}
         </ol>
       )}
     </div>

@@ -44,5 +44,6 @@ describe('MobileAppointmentsScreen', () => {
     expect(scrollport).toBeGreaterThan(weekStrip)
     expect(appointmentList).toBeGreaterThan(scrollport)
     expect(html).toContain('data-desktop-appointments-layout="fixed-week-strip"')
+    expect(html).toContain('[scrollbar-gutter:stable]')
   })
 })

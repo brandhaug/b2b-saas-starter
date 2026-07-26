@@ -7,12 +7,21 @@ import { MobileAppointmentLedger } from './mobile-appointment-ledger.tsx'
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
-    className
+    className,
+    'data-desktop-appointment-row': desktopRow,
+    'data-mobile-appointment-row': mobileRow
   }: {
     readonly children: ReactNode
     readonly className?: string
+    readonly 'data-desktop-appointment-row'?: string
+    readonly 'data-mobile-appointment-row'?: string
   }) => (
-    <a href="/appointment" className={className}>
+    <a
+      href="/appointment"
+      className={className}
+      data-desktop-appointment-row={desktopRow}
+      data-mobile-appointment-row={mobileRow}
+    >
       {children}
     </a>
   )
@@ -101,9 +110,22 @@ describe('MobileAppointmentLedger', () => {
     )
 
     expect(html).toContain('Previous-day customer')
+    expect(html).toContain('data-mobile-appointment-row="true"')
+    expect(html).toContain('min-h-24')
     expect(html).toContain('after:inset-x-5')
     expect(html).not.toContain('Schedule')
     expect(html).not.toContain('1 Appointment')
+  })
+
+  it('uses compact appointment rows for the desktop schedule', () => {
+    const html = renderToStaticMarkup(
+      <MobileAppointmentLedger calendar={calendar} rowPresentation="desktop" />
+    )
+
+    expect(html).toContain('data-desktop-appointment-row="true"')
+    expect(html).toContain('min-h-16')
+    expect(html).not.toContain('min-h-24')
+    expect(html).not.toContain('data-mobile-appointment-row="true"')
   })
 
   it('only reserves action-bar scroll space for a populated current day', () => {

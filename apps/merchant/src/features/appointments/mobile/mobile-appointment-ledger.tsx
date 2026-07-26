@@ -49,6 +49,7 @@ export function MobileAppointmentLedger({
   previousCalendar,
   nextCalendar,
   pending = false,
+  rowPresentation = 'mobile',
   scrollable = false,
   onSwipeDay
 }: {
@@ -56,6 +57,7 @@ export function MobileAppointmentLedger({
   readonly previousCalendar?: ProviderCalendar | undefined
   readonly nextCalendar?: ProviderCalendar | undefined
   readonly pending?: boolean
+  readonly rowPresentation?: 'desktop' | 'mobile'
   readonly scrollable?: boolean
   readonly onSwipeDay?: ((direction: AppointmentDayDirection) => void) | undefined
 }) {
@@ -315,6 +317,7 @@ export function MobileAppointmentLedger({
       calendars={displayedCalendars}
       carouselProps={carouselProps}
       pending={pending}
+      rowPresentation={rowPresentation}
       scrollable={scrollable}
     />
   )

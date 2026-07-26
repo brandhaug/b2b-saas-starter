@@ -75,6 +75,7 @@ export function MobileAppointmentsScreen({
       previousCalendar={previousCalendar}
       nextCalendar={nextCalendar}
       pending={pending}
+      rowPresentation={presentation}
       scrollable={mobile}
       onSwipeDay={(direction) => selectDate(appointmentDayTarget(date, direction))}
     />
@@ -116,7 +117,7 @@ export function MobileAppointmentsScreen({
           {weekStrip}
           <div
             data-desktop-appointment-scroll="true"
-            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
           >
             {appointmentLedger}
           </div>
