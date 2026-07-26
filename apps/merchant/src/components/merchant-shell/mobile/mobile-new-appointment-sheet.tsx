@@ -17,6 +17,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEventHandler,
@@ -80,6 +81,8 @@ function MobileNewAppointmentSheetDialog({
     latestCalendarDate(decodeCalendarDate(appointmentDate), browserCalendarToday())
   )
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  const [repeatEveryWeeks, setRepeatEveryWeeks] = useState<number | null>(null)
+  const [recurrencePickerOpen, setRecurrencePickerOpen] = useState(false)
   const [customerDirectory, setCustomerDirectory] = useState<CustomerDirectory | null>(
     null
   )
@@ -300,6 +303,7 @@ function MobileNewAppointmentSheetDialog({
             durationMinutes={durationMinutes}
             selectedDate={selectedDate}
             selectedTime={selectedTime}
+            repeatEveryWeeks={repeatEveryWeeks}
             availability={availability}
             availabilityState={availabilityState}
             onClose={() => sheet.closeSheet()}
@@ -315,9 +319,21 @@ function MobileNewAppointmentSheetDialog({
               setSelectedTime(null)
             }}
             onSelectTime={setSelectedTime}
+            onChooseRepeat={() => setRecurrencePickerOpen(true)}
             onToggleNotify={() => setNotifyCustomer((current) => !current)}
           />
         )}
+
+        {recurrencePickerOpen ? (
+          <AppointmentRecurrencePicker
+            selectedWeeks={repeatEveryWeeks}
+            onClose={() => setRecurrencePickerOpen(false)}
+            onConfirm={(weeks) => {
+              setRepeatEveryWeeks(weeks)
+              setRecurrencePickerOpen(false)
+            }}
+          />
+        ) : null}
       </dialog>
     </div>
   )
@@ -330,6 +346,7 @@ function AppointmentDraft({
   durationMinutes,
   selectedDate,
   selectedTime,
+  repeatEveryWeeks,
   availability,
   availabilityState,
   onClose,
@@ -338,6 +355,7 @@ function AppointmentDraft({
   onChangeDuration,
   onSelectDate,
   onSelectTime,
+  onChooseRepeat,
   onToggleNotify
 }: {
   readonly notifyCustomer: boolean
@@ -346,6 +364,7 @@ function AppointmentDraft({
   readonly durationMinutes: number
   readonly selectedDate: string
   readonly selectedTime: string | null
+  readonly repeatEveryWeeks: number | null
   readonly availability: Availability | null
   readonly availabilityState: 'idle' | 'loading' | 'ready' | 'error'
   readonly onClose: () => void
@@ -354,6 +373,7 @@ function AppointmentDraft({
   readonly onChangeDuration: (change: number) => void
   readonly onSelectDate: (date: string) => void
   readonly onSelectTime: (time: string) => void
+  readonly onChooseRepeat: () => void
   readonly onToggleNotify: () => void
 }) {
   const [compactHeader, setCompactHeader] = useState(false)
@@ -470,9 +490,10 @@ function AppointmentDraft({
             />
             <AppointmentFieldRow
               icon={<Repeat2 />}
-              label="Does not repeat"
+              label={appointmentRepeatLabel(repeatEveryWeeks)}
               field="repeat"
               tone="action"
+              onClick={onChooseRepeat}
             />
           </div>
 
@@ -517,6 +538,172 @@ function AppointmentDraft({
       </div>
     </div>
   )
+}
+
+const appointmentRecurrenceOptions = [1, 2, 3, 4, 5, 6, 7, 8] as const
+const recurrenceRowHeight = 72
+
+function AppointmentRecurrencePicker({
+  selectedWeeks,
+  onClose,
+  onConfirm
+}: {
+  readonly selectedWeeks: number | null
+  readonly onClose: () => void
+  readonly onConfirm: (weeks: number) => void
+}) {
+  const initialWeeks = useRef(selectedWeeks ?? 4)
+  const [draftWeeks, setDraftWeeks] = useState(initialWeeks.current)
+  const [entered, setEntered] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const scrollport = scrollRef.current
+    if (!scrollport) return
+    scrollport.scrollTop = (initialWeeks.current - 1) * recurrenceRowHeight
+  }, [])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setEntered(true))
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
+  const chooseWeeks = (weeks: number) => {
+    setDraftWeeks(weeks)
+    const scrollport = scrollRef.current
+    if (!scrollport) return
+    const top = (weeks - 1) * recurrenceRowHeight
+    if (typeof scrollport.scrollTo === 'function') {
+      scrollport.scrollTo({ top, behavior: 'smooth' })
+    } else {
+      scrollport.scrollTop = top
+    }
+  }
+
+  return (
+    <div
+      data-mobile-recurrence-picker="true"
+      className="absolute inset-0 z-40 overflow-hidden"
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerMove={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      onTouchStart={(event) => event.stopPropagation()}
+      onTouchMove={(event) => event.stopPropagation()}
+      onTouchEnd={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        aria-label="Close recurrence picker"
+        onClick={onClose}
+        className={`absolute inset-0 bg-black/30 transition-opacity duration-200 ${entered ? 'opacity-100' : 'opacity-0'}`}
+      />
+      <dialog
+        open
+        aria-modal="true"
+        aria-labelledby="appointment-recurrence-title"
+        className={`absolute inset-x-0 bottom-0 m-0 flex h-[calc(100%-4rem)] max-h-[46rem] w-full max-w-none flex-col rounded-t-[2rem] border-t border-border bg-background p-0 text-inherit shadow-[0_-20px_50px_rgb(0_0_0/0.18)] transition-transform duration-300 ease-out ${entered ? 'translate-y-0' : 'translate-y-full'}`}
+      >
+        <header className="flex shrink-0 items-center justify-between px-4 pt-5">
+          <h2
+            id="appointment-recurrence-title"
+            className="text-[1.75rem] leading-tight font-medium tracking-[-0.025em]"
+          >
+            Set a frequency
+          </h2>
+          <button
+            type="button"
+            aria-label="Close recurrence picker"
+            onClick={onClose}
+            className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground transition-colors active:bg-muted/70 active:text-foreground"
+          >
+            <X aria-hidden className="size-7" strokeWidth={1.6} />
+          </button>
+        </header>
+
+        <div
+          ref={scrollRef}
+          role="radiogroup"
+          aria-label="Repeat frequency"
+          data-mobile-recurrence-wheel="true"
+          onScroll={(event) => {
+            const weeks = Math.max(
+              1,
+              Math.min(
+                8,
+                Math.round(event.currentTarget.scrollTop / recurrenceRowHeight) + 1
+              )
+            )
+            setDraftWeeks(weeks)
+          }}
+          className="merchant-sheet-scrollport mx-4 mt-4 h-[22.5rem] shrink-0 snap-y snap-mandatory overflow-y-auto overscroll-contain"
+          style={{
+            WebkitMaskImage:
+              'linear-gradient(transparent, black 22%, black 78%, transparent)'
+          }}
+        >
+          <div aria-hidden className="h-36" />
+          {appointmentRecurrenceOptions.map((weeks) => {
+            const selected = weeks === draftWeeks
+            const distance = Math.abs(weeks - draftWeeks)
+            return (
+              <label
+                key={weeks}
+                className={`block h-[4.5rem] w-full snap-center rounded-full text-[1.5rem] leading-none font-semibold transition-[background-color,color,opacity,transform] duration-150 ${
+                  selected
+                    ? 'scale-100 bg-muted text-foreground opacity-100'
+                    : distance === 1
+                      ? 'scale-[0.96] text-muted-foreground opacity-60'
+                      : 'scale-[0.92] text-muted-foreground opacity-20'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="appointment-recurrence"
+                  value={weeks}
+                  checked={selected}
+                  aria-checked={selected}
+                  data-mobile-recurrence-weeks={weeks}
+                  onChange={() => chooseWeeks(weeks)}
+                  className="sr-only"
+                />
+                <span className="flex h-full items-center px-4 text-left">
+                  <span className="flex-1">{recurrenceOptionLabel(weeks)}</span>
+                  {selected ? (
+                    <span aria-hidden className="flex flex-col text-muted-foreground">
+                      <ChevronDown className="size-4 rotate-180" strokeWidth={1.5} />
+                      <ChevronDown className="-mt-1 size-4" strokeWidth={1.5} />
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            )
+          })}
+          <div aria-hidden className="h-36" />
+        </div>
+
+        <div className="mt-auto px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            data-mobile-recurrence-confirm="true"
+            onClick={() => onConfirm(draftWeeks)}
+            className="flex h-14 w-full items-center justify-center rounded-xl bg-info text-[1.0625rem] font-semibold text-info-foreground transition-transform active:scale-[0.99]"
+          >
+            Select
+          </button>
+        </div>
+      </dialog>
+    </div>
+  )
+}
+
+function recurrenceOptionLabel(weeks: number) {
+  return weeks === 1 ? 'Weekly' : `${weeks} weeks`
+}
+
+function appointmentRepeatLabel(weeks: number | null) {
+  if (weeks === null) return 'Does not repeat'
+  if (weeks === 1) return 'Every week'
+  return `Every ${weeks} weeks`
 }
 
 function AppointmentSchedulingSection({

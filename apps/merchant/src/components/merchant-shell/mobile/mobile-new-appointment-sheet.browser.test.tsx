@@ -184,6 +184,51 @@ describe('MobileNewAppointmentSheet interaction', () => {
     expect(notify?.getAttribute('aria-pressed')).toBe('false')
   })
 
+  it('opens recurrence at four weeks and applies a new frequency', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(<MobileNewAppointmentSheet open onRequestClose={vi.fn()} />)
+    )
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-mobile-new-appointment-field="repeat"]'
+        )
+        ?.click()
+    )
+
+    const picker = container.querySelector('[data-mobile-recurrence-picker="true"]')
+    expect(picker).not.toBeNull()
+    expect(picker?.textContent).toContain('Weekly')
+    expect(picker?.textContent).toContain('8 weeks')
+    expect(
+      container
+        .querySelector('[data-mobile-recurrence-weeks="4"]')
+        ?.getAttribute('aria-checked')
+    ).toBe('true')
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-mobile-recurrence-weeks="6"]')
+        ?.click()
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-mobile-recurrence-confirm="true"]')
+        ?.click()
+    )
+
+    expect(container.querySelector('[data-mobile-recurrence-picker="true"]')).toBeNull()
+    expect(
+      container.querySelector('[data-mobile-new-appointment-field="repeat"]')
+        ?.textContent
+    ).toContain('Every 6 weeks')
+  })
+
   it('selects an existing customer and returns the choice to the appointment draft', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
