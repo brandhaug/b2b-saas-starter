@@ -14,6 +14,11 @@ const pokeAtmosphereAssets = [
   'poke-noise.png'
 ].map((asset) => new URL(`../public/brand/backgrounds/poke/${asset}`, import.meta.url))
 
+function cssSection(css: string, start: string, end: string) {
+  const startIndex = css.indexOf(start)
+  return css.slice(startIndex, css.indexOf(end, startIndex + start.length))
+}
+
 describe('merchant BeeSolo brand contract', () => {
   it('uses the canonical honey primary with black foreground in both themes', async () => {
     const css = await readFile(stylesUrl, 'utf8')
@@ -82,8 +87,41 @@ describe('merchant BeeSolo brand contract', () => {
     expect(sidecarBackdropRule).toContain('background: transparent')
     expect(sidecarBackdropRule).toContain('backdrop-filter: none')
     expect(css).toContain(
-      'animation: merchant-desktop-sidecar-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both'
+      'animation: merchant-desktop-sidecar-enter 500ms var(--merchant-desktop-sidecar-spring) both'
     )
+    expect(css).toContain(
+      'transition: transform 500ms var(--merchant-desktop-primary-spring)'
+    )
+    expect(css).not.toContain('--merchant-desktop-spring')
+
+    const sidecarEntrance = cssSection(
+      css,
+      '@keyframes merchant-desktop-sidecar-enter',
+      '@keyframes merchant-desktop-sidecar-exit'
+    )
+    const sidecarExit = cssSection(
+      css,
+      '@keyframes merchant-desktop-sidecar-exit',
+      'dialog.merchant-desktop-new-appointment-sidecar\n  [data-desktop-substep-route-motion'
+    )
+
+    expect(sidecarEntrance).toContain('left: 100%')
+    expect(sidecarEntrance).toContain('left: 50%')
+    expect(sidecarEntrance).toContain('transform: translate3d(0, -50%, 0)')
+    expect(sidecarEntrance).toContain('transform: translate3d(0.9375rem, -50%, 0)')
+    expect(sidecarEntrance).not.toContain('scale(')
+    expect(sidecarEntrance).not.toContain('-48%')
+    expect(sidecarExit).not.toContain('left:')
+    expect(sidecarExit.match(/translate3d\(0\.9375rem, -50%, 0\)/g)).toHaveLength(2)
+    expect(sidecarExit).not.toContain('scale(')
+
+    const internalRouteEntrance = cssSection(
+      css,
+      '@keyframes merchant-desktop-substep-route-enter',
+      ':is(\n    dialog.merchant-desktop-new-appointment-dialog'
+    )
+    expect(internalRouteEntrance).toContain('translate3d(0, 2.5rem, 0)')
+    expect(internalRouteEntrance).toContain('translate3d(0, 0, 0)')
   })
 
   it('keeps desktop home actions visually stable on hover', async () => {

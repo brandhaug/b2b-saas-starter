@@ -561,6 +561,34 @@ html.merchant-mobile-document
   margin-top: var(--merchant-route-sheet-top);
 }
 
+:is(
+  dialog.merchant-desktop-new-appointment-dialog,
+  dialog.merchant-desktop-new-appointment-sidecar
+) {
+  --merchant-desktop-primary-spring: linear(
+    0,
+    0.26 8%,
+    0.68 20%,
+    0.94 32%,
+    1.07 44%,
+    1.075 52%,
+    1.035 66%,
+    0.998 80%,
+    1 100%
+  );
+  --merchant-desktop-sidecar-spring: linear(
+    0,
+    0.2 8%,
+    0.54 20%,
+    0.78 32%,
+    0.92 44%,
+    0.985 56%,
+    1.004 66%,
+    1.003 76%,
+    1 100%
+  );
+}
+
 dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet {
   inset: auto;
   top: 50%;
@@ -569,7 +597,8 @@ dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet {
   max-height: 47rem;
   margin: 0;
   transform: translate(-50%, -50%);
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 500ms var(--merchant-desktop-primary-spring);
+  will-change: transform;
 }
 
 dialog.merchant-desktop-new-appointment-dialog[data-desktop-substep-open='true'] {
@@ -623,6 +652,7 @@ dialog.merchant-desktop-new-appointment-sidecar {
   max-height: 47rem;
   margin: 0;
   transform: translate3d(0.9375rem, -50%, 0);
+  will-change: left, opacity, transform;
 }
 
 dialog.merchant-desktop-new-appointment-sidecar::backdrop {
@@ -634,37 +664,41 @@ dialog.merchant-desktop-new-appointment-sidecar::backdrop {
 dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='preparing'] {
   visibility: hidden;
   opacity: 0;
-  transform: translate3d(2.5rem, -48%, 0) scale(0.96);
+  left: 100%;
+  transform: translate3d(0, -50%, 0);
 }
 
 dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='entering'] {
-  animation: merchant-desktop-sidecar-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: merchant-desktop-sidecar-enter 500ms var(--merchant-desktop-sidecar-spring)
+    both;
 }
 
 dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='closing'] {
   pointer-events: none;
-  animation: merchant-desktop-sidecar-exit 200ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: merchant-desktop-sidecar-exit 180ms ease-out both;
 }
 
 @keyframes merchant-desktop-sidecar-enter {
   from {
     opacity: 0;
-    transform: translate3d(2.5rem, -48%, 0) scale(0.96);
+    left: 100%;
+    transform: translate3d(0, -50%, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0.9375rem, -50%, 0) scale(1);
+    left: 50%;
+    transform: translate3d(0.9375rem, -50%, 0);
   }
 }
 
 @keyframes merchant-desktop-sidecar-exit {
   from {
     opacity: 1;
-    transform: translate3d(0.9375rem, -50%, 0) scale(1);
+    transform: translate3d(0.9375rem, -50%, 0);
   }
   to {
     opacity: 0;
-    transform: translate3d(2.5rem, -48%, 0) scale(0.96);
+    transform: translate3d(0.9375rem, -50%, 0);
   }
 }
 
@@ -677,7 +711,7 @@ dialog.merchant-desktop-new-appointment-sidecar
 @keyframes merchant-desktop-substep-route-enter {
   from {
     opacity: 0.72;
-    transform: translate3d(1.5rem, 0, 0);
+    transform: translate3d(0, 2.5rem, 0);
   }
   to {
     opacity: 1;
