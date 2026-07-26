@@ -108,10 +108,11 @@ describe('DesktopShell', () => {
     expect(actions).toContain('data-desktop-home-create-action="new-appointment"')
     expect(actions).toContain('aria-haspopup="dialog"')
     expect(actions).toContain('New appointment')
+    expect(actions).toContain('grid-cols-3')
+    expect(actions).not.toMatch(/<\/svg>\s*New appointment<\/button>/)
     expect(actions?.match(/data-search-date="2026-07-27"/g)).toHaveLength(2)
-    expect(actions).toMatch(/Walk-ins[\s\S]*New appointment[\s\S]*Customers/)
-    expect(actions).toContain(
-      'grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)]'
+    expect(actions).toMatch(
+      /Walk-ins[\s\S]*aria-label="New appointment"[\s\S]*Customers/
     )
     expect(actions).not.toMatch(/Services|Providers|Availability|Settings|More/)
   })

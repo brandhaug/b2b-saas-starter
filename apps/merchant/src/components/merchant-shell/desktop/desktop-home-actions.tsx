@@ -10,6 +10,8 @@ const customersAction = {
   to: '/customers',
   icon: <UsersRound aria-hidden />
 } as const
+const createActionStyles =
+  'merchant-desktop-action flex h-16 w-28 items-center justify-center justify-self-center rounded-full'
 
 export function DesktopHomeActions({
   destinations,
@@ -31,7 +33,7 @@ export function DesktopHomeActions({
     <>
       <nav
         aria-label={interactive ? 'Merchant desktop home actions' : undefined}
-        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)] gap-2"
+        className="grid grid-cols-3 gap-2"
       >
         {walkIns ? (
           <DesktopAction
@@ -51,16 +53,14 @@ export function DesktopHomeActions({
             aria-expanded={newAppointmentOpen}
             data-desktop-home-action="true"
             data-desktop-home-create-action="new-appointment"
-            className="merchant-desktop-action flex h-16 min-w-0 items-center justify-center gap-2 rounded-3xl px-3 text-sm font-semibold shadow-alyn"
+            className={`${createActionStyles} shadow-alyn`}
             onClick={() => setNewAppointmentOpen(true)}
           >
-            <Plus aria-hidden className="size-5" strokeWidth={2.25} />
-            New appointment
+            <Plus aria-hidden className="size-7" strokeWidth={1.9} />
           </button>
         ) : (
-          <span className="merchant-desktop-action flex h-16 min-w-0 items-center justify-center gap-2 rounded-3xl px-3 text-sm font-semibold">
-            <Plus aria-hidden className="size-5" strokeWidth={2.25} />
-            New appointment
+          <span aria-hidden className={createActionStyles}>
+            <Plus aria-hidden className="size-7" strokeWidth={1.9} />
           </span>
         )}
         {customers ? (
