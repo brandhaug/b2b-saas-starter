@@ -287,6 +287,11 @@
   --border: var(--merchant-surface-border);
 }
 
+dialog[aria-labelledby='appointment-recurrence-title'] {
+  height: auto;
+  max-height: min(36rem, calc(100% - 1rem));
+}
+
 .merchant-home-grain {
   position: absolute;
   inset: 0;

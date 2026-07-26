@@ -49,6 +49,17 @@ describe('merchant BeeSolo brand contract', () => {
     expect(sheetTheme).toContain('--border: var(--merchant-surface-border)')
   })
 
+  it('keeps the mobile recurrence picker compact and content-driven', async () => {
+    const css = await readFile(stylesUrl, 'utf8')
+    const recurrenceDialog =
+      css.match(
+        /dialog\[aria-labelledby='appointment-recurrence-title'\]\s*\{([^}]*)\}/
+      )?.[1] ?? ''
+
+    expect(recurrenceDialog).toContain('height: auto')
+    expect(recurrenceDialog).toContain('max-height: min(36rem, calc(100% - 1rem))')
+  })
+
   it('keeps the desktop appointment composer aligned with the Poke dialog shell', async () => {
     const css = await readFile(stylesUrl, 'utf8')
     const dialogRule =
