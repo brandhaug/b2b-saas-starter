@@ -118,6 +118,7 @@ function RootComponent() {
         ) : null}
         <MerchantPresentationProvider presentation={presentation}>
           <MobileSheetStackProvider>
+            <div data-merchant-mobile-sheet-portal="true" />
             {shouldRenderMerchantHome(location.pathname) ? (
               <MerchantHomeLayer
                 href={location.href}

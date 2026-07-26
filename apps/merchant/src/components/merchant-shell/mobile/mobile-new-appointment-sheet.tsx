@@ -24,6 +24,7 @@ import {
   type RefObject,
   type ReactNode
 } from 'react'
+import { createPortal } from 'react-dom'
 import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
 import type {
   MerchantCatalogSnapshot,
@@ -68,7 +69,7 @@ export function MobileNewAppointmentSheet({
   appointmentDate = new Date().toISOString().slice(0, 10),
   onRequestClose
 }: NewAppointmentDialogProps) {
-  return (
+  const sheet = (
     <NewAppointmentDialog
       open={open}
       appointmentDate={appointmentDate}
@@ -76,6 +77,11 @@ export function MobileNewAppointmentSheet({
       onRequestClose={onRequestClose}
     />
   )
+  if (typeof document === 'undefined') return sheet
+  const portal = document.querySelector<HTMLElement>(
+    '[data-merchant-mobile-sheet-portal="true"]'
+  )
+  return portal ? createPortal(sheet, portal) : sheet
 }
 
 export function NewAppointmentDialog({

@@ -54,14 +54,19 @@ afterEach(async () => {
 })
 
 describe('MobileHomeActions booking flow', () => {
-  it('opens the appointment sheet after choosing Appointment', async () => {
+  it('opens Appointment in the document-level route sheet', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
 
     await act(async () =>
       root?.render(
-        <MobileHomeActions appointmentDate="2026-07-25" currentDate="2026-07-25" />
+        <>
+          <div data-merchant-mobile-sheet-portal="true" />
+          <div data-merchant-home-layer="true">
+            <MobileHomeActions appointmentDate="2026-07-25" currentDate="2026-07-25" />
+          </div>
+        </>
       )
     )
 
@@ -81,5 +86,6 @@ describe('MobileHomeActions booking flow', () => {
     )
     expect(bookingSheet?.open).toBe(true)
     expect(bookingSheet?.getAttribute('aria-label')).toBe('Book an appointment')
+    expect(bookingSheet?.closest('[data-merchant-home-layer="true"]')).toBeNull()
   })
 })
