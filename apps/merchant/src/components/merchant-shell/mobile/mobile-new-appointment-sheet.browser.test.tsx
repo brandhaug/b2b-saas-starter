@@ -427,6 +427,10 @@ describe('MobileNewAppointmentSheet interaction', () => {
 
     const picker = container.querySelector('[data-mobile-recurrence-picker="true"]')
     expect(picker).not.toBeNull()
+    const wheel = picker?.querySelector('[data-mobile-recurrence-wheel="true"]')
+    expect(wheel?.classList.contains('snap-y')).toBe(true)
+    expect(wheel?.classList.contains('snap-mandatory')).toBe(true)
+    expect(wheel?.classList.contains('overscroll-contain')).toBe(true)
     expect(picker?.textContent).toContain('Weekly')
     expect(picker?.textContent).toContain('8 weeks')
     expect(

@@ -292,6 +292,45 @@ dialog[aria-labelledby='appointment-recurrence-title'] {
   max-height: min(36rem, calc(100% - 1rem));
 }
 
+[data-mobile-recurrence-wheel='true'] {
+  --merchant-recurrence-row-height: 4.5rem;
+  position: relative;
+  cursor: grab;
+  touch-action: pan-y;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 22%,
+    black 78%,
+    transparent
+  );
+}
+
+[data-mobile-recurrence-wheel='true']:active {
+  cursor: grabbing;
+}
+
+[data-mobile-recurrence-wheel='true']::before {
+  position: sticky;
+  top: calc(50% - var(--merchant-recurrence-row-height) / 2);
+  z-index: 0;
+  display: block;
+  height: var(--merchant-recurrence-row-height);
+  margin-bottom: calc(-1 * var(--merchant-recurrence-row-height));
+  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
+  border-radius: 1.25rem;
+  background: color-mix(in oklab, var(--muted) 88%, transparent);
+  content: '';
+  pointer-events: none;
+}
+
+[data-mobile-recurrence-wheel='true'] > label {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  transition-duration: 90ms;
+}
+
 .merchant-home-grain {
   position: absolute;
   inset: 0;

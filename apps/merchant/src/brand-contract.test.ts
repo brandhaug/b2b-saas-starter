@@ -60,6 +60,23 @@ describe('merchant BeeSolo brand contract', () => {
     expect(recurrenceDialog).toContain('max-height: min(36rem, calc(100% - 1rem))')
   })
 
+  it('presents recurrence options as a centered native-feeling wheel', async () => {
+    const css = await readFile(stylesUrl, 'utf8')
+    const wheel =
+      css.match(/\[data-mobile-recurrence-wheel='true'\]\s*\{([^}]*)\}/)?.[1] ?? ''
+    const wheelRows =
+      css.match(
+        /\[data-mobile-recurrence-wheel='true'\]\s*>\s*label\s*\{([^}]*)\}/
+      )?.[1] ?? ''
+
+    expect(wheel).toContain('touch-action: pan-y')
+    expect(wheel).toContain('--merchant-recurrence-row-height: 4.5rem')
+    expect(wheel).toContain('black 22%')
+    expect(wheel).toContain('black 78%')
+    expect(wheelRows).toContain('background: transparent')
+    expect(wheelRows).toContain('transition-duration: 90ms')
+  })
+
   it('keeps the desktop appointment composer aligned with the Poke dialog shell', async () => {
     const css = await readFile(stylesUrl, 'utf8')
     const dialogRule =
