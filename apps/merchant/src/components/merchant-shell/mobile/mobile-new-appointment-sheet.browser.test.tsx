@@ -772,6 +772,12 @@ describe('MobileNewAppointmentSheet interaction', () => {
     expect(
       container.querySelector('[data-mobile-appointment-time="09:00"]')
     ).not.toBeNull()
+    const timeGrid = container.querySelector<HTMLElement>(
+      '[data-mobile-appointment-time-grid="true"]'
+    )
+    expect(timeGrid?.classList.contains('grid-cols-3')).toBe(true)
+    expect(timeGrid?.classList.contains('gap-2')).toBe(true)
+    expect(timeGrid?.classList.contains('justify-between')).toBe(false)
     expect(container.querySelectorAll('[data-mobile-appointment-time]').length).toBe(6)
     expect(
       container.querySelector('[data-mobile-appointment-more-times="true"]')

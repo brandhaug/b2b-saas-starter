@@ -86,8 +86,8 @@ describe('merchant BeeSolo brand contract', () => {
     expect(sidecarRule).toContain('transform: translate3d(0.9375rem, -50%, 0)')
     expect(sidecarBackdropRule).toContain('background: transparent')
     expect(sidecarBackdropRule).toContain('backdrop-filter: none')
-    expect(css).toContain(
-      'animation: merchant-desktop-sidecar-enter 500ms var(--merchant-desktop-sidecar-spring) both'
+    expect(css).toMatch(
+      /animation:\s*merchant-desktop-sidecar-enter 500ms var\(--merchant-desktop-sidecar-spring\)\s*both/
     )
     expect(css).toContain(
       'transition: transform 500ms var(--merchant-desktop-primary-spring)'

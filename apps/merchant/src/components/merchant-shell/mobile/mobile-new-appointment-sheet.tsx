@@ -1448,7 +1448,7 @@ function AppointmentSchedulingSection({
       ) : (
         <div
           data-mobile-appointment-time-grid="true"
-          className="mt-4 grid grid-cols-[repeat(3,minmax(0,6.8125rem))] justify-between gap-x-2 gap-y-2.5"
+          className="mt-4 grid grid-cols-3 gap-2"
         >
           {allTimes.map((time) => {
             const selected = selectedTime === time.instant
