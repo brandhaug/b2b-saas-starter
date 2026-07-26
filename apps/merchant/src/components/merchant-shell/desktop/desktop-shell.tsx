@@ -364,9 +364,7 @@ function DesktopRouteModal({
               <span aria-hidden />
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-4 pb-8">
-              <div key={secondaryDialog.id} data-desktop-secondary-route-motion="true">
-                {secondaryDialog.content}
-              </div>
+              <div key={secondaryDialog.id}>{secondaryDialog.content}</div>
             </div>
           </dialog>
         ) : null}

@@ -313,6 +313,9 @@ describe('DesktopRouteModal motion', () => {
     expect(sidecar?.dataset.desktopSecondaryDialog).toBe('appearance')
     expect(sidecar?.dataset.desktopSecondaryState).toBe('preparing')
     expect(sidecar?.textContent).toContain('Appearance')
+    expect(
+      sidecar?.querySelector('[data-desktop-secondary-route-motion="true"]')
+    ).toBeNull()
 
     await act(async () => vi.advanceTimersByTime(16))
     expect(sidecar?.dataset.desktopSecondaryState).toBe('entering')
