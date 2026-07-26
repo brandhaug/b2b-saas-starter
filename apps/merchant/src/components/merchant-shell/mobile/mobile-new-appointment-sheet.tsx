@@ -866,28 +866,29 @@ function AppointmentDraft({
         <header
           data-mobile-new-appointment-compact-header="true"
           data-visible={compactHeader ? 'true' : 'false'}
-          className={`relative z-30 flex h-14 shrink-0 items-center border-b bg-background px-4 transition-colors duration-150 ${
+          className={`merchant-sheet-safe-inline relative z-30 grid h-10 shrink-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center border-b bg-background transition-colors duration-150 ${
             compactHeader ? 'border-border/70' : 'border-transparent'
           }`}
         >
           <button
             type="button"
             aria-label="Close new appointment"
-            className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors active:bg-muted active:text-foreground"
+            className="grid size-10 place-items-center rounded-full text-foreground active:bg-muted"
             onClick={onClose}
           >
-            <X aria-hidden className="size-7" strokeWidth={1.6} />
+            <X aria-hidden className="size-5" strokeWidth={1.8} />
           </button>
           <p
             aria-hidden={!compactHeader}
             data-mobile-new-appointment-compact-title="true"
             data-visible={compactHeader ? 'true' : 'false'}
-            className={`ml-2 min-w-0 truncate text-[1.125rem] font-semibold transition-opacity duration-150 ${
+            className={`min-w-0 truncate text-center text-[0.9375rem] leading-[1.375rem] font-semibold transition-opacity duration-150 ${
               compactHeader ? 'opacity-100' : 'opacity-0'
             }`}
           >
-            Book an Appointment
+            Book an appointment
           </p>
+          <span aria-hidden />
         </header>
       )}
 

@@ -691,6 +691,11 @@ describe('MobileNewAppointmentSheet interaction', () => {
     )
     expect(sheetHeader?.tagName).toBe('HEADER')
     expect(sheetHeader?.getAttribute('data-visible')).toBe('false')
+    expect(sheetHeader?.classList.contains('merchant-sheet-safe-inline')).toBe(true)
+    expect(sheetHeader?.classList.contains('h-10')).toBe(true)
+    expect(
+      sheetHeader?.classList.contains('grid-cols-[2.5rem_minmax(0,1fr)_2.5rem]')
+    ).toBe(true)
     expect(
       container.querySelectorAll('[aria-label="Close new appointment"]')
     ).toHaveLength(1)
@@ -821,6 +826,11 @@ describe('MobileNewAppointmentSheet interaction', () => {
         .querySelector('[data-mobile-new-appointment-compact-title="true"]')
         ?.getAttribute('data-visible')
     ).toBe('true')
+    expect(
+      container
+        .querySelector('[data-mobile-new-appointment-compact-title="true"]')
+        ?.classList.contains('text-center')
+    ).toBe(true)
   })
 
   it('routes native cancellation through the spring close lifecycle', async () => {
