@@ -77,7 +77,9 @@ describe('DesktopShell', () => {
     expect(html).toContain('width="36"')
     expect(html).toContain('height="36"')
     expect(html).toContain('rounded-full p-1 transition-transform')
-    expect(html).toContain('size-9 items-center justify-center overflow-hidden')
+    expect(html).toContain(
+      'size-9 shrink-0 items-center justify-center overflow-hidden'
+    )
     expect(html).toContain('aria-label="About BeeSolo"')
     expect(html).toContain('href="/about"')
     expect(html).toContain('merchant-logo-enter')

@@ -3,7 +3,7 @@ import { getRequest } from '@tanstack/react-start/server'
 import { env } from 'cloudflare:workers'
 import { Effect, Schema } from 'effect'
 import type { ImpersonatedMerchantAction } from '@b2b-saas-starter/capabilities/operations'
-import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
+import { merchantViewerFromUser } from '@/lib/merchant-viewer.ts'
 import {
   OperationsImpersonationAuthority,
   makeOperationsImpersonationAuthorityLayer
@@ -54,10 +54,7 @@ const getSession = createServerFn({ method: 'GET' }).handler(
 
 export const getMerchantViewer = createServerFn({ method: 'GET' }).handler(async () => {
   const authorized = await merchantRequests().authorizeOptional('merchant.navigate')
-  const name = authorized?.session.user.name?.trim()
-  if (!name) return null
-  const image = authorized?.session.user.image?.trim() || null
-  return { name, image } satisfies MerchantViewer
+  return authorized ? merchantViewerFromUser(authorized.session.user) : null
 })
 
 /** Navigation uses a redirect; server mutations must use UnauthorizedError. */
