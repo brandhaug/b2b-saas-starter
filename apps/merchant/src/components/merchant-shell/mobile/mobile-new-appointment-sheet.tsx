@@ -171,6 +171,9 @@ function NewAppointmentSheetSurface({
   const sheetRef = sheet.sheetRef
   const [notifyCustomer, setNotifyCustomer] = useState(true)
   const [step, setStep] = useState<NewAppointmentStep>('appointment')
+  const [desktopSubstepState, setDesktopSubstepState] = useState<
+    'entering' | 'open' | 'closing'
+  >('open')
   const [selectedClient, setSelectedClient] = useState<AppointmentClient | null>(null)
   const [selectedService, setSelectedService] = useState<ServiceRecord | null>(null)
   const [durationMinutes, setDurationMinutes] = useState(0)
@@ -199,9 +202,11 @@ function NewAppointmentSheetSurface({
   const customerDirectoryRequestStarted = useRef(false)
   const catalogRequestStarted = useRef(false)
   const componentMounted = useRef(false)
+  const appointmentContentRef = useRef<HTMLDivElement>(null)
   const stepContentRef = useRef<HTMLDivElement>(null)
   const stepOriginFocusRef = useRef<HTMLElement | null>(null)
   const stepOriginFieldRef = useRef<string | null>(null)
+  const desktopSubstepTimerRef = useRef<number | null>(null)
 
   const openStep = (
     nextStep: Exclude<NewAppointmentStep, 'appointment'>,
@@ -211,10 +216,32 @@ function NewAppointmentSheetSurface({
       stepOriginFocusRef.current = document.activeElement
       stepOriginFieldRef.current = originField ?? null
     }
+    if (desktopSubstepTimerRef.current)
+      window.clearTimeout(desktopSubstepTimerRef.current)
+    if (presentation === 'desktop') {
+      setDesktopSubstepState('entering')
+      desktopSubstepTimerRef.current = window.setTimeout(
+        () => setDesktopSubstepState('open'),
+        200
+      )
+    }
     setStep(nextStep)
   }
 
-  const returnToAppointment = () => setStep('appointment')
+  const returnToAppointment = () => {
+    if (presentation !== 'desktop' || step === 'appointment') {
+      setStep('appointment')
+      return
+    }
+    if (desktopSubstepTimerRef.current)
+      window.clearTimeout(desktopSubstepTimerRef.current)
+    setDesktopSubstepState('closing')
+    desktopSubstepTimerRef.current = window.setTimeout(() => {
+      setStep('appointment')
+      setDesktopSubstepState('open')
+      desktopSubstepTimerRef.current = null
+    }, 200)
+  }
 
   useLayoutEffect(() => {
     if (presentation !== 'desktop') return
@@ -225,7 +252,7 @@ function NewAppointmentSheetSurface({
         stepOriginFieldRef.current ?? origin?.dataset.mobileNewAppointmentField
       stepOriginFieldRef.current = null
       const restoredOrigin = field
-        ? stepContentRef.current?.querySelector<HTMLElement>(
+        ? appointmentContentRef.current?.querySelector<HTMLElement>(
             `[data-mobile-new-appointment-field="${field}"]`
           )
         : origin
@@ -243,6 +270,8 @@ function NewAppointmentSheetSurface({
     componentMounted.current = true
     return () => {
       componentMounted.current = false
+      if (desktopSubstepTimerRef.current)
+        window.clearTimeout(desktopSubstepTimerRef.current)
     }
   }, [])
 
@@ -335,7 +364,136 @@ function NewAppointmentSheetSurface({
   }, [availability, selectedDate])
 
   const activateDialog = useNewAppointmentDialogActivation(sheetRef, presentation)
+  const desktopSubstepRef = useRef<HTMLDialogElement>(null)
+  const activateDesktopSubstepDialog = useNewAppointmentDialogActivation(
+    desktopSubstepRef,
+    'desktop'
+  )
   const desktop = presentation === 'desktop'
+  const appointmentDraft = (
+    <AppointmentDraft
+      presentation={presentation}
+      notifyCustomer={notifyCustomer}
+      selectedClient={selectedClient}
+      selectedService={selectedService}
+      durationMinutes={durationMinutes}
+      selectedDate={selectedDate}
+      selectedTime={selectedTime}
+      repeatEveryWeeks={repeatEveryWeeks}
+      appointmentNote={appointmentNote}
+      clientNote={clientNote}
+      availability={availability}
+      availabilityState={availabilityState}
+      onClose={() => sheet.closeSheet()}
+      onChooseClient={() => openStep('clients', 'client')}
+      onChooseService={() => openStep('services', 'service')}
+      onChangeDuration={(change) => {
+        setDurationMinutes((current) => Math.max(15, current + change))
+        setSelectedTime(null)
+      }}
+      onSelectDate={(date) => {
+        if (date < minimumBookableDate(availability)) return
+        setSelectedDate(date)
+        setSelectedTime(null)
+      }}
+      onSelectTime={setSelectedTime}
+      onChooseRepeat={() => {
+        if (presentation === 'desktop') openStep('recurrence', 'repeat')
+        else setRecurrencePickerOpen(true)
+      }}
+      onEditAppointmentNote={() => openStep('appointment-notes', 'appointment-notes')}
+      onEditClientNote={() => openStep('client-notes', 'client-notes')}
+      onToggleNotify={() => setNotifyCustomer((current) => !current)}
+    />
+  )
+
+  const renderSubstep = () => {
+    if (step === 'clients')
+      return (
+        <MobileAppointmentClientPicker
+          directory={customerDirectory}
+          loading={customerDirectoryState === 'loading'}
+          error={customerDirectoryState === 'error'}
+          selectedClient={selectedClient}
+          onBack={returnToAppointment}
+          onAddClient={() => openStep('add-client')}
+          onConfirm={(client) => {
+            if (client.id !== selectedClient?.id) setClientNote('')
+            setSelectedClient(client)
+            returnToAppointment()
+          }}
+        />
+      )
+    if (step === 'add-client')
+      return (
+        <MobileAppointmentAddClient
+          onBack={() => openStep('clients')}
+          onSave={(client) => {
+            setSelectedClient(client)
+            setClientNote(client.draftProfile?.notes ?? '')
+            returnToAppointment()
+          }}
+        />
+      )
+    if (step === 'appointment-notes')
+      return (
+        <MobileAppointmentNotesEditor
+          kind="appointment"
+          note={appointmentNote}
+          onClose={returnToAppointment}
+          onSave={(note) => {
+            setAppointmentNote(note)
+            returnToAppointment()
+          }}
+        />
+      )
+    if (step === 'client-notes')
+      return (
+        <MobileAppointmentNotesEditor
+          kind="client"
+          note={clientNote}
+          onClose={returnToAppointment}
+          onSave={(note) => {
+            setClientNote(note)
+            returnToAppointment()
+          }}
+        />
+      )
+    if (step === 'recurrence')
+      return (
+        <AppointmentRecurrencePicker
+          presentation="desktop"
+          selectedWeeks={repeatEveryWeeks}
+          onClose={returnToAppointment}
+          onConfirm={(weeks) => {
+            setRepeatEveryWeeks(weeks)
+            returnToAppointment()
+          }}
+        />
+      )
+    if (step === 'services')
+      return (
+        <MobileAppointmentServicePicker
+          services={
+            catalog?.services.filter(
+              (service) =>
+                service.status === 'active' && service.eligibleProviderIds.length > 0
+            ) ?? []
+          }
+          loading={catalogState === 'loading'}
+          error={catalogState === 'error'}
+          selectedService={selectedService}
+          onBack={returnToAppointment}
+          onConfirm={(service) => {
+            setSelectedService(service)
+            setDurationMinutes(service.durationMinutes)
+            setSelectedTime(null)
+            returnToAppointment()
+          }}
+        />
+      )
+    return null
+  }
 
   return (
     <div
@@ -356,6 +514,8 @@ function NewAppointmentSheetSurface({
         data-mobile-sheet-state={sheet.sheetState}
         data-mobile-new-appointment-sheet="true"
         data-new-appointment-presentation={presentation}
+        data-new-appointment-step={desktop ? 'appointment' : undefined}
+        data-desktop-substep-open={desktop ? step !== 'appointment' : undefined}
         onCancel={(event) => {
           event.preventDefault()
           sheet.closeSheet()
@@ -402,118 +562,12 @@ function NewAppointmentSheetSurface({
           </button>
         )}
 
-        <div ref={stepContentRef} data-new-appointment-step={step} className="contents">
-          {step === 'clients' ? (
-            <MobileAppointmentClientPicker
-              directory={customerDirectory}
-              loading={customerDirectoryState === 'loading'}
-              error={customerDirectoryState === 'error'}
-              selectedClient={selectedClient}
-              onBack={returnToAppointment}
-              onAddClient={() => openStep('add-client')}
-              onConfirm={(client) => {
-                if (client.id !== selectedClient?.id) setClientNote('')
-                setSelectedClient(client)
-                returnToAppointment()
-              }}
-            />
-          ) : step === 'add-client' ? (
-            <MobileAppointmentAddClient
-              onBack={() => openStep('clients')}
-              onSave={(client) => {
-                setSelectedClient(client)
-                setClientNote(client.draftProfile?.notes ?? '')
-                returnToAppointment()
-              }}
-            />
-          ) : step === 'appointment-notes' ? (
-            <MobileAppointmentNotesEditor
-              kind="appointment"
-              note={appointmentNote}
-              onClose={returnToAppointment}
-              onSave={(note) => {
-                setAppointmentNote(note)
-                returnToAppointment()
-              }}
-            />
-          ) : step === 'client-notes' ? (
-            <MobileAppointmentNotesEditor
-              kind="client"
-              note={clientNote}
-              onClose={returnToAppointment}
-              onSave={(note) => {
-                setClientNote(note)
-                returnToAppointment()
-              }}
-            />
-          ) : step === 'recurrence' ? (
-            <AppointmentRecurrencePicker
-              presentation="desktop"
-              selectedWeeks={repeatEveryWeeks}
-              onClose={returnToAppointment}
-              onConfirm={(weeks) => {
-                setRepeatEveryWeeks(weeks)
-                returnToAppointment()
-              }}
-            />
-          ) : step === 'services' ? (
-            <MobileAppointmentServicePicker
-              services={
-                catalog?.services.filter(
-                  (service) =>
-                    service.status === 'active' &&
-                    service.eligibleProviderIds.length > 0
-                ) ?? []
-              }
-              loading={catalogState === 'loading'}
-              error={catalogState === 'error'}
-              selectedService={selectedService}
-              onBack={returnToAppointment}
-              onConfirm={(service) => {
-                setSelectedService(service)
-                setDurationMinutes(service.durationMinutes)
-                setSelectedTime(null)
-                returnToAppointment()
-              }}
-            />
-          ) : (
-            <AppointmentDraft
-              presentation={presentation}
-              notifyCustomer={notifyCustomer}
-              selectedClient={selectedClient}
-              selectedService={selectedService}
-              durationMinutes={durationMinutes}
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              repeatEveryWeeks={repeatEveryWeeks}
-              appointmentNote={appointmentNote}
-              clientNote={clientNote}
-              availability={availability}
-              availabilityState={availabilityState}
-              onClose={() => sheet.closeSheet()}
-              onChooseClient={() => openStep('clients', 'client')}
-              onChooseService={() => openStep('services', 'service')}
-              onChangeDuration={(change) => {
-                setDurationMinutes((current) => Math.max(15, current + change))
-                setSelectedTime(null)
-              }}
-              onSelectDate={(date) => {
-                if (date < minimumBookableDate(availability)) return
-                setSelectedDate(date)
-                setSelectedTime(null)
-              }}
-              onSelectTime={setSelectedTime}
-              onChooseRepeat={() => {
-                if (presentation === 'desktop') openStep('recurrence', 'repeat')
-                else setRecurrencePickerOpen(true)
-              }}
-              onEditAppointmentNote={() =>
-                openStep('appointment-notes', 'appointment-notes')
-              }
-              onEditClientNote={() => openStep('client-notes', 'client-notes')}
-              onToggleNotify={() => setNotifyCustomer((current) => !current)}
-            />
-          )}
+        <div
+          ref={desktop ? appointmentContentRef : stepContentRef}
+          data-new-appointment-step={desktop ? 'appointment' : step}
+          className="contents"
+        >
+          {desktop || step === 'appointment' ? appointmentDraft : renderSubstep()}
         </div>
 
         {recurrencePickerOpen && presentation === 'mobile' ? (
@@ -528,8 +582,59 @@ function NewAppointmentSheetSurface({
           />
         ) : null}
       </dialog>
+
+      {desktop && step !== 'appointment' ? (
+        <dialog
+          ref={activateDesktopSubstepDialog}
+          aria-label={newAppointmentStepLabel(step)}
+          aria-modal="true"
+          tabIndex={-1}
+          data-desktop-substep={step}
+          data-desktop-substep-state={desktopSubstepState}
+          className="merchant-desktop-new-appointment-sidecar merchant-route-sheet merchant-mobile-sheet-theme z-20 m-0 flex flex-col overflow-hidden border bg-background p-0 text-foreground outline-none"
+          onCancel={(event) => {
+            event.preventDefault()
+            returnToAppointment()
+          }}
+          onClickCapture={(event) => {
+            if (event.target !== event.currentTarget) return
+            const bounds = event.currentTarget.getBoundingClientRect()
+            const outside =
+              event.clientX < bounds.left ||
+              event.clientX > bounds.right ||
+              event.clientY < bounds.top ||
+              event.clientY > bounds.bottom
+            if (outside) returnToAppointment()
+          }}
+        >
+          <div
+            ref={stepContentRef}
+            data-new-appointment-step={step}
+            className="contents"
+          >
+            {renderSubstep()}
+          </div>
+        </dialog>
+      ) : null}
     </div>
   )
+}
+
+function newAppointmentStepLabel(step: Exclude<NewAppointmentStep, 'appointment'>) {
+  switch (step) {
+    case 'clients':
+      return 'Select a client'
+    case 'add-client':
+      return 'Add a new client'
+    case 'services':
+      return 'Select a service'
+    case 'appointment-notes':
+      return 'Notes for appointment'
+    case 'client-notes':
+      return 'Notes for client'
+    case 'recurrence':
+      return 'Set a frequency'
+  }
 }
 
 function useDesktopAppointmentDialogSurface(

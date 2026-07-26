@@ -31,6 +31,12 @@ The exact geometry below was measured in the authenticated UI. Implementation
 claims are independently supported by identifiable class strings and component
 behavior in the current first-party JavaScript bundle.
 
+On 2026-07-26 the authenticated Settings → Profile substep was also opened by
+clicking the visible controls. Poke retained the 512 × 752 px Settings dialog at
+x 128 and opened a second 512 × 752 px Profile dialog at x 655 in the 1280 × 720
+viewport: two equal dialogs separated by 15 px. The parent stayed mounted and
+visible while the right dialog owned focus.
+
 ## Desktop `/home` shell
 
 At a 1440 × 1000 viewport, Poke renders a fixed phone-proportioned app surface
@@ -201,10 +207,11 @@ copied into the desktop dialog.
 6. **Keep visual density close to Poke.** Prefer 14–16 px labels, 52–56 px grouped
    rows, 16–20 px icons, 16 px group radius, and 16–32 px route-specific gutters
    over large cards and 20–24 px headings.
-7. **Reuse the frame for substeps.** Client, service, and time selection should
-   replace or laterally transition the modal content within the same 512 px frame,
-   preserving focus and scroll ownership instead of stacking unrelated full-screen
-   surfaces.
+7. **Use Poke's paired-dialog hierarchy for desktop substeps.** Keep the 512 px
+   parent mounted, shift it left, and open an equal 512 px sidecar 15 px to its
+   right. The sidecar owns focus and its own scrollport; closing it restores focus
+   to the parent field that launched it. This is a related nested task, not an
+   unrelated full-screen surface or an in-place content replacement.
 8. **Preserve the existing mobile branch.** The current mobile new-appointment
    sheet can retain its native drag/detent model; desktop should switch shell and
    motion at 768 px without changing the flow's information architecture.

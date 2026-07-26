@@ -48,7 +48,7 @@ describe('merchant BeeSolo brand contract', () => {
     const css = await readFile(stylesUrl, 'utf8')
     const dialogRule =
       css.match(
-        /\.merchant-desktop-modal,\s*dialog\.merchant-desktop-new-appointment-dialog\.merchant-route-sheet\s*\{([^}]*)\}/
+        /\.merchant-desktop-modal,\s*dialog\.merchant-desktop-new-appointment-dialog\.merchant-route-sheet,\s*dialog\.merchant-desktop-new-appointment-sidecar\s*\{([^}]*)\}/
       )?.[1] ?? ''
     const backdropRule =
       css.match(
@@ -61,6 +61,27 @@ describe('merchant BeeSolo brand contract', () => {
     expect(backdropRule).toContain('background: transparent')
     expect(backdropRule).toContain('backdrop-filter: blur(4px)')
     expect(css).toContain('animation: merchant-desktop-modal-enter 200ms ease-out both')
+
+    const sidecarRule =
+      [
+        ...css.matchAll(
+          /dialog\.merchant-desktop-new-appointment-sidecar\s*\{([^}]*)\}/g
+        )
+      ]
+        .map((match) => match[1] ?? '')
+        .find((rule) => rule.includes('transform: translate(0.9375rem, -50%)')) ?? ''
+    const sidecarBackdropRule =
+      css.match(
+        /dialog\.merchant-desktop-new-appointment-sidecar::backdrop\s*\{([^}]*)\}/
+      )?.[1] ?? ''
+
+    expect(sidecarRule).toContain('left: 50%')
+    expect(sidecarRule).toContain('transform: translate(0.9375rem, -50%)')
+    expect(sidecarBackdropRule).toContain('background: transparent')
+    expect(sidecarBackdropRule).toContain('backdrop-filter: none')
+    expect(css).toContain(
+      'animation: merchant-desktop-sidecar-enter 200ms ease-out both'
+    )
   })
 
   it('uses the four time-specific Poke atmosphere pairs', async () => {

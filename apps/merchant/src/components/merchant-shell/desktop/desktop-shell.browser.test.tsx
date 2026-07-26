@@ -111,19 +111,32 @@ describe('DesktopRouteModal motion', () => {
       '[data-mobile-new-appointment-field="repeat"]'
     )
     await act(async () => repeat?.click())
-    expect(dialog?.querySelectorAll('dialog')).toHaveLength(0)
+    expect(dialog?.dataset.desktopSubstepOpen).toBe('true')
+    expect(dialog?.dataset.newAppointmentStep).toBe('appointment')
+    const sidecar = container.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-new-appointment-sidecar'
+    )
+    expect(sidecar?.open).toBe(true)
+    expect(sidecar?.dataset.desktopSubstep).toBe('recurrence')
+    expect(dialog?.contains(sidecar ?? null)).toBe(false)
     expect(
-      dialog?.querySelector('[data-desktop-new-appointment-recurrence="true"]')
+      sidecar?.querySelector('[data-desktop-new-appointment-recurrence="true"]')
     ).not.toBeNull()
     expect(document.activeElement?.getAttribute('aria-label')).toBe(
       'Close recurrence picker'
     )
 
     await act(async () =>
-      dialog
+      sidecar
         ?.querySelector<HTMLButtonElement>('[aria-label="Close recurrence picker"]')
         ?.click()
     )
+    expect(sidecar?.dataset.desktopSubstepState).toBe('closing')
+
+    await act(async () => vi.advanceTimersByTime(200))
+    expect(
+      container.querySelector('.merchant-desktop-new-appointment-sidecar')
+    ).toBeNull()
     expect(
       document.activeElement?.getAttribute('data-mobile-new-appointment-field')
     ).toBe('repeat')
