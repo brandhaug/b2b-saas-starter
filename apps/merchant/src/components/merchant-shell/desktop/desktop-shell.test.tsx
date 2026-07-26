@@ -104,14 +104,16 @@ describe('DesktopShell', () => {
     expect(html).not.toContain('>Today</p>')
     expect(html).not.toContain('aria-label="Merchant App"')
     expect(html).not.toContain('<dialog')
-    expect(actions?.match(/data-desktop-home-action="true"/g)).toHaveLength(6)
+    expect(actions?.match(/data-desktop-home-action="true"/g)).toHaveLength(3)
     expect(actions).toContain('data-desktop-home-create-action="new-appointment"')
     expect(actions).toContain('aria-haspopup="dialog"')
     expect(actions).toContain('New appointment')
-    expect(actions?.match(/data-search-date="2026-07-27"/g)).toHaveLength(6)
-    expect(actions).toMatch(
-      /Walk-ins[\s\S]*Customers[\s\S]*Services[\s\S]*Providers[\s\S]*More/
+    expect(actions?.match(/data-search-date="2026-07-27"/g)).toHaveLength(2)
+    expect(actions).toMatch(/Walk-ins[\s\S]*New appointment[\s\S]*Customers/)
+    expect(actions).toContain(
+      'grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)]'
     )
+    expect(actions).not.toMatch(/Services|Providers|Availability|Settings|More/)
   })
 
   it('renders secondary URLs as a modal over the desktop home canvas', () => {
