@@ -70,6 +70,77 @@ afterEach(async () => {
 })
 
 describe('DesktopRouteModal motion', () => {
+  it('opens appointment creation as a native desktop dialog without mobile chrome', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(
+        <DesktopShell
+          layout="home"
+          section={{ kind: 'merchant' }}
+          destinations={destinations}
+          title="Appointments"
+          description="Appointments home"
+          headerDate="2026-07-27"
+          headerTimezone="Europe/Bucharest"
+        >
+          <p>Real appointments page</p>
+        </DesktopShell>
+      )
+    )
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-desktop-home-create-action="new-appointment"]'
+        )
+        ?.click()
+    )
+
+    const dialog = container.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-new-appointment-dialog'
+    )
+    expect(dialog?.open).toBe(true)
+    expect(dialog?.dataset.newAppointmentPresentation).toBe('desktop')
+    expect(dialog?.querySelector('[data-mobile-sheet-handle]')).toBeNull()
+    expect(document.documentElement.classList).not.toContain('merchant-mobile-document')
+
+    const repeat = dialog?.querySelector<HTMLButtonElement>(
+      '[data-mobile-new-appointment-field="repeat"]'
+    )
+    await act(async () => repeat?.click())
+    expect(dialog?.querySelectorAll('dialog')).toHaveLength(0)
+    expect(
+      dialog?.querySelector('[data-desktop-new-appointment-recurrence="true"]')
+    ).not.toBeNull()
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(
+      'Close recurrence picker'
+    )
+
+    await act(async () =>
+      dialog
+        ?.querySelector<HTMLButtonElement>('[aria-label="Close recurrence picker"]')
+        ?.click()
+    )
+    expect(
+      document.activeElement?.getAttribute('data-mobile-new-appointment-field')
+    ).toBe('repeat')
+
+    await act(async () =>
+      dialog
+        ?.querySelector<HTMLButtonElement>('[aria-label="Close new appointment"]')
+        ?.click()
+    )
+    expect(dialog?.dataset.mobileSheetState).toBe('closing')
+
+    await act(async () => vi.advanceTimersByTime(200))
+    expect(
+      container.querySelector('.merchant-desktop-new-appointment-dialog')
+    ).toBeNull()
+  })
+
   it('keeps the real appointments page behind an in-app modal transition', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -163,7 +234,7 @@ describe('DesktopRouteModal motion', () => {
     expect(dialog?.dataset.desktopModalState).toBe('closing')
     expect(mocks.navigate).not.toHaveBeenCalled()
 
-    await act(async () => vi.advanceTimersByTime(170))
+    await act(async () => vi.advanceTimersByTime(200))
 
     expect(mocks.navigate).toHaveBeenCalledOnce()
     expect(mocks.navigate).toHaveBeenCalledWith({

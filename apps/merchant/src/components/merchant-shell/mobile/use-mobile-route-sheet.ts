@@ -33,9 +33,13 @@ import {
 } from './mobile-viewport.ts'
 
 type MobileSheetState = 'entering' | 'open' | 'dragging' | 'settling' | 'closing'
+type MobileTaskSheetDetent = 'compact' | 'expanded'
+type MobileSheetDragMode = 'height' | 'translate'
 
 type MobileSheetDrag = {
+  mode: MobileSheetDragMode
   readonly pointerId: number
+  readonly startHeight: number
   readonly startOffset: number
   readonly startY: number
   readonly startTime: number
@@ -43,8 +47,10 @@ type MobileSheetDrag = {
 }
 
 type MobileSheetTouchDrag = {
+  mode: MobileSheetDragMode
   readonly identifier: number
   readonly scrollElement: HTMLElement | null
+  readonly startHeight: number
   readonly startOffset: number
   readonly startX: number
   readonly startY: number
@@ -55,10 +61,21 @@ type MobileSheetTouchDrag = {
   travelStartTime: number
 }
 
+const taskSheetBounds = () => {
+  const viewportHeight = mobileViewportHeight()
+  const expanded = Math.max(0, viewportHeight - 16)
+  return {
+    compact: Math.min(expanded, Math.max(420, Math.min(460, viewportHeight * 0.55))),
+    expanded
+  }
+}
+
 export function useMobileRouteSheet({
+  layout = 'sheet',
   onRequestBack,
   onRequestClose
 }: {
+  readonly layout?: 'sheet' | 'task'
   readonly onRequestBack?: (() => void) | undefined
   readonly onRequestClose?: (() => void) | undefined
 }) {
@@ -74,7 +91,23 @@ export function useMobileRouteSheet({
   const hasNavigatedRef = useRef(false)
   const suppressClickRef = useRef(false)
   const [sheetState, setSheetState] = useState<MobileSheetState>('entering')
+  const [taskDetent, setTaskDetent] = useState<MobileTaskSheetDetent>('compact')
+  const taskDetentRef = useRef<MobileTaskSheetDetent>('compact')
   useMobileSurfaceChrome(sheetState !== 'closing')
+
+  const setTaskSheetHeight = (height: number) => {
+    sheetRef.current?.style.setProperty('--merchant-task-sheet-height', `${height}px`)
+  }
+
+  const taskSheetCurrentHeight = () => {
+    const sheet = sheetRef.current
+    const measuredHeight = sheet?.getBoundingClientRect().height ?? 0
+    if (measuredHeight > 0) return measuredHeight
+    const inlineHeight = Number.parseFloat(
+      sheet?.style.getPropertyValue('--merchant-task-sheet-height') ?? ''
+    )
+    return Number.isFinite(inlineHeight) ? inlineHeight : taskSheetBounds().compact
+  }
 
   useEffect(
     () => () => {
@@ -85,24 +118,24 @@ export function useMobileRouteSheet({
     []
   )
 
-  useEffect(
-    () =>
-      listenForMobileViewportChanges(
-        () => {
-          if (!dragRef.current && !touchDragRef.current?.active) return
-          sheetAnimationRef.current?.()
-          sheetAnimationRef.current = null
-          dragRef.current = null
-          touchDragRef.current = null
-          sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', '0px')
-          finishMobileSheetUnderlayDrag()
-          setSheetState('open')
-        },
-        window,
-        window.visualViewport
-      ),
-    []
-  )
+  useEffect(() => {
+    return listenForMobileViewportChanges(
+      () => {
+        if (!dragRef.current && !touchDragRef.current?.active) return
+        sheetAnimationRef.current?.()
+        sheetAnimationRef.current = null
+        dragRef.current = null
+        touchDragRef.current = null
+        sheetRef.current?.style.setProperty('--merchant-sheet-drag-y', '0px')
+        if (layout === 'task')
+          setTaskSheetHeight(taskSheetBounds()[taskDetentRef.current])
+        finishMobileSheetUnderlayDrag()
+        setSheetState('open')
+      },
+      window,
+      window.visualViewport
+    )
+  }, [layout])
 
   useEffect(() => {
     const sheet = sheetRef.current
@@ -117,6 +150,13 @@ export function useMobileRouteSheet({
       if (!touch) return
       const shouldTakeOver =
         drag.active ||
+        (layout === 'task' &&
+          Math.abs(touch.clientY - drag.startY) >
+            Math.abs(touch.clientX - drag.startX) * 1.15 &&
+          ((taskDetentRef.current === 'compact' && touch.clientY < drag.startY - 6) ||
+            (taskDetentRef.current === 'expanded' &&
+              (drag.scrollElement?.scrollTop ?? 0) <= 1 &&
+              touch.clientY > drag.startY + 6))) ||
         shouldBeginMobileSheetSurfaceDrag({
           deltaX: touch.clientX - drag.startX,
           deltaY: getMobileSheetSurfaceDragDistance(
@@ -133,12 +173,13 @@ export function useMobileRouteSheet({
     })
     return () =>
       sheet.removeEventListener('touchmove', preventPageScrollDuringSheetDrag)
-  }, [])
+  }, [layout])
 
   useLayoutEffect(() => {
     const sheet = sheetRef.current
     if (!sheet) return
     const viewportHeight = mobileViewportHeight()
+    if (layout === 'task') setTaskSheetHeight(taskSheetBounds().compact)
     sheet.style.setProperty('--merchant-sheet-translate-y', `${viewportHeight}px`)
     beginMobileSheetUnderlayDrag()
     updateMobileSheetUnderlayDrag(viewportHeight, viewportHeight)
@@ -156,7 +197,7 @@ export function useMobileRouteSheet({
       }
     })
     return () => sheetAnimationRef.current?.()
-  }, [])
+  }, [layout])
 
   useEffect(() => {
     const previousOverflow = document.documentElement.style.overflow
@@ -253,6 +294,37 @@ export function useMobileRouteSheet({
     animateSheetTo(0, initialVelocity, () => setSheetState('open'))
   }
 
+  const animateTaskSheetTo = (
+    destination: MobileTaskSheetDetent,
+    initialVelocity = 0
+  ) => {
+    const sheet = sheetRef.current
+    if (!sheet) return
+    const bounds = taskSheetBounds()
+    const currentHeight = Number.parseFloat(
+      sheet.style.getPropertyValue('--merchant-task-sheet-height')
+    )
+    dragRef.current = null
+    touchDragRef.current = null
+    setSheetState('settling')
+    sheetAnimationRef.current?.()
+    sheetAnimationRef.current = animateMobileSheetSpring({
+      from: Number.isFinite(currentHeight)
+        ? currentHeight
+        : bounds[taskDetentRef.current],
+      initialVelocity,
+      max: bounds.expanded,
+      to: bounds[destination],
+      onUpdate: setTaskSheetHeight,
+      onComplete: () => {
+        sheetAnimationRef.current = null
+        taskDetentRef.current = destination
+        setTaskDetent(destination)
+        setSheetState('open')
+      }
+    })
+  }
+
   const resetSuppressedClickLater = () => {
     if (clickResetTimerRef.current) clearTimeout(clickResetTimerRef.current)
     clickResetTimerRef.current = setTimeout(() => {
@@ -265,7 +337,12 @@ export function useMobileRouteSheet({
     event.currentTarget.setPointerCapture(event.pointerId)
     sheetAnimationRef.current?.()
     dragRef.current = {
+      mode:
+        layout === 'task' && taskDetentRef.current === 'expanded'
+          ? 'height'
+          : 'translate',
       pointerId: event.pointerId,
+      startHeight: taskSheetCurrentHeight(),
       startOffset: Number.parseFloat(
         sheetRef.current?.style.getPropertyValue('--merchant-sheet-translate-y') ?? '0'
       ),
@@ -280,7 +357,18 @@ export function useMobileRouteSheet({
   const handlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
-    drag.distance = Math.max(0, event.clientY - drag.startY)
+    const deltaY = event.clientY - drag.startY
+    if (layout === 'task' && (drag.mode === 'height' || deltaY < 0)) {
+      drag.mode = 'height'
+      drag.distance = deltaY
+      if (deltaY < 0) setTaskDetent('expanded')
+      const bounds = taskSheetBounds()
+      setTaskSheetHeight(
+        Math.min(bounds.expanded, Math.max(bounds.compact, drag.startHeight - deltaY))
+      )
+      return
+    }
+    drag.distance = Math.max(0, deltaY)
     const offset = getMobileSheetDragOffset(
       drag.startOffset + drag.distance,
       mobileViewportHeight()
@@ -294,14 +382,31 @@ export function useMobileRouteSheet({
     if (!drag || drag.pointerId !== event.pointerId) return
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId)
-    suppressClickRef.current = drag.distance > 6
+    suppressClickRef.current = Math.abs(drag.distance) > 6
     resetSuppressedClickLater()
     const duration = performance.now() - drag.startTime
     const releaseVelocity = getMobileSheetReleaseVelocity(
-      drag.distance,
+      Math.abs(drag.distance),
       duration,
       mobileViewportHeight()
     )
+    if (layout === 'task' && drag.mode === 'height') {
+      const shouldExpand =
+        drag.distance < -44 ||
+        (taskDetentRef.current === 'compact' &&
+          drag.distance < -12 &&
+          releaseVelocity > 520)
+      const shouldCompact =
+        drag.distance > 44 ||
+        (taskDetentRef.current === 'expanded' &&
+          drag.distance > 12 &&
+          releaseVelocity > 520)
+      animateTaskSheetTo(
+        shouldExpand ? 'expanded' : shouldCompact ? 'compact' : taskDetentRef.current,
+        drag.distance < 0 ? releaseVelocity : -releaseVelocity
+      )
+      return
+    }
     const dismiss = onRequestBack
       ? shouldDismissNestedMobileSheet({
           distance: drag.distance,
@@ -321,6 +426,10 @@ export function useMobileRouteSheet({
 
   const handlePointerCancel = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (dragRef.current?.pointerId !== event.pointerId) return
+    if (layout === 'task' && dragRef.current.mode === 'height') {
+      animateTaskSheetTo(taskDetentRef.current)
+      return
+    }
     settleSheet()
   }
 
@@ -331,8 +440,10 @@ export function useMobileRouteSheet({
     const touch = event.touches[0]
     if (!touch) return
     touchDragRef.current = {
+      mode: 'translate',
       identifier: touch.identifier,
       scrollElement: target?.closest<HTMLElement>('[data-mobile-sheet-scroll]') ?? null,
+      startHeight: taskSheetCurrentHeight(),
       startOffset: Number.parseFloat(
         sheetRef.current?.style.getPropertyValue('--merchant-sheet-translate-y') ?? '0'
       ),
@@ -361,7 +472,15 @@ export function useMobileRouteSheet({
       drag.startScrollTop
     )
     if (!drag.active) {
+      const taskHeightGesture =
+        layout === 'task' &&
+        Math.abs(deltaY) > Math.abs(deltaX) * 1.15 &&
+        ((taskDetentRef.current === 'compact' && deltaY < -6) ||
+          (taskDetentRef.current === 'expanded' &&
+            (drag.scrollElement?.scrollTop ?? 0) <= 1 &&
+            deltaY > 6))
       if (
+        !taskHeightGesture &&
         !shouldBeginMobileSheetSurfaceDrag({
           deltaX,
           deltaY: surfaceDistance,
@@ -377,12 +496,21 @@ export function useMobileRouteSheet({
         return
       }
       drag.active = true
+      drag.mode = taskHeightGesture ? 'height' : 'translate'
+      if (taskHeightGesture && deltaY < 0) setTaskDetent('expanded')
       drag.travelStartTime = performance.now()
       sheetAnimationRef.current?.()
       beginMobileSheetUnderlayDrag()
       setSheetState('dragging')
     }
-    drag.distance = surfaceDistance
+    drag.distance = drag.mode === 'height' ? deltaY : surfaceDistance
+    if (layout === 'task' && drag.mode === 'height') {
+      const bounds = taskSheetBounds()
+      setTaskSheetHeight(
+        Math.min(bounds.expanded, Math.max(bounds.compact, drag.startHeight - deltaY))
+      )
+      return
+    }
     const offset = getMobileSheetDragOffset(
       drag.startOffset + drag.distance,
       mobileViewportHeight()
@@ -401,14 +529,31 @@ export function useMobileRouteSheet({
       touchDragRef.current = null
       return
     }
-    suppressClickRef.current = drag.distance > 6
+    suppressClickRef.current = Math.abs(drag.distance) > 6
     resetSuppressedClickLater()
     const duration = performance.now() - (drag.travelStartTime || drag.startTime)
     const releaseVelocity = getMobileSheetReleaseVelocity(
-      drag.distance,
+      Math.abs(drag.distance),
       duration,
       mobileViewportHeight()
     )
+    if (layout === 'task' && drag.mode === 'height') {
+      const shouldExpand =
+        drag.distance < -44 ||
+        (taskDetentRef.current === 'compact' &&
+          drag.distance < -12 &&
+          releaseVelocity > 520)
+      const shouldCompact =
+        drag.distance > 44 ||
+        (taskDetentRef.current === 'expanded' &&
+          drag.distance > 12 &&
+          releaseVelocity > 520)
+      animateTaskSheetTo(
+        shouldExpand ? 'expanded' : shouldCompact ? 'compact' : taskDetentRef.current,
+        drag.distance < 0 ? releaseVelocity : -releaseVelocity
+      )
+      return
+    }
     const dismiss = onRequestBack
       ? shouldDismissNestedMobileSheet({
           distance: drag.distance,
@@ -428,6 +573,10 @@ export function useMobileRouteSheet({
 
   const handleTouchCancel = () => {
     if (touchDragRef.current?.active) {
+      if (layout === 'task' && touchDragRef.current.mode === 'height') {
+        animateTaskSheetTo(taskDetentRef.current)
+        return
+      }
       settleSheet()
       return
     }
@@ -442,7 +591,12 @@ export function useMobileRouteSheet({
   }
 
   const handleCloseClick = () => {
-    if (!suppressClickRef.current) closeSheet()
+    if (suppressClickRef.current) return
+    if (layout === 'task' && taskDetentRef.current === 'expanded') {
+      animateTaskSheetTo('compact')
+      return
+    }
+    closeSheet()
   }
 
   return {
@@ -459,6 +613,7 @@ export function useMobileRouteSheet({
     handleTouchStart,
     initialFocusRef,
     sheetRef,
-    sheetState
+    sheetState,
+    taskDetent
   }
 }

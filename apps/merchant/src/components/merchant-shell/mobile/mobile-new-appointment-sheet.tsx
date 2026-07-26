@@ -50,18 +50,50 @@ type NewAppointmentStep =
   | 'client-notes'
   | 'clients'
   | 'add-client'
+  | 'recurrence'
   | 'services'
+
+export type NewAppointmentPresentation = 'desktop' | 'mobile'
+
+type NewAppointmentDialogProps = {
+  readonly open: boolean
+  readonly appointmentDate?: string | undefined
+  readonly onRequestClose: () => void
+}
+
+const ignoreNewAppointmentGesture = () => undefined
 
 export function MobileNewAppointmentSheet({
   open,
   appointmentDate = new Date().toISOString().slice(0, 10),
   onRequestClose
-}: {
-  readonly open: boolean
-  readonly appointmentDate?: string | undefined
-  readonly onRequestClose: () => void
+}: NewAppointmentDialogProps) {
+  return (
+    <NewAppointmentDialog
+      open={open}
+      appointmentDate={appointmentDate}
+      presentation="mobile"
+      onRequestClose={onRequestClose}
+    />
+  )
+}
+
+export function NewAppointmentDialog({
+  open,
+  appointmentDate = new Date().toISOString().slice(0, 10),
+  presentation,
+  onRequestClose
+}: NewAppointmentDialogProps & {
+  readonly presentation: NewAppointmentPresentation
 }) {
   if (!open) return null
+  if (presentation === 'desktop')
+    return (
+      <DesktopNewAppointmentSheetDialog
+        appointmentDate={appointmentDate}
+        onRequestClose={onRequestClose}
+      />
+    )
   return (
     <MobileNewAppointmentSheetDialog
       appointmentDate={appointmentDate}
@@ -78,6 +110,58 @@ function MobileNewAppointmentSheetDialog({
   readonly onRequestClose: () => void
 }) {
   const sheet = useMobileRouteSheet({ layout: 'sheet', onRequestClose })
+  return (
+    <NewAppointmentSheetSurface
+      appointmentDate={appointmentDate}
+      presentation="mobile"
+      sheet={sheet}
+    />
+  )
+}
+
+function DesktopNewAppointmentSheetDialog({
+  appointmentDate,
+  onRequestClose
+}: {
+  readonly appointmentDate: string
+  readonly onRequestClose: () => void
+}) {
+  const sheet = useDesktopAppointmentDialogSurface(onRequestClose)
+  return (
+    <NewAppointmentSheetSurface
+      appointmentDate={appointmentDate}
+      presentation="desktop"
+      sheet={sheet}
+    />
+  )
+}
+
+type NewAppointmentSheetController = Pick<
+  ReturnType<typeof useMobileRouteSheet>,
+  | 'closeSheet'
+  | 'handleClickCapture'
+  | 'handleCloseClick'
+  | 'handlePointerCancel'
+  | 'handlePointerDown'
+  | 'handlePointerMove'
+  | 'handlePointerUp'
+  | 'handleTouchCancel'
+  | 'handleTouchEnd'
+  | 'handleTouchMove'
+  | 'handleTouchStart'
+  | 'sheetRef'
+  | 'sheetState'
+>
+
+function NewAppointmentSheetSurface({
+  appointmentDate,
+  presentation,
+  sheet
+}: {
+  readonly appointmentDate: string
+  readonly presentation: NewAppointmentPresentation
+  readonly sheet: NewAppointmentSheetController
+}) {
   const sheetRef = sheet.sheetRef
   const [notifyCustomer, setNotifyCustomer] = useState(true)
   const [step, setStep] = useState<NewAppointmentStep>('appointment')
@@ -109,6 +193,45 @@ function MobileNewAppointmentSheetDialog({
   const customerDirectoryRequestStarted = useRef(false)
   const catalogRequestStarted = useRef(false)
   const componentMounted = useRef(false)
+  const stepContentRef = useRef<HTMLDivElement>(null)
+  const stepOriginFocusRef = useRef<HTMLElement | null>(null)
+  const stepOriginFieldRef = useRef<string | null>(null)
+
+  const openStep = (
+    nextStep: Exclude<NewAppointmentStep, 'appointment'>,
+    originField?: string
+  ) => {
+    if (step === 'appointment' && document.activeElement instanceof HTMLElement) {
+      stepOriginFocusRef.current = document.activeElement
+      stepOriginFieldRef.current = originField ?? null
+    }
+    setStep(nextStep)
+  }
+
+  const returnToAppointment = () => setStep('appointment')
+
+  useLayoutEffect(() => {
+    if (presentation !== 'desktop') return
+    if (step === 'appointment') {
+      const origin = stepOriginFocusRef.current
+      stepOriginFocusRef.current = null
+      const field =
+        stepOriginFieldRef.current ?? origin?.dataset.mobileNewAppointmentField
+      stepOriginFieldRef.current = null
+      const restoredOrigin = field
+        ? stepContentRef.current?.querySelector<HTMLElement>(
+            `[data-mobile-new-appointment-field="${field}"]`
+          )
+        : origin
+      if (restoredOrigin?.isConnected) restoredOrigin.focus({ preventScroll: true })
+      return
+    }
+    stepContentRef.current
+      ?.querySelector<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled])'
+      )
+      ?.focus({ preventScroll: true })
+  }, [presentation, step])
 
   useEffect(() => {
     componentMounted.current = true
@@ -205,16 +328,20 @@ function MobileNewAppointmentSheetDialog({
     setSelectedTime(null)
   }, [availability, selectedDate])
 
-  const activateDialog = useNewAppointmentDialogActivation(sheetRef)
+  const activateDialog = useNewAppointmentDialogActivation(sheetRef, presentation)
+  const desktop = presentation === 'desktop'
 
   return (
     <div
       data-mobile-new-appointment-overlay="true"
       data-mobile-overlay-state={sheet.sheetState}
-      className="merchant-mobile merchant-mobile-sheet-theme fixed inset-0 z-50 overflow-hidden text-foreground"
+      data-new-appointment-presentation={presentation}
+      className={`merchant-mobile merchant-mobile-sheet-theme fixed inset-0 z-50 overflow-hidden text-foreground ${
+        desktop ? 'merchant-desktop-new-appointment-overlay' : ''
+      }`}
     >
       <dialog
-        open
+        open={desktop ? undefined : true}
         ref={activateDialog}
         aria-label="Book an appointment"
         aria-modal="true"
@@ -222,128 +349,170 @@ function MobileNewAppointmentSheetDialog({
         data-mobile-surface="sheet"
         data-mobile-sheet-state={sheet.sheetState}
         data-mobile-new-appointment-sheet="true"
+        data-new-appointment-presentation={presentation}
         onCancel={(event) => {
           event.preventDefault()
           sheet.closeSheet()
         }}
-        onClickCapture={sheet.handleClickCapture}
-        onTouchCancel={sheet.handleTouchCancel}
-        onTouchEnd={sheet.handleTouchEnd}
-        onTouchMove={sheet.handleTouchMove}
-        onTouchStart={sheet.handleTouchStart}
-        className="merchant-route-sheet relative z-10 m-0 flex w-full max-w-none flex-col overflow-hidden rounded-t-[2.25rem] border-t bg-background p-0 text-inherit outline-none"
+        onClickCapture={(event) => {
+          if (desktop && event.target === event.currentTarget) {
+            const bounds = event.currentTarget.getBoundingClientRect()
+            const outside =
+              event.clientX < bounds.left ||
+              event.clientX > bounds.right ||
+              event.clientY < bounds.top ||
+              event.clientY > bounds.bottom
+            if (outside) sheet.closeSheet()
+            return
+          }
+          sheet.handleClickCapture(event)
+        }}
+        onTouchCancel={desktop ? undefined : sheet.handleTouchCancel}
+        onTouchEnd={desktop ? undefined : sheet.handleTouchEnd}
+        onTouchMove={desktop ? undefined : sheet.handleTouchMove}
+        onTouchStart={desktop ? undefined : sheet.handleTouchStart}
+        className={`merchant-route-sheet relative z-10 m-0 flex w-full max-w-none flex-col overflow-hidden border-t bg-background p-0 text-inherit outline-none ${
+          desktop
+            ? 'merchant-desktop-new-appointment-dialog rounded-3xl border'
+            : 'rounded-t-[2.25rem]'
+        }`}
       >
-        <button
-          type="button"
-          aria-label="Drag or tap to close new appointment"
-          data-mobile-sheet-handle="true"
-          className="merchant-sheet-drag-zone flex h-8 shrink-0 justify-center pt-3"
-          onClick={sheet.handleCloseClick}
-          onPointerDown={sheet.handlePointerDown}
-          onPointerMove={sheet.handlePointerMove}
-          onPointerUp={sheet.handlePointerUp}
-          onPointerCancel={sheet.handlePointerCancel}
-        >
-          <span aria-hidden className="h-1 w-10 rounded-full bg-muted-foreground/20" />
-        </button>
-
-        {step === 'clients' ? (
-          <MobileAppointmentClientPicker
-            directory={customerDirectory}
-            loading={customerDirectoryState === 'loading'}
-            error={customerDirectoryState === 'error'}
-            selectedClient={selectedClient}
-            onBack={() => setStep('appointment')}
-            onAddClient={() => setStep('add-client')}
-            onConfirm={(client) => {
-              if (client.id !== selectedClient?.id) setClientNote('')
-              setSelectedClient(client)
-              setStep('appointment')
-            }}
-          />
-        ) : step === 'add-client' ? (
-          <MobileAppointmentAddClient
-            onBack={() => setStep('clients')}
-            onSave={(client) => {
-              setSelectedClient(client)
-              setClientNote(client.draftProfile?.notes ?? '')
-              setStep('appointment')
-            }}
-          />
-        ) : step === 'appointment-notes' ? (
-          <MobileAppointmentNotesEditor
-            kind="appointment"
-            note={appointmentNote}
-            onClose={() => setStep('appointment')}
-            onSave={(note) => {
-              setAppointmentNote(note)
-              setStep('appointment')
-            }}
-          />
-        ) : step === 'client-notes' ? (
-          <MobileAppointmentNotesEditor
-            kind="client"
-            note={clientNote}
-            onClose={() => setStep('appointment')}
-            onSave={(note) => {
-              setClientNote(note)
-              setStep('appointment')
-            }}
-          />
-        ) : step === 'services' ? (
-          <MobileAppointmentServicePicker
-            services={
-              catalog?.services.filter(
-                (service) =>
-                  service.status === 'active' && service.eligibleProviderIds.length > 0
-              ) ?? []
-            }
-            loading={catalogState === 'loading'}
-            error={catalogState === 'error'}
-            selectedService={selectedService}
-            onBack={() => setStep('appointment')}
-            onConfirm={(service) => {
-              setSelectedService(service)
-              setDurationMinutes(service.durationMinutes)
-              setSelectedTime(null)
-              setStep('appointment')
-            }}
-          />
-        ) : (
-          <AppointmentDraft
-            notifyCustomer={notifyCustomer}
-            selectedClient={selectedClient}
-            selectedService={selectedService}
-            durationMinutes={durationMinutes}
-            selectedDate={selectedDate}
-            selectedTime={selectedTime}
-            repeatEveryWeeks={repeatEveryWeeks}
-            appointmentNote={appointmentNote}
-            clientNote={clientNote}
-            availability={availability}
-            availabilityState={availabilityState}
-            onClose={() => sheet.closeSheet()}
-            onChooseClient={() => setStep('clients')}
-            onChooseService={() => setStep('services')}
-            onChangeDuration={(change) => {
-              setDurationMinutes((current) => Math.max(15, current + change))
-              setSelectedTime(null)
-            }}
-            onSelectDate={(date) => {
-              if (date < minimumBookableDate(availability)) return
-              setSelectedDate(date)
-              setSelectedTime(null)
-            }}
-            onSelectTime={setSelectedTime}
-            onChooseRepeat={() => setRecurrencePickerOpen(true)}
-            onEditAppointmentNote={() => setStep('appointment-notes')}
-            onEditClientNote={() => setStep('client-notes')}
-            onToggleNotify={() => setNotifyCustomer((current) => !current)}
-          />
+        {desktop ? null : (
+          <button
+            type="button"
+            aria-label="Drag or tap to close new appointment"
+            data-mobile-sheet-handle="true"
+            className="merchant-sheet-drag-zone flex h-8 shrink-0 justify-center pt-3"
+            onClick={sheet.handleCloseClick}
+            onPointerDown={sheet.handlePointerDown}
+            onPointerMove={sheet.handlePointerMove}
+            onPointerUp={sheet.handlePointerUp}
+            onPointerCancel={sheet.handlePointerCancel}
+          >
+            <span
+              aria-hidden
+              className="h-1 w-10 rounded-full bg-muted-foreground/20"
+            />
+          </button>
         )}
 
-        {recurrencePickerOpen ? (
+        <div ref={stepContentRef} data-new-appointment-step={step} className="contents">
+          {step === 'clients' ? (
+            <MobileAppointmentClientPicker
+              directory={customerDirectory}
+              loading={customerDirectoryState === 'loading'}
+              error={customerDirectoryState === 'error'}
+              selectedClient={selectedClient}
+              onBack={returnToAppointment}
+              onAddClient={() => openStep('add-client')}
+              onConfirm={(client) => {
+                if (client.id !== selectedClient?.id) setClientNote('')
+                setSelectedClient(client)
+                returnToAppointment()
+              }}
+            />
+          ) : step === 'add-client' ? (
+            <MobileAppointmentAddClient
+              onBack={() => openStep('clients')}
+              onSave={(client) => {
+                setSelectedClient(client)
+                setClientNote(client.draftProfile?.notes ?? '')
+                returnToAppointment()
+              }}
+            />
+          ) : step === 'appointment-notes' ? (
+            <MobileAppointmentNotesEditor
+              kind="appointment"
+              note={appointmentNote}
+              onClose={returnToAppointment}
+              onSave={(note) => {
+                setAppointmentNote(note)
+                returnToAppointment()
+              }}
+            />
+          ) : step === 'client-notes' ? (
+            <MobileAppointmentNotesEditor
+              kind="client"
+              note={clientNote}
+              onClose={returnToAppointment}
+              onSave={(note) => {
+                setClientNote(note)
+                returnToAppointment()
+              }}
+            />
+          ) : step === 'recurrence' ? (
+            <AppointmentRecurrencePicker
+              presentation="desktop"
+              selectedWeeks={repeatEveryWeeks}
+              onClose={returnToAppointment}
+              onConfirm={(weeks) => {
+                setRepeatEveryWeeks(weeks)
+                returnToAppointment()
+              }}
+            />
+          ) : step === 'services' ? (
+            <MobileAppointmentServicePicker
+              services={
+                catalog?.services.filter(
+                  (service) =>
+                    service.status === 'active' &&
+                    service.eligibleProviderIds.length > 0
+                ) ?? []
+              }
+              loading={catalogState === 'loading'}
+              error={catalogState === 'error'}
+              selectedService={selectedService}
+              onBack={returnToAppointment}
+              onConfirm={(service) => {
+                setSelectedService(service)
+                setDurationMinutes(service.durationMinutes)
+                setSelectedTime(null)
+                returnToAppointment()
+              }}
+            />
+          ) : (
+            <AppointmentDraft
+              presentation={presentation}
+              notifyCustomer={notifyCustomer}
+              selectedClient={selectedClient}
+              selectedService={selectedService}
+              durationMinutes={durationMinutes}
+              selectedDate={selectedDate}
+              selectedTime={selectedTime}
+              repeatEveryWeeks={repeatEveryWeeks}
+              appointmentNote={appointmentNote}
+              clientNote={clientNote}
+              availability={availability}
+              availabilityState={availabilityState}
+              onClose={() => sheet.closeSheet()}
+              onChooseClient={() => openStep('clients', 'client')}
+              onChooseService={() => openStep('services', 'service')}
+              onChangeDuration={(change) => {
+                setDurationMinutes((current) => Math.max(15, current + change))
+                setSelectedTime(null)
+              }}
+              onSelectDate={(date) => {
+                if (date < minimumBookableDate(availability)) return
+                setSelectedDate(date)
+                setSelectedTime(null)
+              }}
+              onSelectTime={setSelectedTime}
+              onChooseRepeat={() => {
+                if (presentation === 'desktop') openStep('recurrence', 'repeat')
+                else setRecurrencePickerOpen(true)
+              }}
+              onEditAppointmentNote={() =>
+                openStep('appointment-notes', 'appointment-notes')
+              }
+              onEditClientNote={() => openStep('client-notes', 'client-notes')}
+              onToggleNotify={() => setNotifyCustomer((current) => !current)}
+            />
+          )}
+        </div>
+
+        {recurrencePickerOpen && presentation === 'mobile' ? (
           <AppointmentRecurrencePicker
+            presentation="mobile"
             selectedWeeks={repeatEveryWeeks}
             onClose={() => setRecurrencePickerOpen(false)}
             onConfirm={(weeks) => {
@@ -357,24 +526,79 @@ function MobileNewAppointmentSheetDialog({
   )
 }
 
+function useDesktopAppointmentDialogSurface(
+  onRequestClose: () => void
+): NewAppointmentSheetController {
+  const sheetRef = useRef<HTMLDialogElement>(null)
+  const closeTimerRef = useRef<number | null>(null)
+  const [sheetState, setSheetState] = useState<'entering' | 'open' | 'closing'>(
+    'entering'
+  )
+
+  useLayoutEffect(() => {
+    const timer = window.setTimeout(() => setSheetState('open'), 200)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    const previousOverflow = document.documentElement.style.overflow
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.documentElement.style.overflow = previousOverflow
+      if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current)
+    }
+  }, [])
+
+  const closeSheet = useCallback(() => {
+    if (sheetState === 'closing') return
+    setSheetState('closing')
+    closeTimerRef.current = window.setTimeout(onRequestClose, 200)
+  }, [onRequestClose, sheetState])
+
+  return {
+    closeSheet,
+    handleClickCapture: ignoreNewAppointmentGesture,
+    handleCloseClick: closeSheet,
+    handlePointerCancel: ignoreNewAppointmentGesture,
+    handlePointerDown: ignoreNewAppointmentGesture,
+    handlePointerMove: ignoreNewAppointmentGesture,
+    handlePointerUp: ignoreNewAppointmentGesture,
+    handleTouchCancel: ignoreNewAppointmentGesture,
+    handleTouchEnd: ignoreNewAppointmentGesture,
+    handleTouchMove: ignoreNewAppointmentGesture,
+    handleTouchStart: ignoreNewAppointmentGesture,
+    sheetRef,
+    sheetState
+  }
+}
+
 function useNewAppointmentDialogActivation(
-  sheetRef: RefObject<HTMLDialogElement | null>
+  sheetRef: RefObject<HTMLDialogElement | null>,
+  presentation: NewAppointmentPresentation
 ) {
   return useCallback(
     (dialog: HTMLDialogElement | null) => {
       sheetRef.current = dialog
       if (!dialog) return
+      if (
+        presentation === 'desktop' &&
+        !dialog.open &&
+        typeof dialog.showModal === 'function'
+      ) {
+        dialog.showModal()
+      }
       dialog.focus({ preventScroll: true })
       return () => {
         if (dialog.open && typeof dialog.close === 'function') dialog.close()
         sheetRef.current = null
       }
     },
-    [sheetRef]
+    [presentation, sheetRef]
   )
 }
 
 function AppointmentDraft({
+  presentation,
   notifyCustomer,
   selectedClient,
   selectedService,
@@ -397,6 +621,7 @@ function AppointmentDraft({
   onEditClientNote,
   onToggleNotify
 }: {
+  readonly presentation: NewAppointmentPresentation
   readonly notifyCustomer: boolean
   readonly selectedClient: AppointmentClient | null
   readonly selectedService: ServiceRecord | null
@@ -421,49 +646,78 @@ function AppointmentDraft({
 }) {
   const [compactHeader, setCompactHeader] = useState(false)
   const canSave = Boolean(selectedClient && selectedService && selectedTime)
+  const desktop = presentation === 'desktop'
 
   return (
     <div
       data-mobile-new-appointment-form="true"
       className="relative flex h-full min-h-0 flex-col"
     >
-      <div
-        data-mobile-new-appointment-compact-header="true"
-        data-visible={compactHeader ? 'true' : 'false'}
-        className={`pointer-events-none absolute inset-x-0 top-0 z-30 flex h-14 items-center border-b border-border/70 bg-background/95 px-4 transition-opacity duration-150 ${
-          compactHeader ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        <button
-          type="button"
-          aria-label="Close new appointment"
-          tabIndex={compactHeader ? 0 : -1}
-          className="pointer-events-auto -ml-2 grid size-11 place-items-center rounded-full text-muted-foreground active:bg-muted"
-          onClick={onClose}
+      {desktop ? (
+        <header
+          data-desktop-new-appointment-header="true"
+          className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6"
         >
-          <X aria-hidden className="size-7" strokeWidth={1.6} />
-        </button>
-        <p className="ml-2 text-[1.125rem] font-semibold">Book an Appointment</p>
-      </div>
+          <span aria-hidden />
+          <h1 className="truncate text-center text-sm leading-5 font-medium">
+            Book an appointment
+          </h1>
+          <button
+            type="button"
+            aria-label="Close new appointment"
+            className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={onClose}
+          >
+            <X aria-hidden className="size-5" strokeWidth={1.6} />
+          </button>
+        </header>
+      ) : (
+        <div
+          data-mobile-new-appointment-compact-header="true"
+          data-visible={compactHeader ? 'true' : 'false'}
+          className={`pointer-events-none absolute inset-x-0 top-0 z-30 flex h-14 items-center border-b border-border/70 bg-background/95 px-4 transition-opacity duration-150 ${
+            compactHeader ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <button
+            type="button"
+            aria-label="Close new appointment"
+            tabIndex={compactHeader ? 0 : -1}
+            className="pointer-events-auto -ml-2 grid size-11 place-items-center rounded-full text-muted-foreground active:bg-muted"
+            onClick={onClose}
+          >
+            <X aria-hidden className="size-7" strokeWidth={1.6} />
+          </button>
+          <p className="ml-2 text-[1.125rem] font-semibold">Book an Appointment</p>
+        </div>
+      )}
 
       <MobileSheetScrollport
-        className="px-4"
+        className={desktop ? 'px-8' : 'px-4'}
         onScroll={(event) => setCompactHeader(event.currentTarget.scrollTop > 76)}
       >
-        <div className="pb-[max(8rem,calc(env(safe-area-inset-bottom)+6.5rem))]">
-          <header className="pt-1">
-            <button
-              type="button"
-              aria-label="Close new appointment"
-              className="-ml-2 grid size-11 place-items-center rounded-full text-muted-foreground transition-colors active:bg-muted active:text-foreground"
-              onClick={onClose}
-            >
-              <X aria-hidden className="size-7" strokeWidth={1.6} />
-            </button>
-            <h1 className="mt-1 max-w-64 text-[2.35rem] leading-[1.05] font-bold tracking-[-0.035em]">
-              Book an appointment
-            </h1>
-          </header>
+        <div
+          className={
+            desktop
+              ? 'pt-2 pb-24'
+              : 'pb-[max(8rem,calc(env(safe-area-inset-bottom)+6.5rem))]'
+          }
+        >
+          {desktop ? null : (
+            <header className="pt-1">
+              <button
+                type="button"
+                aria-label="Close new appointment"
+                className="-ml-2 grid size-11 place-items-center rounded-full text-muted-foreground transition-colors active:bg-muted active:text-foreground"
+                onClick={onClose}
+              >
+                <X aria-hidden className="size-7" strokeWidth={1.6} />
+              </button>
+              <h1 className="mt-1 max-w-64 text-[2.35rem] leading-[1.05] font-bold tracking-[-0.035em]">
+                Book an appointment
+              </h1>
+            </header>
+          )}
 
           <div className="mt-4 divide-y divide-border/70 border-y border-border/70">
             <AppointmentFieldRow
@@ -572,7 +826,11 @@ function AppointmentDraft({
         </div>
       </MobileSheetScrollport>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-background from-55% via-background/95 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-10">
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-background from-55% via-background/95 to-transparent pt-10 ${
+          desktop ? 'px-8 pb-6' : 'px-4 pb-[max(1rem,env(safe-area-inset-bottom))]'
+        }`}
+      >
         <button
           type="button"
           disabled={!canSave}
@@ -695,10 +953,12 @@ const appointmentRecurrenceOptions = [1, 2, 3, 4, 5, 6, 7, 8] as const
 const recurrenceRowHeight = 72
 
 function AppointmentRecurrencePicker({
+  presentation,
   selectedWeeks,
   onClose,
   onConfirm
 }: {
+  readonly presentation: NewAppointmentPresentation
   readonly selectedWeeks: number | null
   readonly onClose: () => void
   readonly onConfirm: (weeks: number) => void
@@ -730,6 +990,107 @@ function AppointmentRecurrencePicker({
       scrollport.scrollTop = top
     }
   }
+
+  const recurrenceWheel = (
+    <div
+      ref={scrollRef}
+      role="radiogroup"
+      aria-label="Repeat frequency"
+      data-mobile-recurrence-wheel="true"
+      onScroll={(event) => {
+        const weeks = Math.max(
+          1,
+          Math.min(
+            8,
+            Math.round(event.currentTarget.scrollTop / recurrenceRowHeight) + 1
+          )
+        )
+        setDraftWeeks(weeks)
+      }}
+      className={`merchant-sheet-scrollport mt-4 h-[22.5rem] shrink-0 snap-y snap-mandatory overflow-y-auto overscroll-contain ${
+        presentation === 'desktop' ? 'mx-8' : 'mx-4'
+      }`}
+      style={{
+        WebkitMaskImage:
+          'linear-gradient(transparent, black 22%, black 78%, transparent)'
+      }}
+    >
+      <div aria-hidden className="h-36" />
+      {appointmentRecurrenceOptions.map((weeks) => {
+        const selected = weeks === draftWeeks
+        const distance = Math.abs(weeks - draftWeeks)
+        return (
+          <label
+            key={weeks}
+            className={`block h-[4.5rem] w-full snap-center rounded-full text-[1.5rem] leading-none font-semibold transition-[background-color,color,opacity,transform] duration-150 ${
+              selected
+                ? 'scale-100 bg-muted text-foreground opacity-100'
+                : distance === 1
+                  ? 'scale-[0.96] text-muted-foreground opacity-60'
+                  : 'scale-[0.92] text-muted-foreground opacity-20'
+            }`}
+          >
+            <input
+              type="radio"
+              name="appointment-recurrence"
+              value={weeks}
+              checked={selected}
+              aria-checked={selected}
+              data-mobile-recurrence-weeks={weeks}
+              onChange={() => chooseWeeks(weeks)}
+              className="sr-only"
+            />
+            <span className="flex h-full items-center px-4 text-left">
+              <span className="flex-1">{recurrenceOptionLabel(weeks)}</span>
+              {selected ? (
+                <span aria-hidden className="flex flex-col text-muted-foreground">
+                  <ChevronDown className="size-4 rotate-180" strokeWidth={1.5} />
+                  <ChevronDown className="-mt-1 size-4" strokeWidth={1.5} />
+                </span>
+              ) : null}
+            </span>
+          </label>
+        )
+      })}
+      <div aria-hidden className="h-36" />
+    </div>
+  )
+
+  const confirmButton = (
+    <button
+      type="button"
+      data-mobile-recurrence-confirm="true"
+      onClick={() => onConfirm(draftWeeks)}
+      className="flex h-14 w-full items-center justify-center rounded-xl bg-info text-[1.0625rem] font-semibold text-info-foreground transition-transform active:scale-[0.99]"
+    >
+      Select
+    </button>
+  )
+
+  if (presentation === 'desktop')
+    return (
+      <section
+        data-desktop-new-appointment-recurrence="true"
+        className="flex h-full min-h-0 flex-col bg-background"
+      >
+        <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
+          <span aria-hidden />
+          <h1 className="truncate text-center text-sm leading-5 font-medium">
+            Set a frequency
+          </h1>
+          <button
+            type="button"
+            aria-label="Close recurrence picker"
+            onClick={onClose}
+            className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X aria-hidden className="size-5" strokeWidth={1.6} />
+          </button>
+        </header>
+        {recurrenceWheel}
+        <div className="mt-auto px-8 pt-4 pb-6">{confirmButton}</div>
+      </section>
+    )
 
   return (
     <div
@@ -771,76 +1132,10 @@ function AppointmentRecurrencePicker({
           </button>
         </header>
 
-        <div
-          ref={scrollRef}
-          role="radiogroup"
-          aria-label="Repeat frequency"
-          data-mobile-recurrence-wheel="true"
-          onScroll={(event) => {
-            const weeks = Math.max(
-              1,
-              Math.min(
-                8,
-                Math.round(event.currentTarget.scrollTop / recurrenceRowHeight) + 1
-              )
-            )
-            setDraftWeeks(weeks)
-          }}
-          className="merchant-sheet-scrollport mx-4 mt-4 h-[22.5rem] shrink-0 snap-y snap-mandatory overflow-y-auto overscroll-contain"
-          style={{
-            WebkitMaskImage:
-              'linear-gradient(transparent, black 22%, black 78%, transparent)'
-          }}
-        >
-          <div aria-hidden className="h-36" />
-          {appointmentRecurrenceOptions.map((weeks) => {
-            const selected = weeks === draftWeeks
-            const distance = Math.abs(weeks - draftWeeks)
-            return (
-              <label
-                key={weeks}
-                className={`block h-[4.5rem] w-full snap-center rounded-full text-[1.5rem] leading-none font-semibold transition-[background-color,color,opacity,transform] duration-150 ${
-                  selected
-                    ? 'scale-100 bg-muted text-foreground opacity-100'
-                    : distance === 1
-                      ? 'scale-[0.96] text-muted-foreground opacity-60'
-                      : 'scale-[0.92] text-muted-foreground opacity-20'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="appointment-recurrence"
-                  value={weeks}
-                  checked={selected}
-                  aria-checked={selected}
-                  data-mobile-recurrence-weeks={weeks}
-                  onChange={() => chooseWeeks(weeks)}
-                  className="sr-only"
-                />
-                <span className="flex h-full items-center px-4 text-left">
-                  <span className="flex-1">{recurrenceOptionLabel(weeks)}</span>
-                  {selected ? (
-                    <span aria-hidden className="flex flex-col text-muted-foreground">
-                      <ChevronDown className="size-4 rotate-180" strokeWidth={1.5} />
-                      <ChevronDown className="-mt-1 size-4" strokeWidth={1.5} />
-                    </span>
-                  ) : null}
-                </span>
-              </label>
-            )
-          })}
-          <div aria-hidden className="h-36" />
-        </div>
+        {recurrenceWheel}
 
         <div className="mt-auto px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <button
-            type="button"
-            data-mobile-recurrence-confirm="true"
-            onClick={() => onConfirm(draftWeeks)}
-            className="flex h-14 w-full items-center justify-center rounded-xl bg-info text-[1.0625rem] font-semibold text-info-foreground transition-transform active:scale-[0.99]"
-          >
-            Select
-          </button>
+          {confirmButton}
         </div>
       </dialog>
     </div>

@@ -44,6 +44,25 @@ describe('merchant BeeSolo brand contract', () => {
     expect(sheetTheme).toContain('--border: var(--merchant-surface-border)')
   })
 
+  it('keeps the desktop appointment composer aligned with the Poke dialog shell', async () => {
+    const css = await readFile(stylesUrl, 'utf8')
+    const dialogRule =
+      css.match(
+        /\.merchant-desktop-modal,\s*dialog\.merchant-desktop-new-appointment-dialog\.merchant-route-sheet\s*\{([^}]*)\}/
+      )?.[1] ?? ''
+    const backdropRule =
+      css.match(
+        /\.merchant-desktop-modal::backdrop,\s*dialog\.merchant-desktop-new-appointment-dialog::backdrop\s*\{([^}]*)\}/
+      )?.[1] ?? ''
+
+    expect(dialogRule).toContain('width: min(32rem, calc(100vw - 2rem))')
+    expect(dialogRule).toContain('height: min(47rem, calc(100dvh - 2rem))')
+    expect(dialogRule).toContain('border-radius: 1.5rem')
+    expect(backdropRule).toContain('background: transparent')
+    expect(backdropRule).toContain('backdrop-filter: blur(4px)')
+    expect(css).toContain('animation: merchant-desktop-modal-enter 200ms ease-out both')
+  })
+
   it('uses the four time-specific Poke atmosphere pairs', async () => {
     const css = await readFile(stylesUrl, 'utf8')
     await Promise.all(pokeAtmosphereAssets.map((asset) => access(asset)))

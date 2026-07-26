@@ -56,7 +56,7 @@ function renderShell(layout: 'home' | 'modal') {
 }
 
 describe('DesktopShell', () => {
-  it('renders Appointments as a compact centered home with five primary actions', () => {
+  it('renders Appointments as a compact centered home with a booking dialog action', () => {
     const html = renderShell('home')
     const actions = html.match(
       /<nav aria-label="Merchant desktop home actions"[\s\S]*?<\/nav>/
@@ -83,7 +83,10 @@ describe('DesktopShell', () => {
     expect(html).not.toContain('>Today</p>')
     expect(html).not.toContain('aria-label="Merchant App"')
     expect(html).not.toContain('<dialog')
-    expect(actions?.match(/data-desktop-home-action="true"/g)).toHaveLength(5)
+    expect(actions?.match(/data-desktop-home-action="true"/g)).toHaveLength(6)
+    expect(actions).toContain('data-desktop-home-create-action="new-appointment"')
+    expect(actions).toContain('aria-haspopup="dialog"')
+    expect(actions).toContain('New appointment')
     expect(actions?.match(/data-search-date="2026-07-27"/g)).toHaveLength(6)
     expect(actions).toMatch(
       /Walk-ins[\s\S]*Customers[\s\S]*Services[\s\S]*Providers[\s\S]*More/

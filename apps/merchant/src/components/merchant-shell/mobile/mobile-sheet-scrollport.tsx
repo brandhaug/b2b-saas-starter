@@ -1,4 +1,11 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type UIEventHandler
+} from 'react'
 
 type MobileSheetScrollState = {
   readonly atBottom: boolean
@@ -15,11 +22,13 @@ const initialScrollState: MobileSheetScrollState = {
 export function MobileSheetScrollport({
   children,
   className = '',
-  contentSized = false
+  contentSized = false,
+  onScroll
 }: {
   readonly children: ReactNode
   readonly className?: string | undefined
   readonly contentSized?: boolean | undefined
+  readonly onScroll?: UIEventHandler<HTMLDivElement> | undefined
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState(initialScrollState)
@@ -105,8 +114,9 @@ export function MobileSheetScrollport({
         data-mobile-sheet-scroll-at-bottom={state.atBottom ? 'true' : 'false'}
         data-mobile-sheet-scroll-sizing={contentSized ? 'content' : 'fill'}
         className={`${scrollClassName} ${className}`}
+        onScroll={onScroll}
       >
-        <div className={contentSized ? undefined : 'min-h-full'}>{children}</div>
+        <div className={contentSized ? undefined : 'h-full'}>{children}</div>
       </div>
     </div>
   )

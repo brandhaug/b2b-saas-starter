@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { MobileNewAppointmentSheet } from './mobile-new-appointment-sheet.tsx'
+import {
+  MobileNewAppointmentSheet,
+  NewAppointmentDialog
+} from './mobile-new-appointment-sheet.tsx'
 
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ search: {}, state: {} }),
@@ -44,5 +47,21 @@ describe('MobileNewAppointmentSheet', () => {
         />
       )
     ).toBe('')
+  })
+
+  it('uses a centered desktop dialog presentation without mobile sheet chrome', () => {
+    const html = renderToStaticMarkup(
+      <NewAppointmentDialog
+        open
+        presentation="desktop"
+        appointmentDate="2026-07-25"
+        onRequestClose={vi.fn()}
+      />
+    )
+
+    expect(html).toContain('data-new-appointment-presentation="desktop"')
+    expect(html).toContain('merchant-desktop-new-appointment-dialog')
+    expect(html).toContain('data-desktop-new-appointment-header="true"')
+    expect(html).not.toContain('data-mobile-sheet-handle="true"')
   })
 })

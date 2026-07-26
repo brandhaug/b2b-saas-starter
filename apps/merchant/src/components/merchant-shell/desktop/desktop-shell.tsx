@@ -15,10 +15,8 @@ import { DesktopHomeActions } from './desktop-home-actions.tsx'
 
 export function DesktopShell({
   layout,
-  section,
   destinations,
   title,
-  description,
   headerDate,
   headerTimezone,
   children
@@ -45,22 +43,14 @@ export function DesktopShell({
       </DesktopStage>
     )
 
-  return (
-    <DesktopRouteModal section={section} title={title} description={description}>
-      {children}
-    </DesktopRouteModal>
-  )
+  return <DesktopRouteModal title={title}>{children}</DesktopRouteModal>
 }
 
 function DesktopRouteModal({
-  section,
   title,
-  description,
   children
 }: {
-  readonly section: MerchantShellSection
   readonly title: string
-  readonly description: string
   readonly children: ReactNode
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -97,7 +87,7 @@ function DesktopRouteModal({
   const closeModal = () => {
     if (modalState === 'closing') return
     setModalState('closing')
-    closeTimerRef.current = setTimeout(navigateHome, 170)
+    closeTimerRef.current = setTimeout(navigateHome, 200)
   }
 
   const handleAnimationEnd = (event: AnimationEvent<HTMLDialogElement>) => {
@@ -129,28 +119,24 @@ function DesktopRouteModal({
         closeModal()
       }}
     >
-      <header className="sticky top-0 z-20 grid grid-cols-[3rem_1fr_3rem] items-center border-b bg-background/92 px-4 py-3 backdrop-blur-xl">
+      <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
         <span aria-hidden />
         <h1
           id="merchant-desktop-modal-title"
-          className="truncate text-center text-base font-semibold"
+          className="truncate text-center text-sm leading-5 font-medium"
         >
           {title}
         </h1>
         <button
           type="button"
           aria-label={`Close ${title}`}
-          className="grid size-8 place-items-center justify-self-end rounded-full bg-muted text-muted-foreground hover:text-foreground"
+          className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           onClick={closeModal}
         >
-          <X aria-hidden className="size-4" strokeWidth={2.5} />
+          <X aria-hidden className="size-5" strokeWidth={1.6} />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 py-6">
-        <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-          {section.kind === 'catalog' ? 'Merchant catalog' : 'Merchant App'}
-        </p>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-2 pb-8">
         {children}
       </div>
     </dialog>

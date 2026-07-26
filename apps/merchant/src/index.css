@@ -385,12 +385,14 @@ summary.merchant-desktop-action:hover {
   );
 }
 
-.merchant-desktop-modal {
+.merchant-desktop-modal,
+dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet {
   position: fixed;
   inset: 0;
   z-index: 10;
-  width: 512px;
-  height: min(752px, calc(100dvh - 3rem));
+  width: min(32rem, calc(100vw - 2rem));
+  height: min(47rem, calc(100dvh - 2rem));
+  max-height: calc(100dvh - 2rem);
   flex-direction: column;
   overflow: hidden;
   margin: auto;
@@ -408,14 +410,15 @@ summary.merchant-desktop-action:hover {
   display: flex;
 }
 
-.merchant-desktop-modal::backdrop {
+.merchant-desktop-modal::backdrop,
+dialog.merchant-desktop-new-appointment-dialog::backdrop {
   background: transparent;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 
 .merchant-desktop-modal[data-desktop-modal-state='entering'] {
-  animation: merchant-desktop-modal-enter 150ms ease both;
+  animation: merchant-desktop-modal-enter 200ms ease-out both;
 }
 
 .merchant-desktop-modal[data-desktop-modal-state='entering']::backdrop {
@@ -424,7 +427,7 @@ summary.merchant-desktop-action:hover {
 
 .merchant-desktop-modal[data-desktop-modal-state='closing'] {
   pointer-events: none;
-  animation: merchant-desktop-modal-exit 150ms ease both;
+  animation: merchant-desktop-modal-exit 200ms ease-out both;
 }
 
 .merchant-desktop-modal[data-desktop-modal-state='closing']::backdrop {
@@ -558,6 +561,94 @@ html.merchant-mobile-document
 
 .merchant-route-sheet[data-mobile-sheet-state='closing'] {
   pointer-events: none;
+}
+
+.merchant-route-sheet[data-mobile-surface='sheet'] {
+  --merchant-route-sheet-top: calc(env(safe-area-inset-top) + 1.5rem);
+  height: calc(100vh - var(--merchant-route-sheet-top));
+  max-height: calc(100vh - var(--merchant-route-sheet-top));
+  margin-top: var(--merchant-route-sheet-top);
+}
+
+dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet {
+  transform: none;
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='entering'] {
+  animation: merchant-desktop-modal-enter 200ms ease-out both;
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='entering']::backdrop {
+  animation: merchant-overlay-backdrop-enter 150ms ease-out both;
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='closing'] {
+  animation: merchant-desktop-modal-exit 200ms ease-out both;
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='closing']::backdrop {
+  animation: merchant-overlay-backdrop-exit 150ms ease-out both;
+}
+
+dialog.merchant-desktop-new-appointment-dialog
+  [data-new-appointment-step]:not([data-new-appointment-step='appointment'])
+  > *
+  > header {
+  position: relative;
+  display: grid;
+  height: 3rem;
+  min-height: 3rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+  padding: 0 1.5rem;
+  border: 0;
+}
+
+dialog.merchant-desktop-new-appointment-dialog
+  [data-new-appointment-step]:not([data-new-appointment-step='appointment'])
+  > *
+  > header
+  > button {
+  position: absolute;
+  right: 1.5rem;
+  left: auto;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+}
+
+dialog.merchant-desktop-new-appointment-dialog
+  [data-new-appointment-step]:not([data-new-appointment-step='appointment'])
+  > *
+  > header
+  > h1 {
+  grid-column: 2;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+dialog.merchant-desktop-new-appointment-dialog
+  [data-new-appointment-step]
+  [data-mobile-sheet-scroll='true'],
+dialog.merchant-desktop-new-appointment-dialog
+  [data-mobile-client-search-region='true'] {
+  padding-right: 2rem;
+  padding-left: 2rem;
+}
+
+dialog.merchant-desktop-new-appointment-dialog
+  :is(
+    [data-mobile-new-appointment-field],
+    [data-mobile-new-appointment-notify='true']
+  ) {
+  min-height: 3.5rem;
 }
 
 .merchant-floating-sheet-panel.merchant-route-sheet,
