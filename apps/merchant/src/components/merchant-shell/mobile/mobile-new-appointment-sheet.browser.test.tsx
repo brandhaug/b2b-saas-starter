@@ -112,7 +112,7 @@ vi.mock('@/lib/server/scheduling.ts', () => ({
 
 let root: Root | undefined
 
-const expectMobileSheetHeader = (header: HTMLElement | undefined) => {
+const expectMobileSheetHeader = (header: HTMLElement | null | undefined) => {
   expect(header?.classList.contains('merchant-sheet-safe-inline')).toBe(true)
   expect(header?.classList.contains('grid')).toBe(true)
   expect(header?.classList.contains('h-10')).toBe(true)

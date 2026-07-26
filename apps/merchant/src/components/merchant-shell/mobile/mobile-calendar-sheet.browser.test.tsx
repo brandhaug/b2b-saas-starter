@@ -127,4 +127,40 @@ describe('MobileCalendarSheet', () => {
     expect(panel?.style.getPropertyValue('--merchant-calendar-drag-y')).toBe('0px')
     await act(async () => root.unmount())
   })
+
+  it('rings today while keeping the selected date filled', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    await act(async () =>
+      root.render(
+        <>
+          <div data-merchant-home-layer="true" />
+          <MobileCalendarSheet
+            open
+            selectedDate="2026-07-29"
+            currentDate="2026-07-26"
+            onRequestClose={vi.fn()}
+          />
+        </>
+      )
+    )
+    await act(async () => vi.advanceTimersByTime(1_000))
+
+    const today = container.querySelector<HTMLButtonElement>('[aria-current="date"]')
+    const selected = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Wednesday, July 29, 2026"]'
+    )
+
+    expect(today?.getAttribute('aria-label')).toBe('Sunday, July 26, 2026')
+    expect(today?.getAttribute('aria-pressed')).toBe('false')
+    expect(today?.classList.contains('ring-2')).toBe(true)
+    expect(today?.classList.contains('ring-primary')).toBe(true)
+    expect(selected?.getAttribute('aria-pressed')).toBe('true')
+    expect(selected?.classList.contains('bg-primary')).toBe(true)
+    expect(selected?.hasAttribute('aria-current')).toBe(false)
+
+    await act(async () => root.unmount())
+  })
 })

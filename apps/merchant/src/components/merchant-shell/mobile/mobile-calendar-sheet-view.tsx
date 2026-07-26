@@ -106,20 +106,30 @@ export function MobileCalendarSheetView({
           {Array.from({ length: month.leadingBlankDays }, (_, index) => (
             <span key={`blank-${index}`} aria-hidden className="size-10" />
           ))}
-          {month.days.map((day) => (
-            <button
-              key={day.date}
-              type="button"
-              aria-label={calendarDayLabel.format(
-                new Date(`${day.date}T12:00:00.000Z`)
-              )}
-              aria-pressed={day.selected}
-              className={`mx-auto grid size-10 place-items-center rounded-full text-base font-medium tabular-nums active:scale-95 ${day.selected ? 'bg-primary text-primary-foreground' : 'text-foreground active:bg-muted'}`}
-              onClick={() => chooseDate(day.date)}
-            >
-              {day.day}
-            </button>
-          ))}
+          {month.days.map((day) => {
+            const isCurrentDate = day.date === currentDate
+            return (
+              <button
+                key={day.date}
+                type="button"
+                aria-label={calendarDayLabel.format(
+                  new Date(`${day.date}T12:00:00.000Z`)
+                )}
+                aria-current={isCurrentDate ? 'date' : undefined}
+                aria-pressed={day.selected}
+                className={`mx-auto grid size-10 place-items-center rounded-full text-base font-medium tabular-nums active:scale-95 ${
+                  day.selected
+                    ? 'bg-primary text-primary-foreground'
+                    : isCurrentDate
+                      ? 'text-foreground ring-2 ring-primary ring-inset active:bg-muted'
+                      : 'text-foreground active:bg-muted'
+                }`}
+                onClick={() => chooseDate(day.date)}
+              >
+                {day.day}
+              </button>
+            )
+          })}
         </div>
       </section>
     </dialog>
