@@ -18,6 +18,7 @@ describe('MobileNewAppointmentSheet', () => {
     )
 
     expect(html).toContain('aria-label="Book an appointment"')
+    expect(html).toContain('open=""')
     expect(html).toContain('tabindex="-1"')
     expect(html).toContain('data-mobile-new-appointment-sheet="true"')
     expect(html).toContain('data-mobile-new-appointment-field="client"')

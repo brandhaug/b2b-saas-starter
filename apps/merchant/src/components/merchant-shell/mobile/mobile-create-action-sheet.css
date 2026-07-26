@@ -6,6 +6,7 @@
   height: auto;
   max-height: none;
   margin: 0;
+  z-index: 50;
   color: inherit;
 }
 
@@ -16,7 +17,6 @@
 }
 
 .merchant-create-action-dialog[data-mobile-create-action-sheet-state='closing'] {
-  z-index: 50;
   display: block;
   pointer-events: none;
 }

@@ -11,6 +11,7 @@ describe('MobileCreateActionSheet', () => {
 
     expect(html).toContain('aria-label="Add to schedule"')
     expect(html).toContain('aria-modal="true"')
+    expect(html).toContain('open=""')
     expect(html).toContain('data-mobile-create-action-sheet="true"')
     expect(html).toContain('>Appointment</button>')
     expect(html).toContain('>Block time</button>')
@@ -27,6 +28,7 @@ describe('MobileCreateActionSheet', () => {
     expect(css).toMatch(
       /\.merchant-create-action-dialog\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;/s
     )
+    expect(css).toMatch(/\.merchant-create-action-dialog\s*\{[^}]*z-index:\s*50;/s)
     expect(css).toMatch(
       /\.merchant-create-action-panel\s*\{[^}]*position:\s*fixed;[^}]*bottom:\s*0;/s
     )

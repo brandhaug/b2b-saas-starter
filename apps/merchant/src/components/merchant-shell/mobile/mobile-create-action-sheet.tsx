@@ -56,7 +56,6 @@ function MobileCreateActionSheetDialog({
     if (!dialog || !panel) return
     const distance = sheetDistance()
     panel.style.setProperty('--merchant-create-sheet-y', `${distance}px`)
-    dialog.showModal()
     initialFocusRef.current?.focus({ preventScroll: true })
     animationRef.current = animateMobileSheetSpring({
       from: distance,
@@ -98,7 +97,6 @@ function MobileCreateActionSheetDialog({
     const panel = panelRef.current
     if (!dialog || !panel) return
     dialog.dataset.mobileCreateActionSheetState = 'closing'
-    dialog.close()
     setState('closing')
     animationRef.current?.()
     closeFallbackRef.current = setTimeout(finishClose, 500)
@@ -126,6 +124,7 @@ function MobileCreateActionSheetDialog({
 
   return (
     <dialog
+      open
       ref={dialogRef}
       aria-label="Add to schedule"
       aria-modal="true"

@@ -136,7 +136,7 @@ afterEach(async () => {
 })
 
 describe('MobileNewAppointmentSheet interaction', () => {
-  it('opens the native modal on-screen before scheduling its entrance spring', async () => {
+  it('opens non-modally before scheduling its entrance spring', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -147,25 +147,23 @@ describe('MobileNewAppointmentSheet interaction', () => {
       events.push('spring-frame')
       return 1
     })
+    const showModal = vi.fn()
     Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
       configurable: true,
-      value(this: HTMLDialogElement) {
-        events.push(
-          `show-modal:${this.style.getPropertyValue('--merchant-sheet-translate-y')}`
-        )
-        this.setAttribute('open', '')
-      }
+      value: showModal
     })
 
     try {
       await act(async () =>
         root?.render(<MobileNewAppointmentSheet open onRequestClose={vi.fn()} />)
       )
-      expect(events[0]).toBe('show-modal:0px')
+      expect(showModal).not.toHaveBeenCalled()
       expect(events).toContain('spring-frame')
-      expect(document.activeElement).toBe(
-        container.querySelector('[data-mobile-new-appointment-sheet="true"]')
+      const dialog = container.querySelector<HTMLDialogElement>(
+        '[data-mobile-new-appointment-sheet="true"]'
       )
+      expect(dialog?.open).toBe(true)
+      expect(document.activeElement).toBe(dialog)
     } finally {
       frame.mockRestore()
       Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {

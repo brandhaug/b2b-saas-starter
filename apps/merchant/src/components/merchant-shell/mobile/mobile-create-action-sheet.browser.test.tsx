@@ -13,6 +13,7 @@ import {
 let root: Root | undefined
 let originalShowModal: typeof HTMLDialogElement.prototype.showModal | undefined
 let originalClose: typeof HTMLDialogElement.prototype.close | undefined
+const showModal = vi.fn()
 
 beforeAll(() => {
   originalShowModal = HTMLDialogElement.prototype.showModal
@@ -20,9 +21,7 @@ beforeAll(() => {
   Object.defineProperties(HTMLDialogElement.prototype, {
     showModal: {
       configurable: true,
-      value(this: HTMLDialogElement) {
-        this.setAttribute('open', '')
-      }
+      value: showModal
     },
     close: {
       configurable: true,
@@ -44,6 +43,7 @@ afterEach(async () => {
   if (root) await act(async () => root?.unmount())
   root = undefined
   document.body.innerHTML = ''
+  showModal.mockClear()
 })
 
 const waitForSpring = () =>
@@ -97,6 +97,7 @@ describe('MobileCreateActionSheet interaction', () => {
         '[data-mobile-create-action-sheet="true"]'
       )?.open
     ).toBe(true)
+    expect(showModal).not.toHaveBeenCalled()
   })
 
   it('closes before handing the selected intent to the next flow', async () => {

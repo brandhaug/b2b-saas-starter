@@ -214,6 +214,7 @@ function MobileNewAppointmentSheetDialog({
       className="merchant-mobile fixed inset-0 z-50 overflow-hidden text-foreground"
     >
       <dialog
+        open
         ref={activateDialog}
         aria-label="Book an appointment"
         aria-modal="true"
@@ -363,13 +364,6 @@ function useNewAppointmentDialogActivation(
     (dialog: HTMLDialogElement | null) => {
       sheetRef.current = dialog
       if (!dialog) return
-      if (typeof dialog.showModal === 'function' && !dialog.open) {
-        // Native modal focus scrolls transformed, off-screen dialogs into view.
-        // Activate at the resting position; the sheet layout effect applies the
-        // entrance offset before the browser paints and starts the spring.
-        dialog.style.setProperty('--merchant-sheet-translate-y', '0px')
-        dialog.showModal()
-      }
       dialog.focus({ preventScroll: true })
       return () => {
         if (dialog.open && typeof dialog.close === 'function') dialog.close()
