@@ -514,6 +514,32 @@ describe('MobileNewAppointmentSheet interaction', () => {
       )
     )
 
+    const saveButton = () =>
+      container.querySelector<HTMLButtonElement>(
+        '[data-mobile-new-appointment-save="true"]'
+      )
+    expect(saveButton()?.disabled).toBe(true)
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-mobile-new-appointment-field="client"]'
+        )
+        ?.click()
+    )
+    await act(async () => Promise.resolve())
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-mobile-client-option="apt_alex"]')
+        ?.click()
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-mobile-client-confirm="true"]')
+        ?.click()
+    )
+    expect(saveButton()?.disabled).toBe(true)
+
     await act(async () =>
       container
         .querySelector<HTMLButtonElement>(
@@ -578,6 +604,14 @@ describe('MobileNewAppointmentSheet interaction', () => {
     expect(
       container.querySelector('[data-mobile-appointment-more-times="true"]')
     ).toBeNull()
+    expect(saveButton()?.disabled).toBe(true)
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-mobile-appointment-time="09:00"]')
+        ?.click()
+    )
+    expect(saveButton()?.disabled).toBe(false)
 
     const scrollport = container.querySelector<HTMLElement>(
       '[data-mobile-new-appointment-form="true"] [data-mobile-sheet-scroll="true"]'

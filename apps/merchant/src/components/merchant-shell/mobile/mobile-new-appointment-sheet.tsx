@@ -426,6 +426,7 @@ function AppointmentDraft({
   readonly onToggleNotify: () => void
 }) {
   const [compactHeader, setCompactHeader] = useState(false)
+  const canSave = Boolean(selectedClient && selectedService && selectedTime)
 
   return (
     <div
@@ -580,7 +581,9 @@ function AppointmentDraft({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-background from-55% via-background/95 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-10">
         <button
           type="button"
-          disabled
+          disabled={!canSave}
+          aria-disabled={!canSave}
+          data-mobile-new-appointment-save-state={canSave ? 'ready' : 'incomplete'}
           data-mobile-new-appointment-save="true"
           className="pointer-events-auto flex h-14 w-full items-center justify-center rounded-xl bg-info text-[1.0625rem] font-semibold text-info-foreground transition-[opacity,transform] active:scale-[0.99] disabled:bg-muted disabled:text-muted-foreground disabled:opacity-65"
         >
