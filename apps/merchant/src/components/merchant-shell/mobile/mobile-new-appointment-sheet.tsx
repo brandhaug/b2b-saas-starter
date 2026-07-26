@@ -72,7 +72,7 @@ function MobileNewAppointmentSheetDialog({
   const sheetRef = sheet.sheetRef
   const [notifyCustomer, setNotifyCustomer] = useState(true)
   const [step, setStep] = useState<
-    'appointment' | 'clients' | 'add-client' | 'services'
+    'appointment' | 'appointment-notes' | 'clients' | 'add-client' | 'services'
   >('appointment')
   const [selectedClient, setSelectedClient] = useState<AppointmentClient | null>(null)
   const [selectedService, setSelectedService] = useState<ServiceRecord | null>(null)
@@ -83,6 +83,7 @@ function MobileNewAppointmentSheetDialog({
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [repeatEveryWeeks, setRepeatEveryWeeks] = useState<number | null>(null)
   const [recurrencePickerOpen, setRecurrencePickerOpen] = useState(false)
+  const [appointmentNote, setAppointmentNote] = useState('')
   const [customerDirectory, setCustomerDirectory] = useState<CustomerDirectory | null>(
     null
   )
@@ -276,6 +277,15 @@ function MobileNewAppointmentSheetDialog({
               setStep('appointment')
             }}
           />
+        ) : step === 'appointment-notes' ? (
+          <AppointmentNotesEditor
+            note={appointmentNote}
+            onClose={() => setStep('appointment')}
+            onSave={(note) => {
+              setAppointmentNote(note)
+              setStep('appointment')
+            }}
+          />
         ) : step === 'services' ? (
           <MobileAppointmentServicePicker
             services={
@@ -304,6 +314,7 @@ function MobileNewAppointmentSheetDialog({
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             repeatEveryWeeks={repeatEveryWeeks}
+            appointmentNote={appointmentNote}
             availability={availability}
             availabilityState={availabilityState}
             onClose={() => sheet.closeSheet()}
@@ -320,6 +331,7 @@ function MobileNewAppointmentSheetDialog({
             }}
             onSelectTime={setSelectedTime}
             onChooseRepeat={() => setRecurrencePickerOpen(true)}
+            onEditAppointmentNote={() => setStep('appointment-notes')}
             onToggleNotify={() => setNotifyCustomer((current) => !current)}
           />
         )}
@@ -347,6 +359,7 @@ function AppointmentDraft({
   selectedDate,
   selectedTime,
   repeatEveryWeeks,
+  appointmentNote,
   availability,
   availabilityState,
   onClose,
@@ -356,6 +369,7 @@ function AppointmentDraft({
   onSelectDate,
   onSelectTime,
   onChooseRepeat,
+  onEditAppointmentNote,
   onToggleNotify
 }: {
   readonly notifyCustomer: boolean
@@ -365,6 +379,7 @@ function AppointmentDraft({
   readonly selectedDate: string
   readonly selectedTime: string | null
   readonly repeatEveryWeeks: number | null
+  readonly appointmentNote: string
   readonly availability: Availability | null
   readonly availabilityState: 'idle' | 'loading' | 'ready' | 'error'
   readonly onClose: () => void
@@ -374,6 +389,7 @@ function AppointmentDraft({
   readonly onSelectDate: (date: string) => void
   readonly onSelectTime: (time: string) => void
   readonly onChooseRepeat: () => void
+  readonly onEditAppointmentNote: () => void
   readonly onToggleNotify: () => void
 }) {
   const [compactHeader, setCompactHeader] = useState(false)
@@ -478,9 +494,10 @@ function AppointmentDraft({
           <div className="divide-y divide-border/70 border-b border-border/70">
             <AppointmentFieldRow
               icon={<NotepadText />}
-              label="Add appointment notes"
+              label={appointmentNote || 'Add appointment notes'}
               field="appointment-notes"
-              tone="action"
+              tone={appointmentNote ? 'selected' : 'action'}
+              onClick={onEditAppointmentNote}
             />
             <AppointmentFieldRow
               icon={<Info />}
@@ -534,6 +551,100 @@ function AppointmentDraft({
           className="pointer-events-auto flex h-14 w-full items-center justify-center rounded-xl bg-info text-[1.0625rem] font-semibold text-info-foreground transition-[opacity,transform] active:scale-[0.99] disabled:bg-muted disabled:text-muted-foreground disabled:opacity-65"
         >
           Save appointment
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AppointmentNotesEditor({
+  note,
+  onClose,
+  onSave
+}: {
+  readonly note: string
+  readonly onClose: () => void
+  readonly onSave: (note: string) => void
+}) {
+  const [draft, setDraft] = useState(note)
+  const [visibleHeight, setVisibleHeight] = useState<number | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const canSave = draft.trim().length > 0
+
+  useLayoutEffect(() => {
+    textareaRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  useLayoutEffect(() => {
+    const updateVisibleHeight = () => {
+      const root = rootRef.current
+      if (!root) return
+      const viewport = window.visualViewport
+      const viewportBottom =
+        (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)
+      const nextHeight = Math.max(
+        240,
+        Math.round(viewportBottom - root.getBoundingClientRect().top)
+      )
+      setVisibleHeight((current) => (current === nextHeight ? current : nextHeight))
+    }
+
+    updateVisibleHeight()
+    const viewport = window.visualViewport
+    viewport?.addEventListener('resize', updateVisibleHeight)
+    viewport?.addEventListener('scroll', updateVisibleHeight)
+    window.addEventListener('orientationchange', updateVisibleHeight)
+    return () => {
+      viewport?.removeEventListener('resize', updateVisibleHeight)
+      viewport?.removeEventListener('scroll', updateVisibleHeight)
+      window.removeEventListener('orientationchange', updateVisibleHeight)
+    }
+  }, [])
+
+  return (
+    <div
+      ref={rootRef}
+      data-mobile-appointment-notes="true"
+      className="relative flex min-h-0 flex-1 flex-col bg-background"
+      style={
+        visibleHeight === null ? undefined : { height: visibleHeight, flex: '0 0 auto' }
+      }
+    >
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border/70 bg-background px-2">
+        <button
+          type="button"
+          aria-label="Close appointment notes"
+          onClick={onClose}
+          className="grid size-12 place-items-center rounded-full text-muted-foreground transition-colors active:bg-muted active:text-foreground"
+        >
+          <X aria-hidden className="size-7" strokeWidth={1.6} />
+        </button>
+        <h1 className="text-[1.25rem] font-semibold tracking-[-0.02em]">
+          Notes for appointment
+        </h1>
+      </header>
+
+      <textarea
+        ref={textareaRef}
+        aria-label="Notes for appointment"
+        data-mobile-appointment-notes-input="true"
+        value={draft}
+        maxLength={2_000}
+        spellCheck
+        onChange={(event) => setDraft(event.target.value)}
+        className="min-h-0 flex-1 resize-none bg-background px-5 py-4 text-[1.0625rem] leading-relaxed text-foreground caret-info outline-none placeholder:text-muted-foreground"
+      />
+
+      <div className="shrink-0 bg-linear-to-t from-background via-background to-transparent px-4 pt-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <button
+          type="button"
+          disabled={!canSave}
+          data-mobile-appointment-notes-save="true"
+          onClick={() => onSave(draft.trim())}
+          className="flex h-14 w-full items-center justify-center rounded-xl bg-info text-[1.0625rem] font-semibold text-info-foreground transition-[background-color,color,opacity,transform] active:scale-[0.99] disabled:bg-muted disabled:text-muted-foreground disabled:opacity-65"
+        >
+          Save note
         </button>
       </div>
     </div>

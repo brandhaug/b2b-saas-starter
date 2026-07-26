@@ -120,6 +120,15 @@ const setNativeInputValue = (input: HTMLInputElement, value: string) => {
   if (setter) Reflect.apply(setter, input, [value])
 }
 
+const setNativeTextareaValue = (textarea: HTMLTextAreaElement, value: string) => {
+  // oxlint-disable-next-line typescript/unbound-method
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    'value'
+  )?.set
+  if (setter) Reflect.apply(setter, textarea, [value])
+}
+
 afterEach(async () => {
   if (root) await act(async () => root?.unmount())
   root = undefined
@@ -182,6 +191,49 @@ describe('MobileNewAppointmentSheet interaction', () => {
 
     await act(async () => notify?.click())
     expect(notify?.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('edits and saves appointment notes without losing the draft', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(<MobileNewAppointmentSheet open onRequestClose={vi.fn()} />)
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-mobile-new-appointment-field="appointment-notes"]'
+        )
+        ?.click()
+    )
+
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      '[data-mobile-appointment-notes-input="true"]'
+    )
+    const save = container.querySelector<HTMLButtonElement>(
+      '[data-mobile-appointment-notes-save="true"]'
+    )
+    expect(
+      container.querySelector('[data-mobile-appointment-notes="true"]')
+    ).not.toBeNull()
+    expect(document.activeElement).toBe(textarea)
+    expect(save?.disabled).toBe(true)
+
+    await act(async () => {
+      if (!textarea) return
+      setNativeTextareaValue(textarea, 'Prepare the quiet chair')
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(save?.disabled).toBe(false)
+    await act(async () => save?.click())
+
+    expect(container.querySelector('[data-mobile-appointment-notes="true"]')).toBeNull()
+    expect(
+      container.querySelector('[data-mobile-new-appointment-field="appointment-notes"]')
+        ?.textContent
+    ).toContain('Prepare the quiet chair')
   })
 
   it('opens recurrence at four weeks and applies a new frequency', async () => {
