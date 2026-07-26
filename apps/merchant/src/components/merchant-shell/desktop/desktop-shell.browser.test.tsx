@@ -11,7 +11,13 @@ import { DesktopShell } from './desktop-shell.tsx'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const mocks = vi.hoisted(() => ({ navigate: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  location: {
+    pathname: '/settings',
+    search: { date: '2026-07-27' }
+  },
+  navigate: vi.fn()
+}))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -36,7 +42,7 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
-  useLocation: () => ({ search: { date: '2026-07-27' } }),
+  useLocation: () => mocks.location,
   useRouter: () => ({ navigate: mocks.navigate })
 }))
 
@@ -54,6 +60,7 @@ let root: Root | undefined
 
 beforeEach(() => {
   vi.useFakeTimers()
+  mocks.location.pathname = '/settings'
   mocks.navigate.mockReset()
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
@@ -79,6 +86,61 @@ afterEach(async () => {
 })
 
 describe('DesktopRouteModal motion', () => {
+  it('does not start a second content entrance after the dialog entrance settles', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(
+        <DesktopShell
+          layout="modal"
+          section={{ kind: 'merchant' }}
+          destinations={destinations}
+          title="Settings"
+          description="Merchant settings"
+        >
+          <p>Settings content</p>
+        </DesktopShell>
+      )
+    )
+
+    const dialog = container.querySelector<HTMLDialogElement>('.merchant-desktop-modal')
+    await act(async () => {
+      for (const eventName of ['animationend', 'webkitAnimationEnd']) {
+        const event = new Event(eventName, { bubbles: true })
+        Object.defineProperty(event, 'animationName', {
+          value: 'merchant-desktop-modal-enter'
+        })
+        dialog?.dispatchEvent(event)
+      }
+    })
+
+    expect(dialog?.dataset.desktopModalState).toBe('open')
+    expect(
+      container.querySelector('[data-desktop-primary-route-motion="true"]')
+    ).toBeNull()
+
+    mocks.location.pathname = '/services'
+    await act(async () =>
+      root?.render(
+        <DesktopShell
+          layout="modal"
+          section={{ kind: 'merchant' }}
+          destinations={destinations}
+          title="Services"
+          description="Merchant services"
+        >
+          <p>Services content</p>
+        </DesktopShell>
+      )
+    )
+
+    expect(
+      container.querySelector('[data-desktop-primary-route-motion="true"]')
+    ).not.toBeNull()
+  })
+
   it('opens Appearance in a second desktop dialog and restores row focus', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)

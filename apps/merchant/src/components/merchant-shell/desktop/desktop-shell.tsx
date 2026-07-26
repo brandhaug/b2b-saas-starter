@@ -233,6 +233,9 @@ function DesktopRouteModal({
     closeTimerRef.current = setTimeout(navigateHome, 200)
   }
 
+  const shouldAnimatePrimaryRoute =
+    modalState === 'open' && previousPathnameRef.current !== location.pathname
+
   const handleAnimationEnd = (event: AnimationEvent<HTMLDialogElement>) => {
     if (event.target !== event.currentTarget) return
     if (
@@ -288,7 +291,7 @@ function DesktopRouteModal({
           <div
             key={location.pathname}
             data-desktop-primary-route-motion={
-              modalState === 'open' ? 'true' : undefined
+              shouldAnimatePrimaryRoute ? 'true' : undefined
             }
           >
             {children}
