@@ -1,9 +1,7 @@
 import { Link, useLocation, useRouter } from '@tanstack/react-router'
 import { ChevronLeft, X } from 'lucide-react'
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
@@ -11,7 +9,7 @@ import {
   useRef,
   useState
 } from 'react'
-import type { AnimationEvent, ReactNode } from 'react'
+import type { AnimationEvent, ReactNode, RefObject } from 'react'
 import { BeeSoloMark } from '@/components/beesolo-logo.tsx'
 import { useMobileCalendarDate } from '@/features/appointments/mobile/use-mobile-calendar-date.ts'
 import {
@@ -21,26 +19,14 @@ import {
 import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
 import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
 import { MerchantHomeAtmosphere } from '../home-atmosphere.tsx'
+import { MobileSheetScrollport as SheetScrollport } from '../mobile/mobile-sheet-scrollport.tsx'
 import { DesktopDateHeader } from './desktop-date-header.tsx'
 import { DesktopHomeActions } from './desktop-home-actions.tsx'
+import {
+  DesktopSecondaryDialogContext,
+  type DesktopSecondaryDialogDescriptor
+} from './desktop-secondary-dialog-context.ts'
 import { DesktopUserButton } from './desktop-user-button.tsx'
-
-type DesktopSecondaryDialogDescriptor = {
-  readonly content: ReactNode
-  readonly id: string
-  readonly title: string
-}
-
-type DesktopSecondaryDialogContextValue = {
-  readonly openSecondaryDialog: (descriptor: DesktopSecondaryDialogDescriptor) => void
-}
-
-const DesktopSecondaryDialogContext =
-  createContext<DesktopSecondaryDialogContextValue | null>(null)
-
-export function useDesktopSecondaryDialog() {
-  return useContext(DesktopSecondaryDialogContext)
-}
 
 export function DesktopShell({
   layout,
@@ -100,10 +86,17 @@ function DesktopRouteModal({
   const [secondaryState, setSecondaryState] = useState<
     'preparing' | 'entering' | 'open' | 'closing'
   >('open')
+  const currentSecondaryDialogRef = useRef(secondaryDialog)
+  const currentSecondaryStateRef = useRef(secondaryState)
   const location = useLocation()
   const previousPathnameRef = useRef(location.pathname)
   const router = useRouter()
   const appointmentDate = appointmentDateFromSearch(location.search)
+
+  useLayoutEffect(() => {
+    currentSecondaryDialogRef.current = secondaryDialog
+    currentSecondaryStateRef.current = secondaryState
+  }, [secondaryDialog, secondaryState])
 
   const clearSecondaryLifecycle = useCallback(() => {
     if (secondaryFrameRef.current) {
@@ -124,19 +117,29 @@ function DesktopRouteModal({
         return
       }
       if (state !== 'closing') return
+      const onAfterClose = secondaryDialog?.onAfterClose
       clearSecondaryLifecycle()
       setSecondaryDialog(null)
       setSecondaryState('open')
+      onAfterClose?.()
     },
-    [clearSecondaryLifecycle]
+    [clearSecondaryLifecycle, secondaryDialog]
   )
 
   const openSecondaryDialog = useCallback(
     (descriptor: DesktopSecondaryDialogDescriptor) => {
+      const currentDialog = currentSecondaryDialogRef.current
+      const currentState = currentSecondaryStateRef.current
+
+      if (currentDialog?.id === descriptor.id && currentState !== 'closing') {
+        setSecondaryDialog(descriptor)
+        return
+      }
+
       secondaryOriginRef.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null
 
-      if (secondaryDialog && secondaryState !== 'closing') {
+      if (currentDialog && currentState !== 'closing') {
         setSecondaryDialog(descriptor)
         return
       }
@@ -145,7 +148,7 @@ function DesktopRouteModal({
       setSecondaryState('preparing')
       setSecondaryDialog(descriptor)
     },
-    [clearSecondaryLifecycle, secondaryDialog, secondaryState]
+    [clearSecondaryLifecycle]
   )
 
   const closeSecondaryDialog = useCallback(() => {
@@ -170,7 +173,14 @@ function DesktopRouteModal({
 
   useLayoutEffect(() => {
     if (previousPathnameRef.current === location.pathname) return
+    const previousPathname = previousPathnameRef.current
     previousPathnameRef.current = location.pathname
+    if (
+      previousPathname.startsWith('/settings') &&
+      location.pathname.startsWith('/settings/')
+    ) {
+      return
+    }
     clearSecondaryLifecycle()
     secondaryOriginRef.current = null
     setSecondaryDialog(null)
@@ -204,16 +214,18 @@ function DesktopRouteModal({
     }
   }, [finishSecondaryAnimation, secondaryState])
 
+  const secondaryDialogId = secondaryDialog?.id
+
   useLayoutEffect(() => {
-    if (secondaryDialog && secondaryState === 'open') {
+    if (secondaryDialogId && secondaryState === 'open') {
       secondaryDialogRef.current?.focus({ preventScroll: true })
       return
     }
-    if (secondaryDialog) return
+    if (secondaryDialogId) return
     const origin = secondaryOriginRef.current
     secondaryOriginRef.current = null
     if (origin?.isConnected) origin.focus({ preventScroll: true })
-  }, [secondaryDialog, secondaryState])
+  }, [secondaryDialogId, secondaryState])
 
   const navigateHome = useCallback(() => {
     if (hasNavigatedRef.current) return
@@ -326,50 +338,76 @@ function DesktopRouteModal({
         </div>
 
         {secondaryDialog ? (
-          <dialog
-            ref={secondaryDialogRef}
-            open
-            aria-labelledby="merchant-desktop-secondary-title"
-            tabIndex={-1}
-            data-desktop-secondary-dialog={secondaryDialog.id}
-            data-desktop-secondary-state={secondaryState}
-            inert={secondaryState === 'open' ? undefined : true}
-            className="merchant-desktop-sidecar"
-            onAnimationEnd={(event) => {
-              if (event.target !== event.currentTarget) return
-              finishSecondaryAnimation(secondaryState)
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') return
-              event.preventDefault()
-              event.stopPropagation()
-              closeSecondaryDialog()
-            }}
-          >
-            <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
-              <button
-                type="button"
-                aria-label="Back to Settings"
-                className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-transform active:scale-[0.98]"
-                onClick={closeSecondaryDialog}
-              >
-                <ChevronLeft aria-hidden className="size-5" strokeWidth={1.8} />
-              </button>
-              <h2
-                id="merchant-desktop-secondary-title"
-                className="truncate text-center text-sm leading-5 font-medium"
-              >
-                {secondaryDialog.title}
-              </h2>
-              <span aria-hidden />
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-4 pb-8">
-              <div key={secondaryDialog.id}>{secondaryDialog.content}</div>
-            </div>
-          </dialog>
+          <DesktopSecondaryDialogSurface
+            descriptor={secondaryDialog}
+            dialogRef={secondaryDialogRef}
+            state={secondaryState}
+            onClose={closeSecondaryDialog}
+            onFinishAnimation={finishSecondaryAnimation}
+          />
         ) : null}
       </dialog>
     </DesktopSecondaryDialogContext.Provider>
+  )
+}
+
+function DesktopSecondaryDialogSurface({
+  descriptor,
+  dialogRef,
+  state,
+  onClose,
+  onFinishAnimation
+}: {
+  readonly descriptor: DesktopSecondaryDialogDescriptor
+  readonly dialogRef: RefObject<HTMLDialogElement | null>
+  readonly state: 'preparing' | 'entering' | 'open' | 'closing'
+  readonly onClose: () => void
+  readonly onFinishAnimation: (
+    state: 'preparing' | 'entering' | 'open' | 'closing'
+  ) => void
+}) {
+  return (
+    <dialog
+      ref={dialogRef}
+      open
+      aria-labelledby="merchant-desktop-secondary-title"
+      tabIndex={-1}
+      data-desktop-secondary-dialog={descriptor.id}
+      data-desktop-secondary-state={state}
+      inert={state === 'open' ? undefined : true}
+      className="merchant-desktop-sidecar"
+      onAnimationEnd={(event) => {
+        if (event.target !== event.currentTarget) return
+        onFinishAnimation(state)
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.preventDefault()
+        event.stopPropagation()
+        onClose()
+      }}
+    >
+      <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
+        <button
+          type="button"
+          aria-label="Back to Settings"
+          className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-transform active:scale-[0.98]"
+          onClick={onClose}
+        >
+          <ChevronLeft aria-hidden className="size-5" strokeWidth={1.8} />
+        </button>
+        <h2
+          id="merchant-desktop-secondary-title"
+          className="truncate text-center text-sm leading-5 font-medium"
+        >
+          {descriptor.title}
+        </h2>
+        <span aria-hidden />
+      </header>
+      <SheetScrollport className="px-8 pt-2 pb-8">
+        <div key={descriptor.id}>{descriptor.content}</div>
+      </SheetScrollport>
+    </dialog>
   )
 }
 

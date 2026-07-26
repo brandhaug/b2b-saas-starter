@@ -7,7 +7,7 @@ const MERCHANT_OVERLAY_PATHS = [
   /^\/customers\/?$/,
   /^\/providers\/?$/,
   /^\/services\/?$/,
-  /^\/settings\/?$/,
+  /^\/settings(?:\/[^/]+)?\/?$/,
   /^\/walk-ins\/?$/
 ]
 

@@ -5,6 +5,7 @@ import {
   CalendarClock,
   ChevronRight,
   Code2,
+  CreditCard,
   LogOut,
   Palette,
   Scissors,
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react'
 import { MerchantAvatar } from '@/components/merchant-avatar.tsx'
 import { MerchantAdvancedSettings } from '@/components/merchant-advanced-settings.tsx'
-import { useDesktopSecondaryDialog } from '@/components/merchant-shell/desktop/desktop-shell.tsx'
+import { useDesktopSecondaryDialog } from '@/components/merchant-shell/desktop/desktop-secondary-dialog-context.ts'
 import { MerchantThemeControl } from '@/components/merchant-theme-control.tsx'
 import { merchantOverlayNavigationState } from '@/lib/merchant-home-route.ts'
 import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
@@ -24,7 +25,14 @@ type SignOutState = {
   readonly signOut: () => void
 }
 
-type SettingsDestination = '/availability' | '/customers' | '/providers' | '/services'
+type SettingsDestination =
+  | '/availability'
+  | '/customers'
+  | '/providers'
+  | '/services'
+  | '/settings/advanced'
+  | '/settings/appearance'
+  | '/settings/subscription'
 
 export function MerchantSettingsPanel({
   appointmentDate,
@@ -96,21 +104,18 @@ export function MerchantSettingsPanel({
         </SettingsGroup>
 
         <SettingsGroup>
+          <SettingsLink
+            appointmentDate={appointmentDate}
+            icon={<CreditCard />}
+            label="Subscription"
+            to="/settings/subscription"
+          />
           {desktopSecondaryDialog ? (
-            <SettingsDialogButton
+            <SettingsLink
+              appointmentDate={appointmentDate}
               icon={<Palette />}
               label="Appearance"
-              onClick={() =>
-                desktopSecondaryDialog.openSecondaryDialog({
-                  id: 'appearance',
-                  title: 'Appearance',
-                  content: (
-                    <div className="[&>fieldset]:mt-0">
-                      <MerchantThemeControl />
-                    </div>
-                  )
-                })
-              }
+              to="/settings/appearance"
             />
           ) : (
             <SettingsDisclosure icon={<Palette />} label="Appearance">
@@ -120,16 +125,11 @@ export function MerchantSettingsPanel({
             </SettingsDisclosure>
           )}
           {desktopSecondaryDialog ? (
-            <SettingsDialogButton
+            <SettingsLink
+              appointmentDate={appointmentDate}
               icon={<Code2 />}
               label="Advanced"
-              onClick={() =>
-                desktopSecondaryDialog.openSecondaryDialog({
-                  id: 'advanced',
-                  title: 'Advanced',
-                  content: <MerchantAdvancedSettings />
-                })
-              }
+              to="/settings/advanced"
             />
           ) : (
             <SettingsDisclosure icon={<Code2 />} label="Advanced">
@@ -160,29 +160,6 @@ export function MerchantSettingsPanel({
         ) : null}
       </div>
     </div>
-  )
-}
-
-function SettingsDialogButton({
-  icon,
-  label,
-  onClick
-}: {
-  readonly icon: ReactNode
-  readonly label: string
-  readonly onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={`Open ${label} settings`}
-      data-merchant-settings-row="true"
-      className="group flex min-h-[3.3125rem] w-full items-center justify-between px-4 text-left transition-colors active:bg-muted/80 md:hover:bg-muted/60"
-      onClick={onClick}
-    >
-      <SettingsRowLabel icon={icon} label={label} />
-      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-    </button>
   )
 }
 

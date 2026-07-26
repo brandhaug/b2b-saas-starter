@@ -5,8 +5,12 @@ import type { ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MerchantSettingsPanel } from '@/components/merchant-settings-panel.tsx'
+import { MerchantAdvancedSettings } from '@/components/merchant-advanced-settings.tsx'
+import { MerchantSubscriptionPanel } from '@/components/merchant-subscription-panel.tsx'
+import { MerchantThemeControl } from '@/components/merchant-theme-control.tsx'
 import { MerchantPresentationProvider } from '../merchant-presentation.tsx'
 import type { MerchantDestination } from '../navigation.tsx'
+import { DesktopSecondaryDialogRoute } from './desktop-secondary-dialog-route.tsx'
 import { DesktopShell } from './desktop-shell.tsx'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -222,6 +226,13 @@ describe('DesktopRouteModal motion', () => {
             signOut={{ error: null, pending: false, signOut: vi.fn() }}
             viewer={{ name: 'Mara Ionescu', email: 'mara@example.com', image: null }}
           />
+          <DesktopSecondaryDialogRoute
+            id="appearance"
+            title="Appearance"
+            onAfterClose={vi.fn()}
+          >
+            <MerchantThemeControl />
+          </DesktopSecondaryDialogRoute>
         </DesktopShell>
       )
     )
@@ -231,13 +242,6 @@ describe('DesktopRouteModal motion', () => {
     )
     mockDialogRect(primary)
     await finishDialogEntrance(primary)
-    await act(async () =>
-      container
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Open Appearance settings"]'
-        )
-        ?.click()
-    )
     await act(async () => vi.advanceTimersByTime(16))
     await act(async () => vi.advanceTimersByTime(500))
 
@@ -274,33 +278,42 @@ describe('DesktopRouteModal motion', () => {
     document.body.appendChild(container)
     root = createRoot(container)
 
-    await act(async () =>
-      root?.render(
-        <DesktopShell
-          layout="modal"
-          section={{ kind: 'merchant' }}
-          destinations={destinations}
-          title="Settings"
-          description="Merchant settings"
-        >
-          <MerchantSettingsPanel
-            appointmentDate="2026-07-27"
-            signOut={{ error: null, pending: false, signOut: vi.fn() }}
-            viewer={{
-              name: 'Mara Ionescu',
-              email: 'mara@example.com',
-              image: null
-            }}
-          />
-        </DesktopShell>
+    const renderDetail = async (detail: 'appearance' | 'advanced') =>
+      act(async () =>
+        root?.render(
+          <DesktopShell
+            layout="modal"
+            section={{ kind: 'merchant' }}
+            destinations={destinations}
+            title="Settings"
+            description="Merchant settings"
+          >
+            <MerchantSettingsPanel
+              appointmentDate="2026-07-27"
+              signOut={{ error: null, pending: false, signOut: vi.fn() }}
+              viewer={{
+                name: 'Mara Ionescu',
+                email: 'mara@example.com',
+                image: null
+              }}
+            />
+            <DesktopSecondaryDialogRoute
+              key={detail}
+              id={detail}
+              title={detail === 'appearance' ? 'Appearance' : 'Advanced'}
+              onAfterClose={vi.fn()}
+            >
+              {detail === 'appearance' ? (
+                <MerchantThemeControl />
+              ) : (
+                <MerchantAdvancedSettings />
+              )}
+            </DesktopSecondaryDialogRoute>
+          </DesktopShell>
+        )
       )
-    )
 
-    const appearance = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open Appearance settings"]'
-    )
-    appearance?.focus()
-    await act(async () => appearance?.click())
+    await renderDetail('appearance')
 
     const primary = container.querySelector<HTMLDialogElement>(
       '.merchant-desktop-modal'
@@ -324,11 +337,11 @@ describe('DesktopRouteModal motion', () => {
     expect(sidecar?.dataset.desktopSecondaryState).toBe('open')
     expect(document.activeElement).toBe(sidecar)
 
-    const advanced = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open Advanced settings"]'
+    const advanced = container.querySelector<HTMLAnchorElement>(
+      'a[href="/settings/advanced"]'
     )
     advanced?.focus()
-    await act(async () => advanced?.click())
+    await renderDetail('advanced')
 
     const switchedSidecar = document.body.querySelector<HTMLDialogElement>(
       '.merchant-desktop-sidecar'
@@ -376,14 +389,15 @@ describe('DesktopRouteModal motion', () => {
               image: null
             }}
           />
+          <DesktopSecondaryDialogRoute
+            id="advanced"
+            title="Advanced"
+            onAfterClose={vi.fn()}
+          >
+            <MerchantAdvancedSettings />
+          </DesktopSecondaryDialogRoute>
         </DesktopShell>
       )
-    )
-
-    await act(async () =>
-      container
-        .querySelector<HTMLButtonElement>('button[aria-label="Open Advanced settings"]')
-        ?.click()
     )
 
     const sidecar = document.body.querySelector<HTMLDialogElement>(
@@ -392,6 +406,79 @@ describe('DesktopRouteModal motion', () => {
     expect(sidecar?.dataset.desktopSecondaryDialog).toBe('advanced')
     expect(sidecar?.textContent).toContain('Platform API token')
     expect(sidecar?.textContent).toContain('Webhook signing secret')
+  })
+
+  it('opens Subscription in the persistent desktop side dialog', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    const afterClose = vi.fn()
+
+    const renderSubscription = async (plan: 'solo' | 'team') =>
+      act(async () =>
+        root?.render(
+          <DesktopShell
+            layout="modal"
+            section={{ kind: 'merchant' }}
+            destinations={destinations}
+            title="Settings"
+            description="Merchant settings"
+          >
+            <MerchantSettingsPanel
+              appointmentDate="2026-07-27"
+              signOut={{ error: null, pending: false, signOut: vi.fn() }}
+              viewer={{ name: 'Mara Ionescu', email: 'mara@example.com', image: null }}
+            />
+            <DesktopSecondaryDialogRoute
+              id="subscription"
+              title="Subscription"
+              contentRevision={plan}
+              onAfterClose={afterClose}
+            >
+              <MerchantSubscriptionPanel plan={plan} />
+            </DesktopSecondaryDialogRoute>
+          </DesktopShell>
+        )
+      )
+
+    await renderSubscription('team')
+
+    await act(async () => vi.advanceTimersByTime(16))
+    await act(async () => vi.advanceTimersByTime(500))
+
+    const sidecar = container.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-sidecar'
+    )
+    expect(sidecar?.dataset.desktopSecondaryDialog).toBe('subscription')
+    expect(sidecar?.textContent).toContain('Subscription')
+    expect(sidecar?.textContent).toContain('Team')
+    expect(sidecar?.textContent).toContain('Needs configuration')
+    expect(sidecar?.textContent).not.toContain('$')
+    expect(
+      sidecar?.querySelector('[data-mobile-sheet-scroll-fade="bottom"]')
+    ).toBeTruthy()
+
+    const teamPlanButton = Array.from(
+      sidecar?.querySelectorAll<HTMLButtonElement>('button') ?? []
+    ).find((button) => button.textContent === 'Team')
+    teamPlanButton?.focus()
+    expect(document.activeElement).toBe(teamPlanButton)
+
+    await renderSubscription('solo')
+    expect(container.querySelector('.merchant-desktop-sidecar')).toBe(sidecar)
+    expect(sidecar?.dataset.desktopSecondaryState).toBe('open')
+    expect(document.activeElement).toBe(teamPlanButton)
+    expect(sidecar?.textContent).toContain('One active provider')
+    expect(sidecar?.textContent).not.toContain('Multiple providers')
+
+    await act(async () =>
+      sidecar
+        ?.querySelector<HTMLButtonElement>('[aria-label="Back to Settings"]')
+        ?.click()
+    )
+    await act(async () => vi.advanceTimersByTime(180))
+    expect(afterClose).toHaveBeenCalledOnce()
   })
 
   it('opens appointment creation as a native desktop dialog without mobile chrome', async () => {

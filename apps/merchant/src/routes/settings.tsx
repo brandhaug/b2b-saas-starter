@@ -1,6 +1,7 @@
-import { createFileRoute, useLocation } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router'
 import { MerchantSettingsPanel } from '@/components/merchant-settings-panel.tsx'
 import { MerchantShell } from '@/components/merchant-shell/index.ts'
+import { MerchantPresentationBoundary } from '@/components/merchant-shell/merchant-presentation.tsx'
 import { useMerchantSignOut } from '@/hooks/use-merchant-sign-out.ts'
 import { merchantHomeDate } from '@/lib/merchant-home-date.ts'
 import { merchantViewerFromUser } from '@/lib/merchant-viewer.ts'
@@ -19,6 +20,13 @@ function MerchantSettings() {
   const location = useLocation()
   const signOut = useMerchantSignOut()
   const appointmentDate = merchantHomeDate(location.search, location.state)
+  const settingsPanel = (
+    <MerchantSettingsPanel
+      appointmentDate={appointmentDate}
+      signOut={signOut}
+      viewer={merchantViewer ?? undefined}
+    />
+  )
 
   return (
     <MerchantShell
@@ -27,10 +35,14 @@ function MerchantSettings() {
       description="Manage your Merchant, presentation, and integrations."
       viewer={merchantViewer ?? undefined}
     >
-      <MerchantSettingsPanel
-        appointmentDate={appointmentDate}
-        signOut={signOut}
-        viewer={merchantViewer ?? undefined}
+      <MerchantPresentationBoundary
+        desktop={
+          <>
+            {settingsPanel}
+            <Outlet />
+          </>
+        }
+        mobile={location.pathname.startsWith('/settings/') ? <Outlet /> : settingsPanel}
       />
     </MerchantShell>
   )

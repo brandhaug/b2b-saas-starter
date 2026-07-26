@@ -4,9 +4,11 @@ import { Effect, Layer, Schema } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
   liveMerchantContext,
+  MerchantContext,
   ProviderInput,
   ServiceInput,
   type MerchantCatalogSnapshot,
+  type MerchantIdentity,
   type ProviderRecord,
   type ServiceRecord
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
@@ -57,6 +59,16 @@ export const getMerchantCatalog = createServerFn({ method: 'GET' }).handler(
       requestsFor(session.user.id).read()
     )
   }
+)
+
+export const getMerchantPlan = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<MerchantIdentity['plan']> =>
+    runMerchantRequest('financial.read', (session) =>
+      runCatalog(
+        session.user.id,
+        Effect.map(MerchantContext, (merchant) => merchant.plan)
+      )
+    )
 )
 
 export const saveMerchantService = createServerFn({ method: 'POST' })

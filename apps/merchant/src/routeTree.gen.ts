@@ -23,6 +23,9 @@ import { Route as AvailabilityRouteImport } from './routes/availability'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsSubscriptionRouteImport } from './routes/settings.subscription'
+import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
+import { Route as SettingsAdvancedRouteImport } from './routes/settings.advanced'
 import { Route as AppointmentsAppointmentIdRouteImport } from './routes/appointments.$appointmentId'
 import { Route as ImpersonationHandoffsExchangeRouteImport } from './routes/impersonation.handoffs.exchange'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
@@ -97,6 +100,21 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsSubscriptionRoute = SettingsSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
+  id: '/advanced',
+  path: '/advanced',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const AppointmentsAppointmentIdRoute =
   AppointmentsAppointmentIdRouteImport.update({
     id: '/$appointmentId',
@@ -125,12 +143,15 @@ export interface FileRoutesByFullPath {
   '/providers': typeof ProvidersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
   '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
+  '/settings/advanced': typeof SettingsAdvancedRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/subscription': typeof SettingsSubscriptionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
 }
@@ -144,12 +165,15 @@ export interface FileRoutesByTo {
   '/providers': typeof ProvidersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
   '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
+  '/settings/advanced': typeof SettingsAdvancedRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/subscription': typeof SettingsSubscriptionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
 }
@@ -164,12 +188,15 @@ export interface FileRoutesById {
   '/providers': typeof ProvidersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/verify-email': typeof VerifyEmailRoute
   '/walk-ins': typeof WalkInsRoute
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
+  '/settings/advanced': typeof SettingsAdvancedRoute
+  '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/subscription': typeof SettingsSubscriptionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
 }
@@ -191,6 +218,9 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/walk-ins'
     | '/appointments/$appointmentId'
+    | '/settings/advanced'
+    | '/settings/appearance'
+    | '/settings/subscription'
     | '/api/auth/$'
     | '/impersonation/handoffs/exchange'
   fileRoutesByTo: FileRoutesByTo
@@ -210,6 +240,9 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/walk-ins'
     | '/appointments/$appointmentId'
+    | '/settings/advanced'
+    | '/settings/appearance'
+    | '/settings/subscription'
     | '/api/auth/$'
     | '/impersonation/handoffs/exchange'
   id:
@@ -229,6 +262,9 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/walk-ins'
     | '/appointments/$appointmentId'
+    | '/settings/advanced'
+    | '/settings/appearance'
+    | '/settings/subscription'
     | '/api/auth/$'
     | '/impersonation/handoffs/exchange'
   fileRoutesById: FileRoutesById
@@ -243,7 +279,7 @@ export interface RootRouteChildren {
   ProvidersRoute: typeof ProvidersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ServicesRoute: typeof ServicesRoute
-  SettingsRoute: typeof SettingsRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
@@ -352,6 +388,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/subscription': {
+      id: '/settings/subscription'
+      path: '/subscription'
+      fullPath: '/settings/subscription'
+      preLoaderRoute: typeof SettingsSubscriptionRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/appearance': {
+      id: '/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof SettingsAppearanceRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/advanced': {
+      id: '/settings/advanced'
+      path: '/advanced'
+      fullPath: '/settings/advanced'
+      preLoaderRoute: typeof SettingsAdvancedRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/appointments/$appointmentId': {
       id: '/appointments/$appointmentId'
       path: '/$appointmentId'
@@ -388,6 +445,22 @@ const AppointmentsRouteWithChildren = AppointmentsRoute._addFileChildren(
   AppointmentsRouteChildren,
 )
 
+interface SettingsRouteChildren {
+  SettingsAdvancedRoute: typeof SettingsAdvancedRoute
+  SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsSubscriptionRoute: typeof SettingsSubscriptionRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsAdvancedRoute: SettingsAdvancedRoute,
+  SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsSubscriptionRoute: SettingsSubscriptionRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
@@ -398,7 +471,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProvidersRoute: ProvidersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ServicesRoute: ServicesRoute,
-  SettingsRoute: SettingsRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
   VerifyEmailRoute: VerifyEmailRoute,

@@ -33,7 +33,13 @@ function fallbackMobileSheetDescriptor(pathname: string): MobileSheetDescriptor 
               ? 'Providers'
               : pathname === '/availability'
                 ? 'Availability'
-                : 'Settings'
+                : pathname === '/settings/subscription'
+                  ? 'Subscription'
+                  : pathname === '/settings/appearance'
+                    ? 'Appearance'
+                    : pathname === '/settings/advanced'
+                      ? 'Advanced'
+                      : 'Settings'
   return {
     section:
       pathname === '/services' ||
@@ -63,12 +69,19 @@ export function MerchantMobileSheetOutlet({
   const presentation = useMerchantPresentation()
   const router = useRouter()
   const stack = useMobileSheetStack()
+  const nestedSettingsSheet = pathname.startsWith('/settings/')
 
   if (presentation === 'desktop') {
     if (!overlayOpen) return <>{children}</>
     const fallback = fallbackMobileSheetDescriptor(pathname)
-    const descriptor =
-      stack?.descriptor?.title === fallback.title ? stack.descriptor : fallback
+    const settingsFallback = fallbackMobileSheetDescriptor('/settings')
+    const descriptor = nestedSettingsSheet
+      ? stack?.descriptor?.title === settingsFallback.title
+        ? stack.descriptor
+        : settingsFallback
+      : stack?.descriptor?.title === fallback.title
+        ? stack.descriptor
+        : fallback
 
     return (
       <DesktopShell
@@ -88,7 +101,9 @@ export function MerchantMobileSheetOutlet({
 
   const active = stack.menuOpen || overlayOpen
   const descriptor = overlayOpen
-    ? (stack.descriptor ?? fallbackMobileSheetDescriptor(pathname))
+    ? nestedSettingsSheet
+      ? fallbackMobileSheetDescriptor(pathname)
+      : (stack.descriptor ?? fallbackMobileSheetDescriptor(pathname))
     : {
         section: { kind: 'merchant' } as const,
         title: 'Settings',
@@ -119,7 +134,18 @@ export function MerchantMobileSheetOutlet({
           title={descriptor.title}
           description={descriptor.description}
           onRequestBack={
-            overlayOpen && stack.menuOpen ? () => router.history.back() : undefined
+            nestedSettingsSheet
+              ? () => {
+                  void router.navigate({
+                    to: '/settings',
+                    search: appointmentDate ? { date: appointmentDate } : {},
+                    replace: true,
+                    viewTransition: false
+                  })
+                }
+              : overlayOpen && stack.menuOpen
+                ? () => router.history.back()
+                : undefined
           }
           onRequestClose={
             overlayOpen && stack.menuOpen
