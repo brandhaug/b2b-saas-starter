@@ -18,6 +18,18 @@ const calendar = {
 }
 
 describe('MobileAppointmentsScreen', () => {
+  it('exposes the weekday and date as a calendar trigger on mobile', () => {
+    const html = renderToStaticMarkup(
+      <MerchantPresentationProvider presentation="mobile">
+        <MobileAppointmentsScreen calendar={calendar} selectedDate={calendar.date} />
+      </MerchantPresentationProvider>
+    )
+
+    expect(html).toContain('data-mobile-date-calendar-trigger="true"')
+    expect(html).toContain('aria-haspopup="dialog"')
+    expect(html).toContain('aria-expanded="false"')
+  })
+
   it('keeps the desktop week strip outside the appointment scrollport', () => {
     const html = renderToStaticMarkup(
       <MerchantPresentationProvider presentation="desktop">

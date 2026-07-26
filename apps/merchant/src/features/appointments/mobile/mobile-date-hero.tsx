@@ -5,11 +5,15 @@ import { mobileDateHeading } from './mobile-appointments-model.ts'
 export function MobileDateHero({
   date,
   currentDate,
-  timezone: _timezone
+  timezone: _timezone,
+  calendarOpen,
+  onOpenCalendar
 }: {
   readonly date: string
   readonly currentDate: string
   readonly timezone: string
+  readonly calendarOpen: boolean
+  readonly onOpenCalendar: () => void
 }) {
   const heading = mobileDateHeading(date)
   const [weekday = 'Selected day', ...rest] = heading.fullDate.split(', ')
@@ -50,7 +54,15 @@ export function MobileDateHero({
           aria-hidden
         />
       </div>
-      <div className="pb-1 text-right">
+      <button
+        type="button"
+        aria-label={`Open calendar for ${heading.fullDate}`}
+        aria-haspopup="dialog"
+        aria-expanded={calendarOpen}
+        data-mobile-date-calendar-trigger="true"
+        className="flex min-h-11 min-w-11 flex-col items-end justify-end rounded-xl pb-1 text-right transition-transform active:scale-[0.98]"
+        onClick={onOpenCalendar}
+      >
         {/* <p className="text-xl leading-tight font-bold text-foreground">
           {weekday}
         </p> */}
@@ -67,7 +79,7 @@ export function MobileDateHero({
         {/* <p className="mt-2 text-[0.65rem] font-semibold tracking-[0.12em] text-muted-foreground/70 uppercase">
           {timezone}
         </p> */}
-      </div>
+      </button>
     </header>
   )
 }

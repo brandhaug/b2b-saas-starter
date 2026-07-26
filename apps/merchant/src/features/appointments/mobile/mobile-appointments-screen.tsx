@@ -1,5 +1,7 @@
 import type { ProviderCalendar } from '@b2b-saas-starter/capabilities/booking'
 import { useRouter } from '@tanstack/react-router'
+import { useState } from 'react'
+import { MobileCalendarSheet } from '@/components/merchant-shell/mobile/mobile-calendar-sheet.tsx'
 import { useMerchantPresentation } from '@/components/merchant-shell/merchant-presentation.tsx'
 import { MobileAppointmentSummary } from './mobile-appointment-summary.tsx'
 import { MobileAppointmentLedger } from './mobile-appointment-ledger.tsx'
@@ -34,6 +36,7 @@ export function MobileAppointmentsScreen({
   const presentation = useMerchantPresentation()
   const router = useRouter()
   const mobile = presentation === 'mobile'
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const appointmentCount = mobileAppointmentLedger(
     calendar.providers,
     calendar.timezone
@@ -83,6 +86,8 @@ export function MobileAppointmentsScreen({
             date={date}
             currentDate={currentDate}
             timezone={calendar.timezone}
+            calendarOpen={calendarOpen}
+            onOpenCalendar={() => setCalendarOpen(true)}
           />
           <MobileSchedulePullSurface
             greeting={mobileScheduleGreeting(calendar.timezone, undefined, viewerName)}
@@ -91,6 +96,12 @@ export function MobileAppointmentsScreen({
             {weekStrip}
             {appointmentLedger}
           </MobileSchedulePullSurface>
+          <MobileCalendarSheet
+            open={calendarOpen}
+            selectedDate={date}
+            currentDate={currentDate}
+            onRequestClose={() => setCalendarOpen(false)}
+          />
         </>
       ) : (
         <div

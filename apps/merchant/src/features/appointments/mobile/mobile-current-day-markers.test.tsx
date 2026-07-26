@@ -17,6 +17,8 @@ describe('mobile current-day markers', () => {
         date="2026-07-20"
         currentDate="2026-07-20"
         timezone="Europe/Bucharest"
+        calendarOpen={false}
+        onOpenCalendar={() => undefined}
       />
     )
     const anotherDay = renderToStaticMarkup(
@@ -24,6 +26,8 @@ describe('mobile current-day markers', () => {
         date="2026-07-21"
         currentDate="2026-07-20"
         timezone="Europe/Bucharest"
+        calendarOpen={false}
+        onOpenCalendar={() => undefined}
       />
     )
 
