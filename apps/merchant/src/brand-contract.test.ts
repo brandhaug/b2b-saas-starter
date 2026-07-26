@@ -81,7 +81,7 @@ describe('merchant BeeSolo brand contract', () => {
     const css = await readFile(stylesUrl, 'utf8')
     const dialogRule =
       css.match(
-        /\.merchant-desktop-modal,\s*dialog\.merchant-desktop-new-appointment-dialog\.merchant-route-sheet,\s*dialog\.merchant-desktop-new-appointment-sidecar\s*\{([^}]*)\}/
+        /\.merchant-desktop-modal,\s*dialog\.merchant-desktop-new-appointment-dialog\.merchant-route-sheet,\s*dialog\.merchant-desktop-new-appointment-sidecar,\s*dialog\.merchant-desktop-sidecar\s*\{([^}]*)\}/
       )?.[1] ?? ''
     const backdropRule =
       css.match(
@@ -98,7 +98,7 @@ describe('merchant BeeSolo brand contract', () => {
     const sidecarRule =
       [
         ...css.matchAll(
-          /dialog\.merchant-desktop-new-appointment-sidecar\s*\{([^}]*)\}/g
+          /:is\(\s*dialog\.merchant-desktop-new-appointment-sidecar,\s*dialog\.merchant-desktop-sidecar\s*\)\s*\{([^}]*)\}/g
         )
       ]
         .map((match) => match[1] ?? '')
@@ -106,7 +106,7 @@ describe('merchant BeeSolo brand contract', () => {
       ''
     const sidecarBackdropRule =
       css.match(
-        /dialog\.merchant-desktop-new-appointment-sidecar::backdrop\s*\{([^}]*)\}/
+        /:is\(\s*dialog\.merchant-desktop-new-appointment-sidecar,\s*dialog\.merchant-desktop-sidecar\s*\)::backdrop\s*\{([^}]*)\}/
       )?.[1] ?? ''
 
     expect(sidecarRule).toContain('left: 50%')

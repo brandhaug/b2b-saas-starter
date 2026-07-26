@@ -421,7 +421,8 @@ dialog[aria-labelledby='appointment-recurrence-title'] {
 
 .merchant-desktop-modal,
 dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet,
-dialog.merchant-desktop-new-appointment-sidecar {
+dialog.merchant-desktop-new-appointment-sidecar,
+dialog.merchant-desktop-sidecar {
   position: fixed;
   inset: 0;
   z-index: 10;
@@ -442,6 +443,10 @@ dialog.merchant-desktop-new-appointment-sidecar {
 }
 
 .merchant-desktop-modal[open] {
+  display: flex;
+}
+
+dialog.merchant-desktop-sidecar[open] {
   display: flex;
 }
 
@@ -606,8 +611,10 @@ html.merchant-mobile-document
 }
 
 :is(
+  .merchant-desktop-modal,
   dialog.merchant-desktop-new-appointment-dialog,
-  dialog.merchant-desktop-new-appointment-sidecar
+  dialog.merchant-desktop-new-appointment-sidecar,
+  dialog.merchant-desktop-sidecar
 ) {
   --merchant-desktop-primary-spring: linear(
     0,
@@ -641,6 +648,15 @@ html.merchant-mobile-document
     1.003 76%,
     1 100%
   );
+}
+
+.merchant-desktop-modal[data-desktop-modal-state='open'] {
+  transition: transform 500ms var(--merchant-desktop-primary-spring);
+  will-change: transform;
+}
+
+.merchant-desktop-modal[data-desktop-secondary-open='true'] {
+  transform: translateX(-50%);
 }
 
 dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet {
@@ -704,7 +720,7 @@ dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='closing'
   }
 }
 
-dialog.merchant-desktop-new-appointment-sidecar {
+:is(dialog.merchant-desktop-new-appointment-sidecar, dialog.merchant-desktop-sidecar) {
   inset: auto;
   top: 50%;
   left: 50%;
@@ -716,7 +732,10 @@ dialog.merchant-desktop-new-appointment-sidecar {
   will-change: left, opacity, transform;
 }
 
-dialog.merchant-desktop-new-appointment-sidecar::backdrop {
+:is(
+  dialog.merchant-desktop-new-appointment-sidecar,
+  dialog.merchant-desktop-sidecar
+)::backdrop {
   background: transparent;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -729,12 +748,29 @@ dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='prep
   transform: translate3d(0, -50%, 0);
 }
 
+dialog.merchant-desktop-sidecar[data-desktop-secondary-state='preparing'] {
+  visibility: hidden;
+  opacity: 0;
+  left: 100%;
+  transform: translate3d(0, -50%, 0);
+}
+
 dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='entering'] {
   animation: merchant-desktop-sidecar-enter 500ms var(--merchant-desktop-sidecar-spring)
     both;
 }
 
+dialog.merchant-desktop-sidecar[data-desktop-secondary-state='entering'] {
+  animation: merchant-desktop-sidecar-enter 500ms var(--merchant-desktop-sidecar-spring)
+    both;
+}
+
 dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='closing'] {
+  pointer-events: none;
+  animation: merchant-desktop-sidecar-exit 180ms ease-out both;
+}
+
+dialog.merchant-desktop-sidecar[data-desktop-secondary-state='closing'] {
   pointer-events: none;
   animation: merchant-desktop-sidecar-exit 180ms ease-out both;
 }

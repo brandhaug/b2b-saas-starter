@@ -4,6 +4,7 @@ import { act } from 'react'
 import type { ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MerchantSettingsPanel } from '@/components/merchant-settings-panel.tsx'
 import { MerchantPresentationProvider } from '../merchant-presentation.tsx'
 import type { MerchantDestination } from '../navigation.tsx'
 import { DesktopShell } from './desktop-shell.tsx'
@@ -54,6 +55,14 @@ let root: Root | undefined
 beforeEach(() => {
   vi.useFakeTimers()
   mocks.navigate.mockReset()
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: vi.fn(() => null),
+      removeItem: vi.fn(),
+      setItem: vi.fn()
+    }
+  })
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
     value(this: HTMLDialogElement) {
@@ -70,6 +79,112 @@ afterEach(async () => {
 })
 
 describe('DesktopRouteModal motion', () => {
+  it('opens Appearance in a second desktop dialog and restores row focus', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(
+        <DesktopShell
+          layout="modal"
+          section={{ kind: 'merchant' }}
+          destinations={destinations}
+          title="Settings"
+          description="Merchant settings"
+        >
+          <MerchantSettingsPanel
+            appointmentDate="2026-07-27"
+            signOut={{ error: null, pending: false, signOut: vi.fn() }}
+            viewer={{
+              name: 'Mara Ionescu',
+              email: 'mara@example.com',
+              image: null
+            }}
+          />
+        </DesktopShell>
+      )
+    )
+
+    const appearance = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open Appearance settings"]'
+    )
+    appearance?.focus()
+    await act(async () => appearance?.click())
+
+    const primary = container.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-modal'
+    )
+    const sidecar = document.body.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-sidecar'
+    )
+    expect(primary?.dataset.desktopSecondaryOpen).toBe('true')
+    expect(sidecar?.open).toBe(true)
+    expect(sidecar?.dataset.desktopSecondaryDialog).toBe('appearance')
+    expect(sidecar?.dataset.desktopSecondaryState).toBe('preparing')
+    expect(sidecar?.textContent).toContain('Appearance')
+
+    await act(async () => vi.advanceTimersByTime(16))
+    expect(sidecar?.dataset.desktopSecondaryState).toBe('entering')
+
+    await act(async () => vi.advanceTimersByTime(500))
+    expect(sidecar?.dataset.desktopSecondaryState).toBe('open')
+    expect(document.activeElement).toBe(sidecar)
+
+    await act(async () =>
+      sidecar
+        ?.querySelector<HTMLButtonElement>('[aria-label="Back to Settings"]')
+        ?.click()
+    )
+    expect(sidecar?.dataset.desktopSecondaryState).toBe('closing')
+    expect(primary?.dataset.desktopSecondaryOpen).toBeUndefined()
+
+    await act(async () => vi.advanceTimersByTime(180))
+    expect(document.body.querySelector('.merchant-desktop-sidecar')).toBeNull()
+    expect(document.activeElement).toBe(appearance)
+  })
+
+  it('opens Advanced settings in the desktop side dialog', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(
+        <DesktopShell
+          layout="modal"
+          section={{ kind: 'merchant' }}
+          destinations={destinations}
+          title="Settings"
+          description="Merchant settings"
+        >
+          <MerchantSettingsPanel
+            appointmentDate="2026-07-27"
+            signOut={{ error: null, pending: false, signOut: vi.fn() }}
+            viewer={{
+              name: 'Mara Ionescu',
+              email: 'mara@example.com',
+              image: null
+            }}
+          />
+        </DesktopShell>
+      )
+    )
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Open Advanced settings"]')
+        ?.click()
+    )
+
+    const sidecar = document.body.querySelector<HTMLDialogElement>(
+      '.merchant-desktop-sidecar'
+    )
+    expect(sidecar?.dataset.desktopSecondaryDialog).toBe('advanced')
+    expect(sidecar?.textContent).toContain('Platform API token')
+    expect(sidecar?.textContent).toContain('Webhook signing secret')
+  })
+
   it('opens appointment creation as a native desktop dialog without mobile chrome', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)

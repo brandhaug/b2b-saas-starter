@@ -1,6 +1,16 @@
 import { Link, useLocation, useRouter } from '@tanstack/react-router'
-import { X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ChevronLeft, X } from 'lucide-react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { createPortal } from 'react-dom'
 import type { AnimationEvent, ReactNode } from 'react'
 import { BeeSoloMark } from '@/components/beesolo-logo.tsx'
 import { useMobileCalendarDate } from '@/features/appointments/mobile/use-mobile-calendar-date.ts'
@@ -14,6 +24,23 @@ import { MerchantHomeAtmosphere } from '../home-atmosphere.tsx'
 import { DesktopDateHeader } from './desktop-date-header.tsx'
 import { DesktopHomeActions } from './desktop-home-actions.tsx'
 import { DesktopUserButton } from './desktop-user-button.tsx'
+
+type DesktopSecondaryDialogDescriptor = {
+  readonly content: ReactNode
+  readonly id: string
+  readonly title: string
+}
+
+type DesktopSecondaryDialogContextValue = {
+  readonly openSecondaryDialog: (descriptor: DesktopSecondaryDialogDescriptor) => void
+}
+
+const DesktopSecondaryDialogContext =
+  createContext<DesktopSecondaryDialogContextValue | null>(null)
+
+export function useDesktopSecondaryDialog() {
+  return useContext(DesktopSecondaryDialogContext)
+}
 
 export function DesktopShell({
   layout,
@@ -59,22 +86,122 @@ function DesktopRouteModal({
   readonly children: ReactNode
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const secondaryDialogRef = useRef<HTMLDialogElement>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const secondaryFrameRef = useRef<number | null>(null)
+  const secondaryTimerRef = useRef<number | null>(null)
+  const secondaryOriginRef = useRef<HTMLElement | null>(null)
   const hasNavigatedRef = useRef(false)
   const [modalState, setModalState] = useState<'entering' | 'open' | 'closing'>(
     'entering'
   )
+  const [secondaryDialog, setSecondaryDialog] =
+    useState<DesktopSecondaryDialogDescriptor | null>(null)
+  const [secondaryState, setSecondaryState] = useState<
+    'preparing' | 'entering' | 'open' | 'closing'
+  >('open')
   const location = useLocation()
   const router = useRouter()
   const appointmentDate = appointmentDateFromSearch(location.search)
+
+  const clearSecondaryLifecycle = useCallback(() => {
+    if (secondaryFrameRef.current) {
+      window.cancelAnimationFrame(secondaryFrameRef.current)
+      secondaryFrameRef.current = null
+    }
+    if (secondaryTimerRef.current) {
+      window.clearTimeout(secondaryTimerRef.current)
+      secondaryTimerRef.current = null
+    }
+  }, [])
+
+  const finishSecondaryAnimation = useCallback(
+    (state: 'preparing' | 'entering' | 'open' | 'closing') => {
+      if (state === 'entering') {
+        clearSecondaryLifecycle()
+        setSecondaryState('open')
+        return
+      }
+      if (state !== 'closing') return
+      clearSecondaryLifecycle()
+      setSecondaryDialog(null)
+      setSecondaryState('open')
+    },
+    [clearSecondaryLifecycle]
+  )
+
+  const openSecondaryDialog = useCallback(
+    (descriptor: DesktopSecondaryDialogDescriptor) => {
+      clearSecondaryLifecycle()
+      secondaryOriginRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null
+      setSecondaryState('preparing')
+      setSecondaryDialog(descriptor)
+    },
+    [clearSecondaryLifecycle]
+  )
+
+  const closeSecondaryDialog = useCallback(() => {
+    if (!secondaryDialog || secondaryState === 'closing') return
+    clearSecondaryLifecycle()
+    setSecondaryState('closing')
+  }, [clearSecondaryLifecycle, secondaryDialog, secondaryState])
+
+  const secondaryDialogContextValue = useMemo(
+    () => ({ openSecondaryDialog }),
+    [openSecondaryDialog]
+  )
 
   useEffect(() => {
     const dialog = dialogRef.current
     if (dialog && !dialog.open) dialog.showModal()
     return () => {
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+      clearSecondaryLifecycle()
     }
-  }, [])
+  }, [clearSecondaryLifecycle])
+
+  useLayoutEffect(() => {
+    const dialog = secondaryDialogRef.current
+    if (secondaryDialog && dialog && !dialog.open) dialog.showModal()
+  }, [secondaryDialog])
+
+  useEffect(() => {
+    if (!secondaryDialog || secondaryState !== 'preparing') return
+    secondaryFrameRef.current = window.requestAnimationFrame(() => {
+      secondaryFrameRef.current = null
+      setSecondaryState('entering')
+    })
+    return () => {
+      if (!secondaryFrameRef.current) return
+      window.cancelAnimationFrame(secondaryFrameRef.current)
+      secondaryFrameRef.current = null
+    }
+  }, [secondaryDialog, secondaryState])
+
+  useEffect(() => {
+    if (secondaryState !== 'entering' && secondaryState !== 'closing') return
+    secondaryTimerRef.current = window.setTimeout(
+      () => finishSecondaryAnimation(secondaryState),
+      secondaryState === 'closing' ? 180 : 500
+    )
+    return () => {
+      if (!secondaryTimerRef.current) return
+      window.clearTimeout(secondaryTimerRef.current)
+      secondaryTimerRef.current = null
+    }
+  }, [finishSecondaryAnimation, secondaryState])
+
+  useLayoutEffect(() => {
+    if (secondaryDialog && secondaryState === 'open') {
+      secondaryDialogRef.current?.focus({ preventScroll: true })
+      return
+    }
+    if (secondaryDialog) return
+    const origin = secondaryOriginRef.current
+    secondaryOriginRef.current = null
+    if (origin?.isConnected) origin.focus({ preventScroll: true })
+  }, [secondaryDialog, secondaryState])
 
   const navigateHome = () => {
     if (hasNavigatedRef.current) return
@@ -112,39 +239,89 @@ function DesktopRouteModal({
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      aria-modal="true"
-      aria-labelledby="merchant-desktop-modal-title"
-      data-desktop-modal-state={modalState}
-      className="merchant-desktop-modal"
-      onAnimationEnd={handleAnimationEnd}
-      onCancel={(event) => {
-        event.preventDefault()
-        closeModal()
-      }}
-    >
-      <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
-        <span aria-hidden />
-        <h1
-          id="merchant-desktop-modal-title"
-          className="truncate text-center text-sm leading-5 font-medium"
-        >
-          {title}
-        </h1>
-        <button
-          type="button"
-          aria-label={`Close ${title}`}
-          className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          onClick={closeModal}
-        >
-          <X aria-hidden className="size-5" strokeWidth={1.6} />
-        </button>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-2 pb-8">
-        {children}
-      </div>
-    </dialog>
+    <DesktopSecondaryDialogContext.Provider value={secondaryDialogContextValue}>
+      <dialog
+        ref={dialogRef}
+        aria-modal="true"
+        aria-labelledby="merchant-desktop-modal-title"
+        data-desktop-modal-state={modalState}
+        data-desktop-secondary-open={
+          secondaryDialog && secondaryState !== 'closing' ? 'true' : undefined
+        }
+        className="merchant-desktop-modal"
+        onAnimationEnd={handleAnimationEnd}
+        onCancel={(event) => {
+          event.preventDefault()
+          closeModal()
+        }}
+      >
+        <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
+          <span aria-hidden />
+          <h1
+            id="merchant-desktop-modal-title"
+            className="truncate text-center text-sm leading-5 font-medium"
+          >
+            {title}
+          </h1>
+          <button
+            type="button"
+            aria-label={`Close ${title}`}
+            className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={closeModal}
+          >
+            <X aria-hidden className="size-5" strokeWidth={1.6} />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-2 pb-8">
+          {children}
+        </div>
+      </dialog>
+
+      {secondaryDialog && typeof document !== 'undefined'
+        ? createPortal(
+            <dialog
+              ref={secondaryDialogRef}
+              aria-modal="true"
+              aria-labelledby="merchant-desktop-secondary-title"
+              tabIndex={-1}
+              data-desktop-secondary-dialog={secondaryDialog.id}
+              data-desktop-secondary-state={secondaryState}
+              inert={secondaryState === 'open' ? undefined : true}
+              className="merchant-desktop-sidecar"
+              onAnimationEnd={(event) => {
+                if (event.target !== event.currentTarget) return
+                finishSecondaryAnimation(secondaryState)
+              }}
+              onCancel={(event) => {
+                event.preventDefault()
+                closeSecondaryDialog()
+              }}
+            >
+              <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
+                <button
+                  type="button"
+                  aria-label="Back to Settings"
+                  className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-transform active:scale-[0.98]"
+                  onClick={closeSecondaryDialog}
+                >
+                  <ChevronLeft aria-hidden className="size-5" strokeWidth={1.8} />
+                </button>
+                <h2
+                  id="merchant-desktop-secondary-title"
+                  className="truncate text-center text-sm leading-5 font-medium"
+                >
+                  {secondaryDialog.title}
+                </h2>
+                <span aria-hidden />
+              </header>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-4 pb-8">
+                {secondaryDialog.content}
+              </div>
+            </dialog>,
+            document.body
+          )
+        : null}
+    </DesktopSecondaryDialogContext.Provider>
   )
 }
 

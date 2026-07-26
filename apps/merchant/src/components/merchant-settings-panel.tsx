@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { MerchantAvatar } from '@/components/merchant-avatar.tsx'
 import { MerchantAdvancedSettings } from '@/components/merchant-advanced-settings.tsx'
+import { useDesktopSecondaryDialog } from '@/components/merchant-shell/desktop/desktop-shell.tsx'
 import { MerchantThemeControl } from '@/components/merchant-theme-control.tsx'
 import { merchantOverlayNavigationState } from '@/lib/merchant-home-route.ts'
 import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
@@ -34,6 +35,8 @@ export function MerchantSettingsPanel({
   readonly signOut: SignOutState
   readonly viewer: MerchantViewer | undefined
 }) {
+  const desktopSecondaryDialog = useDesktopSecondaryDialog()
+
   return (
     <div data-merchant-settings-panel="true" className="mx-auto w-full max-w-md">
       <section
@@ -93,14 +96,46 @@ export function MerchantSettingsPanel({
         </SettingsGroup>
 
         <SettingsGroup>
-          <SettingsDisclosure icon={<Palette />} label="Appearance">
-            <div className="[&>fieldset]:mt-0">
-              <MerchantThemeControl />
-            </div>
-          </SettingsDisclosure>
-          <SettingsDisclosure icon={<Code2 />} label="Advanced">
-            <MerchantAdvancedSettings />
-          </SettingsDisclosure>
+          {desktopSecondaryDialog ? (
+            <SettingsDialogButton
+              icon={<Palette />}
+              label="Appearance"
+              onClick={() =>
+                desktopSecondaryDialog.openSecondaryDialog({
+                  id: 'appearance',
+                  title: 'Appearance',
+                  content: (
+                    <div className="[&>fieldset]:mt-0">
+                      <MerchantThemeControl />
+                    </div>
+                  )
+                })
+              }
+            />
+          ) : (
+            <SettingsDisclosure icon={<Palette />} label="Appearance">
+              <div className="[&>fieldset]:mt-0">
+                <MerchantThemeControl />
+              </div>
+            </SettingsDisclosure>
+          )}
+          {desktopSecondaryDialog ? (
+            <SettingsDialogButton
+              icon={<Code2 />}
+              label="Advanced"
+              onClick={() =>
+                desktopSecondaryDialog.openSecondaryDialog({
+                  id: 'advanced',
+                  title: 'Advanced',
+                  content: <MerchantAdvancedSettings />
+                })
+              }
+            />
+          ) : (
+            <SettingsDisclosure icon={<Code2 />} label="Advanced">
+              <MerchantAdvancedSettings />
+            </SettingsDisclosure>
+          )}
           <button
             type="button"
             data-merchant-settings-row="true"
@@ -125,6 +160,29 @@ export function MerchantSettingsPanel({
         ) : null}
       </div>
     </div>
+  )
+}
+
+function SettingsDialogButton({
+  icon,
+  label,
+  onClick
+}: {
+  readonly icon: ReactNode
+  readonly label: string
+  readonly onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`Open ${label} settings`}
+      data-merchant-settings-row="true"
+      className="group flex min-h-[3.3125rem] w-full items-center justify-between px-4 text-left transition-colors active:bg-muted/80 md:hover:bg-muted/60"
+      onClick={onClick}
+    >
+      <SettingsRowLabel icon={icon} label={label} />
+      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+    </button>
   )
 }
 
