@@ -82,9 +82,13 @@ export function MobileDateHero({
           enterBlur={16}
           className="text-xl leading-tight font-bold text-foreground"
         />
-        <p className="text-xl leading-tight font-bold text-muted-foreground">
-          {rest.join(', ')}
-        </p>
+        <SmartAnimateText
+          value={rest.join(', ')}
+          gap={0}
+          enterStiffness={150}
+          enterBlur={16}
+          className="text-xl leading-tight font-bold text-muted-foreground"
+        />
         {/* <p className="mt-2 text-[0.65rem] font-semibold tracking-[0.12em] text-muted-foreground/70 uppercase">
           {timezone}
         </p> */}
