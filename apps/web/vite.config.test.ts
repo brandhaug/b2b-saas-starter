@@ -24,7 +24,10 @@ it('proxies local Booking pages, mutations, and assets before Web SSR', async ()
       changeOrigin: true
     }
   })
-  expect(resolved.server?.allowedHosts).toEqual(['.trycloudflare.com'])
+  expect(resolved.server?.allowedHosts).toEqual([
+    'hassans-macbook-pro.tail8c0b7c.ts.net',
+    '.trycloudflare.com'
+  ])
   expect(resolved.server?.cors).toEqual({
     origin: [
       /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/,

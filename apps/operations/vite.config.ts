@@ -5,7 +5,11 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 
 export default defineConfig(({ command, mode }) => ({
-  server: { host: true, port: 3076 },
+  server: {
+    host: true,
+    port: 3076,
+    allowedHosts: ['hassans-macbook-pro.tail8c0b7c.ts.net']
+  },
   preview: { host: true, port: 3076 },
   test: { fileParallelism: false },
   resolve: {

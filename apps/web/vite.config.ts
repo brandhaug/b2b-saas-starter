@@ -91,9 +91,9 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: 3071,
       host: true,
-      // Quick Tunnels use a random subdomain. Restricting the suffix keeps
-      // Vite's DNS-rebinding protection while allowing Cloudflare ingress.
-      allowedHosts: ['.trycloudflare.com'],
+      // Keep DNS-rebinding protection while allowing the named local ingress
+      // routes used for mobile testing and Cloudflare Quick Tunnels.
+      allowedHosts: ['hassans-macbook-pro.tail8c0b7c.ts.net', '.trycloudflare.com'],
       cors: {
         origin: [
           /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/,

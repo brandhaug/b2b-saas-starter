@@ -5,7 +5,11 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 
 export default defineConfig(({ command, mode }) => ({
-  server: { host: true, port: 3072 },
+  server: {
+    host: true,
+    port: 3072,
+    allowedHosts: ['hassans-macbook-pro.tail8c0b7c.ts.net']
+  },
   preview: { host: true, port: 3072 },
   resolve: {
     tsconfigPaths: true,
