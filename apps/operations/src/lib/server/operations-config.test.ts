@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { env as localWorkerEnvironment } from '../cloudflare-workers-shim.ts'
 import { parseOperationsConfig } from './operations-config.ts'
 
 const valid = {
@@ -20,6 +21,12 @@ const valid = {
 } as const
 
 describe('Operations Worker configuration', () => {
+  it('trusts the Tailscale MagicDNS origin in the default local Worker environment', () => {
+    expect(parseOperationsConfig(localWorkerEnvironment).trustedOrigins).toContain(
+      'http://hassans-macbook-pro.tail8c0b7c.ts.net:3076'
+    )
+  })
+
   it('accepts an isolated production origin and secret', () => {
     expect(parseOperationsConfig(valid)).toMatchObject({
       baseURL: valid.OPERATIONS_APP_ORIGIN,

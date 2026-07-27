@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { env as localWorkerEnvironment } from './cloudflare-workers-shim.ts'
 import { resolveMerchantAuthConfig } from './merchant-auth-config.ts'
 
 const production = {
@@ -19,6 +20,19 @@ describe('Merchant Better Auth runtime configuration', () => {
       },
       canonicalOrigin: 'http://localhost:3072',
       trustedOrigins: []
+    })
+  })
+
+  it('trusts the Tailscale MagicDNS origin in the default local Worker environment', () => {
+    const config = resolveMerchantAuthConfig(localWorkerEnvironment, false)
+
+    expect(config.trustedOrigins).toContain(
+      'http://hassans-macbook-pro.tail8c0b7c.ts.net:3072'
+    )
+    expect(config.baseURL).toMatchObject({
+      allowedHosts: expect.arrayContaining([
+        'hassans-macbook-pro.tail8c0b7c.ts.net:3072'
+      ])
     })
   })
 

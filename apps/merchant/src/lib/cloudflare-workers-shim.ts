@@ -7,7 +7,8 @@ export const env = {
     'local-merchant-auth-secret-change-me-minimum-32-chars',
   MERCHANT_AUTH_URL: process.env.MERCHANT_AUTH_URL ?? 'http://localhost:3072',
   MERCHANT_AUTH_TRUSTED_ORIGINS:
-    process.env.MERCHANT_AUTH_TRUSTED_ORIGINS ?? 'http://localhost:3072',
+    process.env.MERCHANT_AUTH_TRUSTED_ORIGINS ??
+    'http://localhost:3072,http://hassans-macbook-pro.tail8c0b7c.ts.net:3072',
   OPERATIONS_APP_ORIGIN:
     process.env.OPERATIONS_APP_ORIGIN ?? 'http://operations.localhost:3076',
   OPERATIONS_SECURITY_CONTACT:

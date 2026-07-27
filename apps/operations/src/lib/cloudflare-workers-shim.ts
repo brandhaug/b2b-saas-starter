@@ -11,7 +11,8 @@ export const env = {
     process.env.OPERATIONS_AUTH_SECRET ??
     'local-operations-auth-secret-change-me-minimum-32-chars',
   OPERATIONS_AUTH_TRUSTED_ORIGINS:
-    process.env.OPERATIONS_AUTH_TRUSTED_ORIGINS ?? 'http://localhost:3076',
+    process.env.OPERATIONS_AUTH_TRUSTED_ORIGINS ??
+    'http://localhost:3076,http://hassans-macbook-pro.tail8c0b7c.ts.net:3076',
   OPERATIONS_LOCAL_SEED: process.env.OPERATIONS_LOCAL_SEED ?? 'enabled',
   OPERATIONS_SECURITY_CONTACT:
     process.env.OPERATIONS_SECURITY_CONTACT ?? 'security@operations.local',
