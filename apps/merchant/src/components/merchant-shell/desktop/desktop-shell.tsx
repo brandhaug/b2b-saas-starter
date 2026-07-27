@@ -413,7 +413,7 @@ function DesktopSecondaryDialogSurface({
 
 function DesktopStage({ children }: { readonly children: ReactNode }) {
   return (
-    <main className="merchant-desktop-stage relative grid min-h-dvh place-items-center overflow-hidden p-6">
+    <main className="merchant-desktop-stage relative grid h-dvh place-items-center overflow-hidden p-6">
       {children}
     </main>
   )
@@ -442,7 +442,7 @@ function DesktopHomeCard({
   return (
     <section
       aria-label="Merchant desktop home"
-      className="merchant-desktop-home-card relative z-10 flex h-full w-full max-w-md md:h-[750px] flex-col overflow-hidden md:rounded-3xl text-foreground shadow-alyn"
+      className="merchant-desktop-home-card relative z-10 flex h-full w-full max-w-md max-h-[750px] flex-col overflow-hidden text-foreground shadow-alyn md:rounded-3xl"
     >
       <MerchantHomeAtmosphere />
       <header className="relative z-10 grid h-20 shrink-0 grid-cols-[2.75rem_1fr_2.75rem] items-center px-4">

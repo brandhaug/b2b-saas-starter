@@ -70,6 +70,12 @@ describe('DesktopShell', () => {
     )?.[0]
 
     expect(html).toContain('aria-label="Merchant desktop home"')
+    expect(html).toContain(
+      'merchant-desktop-stage relative grid h-dvh place-items-center overflow-hidden p-6'
+    )
+    expect(html).toContain('h-full w-full max-w-md max-h-[750px]')
+    expect(html).not.toContain('merchant-desktop-stage relative grid min-h-dvh')
+    expect(html).not.toContain('md:h-[750px]')
     expect(html).toContain('aria-label="Open Settings"')
     expect(html).toContain('data-desktop-user-button="true"')
     expect(html).toContain('src="https://images.example.test/mara.jpg"')
