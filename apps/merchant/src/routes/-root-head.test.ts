@@ -51,7 +51,7 @@ describe('merchant head links', () => {
     )
 
     expect(documentSource).toMatch(
-      /presentation === 'mobile'[\s\S]*\? 'merchant-mobile-document antialiased'\s*: 'antialiased'/
+      /presentation === 'mobile'[\s\S]*\? 'merchant-mobile-document antialiased'\s*: 'merchant-desktop-document antialiased'/
     )
   })
 })

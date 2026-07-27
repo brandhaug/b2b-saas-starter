@@ -22,6 +22,7 @@ import {
 afterEach(() => {
   document.body.innerHTML = ''
   document.documentElement.classList.remove('merchant-mobile-document')
+  document.documentElement.classList.remove('merchant-desktop-document')
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -127,6 +128,9 @@ describe('responsive Merchant App presentation', () => {
     expect(
       document.documentElement.classList.contains('merchant-mobile-document')
     ).toBe(false)
+    expect(
+      document.documentElement.classList.contains('merchant-desktop-document')
+    ).toBe(true)
 
     matches = true
     await act(async () => {
@@ -139,6 +143,9 @@ describe('responsive Merchant App presentation', () => {
     expect(
       document.documentElement.classList.contains('merchant-mobile-document')
     ).toBe(true)
+    expect(
+      document.documentElement.classList.contains('merchant-desktop-document')
+    ).toBe(false)
 
     await act(async () => root.unmount())
   })

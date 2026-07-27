@@ -36,6 +36,18 @@ describe('merchant BeeSolo brand contract', () => {
     expect(mobilePresentation).not.toContain('color-scheme:')
   })
 
+  it('keeps desktop document scrolling owned by shell scrollports', async () => {
+    const css = await readFile(stylesUrl, 'utf8')
+    const desktopDocument =
+      css.match(
+        /html\.merchant-desktop-document:has\(\[data-merchant-home-layer='true'\]\),\s*html\.merchant-desktop-document:has\(\[data-merchant-home-layer='true'\]\) body\s*\{([^}]*)\}/
+      )?.[1] ?? ''
+
+    expect(desktopDocument).toContain('height: 100%')
+    expect(desktopDocument).toContain('overflow: hidden')
+    expect(desktopDocument).toContain('overscroll-behavior: none')
+  })
+
   it('restores semantic surface colors inside mobile sheets', async () => {
     const css = await readFile(stylesUrl, 'utf8')
     const sheetTheme =

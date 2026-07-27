@@ -22,7 +22,7 @@ export function MerchantRootDocument({
       className={
         presentation === 'mobile'
           ? 'merchant-mobile-document antialiased'
-          : 'antialiased'
+          : 'merchant-desktop-document antialiased'
       }
     >
       <head>

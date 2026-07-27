@@ -30,11 +30,13 @@ export function MerchantPresentationProvider({
   }, [])
 
   useEffect(() => {
-    document.documentElement.classList.toggle(
-      'merchant-mobile-document',
-      responsivePresentation === 'mobile'
-    )
-    return () => document.documentElement.classList.remove('merchant-mobile-document')
+    const mobile = responsivePresentation === 'mobile'
+    document.documentElement.classList.toggle('merchant-mobile-document', mobile)
+    document.documentElement.classList.toggle('merchant-desktop-document', !mobile)
+    return () => {
+      document.documentElement.classList.remove('merchant-mobile-document')
+      document.documentElement.classList.remove('merchant-desktop-document')
+    }
   }, [responsivePresentation])
 
   return (
