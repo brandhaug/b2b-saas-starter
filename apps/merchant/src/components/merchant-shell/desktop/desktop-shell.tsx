@@ -12,10 +12,7 @@ import {
 import type { AnimationEvent, ReactNode, RefObject } from 'react'
 import { BeeSoloMark } from '@/components/beesolo-logo.tsx'
 import { useMobileCalendarDate } from '@/features/appointments/mobile/use-mobile-calendar-date.ts'
-import {
-  hasMerchantOverlayNavigationOrigin,
-  merchantOverlayNavigationState
-} from '@/lib/merchant-home-route.ts'
+import { merchantOverlayNavigationState } from '@/lib/merchant-home-route.ts'
 import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
 import type { MerchantDestination, MerchantShellSection } from '../navigation.tsx'
 import { MerchantHomeAtmosphere } from '../home-atmosphere.tsx'
@@ -73,10 +70,16 @@ function DesktopRouteModal({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const secondaryDialogRef = useRef<HTMLDialogElement>(null)
+  const location = useLocation()
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const secondaryFrameRef = useRef<number | null>(null)
   const secondaryTimerRef = useRef<number | null>(null)
   const secondaryOriginRef = useRef<HTMLElement | null>(null)
+  const secondaryDismissalRef = useRef<{
+    id: string
+    pathname: string
+    hasLeftPath: boolean
+  } | null>(null)
   const hasNavigatedRef = useRef(false)
   const [modalState, setModalState] = useState<'entering' | 'open' | 'closing'>(
     'entering'
@@ -88,7 +91,6 @@ function DesktopRouteModal({
   >('open')
   const currentSecondaryDialogRef = useRef(secondaryDialog)
   const currentSecondaryStateRef = useRef(secondaryState)
-  const location = useLocation()
   const previousPathnameRef = useRef(location.pathname)
   const router = useRouter()
   const appointmentDate = appointmentDateFromSearch(location.search)
@@ -130,8 +132,19 @@ function DesktopRouteModal({
     (descriptor: DesktopSecondaryDialogDescriptor) => {
       const currentDialog = currentSecondaryDialogRef.current
       const currentState = currentSecondaryStateRef.current
+      const dismissal = secondaryDismissalRef.current
 
-      if (currentDialog?.id === descriptor.id && currentState !== 'closing') {
+      if (dismissal?.id === descriptor.id) {
+        if (dismissal.hasLeftPath && descriptor.sourcePathname === dismissal.pathname) {
+          secondaryDismissalRef.current = null
+        } else {
+          return
+        }
+      }
+
+      if (currentDialog?.id === descriptor.id && currentState === 'closing') return
+
+      if (currentDialog?.id === descriptor.id) {
         setSecondaryDialog(descriptor)
         return
       }
@@ -154,8 +167,13 @@ function DesktopRouteModal({
   const closeSecondaryDialog = useCallback(() => {
     if (!secondaryDialog || secondaryState === 'closing') return
     clearSecondaryLifecycle()
+    secondaryDismissalRef.current = {
+      id: secondaryDialog.id,
+      pathname: location.pathname,
+      hasLeftPath: false
+    }
     setSecondaryState('closing')
-  }, [clearSecondaryLifecycle, secondaryDialog, secondaryState])
+  }, [clearSecondaryLifecycle, location.pathname, secondaryDialog, secondaryState])
 
   const secondaryDialogContextValue = useMemo(
     () => ({ openSecondaryDialog }),
@@ -175,6 +193,10 @@ function DesktopRouteModal({
     if (previousPathnameRef.current === location.pathname) return
     const previousPathname = previousPathnameRef.current
     previousPathnameRef.current = location.pathname
+    const dismissal = secondaryDismissalRef.current
+    if (dismissal && location.pathname !== dismissal.pathname) {
+      dismissal.hasLeftPath = true
+    }
     if (
       previousPathname.startsWith('/settings') &&
       location.pathname.startsWith('/settings/')
@@ -230,15 +252,11 @@ function DesktopRouteModal({
   const navigateHome = useCallback(() => {
     if (hasNavigatedRef.current) return
     hasNavigatedRef.current = true
-    if (hasMerchantOverlayNavigationOrigin(location.state)) {
-      router.history.back()
-      return
-    }
     void router.navigate({
       to: '/appointments',
       search: { date: appointmentDate }
     })
-  }, [appointmentDate, location.state, router])
+  }, [appointmentDate, router])
 
   const closeModal = useCallback(() => {
     if (modalState === 'closing') return
@@ -309,23 +327,7 @@ function DesktopRouteModal({
           closeModal()
         }}
       >
-        <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
-          <span aria-hidden />
-          <h1
-            id="merchant-desktop-modal-title"
-            className="truncate text-center text-sm leading-5 font-medium"
-          >
-            {title}
-          </h1>
-          <button
-            type="button"
-            aria-label={`Close ${title}`}
-            className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={closeModal}
-          >
-            <X aria-hidden className="size-5" strokeWidth={1.6} />
-          </button>
-        </header>
+        <DesktopPrimaryDialogHeader title={title} onClose={closeModal} />
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-2 pb-8">
           <div
             key={location.pathname}
@@ -348,6 +350,34 @@ function DesktopRouteModal({
         ) : null}
       </dialog>
     </DesktopSecondaryDialogContext.Provider>
+  )
+}
+
+function DesktopPrimaryDialogHeader({
+  title,
+  onClose
+}: {
+  readonly title: string
+  readonly onClose: () => void
+}) {
+  return (
+    <header className="mt-4 mb-1 grid h-12 shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-6">
+      <span aria-hidden />
+      <h1
+        id="merchant-desktop-modal-title"
+        className="truncate text-center text-sm leading-5 font-medium"
+      >
+        {title}
+      </h1>
+      <button
+        type="button"
+        aria-label={`Close ${title}`}
+        className="grid size-8 place-items-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={onClose}
+      >
+        <X aria-hidden className="size-5" strokeWidth={1.6} />
+      </button>
+    </header>
   )
 }
 

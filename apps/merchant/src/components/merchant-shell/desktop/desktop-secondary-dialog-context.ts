@@ -4,6 +4,7 @@ export type DesktopSecondaryDialogDescriptor = {
   readonly content: ReactNode
   readonly id: string
   readonly onAfterClose?: (() => void) | undefined
+  readonly sourcePathname: string
   readonly title: string
 }
 

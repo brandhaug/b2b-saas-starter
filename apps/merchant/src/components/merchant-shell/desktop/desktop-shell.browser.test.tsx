@@ -18,8 +18,10 @@ import { DesktopShell } from './desktop-shell.tsx'
 const mocks = vi.hoisted(() => ({
   location: {
     pathname: '/settings',
-    search: { date: '2026-07-27' }
+    search: { date: '2026-07-27' },
+    state: undefined as undefined | { merchantOverlayOrigin: 'merchant-app' }
   },
+  historyBack: vi.fn(),
   navigate: vi.fn()
 }))
 
@@ -47,7 +49,10 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   useLocation: () => mocks.location,
-  useRouter: () => ({ navigate: mocks.navigate })
+  useRouter: () => ({
+    history: { back: mocks.historyBack },
+    navigate: mocks.navigate
+  })
 }))
 
 const destinations: readonly MerchantDestination[] = [
@@ -65,6 +70,8 @@ let root: Root | undefined
 beforeEach(() => {
   vi.useFakeTimers()
   mocks.location.pathname = '/settings'
+  mocks.location.state = undefined
+  mocks.historyBack.mockReset()
   mocks.navigate.mockReset()
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
@@ -201,6 +208,44 @@ describe('DesktopRouteModal motion', () => {
     expect(dialog?.dataset.desktopModalState).toBe('closing')
 
     await act(async () => vi.advanceTimersByTime(200))
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/appointments',
+      search: { date: '2026-07-27' }
+    })
+  })
+
+  it('closes the entire routed overlay from the primary X instead of returning to its origin dialog', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    mocks.location.pathname = '/services'
+    mocks.location.state = { merchantOverlayOrigin: 'merchant-app' }
+
+    await act(async () =>
+      root?.render(
+        <DesktopShell
+          layout="modal"
+          section={{ kind: 'merchant' }}
+          destinations={destinations}
+          title="Services"
+          description="Merchant services"
+        >
+          <p>Services content</p>
+        </DesktopShell>
+      )
+    )
+
+    await finishDialogEntrance(
+      container.querySelector<HTMLDialogElement>('.merchant-desktop-modal')
+    )
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Close Services"]')
+        ?.click()
+    )
+    await act(async () => vi.advanceTimersByTime(200))
+
+    expect(mocks.historyBack).not.toHaveBeenCalled()
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: '/appointments',
       search: { date: '2026-07-27' }
@@ -477,8 +522,16 @@ describe('DesktopRouteModal motion', () => {
         ?.querySelector<HTMLButtonElement>('[aria-label="Back to Settings"]')
         ?.click()
     )
+
+    await renderSubscription('team')
+    expect(sidecar?.dataset.desktopSecondaryState).toBe('closing')
+
     await act(async () => vi.advanceTimersByTime(180))
     expect(afterClose).toHaveBeenCalledOnce()
+    expect(container.querySelector('.merchant-desktop-sidecar')).toBeNull()
+
+    await renderSubscription('solo')
+    expect(container.querySelector('.merchant-desktop-sidecar')).toBeNull()
   })
 
   it('opens appointment creation as a native desktop dialog without mobile chrome', async () => {
