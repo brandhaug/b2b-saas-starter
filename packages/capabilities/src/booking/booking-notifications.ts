@@ -41,7 +41,12 @@ export type BookingNotificationWork = {
     | 'failed_terminal'
   readonly emailAttemptCount: number
   readonly emailNextAttemptAt: string | null
-  readonly whatsappStatus: 'pending' | 'captured' | 'ineligible' | 'needs_configuration'
+  readonly whatsappStatus:
+    | 'pending'
+    | 'captured'
+    | 'ineligible'
+    | 'needs_configuration'
+    | 'not_applicable'
 }
 
 export type BookingWhatsAppTemplateRequest = {
