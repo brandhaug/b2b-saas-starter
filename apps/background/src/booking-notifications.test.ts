@@ -9,6 +9,7 @@ import {
   processBookingOutbox,
   signBookingWebhook
 } from './booking-notifications.ts'
+import { WhatsAppDispatcher } from './whatsapp.ts'
 
 describe('booking webhook contract', () => {
   it('matches a fixed HMAC-SHA256 raw-body signature vector', async () => {
@@ -52,6 +53,12 @@ describe('processBookingOutbox', () => {
         subject: 'Your appointment is confirmed'
       })
     )
+    const sendWhatsApp = vi.fn(() =>
+      Effect.succeed({
+        mode: 'log' as const,
+        providerMessageId: 'mock:nti_test'
+      })
+    )
     const work = {
       outboxId: 'out_test',
       appointmentId: 'apt_test',
@@ -81,7 +88,11 @@ describe('processBookingOutbox', () => {
         currency: 'USD',
         totalMinor: 5000,
         merchantTimezone: 'Europe/Bucharest',
-        customerDetails: { name: 'Mia', email: 'mia@example.com', phone: null },
+        customerDetails: {
+          name: 'Mia',
+          email: 'mia@example.com',
+          phone: '+40722123456'
+        },
         checkoutPath: 'pay_in_person' as const
       },
       confirmation: {
@@ -115,6 +126,7 @@ describe('processBookingOutbox', () => {
         now: work.createdAt,
         publicOrigin: 'https://example.com',
         emailProviderState: 'configured',
+        whatsappProviderState: 'capture',
         confirmationKeyring: {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
@@ -122,6 +134,7 @@ describe('processBookingOutbox', () => {
       }).pipe(
         Effect.provide(store),
         Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
+        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
         Effect.provide(FetchHttpClient.layer)
       )
     )
@@ -130,6 +143,21 @@ describe('processBookingOutbox', () => {
       expect.objectContaining({ idempotencyKey: 'nti_test' })
     )
     expect(recordEmail).toHaveBeenCalledWith('out_test', 'delivered', null, 1, null)
+    expect(sendWhatsApp).toHaveBeenCalledOnce()
+    expect(sendWhatsApp).toHaveBeenCalledWith({
+      idempotencyKey: 'nti_test',
+      to: '+40722123456',
+      template: 'appointment_confirmation',
+      language: 'ro',
+      parameters: {
+        merchant: 'mara',
+        startsAt: '2026-07-20T10:00:00.000Z',
+        timeZone: 'Europe/Bucharest',
+        confirmationUrl: expect.stringMatching(
+          /^https:\/\/example\.com\/mara\/booking\/confirmations\/cnf_test\?token=/
+        )
+      }
+    })
     expect(finish).toHaveBeenCalledWith('out_test', 'completed', work.createdAt)
 
     send.mockClear()
@@ -140,10 +168,12 @@ describe('processBookingOutbox', () => {
         now: work.createdAt,
         publicOrigin: 'https://example.com',
         emailProviderState: 'needs_configuration',
+        whatsappProviderState: 'needs_configuration',
         confirmationKeyring: { currentKeyId: 'current', keys: {} }
       }).pipe(
         Effect.provide(store),
         Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
+        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
         Effect.provide(FetchHttpClient.layer)
       )
     )
@@ -163,6 +193,7 @@ describe('processBookingOutbox', () => {
         now: work.createdAt,
         publicOrigin: 'https://example.com',
         emailProviderState: 'configured',
+        whatsappProviderState: 'needs_configuration',
         confirmationKeyring: {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
@@ -181,6 +212,7 @@ describe('processBookingOutbox', () => {
               )
           })
         ),
+        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
         Effect.provide(FetchHttpClient.layer)
       )
     )
@@ -199,6 +231,7 @@ describe('processBookingOutbox', () => {
         now: work.createdAt,
         publicOrigin: 'https://example.com',
         emailProviderState: 'configured',
+        whatsappProviderState: 'needs_configuration',
         confirmationKeyring: {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
@@ -233,6 +266,7 @@ describe('processBookingOutbox', () => {
               )
           })
         ),
+        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
         Effect.provide(FetchHttpClient.layer)
       )
     )

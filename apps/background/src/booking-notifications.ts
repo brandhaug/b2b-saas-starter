@@ -9,12 +9,14 @@ import {
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform'
 import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { AppointmentConfirmationEmail, EmailDispatcher } from '@b2b-saas-starter/email'
+import { WhatsAppDispatcher } from './whatsapp.ts'
 
 export const BOOKING_RETRY_DELAYS = [30, 60, 90, 120, 150, 180] as const
 export type OperationalEmailProviderState =
   | 'disabled'
   | 'needs_configuration'
   | 'configured'
+export type OperationalWhatsAppProviderState = 'capture' | 'needs_configuration'
 
 export const classifyBookingResponse = (
   statusCode: number | null,
@@ -69,6 +71,18 @@ const id = (prefix: 'dlv') => {
 const money = (minor: number, currency: string) =>
   new Intl.NumberFormat('en', { style: 'currency', currency }).format(minor / 100)
 
+const confirmationUrl = (
+  work: BookingNotificationWork,
+  publicOrigin: string,
+  keyring: ConfirmationSigningKeyring
+) =>
+  Effect.gen(function* () {
+    const token = yield* Effect.promise(() =>
+      deriveConfirmationToken(work.confirmation, keyring)
+    )
+    return `${publicOrigin.replace(/\/$/, '')}/${encodeURIComponent(work.merchantSlug)}/booking/confirmations/${encodeURIComponent(work.confirmation.routeId)}?token=${encodeURIComponent(token)}`
+  })
+
 const sendEmail = (
   work: BookingNotificationWork,
   publicOrigin: string,
@@ -76,10 +90,7 @@ const sendEmail = (
 ) =>
   Effect.gen(function* () {
     const dispatcher = yield* EmailDispatcher
-    const token = yield* Effect.promise(() =>
-      deriveConfirmationToken(work.confirmation, keyring)
-    )
-    const url = `${publicOrigin.replace(/\/$/, '')}/${encodeURIComponent(work.merchantSlug)}/booking/confirmations/${encodeURIComponent(work.confirmation.routeId)}?token=${encodeURIComponent(token)}`
+    const url = yield* confirmationUrl(work, publicOrigin, keyring)
     yield* dispatcher.send({
       idempotencyKey: work.notificationIntentId,
       from: '',
@@ -102,23 +113,64 @@ const sendEmail = (
     })
   })
 
+const sendWhatsApp = (
+  work: BookingNotificationWork,
+  publicOrigin: string,
+  keyring: ConfirmationSigningKeyring
+) =>
+  Effect.gen(function* () {
+    const phone = work.snapshot.customerDetails.phone
+    if (!phone) return
+    const dispatcher = yield* WhatsAppDispatcher
+    const url = yield* confirmationUrl(work, publicOrigin, keyring)
+    yield* dispatcher.send({
+      idempotencyKey: work.notificationIntentId,
+      to: phone,
+      template: 'appointment_confirmation',
+      language: 'ro',
+      parameters: {
+        merchant: work.merchantSlug,
+        startsAt: work.snapshot.startsAt,
+        timeZone: work.snapshot.merchantTimezone,
+        confirmationUrl: url
+      }
+    })
+  })
+
 export const processBookingOutbox = (input: {
   readonly outboxId: string
   readonly now: string
   readonly publicOrigin: string
   readonly emailProviderState: OperationalEmailProviderState
+  readonly whatsappProviderState: OperationalWhatsAppProviderState
   readonly confirmationKeyring: ConfirmationSigningKeyring
   readonly scheduleRetry?: (outboxId: string, delaySeconds: number) => Promise<unknown>
 }): Effect.Effect<
   void,
   CapabilityUnavailable,
-  BookingNotificationOutbox | EmailDispatcher | HttpClient.HttpClient
+  | BookingNotificationOutbox
+  | EmailDispatcher
+  | WhatsAppDispatcher
+  | HttpClient.HttpClient
 > =>
   Effect.gen(function* () {
     const store = yield* BookingNotificationOutbox
     const work = yield* store.claim(input.outboxId, input.now)
     if (!work) return
     let emailRetryPending = false
+
+    if (
+      input.whatsappProviderState === 'capture' &&
+      // The mock has no provider lifecycle table. Reuse the existing first-pass
+      // marker so email/webhook retries do not spam the development console.
+      work.emailStatus === 'pending' &&
+      work.snapshot.customerDetails.phone
+    )
+      yield* Effect.result(
+        sendWhatsApp(work, input.publicOrigin, input.confirmationKeyring).pipe(
+          Effect.annotateLogs({ traceId: work.traceId, outboxId: work.outboxId })
+        )
+      )
 
     if (
       work.emailStatus === 'pending' ||

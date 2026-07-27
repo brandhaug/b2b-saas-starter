@@ -22,6 +22,7 @@ import {
   processOperationsNotification,
   recoverOperationsNotifications
 } from './operations-notifications.ts'
+import { LogWhatsAppDispatcherLayer } from './whatsapp.ts'
 
 type Env = {
   readonly DB: D1Database
@@ -59,6 +60,10 @@ const bookingConfig = (env: Env) => {
         : env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
           ? ('configured' as const)
           : ('needs_configuration' as const),
+    whatsappProviderState:
+      env.ENVIRONMENT === 'development' || env.ENVIRONMENT === 'test'
+        ? ('capture' as const)
+        : ('needs_configuration' as const),
     confirmationKeyring: {
       currentKeyId: env.CONFIRMATION_CURRENT_KEY_ID ?? 'unconfigured',
       keys
@@ -93,7 +98,8 @@ const processBookingNotificationOutbox = (outboxId: string, now: string, env: En
             ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
             : {})
         })
-      )
+      ),
+      Effect.provide(LogWhatsAppDispatcherLayer)
     )
   )
 
