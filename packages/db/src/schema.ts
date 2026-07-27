@@ -862,6 +862,10 @@ export const bookingOutbox = sqliteTable(
     emailFailureCode: text('email_failure_code'),
     emailAttemptCount: integer('email_attempt_count').default(0).notNull(),
     emailNextAttemptAt: text('email_next_attempt_at'),
+    whatsappStatus: text('whatsapp_status')
+      .$type<'pending' | 'captured' | 'ineligible' | 'needs_configuration'>()
+      .default('pending')
+      .notNull(),
     webhookStatus: text('webhook_status')
       .$type<'pending' | 'completed' | 'dead_lettered'>()
       .default('pending')

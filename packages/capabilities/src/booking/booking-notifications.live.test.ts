@@ -154,6 +154,7 @@ describe('LiveBookingNotificationOutbox', () => {
     expect(competing.filter(Boolean)).toHaveLength(1)
     const work = competing.find(Boolean)!
     expect(work?.snapshot.customerDetails.email).toBe('mia@example.com')
+    expect(work?.whatsappStatus).toBe('pending')
     await expect(
       run(
         Effect.flatMap(BookingNotificationOutbox, (store) =>
@@ -171,6 +172,17 @@ describe('LiveBookingNotificationOutbox', () => {
     expect(event.id).toMatch(/^evt_/)
     expect(event.rawBody).not.toContain('mia@example.com')
     expect(event.rawBody).not.toContain('Cut')
+    await run(
+      Effect.flatMap(BookingNotificationOutbox, (store) =>
+        store.recordWhatsApp('out_notify', 'captured')
+      )
+    )
+    await expect(
+      test.d1
+        .prepare('SELECT whatsapp_status FROM booking_outbox WHERE id = ?')
+        .bind('out_notify')
+        .first()
+    ).resolves.toEqual({ whatsapp_status: 'captured' })
     expect(
       await run(
         Effect.flatMap(BookingNotificationOutbox, (store) =>

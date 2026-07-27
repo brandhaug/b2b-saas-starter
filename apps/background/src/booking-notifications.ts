@@ -3,6 +3,7 @@ import { HttpBody, HttpClient } from 'effect/unstable/http'
 import {
   BookingNotificationOutbox,
   deriveConfirmationToken,
+  planBookingWhatsAppConfirmation,
   type BookingNotificationWork,
   type ConfirmationSigningKeyring
 } from '@b2b-saas-starter/capabilities/booking'
@@ -119,22 +120,10 @@ const sendWhatsApp = (
   keyring: ConfirmationSigningKeyring
 ) =>
   Effect.gen(function* () {
-    const phone = work.snapshot.customerDetails.phone
-    if (!phone) return
     const dispatcher = yield* WhatsAppDispatcher
     const url = yield* confirmationUrl(work, publicOrigin, keyring)
-    yield* dispatcher.send({
-      idempotencyKey: work.notificationIntentId,
-      to: phone,
-      template: 'appointment_confirmation',
-      language: 'ro',
-      parameters: {
-        merchant: work.merchantSlug,
-        startsAt: work.snapshot.startsAt,
-        timeZone: work.snapshot.merchantTimezone,
-        confirmationUrl: url
-      }
-    })
+    const request = planBookingWhatsAppConfirmation(work, url)
+    if (request) yield* dispatcher.send(request)
   })
 
 export const processBookingOutbox = (input: {
@@ -158,19 +147,30 @@ export const processBookingOutbox = (input: {
     const work = yield* store.claim(input.outboxId, input.now)
     if (!work) return
     let emailRetryPending = false
+    let whatsappRetryPending = false
 
-    if (
-      input.whatsappProviderState === 'capture' &&
-      // The mock has no provider lifecycle table. Reuse the existing first-pass
-      // marker so email/webhook retries do not spam the development console.
-      work.emailStatus === 'pending' &&
-      work.snapshot.customerDetails.phone
-    )
-      yield* Effect.result(
-        sendWhatsApp(work, input.publicOrigin, input.confirmationKeyring).pipe(
-          Effect.annotateLogs({ traceId: work.traceId, outboxId: work.outboxId })
+    if (work.whatsappStatus === 'pending') {
+      if (input.whatsappProviderState === 'needs_configuration')
+        yield* store.recordWhatsApp(work.outboxId, 'needs_configuration')
+      else if (!work.snapshot.customerDetails.phone)
+        yield* store.recordWhatsApp(work.outboxId, 'ineligible')
+      else {
+        const outcome = yield* Effect.result(
+          sendWhatsApp(work, input.publicOrigin, input.confirmationKeyring).pipe(
+            Effect.annotateLogs({ traceId: work.traceId, outboxId: work.outboxId })
+          )
         )
-      )
+        if (Result.isSuccess(outcome))
+          yield* store.recordWhatsApp(work.outboxId, 'captured')
+        else {
+          whatsappRetryPending = true
+          if (input.scheduleRetry)
+            yield* Effect.promise(() => input.scheduleRetry!(work.outboxId, 30)).pipe(
+              Effect.catch(() => Effect.void)
+            )
+        }
+      }
+    }
 
     if (
       work.emailStatus === 'pending' ||
@@ -368,7 +368,7 @@ export const processBookingOutbox = (input: {
       }
     }
     const notificationStatus =
-      pending || emailRetryPending
+      pending || emailRetryPending || whatsappRetryPending
         ? 'pending'
         : deadLettered
           ? 'dead_lettered'
@@ -376,7 +376,7 @@ export const processBookingOutbox = (input: {
     yield* store.finish(
       work.outboxId,
       notificationStatus,
-      pending || emailRetryPending ? null : input.now
+      pending || emailRetryPending || whatsappRetryPending ? null : input.now
     )
     yield* Effect.log('booking.notifications.processed', {
       traceId: work.traceId,

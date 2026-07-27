@@ -41,6 +41,40 @@ export type BookingNotificationWork = {
     | 'failed_terminal'
   readonly emailAttemptCount: number
   readonly emailNextAttemptAt: string | null
+  readonly whatsappStatus: 'pending' | 'captured' | 'ineligible' | 'needs_configuration'
+}
+
+export type BookingWhatsAppTemplateRequest = {
+  readonly idempotencyKey: string
+  readonly to: string
+  readonly template: 'appointment_confirmation'
+  readonly language: 'ro'
+  readonly parameters: {
+    readonly merchant: string
+    readonly startsAt: string
+    readonly timeZone: string
+    readonly confirmationUrl: string
+  }
+}
+
+export const planBookingWhatsAppConfirmation = (
+  work: BookingNotificationWork,
+  confirmationUrl: string
+): BookingWhatsAppTemplateRequest | null => {
+  const phone = work.snapshot.customerDetails.phone
+  if (!phone) return null
+  return {
+    idempotencyKey: work.notificationIntentId,
+    to: phone,
+    template: 'appointment_confirmation',
+    language: 'ro',
+    parameters: {
+      merchant: work.merchantSlug,
+      startsAt: work.snapshot.startsAt,
+      timeZone: work.snapshot.merchantTimezone,
+      confirmationUrl
+    }
+  }
 }
 
 export type BookingWebhookEndpoint = {
@@ -99,6 +133,10 @@ export type BookingNotificationOutboxShape = {
     attemptCount: number,
     nextAttemptAt: string | null
   ) => Effect.Effect<void, CapabilityUnavailable>
+  readonly recordWhatsApp: (
+    outboxId: string,
+    status: 'captured' | 'ineligible' | 'needs_configuration'
+  ) => Effect.Effect<void, CapabilityUnavailable>
   readonly ensureEvent: (
     work: BookingNotificationWork
   ) => Effect.Effect<BookingWebhookEvent, CapabilityUnavailable>
@@ -132,6 +170,7 @@ export const SeedBookingNotificationOutbox: Layer.Layer<BookingNotificationOutbo
     claim: () => Effect.succeed(null),
     recoverable: () => Effect.succeed([]),
     recordEmail: () => Effect.void,
+    recordWhatsApp: () => Effect.void,
     ensureEvent: () => Effect.die('seed booking notification event unavailable'),
     endpoints: () => Effect.succeed([]),
     attempts: () => Effect.succeed([]),
@@ -228,7 +267,8 @@ export const LiveBookingNotificationOutbox: Layer.Layer<
             },
             emailStatus: row.outbox.emailStatus,
             emailAttemptCount: row.outbox.emailAttemptCount,
-            emailNextAttemptAt: row.outbox.emailNextAttemptAt
+            emailNextAttemptAt: row.outbox.emailNextAttemptAt,
+            whatsappStatus: row.outbox.whatsappStatus
           }
         }),
       recoverable: (now, limit = 100) =>
@@ -261,6 +301,13 @@ export const LiveBookingNotificationOutbox: Layer.Layer<
               emailAttemptCount: attemptCount,
               emailNextAttemptAt: nextAttemptAt
             })
+            .where(eq(bookingOutbox.id, outboxId))
+        ).pipe(Effect.asVoid),
+      recordWhatsApp: (outboxId, status) =>
+        unavailable(
+          db
+            .update(bookingOutbox)
+            .set({ whatsappStatus: status })
             .where(eq(bookingOutbox.id, outboxId))
         ).pipe(Effect.asVoid),
       ensureEvent: (work) =>

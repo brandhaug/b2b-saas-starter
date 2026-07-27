@@ -1,17 +1,5 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-
-export type WhatsAppTemplateMessage = {
-  readonly idempotencyKey: string
-  readonly to: string
-  readonly template: 'appointment_confirmation'
-  readonly language: 'ro'
-  readonly parameters: {
-    readonly merchant: string
-    readonly startsAt: string
-    readonly timeZone: string
-    readonly confirmationUrl: string
-  }
-}
+import type { BookingWhatsAppTemplateRequest } from '@b2b-saas-starter/capabilities/booking'
 
 export class WhatsAppSendError extends Schema.TaggedErrorClass<WhatsAppSendError>()(
   'WhatsAppSendError',
@@ -25,7 +13,7 @@ export type WhatsAppDeliveryResult = {
 
 export type WhatsAppDispatcherShape = {
   readonly send: (
-    message: WhatsAppTemplateMessage
+    message: BookingWhatsAppTemplateRequest
   ) => Effect.Effect<WhatsAppDeliveryResult, WhatsAppSendError>
 }
 
@@ -34,13 +22,6 @@ export class WhatsAppDispatcher extends Context.Service<
   WhatsAppDispatcherShape
 >()('@b2b-saas-starter/background/WhatsAppDispatcher') {}
 
-const maskPhone = (phone: string) => {
-  const visible = phone.slice(-3)
-  return `${phone.slice(0, Math.min(3, phone.length))}${'*'.repeat(
-    Math.max(0, phone.length - visible.length - Math.min(3, phone.length))
-  )}${visible}`
-}
-
 export const LogWhatsAppDispatcherLayer: Layer.Layer<WhatsAppDispatcher> =
   Layer.succeed(WhatsAppDispatcher)({
     send: (message) =>
@@ -48,7 +29,7 @@ export const LogWhatsAppDispatcherLayer: Layer.Layer<WhatsAppDispatcher> =
         yield* Effect.log('whatsapp.mock.message', {
           mode: 'log',
           idempotencyKey: message.idempotencyKey,
-          to: maskPhone(message.to),
+          recipient: 'recipient-redacted',
           template: message.template,
           language: message.language,
           message: `Programarea la ${message.parameters.merchant} este confirmată pentru ${message.parameters.startsAt} (${message.parameters.timeZone}). Confirmare: [link-redacted]`
