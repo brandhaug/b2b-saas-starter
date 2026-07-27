@@ -841,22 +841,6 @@ dialog.merchant-desktop-new-appointment-sidecar
     both;
 }
 
-.merchant-desktop-modal [data-desktop-primary-route-motion='true'] {
-  animation: merchant-desktop-primary-route-enter 220ms cubic-bezier(0.22, 1, 0.36, 1)
-    both;
-}
-
-@keyframes merchant-desktop-primary-route-enter {
-  from {
-    opacity: 0.72;
-    transform: translate3d(1rem, 0, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
 @keyframes merchant-desktop-substep-route-enter {
   from {
     opacity: 0.72;
@@ -1280,7 +1264,6 @@ select:focus-visible {
   }
 
   .merchant-desktop-modal,
-  .merchant-desktop-modal [data-desktop-primary-route-motion='true'],
   dialog.merchant-desktop-sidecar,
   .merchant-route-sheet,
   .merchant-more-panel,

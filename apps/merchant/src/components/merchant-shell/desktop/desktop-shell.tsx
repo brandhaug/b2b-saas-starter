@@ -290,9 +290,6 @@ function DesktopRouteModal({
     return () => dialog.removeEventListener('click', handleBackdropClick)
   }, [])
 
-  const shouldAnimatePrimaryRoute =
-    modalState === 'open' && previousPathnameRef.current !== location.pathname
-
   const handleAnimationEnd = (event: AnimationEvent<HTMLDialogElement>) => {
     if (event.target !== event.currentTarget) return
     if (
@@ -329,14 +326,7 @@ function DesktopRouteModal({
       >
         <DesktopPrimaryDialogHeader title={title} onClose={closeModal} />
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pt-2 pb-8">
-          <div
-            key={location.pathname}
-            data-desktop-primary-route-motion={
-              shouldAnimatePrimaryRoute ? 'true' : undefined
-            }
-          >
-            {children}
-          </div>
+          {children}
         </div>
 
         {secondaryDialog ? (

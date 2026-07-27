@@ -123,7 +123,7 @@ function mockDialogRect(dialog: HTMLDialogElement | null) {
 }
 
 describe('DesktopRouteModal motion', () => {
-  it('does not start a second content entrance after the dialog entrance settles', async () => {
+  it('does not animate persistent dialog content when the desktop route changes', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -167,7 +167,7 @@ describe('DesktopRouteModal motion', () => {
 
     expect(
       container.querySelector('[data-desktop-primary-route-motion="true"]')
-    ).not.toBeNull()
+    ).toBeNull()
   })
 
   it('closes from a backdrop click without treating blank dialog space as backdrop', async () => {
