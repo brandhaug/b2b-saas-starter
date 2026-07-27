@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { AuthShell } from '@/components/auth-shell.tsx'
 import { merchantAuthClient } from '@/lib/auth-client.ts'
@@ -15,12 +15,28 @@ export const Route = createFileRoute('/sign-in')({
 function SignInPage() {
   const router = useRouter()
   const { redirect } = Route.useSearch()
+  const formRef = useRef<HTMLFormElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+
+  const prefillSeededAccount = () => {
+    const form = formRef.current
+    if (!form) return
+
+    const email = form.elements.namedItem('email')
+    const password = form.elements.namedItem('password')
+    if (email instanceof HTMLInputElement) {
+      email.value = 'merchant@booking.local'
+      email.focus()
+    }
+    if (password instanceof HTMLInputElement)
+      password.value = 'merchant-booking-password'
+  }
 
   return (
     <AuthShell title="Sign in to your Merchant App">
       <form
+        ref={formRef}
         className="grid gap-4"
         action={async (form) => {
           setPending(true)
@@ -46,6 +62,23 @@ function SignInPage() {
           }
         }}
       >
+        {import.meta.env.DEV ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/40 p-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Development
+              </p>
+              <p className="mt-0.5 text-sm">Seeded merchant account</p>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+              onClick={prefillSeededAccount}
+            >
+              Prefill
+            </button>
+          </div>
+        ) : null}
         <label className="grid gap-1 text-sm">
           Email
           <input
