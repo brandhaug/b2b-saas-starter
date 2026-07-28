@@ -1,14 +1,18 @@
-import { Effect, Redacted, Schema } from 'effect'
+import { Effect, Logger, Redacted, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   ProviderContractFailure,
   ProviderCallbackOutcome,
+  ProviderCallbackVerification,
   ProviderCaptureRecord,
   ProviderCostFact,
+  ProviderCostReader,
   ProviderEvidence,
+  ProviderQuery,
   ProviderQueryOutcome,
   ProviderQueueWakeup,
   ProviderSubmission,
+  ProviderSubmissionRequest,
   ProviderSubmissionOutcome
 } from './provider-contracts.ts'
 import {
@@ -54,7 +58,8 @@ describe('deterministic provider contract harness', () => {
         attemptId: 'pat_fixture_ro_confirmation',
         intentId: 'nti_fixture_ro_confirmation',
         destination: '+40•••••••456',
-        bodyFingerprint: 'body_fixture_ro_confirmation'
+        bodyFingerprint:
+          'sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
       }
     ])
     expect(() =>
@@ -86,6 +91,12 @@ describe('deterministic provider contract harness', () => {
         providerContractFixtures.failures.timeout
       ).reason
     ).toBe('timeout')
+    expect(() =>
+      Schema.decodeUnknownSync(ProviderContractFailure)({
+        ...providerContractFixtures.failures.timeout,
+        code: 'upstream said credential-secret'
+      })
+    ).toThrow()
 
     for (const evidence of [
       providerContractFixtures.evidence.delivery,
@@ -95,6 +106,20 @@ describe('deterministic provider contract harness', () => {
       ...providerContractFixtures.evidence.contradictory
     ])
       expect(() => Schema.decodeUnknownSync(ProviderEvidence)(evidence)).not.toThrow()
+
+    for (const [provider, channel] of [
+      ['meta', 'sms'],
+      ['smso', 'whatsapp']
+    ] as const)
+      expect(() =>
+        Schema.decodeUnknownSync(ProviderSubmissionRequest)({
+          ...providerContractFixtures.requests.roConfirmation,
+          provider,
+          channel,
+          destination: Redacted.make('+40722123456'),
+          renderedBody: Redacted.make('safe test input')
+        })
+      ).toThrow()
 
     for (const callback of Object.values(providerContractFixtures.callbacks))
       expect(() =>
@@ -136,6 +161,34 @@ describe('deterministic provider contract harness', () => {
       locale: 'en',
       destination: '+40•••••••222'
     })
+    const providerOperations = await Effect.runPromise(
+      Effect.gen(function* () {
+        const callbacks = yield* ProviderCallbackVerification
+        const queries = yield* ProviderQuery
+        const costs = yield* ProviderCostReader
+        return {
+          callback: yield* callbacks.verify({
+            provider: 'smso',
+            receivedAt: '2026-07-29T10:00:00.000Z',
+            rawBody: Redacted.make('raw callback fixture')
+          }),
+          query: yield* queries.query({
+            provider: 'smso',
+            attemptId: 'pat_fixture_en_reminder',
+            intentId: 'nti_fixture_en_reminder',
+            providerReference: Redacted.make('raw provider reference fixture'),
+            providerReferenceFingerprint:
+              'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          }),
+          costs: yield* costs.read('pat_fixture_en_reminder')
+        }
+      }).pipe(Effect.provide(testHarness.layer))
+    )
+    expect(providerOperations).toEqual({
+      callback: providerContractFixtures.callbacks.smsoHint,
+      query: providerContractFixtures.queries.smsoTerminalFailure,
+      costs: [providerContractFixtures.costs.smso]
+    })
 
     for (const runtime of ['preview', 'production'] as const) {
       const harness = makeDeterministicProviderHarness({
@@ -156,21 +209,37 @@ describe('deterministic provider contract harness', () => {
       runtime: 'test',
       provider: 'meta'
     })
+    const effectLogs: unknown[] = []
+    const logger = Logger.make((options) => effectLogs.push(options.message))
     await Effect.runPromise(
-      harness.submit({
-        ...providerContractFixtures.requests.roConfirmation,
-        destination: Redacted.make('+40744999888'),
-        renderedBody: Redacted.make(
-          'Mesaj complet https://example.test/c?token=confirmation-secret'
-        ),
-        credential: Redacted.make('credential-secret')
-      })
+      harness
+        .submit({
+          ...providerContractFixtures.requests.roConfirmation,
+          destination: Redacted.make('+40744999888'),
+          renderedBody: Redacted.make(
+            'Mesaj complet https://example.test/c?token=confirmation-secret'
+          ),
+          credential: Redacted.make('credential-secret')
+        })
+        .pipe(Effect.provide(Logger.layer([logger])))
     )
+    const invalidFingerprint = await Effect.runPromise(
+      Effect.flip(
+        harness.submit({
+          ...providerContractFixtures.requests.roConfirmation,
+          destination: Redacted.make('+40744999888'),
+          renderedBody: Redacted.make('Mesaj complet'),
+          bodyFingerprint: 'Mesaj complet'
+        })
+      )
+    )
+    expect(invalidFingerprint.code).toBe('malformed_provider_evidence')
 
     const serializedSafeData = JSON.stringify({
       fixtures: providerContractFixtures,
       captures: harness.captures(),
       logs: harness.logs(),
+      effectLogs,
       queue: providerContractFixtures.queueWakeup
     })
     for (const protectedValue of [

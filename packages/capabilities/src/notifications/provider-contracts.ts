@@ -1,4 +1,5 @@
 import { Context, Effect, Schema } from 'effect'
+import { NotificationIntentId } from '../ids.ts'
 
 export const MessagingProvider = Schema.Literals(['meta', 'smso'])
 export const MessagingChannel = Schema.Literals(['whatsapp', 'sms'])
@@ -10,40 +11,85 @@ export const OperationalNotificationPurpose = Schema.Literals([
   'appointment_reschedule'
 ])
 
-const ProtectedString = (label: string) =>
-  Schema.Redacted(Schema.String, { label, disallowJsonEncode: true })
+const ProtectedString = Schema.Redacted(Schema.String, {
+  disallowJsonEncode: true
+})
 
-export const ProviderSubmissionRequest = Schema.Struct({
-  attemptId: Schema.String,
-  intentId: Schema.String,
-  routeId: Schema.String,
-  provider: MessagingProvider,
-  channel: MessagingChannel,
+const stableId = (prefix: string) =>
+  Schema.String.check(Schema.isPattern(new RegExp(`^${prefix}_[A-Za-z0-9_-]+$`)))
+
+export const ProviderAttemptId = stableId('pat')
+export const ProviderRouteId = stableId('prt')
+export const ProviderEvidenceId = stableId('pevd')
+export const ProviderCaptureId = stableId('pcap')
+export const ProviderCostFactId = stableId('pcst')
+export const ProviderIdempotencyKey = stableId('idem')
+export const ProviderFingerprint = Schema.String.check(
+  Schema.isPattern(/^sha256:[a-f0-9]{64}$/)
+)
+export const ProviderTemplateVersion = Schema.String.check(
+  Schema.isPattern(/^v[1-9]\d*$/)
+)
+export const ProviderUtcInstant = Schema.String.check(
+  Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/)
+)
+export const NormalizedProviderCode = Schema.Literals([
+  'provider_rejected',
+  'provider_terminal_failure',
+  'contradictory_terminal_failure',
+  'invalid_signature',
+  'invalid_method',
+  'payload_too_large',
+  'malformed_callback',
+  'provider_timeout',
+  'provider_not_configured',
+  'provider_mismatch',
+  'provider_transport_error',
+  'malformed_provider_evidence'
+])
+
+const ProviderSubmissionFields = {
+  attemptId: ProviderAttemptId,
+  intentId: NotificationIntentId,
+  routeId: ProviderRouteId,
   locale: MessagingLocale,
   purpose: OperationalNotificationPurpose,
-  templateVersion: Schema.String,
-  idempotencyKey: Schema.String,
-  destination: ProtectedString('Protected Messaging Destination'),
-  renderedBody: ProtectedString('Rendered Operational Message'),
-  credential: Schema.optional(ProtectedString('Provider Credential')),
-  bodyFingerprint: Schema.String
-})
+  templateVersion: ProviderTemplateVersion,
+  idempotencyKey: ProviderIdempotencyKey,
+  destination: ProtectedString,
+  renderedBody: ProtectedString,
+  credential: Schema.optional(ProtectedString),
+  bodyFingerprint: ProviderFingerprint
+} as const
+
+export const ProviderSubmissionRequest = Schema.Union([
+  Schema.Struct({
+    ...ProviderSubmissionFields,
+    provider: Schema.Literal('meta'),
+    channel: Schema.Literal('whatsapp')
+  }),
+  Schema.Struct({
+    ...ProviderSubmissionFields,
+    provider: Schema.Literal('smso'),
+    channel: Schema.Literal('sms')
+  })
+])
 
 export const ProviderSubmissionOutcome = Schema.Union([
   Schema.Struct({
     _tag: Schema.Literal('captured'),
-    captureId: Schema.String,
-    capturedAt: Schema.String
+    captureId: ProviderCaptureId,
+    capturedAt: ProviderUtcInstant
   }),
   Schema.Struct({
     _tag: Schema.Literal('accepted'),
-    providerReferenceFingerprint: Schema.String,
-    acceptedAt: Schema.String
+    providerReferenceFingerprint: ProviderFingerprint,
+    acceptedAt: ProviderUtcInstant
   }),
   Schema.Struct({
     _tag: Schema.Literal('rejected'),
     classification: Schema.Literals(['retryable', 'terminal']),
-    code: Schema.String
+    code: NormalizedProviderCode
   }),
   Schema.Struct({
     _tag: Schema.Literal('throttled'),
@@ -51,29 +97,29 @@ export const ProviderSubmissionOutcome = Schema.Union([
   }),
   Schema.Struct({
     _tag: Schema.Literal('ambiguous'),
-    observedAt: Schema.String
+    observedAt: ProviderUtcInstant
   })
 ])
 
 export const ProviderEvidence = Schema.Struct({
-  evidenceId: Schema.String,
-  attemptId: Schema.String,
-  intentId: Schema.String,
+  evidenceId: ProviderEvidenceId,
+  attemptId: ProviderAttemptId,
+  intentId: NotificationIntentId,
   provider: MessagingProvider,
   source: Schema.Literals(['response', 'callback', 'query', 'operator']),
   status: Schema.Literals(['accepted', 'delivered', 'read', 'terminal_failure']),
-  observedAt: Schema.String,
-  providerOccurredAt: Schema.optional(Schema.String),
-  providerReferenceFingerprint: Schema.String,
+  observedAt: ProviderUtcInstant,
+  providerOccurredAt: Schema.optional(ProviderUtcInstant),
+  providerReferenceFingerprint: ProviderFingerprint,
   trusted: Schema.Boolean,
-  code: Schema.optional(Schema.String)
+  code: Schema.optional(NormalizedProviderCode)
 })
 
 export const ProviderCallbackRequest = Schema.Struct({
   provider: MessagingProvider,
-  receivedAt: Schema.String,
-  rawBody: ProtectedString('Raw Provider Callback'),
-  signature: Schema.optional(ProtectedString('Provider Callback Signature'))
+  receivedAt: ProviderUtcInstant,
+  rawBody: ProtectedString,
+  signature: Schema.optional(ProtectedString)
 })
 
 export const ProviderCallbackOutcome = Schema.Union([
@@ -83,20 +129,20 @@ export const ProviderCallbackOutcome = Schema.Union([
   }),
   Schema.Struct({
     _tag: Schema.Literal('untrusted_hint'),
-    providerReferenceFingerprint: Schema.String
+    providerReferenceFingerprint: ProviderFingerprint
   }),
   Schema.Struct({
     _tag: Schema.Literal('rejected'),
-    code: Schema.String
+    code: NormalizedProviderCode
   })
 ])
 
 export const ProviderQueryRequest = Schema.Struct({
   provider: MessagingProvider,
-  attemptId: Schema.String,
-  intentId: Schema.String,
-  providerReference: ProtectedString('Provider Reference'),
-  providerReferenceFingerprint: Schema.String
+  attemptId: ProviderAttemptId,
+  intentId: NotificationIntentId,
+  providerReference: ProtectedString,
+  providerReferenceFingerprint: ProviderFingerprint
 })
 
 export const ProviderQueryOutcome = Schema.Union([
@@ -112,21 +158,21 @@ export const ProviderQueryOutcome = Schema.Union([
 ])
 
 export const ProviderCostFact = Schema.Struct({
-  costFactId: Schema.String,
-  attemptId: Schema.String,
-  intentId: Schema.String,
+  costFactId: ProviderCostFactId,
+  attemptId: ProviderAttemptId,
+  intentId: NotificationIntentId,
   provider: MessagingProvider,
   amountMilliEuro: Schema.Int,
   currency: Schema.Literal('EUR'),
   units: Schema.Int,
-  recordedAt: Schema.String,
+  recordedAt: ProviderUtcInstant,
   source: Schema.Literals(['response', 'callback', 'query', 'invoice'])
 })
 
 export const ProviderQueueWakeup = Schema.Struct({
   version: Schema.Literal(1),
   kind: Schema.Literal('notification-intent'),
-  intentId: Schema.String
+  intentId: NotificationIntentId
 })
 
 const MaskedRomanianDestination = Schema.String.check(
@@ -134,17 +180,17 @@ const MaskedRomanianDestination = Schema.String.check(
 )
 
 export const ProviderCaptureRecord = Schema.Struct({
-  captureId: Schema.String,
-  capturedAt: Schema.String,
+  captureId: ProviderCaptureId,
+  capturedAt: ProviderUtcInstant,
   provider: MessagingProvider,
   channel: MessagingChannel,
   locale: MessagingLocale,
   purpose: OperationalNotificationPurpose,
-  templateVersion: Schema.String,
-  attemptId: Schema.String,
-  intentId: Schema.String,
+  templateVersion: ProviderTemplateVersion,
+  attemptId: ProviderAttemptId,
+  intentId: NotificationIntentId,
   destination: MaskedRomanianDestination,
-  bodyFingerprint: Schema.String
+  bodyFingerprint: ProviderFingerprint
 })
 
 export class ProviderContractFailure extends Schema.TaggedErrorClass<ProviderContractFailure>()(
@@ -158,7 +204,7 @@ export class ProviderContractFailure extends Schema.TaggedErrorClass<ProviderCon
       'transport',
       'malformed_evidence'
     ]),
-    code: Schema.String
+    code: NormalizedProviderCode
   }
 ) {}
 
@@ -204,7 +250,7 @@ export class ProviderQuery extends Context.Service<ProviderQuery, ProviderQueryS
 
 export type ProviderCostReaderShape = {
   readonly read: (
-    attemptId: string
+    attemptId: typeof ProviderAttemptId.Type
   ) => Effect.Effect<readonly CostFact[], ProviderContractFailure>
 }
 
