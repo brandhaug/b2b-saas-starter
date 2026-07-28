@@ -223,6 +223,18 @@ export const makeDeterministicProviderHarness = (options: {
     options.runtime === 'local' || options.runtime === 'test'
       ? 'capture'
       : 'needs_configuration'
+  const providerFixtures =
+    options.provider === 'meta'
+      ? {
+          callback: providerContractFixtures.callbacks.metaDelivery,
+          query: providerContractFixtures.queries.delivery,
+          cost: providerContractFixtures.costs.meta
+        }
+      : {
+          callback: providerContractFixtures.callbacks.smsoHint,
+          query: providerContractFixtures.queries.smsoTerminalFailure,
+          cost: providerContractFixtures.costs.smso
+        }
 
   const failure = (
     operation: 'submit' | 'verify_callback' | 'query' | 'read_cost',
@@ -302,9 +314,7 @@ export const makeDeterministicProviderHarness = (options: {
           'malformed_evidence',
           'provider_mismatch'
         )
-      return options.provider === 'meta'
-        ? providerContractFixtures.callbacks.metaDelivery
-        : providerContractFixtures.callbacks.smsoHint
+      return providerFixtures.callback
     })
 
   const query = (request: QueryRequest) =>
@@ -312,9 +322,7 @@ export const makeDeterministicProviderHarness = (options: {
       yield* requireConfigured('query')
       if (request.provider !== options.provider)
         return yield* failure('query', 'malformed_evidence', 'provider_mismatch')
-      return options.provider === 'meta'
-        ? providerContractFixtures.queries.delivery
-        : providerContractFixtures.queries.smsoTerminalFailure
+      return providerFixtures.query
     })
 
   const read = (
@@ -322,16 +330,8 @@ export const makeDeterministicProviderHarness = (options: {
   ): Effect.Effect<readonly CostFact[], ProviderContractFailure> =>
     Effect.gen(function* () {
       yield* requireConfigured('read_cost')
-      const expectedAttempt =
-        options.provider === 'meta'
-          ? providerContractFixtures.costs.meta.attemptId
-          : providerContractFixtures.costs.smso.attemptId
-      if (attemptId !== expectedAttempt) return []
-      return [
-        options.provider === 'meta'
-          ? providerContractFixtures.costs.meta
-          : providerContractFixtures.costs.smso
-      ]
+      if (attemptId !== providerFixtures.cost.attemptId) return []
+      return [providerFixtures.cost]
     })
 
   return {
