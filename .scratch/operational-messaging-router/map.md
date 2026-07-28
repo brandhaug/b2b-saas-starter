@@ -49,6 +49,7 @@ Specify, implement, verify, and launch the Romania-first Operational Messaging R
 - [Define Verification and Launch Gates](./issues/11-define-verification-and-staged-release-gates.md) — Messaging launches for every eligible Romanian Merchant only after exhaustive automated, load, external-readiness, security, financial, browser, and 16-message live-provider gates pass, with measurable service objectives and scoped post-launch containment instead of a delayed rollout.
 - [Synthesize and Seed the Implementation Program](./issues/12-synthesize-and-seed-implementation-program.md) — Sixteen new tracer-bullet tickets and two rewired live-route qualifications now form an acyclic path from deterministic contracts through production hardening to one conjunctive launch gate.
 - [Establish the Deterministic Provider Contract Harness](./issues/16-establish-deterministic-provider-contract-harness.md) — Typed, redaction-safe provider contracts, deterministic Meta/SMSO.ro Effect doubles, fixed fixtures, and fail-closed runtime selection now form the shared verification seam for later router slices.
+- [Expand D1 for Operational Messaging](./issues/17-expand-d1-for-operational-messaging.md) — Forward-only normalized D1 storage, exact financial and tenant constraints, retention foundations, and schema-decoded Seed/Live safe projections now support the router without switching producers or replaying history.
 
 ## Not yet specified
 
