@@ -1,16 +1,13 @@
 import { env } from 'cloudflare:workers'
 import { createFileRoute } from '@tanstack/react-router'
-import { Effect, ManagedRuntime } from 'effect'
-import {
-  annotateWide,
-  WideEventLoggerLive,
-  withHttpRequestScope
-} from '@b2b-saas-starter/logger'
+import { Effect } from 'effect'
+import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
+import { toHttpEffect } from 'effectful-better-auth'
+import { Auth } from '@b2b-saas-starter/auth'
+import { annotateWide, withHttpRequestScope } from '@b2b-saas-starter/logger'
+import { authRuntime } from '@/lib/auth-runtime'
 import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
 import { recordAuthAudit } from '@/lib/server/auth-audit'
-import { createServerContext } from '@/lib/server-context'
-
-const authRuntime = ManagedRuntime.make(WideEventLoggerLive)
 
 const processEnv = (): object | undefined =>
   typeof process === 'undefined' ? undefined : process.env
@@ -35,9 +32,16 @@ async function handleAuth(request: Request): Promise<Response> {
             headers: { 'content-type': 'application/json; charset=utf-8' }
           })
         }
-        const response = yield* Effect.promise(() =>
-          createServerContext().auth().handler(request)
+        // The effectful-better-auth mount: toWeb → auth.handler → fromWeb.
+        // The Auth service comes from authRuntime's layer; only the request
+        // is provided per call.
+        const serverResponse = yield* toHttpEffect(Auth.Tag).pipe(
+          Effect.provideService(
+            HttpServerRequest.HttpServerRequest,
+            HttpServerRequest.fromWeb(request)
+          )
         )
+        const response = HttpServerResponse.toWeb(serverResponse)
         // Governance audit for credential sign-in attempts (ADR 0025) —
         // best-effort by contract, so it can't fail the auth response, but a
         // dropped write is surfaced on the wide event.

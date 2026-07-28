@@ -84,7 +84,7 @@ The auth surface spans three layers: browser session auth (Better Auth), Worker-
 
 ### CORS & trusted origins
 
-- **Web (`/api/auth/*`):** Better Auth's `trustedOrigins` list, sourced from `BETTER_AUTH_TRUSTED_ORIGINS` (comma-separated). Default fallback is `BETTER_AUTH_URL`. Parsed in [`apps/web/src/lib/server-context.ts`](./apps/web/src/lib/server-context.ts).
+- **Web (`/api/auth/*`):** Better Auth's `trustedOrigins` list, sourced from `BETTER_AUTH_TRUSTED_ORIGINS` (comma-separated). Default fallback is `BETTER_AUTH_URL`. Parsed in [`apps/web/src/lib/auth-runtime.ts`](./apps/web/src/lib/auth-runtime.ts).
 - **API worker:** no CORS middleware — the API is intended for Worker-to-Worker and authenticated server calls. If you expose it to browsers, add explicit `Access-Control-*` handling and an allowlist (mirror Better Auth's pattern).
 - **Production deploys:** override `BETTER_AUTH_TRUSTED_ORIGINS` in [`alchemy.run.ts`](./alchemy.run.ts). Never deploy with the default placeholder.
 

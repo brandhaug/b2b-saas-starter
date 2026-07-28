@@ -39,6 +39,7 @@
     "cmdk": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
+    "effectful-better-auth": "catalog:",
     "lucide-react": "catalog:",
     "mermaid": "catalog:",
     "next-themes": "catalog:",

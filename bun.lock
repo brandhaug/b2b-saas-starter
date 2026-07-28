@@ -102,6 +102,7 @@
         "cmdk": "catalog:",
         "drizzle-orm": "catalog:",
         "effect": "catalog:",
+        "effectful-better-auth": "catalog:",
         "lucide-react": "catalog:",
         "mermaid": "catalog:",
         "next-themes": "catalog:",
@@ -177,6 +178,8 @@
       "dependencies": {
         "@b2b-saas-starter/db": "workspace:*",
         "better-auth": "catalog:",
+        "effect": "catalog:",
+        "effectful-better-auth": "catalog:",
       },
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
@@ -328,6 +331,7 @@
     "drizzle-kit": "1.0.0-rc.4",
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "4.0.0-beta.93",
+    "effectful-better-auth": "0.1.0",
     "jsdom": "29.1.1",
     "lint-staged": "17.0.8",
     "lucide-react": "1.23.0",
@@ -1841,6 +1845,8 @@
     "ee-first": ["ee-first@1.1.1", "", {}, "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow=="],
 
     "effect": ["effect@4.0.0-beta.93", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.8.0", "find-my-way-ts": "^0.1.6", "ini": "^7.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^2.0.1", "multipasta": "^0.2.7", "toml": "^4.1.1", "uuid": "^14.0.0", "yaml": "^2.9.0" } }, "sha512-wNS5MKFa3C42uBfIDik2oJ78lhpoYz2hN4oBR0229BeeDCIrkg/FiOvoiPGdCVlWa7MEKxEL5I0f8AILVHSD9A=="],
+
+    "effectful-better-auth": ["effectful-better-auth@0.1.0", "", { "peerDependencies": { "better-auth": "^1.6.0", "effect": "^4.0.0-beta.93" } }, "sha512-ihV7VSynSDzK0qp76QGTH8lK3+4GLcKZwfzYL1Tu9wjJai4gK7hKyyKcAQnUfGzQokmAQFZlSoXAKj6k0xbJcw=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.357", "", {}, "sha512-NHlTIQDK8fmVwHwuIzmXYEJ1Ewq3D9wDNc0cWXxDGysP6Pb21giwGNkxiTifyKy/4SoPuN5l6GLP1W9Sv7zB2g=="],
 

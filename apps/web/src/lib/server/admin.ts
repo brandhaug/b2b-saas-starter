@@ -1,6 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
-import { createServerContext } from '../server-context'
+import { Effect } from 'effect'
+import { Auth } from '@b2b-saas-starter/auth'
+import { authRuntime } from '../auth-runtime'
 
 export type SystemUser = {
   readonly id: string
@@ -18,11 +20,15 @@ export type SystemUser = {
 export const listSystemUsersServerFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<readonly SystemUser[]> => {
     const request = getRequest()
-    const auth = createServerContext().auth()
-    const { users } = await auth.api.listUsers({
-      headers: request.headers,
-      query: { limit: 100 }
-    })
+    const { users } = await authRuntime.runPromise(
+      Effect.gen(function* () {
+        const auth = yield* Auth.Tag
+        return yield* auth.api.listUsers({
+          headers: request.headers,
+          query: { limit: 100 }
+        })
+      })
+    )
     return users.map((user) => ({
       id: user.id,
       name: user.name,
