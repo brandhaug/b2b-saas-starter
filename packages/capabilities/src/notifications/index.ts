@@ -2,6 +2,8 @@ import { Context, Effect, Schema } from 'effect'
 import { CapabilityUnavailable } from '../errors.ts'
 import { NotificationIntentId, ShopId } from '../ids.ts'
 
+export * from './provider-contracts.ts'
+
 export const NotificationIntent = Schema.Struct({
   id: NotificationIntentId,
   shopId: ShopId,
