@@ -137,10 +137,12 @@ import {
 } from './customer-engagement/adapters.ts'
 import { CustomerEngagement } from './customer-engagement/index.ts'
 import {
+  LiveMessagingReadModel,
   LiveNotificationIntents,
+  SeedMessagingReadModel,
   SeedNotificationIntents
 } from './notifications/adapters.ts'
-import { NotificationIntents } from './notifications/index.ts'
+import { MessagingReadModel, NotificationIntents } from './notifications/index.ts'
 import {
   LiveScheduledWorkQueue,
   SeedScheduledWorkQueue
@@ -207,6 +209,7 @@ export type CapabilityServices =
   | PaymentSettlement
   | CustomerEngagement
   | NotificationIntents
+  | MessagingReadModel
   | ScheduledWorkQueue
   | GiftCards
   | GiftCardRedemptions
@@ -413,6 +416,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedPaymentSettlement(emptySeedPaymentSettlementStore()),
   SeedCustomerEngagement(),
   SeedNotificationIntents(),
+  SeedMessagingReadModel(),
   SeedScheduledWorkQueue(),
   SeedGiftCards(),
   SeedGiftCardRedemptions(seedGiftCardRedemptionStore),
@@ -485,6 +489,7 @@ export const makeLiveCapabilitiesLayer = (
     LivePaymentSettlement,
     LiveCustomerEngagement,
     LiveNotificationIntents,
+    LiveMessagingReadModel,
     LiveScheduledWorkQueue,
     LiveGiftCards,
     LiveGiftCardRedemptions,

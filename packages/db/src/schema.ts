@@ -1,10 +1,12 @@
 import { sql } from 'drizzle-orm'
 import {
   check,
+  foreignKey,
   index,
   integer,
   primaryKey,
   sqliteTable,
+  sqliteView,
   text,
   uniqueIndex
 } from 'drizzle-orm/sqlite-core'
@@ -1946,6 +1948,33 @@ export const notificationIntents = sqliteTable(
     sourceId: text('source_id').notNull(),
     sourceVersion: integer('source_version'),
     deduplicationKey: text('deduplication_key').unique().notNull(),
+    purpose: text('purpose', {
+      enum: [
+        'appointment_confirmation',
+        'appointment_reminder',
+        'appointment_cancellation',
+        'appointment_reschedule'
+      ]
+    }),
+    phase: text('phase', {
+      enum: ['scheduled', 'ready', 'routing', 'awaiting_provider', 'terminal']
+    }),
+    result: text('result', {
+      enum: ['delivered', 'not_sent', 'delivery_failed']
+    }),
+    resultReason: text('result_reason'),
+    locale: text('locale', { enum: ['ro', 'en'] }),
+    traceId: text('trace_id'),
+    destinationId: text('destination_id'),
+    templateVersionId: text('template_version_id'),
+    rateCardId: text('rate_card_id'),
+    terminalAt: text('terminal_at'),
+    supersededAt: text('superseded_at'),
+    supersededAfterSubmission: integer('superseded_after_submission', {
+      mode: 'boolean'
+    })
+      .default(false)
+      .notNull(),
     status: text('status', {
       enum: ['pending', 'processing', 'delivered', 'failed', 'cancelled']
     })
@@ -1956,12 +1985,1060 @@ export const notificationIntents = sqliteTable(
     updatedAt: isoUpdatedAt()
   },
   (table) => [
+    uniqueIndex('notification_intents_id_shop_unique').on(table.id, table.shopId),
+    uniqueIndex('notification_intents_semantic_source_unique').on(
+      table.shopId,
+      table.sourceType,
+      table.sourceId,
+      table.sourceVersion,
+      table.purpose,
+      table.deduplicationKey
+    ),
     index('notification_intents_status_available_idx').on(
       table.status,
       table.availableAt
+    ),
+    index('notification_intents_phase_available_idx').on(table.phase, table.availableAt)
+  ]
+)
+
+export const messagingRateCards = sqliteTable(
+  'messaging_rate_cards',
+  {
+    id: id(),
+    version: integer('version').notNull(),
+    currency: text('currency').notNull(),
+    chargeMilliEuro: integer('charge_milli_euro').notNull(),
+    effectiveAt: text('effective_at').notNull(),
+    noticePublishedAt: text('notice_published_at'),
+    retiredAt: text('retired_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_rate_cards_version_unique').on(table.version),
+    uniqueIndex('messaging_rate_cards_charge_identity_unique').on(
+      table.id,
+      table.chargeMilliEuro
+    ),
+    check('messaging_rate_cards_amount_positive', sql`${table.chargeMilliEuro} > 0`),
+    check('messaging_rate_cards_eur_only', sql`${table.currency} = 'EUR'`)
+  ]
+)
+
+export const protectedMessagingDestinations = sqliteTable(
+  'protected_messaging_destinations',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    intentId: text('intent_id')
+      .notNull()
+      .unique()
+      .references(() => notificationIntents.id, { onDelete: 'cascade' }),
+    ciphertext: text('ciphertext'),
+    keyVersion: integer('key_version').notNull(),
+    fingerprint: text('fingerprint'),
+    maskedValue: text('masked_value'),
+    countryCode: text('country_code').notNull(),
+    createdAt: isoCreatedAt(),
+    erasedAt: text('erased_at')
+  },
+  (table) => [
+    uniqueIndex('protected_messaging_destinations_fingerprint_scope_unique').on(
+      table.shopId,
+      table.fingerprint,
+      table.intentId
+    ),
+    foreignKey({
+      name: 'protected_messaging_destinations_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('cascade'),
+    index('protected_messaging_destinations_lookup_idx').on(
+      table.shopId,
+      table.fingerprint
+    ),
+    check(
+      'protected_messaging_destinations_erasure_check',
+      sql`(${table.erasedAt} IS NULL AND ${table.ciphertext} IS NOT NULL AND
+          ${table.fingerprint} IS NOT NULL AND ${table.maskedValue} IS NOT NULL) OR
+          (${table.erasedAt} IS NOT NULL AND ${table.ciphertext} IS NULL AND
+          ${table.fingerprint} IS NULL AND ${table.maskedValue} IS NULL)`
     )
   ]
 )
+
+export const messagingTemplateVersions = sqliteTable(
+  'messaging_template_versions',
+  {
+    id: id(),
+    purpose: text('purpose', {
+      enum: [
+        'appointment_confirmation',
+        'appointment_reminder',
+        'appointment_cancellation',
+        'appointment_reschedule'
+      ]
+    }).notNull(),
+    locale: text('locale', { enum: ['ro', 'en'] }).notNull(),
+    channel: text('channel', { enum: ['whatsapp', 'sms'] }).notNull(),
+    version: integer('version').notNull(),
+    bodyFingerprint: text('body_fingerprint').notNull(),
+    providerTemplateKey: text('provider_template_key'),
+    effectiveAt: text('effective_at').notNull(),
+    retiredAt: text('retired_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_template_versions_identity_unique').on(
+      table.purpose,
+      table.locale,
+      table.channel,
+      table.version
+    )
+  ]
+)
+
+export const notificationIntentControlledFacts = sqliteTable(
+  'notification_intent_controlled_facts',
+  {
+    intentId: text('intent_id')
+      .primaryKey()
+      .references(() => notificationIntents.id, { onDelete: 'cascade' }),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    templateVersionId: text('template_version_id')
+      .notNull()
+      .references(() => messagingTemplateVersions.id),
+    factsJson: text('facts_json', { mode: 'json' })
+      .$type<Record<string, string | number | boolean | null>>()
+      .notNull(),
+    factsFingerprint: text('facts_fingerprint').notNull(),
+    createdAt: isoCreatedAt(),
+    expiresAt: text('expires_at').notNull(),
+    erasedAt: text('erased_at')
+  },
+  (table) => [
+    foreignKey({
+      name: 'notification_intent_controlled_facts_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('cascade')
+  ]
+)
+
+export const deliveryRoutes = sqliteTable(
+  'delivery_routes',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    intentId: text('intent_id')
+      .notNull()
+      .references(() => notificationIntents.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    channel: text('channel', { enum: ['whatsapp', 'sms'] }).notNull(),
+    provider: text('provider', { enum: ['meta', 'smso'] }).notNull(),
+    state: text('state', {
+      enum: [
+        'planned',
+        'eligible',
+        'submitting',
+        'accepted',
+        'delivered',
+        'ineligible',
+        'submission_unknown',
+        'terminal_failure'
+      ]
+    }).notNull(),
+    ineligibleReason: text('ineligible_reason'),
+    acceptedAt: text('accepted_at'),
+    deliveredAt: text('delivered_at'),
+    terminalAt: text('terminal_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('delivery_routes_id_shop_unique').on(table.id, table.shopId),
+    uniqueIndex('delivery_routes_id_shop_intent_unique').on(
+      table.id,
+      table.shopId,
+      table.intentId
+    ),
+    uniqueIndex('delivery_routes_intent_ordinal_unique').on(
+      table.intentId,
+      table.ordinal
+    ),
+    uniqueIndex('delivery_routes_intent_channel_unique').on(
+      table.intentId,
+      table.channel
+    ),
+    foreignKey({
+      name: 'delivery_routes_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('cascade'),
+    index('delivery_routes_intent_state_idx').on(table.intentId, table.state),
+    check('delivery_routes_ordinal_check', sql`${table.ordinal} >= 0`),
+    check(
+      'delivery_routes_pair_check',
+      sql`(${table.channel} = 'whatsapp' AND ${table.provider} = 'meta') OR
+          (${table.channel} = 'sms' AND ${table.provider} = 'smso')`
+    )
+  ]
+)
+
+export const submissionAttempts = sqliteTable(
+  'submission_attempts',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    intentId: text('intent_id')
+      .notNull()
+      .references(() => notificationIntents.id, { onDelete: 'cascade' }),
+    routeId: text('route_id')
+      .notNull()
+      .references(() => deliveryRoutes.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    idempotencyKey: text('idempotency_key').unique().notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    state: text('state', {
+      enum: [
+        'prepared',
+        'submitting',
+        'captured',
+        'accepted',
+        'rejected_retryable',
+        'rejected_terminal',
+        'submission_unknown'
+      ]
+    }).notNull(),
+    startedAt: text('started_at').notNull(),
+    completedAt: text('completed_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('submission_attempts_id_shop_unique').on(table.id, table.shopId),
+    uniqueIndex('submission_attempts_id_shop_intent_unique').on(
+      table.id,
+      table.shopId,
+      table.intentId
+    ),
+    uniqueIndex('submission_attempts_id_shop_intent_route_unique').on(
+      table.id,
+      table.shopId,
+      table.intentId,
+      table.routeId
+    ),
+    uniqueIndex('submission_attempts_route_ordinal_unique').on(
+      table.routeId,
+      table.ordinal
+    ),
+    foreignKey({
+      name: 'submission_attempts_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'submission_attempts_route_intent_shop_fk',
+      columns: [table.routeId, table.shopId, table.intentId],
+      foreignColumns: [
+        deliveryRoutes.id,
+        deliveryRoutes.shopId,
+        deliveryRoutes.intentId
+      ]
+    }).onDelete('cascade'),
+    index('submission_attempts_intent_idx').on(table.intentId, table.createdAt),
+    check('submission_attempts_ordinal_check', sql`${table.ordinal} >= 0`)
+  ]
+)
+
+export const protectedProviderReferences = sqliteTable(
+  'protected_provider_references',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => submissionAttempts.id, { onDelete: 'cascade' }),
+    environment: text('environment').notNull(),
+    provider: text('provider', { enum: ['meta', 'smso'] }).notNull(),
+    providerAccountKey: text('provider_account_key').notNull(),
+    referenceType: text('reference_type').notNull(),
+    ciphertext: text('ciphertext'),
+    keyVersion: integer('key_version').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    maskedSuffix: text('masked_suffix'),
+    createdAt: isoCreatedAt(),
+    erasedAt: text('erased_at')
+  },
+  (table) => [
+    uniqueIndex('protected_provider_references_attempt_unique').on(
+      table.attemptId,
+      table.referenceType
+    ),
+    uniqueIndex('protected_provider_references_source_unique').on(
+      table.environment,
+      table.provider,
+      table.providerAccountKey,
+      table.referenceType,
+      table.fingerprint
+    ),
+    foreignKey({
+      name: 'protected_provider_references_attempt_shop_fk',
+      columns: [table.attemptId, table.shopId],
+      foreignColumns: [submissionAttempts.id, submissionAttempts.shopId]
+    }).onDelete('cascade'),
+    check(
+      'protected_provider_references_erasure_check',
+      sql`(${table.erasedAt} IS NULL AND ${table.ciphertext} IS NOT NULL) OR
+          (${table.erasedAt} IS NOT NULL AND ${table.ciphertext} IS NULL)`
+    )
+  ]
+)
+
+export const providerEvidence = sqliteTable(
+  'provider_evidence',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    intentId: text('intent_id')
+      .notNull()
+      .references(() => notificationIntents.id, { onDelete: 'cascade' }),
+    routeId: text('route_id')
+      .notNull()
+      .references(() => deliveryRoutes.id, { onDelete: 'cascade' }),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => submissionAttempts.id, { onDelete: 'cascade' }),
+    environment: text('environment').notNull(),
+    provider: text('provider', { enum: ['meta', 'smso'] }).notNull(),
+    providerAccountKey: text('provider_account_key').notNull(),
+    source: text('source', {
+      enum: ['response', 'callback', 'query', 'operator']
+    }).notNull(),
+    sourceEventKey: text('source_event_key').notNull(),
+    providerReferenceFingerprint: text('provider_reference_fingerprint'),
+    status: text('status', {
+      enum: ['accepted', 'delivered', 'read', 'terminal_failure']
+    }).notNull(),
+    trusted: integer('trusted', { mode: 'boolean' }).notNull(),
+    normalizedCode: text('normalized_code'),
+    bodyFingerprint: text('body_fingerprint'),
+    providerOccurredAt: text('provider_occurred_at'),
+    observedAt: text('observed_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('provider_evidence_source_identity_unique').on(
+      table.environment,
+      table.provider,
+      table.providerAccountKey,
+      table.source,
+      table.sourceEventKey
+    ),
+    foreignKey({
+      name: 'provider_evidence_attempt_route_intent_shop_fk',
+      columns: [table.attemptId, table.shopId, table.intentId, table.routeId],
+      foreignColumns: [
+        submissionAttempts.id,
+        submissionAttempts.shopId,
+        submissionAttempts.intentId,
+        submissionAttempts.routeId
+      ]
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'provider_evidence_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('cascade'),
+    index('provider_evidence_projection_idx').on(
+      table.intentId,
+      table.observedAt,
+      table.id
+    ),
+    uniqueIndex('provider_evidence_message_status_unique')
+      .on(
+        table.environment,
+        table.provider,
+        table.providerAccountKey,
+        table.providerReferenceFingerprint,
+        table.status
+      )
+      .where(sql`${table.providerReferenceFingerprint} IS NOT NULL`)
+  ]
+)
+
+export const suppressionDirectives = sqliteTable(
+  'suppression_directives',
+  {
+    id: id(),
+    shopId: text('shop_id').references(() => shops.id, { onDelete: 'cascade' }),
+    destinationFingerprint: text('destination_fingerprint').notNull(),
+    scope: text('scope', {
+      enum: ['all_operational', 'whatsapp', 'sms']
+    }).notNull(),
+    source: text('source').notNull(),
+    sourceIdentity: text('source_identity').notNull(),
+    reasonCode: text('reason_code').notNull(),
+    effectiveAt: text('effective_at').notNull(),
+    expiresAt: text('expires_at'),
+    revokedAt: text('revoked_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('suppression_directives_source_unique').on(
+      table.source,
+      table.sourceIdentity
+    ),
+    index('suppression_directives_eligibility_idx').on(
+      table.destinationFingerprint,
+      table.shopId,
+      table.scope,
+      table.effectiveAt,
+      table.expiresAt,
+      table.revokedAt
+    )
+  ]
+)
+
+export const messagingChannelControls = sqliteTable(
+  'messaging_channel_controls',
+  {
+    id: id(),
+    environment: text('environment').notNull(),
+    channel: text('channel', { enum: ['whatsapp', 'sms'] }).notNull(),
+    provider: text('provider', { enum: ['meta', 'smso'] }).notNull(),
+    enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
+    reason: text('reason'),
+    changedByOperatorId: text('changed_by_operator_id'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_channel_controls_scope_unique').on(
+      table.environment,
+      table.channel,
+      table.provider
+    ),
+    check(
+      'messaging_channel_controls_pair_check',
+      sql`(${table.channel} = 'whatsapp' AND ${table.provider} = 'meta') OR
+          (${table.channel} = 'sms' AND ${table.provider} = 'smso')`
+    )
+  ]
+)
+
+export const merchantMessagingControls = sqliteTable(
+  'merchant_messaging_controls',
+  {
+    shopId: text('shop_id')
+      .primaryKey()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    enabled: integer('enabled', { mode: 'boolean' }).default(false).notNull(),
+    confirmationEnabled: integer('confirmation_enabled', { mode: 'boolean' })
+      .default(true)
+      .notNull(),
+    reminderEnabled: integer('reminder_enabled', { mode: 'boolean' })
+      .default(true)
+      .notNull(),
+    cancellationEnabled: integer('cancellation_enabled', { mode: 'boolean' })
+      .default(true)
+      .notNull(),
+    rescheduleEnabled: integer('reschedule_enabled', { mode: 'boolean' })
+      .default(true)
+      .notNull(),
+    reminderLeadMinutes: integer('reminder_lead_minutes'),
+    frozen: integer('frozen', { mode: 'boolean' }).default(false).notNull(),
+    freezeReason: text('freeze_reason'),
+    lowBalanceNoticeArmed: integer('low_balance_notice_armed', { mode: 'boolean' })
+      .default(true)
+      .notNull(),
+    policyVersion: integer('policy_version').default(1).notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    check(
+      'merchant_messaging_controls_reminder_check',
+      sql`${table.reminderLeadMinutes} IS NULL OR ${table.reminderLeadMinutes} > 0`
+    )
+  ]
+)
+
+export const notificationIntentLeases = sqliteTable(
+  'notification_intent_leases',
+  {
+    intentId: text('intent_id')
+      .primaryKey()
+      .references(() => notificationIntents.id, { onDelete: 'cascade' }),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    ownerId: text('owner_id').notNull(),
+    leaseToken: text('lease_token').unique().notNull(),
+    leasedUntil: text('leased_until').notNull(),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    lastRecoveredAt: text('last_recovered_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    foreignKey({
+      name: 'notification_intent_leases_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('cascade'),
+    index('notification_intent_leases_expiry_idx').on(table.leasedUntil),
+    check(
+      'notification_intent_leases_attempt_count_check',
+      sql`${table.attemptCount} >= 0`
+    )
+  ]
+)
+
+export const messagingBalances = sqliteTable(
+  'messaging_balances',
+  {
+    shopId: text('shop_id')
+      .primaryKey()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    currency: text('currency').default('EUR').notNull(),
+    financiallyFrozen: integer('financially_frozen', { mode: 'boolean' })
+      .default(false)
+      .notNull(),
+    freezeReason: text('freeze_reason'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    check('messaging_balances_currency_check', sql`${table.currency} = 'EUR'`)
+  ]
+)
+
+export const messagingBalanceReservations = sqliteTable(
+  'messaging_balance_reservations',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => messagingBalances.shopId, { onDelete: 'cascade' }),
+    intentId: text('intent_id')
+      .unique()
+      .notNull()
+      .references(() => notificationIntents.id, { onDelete: 'cascade' }),
+    rateCardId: text('rate_card_id')
+      .notNull()
+      .references(() => messagingRateCards.id),
+    amountMilliEuro: integer('amount_milli_euro').notNull(),
+    status: text('status', {
+      enum: ['active', 'converted', 'released']
+    }).notNull(),
+    expiresAt: text('expires_at').notNull(),
+    convertedAt: text('converted_at'),
+    releasedAt: text('released_at'),
+    releaseReason: text('release_reason'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_balance_reservations_id_shop_unique').on(
+      table.id,
+      table.shopId
+    ),
+    uniqueIndex('messaging_balance_reservations_id_shop_intent_unique').on(
+      table.id,
+      table.shopId,
+      table.intentId
+    ),
+    uniqueIndex('messaging_balance_reservations_charge_snapshot_unique').on(
+      table.id,
+      table.shopId,
+      table.intentId,
+      table.rateCardId,
+      table.amountMilliEuro
+    ),
+    foreignKey({
+      name: 'messaging_balance_reservations_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'messaging_balance_reservations_rate_amount_fk',
+      columns: [table.rateCardId, table.amountMilliEuro],
+      foreignColumns: [messagingRateCards.id, messagingRateCards.chargeMilliEuro]
+    }),
+    index('messaging_balance_reservations_active_idx').on(
+      table.shopId,
+      table.status,
+      table.expiresAt
+    ),
+    check(
+      'messaging_balance_reservations_amount_positive',
+      sql`${table.amountMilliEuro} > 0`
+    )
+  ]
+)
+
+export const messagingBalanceLedgerEntries = sqliteTable(
+  'messaging_balance_ledger_entries',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => messagingBalances.shopId, { onDelete: 'restrict' }),
+    direction: text('direction', { enum: ['credit', 'debit'] }).notNull(),
+    kind: text('kind', {
+      enum: [
+        'top_up',
+        'delivery_charge',
+        'operator_adjustment',
+        'refund',
+        'correction',
+        'promotional_credit'
+      ]
+    }).notNull(),
+    amountMilliEuro: integer('amount_milli_euro').notNull(),
+    currency: text('currency').default('EUR').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceId: text('source_id').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    rateCardId: text('rate_card_id').references(() => messagingRateCards.id),
+    intentId: text('intent_id').references(() => notificationIntents.id, {
+      onDelete: 'restrict'
+    }),
+    actorType: text('actor_type'),
+    actorId: text('actor_id'),
+    reason: text('reason'),
+    fiscalReference: text('fiscal_reference'),
+    reversesEntryId: text('reverses_entry_id'),
+    correctionReason: text('correction_reason'),
+    occurredAt: text('occurred_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_balance_ledger_source_unique').on(
+      table.sourceType,
+      table.sourceId,
+      table.idempotencyKey
+    ),
+    uniqueIndex('messaging_balance_ledger_reversal_unique').on(
+      table.reversesEntryId,
+      table.correctionReason
+    ),
+    uniqueIndex('messaging_balance_ledger_delivery_charge_intent_unique')
+      .on(table.intentId)
+      .where(sql`${table.kind} = 'delivery_charge'`),
+    foreignKey({
+      name: 'messaging_balance_ledger_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'messaging_balance_ledger_rate_amount_fk',
+      columns: [table.rateCardId, table.amountMilliEuro],
+      foreignColumns: [messagingRateCards.id, messagingRateCards.chargeMilliEuro]
+    }),
+    index('messaging_balance_ledger_statement_idx').on(
+      table.shopId,
+      table.occurredAt,
+      table.id
+    ),
+    check(
+      'messaging_balance_ledger_amount_positive',
+      sql`${table.amountMilliEuro} > 0`
+    ),
+    check('messaging_balance_ledger_currency_check', sql`${table.currency} = 'EUR'`),
+    check(
+      'messaging_balance_ledger_delivery_charge_check',
+      sql`${table.kind} <> 'delivery_charge' OR
+          (${table.intentId} IS NOT NULL AND ${table.rateCardId} IS NOT NULL AND
+           ${table.direction} = 'debit')`
+    )
+  ]
+)
+
+export const chargeableDeliveries = sqliteTable(
+  'chargeable_deliveries',
+  {
+    id: id(),
+    shopId: text('shop_id').notNull(),
+    intentId: text('intent_id')
+      .unique()
+      .notNull()
+      .references(() => notificationIntents.id, { onDelete: 'restrict' }),
+    reservationId: text('reservation_id')
+      .unique()
+      .notNull()
+      .references(() => messagingBalanceReservations.id, { onDelete: 'restrict' }),
+    rateCardId: text('rate_card_id')
+      .notNull()
+      .references(() => messagingRateCards.id),
+    routeId: text('route_id')
+      .notNull()
+      .references(() => deliveryRoutes.id, { onDelete: 'restrict' }),
+    chargeMilliEuro: integer('charge_milli_euro').notNull(),
+    verifiedAt: text('verified_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    foreignKey({
+      name: 'chargeable_deliveries_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'chargeable_deliveries_reservation_snapshot_fk',
+      columns: [
+        table.reservationId,
+        table.shopId,
+        table.intentId,
+        table.rateCardId,
+        table.chargeMilliEuro
+      ],
+      foreignColumns: [
+        messagingBalanceReservations.id,
+        messagingBalanceReservations.shopId,
+        messagingBalanceReservations.intentId,
+        messagingBalanceReservations.rateCardId,
+        messagingBalanceReservations.amountMilliEuro
+      ]
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'chargeable_deliveries_route_intent_shop_fk',
+      columns: [table.routeId, table.shopId, table.intentId],
+      foreignColumns: [
+        deliveryRoutes.id,
+        deliveryRoutes.shopId,
+        deliveryRoutes.intentId
+      ]
+    }).onDelete('restrict'),
+    check('chargeable_deliveries_amount_positive', sql`${table.chargeMilliEuro} > 0`)
+  ]
+)
+
+export const providerMessagingCosts = sqliteTable(
+  'provider_messaging_costs',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'restrict' }),
+    intentId: text('intent_id')
+      .notNull()
+      .references(() => notificationIntents.id, { onDelete: 'restrict' }),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => submissionAttempts.id, { onDelete: 'restrict' }),
+    environment: text('environment').notNull(),
+    provider: text('provider', { enum: ['meta', 'smso'] }).notNull(),
+    providerAccountKey: text('provider_account_key').notNull(),
+    billingIdentityFingerprint: text('billing_identity_fingerprint').notNull(),
+    unitOrdinal: integer('unit_ordinal').notNull(),
+    amountMinorUnits: integer('amount_minor_units').notNull(),
+    currency: text('currency').notNull(),
+    currencyScale: integer('currency_scale').notNull(),
+    units: integer('units').notNull(),
+    source: text('source', {
+      enum: ['response', 'callback', 'query', 'invoice']
+    }).notNull(),
+    recordedAt: text('recorded_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('provider_messaging_costs_billing_unit_unique').on(
+      table.environment,
+      table.provider,
+      table.providerAccountKey,
+      table.billingIdentityFingerprint,
+      table.unitOrdinal
+    ),
+    foreignKey({
+      name: 'provider_messaging_costs_attempt_intent_shop_fk',
+      columns: [table.attemptId, table.shopId, table.intentId],
+      foreignColumns: [
+        submissionAttempts.id,
+        submissionAttempts.shopId,
+        submissionAttempts.intentId
+      ]
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'provider_messaging_costs_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('restrict'),
+    index('provider_messaging_costs_intent_idx').on(table.intentId, table.recordedAt),
+    check('provider_messaging_costs_amount_check', sql`${table.amountMinorUnits} >= 0`),
+    check(
+      'provider_messaging_costs_scale_check',
+      sql`${table.currencyScale} >= 0 AND ${table.currencyScale} <= 9`
+    ),
+    check('provider_messaging_costs_units_check', sql`${table.units} > 0`)
+  ]
+)
+
+export const messagingReconciliationCases = sqliteTable(
+  'messaging_reconciliation_cases',
+  {
+    id: id(),
+    shopId: text('shop_id').references(() => shops.id, { onDelete: 'set null' }),
+    intentId: text('intent_id').references(() => notificationIntents.id, {
+      onDelete: 'set null'
+    }),
+    kind: text('kind').notNull(),
+    sourceIdentity: text('source_identity').notNull(),
+    status: text('status', {
+      enum: ['open', 'investigating', 'resolved', 'waived']
+    }).notNull(),
+    severity: text('severity', {
+      enum: ['low', 'medium', 'high', 'critical']
+    }).notNull(),
+    safeSummary: text('safe_summary').notNull(),
+    assignedOperatorId: text('assigned_operator_id'),
+    resolutionClassification: text('resolution_classification'),
+    resolutionSource: text('resolution_source'),
+    resolutionReason: text('resolution_reason'),
+    openedAt: text('opened_at').notNull(),
+    resolvedAt: text('resolved_at'),
+    waivedAt: text('waived_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_reconciliation_cases_source_unique').on(
+      table.kind,
+      table.sourceIdentity
+    ),
+    foreignKey({
+      name: 'messaging_reconciliation_cases_intent_shop_fk',
+      columns: [table.intentId, table.shopId],
+      foreignColumns: [notificationIntents.id, notificationIntents.shopId]
+    }).onDelete('set null'),
+    index('messaging_reconciliation_cases_queue_idx').on(
+      table.status,
+      table.severity,
+      table.openedAt
+    ),
+    check(
+      'messaging_reconciliation_cases_intent_scope_check',
+      sql`${table.intentId} IS NULL OR ${table.shopId} IS NOT NULL`
+    )
+  ]
+)
+
+export const messagingIncidents = sqliteTable(
+  'messaging_incidents',
+  {
+    id: id(),
+    shopId: text('shop_id').references(() => shops.id, { onDelete: 'set null' }),
+    provider: text('provider', { enum: ['meta', 'smso'] }),
+    channel: text('channel', { enum: ['whatsapp', 'sms'] }),
+    kind: text('kind').notNull(),
+    status: text('status', {
+      enum: ['open', 'contained', 'recovering', 'resolved']
+    }).notNull(),
+    severity: text('severity', {
+      enum: ['low', 'medium', 'high', 'critical']
+    }).notNull(),
+    safeSummary: text('safe_summary').notNull(),
+    containmentScope: text('containment_scope', {
+      enum: ['merchant', 'provider_channel', 'callback_rule', 'global']
+    }).notNull(),
+    openedByActorType: text('opened_by_actor_type').notNull(),
+    openedByActorId: text('opened_by_actor_id').notNull(),
+    openedAt: text('opened_at').notNull(),
+    resolvedAt: text('resolved_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('messaging_incidents_queue_idx').on(
+      table.status,
+      table.severity,
+      table.openedAt
+    )
+  ]
+)
+
+export const messagingRetentionTombstones = sqliteTable(
+  'messaging_retention_tombstones',
+  {
+    id: id(),
+    shopId: text('shop_id').references(() => shops.id, { onDelete: 'set null' }),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    action: text('action', {
+      enum: [
+        'erase_destination',
+        'erase_provider_reference',
+        'erase_facts',
+        'delete_quarantine'
+      ]
+    }).notNull(),
+    status: text('status', {
+      enum: ['pending', 'leased', 'completed', 'failed']
+    }).notNull(),
+    dueAt: text('due_at').notNull(),
+    leaseOwner: text('lease_owner'),
+    leasedUntil: text('leased_until'),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    lastFailureCode: text('last_failure_code'),
+    completedAt: text('completed_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_retention_tombstones_resource_unique').on(
+      table.resourceType,
+      table.resourceId,
+      table.action
+    ),
+    index('messaging_retention_tombstones_due_idx').on(table.status, table.dueAt),
+    check(
+      'messaging_retention_tombstones_attempt_count_check',
+      sql`${table.attemptCount} >= 0`
+    )
+  ]
+)
+
+export const merchantNotificationDeliverySummaries = sqliteView(
+  'merchant_notification_delivery_summaries',
+  {
+    intentId: text('intent_id').notNull(),
+    shopId: text('shop_id').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceId: text('source_id').notNull(),
+    sourceVersion: integer('source_version'),
+    purpose: text('purpose'),
+    phase: text('phase'),
+    result: text('result'),
+    resultReason: text('result_reason'),
+    availableAt: text('available_at').notNull(),
+    terminalAt: text('terminal_at'),
+    maskedDestination: text('masked_destination'),
+    underReview: integer('under_review', { mode: 'boolean' }).notNull()
+  }
+).existing()
+
+export const merchantMessagingBalanceSummaries = sqliteView(
+  'merchant_messaging_balance_summaries',
+  {
+    shopId: text('shop_id').notNull(),
+    currency: text('currency').notNull(),
+    postedMilliEuro: integer('posted_milli_euro').notNull(),
+    reservedMilliEuro: integer('reserved_milli_euro').notNull(),
+    availableMilliEuro: integer('available_milli_euro').notNull(),
+    financiallyFrozen: integer('financially_frozen', { mode: 'boolean' }).notNull()
+  }
+).existing()
+
+export const operationsMessagingCaseSummaries = sqliteView(
+  'operations_messaging_case_summaries',
+  {
+    caseId: text('case_id').notNull(),
+    shopId: text('shop_id'),
+    intentId: text('intent_id'),
+    kind: text('kind').notNull(),
+    status: text('status').notNull(),
+    severity: text('severity').notNull(),
+    safeSummary: text('safe_summary').notNull(),
+    openedAt: text('opened_at').notNull(),
+    resolvedAt: text('resolved_at'),
+    purpose: text('purpose'),
+    intentPhase: text('intent_phase'),
+    intentResult: text('intent_result'),
+    maskedDestination: text('masked_destination')
+  }
+).existing()
+
+export const operationsMessagingRouteSummaries = sqliteView(
+  'operations_messaging_route_summaries',
+  {
+    routeId: text('route_id').notNull(),
+    shopId: text('shop_id').notNull(),
+    intentId: text('intent_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    channel: text('channel').notNull(),
+    provider: text('provider').notNull(),
+    state: text('state').notNull(),
+    ineligibleReason: text('ineligible_reason'),
+    acceptedAt: text('accepted_at'),
+    deliveredAt: text('delivered_at'),
+    terminalAt: text('terminal_at'),
+    latestEvidenceStatus: text('latest_evidence_status'),
+    latestEvidenceObservedAt: text('latest_evidence_observed_at'),
+    attemptCount: integer('attempt_count').notNull()
+  }
+).existing()
+
+export const operationsMessagingChargeSummaries = sqliteView(
+  'operations_messaging_charge_summaries',
+  {
+    chargeId: text('charge_id').notNull(),
+    shopId: text('shop_id').notNull(),
+    intentId: text('intent_id').notNull(),
+    routeId: text('route_id').notNull(),
+    chargeMilliEuro: integer('charge_milli_euro').notNull(),
+    verifiedAt: text('verified_at').notNull(),
+    ledgerEntryId: text('ledger_entry_id')
+  }
+).existing()
+
+export const operationsMessagingProviderCostSummaries = sqliteView(
+  'operations_messaging_provider_cost_summaries',
+  {
+    costId: text('cost_id').notNull(),
+    shopId: text('shop_id').notNull(),
+    intentId: text('intent_id').notNull(),
+    attemptId: text('attempt_id').notNull(),
+    provider: text('provider').notNull(),
+    amountMinorUnits: integer('amount_minor_units').notNull(),
+    currency: text('currency').notNull(),
+    currencyScale: integer('currency_scale').notNull(),
+    units: integer('units').notNull(),
+    source: text('source').notNull(),
+    recordedAt: text('recorded_at').notNull()
+  }
+).existing()
+
+export const operationsMessagingIncidentSummaries = sqliteView(
+  'operations_messaging_incident_summaries',
+  {
+    incidentId: text('incident_id').notNull(),
+    shopId: text('shop_id'),
+    provider: text('provider'),
+    channel: text('channel'),
+    kind: text('kind').notNull(),
+    status: text('status').notNull(),
+    severity: text('severity').notNull(),
+    safeSummary: text('safe_summary').notNull(),
+    containmentScope: text('containment_scope').notNull(),
+    openedAt: text('opened_at').notNull(),
+    resolvedAt: text('resolved_at')
+  }
+).existing()
+
+export const operationsMessagingChannelControlSummaries = sqliteView(
+  'operations_messaging_channel_control_summaries',
+  {
+    controlId: text('control_id').notNull(),
+    environment: text('environment').notNull(),
+    channel: text('channel').notNull(),
+    provider: text('provider').notNull(),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+    reason: text('reason'),
+    updatedAt: text('updated_at').notNull()
+  }
+).existing()
 
 export const scheduledWork = sqliteTable(
   'scheduled_work',
