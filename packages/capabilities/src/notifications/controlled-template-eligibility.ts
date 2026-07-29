@@ -44,6 +44,7 @@ export const ControlledTemplateInvalidReason = Schema.Literals([
   'template_pattern_missing',
   'template_fingerprint_mismatch',
   'whatsapp_envelope_exceeded',
+  'sms_not_ascii',
   'sms_not_gsm7',
   'sms_segment_exceeded'
 ])
@@ -397,6 +398,20 @@ const invalidFacts = (
   if (facts.locationSmsLabel.length > 28)
     return fail('location_sms_label_too_long', 'locationSmsLabel')
   if (facts.reference.length > 12) return fail('reference_too_long', 'reference')
+  if (template.channel === 'sms') {
+    for (const field of [
+      'merchantSmsLabel',
+      'locationSmsLabel',
+      'reference'
+    ] as const) {
+      const transliterated = transliterateRomanianSms(facts[field])
+      if (
+        countGsm7Units(transliterated) !== null &&
+        !/^[\x20-\x7e]+$/.test(transliterated)
+      )
+        return fail('sms_not_ascii', field)
+    }
+  }
   for (const [field, value] of Object.entries(facts)) {
     if (field !== 'confirmationUrl' && urlPattern.test(value))
       return fail('url_not_allowed', field)

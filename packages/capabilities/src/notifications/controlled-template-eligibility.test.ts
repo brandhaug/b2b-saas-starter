@@ -212,6 +212,7 @@ describe('controlled Operational Messaging templates', () => {
     ['url_not_allowed', { merchantLabel: 'https://unsafe.test' }],
     ['required_field_missing', { merchantLabel: '   ' }],
     ['unknown_controlled_field', { customerName: 'Irina' }],
+    ['sms_not_ascii', { merchantSmsLabel: 'Salon £' }],
     ['sms_not_gsm7', { merchantSmsLabel: 'Salon 😊' }]
   ] as const)('rejects invalid controlled content with %s', async (reason, patch) => {
     const template =
