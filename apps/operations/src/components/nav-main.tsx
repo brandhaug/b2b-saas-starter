@@ -25,7 +25,7 @@ export function NavMain({
 }: {
   items: {
     title: string
-    url: '/' | '/operators' | '/audit'
+    url: '/' | '/messaging' | '/operators' | '/audit'
     icon: LucideIcon
     isActive?: boolean
     items?: {

@@ -15,15 +15,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const server = vi.hoisted(() => ({
   acceptOperatorInvitation: vi.fn(),
   completeOperatorSecurityEnrollment: vi.fn(),
+  containMessagingIncident: vi.fn(),
   deleteOperator: vi.fn(),
   getAuditEvent: vi.fn(),
   getAuditEvents: vi.fn(),
   getManagedOperators: vi.fn(),
+  getMessagingCase: vi.fn(),
+  getMessagingContainment: vi.fn(),
+  getMessagingFinance: vi.fn(),
+  getMessagingIncidents: vi.fn(),
+  getMessagingOverview: vi.fn(),
+  getMessagingReconciliation: vi.fn(),
   getMerchant: vi.fn(),
   getMerchantMember: vi.fn(),
   getOperationsSession: vi.fn(),
   getOperatorEnrollment: vi.fn(),
   inviteOperator: vi.fn(),
+  resolveMessagingCase: vi.fn(),
   revokeOperatorInvitation: vi.fn(),
   searchOperations: vi.fn(),
   setOperatorEnabled: vi.fn(),
@@ -114,6 +122,112 @@ beforeEach(() => {
   )
   server.getAuditEvents.mockResolvedValue(ready({ events: [], nextCursor: null }))
   server.getAuditEvent.mockResolvedValue({ state: 'not-found' })
+  server.getMessagingOverview.mockResolvedValue(
+    ready({
+      health: {
+        openCaseCount: 1,
+        ambiguousCount: 1,
+        complaintCount: 0,
+        deliveredRouteCount: 23,
+        merchantChargeMilliEuro: 1035,
+        providerCostCount: 21
+      },
+      cases: [
+        {
+          caseId: 'case-1',
+          shopId: 'shop-1',
+          merchantId: 'merchant-1',
+          merchantName: 'Northstar Studio',
+          intentId: 'intent-1',
+          purpose: 'appointment_confirmation',
+          maskedDestination: '+40•••••••456',
+          kind: 'ambiguous_submission',
+          status: 'open',
+          severity: 'high',
+          safeSummary: 'Submission evidence needs review',
+          openedAt: '2026-07-30T12:00:00.000Z'
+        }
+      ]
+    })
+  )
+  server.getMessagingCase.mockResolvedValue(
+    ready({
+      case: {
+        caseId: 'case-1',
+        shopId: 'shop-1',
+        merchantId: 'merchant-1',
+        merchantName: 'Northstar Studio',
+        intentId: 'intent-1',
+        purpose: 'appointment_confirmation',
+        maskedDestination: '+40•••••••456',
+        kind: 'ambiguous_submission',
+        status: 'open',
+        severity: 'high',
+        safeSummary: 'Submission evidence needs review',
+        openedAt: '2026-07-30T12:00:00.000Z'
+      },
+      intent: {
+        intentId: 'intent-1',
+        sourceType: 'appointment',
+        sourceId: 'appointment-1',
+        sourceVersion: 1,
+        purpose: 'appointment_confirmation',
+        phase: 'awaiting_provider',
+        maskedDestination: '+40•••••••456',
+        availableAt: '2026-07-30T12:00:00.000Z'
+      },
+      routes: [
+        {
+          routeId: 'route-1',
+          ordinal: 0,
+          channel: 'whatsapp',
+          provider: 'meta',
+          state: 'accepted',
+          acceptedAt: '2026-07-30T12:01:00.000Z'
+        }
+      ],
+      attempts: [
+        {
+          attemptId: 'attempt-1',
+          routeId: 'route-1',
+          ordinal: 0,
+          state: 'accepted',
+          startedAt: '2026-07-30T12:00:30.000Z',
+          completedAt: '2026-07-30T12:01:00.000Z'
+        }
+      ],
+      evidence: [
+        {
+          evidenceId: 'evidence-1',
+          attemptId: 'attempt-1',
+          routeId: 'route-1',
+          provider: 'meta',
+          source: 'callback',
+          status: 'accepted',
+          trusted: true,
+          normalizedCode: 'accepted',
+          observedAt: '2026-07-30T12:01:00.000Z'
+        }
+      ],
+      reservation: {
+        reservationId: 'reservation-1',
+        rateCardId: 'rate-card-1',
+        amountMilliEuro: 45,
+        status: 'active',
+        expiresAt: '2026-08-06T12:00:00.000Z'
+      },
+      charges: [],
+      providerCosts: []
+    })
+  )
+  server.getMessagingContainment.mockResolvedValue(ready({ controls: [] }))
+  server.getMessagingFinance.mockResolvedValue(
+    ready({ rateCards: [], balances: [], charges: [], providerCosts: [] })
+  )
+  server.getMessagingReconciliation.mockResolvedValue(ready({ cases: [] }))
+  server.getMessagingIncidents.mockResolvedValue(ready({ incidents: [] }))
+  server.resolveMessagingCase.mockResolvedValue(ready(null))
+  server.containMessagingIncident.mockResolvedValue(ready(null))
 })
 
 afterEach(cleanup)
@@ -140,6 +254,7 @@ describe('Operations TanStack routes', () => {
     expect(screen.getByRole('link', { name: 'Discovery' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Operators' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Audit' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Messaging' })).toBeTruthy()
     expect(screen.getByText('System Operator')).toBeTruthy()
 
     fireEvent.click(sidebarTrigger)
@@ -147,6 +262,113 @@ describe('Operations TanStack routes', () => {
       expect(
         document.querySelector('[data-slot=sidebar][data-state=collapsed]')
       ).toBeTruthy()
+    )
+  })
+
+  it('renders the messaging health queue and focused normalized evidence journey', async () => {
+    const router = await renderRoute('/messaging?q=456')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Messaging health' })
+    ).toBeTruthy()
+    expect(screen.getByText(/Northstar Studio/)).toBeTruthy()
+    expect(screen.getByText(/\+40•••••••456/)).toBeTruthy()
+    const caseLink = screen.getByRole('link', {
+      name: /submission evidence needs review/i
+    })
+    expect(caseLink.getAttribute('href')).toContain('/messaging/cases/case-1')
+    expect(server.getMessagingOverview).toHaveBeenCalled()
+
+    await router.navigate({
+      to: '/messaging/cases/$caseId',
+      params: { caseId: 'case-1' }
+    })
+    expect(await screen.findByRole('heading', { name: 'Messaging case' })).toBeTruthy()
+    expect(screen.getByText('Ordered route journey')).toBeTruthy()
+    expect(screen.getByText('Normalized provider evidence')).toBeTruthy()
+    expect(screen.getByText(/45 m€/)).toBeTruthy()
+    expect(document.body.textContent).not.toContain('raw callback')
+    expect(document.body.textContent).not.toContain('Confirmation URL')
+
+    fireEvent.change(screen.getByLabelText('Resolution classification'), {
+      target: { value: 'provider-confirmed' }
+    })
+    fireEvent.change(screen.getByLabelText('Evidence source'), {
+      target: { value: 'provider-query:case-1' }
+    })
+    fireEvent.change(screen.getByLabelText('Substantive reason'), {
+      target: { value: 'Authoritative provider query confirmed acceptance' }
+    })
+    fireEvent.click(screen.getByLabelText('Confirm append-only resolution'))
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Append resolution' }).closest('form')!
+    )
+    await waitFor(() =>
+      expect(server.resolveMessagingCase).toHaveBeenCalledWith({
+        data: {
+          caseId: 'case-1',
+          disposition: 'resolved',
+          classification: 'provider-confirmed',
+          source: 'provider-query:case-1',
+          reason: 'Authoritative provider query confirmed acceptance',
+          confirmed: true
+        }
+      })
+    )
+  })
+
+  it('previews and confirms the narrow containment change', async () => {
+    server.getMessagingContainment.mockResolvedValue(
+      ready({
+        controls: [
+          {
+            controlId: 'control-1',
+            environment: 'production',
+            channel: 'whatsapp',
+            provider: 'meta',
+            enabled: true,
+            reason: 'Healthy route',
+            updatedAt: '2026-07-30T12:00:00.000Z'
+          }
+        ]
+      })
+    )
+    server.getMessagingIncidents.mockResolvedValue(
+      ready({
+        incidents: [
+          {
+            incidentId: 'incident-1',
+            shopId: 'shop-1',
+            kind: 'duplicate_delivery',
+            status: 'open',
+            severity: 'high',
+            safeSummary: 'One Merchant has duplicate delivery evidence',
+            containmentScope: 'merchant',
+            openedAt: '2026-07-30T12:00:00.000Z'
+          }
+        ]
+      })
+    )
+    await renderRoute('/messaging/containment')
+
+    const preview = await screen.findByLabelText('Containment preview')
+    expect(preview.textContent).toContain('Before: open')
+    expect(preview.textContent).toContain('After: contained')
+    fireEvent.change(screen.getByLabelText('Containment reason'), {
+      target: { value: 'Freeze only the affected Merchant while evidence is reviewed' }
+    })
+    fireEvent.click(screen.getByLabelText('Confirm narrow containment'))
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Contain incident' }).closest('form')!
+    )
+    await waitFor(() =>
+      expect(server.containMessagingIncident).toHaveBeenCalledWith({
+        data: {
+          incidentId: 'incident-1',
+          reason: 'Freeze only the affected Merchant while evidence is reviewed',
+          confirmed: true
+        }
+      })
     )
   })
 

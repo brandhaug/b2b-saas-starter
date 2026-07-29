@@ -10,6 +10,10 @@ import {
 } from '@b2b-saas-starter/auth/operations'
 import {
   GlobalOperationsAudit,
+  MessagingGovernance,
+  MessagingGovernanceDenied,
+  MessagingWorkspaces,
+  MessagingWorkspacesDenied,
   OperationsAuthorization,
   OperationsContractDenied,
   OperationsDiscovery,
@@ -17,7 +21,9 @@ import {
   makeOperationsAuthorizationLayer,
   makeOperationsAuditLayer,
   makeOperationsDiscoveryLayer,
-  makeOperationsImpersonationLayer
+  makeOperationsImpersonationLayer,
+  makeMessagingGovernanceLayer,
+  makeMessagingWorkspacesLayer
 } from '@b2b-saas-starter/capabilities/operations'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { clientKey, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
@@ -60,7 +66,16 @@ export const localOperatorFixture = {
   // otpauth URI. Authenticator apps must receive this encoded setup key.
   totpSecret: 'JBSWY3DPEHPK3PXP',
   totpAuthenticatorKey: 'JJBFGV2ZGNCFARKIKBFTGUCYKA',
-  roles: ['merchant-impersonator', 'impersonation-auditor', 'operator-manager']
+  roles: [
+    'merchant-impersonator',
+    'impersonation-auditor',
+    'operator-manager',
+    'messaging-reader',
+    'messaging-controller',
+    'messaging-finance',
+    'messaging-reconciler',
+    'messaging-incident-responder'
+  ]
 } as const
 
 const formText = (form: FormData, name: string): string => {
@@ -86,6 +101,28 @@ const auditErrorResponse = (error: unknown): Response => {
   if (error instanceof OperationsContractDenied && error.reason.endsWith('not found'))
     return Response.json({ error: 'not_found' }, { status: 404 })
   return Response.json({ error: 'forbidden' }, { status: 403 })
+}
+
+const messagingErrorResponse = (error: unknown): Response => {
+  if (!(error instanceof MessagingWorkspacesDenied))
+    return Response.json({ error: 'messaging_unavailable' }, { status: 503 })
+  if (error.reason === 'case_not_found')
+    return Response.json({ error: 'not_found' }, { status: 404 })
+  if (error.reason === 'operator_session_not_authorized')
+    return Response.json({ error: 'unauthenticated' }, { status: 401 })
+  if (error.reason.endsWith('_required'))
+    return Response.json({ error: 'forbidden' }, { status: 403 })
+  return Response.json({ error: 'messaging_unavailable' }, { status: 503 })
+}
+
+const messagingGovernanceErrorResponse = (error: unknown): Response => {
+  if (!(error instanceof MessagingGovernanceDenied))
+    return Response.json({ error: 'messaging_governance_unavailable' }, { status: 503 })
+  if (error.reason.includes('required') || error.reason.includes('authorized'))
+    return Response.json({ error: 'forbidden' }, { status: 403 })
+  if (error.reason.includes('not_found'))
+    return Response.json({ error: 'not_found' }, { status: 404 })
+  return Response.json({ error: 'conflict' }, { status: 409 })
 }
 
 let localSeed: Promise<void> | undefined
@@ -372,6 +409,26 @@ export const createOperationsWorker = () => ({
         }).pipe(Effect.provide(makeOperationsImpersonationLayer(db)))
       )
 
+    const runMessaging = <A>(
+      use: (messaging: MessagingWorkspaces['Service']) => Effect.Effect<A, unknown>
+    ): Promise<A> =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const messaging = yield* MessagingWorkspaces
+          return yield* use(messaging)
+        }).pipe(Effect.provide(makeMessagingWorkspacesLayer(db)))
+      )
+
+    const runMessagingGovernance = <A>(
+      use: (governance: MessagingGovernance['Service']) => Effect.Effect<A, unknown>
+    ): Promise<A> =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const governance = yield* MessagingGovernance
+          return yield* use(governance)
+        }).pipe(Effect.provide(makeMessagingGovernanceLayer(db)))
+      )
+
     const managementResponse = await handleOperatorManagementRoutes({
       request,
       db,
@@ -471,6 +528,133 @@ export const createOperationsWorker = () => ({
     }
 
     const auditDetailRoute = url.pathname.match(/^\/api\/operations\/audit\/([^/]+)$/)
+
+    const messagingCaseRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/cases\/([^/]+)$/
+    )
+    const messagingCaseResolutionRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/cases\/([^/]+)\/resolution$/
+    )
+    if (request.method === 'POST' && messagingCaseResolutionRoute) {
+      const form = await request.formData()
+      if (formText(form, 'confirmed') !== 'true')
+        return Response.json({ error: 'confirmation_required' }, { status: 400 })
+      const disposition = formText(form, 'disposition')
+      if (disposition !== 'resolved' && disposition !== 'waived')
+        return Response.json({ error: 'invalid_disposition' }, { status: 400 })
+      try {
+        await runMessagingGovernance((governance) =>
+          governance.resolveCase({
+            actor: reference!,
+            caseId: decodeURIComponent(messagingCaseResolutionRoute[1]!),
+            disposition,
+            classification: formText(form, 'classification'),
+            source: formText(form, 'source'),
+            reason: formText(form, 'reason')
+          })
+        )
+        return Response.json(null)
+      } catch (error) {
+        return messagingGovernanceErrorResponse(error)
+      }
+    }
+    if (request.method === 'GET' && messagingCaseRoute) {
+      try {
+        return Response.json(
+          await runMessaging((messaging) =>
+            messaging.caseDetail({
+              actor: reference!,
+              caseId: decodeURIComponent(messagingCaseRoute[1]!)
+            })
+          )
+        )
+      } catch (error) {
+        return messagingErrorResponse(error)
+      }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/operations/messaging') {
+      try {
+        return Response.json(
+          await runMessaging((messaging) =>
+            messaging.overview({
+              actor: reference!,
+              query: url.searchParams.get('q')?.slice(0, 100) ?? ''
+            })
+          )
+        )
+      } catch (error) {
+        return messagingErrorResponse(error)
+      }
+    }
+    if (
+      request.method === 'GET' &&
+      url.pathname === '/api/operations/messaging/containment'
+    ) {
+      try {
+        return Response.json({
+          controls: await runMessaging((messaging) => messaging.containment(reference!))
+        })
+      } catch (error) {
+        return messagingErrorResponse(error)
+      }
+    }
+    if (
+      request.method === 'GET' &&
+      url.pathname === '/api/operations/messaging/finance'
+    ) {
+      try {
+        return Response.json(
+          await runMessaging((messaging) => messaging.finance(reference!))
+        )
+      } catch (error) {
+        return messagingErrorResponse(error)
+      }
+    }
+    if (
+      request.method === 'GET' &&
+      url.pathname === '/api/operations/messaging/reconciliation'
+    ) {
+      try {
+        return Response.json({
+          cases: await runMessaging((messaging) => messaging.reconciliation(reference!))
+        })
+      } catch (error) {
+        return messagingErrorResponse(error)
+      }
+    }
+    if (
+      request.method === 'GET' &&
+      url.pathname === '/api/operations/messaging/incidents'
+    ) {
+      try {
+        return Response.json({
+          incidents: await runMessaging((messaging) => messaging.incidents(reference!))
+        })
+      } catch (error) {
+        return messagingErrorResponse(error)
+      }
+    }
+    const messagingIncidentContainRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/incidents\/([^/]+)\/contain$/
+    )
+    if (request.method === 'POST' && messagingIncidentContainRoute) {
+      const form = await request.formData()
+      if (formText(form, 'confirmed') !== 'true')
+        return Response.json({ error: 'confirmation_required' }, { status: 400 })
+      try {
+        await runMessagingGovernance((governance) =>
+          governance.contain({
+            actor: reference!,
+            incidentId: decodeURIComponent(messagingIncidentContainRoute[1]!),
+            reason: formText(form, 'reason'),
+            confirmed: true
+          })
+        )
+        return Response.json(null)
+      } catch (error) {
+        return messagingGovernanceErrorResponse(error)
+      }
+    }
     if (request.method === 'GET' && auditDetailRoute) {
       try {
         const event = await runAudit((audit) =>

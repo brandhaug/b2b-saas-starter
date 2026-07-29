@@ -6,6 +6,12 @@ import {
   MerchantMemberDetail,
   MerchantMemberSearchResult,
   MerchantSearchResult,
+  MessagingCaseDetail,
+  MessagingContainmentWorkspace,
+  MessagingFinanceWorkspace,
+  MessagingIncidentWorkspace,
+  MessagingReconciliationWorkspace,
+  MessagingWorkspaceOverview,
   OperationsAuditIdentity,
   OperationsAuditRetentionPolicy,
   OperatorRole
@@ -293,6 +299,84 @@ export const getAuditEvent = createServerFn({ method: 'GET' })
     read(
       `/api/operations/audit/${encodeURIComponent(data)}`,
       Schema.Struct({ event: AuditEventDetail })
+    )
+  )
+
+export const getMessagingOverview = createServerFn({ method: 'GET' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({ query: Schema.String.check(Schema.isMaxLength(100)) })
+    )
+  )
+  .handler(({ data }) =>
+    read(
+      `/api/operations/messaging${queryString({ q: data.query })}`,
+      MessagingWorkspaceOverview
+    )
+  )
+
+export const getMessagingCase = createServerFn({ method: 'GET' })
+  .validator(Schema.decodeUnknownSync(Identifier))
+  .handler(({ data }) =>
+    read(
+      `/api/operations/messaging/cases/${encodeURIComponent(data)}`,
+      MessagingCaseDetail
+    )
+  )
+
+export const getMessagingContainment = createServerFn({ method: 'GET' }).handler(() =>
+  read('/api/operations/messaging/containment', MessagingContainmentWorkspace)
+)
+
+export const getMessagingFinance = createServerFn({ method: 'GET' }).handler(() =>
+  read('/api/operations/messaging/finance', MessagingFinanceWorkspace)
+)
+
+export const getMessagingReconciliation = createServerFn({ method: 'GET' }).handler(
+  () =>
+    read('/api/operations/messaging/reconciliation', MessagingReconciliationWorkspace)
+)
+
+export const getMessagingIncidents = createServerFn({ method: 'GET' }).handler(() =>
+  read('/api/operations/messaging/incidents', MessagingIncidentWorkspace)
+)
+
+export const resolveMessagingCase = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        caseId: Identifier,
+        disposition: Schema.Literals(['resolved', 'waived']),
+        classification: BoundedText,
+        source: BoundedText,
+        reason: BoundedText,
+        confirmed: Schema.Boolean
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/api/operations/messaging/cases/${encodeURIComponent(data.caseId)}/resolution`,
+      { ...data, confirmed: String(data.confirmed) },
+      Schema.Null
+    )
+  )
+
+export const containMessagingIncident = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        incidentId: Identifier,
+        reason: BoundedText,
+        confirmed: Schema.Boolean
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/api/operations/messaging/incidents/${encodeURIComponent(data.incidentId)}/contain`,
+      { ...data, confirmed: String(data.confirmed) },
+      Schema.Null
     )
   )
 

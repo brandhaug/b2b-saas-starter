@@ -2,7 +2,14 @@
 
 import * as React from 'react'
 import { Link } from '@tanstack/react-router'
-import { Command, Search, ScrollText, ShieldCheck, type LucideIcon } from 'lucide-react'
+import {
+  Command,
+  MessageSquareWarning,
+  Search,
+  ScrollText,
+  ShieldCheck,
+  type LucideIcon
+} from 'lucide-react'
 
 import { NavMain } from '@/components/nav-main'
 import { NavUser } from '@/components/nav-user'
@@ -18,11 +25,12 @@ import {
 
 const navigation = [
   { title: 'Discovery', url: '/', icon: Search },
+  { title: 'Messaging', url: '/messaging', icon: MessageSquareWarning },
   { title: 'Operators', url: '/operators', icon: ShieldCheck },
   { title: 'Audit', url: '/audit', icon: ScrollText }
 ] satisfies {
   title: string
-  url: '/' | '/operators' | '/audit'
+  url: '/' | '/messaging' | '/operators' | '/audit'
   icon: LucideIcon
 }[]
 

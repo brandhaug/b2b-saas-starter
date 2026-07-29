@@ -13,14 +13,18 @@ import { Route as VerifyTotpRouteImport } from './routes/verify-totp'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as ReadyRouteImport } from './routes/ready'
 import { Route as OperatorsRouteImport } from './routes/operators'
+import { Route as MessagingRouteImport } from './routes/messaging'
 import { Route as EnrollRouteImport } from './routes/enroll'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MessagingFinanceRouteImport } from './routes/messaging_.finance'
+import { Route as MessagingContainmentRouteImport } from './routes/messaging_.containment'
 import { Route as MerchantsMerchantIdRouteImport } from './routes/merchants.$merchantId'
 import { Route as EnrollSecurityRouteImport } from './routes/enroll_.security'
 import { Route as AuditEventIdRouteImport } from './routes/audit_.$eventId'
 import { Route as _localOperatorInvitationEmailRouteImport } from './routes/[_][_]local.operator-invitation-email'
 import { Route as OperatorsInvitationsNewRouteImport } from './routes/operators_.invitations.new'
+import { Route as MessagingCasesCaseIdRouteImport } from './routes/messaging_.cases.$caseId'
 import { Route as ApiOperationsSplatRouteImport } from './routes/api.operations.$'
 import { Route as ApiMerchantsSplatRouteImport } from './routes/api.merchants.$'
 import { Route as ApiMembersSearchRouteImport } from './routes/api.members.search'
@@ -47,6 +51,11 @@ const OperatorsRoute = OperatorsRouteImport.update({
   path: '/operators',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MessagingRoute = MessagingRouteImport.update({
+  id: '/messaging',
+  path: '/messaging',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EnrollRoute = EnrollRouteImport.update({
   id: '/enroll',
   path: '/enroll',
@@ -60,6 +69,16 @@ const AuditRoute = AuditRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagingFinanceRoute = MessagingFinanceRouteImport.update({
+  id: '/messaging_/finance',
+  path: '/messaging/finance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagingContainmentRoute = MessagingContainmentRouteImport.update({
+  id: '/messaging_/containment',
+  path: '/messaging/containment',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MerchantsMerchantIdRoute = MerchantsMerchantIdRouteImport.update({
@@ -86,6 +105,11 @@ const _localOperatorInvitationEmailRoute =
 const OperatorsInvitationsNewRoute = OperatorsInvitationsNewRouteImport.update({
   id: '/operators_/invitations/new',
   path: '/operators/invitations/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagingCasesCaseIdRoute = MessagingCasesCaseIdRouteImport.update({
+  id: '/messaging_/cases/$caseId',
+  path: '/messaging/cases/$caseId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOperationsSplatRoute = ApiOperationsSplatRouteImport.update({
@@ -119,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/audit': typeof AuditRoute
   '/enroll': typeof EnrollRoute
+  '/messaging': typeof MessagingRoute
   '/operators': typeof OperatorsRoute
   '/ready': typeof ReadyRoute
   '/sign-in': typeof SignInRoute
@@ -127,10 +152,13 @@ export interface FileRoutesByFullPath {
   '/audit/$eventId': typeof AuditEventIdRoute
   '/enroll/security': typeof EnrollSecurityRoute
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/messaging/containment': typeof MessagingContainmentRoute
+  '/messaging/finance': typeof MessagingFinanceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/members/search': typeof ApiMembersSearchRoute
   '/api/merchants/$': typeof ApiMerchantsSplatRoute
   '/api/operations/$': typeof ApiOperationsSplatRoute
+  '/messaging/cases/$caseId': typeof MessagingCasesCaseIdRoute
   '/operators/invitations/new': typeof OperatorsInvitationsNewRoute
   '/merchants/$merchantId/members/$memberId': typeof MerchantsMerchantIdMembersMemberIdRoute
 }
@@ -138,6 +166,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/audit': typeof AuditRoute
   '/enroll': typeof EnrollRoute
+  '/messaging': typeof MessagingRoute
   '/operators': typeof OperatorsRoute
   '/ready': typeof ReadyRoute
   '/sign-in': typeof SignInRoute
@@ -146,10 +175,13 @@ export interface FileRoutesByTo {
   '/audit/$eventId': typeof AuditEventIdRoute
   '/enroll/security': typeof EnrollSecurityRoute
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/messaging/containment': typeof MessagingContainmentRoute
+  '/messaging/finance': typeof MessagingFinanceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/members/search': typeof ApiMembersSearchRoute
   '/api/merchants/$': typeof ApiMerchantsSplatRoute
   '/api/operations/$': typeof ApiOperationsSplatRoute
+  '/messaging/cases/$caseId': typeof MessagingCasesCaseIdRoute
   '/operators/invitations/new': typeof OperatorsInvitationsNewRoute
   '/merchants/$merchantId/members/$memberId': typeof MerchantsMerchantIdMembersMemberIdRoute
 }
@@ -158,6 +190,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/audit': typeof AuditRoute
   '/enroll': typeof EnrollRoute
+  '/messaging': typeof MessagingRoute
   '/operators': typeof OperatorsRoute
   '/ready': typeof ReadyRoute
   '/sign-in': typeof SignInRoute
@@ -166,10 +199,13 @@ export interface FileRoutesById {
   '/audit_/$eventId': typeof AuditEventIdRoute
   '/enroll_/security': typeof EnrollSecurityRoute
   '/merchants/$merchantId': typeof MerchantsMerchantIdRoute
+  '/messaging_/containment': typeof MessagingContainmentRoute
+  '/messaging_/finance': typeof MessagingFinanceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/members/search': typeof ApiMembersSearchRoute
   '/api/merchants/$': typeof ApiMerchantsSplatRoute
   '/api/operations/$': typeof ApiOperationsSplatRoute
+  '/messaging_/cases/$caseId': typeof MessagingCasesCaseIdRoute
   '/operators_/invitations/new': typeof OperatorsInvitationsNewRoute
   '/merchants/$merchantId_/members/$memberId': typeof MerchantsMerchantIdMembersMemberIdRoute
 }
@@ -179,6 +215,7 @@ export interface FileRouteTypes {
     | '/'
     | '/audit'
     | '/enroll'
+    | '/messaging'
     | '/operators'
     | '/ready'
     | '/sign-in'
@@ -187,10 +224,13 @@ export interface FileRouteTypes {
     | '/audit/$eventId'
     | '/enroll/security'
     | '/merchants/$merchantId'
+    | '/messaging/containment'
+    | '/messaging/finance'
     | '/api/auth/$'
     | '/api/members/search'
     | '/api/merchants/$'
     | '/api/operations/$'
+    | '/messaging/cases/$caseId'
     | '/operators/invitations/new'
     | '/merchants/$merchantId/members/$memberId'
   fileRoutesByTo: FileRoutesByTo
@@ -198,6 +238,7 @@ export interface FileRouteTypes {
     | '/'
     | '/audit'
     | '/enroll'
+    | '/messaging'
     | '/operators'
     | '/ready'
     | '/sign-in'
@@ -206,10 +247,13 @@ export interface FileRouteTypes {
     | '/audit/$eventId'
     | '/enroll/security'
     | '/merchants/$merchantId'
+    | '/messaging/containment'
+    | '/messaging/finance'
     | '/api/auth/$'
     | '/api/members/search'
     | '/api/merchants/$'
     | '/api/operations/$'
+    | '/messaging/cases/$caseId'
     | '/operators/invitations/new'
     | '/merchants/$merchantId/members/$memberId'
   id:
@@ -217,6 +261,7 @@ export interface FileRouteTypes {
     | '/'
     | '/audit'
     | '/enroll'
+    | '/messaging'
     | '/operators'
     | '/ready'
     | '/sign-in'
@@ -225,10 +270,13 @@ export interface FileRouteTypes {
     | '/audit_/$eventId'
     | '/enroll_/security'
     | '/merchants/$merchantId'
+    | '/messaging_/containment'
+    | '/messaging_/finance'
     | '/api/auth/$'
     | '/api/members/search'
     | '/api/merchants/$'
     | '/api/operations/$'
+    | '/messaging_/cases/$caseId'
     | '/operators_/invitations/new'
     | '/merchants/$merchantId_/members/$memberId'
   fileRoutesById: FileRoutesById
@@ -237,6 +285,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuditRoute: typeof AuditRoute
   EnrollRoute: typeof EnrollRoute
+  MessagingRoute: typeof MessagingRoute
   OperatorsRoute: typeof OperatorsRoute
   ReadyRoute: typeof ReadyRoute
   SignInRoute: typeof SignInRoute
@@ -245,10 +294,13 @@ export interface RootRouteChildren {
   AuditEventIdRoute: typeof AuditEventIdRoute
   EnrollSecurityRoute: typeof EnrollSecurityRoute
   MerchantsMerchantIdRoute: typeof MerchantsMerchantIdRoute
+  MessagingContainmentRoute: typeof MessagingContainmentRoute
+  MessagingFinanceRoute: typeof MessagingFinanceRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiMembersSearchRoute: typeof ApiMembersSearchRoute
   ApiMerchantsSplatRoute: typeof ApiMerchantsSplatRoute
   ApiOperationsSplatRoute: typeof ApiOperationsSplatRoute
+  MessagingCasesCaseIdRoute: typeof MessagingCasesCaseIdRoute
   OperatorsInvitationsNewRoute: typeof OperatorsInvitationsNewRoute
   MerchantsMerchantIdMembersMemberIdRoute: typeof MerchantsMerchantIdMembersMemberIdRoute
 }
@@ -283,6 +335,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperatorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/messaging': {
+      id: '/messaging'
+      path: '/messaging'
+      fullPath: '/messaging'
+      preLoaderRoute: typeof MessagingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/enroll': {
       id: '/enroll'
       path: '/enroll'
@@ -302,6 +361,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messaging_/finance': {
+      id: '/messaging_/finance'
+      path: '/messaging/finance'
+      fullPath: '/messaging/finance'
+      preLoaderRoute: typeof MessagingFinanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messaging_/containment': {
+      id: '/messaging_/containment'
+      path: '/messaging/containment'
+      fullPath: '/messaging/containment'
+      preLoaderRoute: typeof MessagingContainmentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/merchants/$merchantId': {
@@ -337,6 +410,13 @@ declare module '@tanstack/react-router' {
       path: '/operators/invitations/new'
       fullPath: '/operators/invitations/new'
       preLoaderRoute: typeof OperatorsInvitationsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messaging_/cases/$caseId': {
+      id: '/messaging_/cases/$caseId'
+      path: '/messaging/cases/$caseId'
+      fullPath: '/messaging/cases/$caseId'
+      preLoaderRoute: typeof MessagingCasesCaseIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/operations/$': {
@@ -381,6 +461,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuditRoute: AuditRoute,
   EnrollRoute: EnrollRoute,
+  MessagingRoute: MessagingRoute,
   OperatorsRoute: OperatorsRoute,
   ReadyRoute: ReadyRoute,
   SignInRoute: SignInRoute,
@@ -389,10 +470,13 @@ const rootRouteChildren: RootRouteChildren = {
   AuditEventIdRoute: AuditEventIdRoute,
   EnrollSecurityRoute: EnrollSecurityRoute,
   MerchantsMerchantIdRoute: MerchantsMerchantIdRoute,
+  MessagingContainmentRoute: MessagingContainmentRoute,
+  MessagingFinanceRoute: MessagingFinanceRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiMembersSearchRoute: ApiMembersSearchRoute,
   ApiMerchantsSplatRoute: ApiMerchantsSplatRoute,
   ApiOperationsSplatRoute: ApiOperationsSplatRoute,
+  MessagingCasesCaseIdRoute: MessagingCasesCaseIdRoute,
   OperatorsInvitationsNewRoute: OperatorsInvitationsNewRoute,
   MerchantsMerchantIdMembersMemberIdRoute:
     MerchantsMerchantIdMembersMemberIdRoute,
