@@ -1,14 +1,19 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js'
 import { Context, Effect, Layer, Redacted, Schema } from 'effect'
-import type {
+import { CapabilityUnavailable } from '../errors.ts'
+import { ShopId } from '../ids.ts'
+import {
   MessagingChannel,
   MessagingLocale,
-  OperationalNotificationPurpose
+  MessagingProvider,
+  OperationalNotificationPurpose,
+  ProviderFingerprint,
+  ProtectedNotificationMaterial,
+  ProviderUtcInstant
 } from './provider-contracts.ts'
 
 type Locale = typeof MessagingLocale.Type
 type Purpose = typeof OperationalNotificationPurpose.Type
-type Channel = typeof MessagingChannel.Type
 
 export const ControlledTemplateFacts = Schema.Struct({
   merchantLabel: Schema.String,
@@ -49,12 +54,8 @@ export class ControlledTemplateInvalid extends Schema.TaggedErrorClass<Controlle
   }
 ) {}
 
-const ProtectedString = Schema.Redacted(Schema.String, {
-  disallowJsonEncode: true
-})
-
 export const ProtectedMessagingDestination = Schema.Struct({
-  ciphertext: ProtectedString,
+  ciphertext: ProtectedNotificationMaterial,
   fingerprint: Schema.String.check(Schema.isPattern(/^sha256:[a-f0-9]{64}$/)),
   maskedValue: Schema.String.check(Schema.isPattern(/^\+40•{7}\d{3}$/)),
   countryCode: Schema.Literal('RO'),
@@ -72,24 +73,29 @@ export class ProtectedDestinationFailure extends Schema.TaggedErrorClass<Protect
   }
 ) {}
 
-export type ControlledTemplate = {
-  readonly id: string
-  readonly locale: Locale
-  readonly purpose: Purpose
-  readonly channel: Channel
-  readonly version: number
-  readonly bodyFingerprint: string
-  readonly enabled: boolean
-  readonly providerApproval: {
-    readonly provider: 'meta'
-    readonly templateKey: string
-    readonly requestedCategory: 'utility'
-    readonly observedCategory?: 'utility' | 'marketing' | 'authentication'
-    readonly status: 'pending' | 'approved' | 'rejected' | 'disabled'
-    readonly approvedAt?: string
-    readonly evidenceReference?: string
-  } | null
-}
+export const ProviderTemplateApproval = Schema.Struct({
+  provider: Schema.Literal('meta'),
+  templateKey: Schema.String,
+  requestedCategory: Schema.Literals(['utility', 'marketing', 'authentication']),
+  observedCategory: Schema.optional(
+    Schema.Literals(['utility', 'marketing', 'authentication'])
+  ),
+  status: Schema.Literals(['pending', 'approved', 'rejected', 'disabled']),
+  approvedAt: Schema.optional(ProviderUtcInstant),
+  evidenceReference: Schema.optional(Schema.String)
+})
+
+export const ControlledTemplate = Schema.Struct({
+  id: Schema.String,
+  locale: MessagingLocale,
+  purpose: OperationalNotificationPurpose,
+  channel: MessagingChannel,
+  version: Schema.Int.check(Schema.isGreaterThan(0)),
+  bodyFingerprint: ProviderFingerprint,
+  enabled: Schema.Boolean,
+  providerApproval: Schema.NullOr(ProviderTemplateApproval)
+})
+export type ControlledTemplate = typeof ControlledTemplate.Type
 
 const purposes: readonly Purpose[] = [
   'appointment_confirmation',
@@ -102,35 +108,35 @@ const bodyFingerprints: Readonly<Record<string, string>> = {
   'ro:appointment_confirmation:whatsapp':
     'sha256:252c1d7edf64265eccfd0f6f81d41976396d97253af1888c74eb61aeba7a9338',
   'ro:appointment_confirmation:sms':
-    'sha256:998a641d32a9d74e4b30775ca9090c951705ec7a90b65e78bc97d5360631e3fa',
+    'sha256:20b411bcd5dcaf6d3a5554e5e62b8987b0b8c7a27ffe1bac339f7811ea1f2c9a',
   'ro:appointment_reminder:whatsapp':
     'sha256:d8b34a816668643b8518574525c159ba16fd7fa2412481f086e4d8701ed671a0',
   'ro:appointment_reminder:sms':
-    'sha256:b90b61075a5b34649b2c26d29204db64bec322ae04d15dd786858eada237f3c4',
+    'sha256:518eeeb946bd838e2b62145bb4a08eedae73191f05e7190612ef250e9cd3e113',
   'ro:appointment_cancellation:whatsapp':
     'sha256:2633b940e84a515922c9606b7c695ce0a87eefa29d60011dd1938c3aba860f10',
   'ro:appointment_cancellation:sms':
-    'sha256:44278a7d1b3f175aeb41526c5e846233f90eddbf99379ae84e306c3709ea4320',
+    'sha256:d9414fd3f0bb2aba6d8911db10723da51bbcf26875f09be5cbfacad32d418e3a',
   'ro:appointment_reschedule:whatsapp':
     'sha256:75bb42949e955ff5129e121d6a79175ab2270ee35a4e448ce75d0106c94770e6',
   'ro:appointment_reschedule:sms':
-    'sha256:e2ced6a7f80e92a6b0842075e89111edfa5973651b8aa9631910a04aeb3634c3',
+    'sha256:2d6f8ff2f42d82d8f385c7e892660178b825a11691f088c367ea1a80e71fb119',
   'en:appointment_confirmation:whatsapp':
     'sha256:b968cdc7530c9953831af9c6cec67894c0f357cd093cb03ff5a364597e5bbd1a',
   'en:appointment_confirmation:sms':
-    'sha256:97c4eca8d01d2172238b26a13d9802ef963ed3a13ba9b9caf652745d9e39c418',
+    'sha256:5b032484d3264322a1440366deb6c4ea2bf50241dc5aca27d9d228b12240ef02',
   'en:appointment_reminder:whatsapp':
     'sha256:1b25cb9b1f4d4e2ce41e7546633e2ce46b9ce41e8ec0cf3674dd4c9d39629f66',
   'en:appointment_reminder:sms':
-    'sha256:4cfc41cd2f6129a398ad47e23695def3f14c37d4b53e14af68a6d13cc4704a1a',
+    'sha256:ee6401f3fd17f90887a1c64e036bdbe7d04b80dc12db969e452725b0ff65c7aa',
   'en:appointment_cancellation:whatsapp':
     'sha256:712918e11451dd0054fa6da46d3ef272d10ccfee58c9e607742beff690a3c0e9',
   'en:appointment_cancellation:sms':
-    'sha256:b8aa7fe41d5ddf3f053f9d904ce2e1cdb19f5a999a51bea7ac09e9d51fc5422d',
+    'sha256:fb3710df8244cf5d121e7cd5d7d19ac58da60a95f96ab8d1ac3125eeaa8dd655',
   'en:appointment_reschedule:whatsapp':
     'sha256:2ddf8130d014974a516d26a958c114521eacafc85fea44926ce8f925a0e49609',
   'en:appointment_reschedule:sms':
-    'sha256:eafb2b2640eadc54c20005aedb8facf2a4efed6c314e5802ad220ca143ee07cf'
+    'sha256:74064bf66902b14cb19b3de09c3ae08f508ebcb0bb014ac29ac7a7785eef0f99'
 }
 
 export const controlledTemplateCatalog: readonly ControlledTemplate[] = (
@@ -311,9 +317,7 @@ const invalidFacts = (
   if (template.purpose === 'appointment_confirmation') {
     if (
       facts.confirmationUrl.length > 31 ||
-      !/^https:\/\/[A-Za-z0-9.-]+(?:\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*)?$/.test(
-        facts.confirmationUrl
-      )
+      !/^https:\/\/bsolo\.ro\/c\/[A-Za-z0-9_-]+$/.test(facts.confirmationUrl)
     )
       return fail('confirmation_url_invalid', 'confirmationUrl')
   } else if (facts.confirmationUrl)
@@ -353,6 +357,9 @@ const whatsappBody = (
 const smsBody = (locale: Locale, purpose: Purpose, facts: ControlledTemplateFacts) => {
   const merchant = transliterateRomanianSms(facts.merchantSmsLabel)
   const location = transliterateRomanianSms(facts.locationSmsLabel)
+  const reference = transliterateRomanianSms(facts.reference)
+  const help =
+    locale === 'ro' ? ' Ajutor/STOP:firma/beesolo.' : ' Help/STOP:shop/beesolo.'
   const wording =
     locale === 'ro'
       ? {
@@ -369,13 +376,13 @@ const smsBody = (locale: Locale, purpose: Purpose, facts: ControlledTemplateFact
         }
   switch (purpose) {
     case 'appointment_confirmation':
-      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${facts.reference}. ${facts.confirmationUrl}`
+      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${reference}. ${facts.confirmationUrl}${help}`
     case 'appointment_reminder':
-      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${facts.reference}.`
+      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${reference}.${help}`
     case 'appointment_cancellation':
-      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}. Ref ${facts.reference}.`
+      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}. Ref ${reference}.${help}`
     case 'appointment_reschedule':
-      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${facts.reference}.`
+      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${reference}.${help}`
   }
 }
 
@@ -430,6 +437,9 @@ export const OperationalMessageIneligibleReason = Schema.Literals([
   'template_disabled',
   'template_not_approved',
   'template_category_mismatch',
+  'template_approval_evidence_missing',
+  'template_content_mismatch',
+  'invalid_eligibility_input',
   'invalid_controlled_content',
   'invalid_shop_timezone',
   'reminder_no_longer_useful'
@@ -442,39 +452,44 @@ export class OperationalMessageIneligible extends Schema.TaggedErrorClass<Operat
   }
 ) {}
 
-type SuppressionDirective = {
-  readonly destinationFingerprint: string
-  readonly scope: 'all_operational' | Channel
-  readonly effectiveAt: string
-  readonly expiresAt?: string
-  readonly revokedAt?: string
-}
+export const SuppressionDirective = Schema.Struct({
+  shopId: Schema.NullOr(ShopId),
+  destinationFingerprint: ProviderFingerprint,
+  scope: Schema.Union([Schema.Literal('all_operational'), MessagingChannel]),
+  effectiveAt: ProviderUtcInstant,
+  expiresAt: Schema.optional(ProviderUtcInstant),
+  revokedAt: Schema.optional(ProviderUtcInstant)
+})
+export type SuppressionDirective = typeof SuppressionDirective.Type
 
-export type OperationalMessageEligibilityInput = {
-  readonly purpose: Purpose
-  readonly locale: Locale
-  readonly channel: Channel
-  readonly provider: 'meta' | 'smso'
-  readonly templateVersion: number
-  readonly destinationFingerprint: string
-  readonly permission: {
-    readonly granted: boolean
-    readonly destinationFingerprint: string
-  }
-  readonly suppressions: readonly SuppressionDirective[]
-  readonly controls: {
-    readonly globalEnabled: boolean
-    readonly merchantEnabled: boolean
-    readonly merchantFrozen: boolean
-    readonly purposeEnabled: boolean
-    readonly channelEnabled: boolean
-    readonly providerConfigured: boolean
-  }
-  readonly now: string
-  readonly appointmentStartsAt: string
-  readonly shopTimeZone: string
-  readonly facts: ControlledTemplateFacts
-}
+export const OperationalMessageEligibilityInput = Schema.Struct({
+  shopId: ShopId,
+  purpose: OperationalNotificationPurpose,
+  locale: MessagingLocale,
+  channel: MessagingChannel,
+  provider: MessagingProvider,
+  templateVersion: Schema.Int.check(Schema.isGreaterThan(0)),
+  destinationFingerprint: ProviderFingerprint,
+  permission: Schema.Struct({
+    granted: Schema.Boolean,
+    destinationFingerprint: ProviderFingerprint
+  }),
+  suppressions: Schema.Array(SuppressionDirective),
+  controls: Schema.Struct({
+    globalEnabled: Schema.Boolean,
+    merchantEnabled: Schema.Boolean,
+    merchantFrozen: Schema.Boolean,
+    purposeEnabled: Schema.Boolean,
+    channelEnabled: Schema.Boolean,
+    providerConfigured: Schema.Boolean
+  }),
+  now: ProviderUtcInstant,
+  appointmentStartsAt: ProviderUtcInstant,
+  shopTimeZone: Schema.String,
+  facts: ControlledTemplateFacts
+})
+export type OperationalMessageEligibilityInput =
+  typeof OperationalMessageEligibilityInput.Type
 
 const ineligible = (reason: typeof OperationalMessageIneligibleReason.Type) =>
   Effect.fail(new OperationalMessageIneligible({ reason }))
@@ -484,6 +499,7 @@ const activeSuppression = (
   input: OperationalMessageEligibilityInput
 ) =>
   directive.destinationFingerprint === input.destinationFingerprint &&
+  (directive.shopId === null || directive.shopId === input.shopId) &&
   directive.effectiveAt <= input.now &&
   (!directive.expiresAt || directive.expiresAt > input.now) &&
   (!directive.revokedAt || directive.revokedAt > input.now)
@@ -552,12 +568,22 @@ const reminderAvailableAt = (
   })
 
 export const evaluateOperationalMessageEligibility = (
-  input: OperationalMessageEligibilityInput,
+  rawInput: unknown,
   options: {
     readonly catalog: readonly ControlledTemplate[]
   } = { catalog: controlledTemplateCatalog }
 ) =>
   Effect.gen(function* () {
+    const input = yield* Schema.decodeUnknownEffect(OperationalMessageEligibilityInput)(
+      rawInput
+    ).pipe(
+      Effect.mapError(
+        () =>
+          new OperationalMessageIneligible({
+            reason: 'invalid_eligibility_input'
+          })
+      )
+    )
     if (!input.permission.granted)
       return yield* ineligible('operational_permission_missing')
     if (input.permission.destinationFingerprint !== input.destinationFingerprint)
@@ -593,6 +619,18 @@ export const evaluateOperationalMessageEligibility = (
     )
     if (!template) return yield* ineligible('template_version_not_found')
     if (!template.enabled) return yield* ineligible('template_disabled')
+    const controlledVersion = controlledTemplateCatalog.find(
+      (candidate) =>
+        candidate.purpose === template.purpose &&
+        candidate.locale === template.locale &&
+        candidate.channel === template.channel &&
+        candidate.version === template.version
+    )
+    if (
+      !controlledVersion ||
+      controlledVersion.bodyFingerprint !== template.bodyFingerprint
+    )
+      return yield* ineligible('template_content_mismatch')
     const providerApproval = template.providerApproval
     if (template.channel === 'whatsapp' && providerApproval?.status !== 'approved')
       return yield* ineligible('template_not_approved')
@@ -602,6 +640,13 @@ export const evaluateOperationalMessageEligibility = (
         providerApproval.observedCategory !== 'utility')
     )
       return yield* ineligible('template_category_mismatch')
+    if (
+      template.channel === 'whatsapp' &&
+      (!providerApproval?.templateKey ||
+        !providerApproval.approvedAt ||
+        !providerApproval.evidenceReference)
+    )
+      return yield* ineligible('template_approval_evidence_missing')
 
     yield* Effect.try({
       try: () =>
@@ -636,9 +681,17 @@ export const evaluateOperationalMessageEligibility = (
   })
 
 export type ControlledTemplateEligibilityEngineShape = {
-  readonly evaluate: (
-    input: OperationalMessageEligibilityInput
-  ) => ReturnType<typeof evaluateOperationalMessageEligibility>
+  readonly evaluate: (input: unknown) => Effect.Effect<
+    {
+      readonly template: ControlledTemplate
+      readonly rendered: {
+        readonly body: Redacted.Redacted<string>
+        readonly gsm7Units: number | null
+      }
+      readonly availableAt: string
+    },
+    OperationalMessageIneligible | CapabilityUnavailable
+  >
 }
 
 export class ControlledTemplateEligibilityEngine extends Context.Service<
@@ -648,7 +701,7 @@ export class ControlledTemplateEligibilityEngine extends Context.Service<
   '@b2b-saas-starter/capabilities/notifications/ControlledTemplateEligibilityEngine'
 ) {}
 
-export const ControlledTemplateEligibilityEngineLayer = (
+export const SeedControlledTemplateEligibilityEngine = (
   catalog: readonly ControlledTemplate[] = controlledTemplateCatalog
 ): Layer.Layer<ControlledTemplateEligibilityEngine> =>
   Layer.succeed(ControlledTemplateEligibilityEngine)({

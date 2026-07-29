@@ -4,6 +4,7 @@ import {
   Database,
   merchantMessagingBalanceSummaries,
   merchantNotificationDeliverySummaries,
+  messagingTemplateVersions,
   notificationIntents,
   operationsMessagingCaseSummaries,
   operationsMessagingChannelControlSummaries,
@@ -15,12 +16,18 @@ import {
 import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import {
+  ControlledTemplate,
+  ControlledTemplateEligibilityEngine,
+  controlledTemplateCatalog,
+  evaluateOperationalMessageEligibility,
   MessagingProjectionNotFound,
   MessagingReadModel,
   MerchantMessagingBalanceSummary,
   MerchantNotificationDeliverySummary,
   NotificationIntentUnavailable,
   NotificationIntents,
+  OperationalMessageEligibilityInput,
+  OperationalMessageIneligible,
   OperationsMessagingCaseSummary,
   OperationsMessagingChannelControlSummary,
   OperationsMessagingChargeSummary,
@@ -477,3 +484,85 @@ export const LiveMessagingReadModel: Layer.Layer<MessagingReadModel, never, Data
       }
     })
   )
+
+export const LiveControlledTemplateEligibilityEngine: Layer.Layer<
+  ControlledTemplateEligibilityEngine,
+  never,
+  Database
+> = Layer.effect(
+  ControlledTemplateEligibilityEngine,
+  Effect.gen(function* () {
+    const db = yield* Database
+    return {
+      evaluate: (rawInput) =>
+        Effect.gen(function* () {
+          const input = yield* Schema.decodeUnknownEffect(
+            OperationalMessageEligibilityInput
+          )(rawInput).pipe(
+            Effect.mapError(
+              () =>
+                new OperationalMessageIneligible({
+                  reason: 'invalid_eligibility_input'
+                })
+            )
+          )
+          const [row] = yield* orUnavailable('controlled-template-eligibility')(
+            db
+              .select()
+              .from(messagingTemplateVersions)
+              .where(
+                and(
+                  eq(messagingTemplateVersions.purpose, input.purpose),
+                  eq(messagingTemplateVersions.locale, input.locale),
+                  eq(messagingTemplateVersions.channel, input.channel),
+                  eq(messagingTemplateVersions.version, input.templateVersion)
+                )
+              )
+              .limit(1)
+          )
+          const controlled = controlledTemplateCatalog.find(
+            (template) =>
+              template.purpose === input.purpose &&
+              template.locale === input.locale &&
+              template.channel === input.channel &&
+              template.version === input.templateVersion
+          )
+          if (!row || !controlled)
+            return yield* evaluateOperationalMessageEligibility(input, {
+              catalog: []
+            })
+
+          const providerApproval =
+            row.channel === 'whatsapp'
+              ? {
+                  provider: 'meta' as const,
+                  templateKey: row.providerTemplateKey ?? '',
+                  requestedCategory: row.providerRequestedCategory ?? 'utility',
+                  ...optional('observedCategory', row.providerObservedCategory),
+                  status: row.providerApprovalStatus,
+                  ...optional('approvedAt', row.providerApprovedAt),
+                  ...optional(
+                    'evidenceReference',
+                    row.providerApprovalEvidenceReference
+                  )
+                }
+              : null
+          const template = yield* decodeProjection(
+            Schema.decodeUnknownEffect(ControlledTemplate)({
+              ...controlled,
+              bodyFingerprint: row.bodyFingerprint,
+              enabled:
+                row.enabled &&
+                row.providerApprovalStatus !== 'disabled' &&
+                row.effectiveAt <= input.now &&
+                (!row.retiredAt || row.retiredAt > input.now),
+              providerApproval
+            })
+          )
+          return yield* evaluateOperationalMessageEligibility(input, {
+            catalog: [template]
+          })
+        })
+    }
+  })
+)

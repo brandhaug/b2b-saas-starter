@@ -41,6 +41,7 @@ const approvedCatalog = controlledTemplateCatalog.map((template) =>
 )
 
 const eligibleInput = {
+  shopId: 'shp_eligibility',
   purpose: 'appointment_confirmation',
   locale: 'ro',
   channel: 'whatsapp',
@@ -93,64 +94,64 @@ describe('controlled Operational Messaging templates', () => {
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Confirmat 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. https://bsolo.ro/c/Ab3',
-        gsm7Units: 102
+        body: 'Frizeria Stefan: Confirmat 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. https://bsolo.ro/c/Ab3 Ajutor/STOP:firma/beesolo.',
+        gsm7Units: 129
       },
       {
         body: 'Memento de la Frizeria Ștefan: programarea este joi, 30 octombrie 2026, 09:30, la Strada Înfrățirii 10, București. Referință: BZ-1234. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Memento 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234.',
-        gsm7Units: 77
+        body: 'Frizeria Stefan: Memento 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Ajutor/STOP:firma/beesolo.',
+        gsm7Units: 104
       },
       {
         body: 'Frizeria Ștefan a anulat programarea din joi, 30 octombrie 2026, 09:30. Referință: BZ-1234. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Anulat 30.10.2026 09:30. Ref BZ-1234.',
-        gsm7Units: 54
+        body: 'Frizeria Stefan: Anulat 30.10.2026 09:30. Ref BZ-1234. Ajutor/STOP:firma/beesolo.',
+        gsm7Units: 81
       },
       {
         body: 'Frizeria Ștefan a reprogramat programarea pentru joi, 30 octombrie 2026, 09:30, la Strada Înfrățirii 10, București. Referință: BZ-1234. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Reprogramat 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234.',
-        gsm7Units: 81
+        body: 'Frizeria Stefan: Reprogramat 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Ajutor/STOP:firma/beesolo.',
+        gsm7Units: 108
       },
       {
         body: 'Your appointment with Frizeria Ștefan is confirmed for joi, 30 octombrie 2026 at 09:30, at Strada Înfrățirii 10, București. Reference: BZ-1234. Details: https://bsolo.ro/c/Ab3. For help, contact the merchant or beesolo support.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Confirmed 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. https://bsolo.ro/c/Ab3',
-        gsm7Units: 102
+        body: 'Frizeria Stefan: Confirmed 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. https://bsolo.ro/c/Ab3 Help/STOP:shop/beesolo.',
+        gsm7Units: 126
       },
       {
         body: 'Reminder from Frizeria Ștefan: your appointment is joi, 30 octombrie 2026 at 09:30, at Strada Înfrățirii 10, București. Reference: BZ-1234. For help, contact the merchant or beesolo support.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Reminder 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234.',
-        gsm7Units: 78
+        body: 'Frizeria Stefan: Reminder 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Help/STOP:shop/beesolo.',
+        gsm7Units: 102
       },
       {
         body: 'Frizeria Ștefan cancelled your appointment for joi, 30 octombrie 2026 at 09:30. Reference: BZ-1234. For help, contact the merchant or beesolo support.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Cancelled 30.10.2026 09:30. Ref BZ-1234.',
-        gsm7Units: 57
+        body: 'Frizeria Stefan: Cancelled 30.10.2026 09:30. Ref BZ-1234. Help/STOP:shop/beesolo.',
+        gsm7Units: 81
       },
       {
         body: 'Frizeria Ștefan rescheduled your appointment to joi, 30 octombrie 2026 at 09:30, at Strada Înfrățirii 10, București. Reference: BZ-1234. For help, contact the merchant or beesolo support.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Rescheduled 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234.',
-        gsm7Units: 81
+        body: 'Frizeria Stefan: Rescheduled 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Help/STOP:shop/beesolo.',
+        gsm7Units: 105
       }
     ])
   })
@@ -202,6 +203,7 @@ describe('controlled Operational Messaging templates', () => {
     ['location_sms_label_too_long', { locationSmsLabel: 'L'.repeat(29) }],
     ['reference_too_long', { reference: 'R'.repeat(13) }],
     ['confirmation_url_invalid', { confirmationUrl: 'http://unsafe.test/x' }],
+    ['confirmation_url_invalid', { confirmationUrl: 'https://evil.co/c/x' }],
     ['url_not_allowed', { merchantLabel: 'https://unsafe.test' }],
     ['unknown_controlled_field', { customerName: 'Irina' }],
     ['sms_not_gsm7', { merchantSmsLabel: 'Salon 😊' }]
@@ -235,6 +237,17 @@ describe('controlled Operational Messaging templates', () => {
         reason: 'confirmation_url_not_allowed'
       })
     }
+  })
+
+  it('transliterates every SMS-controlled label, including the reference', async () => {
+    const output = await Effect.runPromise(
+      renderControlledTemplate({
+        template: controlledTemplateCatalog[1]!,
+        facts: { ...facts, reference: 'Ș-123' }
+      })
+    )
+
+    expect(Redacted.value(output.body)).toContain('Ref S-123.')
   })
 
   it('normalizes, masks, fingerprints, and encrypts a Romanian destination', async () => {
@@ -389,29 +402,40 @@ describe('controlled Operational Messaging templates', () => {
           ...eligibleInput,
           suppressions: [
             {
+              shopId: null,
               destinationFingerprint,
               scope: 'all_operational',
               effectiveAt: '2026-11-01T00:00:00.000Z'
             },
             {
+              shopId: null,
               destinationFingerprint,
               scope: 'all_operational',
               effectiveAt: '2026-10-01T00:00:00.000Z',
               expiresAt: '2026-10-29T00:00:00.000Z'
             },
             {
+              shopId: null,
               destinationFingerprint,
               scope: 'all_operational',
               effectiveAt: '2026-10-01T00:00:00.000Z',
               revokedAt: '2026-10-29T00:00:00.000Z'
             },
             {
+              shopId: null,
               destinationFingerprint:
                 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
               scope: 'all_operational',
               effectiveAt: '2026-10-01T00:00:00.000Z'
             },
             {
+              shopId: 'shp_other',
+              destinationFingerprint,
+              scope: 'all_operational',
+              effectiveAt: '2026-10-01T00:00:00.000Z'
+            },
+            {
+              shopId: eligibleInput.shopId,
               destinationFingerprint,
               scope: 'sms',
               effectiveAt: '2026-10-01T00:00:00.000Z'
@@ -452,6 +476,7 @@ describe('controlled Operational Messaging templates', () => {
       {
         suppressions: [
           {
+            shopId: null,
             destinationFingerprint,
             scope: 'all_operational',
             effectiveAt: '2026-10-01T00:00:00.000Z'
@@ -465,6 +490,7 @@ describe('controlled Operational Messaging templates', () => {
       {
         suppressions: [
           {
+            shopId: eligibleInput.shopId,
             destinationFingerprint,
             scope: 'whatsapp',
             effectiveAt: '2026-10-01T00:00:00.000Z'
@@ -544,6 +570,35 @@ describe('controlled Operational Messaging templates', () => {
           : template
       )
     ],
+    [
+      'template_approval_evidence_missing',
+      {},
+      approvedCatalog.map((template) =>
+        template.id === 'mtv_ro_appointment_confirmation_whatsapp_v1'
+          ? {
+              ...template,
+              providerApproval: {
+                ...template.providerApproval!,
+                evidenceReference: undefined
+              }
+            }
+          : template
+      )
+    ],
+    [
+      'template_content_mismatch',
+      {},
+      approvedCatalog.map((template) =>
+        template.id === 'mtv_ro_appointment_confirmation_whatsapp_v1'
+          ? {
+              ...template,
+              bodyFingerprint:
+                'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+            }
+          : template
+      )
+    ],
+    ['invalid_eligibility_input', { templateVersion: 0 }, undefined],
     [
       'invalid_controlled_content',
       { facts: { ...facts, merchantLabel: 'M'.repeat(41) } },

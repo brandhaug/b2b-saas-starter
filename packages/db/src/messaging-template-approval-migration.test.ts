@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { applyMigrations, provisionUnmigratedTestD1, type TestD1 } from './testing.ts'
 
 const operationalMessagingMigration = '20260729120000_operational_messaging'
-const templateApprovalMigration = '20260729130000_messaging_template_approval_metadata'
+const templateApprovalInvariantMigration =
+  '20260729131000_messaging_template_approval_invariants'
 let test: TestD1
 
 beforeAll(async () => {
@@ -21,7 +22,7 @@ beforeAll(async () => {
     .run()
   await applyMigrations(test.d1, {
     after: operationalMessagingMigration,
-    through: templateApprovalMigration
+    through: templateApprovalInvariantMigration
   })
 }, 60_000)
 
@@ -104,5 +105,45 @@ describe('messaging template approval metadata migration', () => {
         total: 8
       }
     ])
+  })
+
+  it('requires complete durable evidence before a WhatsApp version becomes approved', async () => {
+    await expect(
+      test.d1
+        .prepare(
+          `UPDATE messaging_template_versions
+           SET enabled = 1, provider_approval_status = 'approved',
+               provider_observed_category = 'utility'
+           WHERE id = 'mtv_en_appointment_confirmation_whatsapp_v1'`
+        )
+        .run()
+    ).rejects.toThrow()
+
+    await test.d1
+      .prepare(
+        `UPDATE messaging_template_versions
+         SET enabled = 1, provider_approval_status = 'approved',
+             provider_observed_category = 'utility',
+             provider_approved_at = '2026-07-29T13:10:00.000Z',
+             provider_approval_evidence_reference = 'qualification:meta:en:confirmation:v1'
+         WHERE id = 'mtv_en_appointment_confirmation_whatsapp_v1'`
+      )
+      .run()
+
+    const approved = await test.d1
+      .prepare(
+        `SELECT enabled, provider_approval_status, provider_observed_category,
+                provider_approved_at, provider_approval_evidence_reference
+         FROM messaging_template_versions
+         WHERE id = 'mtv_en_appointment_confirmation_whatsapp_v1'`
+      )
+      .first()
+    expect(approved).toEqual({
+      enabled: 1,
+      provider_approval_status: 'approved',
+      provider_observed_category: 'utility',
+      provider_approved_at: '2026-07-29T13:10:00.000Z',
+      provider_approval_evidence_reference: 'qualification:meta:en:confirmation:v1'
+    })
   })
 })

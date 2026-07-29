@@ -11,7 +11,7 @@ export const OperationalNotificationPurpose = Schema.Literals([
   'appointment_reschedule'
 ])
 
-const ProtectedString = Schema.Redacted(Schema.String, {
+export const ProtectedNotificationMaterial = Schema.Redacted(Schema.String, {
   disallowJsonEncode: true
 })
 
@@ -56,9 +56,9 @@ const ProviderSubmissionFields = {
   purpose: OperationalNotificationPurpose,
   templateVersion: ProviderTemplateVersion,
   idempotencyKey: ProviderIdempotencyKey,
-  destination: ProtectedString,
-  renderedBody: ProtectedString,
-  credential: Schema.optional(ProtectedString),
+  destination: ProtectedNotificationMaterial,
+  renderedBody: ProtectedNotificationMaterial,
+  credential: Schema.optional(ProtectedNotificationMaterial),
   bodyFingerprint: ProviderFingerprint
 } as const
 
@@ -118,8 +118,8 @@ export const ProviderEvidence = Schema.Struct({
 export const ProviderCallbackRequest = Schema.Struct({
   provider: MessagingProvider,
   receivedAt: ProviderUtcInstant,
-  rawBody: ProtectedString,
-  signature: Schema.optional(ProtectedString)
+  rawBody: ProtectedNotificationMaterial,
+  signature: Schema.optional(ProtectedNotificationMaterial)
 })
 
 export const ProviderCallbackOutcome = Schema.Union([
@@ -141,7 +141,7 @@ export const ProviderQueryRequest = Schema.Struct({
   provider: MessagingProvider,
   attemptId: ProviderAttemptId,
   intentId: NotificationIntentId,
-  providerReference: ProtectedString,
+  providerReference: ProtectedNotificationMaterial,
   providerReferenceFingerprint: ProviderFingerprint
 })
 
