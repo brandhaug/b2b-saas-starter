@@ -224,7 +224,7 @@ type ProviderSubmissionOutcomeInput = {
   readonly now: string
   readonly providerReferenceFingerprint?: string
 } & (
-  | { readonly outcome: 'captured' }
+  | { readonly outcome: 'captured'; readonly captureId?: string }
   | {
       readonly outcome:
         | 'accepted'
@@ -809,7 +809,9 @@ export const SeedNotificationIntentLifecycle = (
           source: 'response',
           sourceEventKey:
             input.outcome === 'captured'
-              ? `${attempt.id}:captured`
+              ? input.captureId
+                ? `capture:${input.captureId}`
+                : `${attempt.id}:captured`
               : input.sourceEventKey,
           ...(input.providerReferenceFingerprint
             ? { providerReferenceFingerprint: input.providerReferenceFingerprint }

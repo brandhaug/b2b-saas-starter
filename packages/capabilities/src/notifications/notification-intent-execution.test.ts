@@ -297,6 +297,9 @@ describe('Notification Intent execution', () => {
         result: 'not_sent',
         resultReason: 'captured_local'
       })
+      expect(aggregate.routes[0]?.evidence[0]?.sourceEventKey).toBe(
+        `capture:pcap_${purpose}`
+      )
     }
   )
 

@@ -43,12 +43,12 @@ describe('deterministic provider contract harness', () => {
 
     expect(outcome).toEqual({
       _tag: 'captured',
-      captureId: 'pcap_0001',
+      captureId: 'pcap_pat_fixture_ro_confirmation_0001',
       capturedAt: '2026-07-29T09:00:00.000Z'
     })
     expect(harness.captures()).toEqual([
       {
-        captureId: 'pcap_0001',
+        captureId: 'pcap_pat_fixture_ro_confirmation_0001',
         capturedAt: '2026-07-29T09:00:00.000Z',
         provider: 'meta',
         channel: 'whatsapp',
@@ -152,7 +152,7 @@ describe('deterministic provider contract harness', () => {
 
     await expect(Effect.runPromise(testHarness.submit(request))).resolves.toEqual({
       _tag: 'captured',
-      captureId: 'pcap_0001',
+      captureId: 'pcap_pat_fixture_en_reminder_0001',
       capturedAt: '2026-07-29T10:00:00.000Z'
     })
     expect(testHarness.captures()[0]).toMatchObject({

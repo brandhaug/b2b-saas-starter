@@ -156,7 +156,7 @@ const recoverNotificationIntents = (now: string, env: Env) =>
         Effect.forEach(
           intentIds,
           (intentId) => processNotificationIntent(intentId, now, env),
-          { concurrency: 4, discard: true }
+          { concurrency: 1, discard: true }
         )
     )
   ).pipe(Effect.provide(notificationIntentExecutionLayer(env, now)), Effect.asVoid)
@@ -313,8 +313,8 @@ export default {
       for (const message of batch.messages) message.ack()
       return
     }
-    for (let offset = 0; offset < batch.messages.length; offset += 4) {
-      const messages = batch.messages.slice(offset, offset + 4)
+    for (let offset = 0; offset < batch.messages.length; offset += 1) {
+      const messages = batch.messages.slice(offset, offset + 1)
       await Promise.all(
         messages.map(async (message) => {
           const wakeup = decodeBookingEventsWakeup(message.body)
@@ -322,29 +322,12 @@ export default {
             message.ack()
             return
           }
-          if (wakeup.kind === 'notification-intent') {
-            const result = await runtime.runPromise(
-              Effect.result(
-                processNotificationIntent(
-                  wakeup.intentId,
-                  new Date().toISOString(),
-                  env
-                )
-              )
-            )
-            if (Result.isSuccess(result)) message.ack()
-            else message.retry({ delaySeconds: 30 })
-            return
-          }
-          const result = await runtime.runPromise(
-            Effect.result(
-              processBookingNotificationOutbox(
-                wakeup.outboxId,
-                new Date().toISOString(),
-                env
-              )
-            )
-          )
+          const now = new Date().toISOString()
+          const execution =
+            wakeup.kind === 'notification-intent'
+              ? processNotificationIntent(wakeup.intentId, now, env)
+              : processBookingNotificationOutbox(wakeup.outboxId, now, env)
+          const result = await runtime.runPromise(Effect.result(execution))
           if (Result.isSuccess(result)) message.ack()
           else message.retry({ delaySeconds: 30 })
         })

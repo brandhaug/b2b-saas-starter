@@ -281,7 +281,7 @@ export const makeDeterministicProviderHarness = (options: {
       )
       if (decoded.provider !== options.provider)
         return yield* failure('submit', 'malformed_evidence', 'provider_mismatch')
-      const captureId = `pcap_${String(nextCapture++).padStart(4, '0')}`
+      const captureId = `pcap_${decoded.attemptId}_${String(nextCapture++).padStart(4, '0')}`
       const capturedAt = options.now ?? FIXED_NOW
       const capture: CaptureRecord = {
         captureId,

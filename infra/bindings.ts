@@ -114,7 +114,7 @@ export type QueueConsumerSettings = {
 // same resilient retry profile as webhook work without becoming booking state.
 export const bookingEventsConsumerSettings: QueueConsumerSettings = {
   batchSize: 25,
-  maxConcurrency: 4,
+  maxConcurrency: 1,
   maxRetries: 6,
   maxWaitTimeMs: 5_000,
   retryDelay: 30

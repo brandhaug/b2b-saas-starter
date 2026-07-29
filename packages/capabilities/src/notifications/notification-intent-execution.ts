@@ -135,6 +135,7 @@ export const makeNotificationIntentExecutionLayer = (options: {
         details: {
           readonly providerReferenceFingerprint?: string
           readonly sourceEventKey?: string
+          readonly captureId?: string
         } = {}
       ) =>
         outcome === 'captured'
@@ -142,7 +143,8 @@ export const makeNotificationIntentExecutionLayer = (options: {
               intentId,
               attemptId,
               outcome,
-              now
+              now,
+              ...(details.captureId ? { captureId: details.captureId } : {})
             })
           : lifecycle.recordSubmissionOutcome({
               intentId,
@@ -162,7 +164,6 @@ export const makeNotificationIntentExecutionLayer = (options: {
 
       const execute = (input: { readonly intentId: string; readonly now: string }) =>
         Effect.gen(function* () {
-          const execution = yield* store.load(input.intentId)
           let intent = yield* lifecycle.findById(input.intentId)
           if (intent.phase === 'terminal' || intent.supersededAt) return
           if (options.destinationConfigured === false) {
@@ -208,22 +209,26 @@ export const makeNotificationIntentExecutionLayer = (options: {
             return
           }
 
-          const buildEligibility = (channel: 'whatsapp' | 'sms') =>
+          const buildEligibility = (
+            currentExecution: NotificationIntentExecutionContext,
+            channel: 'whatsapp' | 'sms'
+          ) =>
             eligibilityFor(
               intent,
-              execution,
+              currentExecution,
               channel,
               input.now,
               configured[channel === 'whatsapp' ? 'meta' : 'smso']
             )
 
           if (!intent.reservation) {
+            const routingContext = yield* store.load(input.intentId)
             intent = yield* lifecycle.beginRouting({
               intentId: intent.id,
               environment: options.environment,
               eligibility: {
-                whatsapp: buildEligibility('whatsapp'),
-                sms: buildEligibility('sms')
+                whatsapp: buildEligibility(routingContext, 'whatsapp'),
+                sms: buildEligibility(routingContext, 'sms')
               },
               now: input.now
             })
@@ -248,9 +253,10 @@ export const makeNotificationIntentExecutionLayer = (options: {
               )
             })
             if (!route) return
+            const submissionContext = yield* store.load(input.intentId)
             const currentEligibility = eligibilityFor(
               intent,
-              execution,
+              submissionContext,
               route.channel,
               input.now,
               configured[route.provider]
@@ -343,7 +349,8 @@ export const makeNotificationIntentExecutionLayer = (options: {
                   prepared.attempt.id,
                   outcome.capturedAt,
                   'captured',
-                  prepared.route.provider
+                  prepared.route.provider,
+                  { captureId: outcome.captureId }
                 )
                 return
               case 'accepted':
