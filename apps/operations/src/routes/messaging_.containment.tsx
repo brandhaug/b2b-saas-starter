@@ -193,10 +193,10 @@ function MessagingContainmentRoute() {
                       aria-label="Containment preview"
                       className="grid gap-2 rounded-md bg-muted p-4 text-sm sm:grid-cols-2"
                     >
-                      <p>Before: {containmentTransition(incident).before}</p>
-                      <p>After: {containmentTransition(incident).after}</p>
+                      <p>Before: {incident.controlBefore}</p>
+                      <p>After: {incident.controlAfter}</p>
                       <p className="sm:col-span-2">
-                        Exact control: {containmentTransition(incident).control}
+                        Exact control: {incident.controlLabel}
                       </p>
                     </div>
                     <label className="grid gap-1.5 text-sm font-medium">
@@ -372,9 +372,10 @@ function MessagingContainmentRoute() {
                         aria-label="Recovery approval preview"
                         className="rounded-md bg-muted p-4 text-sm sm:col-span-2"
                       >
-                        Before: contained. After: recovery approval appended; two
-                        current Operators remain required for global or
-                        credential-compromise recovery.
+                        Before: {incident.status} with {incident.recoveryApprovalCount}{' '}
+                        of {incident.requiredRecoveryApprovals} required approvals.
+                        After: one approval from the current Operator is appended;
+                        control state remains {incident.controlAfter.toLowerCase()}.
                       </div>
                       <Confirm label="Confirm recovery approval" />
                       <div className="sm:col-span-2">
@@ -498,40 +499,4 @@ function Confirm({ label }: { readonly label: string }) {
       {label}
     </label>
   )
-}
-
-const containmentTransition = (incident: {
-  readonly containmentScope:
-    | 'merchant'
-    | 'provider_channel'
-    | 'callback_rule'
-    | 'global'
-  readonly shopId?: string | undefined
-  readonly provider?: 'meta' | 'smso' | undefined
-  readonly channel?: 'whatsapp' | 'sms' | undefined
-}) => {
-  if (incident.containmentScope === 'merchant')
-    return {
-      before: 'Merchant messaging enabled',
-      after: 'Merchant messaging frozen',
-      control: `Merchant ${incident.shopId ?? 'missing Shop'}`
-    }
-  if (incident.containmentScope === 'global')
-    return {
-      before: 'Global messaging enabled',
-      after: 'Global messaging stopped',
-      control: 'All operational messaging'
-    }
-  const provider = `${incident.provider ?? 'missing provider'} / ${incident.channel ?? 'missing channel'}`
-  return incident.containmentScope === 'callback_rule'
-    ? {
-        before: 'Callback acceptance enabled',
-        after: 'Callback rule paused',
-        control: provider
-      }
-    : {
-        before: 'Provider channel enabled',
-        after: 'Provider channel paused',
-        control: provider
-      }
 }

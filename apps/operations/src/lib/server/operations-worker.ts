@@ -590,6 +590,9 @@ export const createOperationsWorker = () => ({
           version: 1,
           kind: 'notification-intent',
           intentId
+        }).catch(() => {
+          // The accepted audit and queryable intent are durable in the same D1 system
+          // of record. Scheduled SMSO polling recovers a missed acceleration wake-up.
         })
         return Response.json(null)
       } catch (error) {

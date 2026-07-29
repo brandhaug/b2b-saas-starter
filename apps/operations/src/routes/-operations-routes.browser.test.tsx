@@ -389,6 +389,11 @@ describe('Operations TanStack routes', () => {
             severity: 'high',
             safeSummary: 'One Merchant has duplicate delivery evidence',
             containmentScope: 'merchant',
+            controlLabel: 'Merchant shop-1',
+            controlBefore: 'Merchant messaging enabled',
+            controlAfter: 'Merchant messaging frozen',
+            recoveryApprovalCount: 0,
+            requiredRecoveryApprovals: 1,
             openedAt: '2026-07-30T12:00:00.000Z'
           }
         ]
@@ -454,6 +459,11 @@ describe('Operations TanStack routes', () => {
             severity: 'critical',
             safeSummary: 'Callback signature validation was contained',
             containmentScope: 'callback_rule',
+            controlLabel: 'meta / whatsapp callbacks',
+            controlBefore: 'Callback rule paused',
+            controlAfter: 'Callback rule paused',
+            recoveryApprovalCount: 1,
+            requiredRecoveryApprovals: 1,
             openedAt: '2026-07-30T12:00:00.000Z'
           }
         ]

@@ -14,10 +14,14 @@ import {
   messagingBalanceReservations,
   messagingBalanceLedgerEntries,
   messagingChannelControls,
+  messagingCallbackRejectionRules,
+  messagingIncidentEvents,
   messagingIncidents,
   messagingRateCards,
   messagingReconciliationCases,
   messagingReconciliationResolutions,
+  messagingRecoveryApprovals,
+  merchantMessagingControls,
   notificationIntents,
   operationsAuditEvents,
   protectedMessagingDestinations,
@@ -291,7 +295,12 @@ export const MessagingIncidentWorkspace = Schema.Struct({
         'global'
       ]),
       openedAt: Schema.String,
-      resolvedAt: Schema.optional(Schema.String)
+      resolvedAt: Schema.optional(Schema.String),
+      controlLabel: Schema.String,
+      controlBefore: Schema.String,
+      controlAfter: Schema.String,
+      recoveryApprovalCount: Schema.Int,
+      requiredRecoveryApprovals: Schema.Int
     })
   )
 })
@@ -891,19 +900,106 @@ export const makeMessagingWorkspacesLayer = (
           .select()
           .from(messagingIncidents)
           .orderBy(asc(messagingIncidents.openedAt), asc(messagingIncidents.id))
-        return rows.map((row) => ({
-          incidentId: row.id,
-          ...optional('shopId', row.shopId),
-          ...optional('provider', row.provider),
-          ...optional('channel', row.channel),
-          kind: row.kind,
-          status: row.status,
-          severity: row.severity,
-          safeSummary: row.safeSummary,
-          containmentScope: row.containmentScope,
-          openedAt: row.openedAt,
-          ...optional('resolvedAt', row.resolvedAt)
-        }))
+        return Promise.all(
+          rows.map(async (row) => {
+            const [openedEvent] = await db
+              .select({ safeMetadata: messagingIncidentEvents.safeMetadata })
+              .from(messagingIncidentEvents)
+              .where(
+                sql`${messagingIncidentEvents.incidentId} = ${row.id} AND ${messagingIncidentEvents.kind} = 'opened'`
+              )
+              .limit(1)
+            const environment =
+              typeof openedEvent?.safeMetadata.environment === 'string'
+                ? openedEvent.safeMetadata.environment
+                : 'unknown'
+            let controlLabel = 'Unknown messaging control'
+            let controlBefore = 'Unavailable'
+            let controlAfter = 'Contained'
+            if (row.containmentScope === 'merchant') {
+              const [control] = row.shopId
+                ? await db
+                    .select({ frozen: merchantMessagingControls.frozen })
+                    .from(merchantMessagingControls)
+                    .where(eq(merchantMessagingControls.shopId, row.shopId))
+                    .limit(1)
+                : []
+              controlLabel = `Merchant ${row.shopId ?? 'missing Shop'}`
+              controlBefore = control?.frozen
+                ? 'Merchant messaging frozen'
+                : 'Merchant messaging enabled'
+              controlAfter = 'Merchant messaging frozen'
+            } else if (row.containmentScope === 'callback_rule') {
+              const [control] =
+                row.provider && row.channel
+                  ? await db
+                      .select({ enabled: messagingCallbackRejectionRules.enabled })
+                      .from(messagingCallbackRejectionRules)
+                      .where(
+                        sql`${messagingCallbackRejectionRules.environment} = ${environment} AND ${messagingCallbackRejectionRules.provider} = ${row.provider} AND ${messagingCallbackRejectionRules.ruleKey} = ${row.channel}`
+                      )
+                      .limit(1)
+                  : []
+              controlLabel = `${row.provider ?? 'missing provider'} / ${row.channel ?? 'missing channel'} callbacks`
+              controlBefore = control?.enabled
+                ? 'Callback rule paused'
+                : 'Callback acceptance enabled'
+              controlAfter = 'Callback rule paused'
+            } else {
+              const controls = await db
+                .select({ enabled: messagingChannelControls.enabled })
+                .from(messagingChannelControls)
+                .where(
+                  row.containmentScope === 'global'
+                    ? eq(messagingChannelControls.environment, environment)
+                    : sql`${messagingChannelControls.environment} = ${environment} AND ${messagingChannelControls.provider} = ${row.provider} AND ${messagingChannelControls.channel} = ${row.channel}`
+                )
+              const enabled =
+                controls.length > 0 && controls.every((control) => control.enabled)
+              controlLabel =
+                row.containmentScope === 'global'
+                  ? `${environment} operational messaging`
+                  : `${row.provider ?? 'missing provider'} / ${row.channel ?? 'missing channel'}`
+              controlBefore = enabled
+                ? row.containmentScope === 'global'
+                  ? 'Global messaging enabled'
+                  : 'Provider channel enabled'
+                : row.containmentScope === 'global'
+                  ? 'Global messaging partially or fully stopped'
+                  : 'Provider channel paused'
+              controlAfter =
+                row.containmentScope === 'global'
+                  ? 'Global messaging stopped'
+                  : 'Provider channel paused'
+            }
+            const approvals = await db
+              .select({ id: messagingRecoveryApprovals.id })
+              .from(messagingRecoveryApprovals)
+              .where(eq(messagingRecoveryApprovals.incidentId, row.id))
+            return {
+              incidentId: row.id,
+              ...optional('shopId', row.shopId),
+              ...optional('provider', row.provider),
+              ...optional('channel', row.channel),
+              kind: row.kind,
+              status: row.status,
+              severity: row.severity,
+              safeSummary: row.safeSummary,
+              containmentScope: row.containmentScope,
+              openedAt: row.openedAt,
+              ...optional('resolvedAt', row.resolvedAt),
+              controlLabel,
+              controlBefore,
+              controlAfter,
+              recoveryApprovalCount: approvals.length,
+              requiredRecoveryApprovals:
+                row.containmentScope === 'global' ||
+                row.kind === 'credential_compromise'
+                  ? 2
+                  : 1
+            }
+          })
+        )
       }),
 
     correctLedgerEntry: (input) =>
