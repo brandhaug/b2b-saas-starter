@@ -1,6 +1,7 @@
 import { Effect, Layer, ManagedRuntime, Result } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
 import {
+  makeOperationalMessagingExecutionLayer,
   selectCapabilitiesLayer,
   type BookingProductEnv
 } from '@b2b-saas-starter/capabilities/runtime'
@@ -23,6 +24,7 @@ import {
   recoverOperationsNotifications
 } from './operations-notifications.ts'
 import { decodeBookingEventsWakeup } from './booking-events-queue.ts'
+import { NotificationIntentExecution } from '@b2b-saas-starter/capabilities/notifications'
 
 type Env = {
   readonly DB: D1Database
@@ -34,6 +36,9 @@ type Env = {
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly OPERATIONAL_EMAIL_ENABLED?: string
   readonly ENVIRONMENT?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION?: string
   readonly WAITING_LIST_DELIVERY_CURRENT_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_LEGACY_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_KEYS?: string
@@ -43,7 +48,15 @@ const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
 const runtime = ManagedRuntime.make(
   Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
 )
-const capabilitiesEnv = (env: Env): BookingProductEnv => ({ DB: env.DB })
+const capabilitiesEnv = (env: Env): BookingProductEnv => ({
+  DB: env.DB,
+  OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY:
+    env.OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY,
+  OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY:
+    env.OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY,
+  OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION:
+    env.OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION
+})
 
 const bookingConfig = (env: Env) => {
   let keys: Record<string, string> = {}
@@ -116,6 +129,38 @@ const recoverBookingNotificationOutbox = (now: string, env: Env) =>
     Effect.asVoid
   )
 
+const notificationIntentExecutionLayer = (env: Env, now: string) =>
+  makeOperationalMessagingExecutionLayer(
+    { ...capabilitiesEnv(env), ENVIRONMENT: env.ENVIRONMENT },
+    now
+  )
+
+const processNotificationIntent = (intentId: string, now: string, env: Env) =>
+  withTriggerScope(
+    {
+      service: 'background',
+      event: 'operational_messaging_intent',
+      env,
+      metadata: { intentId }
+    },
+    Effect.flatMap(NotificationIntentExecution, (execution) =>
+      execution.execute({ intentId, now })
+    ).pipe(Effect.provide(notificationIntentExecutionLayer(env, now)))
+  )
+
+const recoverNotificationIntents = (now: string, env: Env) =>
+  Effect.flatMap(NotificationIntentExecution, (execution) =>
+    Effect.flatMap(
+      execution.discoverDue({ now, limit: 100, perShopLimit: 10 }),
+      (intentIds) =>
+        Effect.forEach(
+          intentIds,
+          (intentId) => processNotificationIntent(intentId, now, env),
+          { concurrency: 4, discard: true }
+        )
+    )
+  ).pipe(Effect.provide(notificationIntentExecutionLayer(env, now)), Effect.asVoid)
+
 const operationsEmailProviderState = (env: Env) =>
   env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
     ? ('configured' as const)
@@ -176,6 +221,7 @@ export default {
             Effect.all(
               [
                 recoverBookingNotificationOutbox(now, env),
+                recoverNotificationIntents(now, env),
                 recoverOperationsNotificationIntents(now, env),
                 Effect.flatMap(GiftCardRedemptions, (giftCards) =>
                   giftCards.releaseExpired({ now })
@@ -267,31 +313,42 @@ export default {
       for (const message of batch.messages) message.ack()
       return
     }
-    await Promise.all(
-      batch.messages.map(async (message) => {
-        const wakeup = decodeBookingEventsWakeup(message.body)
-        if (!wakeup) {
-          message.ack()
-          return
-        }
-        // Intent execution is installed by the next implementation slice. The
-        // durable intent remains authoritative and cron-discoverable meanwhile.
-        if (wakeup.kind === 'notification-intent') {
-          message.ack()
-          return
-        }
-        const result = await runtime.runPromise(
-          Effect.result(
-            processBookingNotificationOutbox(
-              wakeup.outboxId,
-              new Date().toISOString(),
-              env
+    for (let offset = 0; offset < batch.messages.length; offset += 4) {
+      const messages = batch.messages.slice(offset, offset + 4)
+      await Promise.all(
+        messages.map(async (message) => {
+          const wakeup = decodeBookingEventsWakeup(message.body)
+          if (!wakeup) {
+            message.ack()
+            return
+          }
+          if (wakeup.kind === 'notification-intent') {
+            const result = await runtime.runPromise(
+              Effect.result(
+                processNotificationIntent(
+                  wakeup.intentId,
+                  new Date().toISOString(),
+                  env
+                )
+              )
+            )
+            if (Result.isSuccess(result)) message.ack()
+            else message.retry({ delaySeconds: 30 })
+            return
+          }
+          const result = await runtime.runPromise(
+            Effect.result(
+              processBookingNotificationOutbox(
+                wakeup.outboxId,
+                new Date().toISOString(),
+                env
+              )
             )
           )
-        )
-        if (Result.isSuccess(result)) message.ack()
-        else message.retry({ delaySeconds: 30 })
-      })
-    )
+          if (Result.isSuccess(result)) message.ack()
+          else message.retry({ delaySeconds: 30 })
+        })
+      )
+    }
   }
 }

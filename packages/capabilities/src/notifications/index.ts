@@ -6,6 +6,7 @@ export * from './provider-contracts.ts'
 export * from './controlled-template-eligibility.ts'
 export * from './messaging-finance.ts'
 export * from './notification-intent-lifecycle.ts'
+export * from './notification-intent-execution.ts'
 export * from './booking-intent-producer.ts'
 
 export const NotificationIntent = Schema.Struct({

@@ -3,6 +3,7 @@ import { CapabilityUnavailable } from '../errors.ts'
 import {
   type ControlledTemplateEligibilityEngineShape,
   evaluateOperationalMessageEligibility,
+  OperationalMessageIneligible,
   OperationalMessageEligibilityInput,
   ProtectedMessagingDestination
 } from './controlled-template-eligibility.ts'
@@ -443,7 +444,10 @@ export const recheckRoutesBeforeReservation = (
       if (result._tag === 'Success') whatsapp.state = 'eligible'
       else {
         whatsapp.state = 'ineligible'
-        whatsapp.ineligibleReason = 'eligibility_recheck_failed'
+        whatsapp.ineligibleReason =
+          result.failure instanceof OperationalMessageIneligible
+            ? result.failure.reason
+            : 'eligibility_recheck_failed'
         whatsapp.terminalAt = now
         sms.state = 'eligible'
       }
@@ -452,9 +456,22 @@ export const recheckRoutesBeforeReservation = (
       const result = yield* Effect.result(evaluateEligibility(input.sms))
       if (result._tag === 'Failure') {
         sms.state = 'ineligible'
-        sms.ineligibleReason = 'eligibility_recheck_failed'
+        sms.ineligibleReason =
+          result.failure instanceof OperationalMessageIneligible
+            ? result.failure.reason
+            : 'eligibility_recheck_failed'
         sms.terminalAt = now
-        terminal(intent, 'not_sent', 'no_eligible_route', now)
+        const routeReasons = [whatsapp.ineligibleReason, sms.ineligibleReason]
+        terminal(
+          intent,
+          'not_sent',
+          routeReasons.includes('destination_suppressed')
+            ? 'suppressed'
+            : routeReasons.every((reason) => reason === 'provider_needs_configuration')
+              ? 'needs_configuration'
+              : 'no_eligible_route',
+          now
+        )
       } else sms.state = 'eligible'
     }
     return intent

@@ -496,7 +496,11 @@ const persist = (
       raw
         .prepare(
           `UPDATE notification_intents
-           SET payload_json = ?,
+           SET payload_json = json_set(
+                 payload_json,
+                 '$.operationalMessagingLifecycle',
+                 json_extract(?, '$.operationalMessagingLifecycle')
+               ),
                phase = CASE WHEN phase = 'terminal' THEN phase ELSE ? END,
                result = COALESCE(result, ?),
                result_reason = COALESCE(result_reason, ?),

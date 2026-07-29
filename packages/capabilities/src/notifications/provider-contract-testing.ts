@@ -347,3 +347,7 @@ export const makeDeterministicProviderHarness = (options: {
     logs: () => [...logRecords]
   }
 }
+
+export type DeterministicProviderHarness = ReturnType<
+  typeof makeDeterministicProviderHarness
+>
