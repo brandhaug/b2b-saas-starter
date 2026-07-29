@@ -52,6 +52,7 @@ Specify, implement, verify, and launch the Romania-first Operational Messaging R
 - [Expand D1 for Operational Messaging](./issues/17-expand-d1-for-operational-messaging.md) — Forward-only normalized D1 storage, exact financial and tenant constraints, retention foundations, and schema-decoded Seed/Live safe projections now support the router without switching producers or replaying history.
 - [Implement the Controlled Template and Eligibility Engine](./issues/18-implement-controlled-template-and-eligibility-engine.md) — Versioned RO/EN controlled templates, protected destinations, exact persisted approval, suppression/control eligibility, and DST-safe reminder scheduling now fail closed before reservation or submission.
 - [Implement Messaging Balance and the Rate Card](./issues/19-implement-messaging-balance-and-rate-card.md) — Exact milli-euro Rate Cards, balances, reservations, verified-delivery charging, evidence-linked funding and refunds, provider costs, reconciliation, and safe Merchant and Operations projections now conserve value under retries and concurrency.
+- [Implement the Notification Intent Lifecycle](./issues/20-implement-notification-intent-lifecycle.md) — A schema-derived, D1-fenced Notifications aggregate now owns monotonic WhatsApp-first/SMS-fallback progress, immutable provider facts, exact eligibility and ambiguity boundaries, recoverable financial settlement, and at most one Chargeable Delivery.
 
 ## Not yet specified
 
