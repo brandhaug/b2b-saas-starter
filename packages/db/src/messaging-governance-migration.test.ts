@@ -67,4 +67,17 @@ describe('Messaging governance migration', () => {
     await insert('mrap_migration_one').run()
     await expect(insert('mrap_migration_two').run()).rejects.toThrow()
   })
+
+  it('installs an atomic guard against incomplete old-key rotation', async () => {
+    const trigger = await test.d1
+      .prepare(
+        `SELECT name FROM sqlite_master
+         WHERE type = 'trigger'
+           AND name = 'messaging_key_rotations_complete_old_version_guard'`
+      )
+      .first()
+    expect(trigger).toMatchObject({
+      name: 'messaging_key_rotations_complete_old_version_guard'
+    })
+  })
 })

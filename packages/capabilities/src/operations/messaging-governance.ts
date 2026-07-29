@@ -775,8 +775,7 @@ export const makeMessagingGovernanceLayer = (
         const nextKeyVersion = Number(input.nextVersion)
         if (
           expectedKind === 'destination_encryption' &&
-          (reencryptedResources.length === 0 ||
-            !Number.isInteger(previousKeyVersion) ||
+          (!Number.isInteger(previousKeyVersion) ||
             !Number.isInteger(nextKeyVersion) ||
             previousKeyVersion < 1 ||
             nextKeyVersion < 1)
@@ -886,6 +885,18 @@ export const makeMessagingGovernanceLayer = (
                 )
         )
         await db.batch([
+          db.insert(auditEvents).values(
+            audit({
+              principal,
+              eventType: 'messaging.incident.key-rotation-recorded',
+              targetType: 'messaging-incident',
+              targetId: incident.id,
+              reason: input.reason,
+              now,
+              metadata: { kind: input.kind, nextVersion: input.nextVersion.trim() }
+            })
+          ),
+          ...reencryptions,
           db.insert(messagingKeyRotations).values({
             id: id('mkrot'),
             incidentId: incident.id,
@@ -900,19 +911,7 @@ export const makeMessagingGovernanceLayer = (
             evidenceReference: input.evidenceReference.trim(),
             actorOperatorId: principal.id,
             createdAt: now.toISOString()
-          }),
-          ...reencryptions,
-          db.insert(auditEvents).values(
-            audit({
-              principal,
-              eventType: 'messaging.incident.key-rotation-recorded',
-              targetType: 'messaging-incident',
-              targetId: incident.id,
-              reason: input.reason,
-              now,
-              metadata: { kind: input.kind, nextVersion: input.nextVersion.trim() }
-            })
-          )
+          })
         ])
       }),
 

@@ -172,3 +172,20 @@ CREATE TABLE `messaging_key_rotations` (
   CONSTRAINT `messaging_key_rotations_versions_differ_check`
     CHECK (`previous_version` <> `next_version`)
 );
+--> statement-breakpoint
+CREATE TRIGGER `messaging_key_rotations_complete_old_version_guard`
+  BEFORE INSERT ON `messaging_key_rotations`
+  WHEN NEW.kind = 'destination_encryption' AND (
+    EXISTS (
+      SELECT 1 FROM `protected_messaging_destinations`
+      WHERE `erased_at` IS NULL
+        AND `key_version` = CAST(NEW.previous_version AS INTEGER)
+    ) OR EXISTS (
+      SELECT 1 FROM `protected_provider_references`
+      WHERE `erased_at` IS NULL
+        AND `key_version` = CAST(NEW.previous_version AS INTEGER)
+    )
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'active ciphertext remains on compromised key version');
+  END;
