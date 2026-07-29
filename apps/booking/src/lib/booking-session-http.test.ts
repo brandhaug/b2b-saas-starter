@@ -1132,6 +1132,10 @@ describe('Booking Session HTTP boundary', () => {
           checkoutCommands.push('consent')
           return Effect.succeed({} as never)
         },
+        recordOperationalMessagingPermission: () => {
+          checkoutCommands.push('operational-permission')
+          return Effect.succeed({} as never)
+        },
         reviewParty: () => {
           checkoutCommands.push('review')
           return checkoutReady
@@ -1255,6 +1259,10 @@ describe('Booking Session HTTP boundary', () => {
           granted: false
         }
       ],
+      [
+        'operational-messaging-permission',
+        { bookingRequestId: 'brq_one', granted: true }
+      ],
       ['checkout-review', null]
     ] as const) {
       const command = await Effect.runPromise(
@@ -1274,6 +1282,7 @@ describe('Booking Session HTTP boundary', () => {
       'quote',
       'policy',
       'consent',
+      'operational-permission',
       'review'
     ])
     const giftCard = await Effect.runPromise(

@@ -447,7 +447,7 @@ const renderPattern = (
   )
 }
 
-export const renderControlledTemplate = ({
+const renderValidatedBody = ({
   template,
   facts
 }: {
@@ -491,11 +491,60 @@ export const renderControlledTemplate = ({
       return yield* Effect.fail(
         new ControlledTemplateInvalid({ reason: 'sms_segment_exceeded' })
       )
-    return {
-      body: Redacted.make(body),
-      gsm7Units
-    }
+    return { body, gsm7Units }
   })
+
+export const renderControlledTemplate = (input: {
+  readonly template: ControlledTemplate
+  readonly facts: ControlledTemplateFacts
+}) =>
+  Effect.map(renderValidatedBody(input), ({ body, gsm7Units }) => ({
+    body: Redacted.make(body),
+    gsm7Units
+  }))
+
+const controlledPreviewFacts: ControlledTemplateFacts = {
+  merchantLabel: 'Atelier Mara',
+  merchantSmsLabel: 'Atelier Mara',
+  localizedDate: 'joi, 30 iulie 2026',
+  smsDate: '30.07.2026',
+  time: '14:30',
+  locationLabel: 'Strada Exemplu 10, București',
+  locationSmsLabel: 'Str Exemplu 10 Bucuresti',
+  reference: 'BK-2048',
+  confirmationUrl: 'https://bsolo.ro/c/BK2048'
+}
+
+/** Renders only closed, synthetic examples; callers cannot supply customer facts. */
+export const renderControlledTemplatePreview = (input: {
+  readonly locale: 'ro' | 'en'
+  readonly purpose: Purpose
+}) => {
+  const template = controlledTemplateCatalog.find(
+    (candidate) =>
+      candidate.locale === input.locale &&
+      candidate.purpose === input.purpose &&
+      candidate.channel === 'whatsapp' &&
+      candidate.version === 1
+  )!
+  return Effect.map(
+    renderValidatedBody({
+      template,
+      facts: {
+        ...controlledPreviewFacts,
+        localizedDate:
+          input.locale === 'ro'
+            ? controlledPreviewFacts.localizedDate
+            : 'Thursday, July 30, 2026',
+        confirmationUrl:
+          input.purpose === 'appointment_confirmation'
+            ? controlledPreviewFacts.confirmationUrl
+            : ''
+      }
+    }),
+    ({ body }) => body
+  )
+}
 
 export const OperationalMessageIneligibleReason = Schema.Literals([
   'operational_permission_missing',

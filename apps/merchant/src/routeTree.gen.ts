@@ -24,6 +24,7 @@ import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsSubscriptionRouteImport } from './routes/settings.subscription'
+import { Route as SettingsAppointmentMessagingRouteImport } from './routes/settings.appointment-messaging'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAdvancedRouteImport } from './routes/settings.advanced'
 import { Route as AppointmentsAppointmentIdRouteImport } from './routes/appointments.$appointmentId'
@@ -105,6 +106,12 @@ const SettingsSubscriptionRoute = SettingsSubscriptionRouteImport.update({
   path: '/subscription',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsAppointmentMessagingRoute =
+  SettingsAppointmentMessagingRouteImport.update({
+    id: '/appointment-messaging',
+    path: '/appointment-messaging',
+    getParentRoute: () => SettingsRoute,
+  } as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -151,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/appointment-messaging': typeof SettingsAppointmentMessagingRoute
   '/settings/subscription': typeof SettingsSubscriptionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
@@ -173,6 +181,7 @@ export interface FileRoutesByTo {
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/appointment-messaging': typeof SettingsAppointmentMessagingRoute
   '/settings/subscription': typeof SettingsSubscriptionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
@@ -196,6 +205,7 @@ export interface FileRoutesById {
   '/appointments/$appointmentId': typeof AppointmentsAppointmentIdRoute
   '/settings/advanced': typeof SettingsAdvancedRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/appointment-messaging': typeof SettingsAppointmentMessagingRoute
   '/settings/subscription': typeof SettingsSubscriptionRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/impersonation/handoffs/exchange': typeof ImpersonationHandoffsExchangeRoute
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/appointments/$appointmentId'
     | '/settings/advanced'
     | '/settings/appearance'
+    | '/settings/appointment-messaging'
     | '/settings/subscription'
     | '/api/auth/$'
     | '/impersonation/handoffs/exchange'
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/appointments/$appointmentId'
     | '/settings/advanced'
     | '/settings/appearance'
+    | '/settings/appointment-messaging'
     | '/settings/subscription'
     | '/api/auth/$'
     | '/impersonation/handoffs/exchange'
@@ -264,6 +276,7 @@ export interface FileRouteTypes {
     | '/appointments/$appointmentId'
     | '/settings/advanced'
     | '/settings/appearance'
+    | '/settings/appointment-messaging'
     | '/settings/subscription'
     | '/api/auth/$'
     | '/impersonation/handoffs/exchange'
@@ -395,6 +408,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSubscriptionRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/appointment-messaging': {
+      id: '/settings/appointment-messaging'
+      path: '/appointment-messaging'
+      fullPath: '/settings/appointment-messaging'
+      preLoaderRoute: typeof SettingsAppointmentMessagingRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/appearance': {
       id: '/settings/appearance'
       path: '/appearance'
@@ -448,12 +468,14 @@ const AppointmentsRouteWithChildren = AppointmentsRoute._addFileChildren(
 interface SettingsRouteChildren {
   SettingsAdvancedRoute: typeof SettingsAdvancedRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsAppointmentMessagingRoute: typeof SettingsAppointmentMessagingRoute
   SettingsSubscriptionRoute: typeof SettingsSubscriptionRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAdvancedRoute: SettingsAdvancedRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsAppointmentMessagingRoute: SettingsAppointmentMessagingRoute,
   SettingsSubscriptionRoute: SettingsSubscriptionRoute,
 }
 

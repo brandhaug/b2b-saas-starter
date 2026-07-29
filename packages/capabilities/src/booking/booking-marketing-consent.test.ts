@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   legacyBookingPolicySteps,
-  pendingMarketingConsentTargets
+  pendingNotificationPolicyTargets
 } from './booking-checkout.ts'
 
-describe('pendingMarketingConsentTargets', () => {
+describe('pendingNotificationPolicyTargets', () => {
   it('returns only contactable channels without a current consent decision', () => {
     expect(
-      pendingMarketingConsentTargets({
+      pendingNotificationPolicyTargets({
         marketingPolicy: {
           id: 'pol_marketing',
           scope: 'shop',

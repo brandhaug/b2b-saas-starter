@@ -11,6 +11,7 @@ import {
   checkoutPolicies,
   Database,
   lifecycleHistory,
+  merchantMessagingControls,
   notificationIntents,
   payments,
   policyAcceptances,
@@ -45,6 +46,7 @@ import {
   supersedeObsoleteBookingIntentMutations
 } from '../notifications/index.ts'
 import type { NotificationDestinationProtectionSecrets } from '../notifications/index.ts'
+import { merchantReminderAvailableAt } from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
 
 const stableSuffix = (value: string) => {
@@ -579,13 +581,24 @@ export const makeLiveBookingRescheduling = (
               session.merchantId,
               session.appointmentId
             )
+            const [reminderControls] = yield* orUnavailable('booking-rescheduling')(
+              db
+                .select()
+                .from(merchantMessagingControls)
+                .where(eq(merchantMessagingControls.shopId, appointment.shopId))
+                .limit(1)
+            )
+            const replacement = {
+              ...input.replacement,
+              reminderAt: merchantReminderAvailableAt({
+                startsAt: input.replacement.hold.startsAt,
+                now: input.now,
+                controls: reminderControls ?? null
+              })
+            }
             yield* Effect.try({
               try: () =>
-                validateRescheduleReplacement(
-                  appointment,
-                  input.replacement,
-                  input.now
-                ),
+                validateRescheduleReplacement(appointment, replacement, input.now),
               catch: (error) =>
                 error instanceof BookingRescheduleRejected
                   ? error
@@ -594,10 +607,9 @@ export const makeLiveBookingRescheduling = (
                       reason: 'replacement_validation_failed'
                     })
             })
-            yield* verifyDurableReplacement(session, appointment, input.replacement)
-            if (yield* hasSlotConflict(appointment.id, input.replacement))
+            yield* verifyDurableReplacement(session, appointment, replacement)
+            if (yield* hasSlotConflict(appointment.id, replacement))
               return yield* rejected('slot_conflict')
-            const replacement = input.replacement
             yield* orUnavailable('booking-rescheduling')(
               db
                 .update(rescheduleSessions)
@@ -789,7 +801,9 @@ export const makeLiveBookingRescheduling = (
                     sourceVersion: toVersion,
                     semanticDeduplicationKey: `reschedule:${appointment.id}:${toVersion}`,
                     rawDestination: appointment.snapshot.customerDetails?.phone ?? null,
-                    permissionGranted: false,
+                    permissionGranted:
+                      (appointment.snapshot as StoredAppointmentSnapshot)
+                        .operationalMessagingPermission?.granted === true,
                     purpose: 'appointment_reschedule',
                     locale,
                     availableAt: input.now,
@@ -820,7 +834,9 @@ export const makeLiveBookingRescheduling = (
                       semanticDeduplicationKey: `reminder:${appointment.id}:${toVersion}:${replacement.reminderAt}`,
                       rawDestination:
                         appointment.snapshot.customerDetails?.phone ?? null,
-                      permissionGranted: false,
+                      permissionGranted:
+                        (appointment.snapshot as StoredAppointmentSnapshot)
+                          .operationalMessagingPermission?.granted === true,
                       purpose: 'appointment_reminder',
                       locale,
                       availableAt: replacement.reminderAt,

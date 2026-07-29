@@ -12,6 +12,7 @@ import {
   Database,
   layerFromD1,
   merchants,
+  merchantMessagingControls,
   notificationIntents,
   notificationIntentControlledFacts,
   protectedMessagingDestinations,
@@ -445,6 +446,17 @@ describe('Live Booking Confirmation', () => {
             createdAt: now,
             updatedAt: now
           })
+          yield* db.insert(merchantMessagingControls).values({
+            shopId: 'shp_group',
+            enabled: true,
+            confirmationEnabled: true,
+            rescheduleEnabled: true,
+            cancellationEnabled: true,
+            reminderEnabled: true,
+            reminderLeadMinutes: 48 * 60,
+            createdAt: now,
+            updatedAt: now
+          })
           yield* db.insert(bookingSessions).values({
             id: 'bsn_group',
             merchantId: 'mer_confirm',
@@ -476,8 +488,11 @@ describe('Live Booking Confirmation', () => {
               customerDetailsJson: JSON.stringify({
                 name: 'Mia',
                 email: 'mia@example.com',
-                phone: null
+                phone: '+40722123456'
               }),
+              operationalMessagingPermissionGranted: true,
+              operationalMessagingPermissionPolicyVersion: 'operational-text:v1',
+              operationalMessagingPermissionRecordedAt: now,
               createdAt: now,
               updatedAt: now
             },
@@ -651,7 +666,11 @@ describe('Live Booking Confirmation', () => {
             access: yield* db
               .select()
               .from(confirmationAccess)
-              .where(eq(confirmationAccess.bookingPartyId, 'bpt_group'))
+              .where(eq(confirmationAccess.bookingPartyId, 'bpt_group')),
+            intents: yield* db
+              .select()
+              .from(notificationIntents)
+              .where(eq(notificationIntents.sourceType, 'appointment'))
           }
         }),
         layerFromD1(test.d1)
@@ -676,6 +695,22 @@ describe('Live Booking Confirmation', () => {
       .first<{ status: string; balance: number }>()
     expect(giftCardCommit).toEqual({ status: 'committed', balance: 0 })
     expect(stored.appointments[0]?.snapshot?.checkoutPath).toBe('online_payment')
+    const permittedIntent = stored.intents.find(
+      (intent) =>
+        intent.sourceId === stored.appointments[0]?.id &&
+        intent.purpose === 'appointment_confirmation'
+    )!
+    expect(JSON.parse(permittedIntent.payloadJson).permission.granted).toBe(true)
+    expect(
+      stored.intents.find(
+        (intent) =>
+          intent.sourceId === stored.appointments[0]?.id &&
+          intent.purpose === 'appointment_reminder'
+      )
+    ).toMatchObject({
+      phase: 'scheduled',
+      availableAt: '2026-07-11T09:00:00.000Z'
+    })
     expect(stored.access.map((access) => access.purpose).sort()).toEqual([
       'appointment_confirmation',
       'party_confirmation'

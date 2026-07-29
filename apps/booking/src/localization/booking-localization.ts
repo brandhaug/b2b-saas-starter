@@ -322,10 +322,10 @@ const en = {
   'checkout.policy_progress': 'Policy progress',
   'checkout.policy_version': 'Checkout policy version {version}',
   'checkout.notification_preferences': 'Notification preferences',
-  'checkout.sms_consent_title': 'Get texts from {shop}?',
+  'checkout.sms_consent_title': 'Get appointment updates by text',
   'checkout.email_consent_title': 'Get emails from {shop}?',
   'checkout.sms_consent_copy':
-    'Receive occasional promotional text messages. Consent is optional.',
+    'Receive confirmation, reminder, reschedule, and cancellation updates for this appointment. Consent is optional.',
   'checkout.email_consent_copy':
     'Receive occasional promotional emails. Consent is optional.',
   'checkout.consent_yes': 'Yes',
@@ -618,10 +618,10 @@ const es = {
   'checkout.policy_progress': 'Progreso de las políticas',
   'checkout.policy_version': 'Versión {version} de la política de reserva',
   'checkout.notification_preferences': 'Preferencias de notificaciones',
-  'checkout.sms_consent_title': '¿Recibir mensajes de {shop}?',
+  'checkout.sms_consent_title': 'Recibir actualizaciones de la cita por mensaje',
   'checkout.email_consent_title': '¿Recibir correos de {shop}?',
   'checkout.sms_consent_copy':
-    'Recibe mensajes de texto promocionales ocasionales. El consentimiento es opcional.',
+    'Recibe confirmaciones, recordatorios, cambios y cancelaciones de esta cita. El consentimiento es opcional.',
   'checkout.email_consent_copy':
     'Recibe correos promocionales ocasionales. El consentimiento es opcional.',
   'checkout.consent_yes': 'Sí',
@@ -916,10 +916,10 @@ const fr = {
   'checkout.policy_progress': 'Progression des politiques',
   'checkout.policy_version': 'Version {version} de la politique de réservation',
   'checkout.notification_preferences': 'Préférences de notification',
-  'checkout.sms_consent_title': 'Recevoir des SMS de {shop} ?',
+  'checkout.sms_consent_title': 'Recevoir les mises à jour du rendez-vous par SMS',
   'checkout.email_consent_title': 'Recevoir des e-mails de {shop} ?',
   'checkout.sms_consent_copy':
-    'Recevez occasionnellement des SMS promotionnels. Le consentement est facultatif.',
+    'Recevez les confirmations, rappels, changements et annulations de ce rendez-vous. Le consentement est facultatif.',
   'checkout.email_consent_copy':
     'Recevez occasionnellement des e-mails promotionnels. Le consentement est facultatif.',
   'checkout.consent_yes': 'Oui',
@@ -1212,10 +1212,10 @@ const ro = {
   'checkout.policy_progress': 'Progresul politicilor',
   'checkout.policy_version': 'Versiunea {version} a politicii de rezervare',
   'checkout.notification_preferences': 'Preferințe de notificare',
-  'checkout.sms_consent_title': 'Primești mesaje de la {shop}?',
+  'checkout.sms_consent_title': 'Primești actualizări despre programare prin mesaj',
   'checkout.email_consent_title': 'Primești e-mailuri de la {shop}?',
   'checkout.sms_consent_copy':
-    'Primește ocazional mesaje text promoționale. Consimțământul este opțional.',
+    'Primești confirmări, mementouri, reprogramări și anulări pentru această programare. Acordul este opțional.',
   'checkout.email_consent_copy':
     'Primește ocazional e-mailuri promoționale. Consimțământul este opțional.',
   'checkout.consent_yes': 'Da',

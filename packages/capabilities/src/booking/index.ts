@@ -85,6 +85,7 @@ export {
   CustomerDetailsInvalid,
   CustomerDetailsIssue,
   MarketingConsent,
+  OperationalMessagingPermission,
   PartyCheckoutReview,
   CheckoutPolicyAcceptance,
   SeedBookingCheckout,
@@ -93,7 +94,7 @@ export {
   emptySeedBookingCheckoutStore,
   normalizeCustomerDetails,
   validateCustomerDetailsField,
-  pendingMarketingConsentTargets,
+  pendingNotificationPolicyTargets,
   legacyBookingPolicySteps,
   type LegacyBookingPolicyStep,
   resolveCheckoutPolicy
@@ -101,7 +102,7 @@ export {
 export type {
   BookingCheckoutShape,
   BookingCheckoutFailure,
-  PendingMarketingConsentTarget,
+  PendingNotificationPolicyTarget,
   SeedBookingCheckoutStore
 } from './booking-checkout.ts'
 export {

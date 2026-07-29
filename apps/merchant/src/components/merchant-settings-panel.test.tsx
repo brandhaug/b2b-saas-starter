@@ -74,4 +74,25 @@ describe('MerchantSettingsPanel', () => {
     expect(html).toContain('>MI</span>')
     expect(html).not.toContain('<img')
   })
+
+  it('shows Appointment messaging only when Owner authority was established', () => {
+    const owner = renderToStaticMarkup(
+      <MerchantSettingsPanel
+        appointmentDate={undefined}
+        canManageMessaging
+        viewer={{ name: 'Mara Ionescu', email: null, image: null }}
+        signOut={{ error: null, pending: false, signOut: vi.fn() }}
+      />
+    )
+    const nonOwner = renderToStaticMarkup(
+      <MerchantSettingsPanel
+        appointmentDate={undefined}
+        viewer={{ name: 'Member', email: null, image: null }}
+        signOut={{ error: null, pending: false, signOut: vi.fn() }}
+      />
+    )
+
+    expect(owner).toContain('href="/settings/appointment-messaging"')
+    expect(nonOwner).not.toContain('/settings/appointment-messaging')
+  })
 })

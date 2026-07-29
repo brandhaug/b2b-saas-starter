@@ -6,6 +6,9 @@ vi.mock('@/lib/server/merchant-catalog.ts', () => ({ getMerchantPlan }))
 vi.mock('@/lib/server/merchant-session.ts', () => ({
   requireMerchantSession: vi.fn()
 }))
+vi.mock('@/lib/server/merchant-messaging.ts', () => ({
+  canManageMerchantMessaging: vi.fn(async () => false)
+}))
 
 describe('Settings detail loading', () => {
   it('reads the merchant plan only from the Subscription child route', async () => {

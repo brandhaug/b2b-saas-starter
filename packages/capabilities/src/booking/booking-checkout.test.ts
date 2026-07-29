@@ -198,6 +198,79 @@ describe('Booking Checkout', () => {
       policyAcceptance: { policyId: 'pol_shop', version: 3 }
     })
   })
+  it('records mobile Operational Messaging Permission independently from marketing', async () => {
+    const store = emptySeedBookingCheckoutStore(scheduling)
+    const party = {
+      id: 'bpt_permission',
+      bookingSessionId: 'bsn_one',
+      shopId: 'shp_one',
+      activeRequestId: 'brq_permission',
+      lifecycle: 'active' as const,
+      currency: 'USD',
+      locale: 'en',
+      version: 1,
+      requests: [
+        {
+          id: 'brq_permission',
+          bookingPartyId: 'bpt_permission',
+          position: 0,
+          providerPreference: 'any' as const,
+          providerId: 'prv_ava',
+          primaryServiceId: 'svc_cut',
+          serviceIds: ['svc_cut'],
+          holdId: 'hld_one',
+          holdExpiresAt: '2026-07-10T09:40:00.000Z',
+          customerAccountId: null,
+          customerDetails: {
+            name: 'Mia',
+            email: 'mia@example.com',
+            phone: '+40722123456'
+          },
+          startsAt: quote.startsAt,
+          endsAt: quote.endsAt
+        }
+      ]
+    }
+    const layer = SeedBookingCheckout(store).pipe(
+      Layer.provide(
+        Layer.merge(
+          SeedBookingParties(
+            [party],
+            new Map(),
+            new Map(),
+            new Map(),
+            scheduling.holds
+          ),
+          SeedPricingQuotes()
+        )
+      )
+    )
+
+    const prepared = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const checkout = yield* BookingCheckout
+          yield* checkout.recordOperationalMessagingPermission(session('bsn_one'), {
+            bookingRequestId: 'brq_permission',
+            granted: true,
+            now
+          })
+          return yield* checkout.prepare(session('bsn_one'), { now })
+        }),
+        layer
+      )
+    )
+
+    expect(prepared.operationalMessagingPermissions).toEqual([
+      {
+        bookingRequestId: 'brq_permission',
+        granted: true,
+        policyVersion: 'operational-text:v1',
+        recordedAt: now
+      }
+    ])
+    expect(prepared.marketingConsents).toEqual([])
+  })
   it('normalizes Customer Details and reports stable field error codes', async () => {
     expect(
       validateCustomerDetailsField({

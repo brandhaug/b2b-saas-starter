@@ -35,6 +35,7 @@ import {
   type PartyCheckoutReview,
   type CheckoutPolicyAcceptance,
   type MarketingConsent,
+  type OperationalMessagingPermission,
   type BookingCheckoutFailure,
   type CustomerDetails,
   type CustomerDetailsIssue,
@@ -104,6 +105,10 @@ const PolicyAcceptanceInput = Schema.Struct({ policyId: Schema.String })
 const MarketingConsentInput = Schema.Struct({
   bookingRequestId: Schema.String,
   channel: Schema.Literals(['email', 'sms']),
+  granted: Schema.Boolean
+})
+const OperationalMessagingPermissionInput = Schema.Struct({
+  bookingRequestId: Schema.String,
   granted: Schema.Boolean
 })
 const RescheduleReplacementInput = Schema.Struct({
@@ -445,6 +450,14 @@ export type BookingSessionHttpDependencies = {
         readonly now: string
       }
     ) => BookingSessionEffect<MarketingConsent, BookingCheckoutFailure>
+    readonly recordOperationalMessagingPermission?: (
+      session: BookingSession,
+      input: {
+        readonly bookingRequestId: string
+        readonly granted: boolean
+        readonly now: string
+      }
+    ) => BookingSessionEffect<OperationalMessagingPermission, BookingCheckoutFailure>
     readonly reviewParty: (
       session: BookingSession,
       input: { readonly now: string }
@@ -1703,6 +1716,24 @@ export const handleBookingSessionRequest = (
           ...decoded.success,
           now
         })
+      )
+      return result._tag === 'Success'
+        ? jsonPrivate(result.success)
+        : mapSessionFailure(result.failure, merchantSlug)
+    }
+    if (endpoint === 'operational-messaging-permission' && request.method === 'POST') {
+      if (!dependencies.checkout?.recordOperationalMessagingPermission)
+        return unavailable()
+      const recordPermission =
+        dependencies.checkout.recordOperationalMessagingPermission
+      const decoded = yield* Effect.result(
+        Schema.decodeUnknownEffect(OperationalMessagingPermissionInput)(
+          yield* readJson(request)
+        )
+      )
+      if (decoded._tag === 'Failure') return hiddenNotFound()
+      const result = yield* Effect.result(
+        recordPermission(authorization.success, { ...decoded.success, now })
       )
       return result._tag === 'Success'
         ? jsonPrivate(result.success)

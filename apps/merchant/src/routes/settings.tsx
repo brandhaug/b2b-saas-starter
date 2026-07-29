@@ -6,23 +6,28 @@ import { useMerchantSignOut } from '@/hooks/use-merchant-sign-out.ts'
 import { merchantHomeDate } from '@/lib/merchant-home-date.ts'
 import { merchantViewerFromUser } from '@/lib/merchant-viewer.ts'
 import { requireMerchantSession } from '@/lib/server/merchant-session.ts'
+import { canManageMerchantMessaging } from '@/lib/server/merchant-messaging.ts'
 
 export const Route = createFileRoute('/settings')({
   beforeLoad: async ({ location }) => {
     const session = await requireMerchantSession(location.href)
-    return { merchantViewer: merchantViewerFromUser(session.user) }
+    return {
+      merchantViewer: merchantViewerFromUser(session.user),
+      canManageMessaging: await canManageMerchantMessaging()
+    }
   },
   component: MerchantSettings
 })
 
 function MerchantSettings() {
-  const { merchantViewer } = Route.useRouteContext()
+  const { merchantViewer, canManageMessaging } = Route.useRouteContext()
   const location = useLocation()
   const signOut = useMerchantSignOut()
   const appointmentDate = merchantHomeDate(location.search, location.state)
   const settingsPanel = (
     <MerchantSettingsPanel
       appointmentDate={appointmentDate}
+      canManageMessaging={canManageMessaging}
       signOut={signOut}
       viewer={merchantViewer ?? undefined}
     />

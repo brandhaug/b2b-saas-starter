@@ -209,6 +209,13 @@ export const MarketingConsent = Schema.Struct({
   recordedAt: Schema.String
 })
 export type MarketingConsent = typeof MarketingConsent.Type
+export const OperationalMessagingPermission = Schema.Struct({
+  bookingRequestId: Schema.String,
+  granted: Schema.Boolean,
+  policyVersion: Schema.Literal('operational-text:v1'),
+  recordedAt: Schema.String
+})
+export type OperationalMessagingPermission = typeof OperationalMessagingPermission.Type
 export const PartyCheckoutReview = Schema.Struct({
   requests: Schema.Array(
     Schema.Struct({ id: Schema.String, complete: Schema.Boolean })
@@ -239,11 +246,14 @@ export const CheckoutPreparation = Schema.Struct({
   ),
   marketingPolicy: Schema.NullOr(CheckoutPolicy),
   policyAcceptance: Schema.NullOr(CheckoutPolicyAcceptance),
-  marketingConsents: Schema.Array(MarketingConsent)
+  marketingConsents: Schema.Array(MarketingConsent),
+  operationalMessagingPermissions: Schema.optional(
+    Schema.Array(OperationalMessagingPermission)
+  )
 })
 export type CheckoutPreparation = typeof CheckoutPreparation.Type
 
-export type PendingMarketingConsentTarget = {
+export type PendingNotificationPolicyTarget = {
   readonly bookingRequestId: string
   readonly channel: 'email' | 'sms'
 }
@@ -267,16 +277,18 @@ export const legacyBookingPolicySteps = (input: {
   return steps
 }
 
-export const pendingMarketingConsentTargets = (input: {
+export const pendingNotificationPolicyTargets = (input: {
   readonly marketingPolicy: CheckoutPolicy | null
   readonly requests: readonly {
     readonly id: string
     readonly customerDetails: CustomerDetails | null
   }[]
   readonly consents: readonly (typeof MarketingConsent.Type)[]
-}): readonly PendingMarketingConsentTarget[] => {
-  if (!input.marketingPolicy) return []
-  const policyVersion = String(input.marketingPolicy.version)
+  readonly operationalMessagingPermissions?: readonly OperationalMessagingPermission[]
+}): readonly PendingNotificationPolicyTarget[] => {
+  const policyVersion = input.marketingPolicy
+    ? String(input.marketingPolicy.version)
+    : null
   const isCurrent = (requestId: string, channel: 'email' | 'sms') =>
     input.consents.some(
       (consent) =>
@@ -285,12 +297,21 @@ export const pendingMarketingConsentTargets = (input: {
         consent.policyVersion === policyVersion &&
         consent.disclosure === input.marketingPolicy?.disclosure
     )
-  const targets: PendingMarketingConsentTarget[] = []
+  const targets: PendingNotificationPolicyTarget[] = []
   for (const request of input.requests) {
     if (!request.customerDetails) continue
-    if (request.customerDetails.phone && !isCurrent(request.id, 'sms'))
+    if (
+      request.customerDetails.phone &&
+      !input.operationalMessagingPermissions?.some(
+        (permission) => permission.bookingRequestId === request.id
+      )
+    )
       targets.push({ bookingRequestId: request.id, channel: 'sms' })
-    if (request.customerDetails.email && !isCurrent(request.id, 'email'))
+    if (
+      input.marketingPolicy &&
+      request.customerDetails.email &&
+      !isCurrent(request.id, 'email')
+    )
       targets.push({ bookingRequestId: request.id, channel: 'email' })
   }
   return targets
@@ -401,6 +422,14 @@ export type BookingCheckoutShape = {
       readonly now: string
     }
   ) => Effect.Effect<typeof MarketingConsent.Type, PartyFailure>
+  readonly recordOperationalMessagingPermission: (
+    session: BookingSession,
+    input: {
+      readonly bookingRequestId: string
+      readonly granted: boolean
+      readonly now: string
+    }
+  ) => Effect.Effect<OperationalMessagingPermission, PartyFailure>
   readonly reviewParty: (
     session: BookingSession,
     input: { readonly now: string }
@@ -453,6 +482,13 @@ type CheckoutFactsRepository = {
     party: typeof BookingParty.Type,
     consent: typeof MarketingConsent.Type
   ) => Effect.Effect<typeof MarketingConsent.Type, CapabilityUnavailable>
+  readonly operationalPermissions: (
+    partyId: string
+  ) => Effect.Effect<readonly OperationalMessagingPermission[], CapabilityUnavailable>
+  readonly saveOperationalPermission: (
+    party: typeof BookingParty.Type,
+    permission: OperationalMessagingPermission
+  ) => Effect.Effect<OperationalMessagingPermission, CapabilityUnavailable>
   readonly quoteMaterial: (
     party: typeof BookingParty.Type,
     policy: CheckoutPolicy | null,
@@ -516,9 +552,15 @@ const partyCheckoutWorkflow = (
       if (!quoteIsCurrent) {
         quote = material ? yield* pricing.quote(material) : null
       }
-      const [policyAcceptance, marketingConsents, requestReviews] = yield* Effect.all([
+      const [
+        policyAcceptance,
+        marketingConsents,
+        operationalMessagingPermissions,
+        requestReviews
+      ] = yield* Effect.all([
         repository.acceptance(party.id),
         repository.consents(party.id),
+        repository.operationalPermissions(party.id),
         repository.requestReviews(party)
       ])
       const earliestStart = requestReviews.map(({ quote }) => quote.startsAt).sort()[0]
@@ -536,7 +578,8 @@ const partyCheckoutWorkflow = (
           : null,
         marketingPolicy,
         policyAcceptance,
-        marketingConsents: [...marketingConsents]
+        marketingConsents: [...marketingConsents],
+        operationalMessagingPermissions: [...operationalMessagingPermissions]
       }
     })
   return {
@@ -589,6 +632,28 @@ const partyCheckoutWorkflow = (
           recordedAt: input.now
         })
       }),
+    recordOperationalMessagingPermission: (
+      session: BookingSession,
+      input: {
+        readonly bookingRequestId: string
+        readonly granted: boolean
+        readonly now: string
+      }
+    ) =>
+      Effect.gen(function* () {
+        const party = yield* parties.findForSession(session.id)
+        const request = party.requests.find(
+          (candidate) => candidate.id === input.bookingRequestId
+        )
+        if (!request?.customerDetails?.phone)
+          return yield* new CheckoutCommandRejected({ reason: 'person_not_found' })
+        return yield* repository.saveOperationalPermission(party, {
+          bookingRequestId: input.bookingRequestId,
+          granted: input.granted,
+          policyVersion: 'operational-text:v1',
+          recordedAt: input.now
+        })
+      }),
     reviewParty: (session: BookingSession, input: { readonly now: string }) =>
       Effect.gen(function* () {
         const state = yield* prepare(session, input.now)
@@ -621,6 +686,7 @@ export type SeedBookingCheckoutStore = {
   readonly policies: CheckoutPolicy[]
   readonly policyAcceptances: Map<string, CheckoutPolicyAcceptance>
   readonly marketingConsents: Map<string, typeof MarketingConsent.Type>
+  readonly operationalMessagingPermissions: Map<string, OperationalMessagingPermission>
   readonly merchantId: string
   readonly brandId: string
 }
@@ -633,6 +699,7 @@ export const emptySeedBookingCheckoutStore = (
   policies: [],
   policyAcceptances: new Map(),
   marketingConsents: new Map(),
+  operationalMessagingPermissions: new Map(),
   merchantId: scheduling.scenario?.merchant.id ?? 'mer_seed',
   brandId: `brd_${scheduling.scenario?.merchant.id ?? 'seed'}`
 })
@@ -714,6 +781,28 @@ export const SeedBookingCheckout = (
             )
             return consent
           }),
+        operationalPermissions: (partyId) =>
+          Effect.succeed(
+            [...store.operationalMessagingPermissions.values()]
+              .filter((permission) =>
+                permission.bookingRequestId.startsWith(`${partyId}:`)
+              )
+              .map((permission) => ({
+                ...permission,
+                bookingRequestId: permission.bookingRequestId.slice(partyId.length + 1)
+              }))
+          ),
+        saveOperationalPermission: (party, permission) =>
+          Effect.sync(() => {
+            store.operationalMessagingPermissions.set(
+              `${party.id}:${permission.bookingRequestId}`,
+              {
+                ...permission,
+                bookingRequestId: `${party.id}:${permission.bookingRequestId}`
+              }
+            )
+            return permission
+          }),
         quoteMaterial: (party, policy, now) =>
           Effect.succeed(
             party.requests.every((request) => bookingRequestIsComplete(request, now))
@@ -754,7 +843,10 @@ export const SeedBookingCheckout = (
             const party = yield* parties
               .findForSession(session.id)
               .pipe(Effect.catchTag('BookingPartyNotFound', () => Effect.succeed(null)))
-            if (party?.activeRequestId)
+            if (party?.activeRequestId) {
+              store.operationalMessagingPermissions.delete(
+                `${party.id}:${party.activeRequestId}`
+              )
               yield* parties.updateRequest(
                 party.id,
                 party.activeRequestId,
@@ -762,6 +854,7 @@ export const SeedBookingCheckout = (
                 party.version,
                 input.now
               )
+            }
             return yield* review(session, input.now)
           })
       }
@@ -1025,6 +1118,57 @@ export const LiveBookingCheckout: Layer.Layer<
           )
           return consent
         }),
+      operationalPermissions: (partyId) =>
+        orUnavailable('booking-checkout')(
+          db
+            .select({
+              bookingRequestId: bookingRequests.id,
+              granted: bookingRequests.operationalMessagingPermissionGranted,
+              policyVersion:
+                bookingRequests.operationalMessagingPermissionPolicyVersion,
+              recordedAt: bookingRequests.operationalMessagingPermissionRecordedAt
+            })
+            .from(bookingRequests)
+            .where(eq(bookingRequests.bookingPartyId, partyId))
+        ).pipe(
+          Effect.map((rows) =>
+            rows.flatMap((row) =>
+              row.granted !== null &&
+              row.policyVersion === 'operational-text:v1' &&
+              row.recordedAt
+                ? [
+                    {
+                      bookingRequestId: row.bookingRequestId,
+                      granted: row.granted,
+                      policyVersion: row.policyVersion,
+                      recordedAt: row.recordedAt
+                    } as const
+                  ]
+                : []
+            )
+          )
+        ),
+      saveOperationalPermission: (party, permission) =>
+        Effect.gen(function* () {
+          yield* orUnavailable('booking-checkout')(
+            db
+              .update(bookingRequests)
+              .set({
+                operationalMessagingPermissionGranted: permission.granted,
+                operationalMessagingPermissionPolicyVersion: permission.policyVersion,
+                operationalMessagingPermissionRecordedAt: permission.recordedAt,
+                updatedAt: permission.recordedAt
+              })
+              .where(
+                and(
+                  eq(bookingRequests.id, permission.bookingRequestId),
+                  eq(bookingRequests.bookingPartyId, party.id),
+                  sql`${bookingRequests.customerDetailsJson} IS NOT NULL AND json_extract(${bookingRequests.customerDetailsJson}, '$.phone') IS NOT NULL`
+                )
+              )
+          )
+          return permission
+        }),
       quoteMaterial: (party, policy, now) =>
         Effect.gen(function* () {
           if (
@@ -1134,7 +1278,12 @@ export const LiveBookingCheckout: Layer.Layer<
                 .where(eq(bookingSessions.id, session.id)),
               db
                 .update(bookingRequests)
-                .set({ customerDetailsJson: JSON.stringify(details) })
+                .set({
+                  customerDetailsJson: JSON.stringify(details),
+                  operationalMessagingPermissionGranted: null,
+                  operationalMessagingPermissionPolicyVersion: null,
+                  operationalMessagingPermissionRecordedAt: null
+                })
                 .where(
                   eq(
                     bookingRequests.id,

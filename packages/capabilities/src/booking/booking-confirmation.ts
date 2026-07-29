@@ -14,6 +14,7 @@ import {
   giftCardLedgerEntries,
   giftCardReservations,
   merchants,
+  merchantMessagingControls,
   notificationIntents,
   payments,
   pricingAdjustments,
@@ -42,7 +43,11 @@ import {
   notificationIntentMutationStatements,
   prepareBookingIntentMutation
 } from '../notifications/index.ts'
-import type { NotificationDestinationProtectionSecrets } from '../notifications/index.ts'
+import type {
+  NotificationDestinationProtectionSecrets,
+  PreparedBookingIntentMutation
+} from '../notifications/index.ts'
+import { merchantReminderAvailableAt } from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
 
 export type ConfirmationSigningKeyring = {
@@ -1074,6 +1079,13 @@ export const LiveBookingConfirmation = (
               const [partyShop] = yield* orUnavailable('booking-confirmation')(
                 db.select().from(shops).where(eq(shops.id, party.shopId)).limit(1)
               )
+              const [reminderControls] = yield* orUnavailable('booking-confirmation')(
+                db
+                  .select()
+                  .from(merchantMessagingControls)
+                  .where(eq(merchantMessagingControls.shopId, party.shopId))
+                  .limit(1)
+              )
               const giftScopeIsValid = activeCards.every(
                 (card) =>
                   card.status === 'active' &&
@@ -1173,6 +1185,18 @@ export const LiveBookingConfirmation = (
                   ...row.hold.quote,
                   merchantTimezone: row.timezone,
                   customerDetails: JSON.parse(row.request.customerDetailsJson!),
+                  operationalMessagingPermission:
+                    row.request.operationalMessagingPermissionGranted !== null &&
+                    row.request.operationalMessagingPermissionPolicyVersion &&
+                    row.request.operationalMessagingPermissionRecordedAt
+                      ? {
+                          granted: row.request.operationalMessagingPermissionGranted,
+                          policyVersion:
+                            row.request.operationalMessagingPermissionPolicyVersion,
+                          recordedAt:
+                            row.request.operationalMessagingPermissionRecordedAt
+                        }
+                      : null,
                   checkoutPath,
                   acceptedQuote: {
                     id: acceptedQuote.quoteId,
@@ -1196,6 +1220,11 @@ export const LiveBookingConfirmation = (
                   routeId,
                   outboxId,
                   snapshot,
+                  reminderAt: merchantReminderAvailableAt({
+                    startsAt: snapshot.startsAt,
+                    now: input.now,
+                    controls: reminderControls ?? null
+                  }),
                   expiresAt: addMillisecondsToIso(
                     row.hold.endsAt,
                     30 * 24 * 60 * 60_000
@@ -1204,34 +1233,76 @@ export const LiveBookingConfirmation = (
               })
               const preparedIntents = yield* Effect.forEach(generated, (item) =>
                 notificationProtection
-                  ? prepareBookingIntentMutation(
-                      db,
-                      {
-                        shopId: item.row.shopId,
-                        sourceId: item.appointmentId,
-                        sourceVersion: 1,
-                        semanticDeduplicationKey: `confirmation:${item.appointmentId}:1`,
-                        rawDestination: item.snapshot.customerDetails.phone,
-                        permissionGranted: false,
-                        purpose: 'appointment_confirmation',
-                        locale: item.row.party.locale === 'ro' ? 'ro' : 'en',
-                        availableAt: input.now,
-                        appointmentStartsAt: item.snapshot.startsAt,
-                        createdAt: input.now,
-                        traceId: input.traceId,
-                        facts: appointmentOperationalNotificationFacts({
+                  ? Effect.all([
+                      prepareBookingIntentMutation(
+                        db,
+                        {
+                          shopId: item.row.shopId,
+                          sourceId: item.appointmentId,
+                          sourceVersion: 1,
+                          semanticDeduplicationKey: `confirmation:${item.appointmentId}:1`,
+                          rawDestination: item.snapshot.customerDetails.phone,
+                          permissionGranted:
+                            item.snapshot.operationalMessagingPermission?.granted ===
+                            true,
                           purpose: 'appointment_confirmation',
                           locale: item.row.party.locale === 'ro' ? 'ro' : 'en',
-                          merchantLabel: partyShop?.publicName ?? session.merchantSlug,
-                          startsAt: item.snapshot.startsAt,
-                          timeZone: item.snapshot.merchantTimezone,
-                          appointmentId: item.appointmentId,
-                          confirmationRouteId: item.routeId
-                        })
-                      },
-                      notificationProtection
-                    )
-                  : Effect.succeed(null)
+                          availableAt: input.now,
+                          appointmentStartsAt: item.snapshot.startsAt,
+                          createdAt: input.now,
+                          traceId: input.traceId,
+                          facts: appointmentOperationalNotificationFacts({
+                            purpose: 'appointment_confirmation',
+                            locale: item.row.party.locale === 'ro' ? 'ro' : 'en',
+                            merchantLabel:
+                              partyShop?.publicName ?? session.merchantSlug,
+                            startsAt: item.snapshot.startsAt,
+                            timeZone: item.snapshot.merchantTimezone,
+                            appointmentId: item.appointmentId,
+                            confirmationRouteId: item.routeId
+                          })
+                        },
+                        notificationProtection
+                      ),
+                      item.reminderAt
+                        ? prepareBookingIntentMutation(
+                            db,
+                            {
+                              shopId: item.row.shopId,
+                              sourceId: item.appointmentId,
+                              sourceVersion: 1,
+                              semanticDeduplicationKey: `reminder:${item.appointmentId}:1:${item.reminderAt}`,
+                              rawDestination: item.snapshot.customerDetails.phone,
+                              permissionGranted:
+                                item.snapshot.operationalMessagingPermission
+                                  ?.granted === true,
+                              purpose: 'appointment_reminder',
+                              locale: item.row.party.locale === 'ro' ? 'ro' : 'en',
+                              availableAt: item.reminderAt,
+                              appointmentStartsAt: item.snapshot.startsAt,
+                              createdAt: input.now,
+                              traceId: input.traceId,
+                              facts: appointmentOperationalNotificationFacts({
+                                purpose: 'appointment_reminder',
+                                locale: item.row.party.locale === 'ro' ? 'ro' : 'en',
+                                merchantLabel:
+                                  partyShop?.publicName ?? session.merchantSlug,
+                                startsAt: item.snapshot.startsAt,
+                                timeZone: item.snapshot.merchantTimezone,
+                                appointmentId: item.appointmentId,
+                                confirmationRouteId: item.routeId
+                              })
+                            },
+                            notificationProtection
+                          )
+                        : Effect.succeed(null)
+                    ])
+                  : Effect.succeed<
+                      [
+                        PreparedBookingIntentMutation | null,
+                        PreparedBookingIntentMutation | null
+                      ]
+                    >([null, null])
               )
               const statements: BatchStatement[] = generated.flatMap((item) => [
                 db.insert(appointments).select(
@@ -1293,8 +1364,10 @@ export const LiveBookingConfirmation = (
                 })
               ])
               statements.push(
-                ...preparedIntents.flatMap((intent) =>
-                  intent ? notificationIntentMutationStatements(intent) : []
+                ...preparedIntents.flatMap((intents) =>
+                  intents.flatMap((intent) =>
+                    intent ? notificationIntentMutationStatements(intent) : []
+                  )
                 )
               )
               statements.push(

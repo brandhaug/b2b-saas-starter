@@ -144,6 +144,11 @@ import {
   SeedNotificationIntents
 } from './notifications/adapters.ts'
 import {
+  LiveMerchantMessagingSettings,
+  MerchantMessagingSettings,
+  SeedMerchantMessagingSettings
+} from './notifications/merchant-messaging-settings.ts'
+import {
   LiveMessagingFinance,
   SeedMessagingFinance
 } from './notifications/messaging-finance.ts'
@@ -225,6 +230,7 @@ export type CapabilityServices =
   | NotificationIntents
   | NotificationIntentLifecycle
   | MessagingReadModel
+  | MerchantMessagingSettings
   | MessagingFinance
   | ControlledTemplateEligibilityEngine
   | ScheduledWorkQueue
@@ -435,6 +441,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedNotificationIntents(),
   SeedNotificationIntentLifecycle(),
   SeedMessagingReadModel(),
+  SeedMerchantMessagingSettings(),
   SeedMessagingFinance(),
   SeedControlledTemplateEligibilityEngine(),
   SeedScheduledWorkQueue(),
@@ -517,6 +524,7 @@ export const makeLiveCapabilitiesLayer = (
       Layer.provide(LiveControlledTemplateEligibilityEngine)
     ),
     LiveMessagingReadModel,
+    LiveMerchantMessagingSettings,
     LiveMessagingFinance,
     LiveControlledTemplateEligibilityEngine,
     LiveScheduledWorkQueue,

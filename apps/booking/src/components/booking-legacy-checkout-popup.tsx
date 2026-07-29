@@ -6,7 +6,7 @@ import { BookingPopupSheet } from '../presentation/booking-primitives.tsx'
 import { BookingIcon } from '../presentation/booking-icon.tsx'
 import type {
   LegacyBookingPolicyStep,
-  PendingMarketingConsentTarget
+  PendingNotificationPolicyTarget
 } from '@b2b-saas-starter/capabilities/booking'
 
 export type LegacyCheckoutPhase = 'policies' | 'userInfo'
@@ -375,7 +375,7 @@ export function BookingLegacyNotificationPolicies({
 }: {
   readonly open: boolean
   readonly target: HTMLElement | null
-  readonly targets: readonly PendingMarketingConsentTarget[]
+  readonly targets: readonly PendingNotificationPolicyTarget[]
   readonly shopName: string
   readonly copy: {
     readonly smsTitle: string
@@ -390,14 +390,14 @@ export function BookingLegacyNotificationPolicies({
   }
   readonly onClose: () => void
   readonly onComplete: (
-    decisions: readonly (PendingMarketingConsentTarget & {
+    decisions: readonly (PendingNotificationPolicyTarget & {
       readonly granted: boolean
     })[]
   ) => void
 }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const decisions = useRef<
-    readonly (PendingMarketingConsentTarget & { readonly granted: boolean })[]
+    readonly (PendingNotificationPolicyTarget & { readonly granted: boolean })[]
   >([])
   useEffect(() => {
     if (!open) return

@@ -742,6 +742,13 @@ export default {
               ),
               capabilitiesLayer
             ),
+          recordOperationalMessagingPermission: (session, input) =>
+            Effect.provide(
+              Effect.flatMap(BookingCheckout, (checkout) =>
+                checkout.recordOperationalMessagingPermission(session, input)
+              ),
+              capabilitiesLayer
+            ),
           reviewParty: (session, input) =>
             Effect.provide(
               Effect.flatMap(BookingCheckout, (checkout) =>

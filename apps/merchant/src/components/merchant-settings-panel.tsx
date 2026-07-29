@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import {
   BadgeCheck,
   CalendarClock,
+  MessageSquareText,
   ChevronRight,
   Code2,
   CreditCard,
@@ -16,7 +17,7 @@ import { MerchantAvatar } from '@/components/merchant-avatar.tsx'
 import { MerchantAdvancedSettings } from '@/components/merchant-advanced-settings.tsx'
 import { useDesktopSecondaryDialog } from '@/components/merchant-shell/desktop/desktop-secondary-dialog-context.ts'
 import { MerchantThemeControl } from '@/components/merchant-theme-control.tsx'
-import { merchantOverlayNavigationState } from '@/lib/merchant-home-route.ts'
+import { merchantSettingsNavigationState } from '@/lib/merchant-home-route.ts'
 import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
 
 type SignOutState = {
@@ -31,15 +32,18 @@ type SettingsDestination =
   | '/providers'
   | '/services'
   | '/settings/advanced'
+  | '/settings/appointment-messaging'
   | '/settings/appearance'
   | '/settings/subscription'
 
 export function MerchantSettingsPanel({
   appointmentDate,
+  canManageMessaging = false,
   signOut,
   viewer
 }: {
   readonly appointmentDate: string | undefined
+  readonly canManageMessaging?: boolean
   readonly signOut: SignOutState
   readonly viewer: MerchantViewer | undefined
 }) {
@@ -77,6 +81,14 @@ export function MerchantSettingsPanel({
 
       <div className="flex flex-col gap-9 py-6">
         <SettingsGroup>
+          {canManageMessaging ? (
+            <SettingsLink
+              appointmentDate={appointmentDate}
+              icon={<MessageSquareText />}
+              label="Appointment messaging"
+              to="/settings/appointment-messaging"
+            />
+          ) : null}
           <SettingsLink
             appointmentDate={appointmentDate}
             icon={<UsersRound />}
@@ -189,7 +201,7 @@ function SettingsLink({
     <Link
       to={to}
       search={appointmentDate ? { date: appointmentDate } : {}}
-      state={(previous) => merchantOverlayNavigationState(previous, appointmentDate)}
+      state={(previous) => merchantSettingsNavigationState(previous, appointmentDate)}
       viewTransition={false}
       data-merchant-settings-row="true"
       className="group flex min-h-[3.3125rem] items-center justify-between px-4 transition-colors active:bg-muted/80 md:hover:bg-muted/60"

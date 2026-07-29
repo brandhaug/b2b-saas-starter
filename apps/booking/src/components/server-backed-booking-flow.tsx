@@ -23,7 +23,7 @@ import {
   type CustomerDetailsIssue,
   bookingPartyContinuation,
   legacyBookingPolicySteps,
-  pendingMarketingConsentTargets
+  pendingNotificationPolicyTargets
 } from '@b2b-saas-starter/capabilities/booking'
 import type {
   PaymentMethod,
@@ -548,17 +548,19 @@ export function ServerBackedBookingFlow({
       }
       if (legacyBookPending.current && nextPreparation.quote) {
         legacyBookPending.current = false
-        const consentTargets = pendingMarketingConsentTargets({
+        const consentTargets = pendingNotificationPolicyTargets({
           marketingPolicy: nextPreparation.marketingPolicy,
           requests: nextPreparation.party.requests,
-          consents: nextPreparation.marketingConsents
+          consents: nextPreparation.marketingConsents,
+          operationalMessagingPermissions:
+            nextPreparation.operationalMessagingPermissions ?? []
         })
         if (consentTargets.length > 0) setNotificationPoliciesOpen(true)
         else
           finalizeMutation.mutate({
             acceptQuote: !nextPreparation.quote.acceptedAt,
             acceptPolicy: Boolean(nextPreparation.policy),
-            marketingConsents: []
+            notificationPolicyDecisions: []
           })
       }
     },
@@ -571,7 +573,7 @@ export function ServerBackedBookingFlow({
     mutationFn: async (input: {
       readonly acceptQuote: boolean
       readonly acceptPolicy: boolean
-      readonly marketingConsents: readonly {
+      readonly notificationPolicyDecisions: readonly {
         readonly bookingRequestId: string
         readonly channel: 'email' | 'sms'
         readonly granted: boolean
@@ -598,14 +600,25 @@ export function ServerBackedBookingFlow({
         void telemetry.track('policy_accepted')
       }
       await Promise.all(
-        input.marketingConsents.map(async (consent) => {
-          const response = await fetch(`${base}/marketing-consent`, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(consent)
-          })
-          if (!response.ok) throw new Error('marketing consent unavailable')
+        input.notificationPolicyDecisions.map(async (decision) => {
+          const operational = decision.channel === 'sms'
+          const response = await fetch(
+            `${base}/${operational ? 'operational-messaging-permission' : 'marketing-consent'}`,
+            {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(
+                operational
+                  ? {
+                      bookingRequestId: decision.bookingRequestId,
+                      granted: decision.granted
+                    }
+                  : decision
+              )
+            }
+          )
+          if (!response.ok) throw new Error('notification permission unavailable')
         })
       )
       const reviewed = await fetch(`${base}/checkout-review`, {
@@ -681,10 +694,12 @@ export function ServerBackedBookingFlow({
   const pendingConsentTargets = useMemo(
     () =>
       preparationForCheckout
-        ? pendingMarketingConsentTargets({
+        ? pendingNotificationPolicyTargets({
             marketingPolicy: preparationForCheckout.marketingPolicy,
             requests: preparationForCheckout.party.requests,
-            consents: preparationForCheckout.marketingConsents
+            consents: preparationForCheckout.marketingConsents,
+            operationalMessagingPermissions:
+              preparationForCheckout.operationalMessagingPermissions ?? []
           })
         : [],
     [preparationForCheckout]
@@ -1005,7 +1020,13 @@ export function ServerBackedBookingFlow({
             if (presentation === 'withinBookingShell') legacyBookPending.current = true
             detailsMutation.mutate(details)
           }}
-          onFinalize={(input) => finalizeMutation.mutate(input)}
+          onFinalize={(input) =>
+            finalizeMutation.mutate({
+              acceptQuote: input.acceptQuote,
+              acceptPolicy: input.acceptPolicy,
+              notificationPolicyDecisions: input.marketingConsents
+            })
+          }
           onEdit={(requestId) =>
             party.data &&
             partyMutation.mutate(
@@ -1088,13 +1109,13 @@ export function ServerBackedBookingFlow({
           targets={pendingConsentTargets}
           shopName={journey.data.resolvedConfiguration.shopName.text}
           onClose={() => setNotificationPoliciesOpen(false)}
-          onComplete={(marketingConsents) => {
+          onComplete={(notificationPolicyDecisions) => {
             setNotificationPoliciesOpen(false)
             if (!preparationForCheckout?.quote) return
             finalizeMutation.mutate({
               acceptQuote: !preparationForCheckout.quote.acceptedAt,
               acceptPolicy: Boolean(preparationForCheckout.policy),
-              marketingConsents
+              notificationPolicyDecisions
             })
           }}
           copy={{

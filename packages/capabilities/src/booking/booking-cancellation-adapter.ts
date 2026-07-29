@@ -376,7 +376,8 @@ export const makeLiveBookingCancellations = (
                       sourceVersion,
                       semanticDeduplicationKey: `cancellation:${record.id}:${sourceVersion}`,
                       rawDestination: snapshot.customerDetails.phone,
-                      permissionGranted: false,
+                      permissionGranted:
+                        snapshot.operationalMessagingPermission?.granted === true,
                       purpose: 'appointment_cancellation',
                       locale,
                       availableAt: input.now,

@@ -129,6 +129,11 @@ export type StoredAppointmentSnapshot = StoredBookingQuote & {
     readonly email: string
     readonly phone: string | null
   }
+  readonly operationalMessagingPermission?: {
+    readonly granted: boolean
+    readonly policyVersion: string
+    readonly recordedAt: string
+  } | null
   readonly checkoutPath: 'pay_in_person' | 'online_payment'
   readonly acceptedQuote?: {
     readonly id: string
@@ -1240,6 +1245,16 @@ export const bookingRequests = sqliteTable(
     holdId: text('hold_id'),
     customerAccountId: text('customer_account_id'),
     customerDetailsJson: text('customer_details_json'),
+    operationalMessagingPermissionGranted: integer(
+      'operational_messaging_permission_granted',
+      { mode: 'boolean' }
+    ),
+    operationalMessagingPermissionPolicyVersion: text(
+      'operational_messaging_permission_policy_version'
+    ),
+    operationalMessagingPermissionRecordedAt: text(
+      'operational_messaging_permission_recorded_at'
+    ),
     startsAt: text('starts_at'),
     endsAt: text('ends_at'),
     createdAt: isoCreatedAt(),
