@@ -760,7 +760,13 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                         `UPDATE protected_messaging_destinations
                          SET ciphertext = NULL, fingerprint = NULL, masked_value = NULL,
                              erased_at = COALESCE(erased_at, ?)
-                         WHERE id = ? AND erased_at IS NULL`
+                         WHERE id = ? AND erased_at IS NULL
+                           AND NOT EXISTS (
+                             SELECT 1 FROM messaging_retention_holds mrh
+                             WHERE mrh.resource_type = 'protected_messaging_destination'
+                               AND mrh.resource_id = protected_messaging_destinations.id
+                               AND mrh.status = 'active'
+                           )`
                       )
                       .bind(input.now, tombstone.resource_id)
                   : tombstone.action === 'erase_provider_reference'
@@ -769,7 +775,13 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                           `UPDATE protected_provider_references
                            SET ciphertext = NULL, masked_suffix = NULL,
                                erased_at = COALESCE(erased_at, ?)
-                           WHERE id = ? AND erased_at IS NULL`
+                           WHERE id = ? AND erased_at IS NULL
+                             AND NOT EXISTS (
+                               SELECT 1 FROM messaging_retention_holds mrh
+                               WHERE mrh.resource_type = 'protected_provider_reference'
+                                 AND mrh.resource_id = protected_provider_references.id
+                                 AND mrh.status = 'active'
+                             )`
                         )
                         .bind(input.now, tombstone.resource_id)
                     : tombstone.action === 'erase_facts'
@@ -778,13 +790,25 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                             `UPDATE notification_intent_controlled_facts
                              SET facts_json = '{}', facts_fingerprint = 'erased',
                                  erased_at = COALESCE(erased_at, ?)
-                             WHERE intent_id = ? AND erased_at IS NULL`
+                             WHERE intent_id = ? AND erased_at IS NULL
+                               AND NOT EXISTS (
+                                 SELECT 1 FROM messaging_retention_holds mrh
+                                 WHERE mrh.resource_type = 'notification_intent_controlled_facts'
+                                   AND mrh.resource_id = notification_intent_controlled_facts.intent_id
+                                   AND mrh.status = 'active'
+                               )`
                           )
                           .bind(input.now, tombstone.resource_id)
                       : tombstone.action === 'delete_quarantine'
                         ? raw
                             .prepare(
-                              `DELETE FROM messaging_incident_quarantine WHERE id = ?`
+                              `DELETE FROM messaging_incident_quarantine
+                               WHERE id = ? AND NOT EXISTS (
+                                 SELECT 1 FROM messaging_retention_holds mrh
+                                 WHERE mrh.resource_type = 'incident_quarantine'
+                                   AND mrh.resource_id = messaging_incident_quarantine.id
+                                   AND mrh.status = 'active'
+                               )`
                             )
                             .bind(tombstone.resource_id)
                         : undefined
@@ -797,7 +821,33 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                      SET status = 'completed', completed_at = COALESCE(completed_at, ?),
                          lease_owner = NULL, leased_until = NULL, updated_at = ?
                      WHERE id = ? AND status = 'leased' AND lease_owner = ?
-                       AND changes() > 0`
+                       AND NOT EXISTS (
+                         SELECT 1 FROM messaging_retention_holds mrh
+                         WHERE mrh.resource_type = messaging_retention_tombstones.resource_type
+                           AND mrh.resource_id = messaging_retention_tombstones.resource_id
+                           AND mrh.status = 'active'
+                       )
+                       AND (
+                         (action = 'erase_destination' AND EXISTS (
+                           SELECT 1 FROM protected_messaging_destinations pmd
+                           WHERE pmd.id = messaging_retention_tombstones.resource_id
+                             AND pmd.erased_at IS NOT NULL
+                         )) OR
+                         (action = 'erase_provider_reference' AND EXISTS (
+                           SELECT 1 FROM protected_provider_references ppr
+                           WHERE ppr.id = messaging_retention_tombstones.resource_id
+                             AND ppr.erased_at IS NOT NULL
+                         )) OR
+                         (action = 'erase_facts' AND EXISTS (
+                           SELECT 1 FROM notification_intent_controlled_facts nicf
+                           WHERE nicf.intent_id = messaging_retention_tombstones.resource_id
+                             AND nicf.erased_at IS NOT NULL
+                         )) OR
+                         (action = 'delete_quarantine' AND NOT EXISTS (
+                           SELECT 1 FROM messaging_incident_quarantine miq
+                           WHERE miq.id = messaging_retention_tombstones.resource_id
+                         ))
+                       )`
                   )
                   .bind(input.now, input.now, tombstone.id, input.ownerId)
               ])

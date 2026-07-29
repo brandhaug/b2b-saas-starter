@@ -334,20 +334,25 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
             'quarantine_held_after_schedule', 'delete_quarantine', 'pending', ?, 0, ?, ?)`
         )
         .bind(asIso(now), asIso(now), asIso(now)),
-      test.d1
-        .prepare(
-          `INSERT INTO messaging_retention_holds
+      test.d1.prepare(
+        `CREATE TRIGGER hold_after_tombstone_lease
+         AFTER UPDATE OF status ON messaging_retention_tombstones
+         WHEN NEW.id = 'mrt_held_after_schedule' AND NEW.status = 'leased'
+         BEGIN
+           INSERT INTO messaging_retention_holds
            (id, resource_type, resource_id, purpose, status, reason,
             placed_by_operator_id, placed_at, created_at, updated_at)
            VALUES ('mrh_after_schedule', 'incident_quarantine',
             'quarantine_held_after_schedule', 'incident-review', 'active',
-            'Preserve exact quarantine after scheduling', 'opr_jobs', ?, ?, ?)`
-        )
-        .bind(asIso(now), asIso(now), asIso(now))
+            'Preserve exact quarantine after lease acquisition', 'opr_jobs',
+            '${asIso(now)}', '${asIso(now)}', '${asIso(now)}');
+         END`
+      )
     ])
     const result = await run((jobs) =>
       jobs.processRetention({ now: asIso(now), ownerId: 'worker_hold_race', limit: 20 })
     )
+    await test.d1.prepare(`DROP TRIGGER hold_after_tombstone_lease`).run()
     expect(result.completed).toBe(0)
     await expect(
       test.d1
@@ -357,5 +362,34 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
         )
         .first()
     ).resolves.toMatchObject({ ciphertext: 'encrypted-held' })
+  })
+
+  it('completes a tombstone when the requested end state already exists', async () => {
+    await test.d1
+      .prepare(
+        `INSERT INTO messaging_retention_tombstones
+         (id, shop_id, resource_type, resource_id, action, status, due_at,
+          attempt_count, created_at, updated_at)
+         VALUES ('mrt_already_deleted', 'shp_jobs', 'incident_quarantine',
+          'quarantine_already_deleted', 'delete_quarantine', 'pending', ?, 0, ?, ?)`
+      )
+      .bind(asIso(now), asIso(now), asIso(now))
+      .run()
+    const result = await run((jobs) =>
+      jobs.processRetention({
+        now: asIso(now),
+        ownerId: 'worker_idempotent',
+        limit: 20
+      })
+    )
+    expect(result.completed).toBe(1)
+    await expect(
+      test.d1
+        .prepare(
+          `SELECT status FROM messaging_retention_tombstones
+           WHERE id = 'mrt_already_deleted'`
+        )
+        .first()
+    ).resolves.toMatchObject({ status: 'completed' })
   })
 })

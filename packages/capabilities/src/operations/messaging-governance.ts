@@ -139,6 +139,7 @@ type PlaceRetentionHoldInput = {
     | 'protected_provider_reference'
     | 'notification_intent_controlled_facts'
     | 'incident_quarantine'
+    | 'suppression_directive'
   readonly resourceId: string
   readonly purpose: string
   readonly reason: string
@@ -502,12 +503,22 @@ export const makeMessagingGovernanceLayer = (
             .limit(1)
         ).length === 1
       )
+    if (resourceType === 'incident_quarantine')
+      return (
+        (
+          await db
+            .select({ id: messagingIncidentQuarantine.id })
+            .from(messagingIncidentQuarantine)
+            .where(eq(messagingIncidentQuarantine.id, resourceId))
+            .limit(1)
+        ).length === 1
+      )
     return (
       (
         await db
-          .select({ id: messagingIncidentQuarantine.id })
-          .from(messagingIncidentQuarantine)
-          .where(eq(messagingIncidentQuarantine.id, resourceId))
+          .select({ id: suppressionDirectives.id })
+          .from(suppressionDirectives)
+          .where(eq(suppressionDirectives.id, resourceId))
           .limit(1)
       ).length === 1
     )
@@ -760,14 +771,55 @@ export const makeMessagingGovernanceLayer = (
         )
           throw denied('record-key-rotation', 'rotation_timeline_invalid')
         const reencryptedResources = input.reencryptedResources ?? []
+        const previousKeyVersion = Number(input.previousVersion)
+        const nextKeyVersion = Number(input.nextVersion)
         if (
           expectedKind === 'destination_encryption' &&
-          reencryptedResources.length === 0
+          (reencryptedResources.length === 0 ||
+            !Number.isInteger(previousKeyVersion) ||
+            !Number.isInteger(nextKeyVersion) ||
+            previousKeyVersion < 1 ||
+            nextKeyVersion < 1)
         )
           throw denied('record-key-rotation', 'reencrypted_resources_required')
+        if (expectedKind === 'destination_encryption') {
+          const [destinations, references] = await Promise.all([
+            db
+              .select({ id: protectedMessagingDestinations.id })
+              .from(protectedMessagingDestinations)
+              .where(
+                and(
+                  eq(protectedMessagingDestinations.keyVersion, previousKeyVersion),
+                  isNull(protectedMessagingDestinations.erasedAt)
+                )
+              ),
+            db
+              .select({ id: protectedProviderReferences.id })
+              .from(protectedProviderReferences)
+              .where(
+                and(
+                  eq(protectedProviderReferences.keyVersion, previousKeyVersion),
+                  isNull(protectedProviderReferences.erasedAt)
+                )
+              )
+          ])
+          const supplied = new Set(
+            reencryptedResources.map(
+              (resource) => `${resource.resourceType}:${resource.resourceId}`
+            )
+          )
+          const required = [
+            ...destinations.map((row) => `protected_messaging_destination:${row.id}`),
+            ...references.map((row) => `protected_provider_reference:${row.id}`)
+          ]
+          if (required.some((resource) => !supplied.has(resource)))
+            throw denied('record-key-rotation', 'active_ciphertext_not_reencrypted')
+        }
         for (const resource of reencryptedResources) {
           if (
             !resource.ciphertext.trim() ||
+            resource.previousKeyVersion !== previousKeyVersion ||
+            resource.nextKeyVersion !== nextKeyVersion ||
             resource.previousKeyVersion === resource.nextKeyVersion ||
             resource.previousKeyVersion < 1 ||
             resource.nextKeyVersion < 1
@@ -1093,9 +1145,23 @@ export const makeMessagingGovernanceLayer = (
           destinationTombstones,
           referenceTombstones,
           factTombstones,
-          db
-            .delete(suppressionDirectives)
-            .where(eq(suppressionDirectives.shopId, input.shopId)),
+          db.delete(suppressionDirectives).where(
+            and(
+              eq(suppressionDirectives.shopId, input.shopId),
+              notExists(
+                db
+                  .select({ id: messagingRetentionHolds.id })
+                  .from(messagingRetentionHolds)
+                  .where(
+                    and(
+                      eq(messagingRetentionHolds.resourceType, 'suppression_directive'),
+                      eq(messagingRetentionHolds.resourceId, suppressionDirectives.id),
+                      eq(messagingRetentionHolds.status, 'active')
+                    )
+                  )
+              )
+            )
+          ),
           db.insert(auditEvents).values(
             audit({
               principal,

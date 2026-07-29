@@ -416,6 +416,15 @@ describe('Operations Messaging governance', () => {
       )
       .bind(now.toISOString(), now.toISOString())
       .run()
+    const holdId = await run((service) =>
+      service.placeRetentionHold({
+        actor: actorA,
+        resourceType: 'suppression_directive',
+        resourceId: 'sdir_governance_delete',
+        purpose: 'complaint_preservation',
+        reason: 'Preserve suppression evidence while complaint review is active'
+      })
+    )
     await run((service) =>
       service.schedulePrivacyDeletion({
         actor: actorA,
@@ -436,10 +445,32 @@ describe('Operations Messaging governance', () => {
            AND event_type = 'messaging.privacy-deletion.scheduled'`
       )
       .first()
-    expect(suppression).toBeNull()
+    expect(suppression).toMatchObject({ id: 'sdir_governance_delete' })
     expect(audit).toMatchObject({
       event_type: 'messaging.privacy-deletion.scheduled'
     })
+    await run((service) =>
+      service.releaseRetentionHold({
+        actor: actorA,
+        holdId,
+        reason: 'Complaint review closed and suppression evidence may be deleted'
+      })
+    )
+    await run((service) =>
+      service.schedulePrivacyDeletion({
+        actor: actorA,
+        shopId: 'shp_governance',
+        reason: 'Resume verified privacy deletion after narrow hold release',
+        confirmed: true
+      })
+    )
+    await expect(
+      test.d1
+        .prepare(
+          `SELECT id FROM suppression_directives WHERE id = 'sdir_governance_delete'`
+        )
+        .first()
+    ).resolves.toBeNull()
   })
 
   it('re-encrypts active protected material before recording a key rotation', async () => {
