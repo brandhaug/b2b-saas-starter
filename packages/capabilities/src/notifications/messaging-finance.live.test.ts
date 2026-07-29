@@ -653,6 +653,100 @@ describe('Live Messaging Finance', () => {
       run(finance.credit(topUp))
     ])
     expect(firstCredit).toEqual(secondCredit)
+    expect(
+      await run(
+        finance.credit({
+          ...topUp,
+          idempotencyKey: 'stripe:idempotent:duplicate-webhook'
+        })
+      )
+    ).toEqual(firstCredit)
+
+    const refundRequest = await run(
+      finance.recordExternalFact({
+        shopId: 'shp_idempotent',
+        kind: 'provider_refund',
+        provider: 'stripe',
+        sourceId: 're_idempotent',
+        status: 'pending',
+        amountMilliEuro: 1_000,
+        currency: 'EUR',
+        reference: 'credit-note:idempotent',
+        relatedSourceId: 'pi_idempotent',
+        observedAt: now
+      })
+    )
+    const refundInput = {
+      shopId: 'shp_idempotent',
+      kind: 'refund',
+      amountMilliEuro: 1_000,
+      sourceType: 'stripe_refund',
+      sourceId: 're_idempotent',
+      idempotencyKey: 'stripe:refund:idempotent',
+      actorType: 'system_operator',
+      actorId: 'opr_finance',
+      operatorPrincipal,
+      reason: 'Provider refund requested',
+      fiscalReference: 'credit-note:idempotent',
+      externalFactId: refundRequest.id,
+      occurredAt: now
+    } as const
+    const refund = await run(finance.debit(refundInput))
+    expect(
+      await run(
+        finance.debit({
+          ...refundInput,
+          idempotencyKey: 'stripe:refund:idempotent:retry'
+        })
+      )
+    ).toEqual(refund)
+    await run(
+      finance.recordExternalFact({
+        shopId: 'shp_idempotent',
+        kind: 'credit_note',
+        provider: 'stripe',
+        sourceId: 'cn_idempotent',
+        status: 'issued',
+        amountMilliEuro: 1_000,
+        currency: 'EUR',
+        reference: 'credit-note:idempotent',
+        relatedSourceId: 're_idempotent',
+        observedAt: now
+      })
+    )
+    const failedRefund = await run(
+      finance.recordExternalFact({
+        shopId: 'shp_idempotent',
+        kind: 'provider_refund',
+        provider: 'stripe',
+        sourceId: 're_idempotent',
+        status: 'failed',
+        amountMilliEuro: 1_000,
+        currency: 'EUR',
+        reference: 'credit-note:idempotent',
+        relatedSourceId: 'pi_idempotent',
+        observedAt: now
+      })
+    )
+    const compensationInput = {
+      shopId: 'shp_idempotent',
+      refundEntryId: refund.id,
+      failedRefundFactId: failedRefund.id,
+      occurredAt: now
+    } as const
+    const compensation = await run(finance.compensateRefundFailure(compensationInput))
+    expect(await run(finance.compensateRefundFailure(compensationInput))).toEqual(
+      compensation
+    )
+    expect(compensation).toMatchObject({
+      direction: 'credit',
+      kind: 'correction',
+      reversesEntryId: refund.id,
+      correctionReason: 'provider_refund_failed'
+    })
+    expect(await run(finance.balance('shp_idempotent'))).toMatchObject({
+      postedMilliEuro: 10_000
+    })
 
     const reservationInput = {
       shopId: 'shp_idempotent',

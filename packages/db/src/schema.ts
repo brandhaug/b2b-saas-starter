@@ -2704,6 +2704,11 @@ export const messagingBalanceLedgerEntries = sqliteTable(
       table.sourceId,
       table.idempotencyKey
     ),
+    uniqueIndex('messaging_balance_ledger_external_fact_unique')
+      .on(table.externalFactId)
+      .where(
+        sql`${table.kind} IN ('top_up', 'refund') AND ${table.externalFactId} IS NOT NULL`
+      ),
     uniqueIndex('messaging_balance_ledger_reversal_unique').on(
       table.reversesEntryId,
       table.correctionReason

@@ -251,7 +251,8 @@ export class MessagingFinanceRejected extends Schema.TaggedErrorClass<MessagingF
       'idempotency_conflict',
       'invalid_correction',
       'missing_provenance',
-      'funding_unconfirmed'
+      'funding_unconfirmed',
+      'refund_unconfirmed'
     ]),
     shopId: Schema.optional(ShopId),
     resourceId: Schema.optional(Schema.String)
@@ -283,7 +284,8 @@ type LedgerProvenance = {
   readonly occurredAt: string
 }
 
-const hasText = (value: string | undefined): value is string => Boolean(value?.trim())
+const hasText = (value: string | null | undefined): value is string =>
+  Boolean(value?.trim())
 
 const validateLedgerPolicy = (
   input: LedgerProvenance & {
@@ -305,7 +307,8 @@ const validateLedgerPolicy = (
     !hasText(input.actorId) ||
     input.actorId !== input.operatorPrincipal.id ||
     !hasText(input.reason) ||
-    (input.kind === 'refund' && !hasText(input.fiscalReference))
+    (input.kind === 'refund' &&
+      (!hasText(input.fiscalReference) || !hasText(input.externalFactId)))
   )
     return 'missing_provenance'
   return undefined
@@ -372,6 +375,12 @@ export type MessagingFinanceShape = {
       readonly correctionReason: string
     }
   ) => Effect.Effect<LedgerEntry, FinanceError>
+  readonly compensateRefundFailure: (input: {
+    readonly shopId: string
+    readonly refundEntryId: string
+    readonly failedRefundFactId: string
+    readonly occurredAt: string
+  }) => Effect.Effect<LedgerEntry, FinanceError>
   readonly recordProviderCost: (input: {
     readonly shopId: string
     readonly intentId: string
@@ -874,6 +883,11 @@ export const SeedMessagingFinance = (
         entry.idempotencyKey === input.idempotencyKey
     )
 
+  const byExternalFact = (externalFactId: string | undefined) =>
+    externalFactId
+      ? ledger.find((entry) => entry.externalFactId === externalFactId)
+      : undefined
+
   const post = (
     direction: 'credit' | 'debit',
     input: LedgerProvenance & {
@@ -896,25 +910,45 @@ export const SeedMessagingFinance = (
           reason: policyFailure,
           shopId: input.shopId
         })
-      if (input.kind === 'top_up') {
+      if (input.kind === 'top_up' || input.kind === 'refund') {
         const fact = input.externalFactId
           ? externalFacts.get(input.externalFactId)
           : undefined
         if (
           !fact ||
           fact.shopId !== input.shopId ||
-          fact.kind !== 'provider_payment' ||
-          fact.status !== 'confirmed' ||
+          (input.kind === 'top_up'
+            ? fact.kind !== 'provider_payment' || fact.status !== 'confirmed'
+            : fact.kind !== 'provider_refund' ||
+              !['pending', 'confirmed'].includes(fact.status) ||
+              !hasText(fact.relatedSourceId)) ||
           fact.amountMilliEuro !== input.amountMilliEuro ||
           fact.currency !== 'EUR' ||
           fact.sourceId !== input.sourceId
         )
           return yield* new MessagingFinanceRejected({
             operation: direction,
-            reason: 'funding_unconfirmed',
+            reason:
+              input.kind === 'top_up' ? 'funding_unconfirmed' : 'refund_unconfirmed',
             shopId: input.shopId,
             resourceId: input.externalFactId
           })
+      }
+      const existingByFact = byExternalFact(input.externalFactId)
+      if (existingByFact) {
+        if (
+          existingByFact.shopId !== input.shopId ||
+          existingByFact.direction !== direction ||
+          existingByFact.kind !== input.kind ||
+          existingByFact.amountMilliEuro !== input.amountMilliEuro
+        )
+          return yield* new MessagingFinanceRejected({
+            operation: direction,
+            reason: 'idempotency_conflict',
+            shopId: input.shopId,
+            resourceId: existingByFact.id
+          })
+        return existingByFact
       }
       const existing = bySource(input)
       if (existing) {
@@ -1251,6 +1285,45 @@ export const SeedMessagingFinance = (
         }
         return correction
       }),
+    compensateRefundFailure: (input) =>
+      Effect.gen(function* () {
+        const refund = ledger.find((entry) => entry.id === input.refundEntryId)
+        const failedFact = externalFacts.get(input.failedRefundFactId)
+        const requestedFact = refund?.externalFactId
+          ? externalFacts.get(refund.externalFactId)
+          : undefined
+        if (
+          !refund ||
+          refund.shopId !== input.shopId ||
+          refund.kind !== 'refund' ||
+          refund.direction !== 'debit' ||
+          !failedFact ||
+          failedFact.shopId !== input.shopId ||
+          failedFact.kind !== 'provider_refund' ||
+          failedFact.status !== 'failed' ||
+          !requestedFact ||
+          requestedFact.sourceId !== failedFact.sourceId ||
+          requestedFact.provider !== failedFact.provider
+        )
+          return yield* new MessagingFinanceRejected({
+            operation: 'compensate_refund_failure',
+            reason: 'invalid_correction',
+            shopId: input.shopId,
+            resourceId: input.refundEntryId
+          })
+        return yield* service.correct({
+          shopId: input.shopId,
+          entryId: refund.id,
+          correctionReason: 'provider_refund_failed',
+          sourceType: 'provider_refund',
+          sourceId: failedFact.sourceId,
+          idempotencyKey: `refund-failure:${failedFact.id}`,
+          actorType: 'system',
+          actorId: 'messaging-finance',
+          reason: 'Restore credit after provider refund failure',
+          occurredAt: input.occurredAt
+        })
+      }),
     recordProviderCost: (input) =>
       Effect.gen(function* () {
         if (
@@ -1432,6 +1505,18 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
           (row) => (row ? ledgerFromRow(row) : undefined)
         )
 
+      const readLedgerByExternalFact = (externalFactId: string | undefined) =>
+        externalFactId
+          ? Effect.map(
+              first<LedgerRow>(
+                raw,
+                `${ledgerSelect} WHERE external_fact_id = ?`,
+                externalFactId
+              ),
+              (row) => (row ? ledgerFromRow(row) : undefined)
+            )
+          : Effect.succeed(undefined)
+
       const post = (
         direction: 'credit' | 'debit',
         input: LedgerProvenance & {
@@ -1461,7 +1546,7 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
               reason: policyFailure,
               shopId: input.shopId
             })
-          if (input.kind === 'top_up') {
+          if (input.kind === 'top_up' || input.kind === 'refund') {
             const fact = yield* first<ExternalFactRow>(
               raw,
               `SELECT * FROM messaging_financial_external_facts
@@ -1471,18 +1556,40 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
             )
             if (
               !fact ||
-              fact.kind !== 'provider_payment' ||
-              fact.status !== 'confirmed' ||
+              (input.kind === 'top_up'
+                ? fact.kind !== 'provider_payment' || fact.status !== 'confirmed'
+                : fact.kind !== 'provider_refund' ||
+                  !['pending', 'confirmed'].includes(fact.status) ||
+                  !hasText(fact.related_source_id)) ||
               fact.amount_milli_euro !== input.amountMilliEuro ||
               fact.currency !== 'EUR' ||
               fact.source_id !== input.sourceId
             )
               return yield* new MessagingFinanceRejected({
                 operation: direction,
-                reason: 'funding_unconfirmed',
+                reason:
+                  input.kind === 'top_up'
+                    ? 'funding_unconfirmed'
+                    : 'refund_unconfirmed',
                 shopId: input.shopId,
                 resourceId: input.externalFactId
               })
+          }
+          const existingByFact = yield* readLedgerByExternalFact(input.externalFactId)
+          if (existingByFact) {
+            if (
+              existingByFact.shopId !== input.shopId ||
+              existingByFact.direction !== direction ||
+              existingByFact.kind !== input.kind ||
+              existingByFact.amountMilliEuro !== input.amountMilliEuro
+            )
+              return yield* new MessagingFinanceRejected({
+                operation: direction,
+                reason: 'idempotency_conflict',
+                shopId: input.shopId,
+                resourceId: existingByFact.id
+              })
+            return existingByFact
           }
           const existing = yield* readLedgerBySource(
             input.sourceType,
@@ -1576,6 +1683,14 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
             ...(noticeStatement ? [noticeStatement] : [])
           ])
           if ((results[1]?.meta.changes ?? 0) !== 1) {
+            const racingByFact = yield* readLedgerByExternalFact(input.externalFactId)
+            if (
+              racingByFact?.shopId === input.shopId &&
+              racingByFact.direction === direction &&
+              racingByFact.kind === input.kind &&
+              racingByFact.amountMilliEuro === input.amountMilliEuro
+            )
+              return racingByFact
             const racing = yield* readLedgerBySource(
               input.sourceType,
               input.sourceId,
@@ -2129,6 +2244,61 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
             )
             if (!stored) return yield* unavailable('correction missing after commit')
             return stored
+          }),
+        compensateRefundFailure: (input) =>
+          Effect.gen(function* () {
+            const refundRow = yield* first<LedgerRow>(
+              raw,
+              `${ledgerSelect} WHERE id = ? AND shop_id = ?`,
+              input.refundEntryId,
+              input.shopId
+            )
+            const refund = refundRow ? ledgerFromRow(refundRow) : undefined
+            const failedFactRow = yield* first<ExternalFactRow>(
+              raw,
+              `SELECT * FROM messaging_financial_external_facts
+               WHERE id = ? AND shop_id = ?`,
+              input.failedRefundFactId,
+              input.shopId
+            )
+            const requestedFactRow = refund?.externalFactId
+              ? yield* first<ExternalFactRow>(
+                  raw,
+                  `SELECT * FROM messaging_financial_external_facts
+                   WHERE id = ? AND shop_id = ?`,
+                  refund.externalFactId,
+                  input.shopId
+                )
+              : undefined
+            if (
+              !refund ||
+              refund.kind !== 'refund' ||
+              refund.direction !== 'debit' ||
+              !failedFactRow ||
+              failedFactRow.kind !== 'provider_refund' ||
+              failedFactRow.status !== 'failed' ||
+              !requestedFactRow ||
+              requestedFactRow.source_id !== failedFactRow.source_id ||
+              requestedFactRow.provider !== failedFactRow.provider
+            )
+              return yield* new MessagingFinanceRejected({
+                operation: 'compensate_refund_failure',
+                reason: 'invalid_correction',
+                shopId: input.shopId,
+                resourceId: input.refundEntryId
+              })
+            return yield* service.correct({
+              shopId: input.shopId,
+              entryId: refund.id,
+              correctionReason: 'provider_refund_failed',
+              sourceType: 'provider_refund',
+              sourceId: failedFactRow.source_id,
+              idempotencyKey: `refund-failure:${failedFactRow.id}`,
+              actorType: 'system',
+              actorId: 'messaging-finance',
+              reason: 'Restore credit after provider refund failure',
+              occurredAt: input.occurredAt
+            })
           }),
         recordProviderCost: (input) =>
           Effect.gen(function* () {

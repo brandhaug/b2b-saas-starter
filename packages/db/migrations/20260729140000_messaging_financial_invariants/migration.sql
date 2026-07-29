@@ -39,6 +39,10 @@ ALTER TABLE `messaging_balance_ledger_entries`
   ADD COLUMN `external_fact_id` text
   REFERENCES `messaging_financial_external_facts` (`id`);
 --> statement-breakpoint
+CREATE UNIQUE INDEX `messaging_balance_ledger_external_fact_unique`
+  ON `messaging_balance_ledger_entries` (`external_fact_id`)
+  WHERE `kind` IN ('top_up', 'refund') AND `external_fact_id` IS NOT NULL;
+--> statement-breakpoint
 CREATE TRIGGER `messaging_rate_cards_notice_guard`
   BEFORE INSERT ON `messaging_rate_cards`
   WHEN NEW.version > 1 AND (
@@ -152,7 +156,20 @@ CREATE TRIGGER `messaging_balance_financial_provenance_guard`
       NEW.actor_type IS NOT 'system_operator' OR
       NULLIF(trim(NEW.actor_id), '') IS NULL OR
       NULLIF(trim(NEW.reason), '') IS NULL OR
-      (NEW.kind = 'refund' AND NULLIF(trim(NEW.fiscal_reference), '') IS NULL)
+      (NEW.kind = 'refund' AND (
+        NULLIF(trim(NEW.fiscal_reference), '') IS NULL OR
+        NEW.external_fact_id IS NULL OR NOT EXISTS (
+          SELECT 1 FROM messaging_financial_external_facts fact
+          WHERE fact.id = NEW.external_fact_id
+            AND fact.shop_id = NEW.shop_id
+            AND fact.kind = 'provider_refund'
+            AND fact.status IN ('pending', 'confirmed')
+            AND fact.amount_milli_euro = NEW.amount_milli_euro
+            AND fact.currency = 'EUR'
+            AND fact.source_id = NEW.source_id
+            AND NULLIF(trim(fact.related_source_id), '') IS NOT NULL
+        )
+      ))
     )) OR
     (NEW.kind = 'correction' AND (
       NEW.actor_type IS NULL OR NEW.actor_type NOT IN ('system', 'system_operator') OR
