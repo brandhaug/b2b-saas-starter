@@ -24,7 +24,14 @@ import {
   recoverOperationsNotifications
 } from './operations-notifications.ts'
 import { decodeBookingEventsWakeup } from './booking-events-queue.ts'
-import { NotificationIntentExecution } from '@b2b-saas-starter/capabilities/notifications'
+import {
+  NotificationIntentExecution,
+  NotificationIntentLifecycle
+} from '@b2b-saas-starter/capabilities/notifications'
+import {
+  pollLiveSmsoStatuses,
+  selectConfiguredSmsoAdapter
+} from '@b2b-saas-starter/capabilities/notifications/providers/smso'
 
 type Env = {
   readonly DB: D1Database
@@ -39,6 +46,12 @@ type Env = {
   readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string
   readonly OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY?: string
   readonly OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION?: string
+  readonly SMSO_API_KEY?: string
+  readonly SMSO_SENDER_ID?: string
+  readonly SMSO_CALLBACK_URL?: string
+  readonly SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY?: string
+  readonly SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
+  readonly SMSO_PROVIDER_REFERENCE_KEY_VERSION?: string
   readonly WAITING_LIST_DELIVERY_CURRENT_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_LEGACY_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_KEYS?: string
@@ -55,7 +68,13 @@ const capabilitiesEnv = (env: Env): BookingProductEnv => ({
   OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY:
     env.OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY,
   OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION:
-    env.OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION
+    env.OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION,
+  SMSO_API_KEY: env.SMSO_API_KEY,
+  SMSO_SENDER_ID: env.SMSO_SENDER_ID,
+  SMSO_CALLBACK_URL: env.SMSO_CALLBACK_URL,
+  SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY: env.SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY,
+  SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY: env.SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY,
+  SMSO_PROVIDER_REFERENCE_KEY_VERSION: env.SMSO_PROVIDER_REFERENCE_KEY_VERSION
 })
 
 const bookingConfig = (env: Env) => {
@@ -135,6 +154,29 @@ const notificationIntentExecutionLayer = (env: Env, now: string) =>
     now
   )
 
+const pollSmsoProviderStatuses = (env: Env, now: string, intentId?: string) => {
+  const adapter = selectConfiguredSmsoAdapter(env, now)
+  if (!adapter) return Effect.void
+  return Effect.flatMap(NotificationIntentLifecycle, (lifecycle) =>
+    pollLiveSmsoStatuses({
+      db: env.DB,
+      adapter,
+      lifecycle,
+      environment: env.ENVIRONMENT ?? 'production',
+      providerAccountKey: 'platform-smso',
+      encryptionSecret: env.SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY!,
+      keyVersion: adapter.providerReferenceKeyVersion,
+      ...(intentId ? { intentId, limit: 1 } : { limit: 100 })
+    })
+  ).pipe(Effect.asVoid)
+}
+
+const operationalMessagingLayer = (env: Env, now: string) =>
+  Layer.merge(
+    notificationIntentExecutionLayer(env, now),
+    selectCapabilitiesLayer(capabilitiesEnv(env))
+  )
+
 const processNotificationIntent = (intentId: string, now: string, env: Env) =>
   withTriggerScope(
     {
@@ -143,23 +185,29 @@ const processNotificationIntent = (intentId: string, now: string, env: Env) =>
       env,
       metadata: { intentId }
     },
-    Effect.flatMap(NotificationIntentExecution, (execution) =>
-      execution.execute({ intentId, now })
-    ).pipe(Effect.provide(notificationIntentExecutionLayer(env, now)))
+    Effect.andThen(
+      pollSmsoProviderStatuses(env, now, intentId),
+      Effect.flatMap(NotificationIntentExecution, (execution) =>
+        execution.execute({ intentId, now })
+      )
+    ).pipe(Effect.provide(operationalMessagingLayer(env, now)))
   )
 
 const recoverNotificationIntents = (now: string, env: Env) =>
-  Effect.flatMap(NotificationIntentExecution, (execution) =>
-    Effect.flatMap(
-      execution.discoverDue({ now, limit: 100, perShopLimit: 10 }),
-      (intentIds) =>
-        Effect.forEach(
-          intentIds,
-          (intentId) => processNotificationIntent(intentId, now, env),
-          { concurrency: 1, discard: true }
-        )
+  Effect.andThen(
+    pollSmsoProviderStatuses(env, now),
+    Effect.flatMap(NotificationIntentExecution, (execution) =>
+      Effect.flatMap(
+        execution.discoverDue({ now, limit: 100, perShopLimit: 10 }),
+        (intentIds) =>
+          Effect.forEach(
+            intentIds,
+            (intentId) => processNotificationIntent(intentId, now, env),
+            { concurrency: 1, discard: true }
+          )
+      )
     )
-  ).pipe(Effect.provide(notificationIntentExecutionLayer(env, now)), Effect.asVoid)
+  ).pipe(Effect.provide(operationalMessagingLayer(env, now)), Effect.asVoid)
 
 const operationsEmailProviderState = (env: Env) =>
   env.EMAIL && env.CLOUDFLARE_EMAIL_FROM

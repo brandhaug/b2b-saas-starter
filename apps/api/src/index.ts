@@ -1,5 +1,6 @@
 import type { ApiEnv } from './env.ts'
 import { getWebHandler } from './http.ts'
+import { handleSmsoCallbackEdge, isSmsoCallbackPath } from './smso-callback.ts'
 
 // The worker serves the `BookingProductApi` contract directly: routing,
 // request/response schema decoding, OpenAPI (/openapi.json), the Scalar
@@ -8,6 +9,7 @@ import { getWebHandler } from './http.ts'
 // hand-maintained route table to drift from the contract.
 export default {
   async fetch(request: Request, env: ApiEnv): Promise<Response> {
+    if (isSmsoCallbackPath(request)) return handleSmsoCallbackEdge(request, env)
     return getWebHandler(env)(request)
   }
 }

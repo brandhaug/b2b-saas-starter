@@ -7,6 +7,9 @@ export type ApiEnv = RateLimitBindings & {
   readonly DB?: D1Database
   readonly PLATFORM_API_CURSOR_SECRET?: string
   readonly ENVIRONMENT?: string
+  readonly BOOKING_EVENTS_QUEUE?: Queue
+  readonly SMSO_CALLBACK_PATH_SECRET?: string
+  readonly SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
 }
 
 // Module-aware env validation (ADR 0035): derive module config status from

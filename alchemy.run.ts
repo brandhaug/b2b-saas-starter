@@ -93,6 +93,15 @@ const OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY = optionalSecret(
 )
 const OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION =
   process.env.OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION
+const SMSO_API_KEY = optionalSecret('SMSO_API_KEY')
+const SMSO_CALLBACK_URL = optionalSecret('SMSO_CALLBACK_URL')
+const SMSO_CALLBACK_PATH_SECRET = optionalSecret('SMSO_CALLBACK_PATH_SECRET')
+const SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY = optionalSecret(
+  'SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY'
+)
+const SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY = optionalSecret(
+  'SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY'
+)
 const STRIPE_SECRET_KEY = optionalSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = optionalSecret('STRIPE_WEBHOOK_SECRET')
 const CUSTOMER_AUTH_SECRET = optionalSecret('CUSTOMER_AUTH_SECRET')
@@ -162,9 +171,17 @@ export const Stack = Alchemy.Stack(
       main: './apps/api/src/index.ts',
       bindings: {
         DB: db,
-        EMAIL: transactionalEmail
+        EMAIL: transactionalEmail,
+        BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        ...(SMSO_CALLBACK_PATH_SECRET ? { SMSO_CALLBACK_PATH_SECRET } : {}),
+        ...(SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY
+          ? { SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY }
+          : {})
       },
-      env: optionalModuleEnv,
+      env: {
+        ...optionalModuleEnv,
+        ENVIRONMENT: 'production'
+      },
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
@@ -289,13 +306,24 @@ export const Stack = Alchemy.Stack(
                 OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION ?? '1'
             }
           : {}),
+        ...(SMSO_API_KEY ? { SMSO_API_KEY } : {}),
+        ...(SMSO_CALLBACK_URL ? { SMSO_CALLBACK_URL } : {}),
+        ...(SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY
+          ? { SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY }
+          : {}),
+        ...(SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY
+          ? { SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY }
+          : {}),
         EMAIL: transactionalEmail
       },
       env: {
         ...optionalModuleEnv,
         PUBLIC_SITE_ORIGIN: publicSiteOrigin,
         CLOUDFLARE_EMAIL_FROM,
-        ENVIRONMENT: 'production'
+        ENVIRONMENT: 'production',
+        SMSO_SENDER_ID: process.env.SMSO_SENDER_ID ?? '',
+        SMSO_PROVIDER_REFERENCE_KEY_VERSION:
+          process.env.SMSO_PROVIDER_REFERENCE_KEY_VERSION ?? '1'
       },
       crons: ['*/5 * * * *'],
       compatibility: { date: '2026-05-16' },
