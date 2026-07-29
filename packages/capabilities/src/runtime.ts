@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import { makeLiveLayerFromD1, type CapabilitiesLayer } from './layers.ts'
 import {
@@ -10,6 +10,10 @@ import { makeNotificationIntentExecutionLayer } from './notifications/notificati
 import { ProviderSubmission } from './notifications/provider-contracts.ts'
 import { makeLiveProviderAcceptancePersistence } from './notifications/smso-adapter.live.ts'
 import { selectConfiguredSmsoAdapter } from './notifications/smso-provider.ts'
+import {
+  makeD1MetaReferenceProtector,
+  makeMetaWhatsAppSubmission
+} from './notifications/meta-whatsapp.ts'
 export { SeedLayer, type CapabilitiesLayer, type CapabilityServices } from './layers.ts'
 export { CapabilityUnavailable } from './errors.ts'
 
@@ -28,6 +32,13 @@ export type BookingProductEnv = {
   readonly SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY?: string | undefined
   readonly SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string | undefined
   readonly SMSO_PROVIDER_REFERENCE_KEY_VERSION?: string | undefined
+  readonly META_WHATSAPP_ACCESS_TOKEN?: string | undefined
+  readonly META_WHATSAPP_PHONE_NUMBER_ID?: string | undefined
+  readonly META_WHATSAPP_GRAPH_API_VERSION?: string | undefined
+  readonly META_WHATSAPP_PROVIDER_ACCOUNT_KEY?: string | undefined
+  readonly META_WHATSAPP_REFERENCE_ENCRYPTION_KEY?: string | undefined
+  readonly META_WHATSAPP_REFERENCE_FINGERPRINT_KEY?: string | undefined
+  readonly META_WHATSAPP_REFERENCE_KEY_VERSION?: string | undefined
 }
 
 export const selectCapabilitiesLayer = (
@@ -71,21 +82,53 @@ export const makeOperationalMessagingExecutionLayer = (
           : ('production' as const)
   const providers = makeDeterministicProviderSubmissionLayer(providerRuntime, now)
   const liveSmso = selectConfiguredSmsoAdapter(env, now)
-  const providerLayer = liveSmso
-    ? Layer.succeed(ProviderSubmission)({
-        submit: (request) =>
-          request.provider === 'smso'
-            ? liveSmso.submit(request)
-            : providers.meta.submit(request)
-      })
-    : providers.layer
+  const metaProviderAccountKey =
+    env.META_WHATSAPP_PROVIDER_ACCOUNT_KEY?.trim() || 'platform-meta'
+  const metaConfigured = Boolean(
+    env.META_WHATSAPP_ACCESS_TOKEN?.trim() &&
+    env.META_WHATSAPP_PHONE_NUMBER_ID?.trim() &&
+    env.META_WHATSAPP_GRAPH_API_VERSION?.trim() &&
+    env.META_WHATSAPP_REFERENCE_ENCRYPTION_KEY?.trim() &&
+    env.META_WHATSAPP_REFERENCE_FINGERPRINT_KEY?.trim()
+  )
+  const liveMeta =
+    metaConfigured &&
+    (providerRuntime === 'preview' || providerRuntime === 'production')
+      ? makeMetaWhatsAppSubmission({
+          accessToken: Redacted.make(env.META_WHATSAPP_ACCESS_TOKEN!),
+          phoneNumberId: env.META_WHATSAPP_PHONE_NUMBER_ID!,
+          graphApiVersion: env.META_WHATSAPP_GRAPH_API_VERSION!,
+          providerAccountKey: metaProviderAccountKey,
+          protectReference: makeD1MetaReferenceProtector({
+            db: env.DB,
+            encryptionSecret: env.META_WHATSAPP_REFERENCE_ENCRYPTION_KEY!,
+            fingerprintSecret: env.META_WHATSAPP_REFERENCE_FINGERPRINT_KEY!,
+            keyVersion: Number(env.META_WHATSAPP_REFERENCE_KEY_VERSION ?? '1'),
+            environment: env.ENVIRONMENT ?? 'production'
+          }),
+          now: () => now
+        })
+      : undefined
+  const providerLayer =
+    liveSmso || liveMeta
+      ? Layer.succeed(ProviderSubmission)({
+          submit: (request) =>
+            request.provider === 'smso'
+              ? liveSmso
+                ? liveSmso.submit(request)
+                : providers.smso.submit(request)
+              : liveMeta
+                ? liveMeta(request)
+                : providers.meta.submit(request)
+        })
+      : providers.layer
   const encryptionSecret = env.OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?.trim()
   const keyVersion = Number(env.OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION ?? '1')
   return makeNotificationIntentExecutionLayer({
     environment: env.ENVIRONMENT ?? 'development',
-    providerAccountKeys: { meta: 'platform-meta', smso: 'platform-smso' },
+    providerAccountKeys: { meta: metaProviderAccountKey, smso: 'platform-smso' },
     providerConfigured: {
-      meta: providers.meta.runtimeState === 'capture',
+      meta: liveMeta ? true : providers.meta.runtimeState === 'capture',
       smso: liveSmso ? true : providers.smso.runtimeState === 'capture'
     },
     destinationConfigured: Boolean(encryptionSecret),

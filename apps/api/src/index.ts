@@ -1,5 +1,6 @@
 import type { ApiEnv } from './env.ts'
 import { getWebHandler } from './http.ts'
+import { makeD1MetaWhatsAppCallbackHandler } from './meta-whatsapp-callback.ts'
 import { handleSmsoCallbackEdge, isSmsoCallbackPath } from './smso-callback.ts'
 
 // The worker serves the `BookingProductApi` contract directly: routing,
@@ -10,6 +11,8 @@ import { handleSmsoCallbackEdge, isSmsoCallbackPath } from './smso-callback.ts'
 export default {
   async fetch(request: Request, env: ApiEnv): Promise<Response> {
     if (isSmsoCallbackPath(request)) return handleSmsoCallbackEdge(request, env)
+    if (new URL(request.url).pathname === '/callbacks/meta/whatsapp')
+      return makeD1MetaWhatsAppCallbackHandler(env)(request)
     return getWebHandler(env)(request)
   }
 }

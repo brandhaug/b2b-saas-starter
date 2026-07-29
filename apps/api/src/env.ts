@@ -8,6 +8,10 @@ export type ApiEnv = RateLimitBindings & {
   readonly PLATFORM_API_CURSOR_SECRET?: string
   readonly ENVIRONMENT?: string
   readonly BOOKING_EVENTS_QUEUE?: Queue
+  readonly META_WHATSAPP_APP_SECRET?: string
+  readonly META_WHATSAPP_WEBHOOK_VERIFY_TOKEN?: string
+  readonly META_WHATSAPP_PROVIDER_ACCOUNT_KEY?: string
+  readonly META_WHATSAPP_REFERENCE_FINGERPRINT_KEY?: string
   readonly SMSO_CALLBACK_PATH_SECRET?: string
   readonly SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
 }
