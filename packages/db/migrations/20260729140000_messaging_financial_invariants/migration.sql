@@ -1,3 +1,44 @@
+CREATE TABLE `messaging_financial_external_facts` (
+  `id` text PRIMARY KEY NOT NULL,
+  `shop_id` text NOT NULL,
+  `kind` text NOT NULL,
+  `provider` text NOT NULL,
+  `source_id` text NOT NULL,
+  `status` text NOT NULL,
+  `amount_milli_euro` integer,
+  `currency` text NOT NULL,
+  `reference` text,
+  `related_source_id` text,
+  `observed_at` text NOT NULL,
+  `created_at` text NOT NULL,
+  CONSTRAINT `messaging_financial_external_facts_source_unique`
+    UNIQUE (`kind`, `provider`, `source_id`, `status`),
+  CONSTRAINT `messaging_financial_external_facts_shop_fk`
+    FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `messaging_financial_external_facts_kind_check`
+    CHECK (`kind` IN ('provider_payment', 'provider_refund', 'invoice', 'credit_note', 'efactura')),
+  CONSTRAINT `messaging_financial_external_facts_status_check`
+    CHECK (`status` IN ('pending', 'confirmed', 'failed', 'issued', 'submitted',
+                        'accepted', 'rejected', 'cancelled')),
+  CONSTRAINT `messaging_financial_external_facts_amount_check`
+    CHECK (`amount_milli_euro` IS NULL OR `amount_milli_euro` >= 0)
+);
+--> statement-breakpoint
+CREATE INDEX `messaging_financial_external_facts_reconciliation_idx`
+  ON `messaging_financial_external_facts` (`shop_id`, `observed_at`, `id`);
+--> statement-breakpoint
+CREATE TRIGGER `messaging_financial_external_facts_no_update`
+  BEFORE UPDATE ON `messaging_financial_external_facts`
+  BEGIN SELECT RAISE(ABORT, 'messaging financial external facts are append-only'); END;
+--> statement-breakpoint
+CREATE TRIGGER `messaging_financial_external_facts_no_delete`
+  BEFORE DELETE ON `messaging_financial_external_facts`
+  BEGIN SELECT RAISE(ABORT, 'messaging financial external facts are append-only'); END;
+--> statement-breakpoint
+ALTER TABLE `messaging_balance_ledger_entries`
+  ADD COLUMN `external_fact_id` text
+  REFERENCES `messaging_financial_external_facts` (`id`);
+--> statement-breakpoint
 CREATE TRIGGER `messaging_rate_cards_notice_guard`
   BEFORE INSERT ON `messaging_rate_cards`
   WHEN NEW.version > 1 AND (
@@ -95,7 +136,17 @@ CREATE TRIGGER `messaging_balance_financial_provenance_guard`
   WHEN
     (NEW.kind = 'top_up' AND (
       NEW.amount_milli_euro NOT IN (10000, 25000, 50000) OR
-      NULLIF(trim(NEW.fiscal_reference), '') IS NULL
+      NULLIF(trim(NEW.fiscal_reference), '') IS NULL OR
+      NEW.external_fact_id IS NULL OR NOT EXISTS (
+        SELECT 1 FROM messaging_financial_external_facts fact
+        WHERE fact.id = NEW.external_fact_id
+          AND fact.shop_id = NEW.shop_id
+          AND fact.kind = 'provider_payment'
+          AND fact.status = 'confirmed'
+          AND fact.amount_milli_euro = NEW.amount_milli_euro
+          AND fact.currency = 'EUR'
+          AND fact.source_id = NEW.source_id
+      )
     )) OR
     (NEW.kind IN ('operator_adjustment', 'refund', 'promotional_credit') AND (
       NEW.actor_type IS NOT 'system_operator' OR

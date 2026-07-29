@@ -8,7 +8,8 @@ export const operatorRoleNames = [
   'merchant-reader',
   'merchant-impersonator',
   'impersonation-auditor',
-  'operator-manager'
+  'operator-manager',
+  'messaging-finance'
 ] as const
 export const OperatorRole = Schema.Literals(operatorRoleNames)
 export type OperatorRole = typeof OperatorRole.Type
@@ -17,7 +18,8 @@ export const operatorPermissionNames = [
   'merchant:read',
   'merchant:impersonate',
   'impersonation-audit:read',
-  'operator:manage'
+  'operator:manage',
+  'messaging:finance'
 ] as const
 export const OperatorPermission = Schema.Literals(operatorPermissionNames)
 export type OperatorPermission = typeof OperatorPermission.Type
@@ -28,7 +30,8 @@ export const operatorRolePermissions: Readonly<
   'merchant-reader': ['merchant:read'],
   'merchant-impersonator': ['merchant:read', 'merchant:impersonate'],
   'impersonation-auditor': ['impersonation-audit:read'],
-  'operator-manager': ['operator:manage']
+  'operator-manager': ['operator:manage'],
+  'messaging-finance': ['messaging:finance']
 }
 
 export const hasOperatorPermission = (

@@ -28,6 +28,17 @@ describe('Seed Messaging Finance', () => {
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const finance = yield* MessagingFinance
+        const funding = yield* finance.recordExternalFact({
+          shopId: 'shp_seed_finance',
+          kind: 'provider_payment',
+          provider: 'stripe',
+          sourceId: 'pi_seed_finance',
+          status: 'confirmed',
+          amountMilliEuro: 10_000,
+          currency: 'EUR',
+          reference: 'invoice:seed:finance',
+          observedAt: now
+        })
         yield* finance.credit({
           shopId: 'shp_seed_finance',
           kind: 'top_up',
@@ -36,6 +47,7 @@ describe('Seed Messaging Finance', () => {
           sourceId: 'pi_seed_finance',
           idempotencyKey: 'stripe:seed:finance',
           fiscalReference: 'invoice:seed:finance',
+          externalFactId: funding.id,
           occurredAt: now
         })
         yield* finance.reserve({

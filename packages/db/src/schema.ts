@@ -2603,6 +2603,62 @@ export const messagingBalanceReservations = sqliteTable(
   ]
 )
 
+export const messagingFinancialExternalFacts = sqliteTable(
+  'messaging_financial_external_facts',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'restrict' }),
+    kind: text('kind', {
+      enum: [
+        'provider_payment',
+        'provider_refund',
+        'invoice',
+        'credit_note',
+        'efactura'
+      ]
+    }).notNull(),
+    provider: text('provider').notNull(),
+    sourceId: text('source_id').notNull(),
+    status: text('status', {
+      enum: [
+        'pending',
+        'confirmed',
+        'failed',
+        'issued',
+        'submitted',
+        'accepted',
+        'rejected',
+        'cancelled'
+      ]
+    }).notNull(),
+    amountMilliEuro: integer('amount_milli_euro'),
+    currency: text('currency').notNull(),
+    reference: text('reference'),
+    relatedSourceId: text('related_source_id'),
+    observedAt: text('observed_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_financial_external_facts_source_unique').on(
+      table.kind,
+      table.provider,
+      table.sourceId,
+      table.status
+    ),
+    index('messaging_financial_external_facts_reconciliation_idx').on(
+      table.shopId,
+      table.observedAt,
+      table.id
+    ),
+    check(
+      'messaging_financial_external_facts_amount_check',
+      sql`${table.amountMilliEuro} IS NULL OR ${table.amountMilliEuro} >= 0`
+    )
+  ]
+)
+
 export const messagingBalanceLedgerEntries = sqliteTable(
   'messaging_balance_ledger_entries',
   {
@@ -2634,6 +2690,9 @@ export const messagingBalanceLedgerEntries = sqliteTable(
     actorId: text('actor_id'),
     reason: text('reason'),
     fiscalReference: text('fiscal_reference'),
+    externalFactId: text('external_fact_id').references(
+      () => messagingFinancialExternalFacts.id
+    ),
     reversesEntryId: text('reverses_entry_id'),
     correctionReason: text('correction_reason'),
     occurredAt: text('occurred_at').notNull(),

@@ -7,6 +7,15 @@ import { MessagingFinance } from './index.ts'
 
 const now = '2026-07-29T12:00:00.000Z'
 const expiresAt = '2026-08-05T12:00:00.000Z'
+const operatorPrincipal = {
+  id: 'opr_finance',
+  sessionId: 'ops_finance',
+  email: 'finance@example.test',
+  name: 'Finance Operator',
+  roles: ['messaging-finance'],
+  idleExpiresAt: new Date('2026-07-29T12:30:00.000Z'),
+  absoluteExpiresAt: new Date('2026-07-29T20:00:00.000Z')
+} as const
 
 let test: TestD1
 
@@ -128,6 +137,17 @@ describe('Live Messaging Finance', () => {
     const result = await run(
       Effect.gen(function* () {
         const finance = yield* MessagingFinance
+        const funding = yield* finance.recordExternalFact({
+          shopId: 'shp_finance',
+          kind: 'provider_payment',
+          provider: 'stripe',
+          sourceId: 'pi_finance',
+          status: 'confirmed',
+          amountMilliEuro: 10_000,
+          currency: 'EUR',
+          reference: 'invoice:finance',
+          observedAt: now
+        })
         const credit = yield* finance.credit({
           shopId: 'shp_finance',
           kind: 'top_up',
@@ -136,6 +156,7 @@ describe('Live Messaging Finance', () => {
           sourceId: 'pi_finance',
           idempotencyKey: 'stripe:pi_finance:succeeded',
           fiscalReference: 'invoice:finance',
+          externalFactId: funding.id,
           occurredAt: now
         })
         const reservation = yield* finance.reserve({
@@ -195,7 +216,7 @@ describe('Live Messaging Finance', () => {
         idempotencyKey: 'cmd:credit',
         actorType: 'system_operator',
         actorId: 'opr_finance',
-        operatorPermission: 'messaging:finance',
+        operatorPrincipal,
         reason: 'Test credit',
         occurredAt: '2026-07-29T12:02:00.000Z'
       })
@@ -211,7 +232,7 @@ describe('Live Messaging Finance', () => {
           idempotencyKey: 'cmd:overdraw',
           actorType: 'system_operator',
           actorId: 'opr_finance',
-          operatorPermission: 'messaging:finance',
+          operatorPrincipal,
           reason: 'Must fail',
           occurredAt: '2026-07-29T12:03:00.000Z'
         })
@@ -231,7 +252,7 @@ describe('Live Messaging Finance', () => {
         idempotencyKey: 'cmd:debit',
         actorType: 'system_operator',
         actorId: 'opr_finance',
-        operatorPermission: 'messaging:finance',
+        operatorPrincipal,
         reason: 'Test debit',
         occurredAt: '2026-07-29T12:04:00.000Z'
       })
@@ -245,7 +266,7 @@ describe('Live Messaging Finance', () => {
       idempotencyKey: 'case:correction',
       actorType: 'system_operator',
       actorId: 'opr_finance',
-      operatorPermission: 'messaging:finance',
+      operatorPrincipal,
       reason: 'Reverse invalid debit',
       occurredAt: '2026-07-29T12:05:00.000Z'
     } as const
@@ -306,6 +327,33 @@ describe('Live Messaging Finance', () => {
         amountMinorUnits: 450
       })
     )
+    await run(
+      finance.recordExternalFact({
+        shopId: 'shp_finance',
+        kind: 'invoice',
+        provider: 'stripe',
+        sourceId: 'invoice_finance',
+        status: 'issued',
+        amountMilliEuro: 10_000,
+        currency: 'EUR',
+        reference: 'invoice:finance',
+        relatedSourceId: 'pi_finance',
+        observedAt: '2026-07-29T12:06:00.000Z'
+      })
+    )
+    await run(
+      finance.recordExternalFact({
+        shopId: 'shp_finance',
+        kind: 'efactura',
+        provider: 'anaf',
+        sourceId: 'efactura_finance',
+        status: 'accepted',
+        currency: 'EUR',
+        reference: 'anaf:finance',
+        relatedSourceId: 'invoice_finance',
+        observedAt: '2026-07-29T12:06:30.000Z'
+      })
+    )
 
     expect(await run(finance.balance('shp_finance'))).toMatchObject({
       postedMilliEuro: 9_955,
@@ -322,6 +370,11 @@ describe('Live Messaging Finance', () => {
     expect(reconciliation.ledgerEntries).toHaveLength(2)
     expect(reconciliation.chargeableDeliveries).toHaveLength(1)
     expect(reconciliation.providerCosts).toHaveLength(3)
+    expect(reconciliation.externalFacts.map((fact) => fact.kind)).toEqual([
+      'provider_payment',
+      'invoice',
+      'efactura'
+    ])
     expect(reconciliation.paymentSourceIdentities).toEqual([
       expect.objectContaining({
         sourceId: 'pi_finance',
@@ -330,7 +383,20 @@ describe('Live Messaging Finance', () => {
     ])
 
     const operations = await run(
-      finance.operationsProjection({ shopId: 'shp_finance', trailingSince: now })
+      finance.operationsProjection({
+        shopId: 'shp_finance',
+        asOf: '2026-07-30T12:00:00.000Z',
+        expectedRouteCosts: [
+          {
+            provider: 'meta',
+            channel: 'whatsapp',
+            amountMinorUnits: 450,
+            currency: 'EUR',
+            currencyScale: 4,
+            units: 1
+          }
+        ]
+      })
     )
     expect(operations.margin).toMatchObject({
       netMerchantChargeMilliEuro: 45,
@@ -349,6 +415,19 @@ describe('Live Messaging Finance', () => {
 
   it('conserves the final charge under concurrent reservations and re-arms after funding', async () => {
     const finance = await run(MessagingFinance)
+    const rearmFunding = await run(
+      finance.recordExternalFact({
+        shopId: 'shp_concurrent',
+        kind: 'provider_payment',
+        provider: 'stripe',
+        sourceId: 'pi_concurrent_rearm',
+        status: 'confirmed',
+        amountMilliEuro: 10_000,
+        currency: 'EUR',
+        reference: 'invoice:concurrent:rearm',
+        observedAt: '2026-07-29T12:08:00.000Z'
+      })
+    )
     await run(
       finance.credit({
         shopId: 'shp_concurrent',
@@ -359,7 +438,7 @@ describe('Live Messaging Finance', () => {
         idempotencyKey: 'operator:concurrent:small',
         actorType: 'system_operator',
         actorId: 'opr_finance',
-        operatorPermission: 'messaging:finance',
+        operatorPrincipal,
         reason: 'Concurrent reservation fixture',
         occurredAt: now
       })
@@ -413,6 +492,7 @@ describe('Live Messaging Finance', () => {
         sourceId: 'pi_concurrent_rearm',
         idempotencyKey: 'stripe:concurrent:rearm',
         fiscalReference: 'invoice:concurrent:rearm',
+        externalFactId: rearmFunding.id,
         occurredAt: '2026-07-29T12:08:00.000Z'
       })
     )
@@ -502,6 +582,61 @@ describe('Live Messaging Finance', () => {
 
   it('returns concurrent idempotent winners and enforces financial provenance', async () => {
     const finance = await run(MessagingFinance)
+    const funding = await run(
+      finance.recordExternalFact({
+        shopId: 'shp_idempotent',
+        kind: 'provider_payment',
+        provider: 'stripe',
+        sourceId: 'pi_idempotent',
+        status: 'confirmed',
+        amountMilliEuro: 10_000,
+        currency: 'EUR',
+        reference: 'invoice:idempotent',
+        observedAt: now
+      })
+    )
+    const pendingFunding = await run(
+      finance.recordExternalFact({
+        shopId: 'shp_idempotent',
+        kind: 'provider_payment',
+        provider: 'stripe',
+        sourceId: 'pi_pending',
+        status: 'pending',
+        amountMilliEuro: 10_000,
+        currency: 'EUR',
+        reference: 'invoice:pending',
+        observedAt: now
+      })
+    )
+    await expect(
+      run(
+        finance.credit({
+          shopId: 'shp_idempotent',
+          kind: 'top_up',
+          amountMilliEuro: 10_000,
+          sourceType: 'stripe_payment',
+          sourceId: 'pi_pending',
+          idempotencyKey: 'stripe:pending',
+          fiscalReference: 'invoice:pending',
+          externalFactId: pendingFunding.id,
+          occurredAt: now
+        })
+      )
+    ).rejects.toMatchObject({ reason: 'funding_unconfirmed' })
+    await expect(
+      test.d1
+        .prepare(
+          `INSERT INTO messaging_balance_ledger_entries
+           (id, shop_id, direction, kind, amount_milli_euro, currency, source_type,
+            source_id, idempotency_key, fiscal_reference, external_fact_id,
+            occurred_at, created_at)
+           VALUES ('mle_pending_funding', 'shp_idempotent', 'credit', 'top_up',
+            10000, 'EUR', 'stripe_payment', 'pi_pending', 'stripe:pending:raw',
+            'invoice:pending', ?, ?, ?)`
+        )
+        .bind(pendingFunding.id, now, now)
+        .run()
+    ).rejects.toThrow(/financial provenance is required/i)
     const topUp = {
       shopId: 'shp_idempotent',
       kind: 'top_up',
@@ -510,6 +645,7 @@ describe('Live Messaging Finance', () => {
       sourceId: 'pi_idempotent',
       idempotencyKey: 'stripe:idempotent',
       fiscalReference: 'invoice:idempotent',
+      externalFactId: funding.id,
       occurredAt: now
     } as const
     const [firstCredit, secondCredit] = await Promise.all([

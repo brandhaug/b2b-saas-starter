@@ -132,12 +132,17 @@ beforeAll(async () => {
       '+40•••••••456', 'RO', '${now}')`,
     `INSERT INTO messaging_balances (shop_id, currency, created_at, updated_at)
      VALUES ('shp_read_model', 'EUR', '${now}', '${now}')`,
+    `INSERT INTO messaging_financial_external_facts
+     (id, shop_id, kind, provider, source_id, status, amount_milli_euro, currency,
+      reference, observed_at, created_at)
+     VALUES ('mff_read_model', 'shp_read_model', 'provider_payment', 'stripe',
+      'pi_read_model', 'confirmed', 10000, 'EUR', 'invoice:read-model', '${now}', '${now}')`,
     `INSERT INTO messaging_balance_ledger_entries
      (id, shop_id, direction, kind, amount_milli_euro, currency, source_type, source_id,
-      idempotency_key, fiscal_reference, occurred_at, created_at)
+      idempotency_key, fiscal_reference, external_fact_id, occurred_at, created_at)
      VALUES ('mle_read_model', 'shp_read_model', 'credit', 'top_up', 10000, 'EUR',
       'stripe_payment', 'pi_read_model', 'stripe:pi_read_model', 'invoice:read-model',
-      '${now}', '${now}')`,
+      'mff_read_model', '${now}', '${now}')`,
     `INSERT INTO messaging_balance_reservations
      (id, shop_id, intent_id, rate_card_id, amount_milli_euro, status, expires_at,
       converted_at, created_at, updated_at)

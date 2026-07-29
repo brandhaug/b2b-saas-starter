@@ -3,6 +3,11 @@ import type { D1Database } from '@cloudflare/workers-types'
 import { Database } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { NotificationIntentId, ShopId } from '../ids.ts'
+import {
+  hasOperatorPermission,
+  type OperatorPrincipal
+} from '../operations/operations-contracts.ts'
+import { ProviderAttemptId, ProviderFingerprint } from './provider-contracts.ts'
 
 const positiveMilliEuro = Schema.Int.check(Schema.isGreaterThan(0))
 const nonNegativeMilliEuro = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
@@ -50,6 +55,7 @@ export const MessagingLedgerEntry = Schema.Struct({
   actorId: Schema.optional(Schema.String),
   reason: Schema.optional(Schema.String),
   fiscalReference: Schema.optional(Schema.String),
+  externalFactId: Schema.optional(Schema.String),
   reversesEntryId: Schema.optional(Schema.String),
   correctionReason: Schema.optional(Schema.String),
   occurredAt: Schema.String
@@ -84,11 +90,9 @@ export const ProviderMessagingCost = Schema.Struct({
   id: Schema.String,
   shopId: ShopId,
   intentId: NotificationIntentId,
-  attemptId: Schema.String,
+  attemptId: ProviderAttemptId,
   environment: Schema.String,
   provider: Schema.Literals(['meta', 'smso']),
-  providerAccountKey: Schema.String,
-  billingIdentityFingerprint: Schema.String,
   unitOrdinal: Schema.Int,
   amountMinorUnits: nonNegativeMilliEuro,
   currency: Schema.String,
@@ -98,6 +102,35 @@ export const ProviderMessagingCost = Schema.Struct({
   recordedAt: Schema.String
 })
 
+export const MessagingFinancialExternalFact = Schema.Struct({
+  id: Schema.String,
+  shopId: ShopId,
+  kind: Schema.Literals([
+    'provider_payment',
+    'provider_refund',
+    'invoice',
+    'credit_note',
+    'efactura'
+  ]),
+  provider: Schema.String,
+  sourceId: Schema.String,
+  status: Schema.Literals([
+    'pending',
+    'confirmed',
+    'failed',
+    'issued',
+    'submitted',
+    'accepted',
+    'rejected',
+    'cancelled'
+  ]),
+  amountMilliEuro: Schema.optional(nonNegativeMilliEuro),
+  currency: Schema.String,
+  reference: Schema.optional(Schema.String),
+  relatedSourceId: Schema.optional(Schema.String),
+  observedAt: Schema.String
+})
+
 export const MessagingFinancialReconciliationInputs = Schema.Struct({
   shopId: ShopId,
   balance: MessagingBalance,
@@ -105,6 +138,7 @@ export const MessagingFinancialReconciliationInputs = Schema.Struct({
   reservations: Schema.Array(MessagingBalanceReservation),
   chargeableDeliveries: Schema.Array(ChargeableDelivery),
   providerCosts: Schema.Array(ProviderMessagingCost),
+  externalFacts: Schema.Array(MessagingFinancialExternalFact),
   openCaseIds: Schema.Array(Schema.String),
   invoiceReferences: Schema.Array(Schema.String),
   paymentSourceIdentities: Schema.Array(
@@ -114,6 +148,7 @@ export const MessagingFinancialReconciliationInputs = Schema.Struct({
       sourceType: Schema.String,
       sourceId: Schema.String,
       idempotencyKey: Schema.String,
+      externalFactId: Schema.optional(Schema.String),
       fiscalReference: Schema.optional(Schema.String)
     })
   ),
@@ -150,11 +185,20 @@ export const MessagingMarginProjection = Schema.Struct({
   status: Schema.Literals(['healthy', 'warning', 'critical', 'not_comparable'])
 })
 
+export const ExpectedProviderRouteCost = Schema.Struct({
+  provider: Schema.Literals(['meta', 'smso']),
+  channel: Schema.Literals(['whatsapp', 'sms']),
+  amountMinorUnits: nonNegativeMilliEuro,
+  currency: Schema.String,
+  currencyScale: Schema.Int,
+  units: positiveMilliEuro
+})
+
 export const OperationsProviderMessagingCost = Schema.Struct({
   id: Schema.String,
   shopId: ShopId,
   intentId: NotificationIntentId,
-  attemptId: Schema.String,
+  attemptId: ProviderAttemptId,
   provider: Schema.Literals(['meta', 'smso']),
   amountMinorUnits: nonNegativeMilliEuro,
   currency: Schema.String,
@@ -171,6 +215,7 @@ export const OperationsMessagingFinancialReconciliation = Schema.Struct({
   reservations: Schema.Array(MessagingBalanceReservation),
   chargeableDeliveries: Schema.Array(ChargeableDelivery),
   providerCosts: Schema.Array(OperationsProviderMessagingCost),
+  externalFacts: Schema.Array(MessagingFinancialExternalFact),
   openCaseIds: Schema.Array(Schema.String),
   invoiceReferences: Schema.Array(Schema.String),
   paymentSourceIdentities:
@@ -205,7 +250,8 @@ export class MessagingFinanceRejected extends Schema.TaggedErrorClass<MessagingF
       'entry_unavailable',
       'idempotency_conflict',
       'invalid_correction',
-      'missing_provenance'
+      'missing_provenance',
+      'funding_unconfirmed'
     ]),
     shopId: Schema.optional(ShopId),
     resourceId: Schema.optional(Schema.String)
@@ -218,6 +264,7 @@ type LedgerEntry = typeof MessagingLedgerEntry.Type
 type Reservation = typeof MessagingBalanceReservation.Type
 type Delivery = typeof ChargeableDelivery.Type
 type ProviderCost = typeof ProviderMessagingCost.Type
+type ExternalFact = typeof MessagingFinancialExternalFact.Type
 type ReconciliationInputs = typeof MessagingFinancialReconciliationInputs.Type
 type MerchantProjection = typeof MerchantMessagingFinanceProjection.Type
 type OperationsProjection = typeof OperationsMessagingFinanceProjection.Type
@@ -229,9 +276,10 @@ type LedgerProvenance = {
   readonly idempotencyKey: string
   readonly actorType?: string
   readonly actorId?: string
-  readonly operatorPermission?: 'messaging:finance'
+  readonly operatorPrincipal?: OperatorPrincipal
   readonly reason?: string
   readonly fiscalReference?: string
+  readonly externalFactId?: string
   readonly occurredAt: string
 }
 
@@ -247,12 +295,15 @@ const validateLedgerPolicy = (
     if (![10_000, 25_000, 50_000].includes(input.amountMilliEuro))
       return 'invalid_amount'
     if (!hasText(input.fiscalReference)) return 'missing_provenance'
+    if (!hasText(input.externalFactId)) return 'missing_provenance'
     return undefined
   }
   if (
+    !input.operatorPrincipal ||
+    !hasOperatorPermission(input.operatorPrincipal.roles, 'messaging:finance') ||
     input.actorType !== 'system_operator' ||
     !hasText(input.actorId) ||
-    input.operatorPermission !== 'messaging:finance' ||
+    input.actorId !== input.operatorPrincipal.id ||
     !hasText(input.reason) ||
     (input.kind === 'refund' && !hasText(input.fiscalReference))
   )
@@ -267,7 +318,9 @@ const validateCorrectionProvenance = (
   !hasText(input.actorId) ||
   !hasText(input.reason) ||
   (input.actorType === 'system_operator' &&
-    input.operatorPermission !== 'messaging:finance')
+    (!input.operatorPrincipal ||
+      input.actorId !== input.operatorPrincipal.id ||
+      !hasOperatorPermission(input.operatorPrincipal.roles, 'messaging:finance')))
     ? 'missing_provenance'
     : undefined
 
@@ -319,15 +372,32 @@ export type MessagingFinanceShape = {
       readonly correctionReason: string
     }
   ) => Effect.Effect<LedgerEntry, FinanceError>
-  readonly recordProviderCost: (
-    input: Omit<ProviderCost, 'id'>
-  ) => Effect.Effect<ProviderCost, FinanceError>
+  readonly recordProviderCost: (input: {
+    readonly shopId: string
+    readonly intentId: string
+    readonly attemptId: typeof ProviderAttemptId.Type
+    readonly environment: string
+    readonly provider: 'meta' | 'smso'
+    readonly providerAccountKey: string
+    readonly billingIdentityFingerprint: typeof ProviderFingerprint.Type
+    readonly unitOrdinal: number
+    readonly amountMinorUnits: number
+    readonly currency: string
+    readonly currencyScale: number
+    readonly units: number
+    readonly source: 'response' | 'callback' | 'query' | 'invoice'
+    readonly recordedAt: string
+  }) => Effect.Effect<ProviderCost, FinanceError>
+  readonly recordExternalFact: (
+    input: Omit<ExternalFact, 'id'>
+  ) => Effect.Effect<ExternalFact, FinanceError>
   readonly reconciliationInputs: (
     shopId: string
   ) => Effect.Effect<ReconciliationInputs, FinanceError>
   readonly operationsProjection: (input: {
     readonly shopId: string
-    readonly trailingSince: string
+    readonly asOf: string
+    readonly expectedRouteCosts: readonly (typeof ExpectedProviderRouteCost.Type)[]
   }) => Effect.Effect<OperationsProjection, FinanceError>
 }
 
@@ -439,6 +509,7 @@ type LedgerRow = {
   actor_id: string | null
   reason: string | null
   fiscal_reference: string | null
+  external_fact_id: string | null
   reverses_entry_id: string | null
   correction_reason: string | null
   occurred_at: string
@@ -460,6 +531,7 @@ const ledgerFromRow = (row: LedgerRow): LedgerEntry => ({
   ...optional('actorId', row.actor_id),
   ...optional('reason', row.reason),
   ...optional('fiscalReference', row.fiscal_reference),
+  ...optional('externalFactId', row.external_fact_id),
   ...optional('reversesEntryId', row.reverses_entry_id),
   ...optional('correctionReason', row.correction_reason),
   occurredAt: row.occurred_at
@@ -521,6 +593,34 @@ type ProviderCostRow = {
   recorded_at: string
 }
 
+type ExternalFactRow = {
+  id: string
+  shop_id: string
+  kind: ExternalFact['kind']
+  provider: string
+  source_id: string
+  status: ExternalFact['status']
+  amount_milli_euro: number | null
+  currency: string
+  reference: string | null
+  related_source_id: string | null
+  observed_at: string
+}
+
+const externalFactFromRow = (row: ExternalFactRow): ExternalFact => ({
+  id: row.id,
+  shopId: row.shop_id,
+  kind: row.kind,
+  provider: row.provider,
+  sourceId: row.source_id,
+  status: row.status,
+  ...optional('amountMilliEuro', row.amount_milli_euro),
+  currency: row.currency,
+  ...optional('reference', row.reference),
+  ...optional('relatedSourceId', row.related_source_id),
+  observedAt: row.observed_at
+})
+
 const providerCostFromRow = (row: ProviderCostRow): ProviderCost => ({
   id: row.id,
   shopId: row.shop_id,
@@ -528,8 +628,6 @@ const providerCostFromRow = (row: ProviderCostRow): ProviderCost => ({
   attemptId: row.attempt_id,
   environment: row.environment,
   provider: row.provider,
-  providerAccountKey: row.provider_account_key,
-  billingIdentityFingerprint: row.billing_identity_fingerprint,
   unitOrdinal: row.unit_ordinal,
   amountMinorUnits: row.amount_minor_units,
   currency: row.currency,
@@ -568,6 +666,7 @@ const reconciliationMetadata = (entries: readonly LedgerEntry[]) => ({
             sourceType: entry.sourceType,
             sourceId: entry.sourceId,
             idempotencyKey: entry.idempotencyKey,
+            ...(entry.externalFactId ? { externalFactId: entry.externalFactId } : {}),
             ...(entry.fiscalReference ? { fiscalReference: entry.fiscalReference } : {})
           }
         ]
@@ -577,7 +676,8 @@ const reconciliationMetadata = (entries: readonly LedgerEntry[]) => ({
 
 const deriveMarginProjection = (
   input: ReconciliationInputs,
-  trailingSince: string
+  trailingSince: string,
+  expectedRouteCosts: readonly (typeof ExpectedProviderRouteCost.Type)[]
 ): typeof MessagingMarginProjection.Type => {
   const entriesById = new Map(input.ledgerEntries.map((entry) => [entry.id, entry]))
   const netMerchantChargeMilliEuro = Math.max(
@@ -606,14 +706,19 @@ const deriveMarginProjection = (
     0n
   )
   const chargeNanoEuro = BigInt(netMerchantChargeMilliEuro) * 1_000_000n
-  const expectedRouteThresholdBreached = eurCosts.some(
+  const comparableExpectedCosts = expectedRouteCosts.filter(
+    (cost) => cost.currency === 'EUR'
+  )
+  const expectedRouteThresholdBreached = comparableExpectedCosts.some(
     (cost) =>
       BigInt(cost.amountMinorUnits) * 10n ** BigInt(9 - cost.currencyScale) >=
       45_000_000n * BigInt(cost.units)
   )
-  const status = expectedRouteThresholdBreached
-    ? ('critical' as const)
-    : chargeNanoEuro === 0n
+  const nonEurProviderCostsPresent =
+    trailingCosts.length !== eurCosts.length ||
+    expectedRouteCosts.length !== comparableExpectedCosts.length
+  const ratioStatus =
+    chargeNanoEuro === 0n
       ? costNanoEuro === 0n
         ? ('healthy' as const)
         : ('not_comparable' as const)
@@ -622,15 +727,23 @@ const deriveMarginProjection = (
         : costNanoEuro * 100n >= chargeNanoEuro * 80n
           ? ('warning' as const)
           : ('healthy' as const)
+  const status = expectedRouteThresholdBreached
+    ? ('critical' as const)
+    : ratioStatus === 'healthy' && nonEurProviderCostsPresent
+      ? ('not_comparable' as const)
+      : ratioStatus
   return {
     trailingSince,
     netMerchantChargeMilliEuro,
     comparableProviderCostNanoEuro: costNanoEuro.toString(),
-    nonEurProviderCostsPresent: trailingCosts.length !== eurCosts.length,
+    nonEurProviderCostsPresent,
     expectedRouteThresholdBreached,
     status
   }
 }
+
+const thirtyDaysBefore = (asOf: string): string =>
+  new Date(new Date(asOf).getTime() - 30 * 24 * 60 * 60 * 1_000).toISOString()
 
 const operationsReconciliation = (
   input: ReconciliationInputs
@@ -665,7 +778,7 @@ const deliveryFromRow = (row: DeliveryRow): Delivery => ({
 
 const ledgerSelect = `SELECT id, shop_id, direction, kind, amount_milli_euro, currency,
  source_type, source_id, idempotency_key, rate_card_id, intent_id, actor_type, actor_id,
- reason, fiscal_reference, reverses_entry_id, correction_reason, occurred_at
+ reason, fiscal_reference, external_fact_id, reverses_entry_id, correction_reason, occurred_at
  FROM messaging_balance_ledger_entries`
 
 const balanceSelect = `SELECT mbs.shop_id, mbs.currency, mbs.posted_milli_euro,
@@ -711,6 +824,8 @@ export const SeedMessagingFinance = (
   const reservations = new Map<string, Reservation>()
   const deliveries = new Map<string, Delivery>()
   const costs = new Map<string, ProviderCost>()
+  const externalFacts = new Map<string, ExternalFact>()
+  const externalFactIdentities = new Map<string, string>()
   const lowBalanceNoticeArmed = new Map<string, boolean>()
   let sequence = 0
   const nextId = (prefix: string) => `${prefix}_seed_${++sequence}`
@@ -781,6 +896,26 @@ export const SeedMessagingFinance = (
           reason: policyFailure,
           shopId: input.shopId
         })
+      if (input.kind === 'top_up') {
+        const fact = input.externalFactId
+          ? externalFacts.get(input.externalFactId)
+          : undefined
+        if (
+          !fact ||
+          fact.shopId !== input.shopId ||
+          fact.kind !== 'provider_payment' ||
+          fact.status !== 'confirmed' ||
+          fact.amountMilliEuro !== input.amountMilliEuro ||
+          fact.currency !== 'EUR' ||
+          fact.sourceId !== input.sourceId
+        )
+          return yield* new MessagingFinanceRejected({
+            operation: direction,
+            reason: 'funding_unconfirmed',
+            shopId: input.shopId,
+            resourceId: input.externalFactId
+          })
+      }
       const existing = bySource(input)
       if (existing) {
         if (
@@ -827,6 +962,7 @@ export const SeedMessagingFinance = (
         ...(input.actorId ? { actorId: input.actorId } : {}),
         ...(input.reason ? { reason: input.reason } : {}),
         ...(input.fiscalReference ? { fiscalReference: input.fiscalReference } : {}),
+        ...(input.externalFactId ? { externalFactId: input.externalFactId } : {}),
         occurredAt: input.occurredAt
       }
       ledger.push(entry)
@@ -875,7 +1011,16 @@ export const SeedMessagingFinance = (
     reserve: (input) =>
       Effect.gen(function* () {
         const existing = reservations.get(input.intentId)
-        if (existing) return existing
+        if (existing) {
+          if (existing.shopId !== input.shopId)
+            return yield* new MessagingFinanceRejected({
+              operation: 'reserve',
+              reason: 'intent_unavailable',
+              shopId: input.shopId,
+              resourceId: input.intentId
+            })
+          return existing
+        }
         const intent = intents.get(input.intentId)
         if (!intent || intent.shopId !== input.shopId)
           return yield* new MessagingFinanceRejected({
@@ -952,7 +1097,16 @@ export const SeedMessagingFinance = (
     convertDelivery: (input) =>
       Effect.gen(function* () {
         const existing = deliveries.get(input.intentId)
-        if (existing) return existing
+        if (existing) {
+          if (existing.shopId !== input.shopId)
+            return yield* new MessagingFinanceRejected({
+              operation: 'convert_delivery',
+              reason: 'reservation_not_active',
+              shopId: input.shopId,
+              resourceId: input.intentId
+            })
+          return existing
+        }
         const reservation = reservations.get(input.intentId)
         if (
           !reservation ||
@@ -1143,10 +1297,52 @@ export const SeedMessagingFinance = (
             })
           return existing
         }
-        const cost: ProviderCost = { id: nextId('pmc'), ...input }
+        const cost: ProviderCost = {
+          id: nextId('pmc'),
+          shopId: input.shopId,
+          intentId: input.intentId,
+          attemptId: input.attemptId,
+          environment: input.environment,
+          provider: input.provider,
+          unitOrdinal: input.unitOrdinal,
+          amountMinorUnits: input.amountMinorUnits,
+          currency: input.currency,
+          currencyScale: input.currencyScale,
+          units: input.units,
+          source: input.source,
+          recordedAt: input.recordedAt
+        }
         costs.set(key, cost)
         return cost
       }),
+    recordExternalFact: (input) => {
+      const identity = [input.kind, input.provider, input.sourceId, input.status].join(
+        ':'
+      )
+      const existingId = externalFactIdentities.get(identity)
+      if (existingId) {
+        const existing = externalFacts.get(existingId)!
+        return existing.shopId === input.shopId &&
+          existing.amountMilliEuro === input.amountMilliEuro &&
+          existing.currency === input.currency &&
+          existing.reference === input.reference &&
+          existing.relatedSourceId === input.relatedSourceId
+          ? Effect.succeed(existing)
+          : Effect.fail(
+              new MessagingFinanceRejected({
+                operation: 'record_external_fact',
+                reason: 'idempotency_conflict',
+                shopId: input.shopId,
+                resourceId: existing.id
+              })
+            )
+      }
+      const fact: ExternalFact = { id: nextId('mff'), ...input }
+      externalFacts.set(fact.id, fact)
+      externalFactIdentities.set(identity, fact.id)
+      knownShops.add(input.shopId)
+      return Effect.succeed(fact)
+    },
     reconciliationInputs: (shopId) =>
       Effect.map(balance(shopId), (current) => {
         const ledgerEntries = ledger.filter((entry) => entry.shopId === shopId)
@@ -1159,6 +1355,9 @@ export const SeedMessagingFinance = (
         const providerCosts = [...costs.values()].filter(
           (cost) => cost.shopId === shopId
         )
+        const shopExternalFacts = [...externalFacts.values()].filter(
+          (fact) => fact.shopId === shopId
+        )
         return {
           shopId,
           balance: current,
@@ -1166,6 +1365,7 @@ export const SeedMessagingFinance = (
           reservations: shopReservations,
           chargeableDeliveries,
           providerCosts,
+          externalFacts: shopExternalFacts,
           openCaseIds: [],
           ...reconciliationMetadata(ledgerEntries),
           ledgerEntryCount: ledgerEntries.length,
@@ -1183,7 +1383,11 @@ export const SeedMessagingFinance = (
         return {
           rateCards: [...rateCards].sort((left, right) => left.version - right.version),
           reconciliation: operationsReconciliation(reconciliation),
-          margin: deriveMarginProjection(reconciliation, input.trailingSince)
+          margin: deriveMarginProjection(
+            reconciliation,
+            thirtyDaysBefore(input.asOf),
+            input.expectedRouteCosts
+          )
         }
       })
   }
@@ -1257,6 +1461,29 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
               reason: policyFailure,
               shopId: input.shopId
             })
+          if (input.kind === 'top_up') {
+            const fact = yield* first<ExternalFactRow>(
+              raw,
+              `SELECT * FROM messaging_financial_external_facts
+               WHERE id = ? AND shop_id = ?`,
+              input.externalFactId,
+              input.shopId
+            )
+            if (
+              !fact ||
+              fact.kind !== 'provider_payment' ||
+              fact.status !== 'confirmed' ||
+              fact.amount_milli_euro !== input.amountMilliEuro ||
+              fact.currency !== 'EUR' ||
+              fact.source_id !== input.sourceId
+            )
+              return yield* new MessagingFinanceRejected({
+                operation: direction,
+                reason: 'funding_unconfirmed',
+                shopId: input.shopId,
+                resourceId: input.externalFactId
+              })
+          }
           const existing = yield* readLedgerBySource(
             input.sourceType,
             input.sourceId,
@@ -1283,13 +1510,13 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
               ? `INSERT OR IGNORE INTO messaging_balance_ledger_entries
                 (id, shop_id, direction, kind, amount_milli_euro, currency, source_type,
                  source_id, idempotency_key, actor_type, actor_id, reason, fiscal_reference,
-                 occurred_at, created_at)
-                VALUES (?, ?, ?, ?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                 external_fact_id, occurred_at, created_at)
+                VALUES (?, ?, ?, ?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
               : `INSERT OR IGNORE INTO messaging_balance_ledger_entries
                 (id, shop_id, direction, kind, amount_milli_euro, currency, source_type,
                  source_id, idempotency_key, actor_type, actor_id, reason, fiscal_reference,
-                 occurred_at, created_at)
-                SELECT ?, ?, ?, ?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 external_fact_id, occurred_at, created_at)
+                SELECT ?, ?, ?, ?, ?, 'EUR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 FROM merchant_messaging_balance_summaries
                 WHERE shop_id = ? AND financially_frozen = 0
                   AND available_milli_euro >= ?`
@@ -1306,6 +1533,7 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
             input.actorId ?? null,
             input.reason ?? null,
             input.fiscalReference ?? null,
+            input.externalFactId ?? null,
             input.occurredAt,
             input.occurredAt,
             ...(direction === 'debit' ? [input.shopId, input.amountMilliEuro] : [])
@@ -1432,6 +1660,12 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
                WHERE shop_id = ? ORDER BY recorded_at, id`,
               shopId
             ),
+            externalFactRows: all<ExternalFactRow>(
+              raw,
+              `SELECT * FROM messaging_financial_external_facts
+               WHERE shop_id = ? ORDER BY observed_at, id`,
+              shopId
+            ),
             caseRows: all<{ id: string }>(
               raw,
               `SELECT id FROM messaging_reconciliation_cases
@@ -1443,6 +1677,7 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
           const reservations = result.reservationRows.map(reservationFromRow)
           const chargeableDeliveries = result.deliveryRows.map(deliveryFromRow)
           const providerCosts = result.costRows.map(providerCostFromRow)
+          const externalFacts = result.externalFactRows.map(externalFactFromRow)
           return {
             shopId,
             balance: result.balance,
@@ -1450,6 +1685,7 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
             reservations,
             chargeableDeliveries,
             providerCosts,
+            externalFacts,
             openCaseIds: result.caseRows.map((row) => row.id),
             ...reconciliationMetadata(result.ledgerEntries),
             ledgerEntryCount: result.ledgerEntries.length,
@@ -1985,10 +2221,87 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
               stored.shopId !== input.shopId ||
               stored.intentId !== input.intentId ||
               stored.attemptId !== input.attemptId ||
-              stored.amountMinorUnits !== input.amountMinorUnits
+              stored.amountMinorUnits !== input.amountMinorUnits ||
+              stored.currency !== input.currency ||
+              stored.currencyScale !== input.currencyScale ||
+              stored.units !== input.units ||
+              stored.source !== input.source
             )
               return yield* new MessagingFinanceRejected({
                 operation: 'record_provider_cost',
+                reason: 'idempotency_conflict',
+                shopId: input.shopId,
+                resourceId: stored.id
+              })
+            return stored
+          }),
+        recordExternalFact: (input) =>
+          Effect.gen(function* () {
+            const selectFact = () =>
+              first<ExternalFactRow>(
+                raw,
+                `SELECT * FROM messaging_financial_external_facts
+                 WHERE kind = ? AND provider = ? AND source_id = ? AND status = ?`,
+                input.kind,
+                input.provider,
+                input.sourceId,
+                input.status
+              )
+            const existingRow = yield* selectFact()
+            if (existingRow) {
+              const existing = externalFactFromRow(existingRow)
+              if (
+                existing.shopId !== input.shopId ||
+                existing.amountMilliEuro !== input.amountMilliEuro ||
+                existing.currency !== input.currency ||
+                existing.reference !== input.reference ||
+                existing.relatedSourceId !== input.relatedSourceId
+              )
+                return yield* new MessagingFinanceRejected({
+                  operation: 'record_external_fact',
+                  reason: 'idempotency_conflict',
+                  shopId: input.shopId,
+                  resourceId: existing.id
+                })
+              return existing
+            }
+            yield* tryDb(() =>
+              raw
+                .prepare(
+                  `INSERT OR IGNORE INTO messaging_financial_external_facts
+                   (id, shop_id, kind, provider, source_id, status, amount_milli_euro,
+                    currency, reference, related_source_id, observed_at, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                )
+                .bind(
+                  id('mff'),
+                  input.shopId,
+                  input.kind,
+                  input.provider,
+                  input.sourceId,
+                  input.status,
+                  input.amountMilliEuro ?? null,
+                  input.currency,
+                  input.reference ?? null,
+                  input.relatedSourceId ?? null,
+                  input.observedAt,
+                  input.observedAt
+                )
+                .run()
+            )
+            const storedRow = yield* selectFact()
+            if (!storedRow)
+              return yield* unavailable('external financial fact missing after commit')
+            const stored = externalFactFromRow(storedRow)
+            if (
+              stored.shopId !== input.shopId ||
+              stored.amountMilliEuro !== input.amountMilliEuro ||
+              stored.currency !== input.currency ||
+              stored.reference !== input.reference ||
+              stored.relatedSourceId !== input.relatedSourceId
+            )
+              return yield* new MessagingFinanceRejected({
+                operation: 'record_external_fact',
                 reason: 'idempotency_conflict',
                 shopId: input.shopId,
                 resourceId: stored.id
@@ -2010,7 +2323,11 @@ export const LiveMessagingFinance: Layer.Layer<MessagingFinance, never, Database
             return {
               rateCards: rateCardRows.map(rateCardFromRow),
               reconciliation: operationsReconciliation(reconciliation),
-              margin: deriveMarginProjection(reconciliation, input.trailingSince)
+              margin: deriveMarginProjection(
+                reconciliation,
+                thirtyDaysBefore(input.asOf),
+                input.expectedRouteCosts
+              )
             }
           })
       }
