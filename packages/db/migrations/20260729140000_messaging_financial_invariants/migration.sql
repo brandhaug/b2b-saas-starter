@@ -89,3 +89,25 @@ CREATE TRIGGER `messaging_balance_correction_guard`
   BEGIN
     SELECT RAISE(ABORT, 'messaging balance correction must compensate one original entry');
   END;
+--> statement-breakpoint
+CREATE TRIGGER `messaging_balance_financial_provenance_guard`
+  BEFORE INSERT ON `messaging_balance_ledger_entries`
+  WHEN
+    (NEW.kind = 'top_up' AND (
+      NEW.amount_milli_euro NOT IN (10000, 25000, 50000) OR
+      NULLIF(trim(NEW.fiscal_reference), '') IS NULL
+    )) OR
+    (NEW.kind IN ('operator_adjustment', 'refund', 'promotional_credit') AND (
+      NEW.actor_type IS NOT 'system_operator' OR
+      NULLIF(trim(NEW.actor_id), '') IS NULL OR
+      NULLIF(trim(NEW.reason), '') IS NULL OR
+      (NEW.kind = 'refund' AND NULLIF(trim(NEW.fiscal_reference), '') IS NULL)
+    )) OR
+    (NEW.kind = 'correction' AND (
+      NEW.actor_type IS NULL OR NEW.actor_type NOT IN ('system', 'system_operator') OR
+      NULLIF(trim(NEW.actor_id), '') IS NULL OR
+      NULLIF(trim(NEW.reason), '') IS NULL
+    ))
+  BEGIN
+    SELECT RAISE(ABORT, 'messaging balance financial provenance is required');
+  END;

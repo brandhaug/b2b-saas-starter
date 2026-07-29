@@ -35,6 +35,7 @@ describe('Seed Messaging Finance', () => {
           sourceType: 'stripe_payment',
           sourceId: 'pi_seed_finance',
           idempotencyKey: 'stripe:seed:finance',
+          fiscalReference: 'invoice:seed:finance',
           occurredAt: now
         })
         yield* finance.reserve({
@@ -59,6 +60,9 @@ describe('Seed Messaging Finance', () => {
           sourceType: 'reconciliation',
           sourceId: 'case_seed_finance',
           idempotencyKey: 'case:seed:finance',
+          actorType: 'system',
+          actorId: 'messaging-reconciliation',
+          reason: 'Invalidate delivery evidence',
           occurredAt: now
         })
         return {

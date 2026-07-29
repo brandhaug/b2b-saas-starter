@@ -38,12 +38,19 @@ beforeAll(async () => {
      (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at)
      VALUES ('shp_correction', 'brd_finance', 'mer_finance', 'correction', 'Correction',
       'Europe/Bucharest', 'EUR', '${now}', '${now}')`,
+    `INSERT INTO shops
+     (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at)
+     VALUES ('shp_idempotent', 'brd_finance', 'mer_finance', 'idempotent', 'Idempotent',
+      'Europe/Bucharest', 'EUR', '${now}', '${now}')`,
     `INSERT INTO merchant_messaging_controls
      (shop_id, enabled, low_balance_notice_armed, created_at, updated_at)
      VALUES ('shp_finance', 1, 1, '${now}', '${now}')`,
     `INSERT INTO merchant_messaging_controls
      (shop_id, enabled, low_balance_notice_armed, created_at, updated_at)
      VALUES ('shp_concurrent', 1, 1, '${now}', '${now}')`,
+    `INSERT INTO merchant_messaging_controls
+     (shop_id, enabled, low_balance_notice_armed, created_at, updated_at)
+     VALUES ('shp_idempotent', 1, 1, '${now}', '${now}')`,
     `INSERT INTO notification_intents
      (id, shop_id, topic, recipient_json, payload_json, source_type, source_id,
       source_version, deduplication_key, purpose, phase, locale, rate_card_id,
@@ -102,7 +109,14 @@ beforeAll(async () => {
     `INSERT INTO delivery_routes
      (id, shop_id, intent_id, ordinal, channel, provider, state, created_at, updated_at)
      VALUES ('drt_unverified', 'shp_finance', 'nti_unverified', 0, 'whatsapp',
-      'meta', 'accepted', '${now}', '${now}')`
+      'meta', 'accepted', '${now}', '${now}')`,
+    `INSERT INTO notification_intents
+     (id, shop_id, topic, recipient_json, payload_json, source_type, source_id,
+      source_version, deduplication_key, purpose, phase, locale, rate_card_id,
+      status, available_at, created_at, updated_at)
+     VALUES ('nti_idempotent', 'shp_idempotent', 'appointment.confirmed', '{}', '{}',
+      'appointment', 'apt_idempotent', 1, 'idempotent:1', 'appointment_confirmation',
+      'routing', 'ro', 'mrcard_launch_v1', 'processing', '${now}', '${now}', '${now}')`
   ])
     await test.d1.prepare(statement).run()
 }, 60_000)
@@ -181,6 +195,7 @@ describe('Live Messaging Finance', () => {
         idempotencyKey: 'cmd:credit',
         actorType: 'system_operator',
         actorId: 'opr_finance',
+        operatorPermission: 'messaging:finance',
         reason: 'Test credit',
         occurredAt: '2026-07-29T12:02:00.000Z'
       })
@@ -196,6 +211,7 @@ describe('Live Messaging Finance', () => {
           idempotencyKey: 'cmd:overdraw',
           actorType: 'system_operator',
           actorId: 'opr_finance',
+          operatorPermission: 'messaging:finance',
           reason: 'Must fail',
           occurredAt: '2026-07-29T12:03:00.000Z'
         })
@@ -215,6 +231,7 @@ describe('Live Messaging Finance', () => {
         idempotencyKey: 'cmd:debit',
         actorType: 'system_operator',
         actorId: 'opr_finance',
+        operatorPermission: 'messaging:finance',
         reason: 'Test debit',
         occurredAt: '2026-07-29T12:04:00.000Z'
       })
@@ -228,6 +245,7 @@ describe('Live Messaging Finance', () => {
       idempotencyKey: 'case:correction',
       actorType: 'system_operator',
       actorId: 'opr_finance',
+      operatorPermission: 'messaging:finance',
       reason: 'Reverse invalid debit',
       occurredAt: '2026-07-29T12:05:00.000Z'
     } as const
@@ -281,18 +299,52 @@ describe('Live Messaging Finance', () => {
     const meta = await run(finance.recordProviderCost(metaInput))
     expect(await run(finance.recordProviderCost(metaInput))).toEqual(meta)
     await run(finance.recordProviderCost(smsoInput))
+    await run(
+      finance.recordProviderCost({
+        ...metaInput,
+        unitOrdinal: 1,
+        amountMinorUnits: 450
+      })
+    )
 
     expect(await run(finance.balance('shp_finance'))).toMatchObject({
       postedMilliEuro: 9_955,
       availableMilliEuro: 9_955
     })
-    expect(await run(finance.reconciliationInputs('shp_finance'))).toMatchObject({
+    const reconciliation = await run(finance.reconciliationInputs('shp_finance'))
+    expect(reconciliation).toMatchObject({
       ledgerEntryCount: 2,
       activeReservationCount: 0,
       chargeableDeliveryCount: 1,
-      providerCostCount: 2,
+      providerCostCount: 3,
       openCaseCount: 0
     })
+    expect(reconciliation.ledgerEntries).toHaveLength(2)
+    expect(reconciliation.chargeableDeliveries).toHaveLength(1)
+    expect(reconciliation.providerCosts).toHaveLength(3)
+    expect(reconciliation.paymentSourceIdentities).toEqual([
+      expect.objectContaining({
+        sourceId: 'pi_finance',
+        fiscalReference: 'invoice:finance'
+      })
+    ])
+
+    const operations = await run(
+      finance.operationsProjection({ shopId: 'shp_finance', trailingSince: now })
+    )
+    expect(operations.margin).toMatchObject({
+      netMerchantChargeMilliEuro: 45,
+      expectedRouteThresholdBreached: true,
+      status: 'critical'
+    })
+    expect(JSON.stringify(operations)).not.toMatch(
+      /providerAccountKey|billingIdentityFingerprint/
+    )
+    const merchant = await run(finance.merchantProjection('shp_finance'))
+    expect(merchant.transactions).toHaveLength(2)
+    expect(JSON.stringify(merchant)).not.toMatch(
+      /actorId|sourceId|idempotencyKey|providerAccountKey|billingIdentityFingerprint/
+    )
   })
 
   it('conserves the final charge under concurrent reservations and re-arms after funding', async () => {
@@ -300,11 +352,15 @@ describe('Live Messaging Finance', () => {
     await run(
       finance.credit({
         shopId: 'shp_concurrent',
-        kind: 'top_up',
+        kind: 'operator_adjustment',
         amountMilliEuro: 45,
-        sourceType: 'stripe_payment',
-        sourceId: 'pi_concurrent_small',
-        idempotencyKey: 'stripe:concurrent:small',
+        sourceType: 'operator_command',
+        sourceId: 'cmd_concurrent_small',
+        idempotencyKey: 'operator:concurrent:small',
+        actorType: 'system_operator',
+        actorId: 'opr_finance',
+        operatorPermission: 'messaging:finance',
+        reason: 'Concurrent reservation fixture',
         occurredAt: now
       })
     )
@@ -352,17 +408,18 @@ describe('Live Messaging Finance', () => {
       finance.credit({
         shopId: 'shp_concurrent',
         kind: 'top_up',
-        amountMilliEuro: 2_000,
+        amountMilliEuro: 10_000,
         sourceType: 'stripe_payment',
         sourceId: 'pi_concurrent_rearm',
         idempotencyKey: 'stripe:concurrent:rearm',
+        fiscalReference: 'invoice:concurrent:rearm',
         occurredAt: '2026-07-29T12:08:00.000Z'
       })
     )
     expect(await run(finance.balance('shp_concurrent'))).toMatchObject({
-      postedMilliEuro: 2_045,
+      postedMilliEuro: 10_045,
       reservedMilliEuro: 0,
-      availableMilliEuro: 2_045,
+      availableMilliEuro: 10_045,
       lowBalanceNoticeArmed: true
     })
   })
@@ -441,5 +498,60 @@ describe('Live Messaging Finance', () => {
         releasedAt: '2026-07-29T12:11:00.000Z'
       })
     )
+  })
+
+  it('returns concurrent idempotent winners and enforces financial provenance', async () => {
+    const finance = await run(MessagingFinance)
+    const topUp = {
+      shopId: 'shp_idempotent',
+      kind: 'top_up',
+      amountMilliEuro: 10_000,
+      sourceType: 'stripe_payment',
+      sourceId: 'pi_idempotent',
+      idempotencyKey: 'stripe:idempotent',
+      fiscalReference: 'invoice:idempotent',
+      occurredAt: now
+    } as const
+    const [firstCredit, secondCredit] = await Promise.all([
+      run(finance.credit(topUp)),
+      run(finance.credit(topUp))
+    ])
+    expect(firstCredit).toEqual(secondCredit)
+
+    const reservationInput = {
+      shopId: 'shp_idempotent',
+      intentId: 'nti_idempotent',
+      expiresAt,
+      reservedAt: now
+    } as const
+    const [firstReservation, secondReservation] = await Promise.all([
+      run(finance.reserve(reservationInput)),
+      run(finance.reserve(reservationInput))
+    ])
+    expect(firstReservation).toEqual(secondReservation)
+
+    await expect(
+      run(
+        finance.credit({
+          ...topUp,
+          sourceId: 'pi_invalid_amount',
+          idempotencyKey: 'stripe:invalid-amount',
+          amountMilliEuro: 2_000
+        })
+      )
+    ).rejects.toMatchObject({ reason: 'invalid_amount' })
+    await expect(
+      run(
+        finance.debit({
+          shopId: 'shp_idempotent',
+          kind: 'operator_adjustment',
+          amountMilliEuro: 1,
+          sourceType: 'operator_command',
+          sourceId: 'cmd_unauthorized',
+          idempotencyKey: 'operator:unauthorized',
+          occurredAt: now
+        })
+      )
+    ).rejects.toMatchObject({ reason: 'missing_provenance' })
   })
 })
