@@ -16,7 +16,7 @@ import {
 } from '@/lib/server/operations-server-functions.ts'
 import type { ManagedOperatorView } from '@/lib/server/operations-server-functions.ts'
 import type { MutationResult } from '@/lib/server/operations-server-functions.ts'
-import { operatorRoleOptions } from '@b2b-saas-starter/capabilities/operations'
+import { OperatorRoleSelector } from '@/components/operator-role-selector.tsx'
 
 const reportMutation = (
   result: MutationResult<unknown>,
@@ -150,20 +150,10 @@ function OperatorCard({
             }}
           >
             <input name="expectedUpdatedAt" type="hidden" value={operator.updatedAt} />
-            <fieldset className="grid gap-2">
-              <legend className="mb-2 text-sm font-semibold">Operator roles</legend>
-              {operatorRoleOptions.map((role) => (
-                <label className="flex gap-2 text-sm" key={role.value}>
-                  <input
-                    defaultChecked={operator.roles.includes(role.value)}
-                    name="roles"
-                    type="checkbox"
-                    value={role.value}
-                  />
-                  {role.label}
-                </label>
-              ))}
-            </fieldset>
+            <OperatorRoleSelector
+              legend="Operator roles"
+              selectedRoles={operator.roles}
+            />
             <SubmitButton>Save roles</SubmitButton>
           </form>
           <div className="grid content-start gap-4">

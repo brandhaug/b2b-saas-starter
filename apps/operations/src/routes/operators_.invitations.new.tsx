@@ -12,7 +12,7 @@ import {
   inviteOperator,
   revokeOperatorInvitation
 } from '@/lib/server/operations-server-functions.ts'
-import { operatorRoleOptions } from '@b2b-saas-starter/capabilities/operations'
+import { OperatorRoleSelector } from '@/components/operator-role-selector.tsx'
 
 export const Route = createFileRoute('/operators_/invitations/new')({
   beforeLoad: requireOperationsSession,
@@ -65,15 +65,7 @@ function InviteOperatorPage() {
         }}
       >
         <Field label="Dedicated operator email" name="email" type="email" required />
-        <fieldset className="grid gap-2">
-          <legend className="mb-2 text-sm font-semibold">Initial roles</legend>
-          {operatorRoleOptions.map((role) => (
-            <label className="flex gap-2 text-sm" key={role.value}>
-              <input name="roles" type="checkbox" value={role.value} />
-              {role.label}
-            </label>
-          ))}
-        </fieldset>
+        <OperatorRoleSelector legend="Initial roles" />
         <SubmitButton>Send single-use invitation</SubmitButton>
       </form>
       {notice ? <Feedback status>{notice}</Feedback> : null}

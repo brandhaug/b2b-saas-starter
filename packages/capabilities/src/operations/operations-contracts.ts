@@ -4,19 +4,23 @@ import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
 import { auditEvents, session, user } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 
-export const operatorPermissionNames = [
-  'merchant:read',
-  'merchant:impersonate',
-  'impersonation-audit:read',
-  'operator:manage',
-  'messaging:read',
-  'messaging:control',
-  'messaging:finance',
-  'messaging:reconcile',
-  'messaging:incident'
-] as const
+export const operatorPermissionRegistry = {
+  merchant: ['read', 'impersonate'],
+  'impersonation-audit': ['read'],
+  operator: ['manage'],
+  messaging: ['read', 'control', 'finance', 'reconcile', 'incident']
+} as const
+
+export type OperatorPermission = {
+  [Resource in keyof typeof operatorPermissionRegistry]: `${Resource}:${(typeof operatorPermissionRegistry)[Resource][number]}`
+}[keyof typeof operatorPermissionRegistry]
+
+export const operatorPermissionNames = Object.entries(
+  operatorPermissionRegistry
+).flatMap(([resource, actions]) =>
+  actions.map((action) => `${resource}:${action}` as OperatorPermission)
+)
 export const OperatorPermission = Schema.Literals(operatorPermissionNames)
-export type OperatorPermission = typeof OperatorPermission.Type
 
 export const operatorRoleRegistry = {
   'merchant-reader': {

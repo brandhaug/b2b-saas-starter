@@ -16,6 +16,7 @@ import { Effect, Schema } from 'effect'
 import {
   operatorRoleNames,
   operatorDefaultRole,
+  operatorPermissionRegistry,
   operatorRoleRegistry,
   parseOperatorRoles,
   hasOperatorPermission,
@@ -39,12 +40,22 @@ export type { OperatorPrincipal, OperatorRoleName, OperatorSessionReference }
 export const operatorPermissions = operatorPermissionNames
 export type { OperatorPermission }
 
-export const operatorAccessControl = createAccessControl({
-  merchant: ['read', 'impersonate'],
-  'impersonation-audit': ['read'],
-  operator: ['manage'],
-  messaging: ['read', 'control', 'finance', 'reconcile', 'incident']
-})
+type OperatorAccessControlStatements = {
+  [Resource in keyof typeof operatorPermissionRegistry]: Array<
+    (typeof operatorPermissionRegistry)[Resource][number]
+  >
+}
+
+const operatorAccessControlStatements = Object.fromEntries(
+  Object.entries(operatorPermissionRegistry).map(([resource, actions]) => [
+    resource,
+    [...actions]
+  ])
+) as OperatorAccessControlStatements
+
+export const operatorAccessControl = createAccessControl(
+  operatorAccessControlStatements
+)
 
 type OperatorAccessStatement = Parameters<typeof operatorAccessControl.newRole>[0]
 type OperatorAccessRole = ReturnType<typeof operatorAccessControl.newRole>
