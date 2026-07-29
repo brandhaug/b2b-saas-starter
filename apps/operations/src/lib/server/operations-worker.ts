@@ -27,7 +27,7 @@ import {
 } from '@b2b-saas-starter/capabilities/operations'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { clientKey, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { makeOperationsAbuseProtection } from './operations-abuse-protection.ts'
 import {
   parseOperationsConfig,
@@ -47,6 +47,7 @@ import { redirect } from './http-response.ts'
 
 export type OperationsWorkerEnv = OperationsEnvironment & {
   readonly DB: D1Database
+  readonly BOOKING_EVENTS_QUEUE?: Queue
   readonly EMAIL?: OperationsEmailBinding
   readonly RATE_LIMITER_OPERATIONS_READ?: CloudflareRateLimit
   readonly RATE_LIMITER_OPERATIONS_AUTHENTICATION?: CloudflareRateLimit
@@ -82,6 +83,38 @@ const formText = (form: FormData, name: string): string => {
   const value = form.get(name)
   return typeof value === 'string' ? value : ''
 }
+
+const OpenMessagingIncidentPayload = Schema.Struct({
+  kind: Schema.Literals([
+    'duplicate_delivery',
+    'financial_uncertainty',
+    'credential_compromise',
+    'encryption_key_compromise',
+    'privacy_exposure',
+    'forged_callback'
+  ]),
+  severity: Schema.Literals(['low', 'medium', 'high', 'critical']),
+  safeSummary: Schema.String,
+  containmentScope: Schema.Literals([
+    'merchant',
+    'provider_channel',
+    'callback_rule',
+    'global'
+  ]),
+  environment: Schema.String,
+  shopId: Schema.String,
+  provider: Schema.Literals(['', 'meta', 'smso']),
+  channel: Schema.Literals(['', 'whatsapp', 'sms']),
+  reason: Schema.String
+})
+
+const MessagingRecoveryCheckPayload = Schema.Struct({
+  kind: Schema.Literals(['health_probe', 'reconciliation']),
+  reference: Schema.String,
+  status: Schema.Literals(['passed', 'failed']),
+  observedAt: Schema.String,
+  reason: Schema.String
+})
 
 const discoveryErrorResponse = (error: unknown): Response => {
   if (error instanceof CapabilityUnavailable)
@@ -535,6 +568,34 @@ export const createOperationsWorker = () => ({
     const messagingCaseResolutionRoute = url.pathname.match(
       /^\/api\/operations\/messaging\/cases\/([^/]+)\/resolution$/
     )
+    const messagingProviderQueryRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/cases\/([^/]+)\/provider-query$/
+    )
+    if (request.method === 'POST' && messagingProviderQueryRoute) {
+      if (!env.BOOKING_EVENTS_QUEUE)
+        return Response.json({ error: 'provider_query_unavailable' }, { status: 503 })
+      const form = await request.formData()
+      if (formText(form, 'confirmed') !== 'true')
+        return Response.json({ error: 'confirmation_required' }, { status: 400 })
+      try {
+        const intentId = await runMessaging((messaging) =>
+          messaging.requestProviderQuery({
+            actor: reference!,
+            caseId: decodeURIComponent(messagingProviderQueryRoute[1]!),
+            reason: formText(form, 'reason'),
+            confirmed: true
+          })
+        )
+        await env.BOOKING_EVENTS_QUEUE.send({
+          version: 1,
+          kind: 'notification-intent',
+          intentId
+        })
+        return Response.json(null)
+      } catch (error) {
+        return messagingErrorResponse(error)
+      }
+    }
     if (request.method === 'POST' && messagingCaseResolutionRoute) {
       const form = await request.formData()
       if (formText(form, 'confirmed') !== 'true')
@@ -642,37 +703,35 @@ export const createOperationsWorker = () => ({
       url.pathname === '/api/operations/messaging/incidents'
     ) {
       const form = await request.formData()
+      let input: typeof OpenMessagingIncidentPayload.Type
+      try {
+        input = Schema.decodeUnknownSync(OpenMessagingIncidentPayload)({
+          kind: formText(form, 'kind'),
+          severity: formText(form, 'severity'),
+          safeSummary: formText(form, 'safeSummary'),
+          containmentScope: formText(form, 'containmentScope'),
+          environment: formText(form, 'environment'),
+          shopId: formText(form, 'shopId'),
+          provider: formText(form, 'provider'),
+          channel: formText(form, 'channel'),
+          reason: formText(form, 'reason')
+        })
+      } catch {
+        return Response.json({ error: 'invalid_incident' }, { status: 400 })
+      }
       try {
         await runMessagingGovernance((governance) =>
           governance.openIncident({
             actor: reference!,
-            kind: formText(form, 'kind') as
-              | 'duplicate_delivery'
-              | 'financial_uncertainty'
-              | 'credential_compromise'
-              | 'encryption_key_compromise'
-              | 'privacy_exposure'
-              | 'forged_callback',
-            severity: formText(form, 'severity') as
-              | 'low'
-              | 'medium'
-              | 'high'
-              | 'critical',
-            safeSummary: formText(form, 'safeSummary'),
-            containmentScope: formText(form, 'containmentScope') as
-              | 'merchant'
-              | 'provider_channel'
-              | 'callback_rule'
-              | 'global',
-            environment: formText(form, 'environment'),
-            ...(formText(form, 'shopId') ? { shopId: formText(form, 'shopId') } : {}),
-            ...(formText(form, 'provider')
-              ? { provider: formText(form, 'provider') as 'meta' | 'smso' }
-              : {}),
-            ...(formText(form, 'channel')
-              ? { channel: formText(form, 'channel') as 'whatsapp' | 'sms' }
-              : {}),
-            reason: formText(form, 'reason')
+            kind: input.kind,
+            severity: input.severity,
+            safeSummary: input.safeSummary,
+            containmentScope: input.containmentScope,
+            environment: input.environment,
+            ...(input.shopId ? { shopId: input.shopId } : {}),
+            ...(input.provider ? { provider: input.provider } : {}),
+            ...(input.channel ? { channel: input.channel } : {}),
+            reason: input.reason
           })
         )
         return Response.json(null)
@@ -703,16 +762,26 @@ export const createOperationsWorker = () => ({
     )
     if (request.method === 'POST' && messagingRecoveryCheckRoute) {
       const form = await request.formData()
+      if (formText(form, 'confirmed') !== 'true')
+        return Response.json({ error: 'confirmation_required' }, { status: 400 })
+      let input: typeof MessagingRecoveryCheckPayload.Type
+      try {
+        input = Schema.decodeUnknownSync(MessagingRecoveryCheckPayload)({
+          kind: formText(form, 'kind'),
+          reference: formText(form, 'reference'),
+          status: formText(form, 'status'),
+          observedAt: formText(form, 'observedAt'),
+          reason: formText(form, 'reason')
+        })
+      } catch {
+        return Response.json({ error: 'invalid_recovery_check' }, { status: 400 })
+      }
       try {
         await runMessagingGovernance((governance) =>
           governance.recordRecoveryCheck({
             actor: reference!,
             incidentId: decodeURIComponent(messagingRecoveryCheckRoute[1]!),
-            kind: formText(form, 'kind') as 'health_probe' | 'reconciliation',
-            reference: formText(form, 'reference'),
-            status: formText(form, 'status') as 'passed' | 'failed',
-            observedAt: formText(form, 'observedAt'),
-            reason: formText(form, 'reason')
+            ...input
           })
         )
         return Response.json(null)
@@ -728,6 +797,8 @@ export const createOperationsWorker = () => ({
     )
     if (request.method === 'POST' && messagingCredentialRotationRoute) {
       const form = await request.formData()
+      if (formText(form, 'confirmed') !== 'true')
+        return Response.json({ error: 'confirmation_required' }, { status: 400 })
       try {
         await runMessagingGovernance((governance) =>
           governance.recordKeyRotation({
@@ -749,6 +820,8 @@ export const createOperationsWorker = () => ({
     }
     if (request.method === 'POST' && messagingRecoveryApprovalRoute) {
       const form = await request.formData()
+      if (formText(form, 'confirmed') !== 'true')
+        return Response.json({ error: 'confirmation_required' }, { status: 400 })
       try {
         await runMessagingGovernance((governance) =>
           governance.approveRecovery({

@@ -336,4 +336,55 @@ describe('Operations Messaging workspaces', () => {
       ])
     )
   })
+
+  it('authorizes and audits an SMSO provider query request', async () => {
+    await test.d1
+      .prepare(
+        `INSERT INTO delivery_routes
+         (id, shop_id, intent_id, ordinal, channel, provider, state, created_at, updated_at)
+         VALUES ('drt_message_smso', 'shp_message', 'nti_message', 1, 'sms', 'smso', 'accepted', ?, ?)`
+      )
+      .bind(now.toISOString(), now.toISOString())
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO submission_attempts
+         (id, shop_id, intent_id, route_id, ordinal, idempotency_key, request_fingerprint, state, started_at, created_at)
+         VALUES ('pat_message_smso', 'shp_message', 'nti_message', 'drt_message_smso', 0, 'idem-smso', 'sha256:smso-request', 'accepted', ?, ?)`
+      )
+      .bind(now.toISOString(), now.toISOString())
+      .run()
+    const request = {
+      caseId: 'mrcase_message',
+      reason: 'Refresh ambiguous delivery evidence from SMSO',
+      confirmed: true
+    } as const
+
+    await expect(
+      run((service) =>
+        service.requestProviderQuery({
+          actor: { operatorSessionId: 'ops_message_reader' },
+          ...request
+        })
+      )
+    ).rejects.toMatchObject({ reason: 'messaging:reconcile_required' })
+    await expect(
+      run((service) =>
+        service.requestProviderQuery({
+          actor: { operatorSessionId: 'ops_message_privileged' },
+          ...request
+        })
+      )
+    ).resolves.toBe('nti_message')
+    await expect(
+      test.d1
+        .prepare(
+          `SELECT action, internal_reason FROM operations_audit_events WHERE target_id = 'mrcase_message'`
+        )
+        .first()
+    ).resolves.toMatchObject({
+      action: 'messaging.provider-query.requested',
+      internal_reason: request.reason
+    })
+  })
 })

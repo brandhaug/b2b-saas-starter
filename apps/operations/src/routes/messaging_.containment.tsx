@@ -193,11 +193,10 @@ function MessagingContainmentRoute() {
                       aria-label="Containment preview"
                       className="grid gap-2 rounded-md bg-muted p-4 text-sm sm:grid-cols-2"
                     >
-                      <p>Before: {incident.status}</p>
-                      <p>After: contained</p>
+                      <p>Before: {containmentTransition(incident).before}</p>
+                      <p>After: {containmentTransition(incident).after}</p>
                       <p className="sm:col-span-2">
-                        Scope: {incident.containmentScope}
-                        {incident.shopId ? ` · ${incident.shopId}` : ''}
+                        Exact control: {containmentTransition(incident).control}
                       </p>
                     </div>
                     <label className="grid gap-1.5 text-sm font-medium">
@@ -239,7 +238,8 @@ function MessagingContainmentRoute() {
                               reference: String(form.get('reference') ?? ''),
                               status: String(form.get('status')) as 'passed' | 'failed',
                               observedAt: new Date().toISOString(),
-                              reason: String(form.get('reason') ?? '')
+                              reason: String(form.get('reason') ?? ''),
+                              confirmed: form.get('confirmed') === 'yes'
                             }
                           })
                         )
@@ -255,6 +255,14 @@ function MessagingContainmentRoute() {
                       </SelectField>
                       <TextField label="Evidence reference" name="reference" required />
                       <TextField label="Reason" name="reason" required />
+                      <div
+                        aria-label="Recovery check preview"
+                        className="rounded-md bg-muted p-4 text-sm sm:col-span-2"
+                      >
+                        Append evidence only; incident and control state remain
+                        unchanged.
+                      </div>
+                      <Confirm label="Confirm recovery evidence" />
                       <div className="sm:col-span-2">
                         <SubmitButton>Record recovery check</SubmitButton>
                       </div>
@@ -278,7 +286,8 @@ function MessagingContainmentRoute() {
                                 evidenceReference: String(
                                   form.get('evidenceReference') ?? ''
                                 ),
-                                reason: String(form.get('reason') ?? '')
+                                reason: String(form.get('reason') ?? ''),
+                                confirmed: form.get('confirmed') === 'yes'
                               }
                             })
                           )
@@ -310,6 +319,15 @@ function MessagingContainmentRoute() {
                           required
                         />
                         <TextField label="Rotation reason" name="reason" required />
+                        <div
+                          aria-label="Credential rotation preview"
+                          className="rounded-md bg-muted p-4 text-sm sm:col-span-2"
+                        >
+                          Before: compromised provider credential. After: old version
+                          invalidated and replacement evidence recorded; scope stays
+                          contained.
+                        </div>
+                        <Confirm label="Confirm credential rotation evidence" />
                         <div className="sm:col-span-2">
                           <SubmitButton>Record credential rotation</SubmitButton>
                         </div>
@@ -331,7 +349,8 @@ function MessagingContainmentRoute() {
                                 form.get('reconciliationReference') ?? ''
                               ),
                               residualRisk: String(form.get('residualRisk') ?? ''),
-                              reason: String(form.get('reason') ?? '')
+                              reason: String(form.get('reason') ?? ''),
+                              confirmed: form.get('confirmed') === 'yes'
                             }
                           })
                         )
@@ -349,6 +368,15 @@ function MessagingContainmentRoute() {
                       />
                       <TextField label="Residual risk" name="residualRisk" required />
                       <TextField label="Approval reason" name="reason" required />
+                      <div
+                        aria-label="Recovery approval preview"
+                        className="rounded-md bg-muted p-4 text-sm sm:col-span-2"
+                      >
+                        Before: contained. After: recovery approval appended; two
+                        current Operators remain required for global or
+                        credential-compromise recovery.
+                      </div>
+                      <Confirm label="Confirm recovery approval" />
                       <div className="sm:col-span-2">
                         <SubmitButton>Approve recovery</SubmitButton>
                       </div>
@@ -406,7 +434,7 @@ function MessagingContainmentRoute() {
       {mutation ? (
         <Feedback status={mutation.state === 'ready'}>
           {mutation.state === 'ready'
-            ? 'Incident contained.'
+            ? 'Messaging control updated.'
             : 'message' in mutation
               ? mutation.message
               : 'Containment state changed.'}
@@ -461,4 +489,49 @@ function SelectField({
       </select>
     </label>
   )
+}
+
+function Confirm({ label }: { readonly label: string }) {
+  return (
+    <label className="flex min-h-11 items-center gap-3 text-sm font-medium sm:col-span-2">
+      <input name="confirmed" required type="checkbox" value="yes" />
+      {label}
+    </label>
+  )
+}
+
+const containmentTransition = (incident: {
+  readonly containmentScope:
+    | 'merchant'
+    | 'provider_channel'
+    | 'callback_rule'
+    | 'global'
+  readonly shopId?: string | undefined
+  readonly provider?: 'meta' | 'smso' | undefined
+  readonly channel?: 'whatsapp' | 'sms' | undefined
+}) => {
+  if (incident.containmentScope === 'merchant')
+    return {
+      before: 'Merchant messaging enabled',
+      after: 'Merchant messaging frozen',
+      control: `Merchant ${incident.shopId ?? 'missing Shop'}`
+    }
+  if (incident.containmentScope === 'global')
+    return {
+      before: 'Global messaging enabled',
+      after: 'Global messaging stopped',
+      control: 'All operational messaging'
+    }
+  const provider = `${incident.provider ?? 'missing provider'} / ${incident.channel ?? 'missing channel'}`
+  return incident.containmentScope === 'callback_rule'
+    ? {
+        before: 'Callback acceptance enabled',
+        after: 'Callback rule paused',
+        control: provider
+      }
+    : {
+        before: 'Provider channel enabled',
+        after: 'Provider channel paused',
+        control: provider
+      }
 }

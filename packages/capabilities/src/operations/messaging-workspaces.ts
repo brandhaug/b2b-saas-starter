@@ -19,6 +19,7 @@ import {
   messagingReconciliationCases,
   messagingReconciliationResolutions,
   notificationIntents,
+  operationsAuditEvents,
   protectedMessagingDestinations,
   providerEvidence,
   providerMessagingCosts,
@@ -337,6 +338,12 @@ export type MessagingWorkspacesShape = {
     readonly reason: string
     readonly confirmed: boolean
   }) => Effect.Effect<void, WorkspaceError>
+  readonly requestProviderQuery: (input: {
+    readonly actor: OperatorSessionReference
+    readonly caseId: string
+    readonly reason: string
+    readonly confirmed: boolean
+  }) => Effect.Effect<string, WorkspaceError>
 }
 
 export class MessagingWorkspaces extends Context.Service<
@@ -364,7 +371,8 @@ const authorize = async (
         authorization.authorize(actor, now)
       ).pipe(Effect.provide(makeOperationsAuthorizationLayer(db)))
     )
-  } catch {
+  } catch (error) {
+    if (error instanceof CapabilityUnavailable) throw error
     throw denied(operation, 'operator_session_not_authorized')
   }
   if (!hasOperatorPermission(principal.roles, permission))
@@ -939,6 +947,58 @@ export const makeMessagingWorkspacesLayer = (
             throw denied('messaging-finance-correction', error.reason)
           throw error
         }
+      }),
+
+    requestProviderQuery: (input) =>
+      wrap('messaging-provider-query', async () => {
+        if (!input.confirmed)
+          throw denied('messaging-provider-query', 'confirmation_required')
+        if (input.reason.trim().length < 12)
+          throw denied('messaging-provider-query', 'substantive_reason_required')
+        const principal = await authorize(
+          db,
+          input.actor,
+          'messaging:reconcile',
+          'messaging-provider-query',
+          currentTime()
+        )
+        const [candidate] = await db
+          .select({
+            intentId: messagingReconciliationCases.intentId,
+            shopId: messagingReconciliationCases.shopId,
+            merchantId: shops.merchantId
+          })
+          .from(messagingReconciliationCases)
+          .innerJoin(
+            submissionAttempts,
+            eq(submissionAttempts.intentId, messagingReconciliationCases.intentId)
+          )
+          .innerJoin(deliveryRoutes, eq(deliveryRoutes.id, submissionAttempts.routeId))
+          .innerJoin(shops, eq(shops.id, messagingReconciliationCases.shopId))
+          .where(
+            sql`${messagingReconciliationCases.id} = ${input.caseId} AND ${deliveryRoutes.provider} = 'smso'`
+          )
+          .limit(1)
+        if (!candidate?.intentId)
+          throw denied('messaging-provider-query', 'queryable_attempt_not_found')
+        const now = currentTime().toISOString()
+        await db.insert(operationsAuditEvents).values({
+          id: `oaud_${crypto.randomUUID()}`,
+          businessEventId: `messaging-provider-query:${input.caseId}:${crypto.randomUUID()}`,
+          actorOperatorId: principal.id,
+          actorDisplayName: principal.name,
+          operatorSessionId: principal.sessionId,
+          targetId: input.caseId,
+          targetDisplayName: 'Messaging reconciliation case',
+          merchantId: candidate.merchantId,
+          action: 'messaging.provider-query.requested',
+          result: 'accepted',
+          occurredAt: now,
+          retentionPolicy: 'operations-standard',
+          internalReason: input.reason.trim(),
+          createdAt: now
+        })
+        return candidate.intentId
       })
   })
 }

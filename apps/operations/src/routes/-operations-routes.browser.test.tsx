@@ -37,6 +37,7 @@ const server = vi.hoisted(() => ({
   openMessagingIncident: vi.fn(),
   recordMessagingCredentialRotation: vi.fn(),
   recordMessagingRecoveryCheck: vi.fn(),
+  requestMessagingProviderQuery: vi.fn(),
   resolveMessagingCase: vi.fn(),
   revokeOperatorInvitation: vi.fn(),
   searchOperations: vi.fn(),
@@ -191,6 +192,14 @@ beforeEach(() => {
           provider: 'meta',
           state: 'accepted',
           acceptedAt: '2026-07-30T12:01:00.000Z'
+        },
+        {
+          routeId: 'route-2',
+          ordinal: 1,
+          channel: 'sms',
+          provider: 'smso',
+          state: 'accepted',
+          acceptedAt: '2026-07-30T12:02:00.000Z'
         }
       ],
       attempts: [
@@ -282,6 +291,7 @@ describe('Operations TanStack routes', () => {
   })
 
   it('renders the messaging health queue and focused normalized evidence journey', async () => {
+    server.requestMessagingProviderQuery.mockResolvedValue(ready(null))
     const router = await renderRoute('/messaging?q=456')
 
     expect(
@@ -307,6 +317,23 @@ describe('Operations TanStack routes', () => {
     expect(screen.getByText(/45 m€/)).toBeTruthy()
     expect(document.body.textContent).not.toContain('raw callback')
     expect(document.body.textContent).not.toContain('Confirmation URL')
+
+    fireEvent.change(screen.getByLabelText('Provider query reason'), {
+      target: { value: 'Refresh ambiguous delivery evidence from SMSO' }
+    })
+    fireEvent.click(screen.getByLabelText('Confirm authoritative provider query'))
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Queue provider query' }).closest('form')!
+    )
+    await waitFor(() =>
+      expect(server.requestMessagingProviderQuery).toHaveBeenCalledWith({
+        data: {
+          caseId: 'case-1',
+          reason: 'Refresh ambiguous delivery evidence from SMSO',
+          confirmed: true
+        }
+      })
+    )
 
     fireEvent.change(screen.getByLabelText('Resolution classification'), {
       target: { value: 'provider-confirmed' }
@@ -370,8 +397,9 @@ describe('Operations TanStack routes', () => {
     await renderRoute('/messaging/containment')
 
     const preview = await screen.findByLabelText('Containment preview')
-    expect(preview.textContent).toContain('Before: open')
-    expect(preview.textContent).toContain('After: contained')
+    expect(preview.textContent).toContain('Before: Merchant messaging enabled')
+    expect(preview.textContent).toContain('After: Merchant messaging frozen')
+    expect(preview.textContent).toContain('Exact control: Merchant shop-1')
     fireEvent.change(screen.getByLabelText('Containment reason'), {
       target: { value: 'Freeze only the affected Merchant while evidence is reviewed' }
     })
@@ -442,6 +470,7 @@ describe('Operations TanStack routes', () => {
     fireEvent.change(screen.getAllByLabelText('Reason')[0]!, {
       target: { value: 'Production signature probes now pass consistently' }
     })
+    fireEvent.click(screen.getByLabelText('Confirm recovery evidence'))
     fireEvent.submit(
       screen.getByRole('button', { name: 'Record recovery check' }).closest('form')!
     )

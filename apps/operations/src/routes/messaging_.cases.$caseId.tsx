@@ -9,6 +9,7 @@ import {
 import { requireOperationsSession } from '@/lib/require-operations-session'
 import {
   getMessagingCase,
+  requestMessagingProviderQuery,
   resolveMessagingCase
 } from '@/lib/server/operations-server-functions'
 
@@ -22,7 +23,9 @@ function MessagingCaseRoute() {
   const result = Route.useLoaderData()
   const router = useRouter()
   const [mutation, setMutation] = useState<
-    Awaited<ReturnType<typeof resolveMessagingCase>> | undefined
+    | Awaited<ReturnType<typeof resolveMessagingCase>>
+    | Awaited<ReturnType<typeof requestMessagingProviderQuery>>
+    | undefined
   >()
   if (result.state !== 'ready')
     return (
@@ -123,6 +126,59 @@ function MessagingCaseRoute() {
           )}
         </div>
       </section>
+      {detail.routes.some((route) => route.provider === 'smso') ? (
+        <section className="mt-8 border border-border bg-card p-5">
+          <h2 className="text-lg font-semibold">Authoritative provider query</h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+            Queue an authenticated SMSO status query. The Background Worker decrypts the
+            reusable reference, queries the provider, and ingests only normalized
+            trusted evidence.
+          </p>
+          <form
+            className="mt-5 grid gap-4"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const form = new FormData(event.currentTarget)
+              const response = await requestMessagingProviderQuery({
+                data: {
+                  caseId: detail.case.caseId,
+                  reason: String(form.get('reason') ?? ''),
+                  confirmed: form.get('confirmed') === 'yes'
+                }
+              })
+              setMutation(response)
+              if (response.state === 'ready') await router.invalidate()
+            }}
+          >
+            <div
+              aria-label="Provider query preview"
+              className="grid gap-2 rounded-md bg-muted p-4 text-sm sm:grid-cols-2"
+            >
+              <p>Before: current normalized evidence</p>
+              <p>
+                After: provider query queued; evidence changes only after a trusted
+                response
+              </p>
+            </div>
+            <label className="grid gap-1.5 text-sm font-medium">
+              Provider query reason
+              <textarea
+                className="min-h-24 rounded-md border border-input bg-card p-3"
+                minLength={12}
+                name="reason"
+                required
+              />
+            </label>
+            <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+              <input name="confirmed" required type="checkbox" value="yes" />
+              Confirm authoritative provider query
+            </label>
+            <div>
+              <SubmitButton>Queue provider query</SubmitButton>
+            </div>
+          </form>
+        </section>
+      ) : null}
       <section className="mt-8 border border-border bg-card p-5">
         <h2 className="text-lg font-semibold">Append reconciliation resolution</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -149,6 +205,13 @@ function MessagingCaseRoute() {
             if (response.state === 'ready') await router.invalidate()
           }}
         >
+          <div
+            aria-label="Resolution preview"
+            className="grid gap-2 rounded-md bg-muted p-4 text-sm sm:grid-cols-2"
+          >
+            <p>Before: {detail.case.status}</p>
+            <p>After: resolved with an append-only classified resolution</p>
+          </div>
           <label className="grid gap-1.5 text-sm font-medium">
             Resolution classification
             <input

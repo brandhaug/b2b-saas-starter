@@ -362,6 +362,24 @@ export const resolveMessagingCase = createServerFn({ method: 'POST' })
     )
   )
 
+export const requestMessagingProviderQuery = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        caseId: Identifier,
+        reason: BoundedText,
+        confirmed: Schema.Boolean
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/api/operations/messaging/cases/${encodeURIComponent(data.caseId)}/provider-query`,
+      { ...data, confirmed: String(data.confirmed) },
+      Schema.Null
+    )
+  )
+
 export const containMessagingIncident = createServerFn({ method: 'POST' })
   .validator(
     Schema.decodeUnknownSync(
@@ -425,14 +443,15 @@ export const recordMessagingRecoveryCheck = createServerFn({
         reference: Identifier,
         status: Schema.Literals(['passed', 'failed']),
         observedAt: Identifier,
-        reason: BoundedText
+        reason: BoundedText,
+        confirmed: Schema.Boolean
       })
     )
   )
   .handler(({ data }) =>
     submit(
       `/api/operations/messaging/incidents/${encodeURIComponent(data.incidentId)}/recovery-checks`,
-      data,
+      { ...data, confirmed: String(data.confirmed) },
       Schema.Null
     )
   )
@@ -447,14 +466,15 @@ export const recordMessagingCredentialRotation = createServerFn({ method: 'POST'
         invalidatedAt: Identifier,
         validatedAt: Identifier,
         evidenceReference: Identifier,
-        reason: BoundedText
+        reason: BoundedText,
+        confirmed: Schema.Boolean
       })
     )
   )
   .handler(({ data }) =>
     submit(
       `/api/operations/messaging/incidents/${encodeURIComponent(data.incidentId)}/credential-rotation`,
-      data,
+      { ...data, confirmed: String(data.confirmed) },
       Schema.Null
     )
   )
@@ -467,14 +487,15 @@ export const approveMessagingRecovery = createServerFn({ method: 'POST' })
         reason: BoundedText,
         healthProbeReference: Identifier,
         reconciliationReference: Identifier,
-        residualRisk: BoundedText
+        residualRisk: BoundedText,
+        confirmed: Schema.Boolean
       })
     )
   )
   .handler(({ data }) =>
     submit(
       `/api/operations/messaging/incidents/${encodeURIComponent(data.incidentId)}/recovery-approvals`,
-      data,
+      { ...data, confirmed: String(data.confirmed) },
       Schema.Null
     )
   )

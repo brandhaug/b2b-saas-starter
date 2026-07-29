@@ -26,6 +26,14 @@
       "database_id": "placeholder"
     }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "BOOKING_EVENTS_QUEUE",
+        "queue": "b2b-saas-starter-booking-events"
+      }
+    ]
+  },
   "unsafe": {
     "bindings": [
       {
