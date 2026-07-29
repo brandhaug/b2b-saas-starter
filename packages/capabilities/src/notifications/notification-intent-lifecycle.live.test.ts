@@ -217,6 +217,11 @@ describe('Live Notification Intent lifecycle', () => {
           source: 'callback' as const,
           sourceEventKey: 'meta:live:delivered',
           providerReferenceFingerprint: `sha256:${'b'.repeat(64)}`,
+          pricingPolicyVersion: 'meta-pricing-2026-07-29',
+          providerBillable: true,
+          providerPricingCategory: 'utility',
+          providerPricingModel: 'PMP',
+          providerOccurredAt: '2026-07-29T12:00:58.000Z',
           status: 'delivered' as const,
           trusted: true,
           observedAt: '2026-07-29T12:01:00.000Z'
@@ -243,6 +248,26 @@ describe('Live Notification Intent lifecycle', () => {
       .bind(base.id, base.id, base.id)
       .first<{ attempts: number; outcomes: number; evidence: number }>()
     expect(counts).toEqual({ attempts: 1, outcomes: 1, evidence: 2 })
+    const callbackEvidence = await test.d1
+      .prepare(
+        `SELECT pricing_policy_version, provider_billable,
+                provider_pricing_category, provider_pricing_model, provider_occurred_at
+         FROM provider_evidence WHERE id = 'pevd_live_delivered'`
+      )
+      .first<{
+        pricing_policy_version: string
+        provider_billable: number
+        provider_pricing_category: string
+        provider_pricing_model: string
+        provider_occurred_at: string
+      }>()
+    expect(callbackEvidence).toEqual({
+      pricing_policy_version: 'meta-pricing-2026-07-29',
+      provider_billable: 1,
+      provider_pricing_category: 'utility',
+      provider_pricing_model: 'PMP',
+      provider_occurred_at: '2026-07-29T12:00:58.000Z'
+    })
     const finance = await test.d1
       .prepare(
         `SELECT

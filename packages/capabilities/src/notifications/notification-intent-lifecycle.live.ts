@@ -34,6 +34,14 @@ type EvidenceRow = {
   source: 'response' | 'callback' | 'query' | 'operator'
   source_event_key: string
   provider_reference_fingerprint: string | null
+  normalized_code: string | null
+  classification_policy_version: string | null
+  provider_code: number | null
+  pricing_policy_version: string | null
+  provider_billable: number | null
+  provider_pricing_category: string | null
+  provider_pricing_model: string | null
+  provider_occurred_at: string | null
   status:
     | 'captured'
     | 'accepted'
@@ -228,7 +236,10 @@ const lifecycleRowById = (raw: D1Database, intentId: string) =>
                     .prepare(
                       `SELECT id, attempt_id, environment, provider_account_key, source,
                           source_event_key, provider_reference_fingerprint, status,
-                          trusted, observed_at
+                          trusted, normalized_code, classification_policy_version,
+                          provider_code, pricing_policy_version, provider_billable,
+                          provider_pricing_category, provider_pricing_model,
+                          provider_occurred_at, observed_at
                    FROM provider_evidence
                    WHERE intent_id = ?
                    ORDER BY observed_at, id`
@@ -296,6 +307,36 @@ const lifecycleRowById = (raw: D1Database, intentId: string) =>
                               providerReferenceFingerprint:
                                 evidence.provider_reference_fingerprint
                             }
+                          : {}),
+                        ...(evidence.normalized_code
+                          ? { normalizedCode: evidence.normalized_code }
+                          : {}),
+                        ...(evidence.classification_policy_version
+                          ? {
+                              classificationPolicyVersion:
+                                evidence.classification_policy_version
+                            }
+                          : {}),
+                        ...(evidence.provider_code !== null
+                          ? { providerCode: evidence.provider_code }
+                          : {}),
+                        ...(evidence.pricing_policy_version
+                          ? { pricingPolicyVersion: evidence.pricing_policy_version }
+                          : {}),
+                        ...(evidence.provider_billable !== null
+                          ? { providerBillable: evidence.provider_billable === 1 }
+                          : {}),
+                        ...(evidence.provider_pricing_category
+                          ? {
+                              providerPricingCategory:
+                                evidence.provider_pricing_category
+                            }
+                          : {}),
+                        ...(evidence.provider_pricing_model
+                          ? { providerPricingModel: evidence.provider_pricing_model }
+                          : {}),
+                        ...(evidence.provider_occurred_at
+                          ? { providerOccurredAt: evidence.provider_occurred_at }
                           : {}),
                         status: evidence.status,
                         trusted: evidence.trusted === 1,
@@ -621,8 +662,11 @@ const persist = (
               `INSERT OR IGNORE INTO provider_evidence
                (id, shop_id, intent_id, route_id, attempt_id, environment, provider,
                 provider_account_key, source, source_event_key, provider_reference_fingerprint,
-                status, trusted, observed_at, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                status, trusted, normalized_code, classification_policy_version,
+                provider_code, pricing_policy_version, provider_billable,
+                provider_pricing_category, provider_pricing_model, provider_occurred_at,
+                observed_at, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
             )
             .bind(
               evidence.id,
@@ -638,6 +682,18 @@ const persist = (
               evidence.providerReferenceFingerprint ?? null,
               evidence.status,
               evidence.trusted ? 1 : 0,
+              evidence.normalizedCode ?? null,
+              evidence.classificationPolicyVersion ?? null,
+              evidence.providerCode ?? null,
+              evidence.pricingPolicyVersion ?? null,
+              evidence.providerBillable === undefined
+                ? null
+                : evidence.providerBillable
+                  ? 1
+                  : 0,
+              evidence.providerPricingCategory ?? null,
+              evidence.providerPricingModel ?? null,
+              evidence.providerOccurredAt ?? null,
               evidence.observedAt,
               evidence.observedAt
             )

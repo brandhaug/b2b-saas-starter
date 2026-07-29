@@ -135,6 +135,14 @@ const IntentProviderEvidenceSchema = Schema.Struct({
   source: Schema.Literals(['response', 'callback', 'query', 'operator']),
   sourceEventKey: Schema.String,
   providerReferenceFingerprint: Schema.optional(Schema.String),
+  normalizedCode: Schema.optional(Schema.String),
+  classificationPolicyVersion: Schema.optional(Schema.String),
+  providerCode: Schema.optional(Schema.Int),
+  pricingPolicyVersion: Schema.optional(Schema.String),
+  providerBillable: Schema.optional(Schema.Boolean),
+  providerPricingCategory: Schema.optional(Schema.String),
+  providerPricingModel: Schema.optional(Schema.String),
+  providerOccurredAt: Schema.optional(Schema.String),
   status: ProviderEvidenceStatus,
   trusted: Schema.Boolean,
   observedAt: Schema.String
@@ -223,6 +231,11 @@ type ProviderSubmissionOutcomeInput = {
   readonly attemptId: string
   readonly now: string
   readonly providerReferenceFingerprint?: string
+  readonly normalizedCode?: string
+  readonly classificationPolicyVersion?: string
+  readonly providerCode?: number
+  readonly providerOccurredAt?: string
+  readonly retryAfterSeconds?: number
 } & (
   | { readonly outcome: 'captured'; readonly captureId?: string }
   | {
@@ -314,6 +327,14 @@ export type NotificationIntentLifecycleShape = {
     readonly source: IntentProviderEvidence['source']
     readonly sourceEventKey: string
     readonly providerReferenceFingerprint?: string
+    readonly normalizedCode?: string
+    readonly classificationPolicyVersion?: string
+    readonly providerCode?: number
+    readonly pricingPolicyVersion?: string
+    readonly providerBillable?: boolean
+    readonly providerPricingCategory?: string
+    readonly providerPricingModel?: string
+    readonly providerOccurredAt?: string
     readonly status: EvidenceStatus
     readonly trusted: boolean
     readonly observedAt: string
@@ -748,7 +769,13 @@ export const SeedNotificationIntentLifecycle = (
               const lastOutcome = route.submissionOutcomes.find(
                 (candidate) => candidate.attemptId === lastAttempt.id
               )
-              if (lastOutcome?.outcome !== 'rejected_retryable')
+              const retryableCallback = route.evidence.some(
+                (candidate) =>
+                  candidate.attemptId === lastAttempt.id &&
+                  candidate.trusted &&
+                  candidate.status === 'rejected_retryable'
+              )
+              if (lastOutcome?.outcome !== 'rejected_retryable' && !retryableCallback)
                 return reject('prepare_submission', 'invalid_transition', intent.id)
             }
             if (
@@ -816,6 +843,13 @@ export const SeedNotificationIntentLifecycle = (
           ...(input.providerReferenceFingerprint
             ? { providerReferenceFingerprint: input.providerReferenceFingerprint }
             : {}),
+          ...(input.normalizedCode ? { normalizedCode: input.normalizedCode } : {}),
+          ...(input.classificationPolicyVersion
+            ? { classificationPolicyVersion: input.classificationPolicyVersion }
+            : {}),
+          ...(input.providerCode === undefined
+            ? {}
+            : { providerCode: input.providerCode }),
           status: input.outcome,
           trusted: input.outcome !== 'captured',
           observedAt: input.now
@@ -865,7 +899,11 @@ export const SeedNotificationIntentLifecycle = (
               activateFallbackOrFail(intent, route, input.now)
             } else {
               route.state = 'submitting'
-              const delayMs = route.attempts.length === 1 ? 30_000 : 120_000
+              const delayMs = input.retryAfterSeconds
+                ? Math.min(Math.max(input.retryAfterSeconds, 1), 86_400) * 1_000
+                : route.attempts.length === 1
+                  ? 30_000
+                  : 120_000
               route.retryAvailableAt = new Date(
                 milliseconds(input.now) + delayMs
               ).toISOString()
@@ -893,18 +931,11 @@ export const SeedNotificationIntentLifecycle = (
         if (!route) return reject('ingest_evidence', 'attempt_unavailable', intent.id)
         const duplicate = route.evidence.find(
           (candidate) =>
-            (candidate.environment === input.environment &&
-              candidate.provider === route.provider &&
-              candidate.providerAccountKey === input.providerAccountKey &&
-              candidate.source === input.source &&
-              candidate.sourceEventKey === input.sourceEventKey) ||
-            (Boolean(input.providerReferenceFingerprint) &&
-              candidate.environment === input.environment &&
-              candidate.provider === route.provider &&
-              candidate.providerAccountKey === input.providerAccountKey &&
-              candidate.providerReferenceFingerprint ===
-                input.providerReferenceFingerprint &&
-              candidate.status === input.status)
+            candidate.environment === input.environment &&
+            candidate.provider === route.provider &&
+            candidate.providerAccountKey === input.providerAccountKey &&
+            candidate.source === input.source &&
+            candidate.sourceEventKey === input.sourceEventKey
         )
         if (duplicate) return Effect.succeed(view(intent))
         const trusted =
@@ -920,12 +951,49 @@ export const SeedNotificationIntentLifecycle = (
           ...(input.providerReferenceFingerprint
             ? { providerReferenceFingerprint: input.providerReferenceFingerprint }
             : {}),
+          ...(input.normalizedCode ? { normalizedCode: input.normalizedCode } : {}),
+          ...(input.classificationPolicyVersion
+            ? { classificationPolicyVersion: input.classificationPolicyVersion }
+            : {}),
+          ...(input.providerCode !== undefined
+            ? { providerCode: input.providerCode }
+            : {}),
+          ...(input.pricingPolicyVersion
+            ? { pricingPolicyVersion: input.pricingPolicyVersion }
+            : {}),
+          ...(input.providerBillable !== undefined
+            ? { providerBillable: input.providerBillable }
+            : {}),
+          ...(input.providerPricingCategory
+            ? { providerPricingCategory: input.providerPricingCategory }
+            : {}),
+          ...(input.providerPricingModel
+            ? { providerPricingModel: input.providerPricingModel }
+            : {}),
+          ...(input.providerOccurredAt
+            ? { providerOccurredAt: input.providerOccurredAt }
+            : {}),
           status: input.status,
           trusted,
           observedAt: input.observedAt
         }
         route.evidence.push(evidence)
         if (!trusted) return Effect.succeed(view(intent))
+        const effectiveAt = input.providerOccurredAt ?? input.observedAt
+        const newerDecisiveEvidence = route.evidence.some(
+          (candidate) =>
+            candidate !== evidence &&
+            candidate.trusted &&
+            ['delivered', 'read', 'terminal_failure'].includes(candidate.status) &&
+            (candidate.providerOccurredAt ?? candidate.observedAt) > effectiveAt
+        )
+        if (newerDecisiveEvidence) return Effect.succeed(view(intent))
+        const latestAttempt = route.attempts.at(-1)
+        if (
+          ['rejected_retryable', 'terminal_failure'].includes(input.status) &&
+          latestAttempt?.id !== input.attemptId
+        )
+          return Effect.succeed(view(intent))
         const delivered = input.status === 'delivered' || input.status === 'read'
         const contradiction =
           (delivered && route.state === 'terminal_failure') ||
@@ -987,9 +1055,9 @@ export const SeedNotificationIntentLifecycle = (
           if (intent.reservation?.status !== 'active')
             return Effect.succeed(view(intent))
           route.state = 'delivered'
-          route.deliveredAt = input.observedAt
-          route.terminalAt = input.observedAt
-          terminal(intent, 'delivered', undefined, input.observedAt)
+          route.deliveredAt = effectiveAt
+          route.terminalAt = effectiveAt
+          terminal(intent, 'delivered', undefined, effectiveAt)
           intent.reservation.status = 'converted'
           if (!intent.chargeableDelivery) {
             intent.chargeableDelivery = {
@@ -998,19 +1066,31 @@ export const SeedNotificationIntentLifecycle = (
               reservationId: intent.reservation.id,
               rateCardId: intent.reservation.rateCardId,
               chargeMilliEuro: intent.reservation.amountMilliEuro,
-              verifiedAt: input.observedAt
+              verifiedAt: effectiveAt
             }
           }
         } else if (input.status === 'accepted') {
           if (!['delivered', 'terminal_failure'].includes(route.state)) {
             route.state = 'accepted'
-            route.acceptedAt ??= input.observedAt
+            route.acceptedAt ??= effectiveAt
             intent.phase = 'awaiting_provider'
           }
         } else if (input.status === 'terminal_failure') {
           route.state = 'terminal_failure'
-          route.terminalAt = input.observedAt
-          activateFallbackOrFail(intent, route, input.observedAt)
+          route.terminalAt = effectiveAt
+          activateFallbackOrFail(intent, route, effectiveAt)
+        } else if (input.status === 'rejected_retryable') {
+          if (route.attempts.length >= maxAttempts) {
+            route.state = 'terminal_failure'
+            route.terminalAt = effectiveAt
+            activateFallbackOrFail(intent, route, effectiveAt)
+          } else {
+            route.state = 'submitting'
+            route.retryAvailableAt = new Date(
+              milliseconds(input.observedAt) +
+                (route.attempts.length === 1 ? 30_000 : 120_000)
+            ).toISOString()
+          }
         }
         return Effect.succeed(view(intent))
       }),

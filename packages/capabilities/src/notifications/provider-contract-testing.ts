@@ -92,6 +92,8 @@ export const providerContractFixtures = {
       locale: 'ro',
       purpose: 'appointment_confirmation',
       templateVersion: 'v1',
+      templateKey: 'beesolo_appointment_confirmation_ro_v1',
+      templateParameters: [],
       idempotencyKey: 'idem_fixture_ro_confirmation',
       bodyFingerprint: RO_BODY_FINGERPRINT
     },

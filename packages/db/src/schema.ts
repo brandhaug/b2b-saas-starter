@@ -2394,6 +2394,12 @@ export const providerEvidence = sqliteTable(
     }).notNull(),
     trusted: integer('trusted', { mode: 'boolean' }).notNull(),
     normalizedCode: text('normalized_code'),
+    classificationPolicyVersion: text('classification_policy_version'),
+    providerCode: integer('provider_code'),
+    pricingPolicyVersion: text('pricing_policy_version'),
+    providerBillable: integer('provider_billable', { mode: 'boolean' }),
+    providerPricingCategory: text('provider_pricing_category'),
+    providerPricingModel: text('provider_pricing_model'),
     bodyFingerprint: text('body_fingerprint'),
     providerOccurredAt: text('provider_occurred_at'),
     observedAt: text('observed_at').notNull(),
@@ -2426,16 +2432,42 @@ export const providerEvidence = sqliteTable(
       table.intentId,
       table.observedAt,
       table.id
+    )
+  ]
+)
+
+export const providerCallbackReceipts = sqliteTable(
+  'provider_callback_receipts',
+  {
+    id: id(),
+    environment: text('environment').notNull(),
+    provider: text('provider', { enum: ['meta', 'smso'] }).notNull(),
+    providerAccountKey: text('provider_account_key').notNull(),
+    rawBodyDigest: text('raw_body_digest').notNull(),
+    byteLength: integer('byte_length').notNull(),
+    eventCount: integer('event_count').notNull(),
+    receivedAt: text('received_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('provider_callback_receipts_identity_unique').on(
+      table.environment,
+      table.provider,
+      table.providerAccountKey,
+      table.rawBodyDigest
     ),
-    uniqueIndex('provider_evidence_message_status_unique')
-      .on(
-        table.environment,
-        table.provider,
-        table.providerAccountKey,
-        table.providerReferenceFingerprint,
-        table.status
-      )
-      .where(sql`${table.providerReferenceFingerprint} IS NOT NULL`)
+    index('provider_callback_receipts_received_idx').on(
+      table.provider,
+      table.receivedAt
+    ),
+    check(
+      'provider_callback_receipts_provider_check',
+      sql`${table.provider} IN ('meta', 'smso')`
+    ),
+    check(
+      'provider_callback_receipts_size_check',
+      sql`${table.byteLength} >= 0 AND ${table.eventCount} >= 0`
+    )
   ]
 )
 

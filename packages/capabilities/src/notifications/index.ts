@@ -8,6 +8,8 @@ export * from './messaging-finance.ts'
 export * from './notification-intent-lifecycle.ts'
 export * from './notification-intent-execution.ts'
 export * from './booking-intent-producer.ts'
+export * from './meta-whatsapp.ts'
+export * from './meta-whatsapp-callback.ts'
 
 export const NotificationIntent = Schema.Struct({
   id: NotificationIntentId,

@@ -227,6 +227,106 @@ describe('Notification Intent lifecycle', () => {
     expect(result.intent.routes[1]?.state).toBe('submitting')
   })
 
+  it('schedules a bounded new attempt for retryable callback evidence', async () => {
+    const layer = seed()
+    const result = await run(
+      Effect.gen(function* () {
+        const intents = yield* NotificationIntentLifecycle
+        yield* intents.prepare(base)
+        yield* intents.beginRouting({
+          intentId: base.id,
+          environment: 'test',
+          eligibility: routingEligibility(),
+          reservationId: 'mbr_lifecycle',
+          rateCardId: 'mrcard_launch_v1',
+          chargeMilliEuro: 45,
+          now
+        })
+        const first = yield* intents.prepareSubmission({
+          intentId: base.id,
+          channel: 'whatsapp',
+          environment: 'test',
+          eligibility: eligibilityFor('whatsapp'),
+          requestFingerprint: `sha256:${'a'.repeat(64)}`,
+          now
+        })
+        yield* intents.recordSubmissionOutcome({
+          intentId: base.id,
+          attemptId: first.attempt.id,
+          outcome: 'accepted',
+          environment: 'test',
+          providerAccountKey: 'meta_test',
+          sourceEventKey: 'response:accepted',
+          now
+        })
+        yield* intents.ingestEvidence({
+          id: 'pevd_retryable_callback',
+          intentId: base.id,
+          attemptId: first.attempt.id,
+          environment: 'test',
+          providerAccountKey: 'meta_test',
+          source: 'callback',
+          sourceEventKey: 'wamid.retry:failed:1785315598:130429',
+          providerReferenceFingerprint: `sha256:${'c'.repeat(64)}`,
+          status: 'rejected_retryable',
+          trusted: true,
+          observedAt: '2026-07-29T12:01:00.000Z'
+        })
+        const beforeDue = yield* Effect.result(
+          intents.prepareSubmission({
+            intentId: base.id,
+            channel: 'whatsapp',
+            environment: 'test',
+            eligibility: eligibilityFor('whatsapp', '2026-07-29T12:01:29.999Z'),
+            requestFingerprint: `sha256:${'a'.repeat(64)}`,
+            now: '2026-07-29T12:01:29.999Z'
+          })
+        )
+        const retry = yield* intents.prepareSubmission({
+          intentId: base.id,
+          channel: 'whatsapp',
+          environment: 'test',
+          eligibility: eligibilityFor('whatsapp', '2026-07-29T12:01:30.000Z'),
+          requestFingerprint: `sha256:${'a'.repeat(64)}`,
+          now: '2026-07-29T12:01:30.000Z'
+        })
+        yield* intents.recordSubmissionOutcome({
+          intentId: base.id,
+          attemptId: retry.attempt.id,
+          outcome: 'accepted',
+          environment: 'test',
+          providerAccountKey: 'meta_test',
+          sourceEventKey: 'response:retry-accepted',
+          now: '2026-07-29T12:01:30.000Z'
+        })
+        yield* intents.ingestEvidence({
+          id: 'pevd_old_attempt_terminal',
+          intentId: base.id,
+          attemptId: first.attempt.id,
+          environment: 'test',
+          providerAccountKey: 'meta_test',
+          source: 'callback',
+          sourceEventKey: 'wamid.retry:failed:1785315700:131026',
+          providerReferenceFingerprint: `sha256:${'c'.repeat(64)}`,
+          status: 'terminal_failure',
+          trusted: true,
+          observedAt: '2026-07-29T12:02:00.000Z'
+        })
+        return {
+          beforeDue,
+          retry,
+          intent: yield* intents.findById(base.id)
+        }
+      }),
+      layer
+    )
+
+    expect(result.beforeDue).toMatchObject({ _tag: 'Failure' })
+    expect(result.retry.attempt.ordinal).toBe(1)
+    expect(result.intent.routes[0]?.state).toBe('accepted')
+    expect(result.intent.routes[1]?.state).toBe('planned')
+  })
+
   it('does not mistake local console capture for provider acceptance, delivery, or an SMS fallback trigger', async () => {
     const layer = seed()
     const intent = await run(
@@ -415,7 +515,7 @@ describe('Notification Intent lifecycle', () => {
     expect(result.closed.chargeableDelivery).toBeUndefined()
   })
 
-  it('deduplicates and reorders evidence without regression, quarantines contradiction, and charges once', async () => {
+  it('deduplicates and reorders evidence by provider time without regression and charges once', async () => {
     const layer = seed()
     const program = Effect.gen(function* () {
       const intents = yield* NotificationIntentLifecycle
@@ -470,9 +570,18 @@ describe('Notification Intent lifecycle', () => {
       })
       yield* intents.ingestEvidence({
         ...delivered,
+        id: 'pevd_stale_failure',
+        sourceEventKey: 'meta:event:failed-stale',
+        status: 'terminal_failure',
+        providerOccurredAt: '2026-07-29T12:01:00.000Z',
+        observedAt: '2026-07-29T12:04:00.000Z'
+      })
+      yield* intents.ingestEvidence({
+        ...delivered,
         id: 'pevd_contradiction',
         sourceEventKey: 'meta:event:failed-late',
         status: 'terminal_failure',
+        providerOccurredAt: '2026-07-29T12:03:00.000Z',
         observedAt: '2026-07-29T12:03:00.000Z'
       })
       return yield* intents.findById(base.id)
@@ -481,7 +590,7 @@ describe('Notification Intent lifecycle', () => {
     const intent = await run(program, layer)
     expect(intent).toMatchObject({ phase: 'terminal', result: 'delivered' })
     expect(intent.routes[0]?.state).toBe('delivered')
-    expect(intent.routes[0]?.evidence).toHaveLength(4)
+    expect(intent.routes[0]?.evidence).toHaveLength(5)
     expect(intent.reconciliationCases).toHaveLength(1)
     expect(intent.chargeableDelivery).toMatchObject({ chargeMilliEuro: 45 })
   })
