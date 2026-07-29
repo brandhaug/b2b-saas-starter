@@ -144,7 +144,12 @@ import {
   SeedNotificationIntents
 } from './notifications/adapters.ts'
 import {
+  LiveMessagingFinance,
+  SeedMessagingFinance
+} from './notifications/messaging-finance.ts'
+import {
   ControlledTemplateEligibilityEngine,
+  MessagingFinance,
   MessagingReadModel,
   NotificationIntents,
   SeedControlledTemplateEligibilityEngine
@@ -216,6 +221,7 @@ export type CapabilityServices =
   | CustomerEngagement
   | NotificationIntents
   | MessagingReadModel
+  | MessagingFinance
   | ControlledTemplateEligibilityEngine
   | ScheduledWorkQueue
   | GiftCards
@@ -424,6 +430,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedCustomerEngagement(),
   SeedNotificationIntents(),
   SeedMessagingReadModel(),
+  SeedMessagingFinance(),
   SeedControlledTemplateEligibilityEngine(),
   SeedScheduledWorkQueue(),
   SeedGiftCards(),
@@ -498,6 +505,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveCustomerEngagement,
     LiveNotificationIntents,
     LiveMessagingReadModel,
+    LiveMessagingFinance,
     LiveControlledTemplateEligibilityEngine,
     LiveScheduledWorkQueue,
     LiveGiftCards,

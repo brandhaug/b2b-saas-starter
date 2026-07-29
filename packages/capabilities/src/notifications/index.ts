@@ -4,6 +4,7 @@ import { NotificationIntentId, ShopId } from '../ids.ts'
 
 export * from './provider-contracts.ts'
 export * from './controlled-template-eligibility.ts'
+export * from './messaging-finance.ts'
 
 export const NotificationIntent = Schema.Struct({
   id: NotificationIntentId,
