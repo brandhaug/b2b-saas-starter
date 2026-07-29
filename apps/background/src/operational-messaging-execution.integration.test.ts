@@ -33,6 +33,11 @@ type WorkerEnv = {
   readonly WAITING_LIST_DELIVERY_CURRENT_KEY_ID: string
   readonly WAITING_LIST_DELIVERY_LEGACY_KEY_ID: string
   readonly WAITING_LIST_DELIVERY_KEYS: string
+  readonly EMAIL: { readonly send: (message: unknown) => Promise<unknown> }
+  readonly CLOUDFLARE_EMAIL_FROM: string
+  readonly CONFIRMATION_CURRENT_KEY_ID: string
+  readonly CONFIRMATION_SIGNING_KEYS: string
+  readonly PUBLIC_SITE_ORIGIN: string
 }
 
 type ProtectedDestination = {
@@ -47,6 +52,7 @@ describe('Background operational messaging execution', () => {
   let test: TestD1
   let env: WorkerEnv
   let protectedDestination: ProtectedDestination
+  const sendEmail = vi.fn(async () => undefined)
 
   beforeAll(async () => {
     test = await provisionTestD1()
@@ -61,7 +67,14 @@ describe('Background operational messaging execution', () => {
       WAITING_LIST_DELIVERY_KEYS: JSON.stringify({
         'test-current': 'background-waiting-list-delivery-secret',
         'test-legacy': 'background-waiting-list-delivery-secret'
-      })
+      }),
+      EMAIL: { send: sendEmail },
+      CLOUDFLARE_EMAIL_FROM: 'booking@beesolo.test',
+      CONFIRMATION_CURRENT_KEY_ID: 'background-current',
+      CONFIRMATION_SIGNING_KEYS: JSON.stringify({
+        'background-current': 'background-confirmation-signing-secret'
+      }),
+      PUBLIC_SITE_ORIGIN: 'https://booking.beesolo.test'
     }
     const protection = await Effect.runPromise(
       deriveNotificationDestinationProtection({
@@ -115,7 +128,48 @@ describe('Background operational messaging execution', () => {
         source_id, idempotency_key, fiscal_reference, external_fact_id, occurred_at, created_at)
        VALUES ('mle_background_funding', '${shopId}', 'credit', 'top_up', 10000, 'EUR',
         'stripe_payment', 'pi_background', 'stripe:pi_background', 'invoice:background',
-        'mff_background_funding', '${now}', '${now}')`
+        'mff_background_funding', '${now}', '${now}')`,
+      `INSERT INTO providers
+       (id, merchant_id, display_name, status, is_default, created_at, updated_at)
+       VALUES ('prv_background_email', 'mer_background_execution', 'Ada', 'active', 1,
+         '${now}', '${now}')`,
+      `INSERT INTO appointments
+       (id, merchant_id, provider_id, status, starts_at, ends_at, snapshot, created_at, updated_at)
+       VALUES ('apt_background_email', 'mer_background_execution', 'prv_background_email',
+         'scheduled', '2026-07-31T12:00:00.000Z', '2026-07-31T13:00:00.000Z',
+         '${JSON.stringify({
+           startsAt: '2026-07-31T12:00:00.000Z',
+           endsAt: '2026-07-31T13:00:00.000Z',
+           providerPreference: { kind: 'any' },
+           assignedProvider: { id: 'prv_background_email', displayName: 'Ada' },
+           services: [
+             {
+               id: 'svc_background_email',
+               role: 'primary',
+               name: 'Consultation',
+               durationMinutes: 60,
+               priceMinor: 4500,
+               currency: 'EUR'
+             }
+           ],
+           durationMinutes: 60,
+           currency: 'EUR',
+           totalMinor: 4500,
+           merchantTimezone: 'Europe/Bucharest',
+           customerDetails: {
+             name: 'Mia',
+             email: 'mia@example.test',
+             phone: '+40722123456'
+           },
+           checkoutPath: 'pay_in_person'
+         }).replaceAll("'", "''")}', '${now}', '${now}')`,
+      `INSERT INTO confirmation_access
+       (route_id, appointment_id, token_version, signing_key_id, expires_at, created_at)
+       VALUES ('cnf_background_email', 'apt_background_email', 1, 'background-current',
+         '2026-08-31T12:00:00.000Z', '${now}')`,
+      `INSERT INTO booking_outbox (id, appointment_id, kind, trace_id, created_at)
+       VALUES ('bout_background_email', 'apt_background_email', 'appointment.created',
+         'trace_background_email', '${now}')`
     ])
       await test.d1.prepare(statement).run()
   }, 60_000)
@@ -305,7 +359,11 @@ describe('Background operational messaging execution', () => {
           retry: intentRetry
         },
         {
-          body: { version: 1, kind: 'booking-outbox', outboxId: 'bout_missing' },
+          body: {
+            version: 1,
+            kind: 'booking-outbox',
+            outboxId: 'bout_background_email'
+          },
           ack: legacyAck,
           retry: legacyRetry
         }
@@ -318,6 +376,30 @@ describe('Background operational messaging execution', () => {
     expect(intentRetry).not.toHaveBeenCalled()
     expect(legacyAck).toHaveBeenCalledOnce()
     expect(legacyRetry).not.toHaveBeenCalled()
+    expect(sendEmail).toHaveBeenCalledOnce()
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: 'bout_background_email',
+        from: 'booking@beesolo.test',
+        to: 'mia@example.test',
+        subject: 'Your appointment is confirmed'
+      })
+    )
+    expect(
+      await test.d1
+        .prepare(
+          `SELECT processed_at, webhook_status, email_status, email_attempt_count
+           FROM booking_outbox WHERE id = 'bout_background_email'`
+        )
+        .first()
+    ).toEqual(
+      expect.objectContaining({
+        processed_at: expect.any(String),
+        webhook_status: 'completed',
+        email_status: 'delivered',
+        email_attempt_count: 1
+      })
+    )
     expect(await durableResult(intentId)).toEqual({
       phase: 'terminal',
       status: 'cancelled',
