@@ -31,6 +31,7 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:operations-release": "bun scripts/operations-release/run.ts",
+    "test:messaging-qualification": "bun scripts/operational-messaging-qualification.ts",
     "test:e2e": "bun --cwd apps/web test:e2e",
     "lint": "oxlint --type-aware --ignore-pattern '.context/**'",
     "lint:fix": "oxlint --type-aware --ignore-pattern '.context/**' --fix",
@@ -46,6 +47,7 @@
     "operator:bootstrap": "bun scripts/system-operator-maintenance.ts bootstrap",
     "operator:recover": "bun scripts/system-operator-maintenance.ts recover",
     "deploy": "bun alchemy.run.ts",
+    "deploy:messaging-qualification": "bun alchemy.messaging-qualification.ts",
     "destroy": "bun alchemy.run.ts --destroy",
     "prepare": "git config core.hooksPath .githooks"
   },

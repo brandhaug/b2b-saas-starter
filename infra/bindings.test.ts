@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   apiRateLimits,
   bookingEventsConsumerSettings,
+  bookingEventsDeadLetterQueueName,
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
@@ -196,7 +197,8 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
     expectConsumerSync(
       consumers.find((consumer) => consumer.queue === bookingEventsQueueName),
       bookingEventsQueueName,
-      bookingEventsConsumerSettings
+      bookingEventsConsumerSettings,
+      bookingEventsDeadLetterQueueName
     )
   })
 
@@ -243,6 +245,7 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
     expect(source).toContain('BOOKING: booking')
     expect(source).toContain('BOOKING_EVENTS_QUEUE: bookingEventsQueue')
     expect(source).toContain("Cloudflare.QueueConsumer('booking-events-consumer'")
+    expect(source).toContain("'booking-events-dead-letter-queue'")
     expect(source).toContain('domain: publicSiteDomain')
     expect(source).toContain('domain: merchantAppDomain')
     expect(source).toContain('domain: operationsAppDomain')

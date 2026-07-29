@@ -97,6 +97,8 @@ export const bookingRateLimits: readonly RateLimitBindingSpec[] = [
 ]
 
 export const bookingEventsQueueName = 'b2b-saas-starter-booking-events'
+export const bookingEventsDeadLetterQueueName =
+  'b2b-saas-starter-booking-events-dead-letter'
 
 // Shape matches Alchemy's `QueueConsumer` settings input. Wrangler spells the
 // same knobs differently (`max_batch_size`, `max_batch_timeout` in seconds,

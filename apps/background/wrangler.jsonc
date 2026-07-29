@@ -38,7 +38,8 @@
         "max_batch_timeout": 5,
         "max_retries": 6,
         "max_concurrency": 1,
-        "retry_delay": 30
+        "retry_delay": 30,
+        "dead_letter_queue": "b2b-saas-starter-booking-events-dead-letter"
       }
     ]
   },

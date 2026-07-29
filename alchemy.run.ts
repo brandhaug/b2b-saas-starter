@@ -5,6 +5,7 @@ import * as Redacted from 'effect/Redacted'
 import {
   apiRateLimits,
   bookingEventsConsumerSettings,
+  bookingEventsDeadLetterQueueName,
   bookingEventsQueueName,
   bookingRateLimits,
   merchantRateLimits,
@@ -169,6 +170,10 @@ export const Stack = Alchemy.Stack(
     const bookingEventsQueue = yield* Cloudflare.Queue('booking-events-queue', {
       name: bookingEventsQueueName
     })
+    const bookingEventsDeadLetterQueue = yield* Cloudflare.Queue(
+      'booking-events-dead-letter-queue',
+      { name: bookingEventsDeadLetterQueueName }
+    )
 
     const transactionalEmail = yield* Cloudflare.SendEmail('EMAIL', {
       // Restrict the Worker to sending from the verified default. Add
@@ -368,6 +373,7 @@ export const Stack = Alchemy.Stack(
     yield* Cloudflare.QueueConsumer('booking-events-consumer', {
       queueId: bookingEventsQueue.queueId,
       scriptName: background.workerName,
+      deadLetterQueue: bookingEventsDeadLetterQueue.queueName,
       settings: bookingEventsConsumerSettings
     })
 
@@ -395,6 +401,7 @@ export const Stack = Alchemy.Stack(
       background,
       booking,
       bookingEventsQueue,
+      bookingEventsDeadLetterQueue,
       db,
       merchant,
       operations,

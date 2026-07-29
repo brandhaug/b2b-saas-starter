@@ -77,7 +77,8 @@ use stable identifiers and event facts, not Customer Details or credentials.
 
 ## Deployment
 
-`alchemy.run.ts` provisions one D1 database, the booking-events Queue, optional
+`alchemy.run.ts` provisions one D1 database, the booking-events Queue and its
+dead-letter Queue, optional
 Cloudflare Email binding, rate-limit bindings, and all six Workers. The Queue is
 consumed by the Background Worker; its scheduled handler runs every five minutes.
 `infra/topology.ts` is the canonical Worker-name/port map and
