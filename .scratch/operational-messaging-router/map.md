@@ -58,6 +58,7 @@ Specify, implement, verify, and launch the Romania-first Operational Messaging R
 - [Align the Messaging Operator Auth Role Model](./issues/32-align-messaging-operator-auth-role-model.md) — One typed Operations registry now drives five independently assignable one-permission Messaging Operator Roles across authorization, Better Auth, invitations, management, and both role selectors without implicit grants.
 - [Implement the SMSO.ro Adapter, Callback Hint, and Polling](./issues/24-implement-smso-adapter-callback-and-polling.md) — A production-selectable, fail-closed SMSO.ro boundary now protects response-token/cost facts atomically, treats callbacks only as bounded wake-up hints, and ingests authoritative bounded polling evidence without replaying ambiguous submissions.
 - [Implement the WhatsApp Adapter and Callback Edge](./issues/23-implement-whatsapp-adapter-and-callback-edge.md) — A production-selectable Meta adapter and signed unversioned callback edge now send exact controlled templates, protect correlation, preserve effective-dated evidence, and handle retries, ambiguity, duplicates, and out-of-order callbacks without inferring failure from silence.
+- [Deliver Booking Disclosure and Merchant Messaging Settings](./issues/26-deliver-booking-disclosure-and-merchant-settings.md) — Booking now records independent provider-neutral mobile permission, while Owner-only Merchant Settings atomically govern complete, controlled Appointment messaging and configured reminder timing through tenant-scoped Notifications contracts.
 
 ## Not yet specified
 
