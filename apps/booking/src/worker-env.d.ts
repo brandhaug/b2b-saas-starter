@@ -11,9 +11,14 @@ interface BookingWorkerEnv {
       readonly success: boolean
     }>
   }
-  readonly BOOKING_EVENTS_QUEUE?: Queue<{ readonly outboxId: string }>
+  readonly BOOKING_EVENTS_QUEUE?: Queue<
+    import('@b2b-saas-starter/capabilities/notifications').BookingEventsWakeup
+  >
   readonly CONFIRMATION_SIGNING_KEYS: string
   readonly CONFIRMATION_CURRENT_KEY_ID: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION?: string
 }
 
 declare namespace Cloudflare {

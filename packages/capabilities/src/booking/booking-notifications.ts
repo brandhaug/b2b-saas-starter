@@ -6,7 +6,6 @@ import {
   confirmationAccess,
   Database,
   merchants,
-  notificationIntents,
   platformWebhookDeliveries,
   platformWebhookEndpoints,
   platformWebhookEvents,
@@ -18,7 +17,6 @@ import { orUnavailable } from '../internal/unavailable.ts'
 export type BookingNotificationWork = {
   readonly outboxId: string
   readonly appointmentId: string
-  readonly notificationIntentId: string
   readonly merchantId: string
   readonly merchantSlug: string
   readonly traceId: string
@@ -41,45 +39,6 @@ export type BookingNotificationWork = {
     | 'failed_terminal'
   readonly emailAttemptCount: number
   readonly emailNextAttemptAt: string | null
-  readonly whatsappStatus:
-    | 'pending'
-    | 'captured'
-    | 'ineligible'
-    | 'needs_configuration'
-    | 'not_applicable'
-}
-
-export type BookingWhatsAppTemplateRequest = {
-  readonly idempotencyKey: string
-  readonly to: string
-  readonly template: 'appointment_confirmation'
-  readonly language: 'ro'
-  readonly parameters: {
-    readonly merchant: string
-    readonly startsAt: string
-    readonly timeZone: string
-    readonly confirmationUrl: string
-  }
-}
-
-export const planBookingWhatsAppConfirmation = (
-  work: BookingNotificationWork,
-  confirmationUrl: string
-): BookingWhatsAppTemplateRequest | null => {
-  const phone = work.snapshot.customerDetails.phone
-  if (!phone) return null
-  return {
-    idempotencyKey: work.notificationIntentId,
-    to: phone,
-    template: 'appointment_confirmation',
-    language: 'ro',
-    parameters: {
-      merchant: work.merchantSlug,
-      startsAt: work.snapshot.startsAt,
-      timeZone: work.snapshot.merchantTimezone,
-      confirmationUrl
-    }
-  }
 }
 
 export type BookingWebhookEndpoint = {
@@ -138,10 +97,6 @@ export type BookingNotificationOutboxShape = {
     attemptCount: number,
     nextAttemptAt: string | null
   ) => Effect.Effect<void, CapabilityUnavailable>
-  readonly recordWhatsApp: (
-    outboxId: string,
-    status: 'captured' | 'ineligible' | 'needs_configuration'
-  ) => Effect.Effect<void, CapabilityUnavailable>
   readonly ensureEvent: (
     work: BookingNotificationWork
   ) => Effect.Effect<BookingWebhookEvent, CapabilityUnavailable>
@@ -175,7 +130,6 @@ export const SeedBookingNotificationOutbox: Layer.Layer<BookingNotificationOutbo
     claim: () => Effect.succeed(null),
     recoverable: () => Effect.succeed([]),
     recordEmail: () => Effect.void,
-    recordWhatsApp: () => Effect.void,
     ensureEvent: () => Effect.die('seed booking notification event unavailable'),
     endpoints: () => Effect.succeed([]),
     attempts: () => Effect.succeed([]),
@@ -234,29 +188,9 @@ export const LiveBookingNotificationOutbox: Layer.Layer<
           if (claimed.length === 0) return null
           const row = (yield* read(outboxId))[0]
           if (!row || !row.appointment.snapshot) return null
-          if (!row.outbox.notificationIntentId) {
-            yield* unavailable(
-              db
-                .update(bookingOutbox)
-                .set({
-                  webhookStatus: 'dead_lettered',
-                  processedAt: now,
-                  claimedAt: null
-                })
-                .where(eq(bookingOutbox.id, outboxId))
-            )
-            return null
-          }
-          yield* unavailable(
-            db
-              .update(notificationIntents)
-              .set({ status: 'processing', updatedAt: now })
-              .where(eq(notificationIntents.id, row.outbox.notificationIntentId))
-          )
           return {
             outboxId: row.outbox.id,
             appointmentId: row.appointment.id,
-            notificationIntentId: row.outbox.notificationIntentId,
             merchantId: row.appointment.merchantId,
             merchantSlug: row.merchantSlug,
             traceId: row.outbox.traceId,
@@ -272,8 +206,7 @@ export const LiveBookingNotificationOutbox: Layer.Layer<
             },
             emailStatus: row.outbox.emailStatus,
             emailAttemptCount: row.outbox.emailAttemptCount,
-            emailNextAttemptAt: row.outbox.emailNextAttemptAt,
-            whatsappStatus: row.outbox.whatsappStatus
+            emailNextAttemptAt: row.outbox.emailNextAttemptAt
           }
         }),
       recoverable: (now, limit = 100) =>
@@ -306,13 +239,6 @@ export const LiveBookingNotificationOutbox: Layer.Layer<
               emailAttemptCount: attemptCount,
               emailNextAttemptAt: nextAttemptAt
             })
-            .where(eq(bookingOutbox.id, outboxId))
-        ).pipe(Effect.asVoid),
-      recordWhatsApp: (outboxId, status) =>
-        unavailable(
-          db
-            .update(bookingOutbox)
-            .set({ whatsappStatus: status })
             .where(eq(bookingOutbox.id, outboxId))
         ).pipe(Effect.asVoid),
       ensureEvent: (work) =>
@@ -402,36 +328,12 @@ export const LiveBookingNotificationOutbox: Layer.Layer<
           })
         ).pipe(Effect.asVoid),
       finish: (outboxId, webhookStatus, processedAt) =>
-        Effect.gen(function* () {
-          const rows = yield* unavailable(
-            db
-              .update(bookingOutbox)
-              .set({ webhookStatus, processedAt, claimedAt: null })
-              .where(eq(bookingOutbox.id, outboxId))
-              .returning({
-                notificationIntentId: bookingOutbox.notificationIntentId,
-                emailStatus: bookingOutbox.emailStatus
-              })
-          )
-          const intentId = rows[0]?.notificationIntentId
-          if (intentId && processedAt)
-            yield* unavailable(
-              db
-                .update(notificationIntents)
-                .set({
-                  status:
-                    rows[0]!.emailStatus === 'disabled'
-                      ? 'cancelled'
-                      : webhookStatus === 'dead_lettered' ||
-                          rows[0]!.emailStatus === 'needs_configuration' ||
-                          rows[0]!.emailStatus === 'failed_terminal'
-                        ? 'failed'
-                        : 'delivered',
-                  updatedAt: processedAt
-                })
-                .where(eq(notificationIntents.id, intentId))
-            )
-        })
+        unavailable(
+          db
+            .update(bookingOutbox)
+            .set({ webhookStatus, processedAt, claimedAt: null })
+            .where(eq(bookingOutbox.id, outboxId))
+        ).pipe(Effect.asVoid)
     }
   })
 )

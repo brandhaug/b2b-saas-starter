@@ -124,6 +124,7 @@ export type CancellationResult = {
     | { readonly kind: 'party'; readonly bookingPartyId: string }
   readonly appointments: readonly CancellableAppointment[]
   readonly refundObligations: readonly RefundObligation[]
+  readonly notificationIntentIds?: readonly string[]
   readonly replayed: boolean
 }
 
@@ -367,6 +368,7 @@ export const SeedBookingCancellations = (
             scope,
             appointments: cancelled,
             refundObligations: obligations,
+            notificationIntentIds: [],
             replayed: false
           }
           store.commands.set(commandKey, result)

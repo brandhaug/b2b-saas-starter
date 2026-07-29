@@ -88,6 +88,10 @@ Required deploy environment: `PUBLIC_SITE_ORIGIN`, `MERCHANT_APP_ORIGIN`,
 `OPERATIONS_AUTH_SECRET`, `CONFIRMATION_SIGNING_KEYS`, and
 `CONFIRMATION_CURRENT_KEY_ID`. Email and observability providers are optional;
 missing optional bindings degrade delivery or telemetry without blocking booking.
+Operational Messaging destination encryption and fingerprint keys are also optional
+as a pair; when absent, mobile intent production is disabled while Booking,
+transactional email, and Platform Webhooks remain available. The non-secret
+`OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION` records rotation.
 See [.env.example](./.env.example) and [docs/operations.md](./docs/operations.md).
 
 ## Vertical-slice boundary and accepted target

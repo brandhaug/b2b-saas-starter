@@ -36,6 +36,14 @@ import type { BookingSession } from './booking-sessions.ts'
 import type { SeedBookingCheckoutStore } from './booking-checkout.ts'
 import type { SeedBookingSessionStore } from './booking-sessions.ts'
 import { PaymentSettlement } from '../payments/index.ts'
+import {
+  deriveNotificationDestinationProtection,
+  hasNotificationDestinationProtection,
+  notificationIntentMutationStatements,
+  prepareBookingIntentMutation
+} from '../notifications/index.ts'
+import type { NotificationDestinationProtectionSecrets } from '../notifications/index.ts'
+import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
 
 export type ConfirmationSigningKeyring = {
   readonly currentKeyId: string
@@ -74,6 +82,7 @@ export const BookingConfirmationResult = Schema.Struct({
   accesses: Schema.Array(ConfirmationAccess),
   outboxId: Schema.String,
   outboxIds: Schema.Array(Schema.String),
+  notificationIntentIds: Schema.optional(Schema.Array(Schema.String)),
   replayed: Schema.Boolean
 })
 export type BookingConfirmationResult = typeof BookingConfirmationResult.Type
@@ -219,33 +228,6 @@ const confirmationShop = (input: {
       : {})
   }
 }
-
-const confirmationNotificationIntent = (input: {
-  readonly id: string
-  readonly shopId: string
-  readonly appointmentId: string
-  readonly customerEmail: string
-  readonly snapshot: StoredAppointmentSnapshot
-  readonly confirmationRouteId: string
-  readonly now: string
-}) => ({
-  id: input.id,
-  shopId: input.shopId,
-  topic: 'appointment.confirmed',
-  recipientJson: JSON.stringify({ email: input.customerEmail }),
-  payloadJson: JSON.stringify({
-    appointmentId: input.appointmentId,
-    snapshot: input.snapshot,
-    confirmationRouteId: input.confirmationRouteId
-  }),
-  sourceType: 'appointment',
-  sourceId: input.appointmentId,
-  deduplicationKey: `appointment.confirmed:${input.appointmentId}`,
-  status: 'pending' as const,
-  availableAt: input.now,
-  createdAt: input.now,
-  updatedAt: input.now
-})
 
 const hmac = async (key: string, value: string): Promise<string> => {
   const imported = await crypto.subtle.importKey(
@@ -508,6 +490,7 @@ export const SeedBookingConfirmation = (
               accesses,
               outboxId: outboxIds[0]!,
               outboxIds,
+              notificationIntentIds: [],
               replayed: true
             }
           }
@@ -606,6 +589,7 @@ export const SeedBookingConfirmation = (
             accesses,
             outboxId: outboxIds[0]!,
             outboxIds,
+            notificationIntentIds: [],
             replayed: false
           }
         })
@@ -617,6 +601,7 @@ const resultFrom = async (
     appointment: typeof appointments.$inferSelect
     access: typeof confirmationAccess.$inferSelect
     outboxId: string
+    notificationIntentId: string | null
   },
   keyring: ConfirmationSigningKeyring,
   replayed: boolean
@@ -658,6 +643,7 @@ const resultFrom = async (
     ],
     outboxId: row.outboxId,
     outboxIds: [row.outboxId],
+    notificationIntentIds: row.notificationIntentId ? [row.notificationIntentId] : [],
     replayed
   }
 }
@@ -667,6 +653,7 @@ const resultsFrom = async (
     appointment: typeof appointments.$inferSelect
     access: typeof confirmationAccess.$inferSelect
     outboxId: string
+    notificationIntentId: string | null
   }[],
   keyring: ConfirmationSigningKeyring,
   replayed: boolean
@@ -682,25 +669,35 @@ const resultsFrom = async (
     accesses: results.map((result) => result.access),
     outboxId: first.outboxId,
     outboxIds: results.map((result) => result.outboxId),
+    notificationIntentIds: results.flatMap(
+      (result) => result.notificationIntentIds ?? []
+    ),
     replayed
   }
 }
 
 export const LiveBookingConfirmation = (
-  keyring: ConfirmationSigningKeyring
+  keyring: ConfirmationSigningKeyring,
+  destinationSecrets?: NotificationDestinationProtectionSecrets
 ): Layer.Layer<BookingConfirmation, never, Database | PaymentSettlement> =>
   Layer.effect(
     BookingConfirmation,
     Effect.gen(function* () {
       const db = yield* Database
       const paymentSettlements = yield* PaymentSettlement
+      const notificationProtection = hasNotificationDestinationProtection(
+        destinationSecrets
+      )
+        ? yield* deriveNotificationDestinationProtection(destinationSecrets)
+        : null
       const readCommitted = (sessionId: string) =>
         orUnavailable('booking-confirmation')(
           db
             .select({
               appointment: appointments,
               access: confirmationAccess,
-              outboxId: bookingOutbox.id
+              outboxId: bookingOutbox.id,
+              notificationIntentId: notificationIntents.id
             })
             .from(appointments)
             .innerJoin(
@@ -708,6 +705,14 @@ export const LiveBookingConfirmation = (
               eq(confirmationAccess.appointmentId, appointments.id)
             )
             .innerJoin(bookingOutbox, eq(bookingOutbox.appointmentId, appointments.id))
+            .leftJoin(
+              notificationIntents,
+              and(
+                eq(notificationIntents.sourceType, 'appointment'),
+                eq(notificationIntents.sourceId, appointments.id),
+                eq(notificationIntents.purpose, 'appointment_confirmation')
+              )
+            )
             .where(eq(appointments.bookingSessionId, sessionId))
         )
       return {
@@ -1164,7 +1169,6 @@ export const LiveBookingConfirmation = (
                 const appointmentId = `apt_${randomHex(16)}`
                 const routeId = `cnf_${randomHex(16)}`
                 const outboxId = `obx_${randomHex(16)}`
-                const notificationIntentId = `nti_${randomHex(16)}`
                 const snapshot: StoredAppointmentSnapshot = {
                   ...row.hold.quote,
                   merchantTimezone: row.timezone,
@@ -1191,7 +1195,6 @@ export const LiveBookingConfirmation = (
                   appointmentId,
                   routeId,
                   outboxId,
-                  notificationIntentId,
                   snapshot,
                   expiresAt: addMillisecondsToIso(
                     row.hold.endsAt,
@@ -1199,6 +1202,37 @@ export const LiveBookingConfirmation = (
                   )
                 }
               })
+              const preparedIntents = yield* Effect.forEach(generated, (item) =>
+                notificationProtection
+                  ? prepareBookingIntentMutation(
+                      db,
+                      {
+                        shopId: item.row.shopId,
+                        sourceId: item.appointmentId,
+                        sourceVersion: 1,
+                        semanticDeduplicationKey: `confirmation:${item.appointmentId}:1`,
+                        rawDestination: item.snapshot.customerDetails.phone,
+                        permissionGranted: false,
+                        purpose: 'appointment_confirmation',
+                        locale: item.row.party.locale === 'ro' ? 'ro' : 'en',
+                        availableAt: input.now,
+                        appointmentStartsAt: item.snapshot.startsAt,
+                        createdAt: input.now,
+                        traceId: input.traceId,
+                        facts: appointmentOperationalNotificationFacts({
+                          purpose: 'appointment_confirmation',
+                          locale: item.row.party.locale === 'ro' ? 'ro' : 'en',
+                          merchantLabel: partyShop?.publicName ?? session.merchantSlug,
+                          startsAt: item.snapshot.startsAt,
+                          timeZone: item.snapshot.merchantTimezone,
+                          appointmentId: item.appointmentId,
+                          confirmationRouteId: item.routeId
+                        })
+                      },
+                      notificationProtection
+                    )
+                  : Effect.succeed(null)
+              )
               const statements: BatchStatement[] = generated.flatMap((item) => [
                 db.insert(appointments).select(
                   db
@@ -1250,26 +1284,19 @@ export const LiveBookingConfirmation = (
                   revokedAt: null,
                   createdAt: input.now
                 }),
-                db.insert(notificationIntents).values(
-                  confirmationNotificationIntent({
-                    id: item.notificationIntentId,
-                    shopId: item.row.shopId,
-                    appointmentId: item.appointmentId,
-                    customerEmail: item.snapshot.customerDetails.email,
-                    snapshot: item.snapshot,
-                    confirmationRouteId: item.routeId,
-                    now: input.now
-                  })
-                ),
                 db.insert(bookingOutbox).values({
                   id: item.outboxId,
                   appointmentId: item.appointmentId,
-                  notificationIntentId: item.notificationIntentId,
                   kind: 'appointment.created',
                   traceId: input.traceId,
                   createdAt: input.now
                 })
               ])
+              statements.push(
+                ...preparedIntents.flatMap((intent) =>
+                  intent ? notificationIntentMutationStatements(intent) : []
+                )
+              )
               statements.push(
                 db
                   .delete(timeSlotHolds)
@@ -1405,7 +1432,8 @@ export const LiveBookingConfirmation = (
                   session: bookingSessions,
                   hold: timeSlotHolds,
                   timezone: merchants.timezone,
-                  shopId: shops.id
+                  shopId: shops.id,
+                  shopName: shops.publicName
                 })
                 .from(bookingSessions)
                 .innerJoin(merchants, eq(merchants.id, bookingSessions.merchantId))
@@ -1434,7 +1462,6 @@ export const LiveBookingConfirmation = (
             const appointmentId = `apt_${randomHex(16)}`
             const routeId = `cnf_${randomHex(16)}`
             const outboxId = `obx_${randomHex(16)}`
-            const notificationIntentId = `nti_${randomHex(16)}`
             const replayExpiresAt = addMillisecondsToIso(input.now, 24 * 60 * 60_000)
             const expiresAt = addMillisecondsToIso(
               row.hold.endsAt,
@@ -1469,7 +1496,36 @@ export const LiveBookingConfirmation = (
                 capability: 'booking-confirmation',
                 reason: 'Current signing key is unavailable'
               })
-            const statements = [
+            const preparedIntent = notificationProtection
+              ? yield* prepareBookingIntentMutation(
+                  db,
+                  {
+                    shopId: row.shopId,
+                    sourceId: appointmentId,
+                    sourceVersion: 1,
+                    semanticDeduplicationKey: `confirmation:${appointmentId}:1`,
+                    rawDestination: snapshot.customerDetails.phone,
+                    permissionGranted: false,
+                    purpose: 'appointment_confirmation',
+                    locale: row.session.locale === 'ro' ? 'ro' : 'en',
+                    availableAt: input.now,
+                    appointmentStartsAt: snapshot.startsAt,
+                    createdAt: input.now,
+                    traceId: input.traceId,
+                    facts: appointmentOperationalNotificationFacts({
+                      purpose: 'appointment_confirmation',
+                      locale: row.session.locale === 'ro' ? 'ro' : 'en',
+                      merchantLabel: row.shopName,
+                      startsAt: snapshot.startsAt,
+                      timeZone: snapshot.merchantTimezone,
+                      appointmentId,
+                      confirmationRouteId: routeId
+                    })
+                  },
+                  notificationProtection
+                )
+              : null
+            const statements: BatchStatement[] = [
               db.insert(appointments).select(
                 db
                   .select({
@@ -1503,21 +1559,9 @@ export const LiveBookingConfirmation = (
                   )
               ),
               db.insert(confirmationAccess).values(accessMetadata),
-              db.insert(notificationIntents).values(
-                confirmationNotificationIntent({
-                  id: notificationIntentId,
-                  shopId: row.shopId,
-                  appointmentId,
-                  customerEmail: row.session.customerEmail,
-                  snapshot,
-                  confirmationRouteId: routeId,
-                  now: input.now
-                })
-              ),
               db.insert(bookingOutbox).values({
                 id: outboxId,
                 appointmentId,
-                notificationIntentId,
                 kind: 'appointment.created',
                 traceId: input.traceId,
                 createdAt: input.now
@@ -1557,6 +1601,8 @@ export const LiveBookingConfirmation = (
                   )
                 )
             ]
+            if (preparedIntent)
+              statements.push(...notificationIntentMutationStatements(preparedIntent))
             const committed = yield* Effect.result(batch(db, statements))
             if (committed._tag === 'Failure') {
               const replayAfterFailure = yield* Effect.result(readCommitted(session.id))

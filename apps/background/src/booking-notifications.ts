@@ -3,21 +3,18 @@ import { HttpBody, HttpClient } from 'effect/unstable/http'
 import {
   BookingNotificationOutbox,
   deriveConfirmationToken,
-  planBookingWhatsAppConfirmation,
   type BookingNotificationWork,
   type ConfirmationSigningKeyring
 } from '@b2b-saas-starter/capabilities/booking'
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform'
 import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { AppointmentConfirmationEmail, EmailDispatcher } from '@b2b-saas-starter/email'
-import { WhatsAppDispatcher } from './whatsapp.ts'
 
 export const BOOKING_RETRY_DELAYS = [30, 60, 90, 120, 150, 180] as const
 export type OperationalEmailProviderState =
   | 'disabled'
   | 'needs_configuration'
   | 'configured'
-export type OperationalWhatsAppProviderState = 'capture' | 'needs_configuration'
 
 export const classifyBookingResponse = (
   statusCode: number | null,
@@ -93,7 +90,7 @@ const sendEmail = (
     const dispatcher = yield* EmailDispatcher
     const url = yield* confirmationUrl(work, publicOrigin, keyring)
     yield* dispatcher.send({
-      idempotencyKey: work.notificationIntentId,
+      idempotencyKey: work.outboxId,
       from: '',
       to: work.snapshot.customerDetails.email,
       subject: 'Your appointment is confirmed',
@@ -114,64 +111,23 @@ const sendEmail = (
     })
   })
 
-const sendWhatsApp = (
-  work: BookingNotificationWork,
-  publicOrigin: string,
-  keyring: ConfirmationSigningKeyring
-) =>
-  Effect.gen(function* () {
-    const dispatcher = yield* WhatsAppDispatcher
-    const url = yield* confirmationUrl(work, publicOrigin, keyring)
-    const request = planBookingWhatsAppConfirmation(work, url)
-    if (request) yield* dispatcher.send(request)
-  })
-
 export const processBookingOutbox = (input: {
   readonly outboxId: string
   readonly now: string
   readonly publicOrigin: string
   readonly emailProviderState: OperationalEmailProviderState
-  readonly whatsappProviderState: OperationalWhatsAppProviderState
   readonly confirmationKeyring: ConfirmationSigningKeyring
   readonly scheduleRetry?: (outboxId: string, delaySeconds: number) => Promise<unknown>
 }): Effect.Effect<
   void,
   CapabilityUnavailable,
-  | BookingNotificationOutbox
-  | EmailDispatcher
-  | WhatsAppDispatcher
-  | HttpClient.HttpClient
+  BookingNotificationOutbox | EmailDispatcher | HttpClient.HttpClient
 > =>
   Effect.gen(function* () {
     const store = yield* BookingNotificationOutbox
     const work = yield* store.claim(input.outboxId, input.now)
     if (!work) return
     let emailRetryPending = false
-    let whatsappRetryPending = false
-
-    if (work.whatsappStatus === 'pending') {
-      if (input.whatsappProviderState === 'needs_configuration')
-        yield* store.recordWhatsApp(work.outboxId, 'needs_configuration')
-      else if (!work.snapshot.customerDetails.phone)
-        yield* store.recordWhatsApp(work.outboxId, 'ineligible')
-      else {
-        const outcome = yield* Effect.result(
-          sendWhatsApp(work, input.publicOrigin, input.confirmationKeyring).pipe(
-            Effect.annotateLogs({ traceId: work.traceId, outboxId: work.outboxId })
-          )
-        )
-        if (Result.isSuccess(outcome))
-          yield* store.recordWhatsApp(work.outboxId, 'captured')
-        else {
-          whatsappRetryPending = true
-          if (input.scheduleRetry)
-            yield* Effect.promise(() => input.scheduleRetry!(work.outboxId, 30)).pipe(
-              Effect.catch(() => Effect.void)
-            )
-        }
-      }
-    }
-
     if (
       work.emailStatus === 'pending' ||
       work.emailStatus === 'needs_configuration' ||
@@ -368,7 +324,7 @@ export const processBookingOutbox = (input: {
       }
     }
     const notificationStatus =
-      pending || emailRetryPending || whatsappRetryPending
+      pending || emailRetryPending
         ? 'pending'
         : deadLettered
           ? 'dead_lettered'
@@ -376,7 +332,7 @@ export const processBookingOutbox = (input: {
     yield* store.finish(
       work.outboxId,
       notificationStatus,
-      pending || emailRetryPending || whatsappRetryPending ? null : input.now
+      pending || emailRetryPending ? null : input.now
     )
     yield* Effect.log('booking.notifications.processed', {
       traceId: work.traceId,

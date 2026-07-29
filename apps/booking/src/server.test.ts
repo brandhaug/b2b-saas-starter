@@ -11,7 +11,10 @@ vi.mock('cloudflare:workers', () => ({
     DB: {} as D1Database,
     PUBLIC_SITE_ORIGIN: 'http://localhost:3071',
     CONFIRMATION_CURRENT_KEY_ID: 'test',
-    CONFIRMATION_SIGNING_KEYS: '{"test":"test-key"}'
+    CONFIRMATION_SIGNING_KEYS: '{"test":"test-key"}',
+    OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY: 'test-encryption-key',
+    OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY: 'test-fingerprint-key',
+    OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION: '1'
   }
 }))
 
@@ -62,10 +65,24 @@ describe('Booking Worker entry', () => {
   })
 
   it('keeps committed success visible when the queue wake-up fails', async () => {
-    const committed = { outboxId: 'obx_committed', appointmentId: 'apt_committed' }
+    const committed = {
+      outboxId: 'obx_committed',
+      outboxIds: ['obx_committed'],
+      notificationIntentIds: ['nti_committed'],
+      appointmentId: 'apt_committed'
+    }
     const queue = { send: vi.fn().mockRejectedValue(new Error('queue unavailable')) }
     await expect(publishBookingWakeUp(queue, committed)).resolves.toBe(committed)
-    expect(queue.send).toHaveBeenCalledWith({ outboxId: 'obx_committed' })
+    expect(queue.send).toHaveBeenNthCalledWith(1, {
+      version: 1,
+      kind: 'booking-outbox',
+      outboxId: 'obx_committed'
+    })
+    expect(queue.send).toHaveBeenNthCalledWith(2, {
+      version: 1,
+      kind: 'notification-intent',
+      intentId: 'nti_committed'
+    })
   })
 
   it('accepts only provider-verified callback facts for reconciliation', async () => {

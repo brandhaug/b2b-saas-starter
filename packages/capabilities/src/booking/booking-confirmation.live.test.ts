@@ -13,6 +13,9 @@ import {
   layerFromD1,
   merchants,
   notificationIntents,
+  notificationIntentControlledFacts,
+  protectedMessagingDestinations,
+  deliveryRoutes,
   providers,
   pricingAdjustments,
   pricingQuoteAcceptances,
@@ -45,6 +48,11 @@ const now = '2026-07-10T09:30:00.000Z'
 const keyring = {
   currentKeyId: 'current',
   keys: { current: 'test-current-key', old: 'test-old-key' }
+}
+const destinationSecrets = {
+  encryption: 'test-notification-encryption',
+  fingerprint: 'test-notification-fingerprint',
+  keyVersion: 1
 }
 const quote = {
   startsAt: '2026-07-13T09:00:00.000Z',
@@ -97,7 +105,7 @@ const seedSession = (id: string) =>
       lifecycle: 'active',
       customerName: 'Mia',
       customerEmail: 'mia@example.com',
-      customerPhone: '+1 555',
+      customerPhone: '+40722123456',
       providerPreference: 'any',
       primaryServiceId: null,
       createdAt: now,
@@ -205,7 +213,7 @@ afterAll(async () => test.dispose())
 
 describe('Live Booking Confirmation', () => {
   const layer = () =>
-    LiveBookingConfirmation(keyring).pipe(
+    LiveBookingConfirmation(keyring, destinationSecrets).pipe(
       Layer.provide(LivePaymentSettlement),
       Layer.provide(layerFromD1(test.d1))
     )
@@ -226,7 +234,11 @@ describe('Live Booking Confirmation', () => {
     expect(first.appointment.snapshot).toEqual({
       ...quote,
       merchantTimezone: 'America/New_York',
-      customerDetails: { name: 'Mia', email: 'mia@example.com', phone: '+1 555' },
+      customerDetails: {
+        name: 'Mia',
+        email: 'mia@example.com',
+        phone: '+40722123456'
+      },
       checkoutPath: 'pay_in_person',
       cancellationPolicy: {
         id: 'cancellation:default:v1',
@@ -305,7 +317,12 @@ describe('Live Booking Confirmation', () => {
             appointments: yield* db.select().from(appointments),
             access: yield* db.select().from(confirmationAccess),
             outbox: yield* db.select().from(bookingOutbox),
-            notificationIntents: yield* db.select().from(notificationIntents)
+            notificationIntents: yield* db.select().from(notificationIntents),
+            protectedDestinations: yield* db
+              .select()
+              .from(protectedMessagingDestinations),
+            controlledFacts: yield* db.select().from(notificationIntentControlledFacts),
+            routes: yield* db.select().from(deliveryRoutes)
           }
         }),
         layerFromD1(test.d1)
@@ -338,14 +355,34 @@ describe('Live Booking Confirmation', () => {
     expect(JSON.stringify(stored.outbox)).not.toContain(first.access.token)
     expect(stored.notificationIntents).toEqual([
       expect.objectContaining({
-        id: stored.outbox[0]!.notificationIntentId,
+        id: first.notificationIntentIds![0],
         shopId: 'shp_confirm',
-        topic: 'appointment.confirmed',
+        topic: 'appointment.confirmation',
         sourceType: 'appointment',
         sourceId: first.appointment.id,
-        deduplicationKey: `appointment.confirmed:${first.appointment.id}`,
-        status: 'pending'
+        sourceVersion: 1,
+        deduplicationKey: `confirmation:${first.appointment.id}:1`,
+        purpose: 'appointment_confirmation',
+        phase: 'ready',
+        status: 'pending',
+        traceId: 'trace_confirm'
       })
+    ])
+    expect(JSON.parse(stored.notificationIntents[0]!.payloadJson).permission).toEqual({
+      granted: false,
+      destinationFingerprint: stored.protectedDestinations[0]!.fingerprint
+    })
+    expect(stored.protectedDestinations).toEqual([
+      expect.objectContaining({
+        intentId: first.notificationIntentIds![0],
+        maskedValue: '+40•••••••456',
+        countryCode: 'RO'
+      })
+    ])
+    expect(stored.controlledFacts).toHaveLength(1)
+    expect(stored.routes).toEqual([
+      expect.objectContaining({ channel: 'whatsapp', ordinal: 0, state: 'planned' }),
+      expect.objectContaining({ channel: 'sms', ordinal: 1, state: 'planned' })
     ])
   })
 
@@ -723,7 +760,7 @@ describe('Live Booking Confirmation', () => {
               now: at
             })
           ),
-          LiveBookingConfirmation(keyringOverride).pipe(
+          LiveBookingConfirmation(keyringOverride, destinationSecrets).pipe(
             Layer.provide(LivePaymentSettlement),
             Layer.provide(layerFromD1(test.d1))
           )

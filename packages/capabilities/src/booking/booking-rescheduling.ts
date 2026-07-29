@@ -38,6 +38,10 @@ export type ReschedulableAppointment = {
   readonly startsAt: string
   readonly endsAt: string
   readonly snapshot: AppointmentRescheduleSnapshot
+  readonly notificationContext?: {
+    readonly locale: 'ro' | 'en'
+    readonly merchantLabel: string
+  }
 }
 
 export type RescheduleTimeSlotHold = {
@@ -144,6 +148,7 @@ export type RescheduleResult = {
   readonly appointment: ReschedulableAppointment
   readonly fromVersion: number
   readonly toVersion: number
+  readonly notificationIntentIds?: readonly string[]
   readonly replayed: boolean
 }
 
@@ -461,17 +466,6 @@ export const SeedBookingRescheduling = (
             )
               store.notificationIntents[index] = { ...intent, status: 'cancelled' }
           }
-          for (let index = 0; index < store.scheduledWork.length; index++) {
-            const work = store.scheduledWork[index]!
-            if (
-              work.appointmentId === appointment.id &&
-              work.appointmentVersion < toVersion &&
-              (work.status === 'pending' ||
-                work.status === 'running' ||
-                work.status === 'failed')
-            )
-              store.scheduledWork[index] = { ...work, status: 'cancelled' }
-          }
           if (replacement.reminderAt) {
             const deduplicationKey = `reminder:${appointment.id}:${toVersion}:${replacement.reminderAt}`
             if (
@@ -487,20 +481,6 @@ export const SeedBookingRescheduling = (
                 availableAt: replacement.reminderAt,
                 deduplicationKey
               })
-            const idempotencyKey = `work:${deduplicationKey}`
-            if (
-              !store.scheduledWork.some(
-                (work) => work.idempotencyKey === idempotencyKey
-              )
-            )
-              store.scheduledWork.push({
-                id: `scw_${stableSuffix(idempotencyKey)}`,
-                appointmentId: appointment.id,
-                appointmentVersion: toVersion,
-                status: 'pending',
-                runAt: replacement.reminderAt,
-                idempotencyKey
-              })
           }
           const committedSession: StoredSession = {
             ...session,
@@ -513,6 +493,13 @@ export const SeedBookingRescheduling = (
             appointment: next,
             fromVersion,
             toVersion,
+            notificationIntentIds: store.notificationIntents
+              .filter(
+                (intent) =>
+                  intent.appointmentId === appointment.id &&
+                  intent.appointmentVersion === toVersion
+              )
+              .map((intent) => intent.id),
             replayed: false
           }
           store.appointments.set(appointment.id, next)

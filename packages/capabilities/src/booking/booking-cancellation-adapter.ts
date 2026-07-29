@@ -4,17 +4,18 @@ import {
   appointmentCancellations,
   appointments,
   batch,
+  bookingParties,
+  bookingSessions,
   cancellationCommands,
   Database,
   lifecycleHistory,
-  notificationIntents,
   giftCardLedgerEntries,
   paymentTransactions,
   payments,
   refundObligationEvents,
   refundObligationAllocations,
   refundObligations,
-  scheduledWork,
+  shops,
   settlementAllocations,
   type StoredAppointmentSnapshot
 } from '@b2b-saas-starter/db'
@@ -29,6 +30,15 @@ import {
   type RefundAllocation,
   type RefundObligation
 } from './booking-cancellation.ts'
+import {
+  deriveNotificationDestinationProtection,
+  hasNotificationDestinationProtection,
+  notificationIntentMutationStatements,
+  prepareBookingIntentMutation,
+  supersedeObsoleteBookingIntentMutations
+} from '../notifications/index.ts'
+import type { NotificationDestinationProtectionSecrets } from '../notifications/index.ts'
+import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
 
 const stableSuffix = (value: string) => {
   let hash = 2166136261
@@ -88,510 +98,577 @@ const distributeAllocations = (
   return result
 }
 
-export const LiveBookingCancellations: Layer.Layer<
-  BookingCancellations,
-  never,
-  Database
-> = Layer.effect(
-  BookingCancellations,
-  Effect.gen(function* () {
-    const db = yield* Database
-    const loadRecords = (input: {
-      readonly merchantId: string
-      readonly appointmentId?: string
-      readonly bookingPartyId?: string
-    }) =>
-      Effect.gen(function* () {
-        const rows = yield* orUnavailable('booking-cancellations')(
-          db
-            .select()
-            .from(appointments)
-            .where(
-              and(
-                eq(appointments.merchantId, input.merchantId),
-                input.appointmentId
-                  ? eq(appointments.id, input.appointmentId)
-                  : eq(appointments.bookingPartyId, input.bookingPartyId!)
-              )
-            )
-            .orderBy(asc(appointments.createdAt), asc(appointments.id))
-        )
-        if (rows.length === 0) return []
-        const partyId = rows[0]?.bookingPartyId
-        const allPartyRows = partyId
-          ? yield* orUnavailable('booking-cancellations')(
-              db
-                .select()
-                .from(appointments)
-                .where(eq(appointments.bookingPartyId, partyId))
-                .orderBy(asc(appointments.createdAt), asc(appointments.id))
-            )
-          : rows
-        const allocations = partyId
-          ? yield* orUnavailable('booking-cancellations')(
-              db
-                .select()
-                .from(settlementAllocations)
-                .where(eq(settlementAllocations.bookingPartyId, partyId))
-                .orderBy(
-                  asc(settlementAllocations.createdAt),
-                  asc(settlementAllocations.id)
-                )
-            )
-          : []
-        const distributed = distributeAllocations(allPartyRows, allocations)
-        return rows.flatMap((row): CancellableAppointment[] => {
-          if (!row.snapshot) return []
-          const snapshot = row.snapshot as StoredAppointmentSnapshot
-          return [
-            {
-              id: row.id,
-              merchantId: row.merchantId,
-              bookingPartyId: row.bookingPartyId,
-              status: row.status,
-              version: row.version,
-              startsAt: row.startsAt,
-              totalMinor: snapshot.totalMinor,
-              currency: snapshot.currency,
-              cancellationPolicy:
-                snapshot.cancellationPolicy ?? defaultCancellationPolicy,
-              refundPolicy: snapshot.refundPolicy ?? defaultRefundPolicy,
-              settlementAllocations: distributed.get(row.id) ?? []
-            }
-          ]
-        })
-      })
-
-    const readObligations = (ids: readonly string[]) =>
-      Effect.gen(function* () {
-        if (ids.length === 0) return []
-        const rows = yield* orUnavailable('booking-cancellations')(
-          db.select().from(refundObligations).where(inArray(refundObligations.id, ids))
-        )
-        const allocations = yield* orUnavailable('booking-cancellations')(
-          db
-            .select()
-            .from(refundObligationAllocations)
-            .where(inArray(refundObligationAllocations.refundObligationId, ids))
-            .orderBy(asc(refundObligationAllocations.position))
-        )
-        return rows.map(
-          (row): RefundObligation => ({
-            id: row.id,
-            appointmentId: row.appointmentId,
-            bookingPartyId: row.bookingPartyId,
-            status: row.status,
-            amountMinor: row.amountMinor,
-            currency: row.currency,
-            allocations: allocations
-              .filter((allocation) => allocation.refundObligationId === row.id)
-              .map(({ tender, referenceId, amountMinor }) => ({
-                tender,
-                referenceId,
-                amountMinor
-              })),
-            idempotencyKey: row.idempotencyKey,
-            attemptCount: row.attemptCount,
-            failureCode: row.failureCode,
-            providerEventId: row.providerEventId,
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt
-          })
-        )
-      })
-
-    const readCommand = (command: typeof cancellationCommands.$inferSelect) =>
-      Effect.gen(function* () {
-        const result = command.resultJson
-        if (!result)
-          return yield* new CapabilityUnavailable({
-            capability: 'booking-cancellations',
-            reason: 'cancellation_result_missing'
-          })
-        const records = yield* loadRecords({
-          merchantId: command.merchantId,
-          ...(command.scope === 'appointment'
-            ? { appointmentId: command.targetId }
-            : { bookingPartyId: command.targetId })
-        })
-        const obligations = yield* readObligations(result.refundObligationIds)
-        return {
-          commandId: command.id,
-          scope:
-            command.scope === 'appointment'
-              ? ({ kind: 'appointment', appointmentId: command.targetId } as const)
-              : ({ kind: 'party', bookingPartyId: command.targetId } as const),
-          appointments: records,
-          refundObligations: obligations,
-          replayed: true
-        } satisfies CancellationResult
-      })
-
-    return {
-      evaluate: (input) =>
+export const makeLiveBookingCancellations = (
+  destinationSecrets?: NotificationDestinationProtectionSecrets
+): Layer.Layer<BookingCancellations, never, Database> =>
+  Layer.effect(
+    BookingCancellations,
+    Effect.gen(function* () {
+      const db = yield* Database
+      const notificationProtection = hasNotificationDestinationProtection(
+        destinationSecrets
+      )
+        ? yield* deriveNotificationDestinationProtection(destinationSecrets)
+        : null
+      const loadRecords = (input: {
+        readonly merchantId: string
+        readonly appointmentId?: string
+        readonly bookingPartyId?: string
+      }) =>
         Effect.gen(function* () {
-          const [record] = yield* loadRecords({
-            merchantId: input.merchantId,
-            appointmentId: input.appointmentId
-          })
-          return record
-            ? evaluateCancellation(record, input.now)
-            : yield* new BookingCancellationRejected({
-                code: 'appointment_not_found'
-              })
-        }),
-      cancel: (input) =>
-        Effect.gen(function* () {
-          const [replay] = yield* orUnavailable('booking-cancellations')(
+          const rows = yield* orUnavailable('booking-cancellations')(
             db
               .select()
-              .from(cancellationCommands)
+              .from(appointments)
               .where(
                 and(
-                  eq(cancellationCommands.merchantId, input.merchantId),
-                  eq(cancellationCommands.idempotencyKey, input.idempotencyKey)
+                  eq(appointments.merchantId, input.merchantId),
+                  input.appointmentId
+                    ? eq(appointments.id, input.appointmentId)
+                    : eq(appointments.bookingPartyId, input.bookingPartyId!)
                 )
               )
-              .limit(1)
+              .orderBy(asc(appointments.createdAt), asc(appointments.id))
           )
-          const scope = input.scope
-          const targetId =
-            scope.kind === 'appointment' ? scope.appointmentId : scope.bookingPartyId
-          if (replay) {
-            if (replay.scope !== scope.kind || replay.targetId !== targetId)
-              return yield* new BookingCancellationRejected({
-                code: 'idempotency_key_reused'
-              })
-            return yield* readCommand(replay)
-          }
-          const [existing] = yield* orUnavailable('booking-cancellations')(
-            db
-              .select()
-              .from(cancellationCommands)
-              .where(
-                and(
-                  eq(cancellationCommands.merchantId, input.merchantId),
-                  eq(cancellationCommands.scope, scope.kind),
-                  eq(cancellationCommands.targetId, targetId)
-                )
+          if (rows.length === 0) return []
+          const partyId = rows[0]?.bookingPartyId
+          const allPartyRows = partyId
+            ? yield* orUnavailable('booking-cancellations')(
+                db
+                  .select()
+                  .from(appointments)
+                  .where(eq(appointments.bookingPartyId, partyId))
+                  .orderBy(asc(appointments.createdAt), asc(appointments.id))
               )
-              .limit(1)
-          )
-          if (existing) return yield* readCommand(existing)
-          const records = yield* loadRecords({
-            merchantId: input.merchantId,
-            ...(scope.kind === 'appointment'
-              ? { appointmentId: scope.appointmentId }
-              : { bookingPartyId: scope.bookingPartyId })
+            : rows
+          const allocations = partyId
+            ? yield* orUnavailable('booking-cancellations')(
+                db
+                  .select()
+                  .from(settlementAllocations)
+                  .where(eq(settlementAllocations.bookingPartyId, partyId))
+                  .orderBy(
+                    asc(settlementAllocations.createdAt),
+                    asc(settlementAllocations.id)
+                  )
+              )
+            : []
+          const distributed = distributeAllocations(allPartyRows, allocations)
+          return rows.flatMap((row): CancellableAppointment[] => {
+            if (!row.snapshot) return []
+            const snapshot = row.snapshot as StoredAppointmentSnapshot
+            return [
+              {
+                id: row.id,
+                merchantId: row.merchantId,
+                bookingPartyId: row.bookingPartyId,
+                status: row.status,
+                version: row.version,
+                startsAt: row.startsAt,
+                totalMinor: snapshot.totalMinor,
+                currency: snapshot.currency,
+                cancellationPolicy:
+                  snapshot.cancellationPolicy ?? defaultCancellationPolicy,
+                refundPolicy: snapshot.refundPolicy ?? defaultRefundPolicy,
+                settlementAllocations: distributed.get(row.id) ?? []
+              }
+            ]
           })
-          if (records.length === 0)
-            return yield* new BookingCancellationRejected({
-              code:
-                scope.kind === 'appointment'
-                  ? 'appointment_not_found'
-                  : 'party_not_found'
-            })
-          const evaluations = records.map((record) =>
-            evaluateCancellation(record, input.now)
-          )
-          if (evaluations.some((evaluation) => !evaluation.cancellation.eligible))
-            return yield* new BookingCancellationRejected({
-              code: 'cancellation_ineligible'
-            })
-          const commandId = `ccm_${stableSuffix(`${input.merchantId}:${input.idempotencyKey}`)}`
-          const obligationRows = evaluations.flatMap((evaluation, index) =>
-            evaluation.refund.entitled
-              ? [
-                  {
-                    id: `rfo_${stableSuffix(`${input.idempotencyKey}:${records[index]!.id}`)}`,
-                    appointmentId: records[index]!.id,
-                    bookingPartyId: records[index]!.bookingPartyId,
-                    amountMinor: evaluation.refund.amountMinor,
-                    currency: evaluation.refund.currency,
-                    idempotencyKey: `refund:${records[index]!.id}`,
-                    createdAt: input.now,
-                    updatedAt: input.now,
-                    allocations: evaluation.refund.allocations
-                  }
-                ]
-              : []
-          )
-          const concurrentCommand = yield* orUnavailable('booking-cancellations')(
-            batch(db, [
-              db.insert(cancellationCommands).values({
-                id: commandId,
-                merchantId: input.merchantId,
-                scope: scope.kind,
-                targetId,
-                idempotencyKey: input.idempotencyKey,
-                resultJson: {
-                  appointmentIds: records.map((record) => record.id),
-                  refundObligationIds: obligationRows.map((row) => row.id)
-                },
-                createdAt: input.now
-              }),
-              ...records.flatMap((record, index) => {
-                const evaluation = evaluations[index]!
-                return [
-                  db.insert(appointmentCancellations).values({
-                    id: `acn_${stableSuffix(`${input.idempotencyKey}:${record.id}`)}`,
-                    appointmentId: record.id,
-                    commandId,
-                    appointmentVersion: record.version,
-                    reasonCode: input.reason,
-                    cancellationPolicyId: evaluation.cancellation.policyId,
-                    cancellationPolicyVersion: evaluation.cancellation.policyVersion,
-                    refundPolicyId: evaluation.refund.policyId,
-                    refundPolicyVersion: evaluation.refund.policyVersion,
-                    cancelledAt: input.now,
-                    createdAt: input.now
-                  }),
-                  db.insert(lifecycleHistory).values({
-                    id: `alh_${stableSuffix(`${input.idempotencyKey}:${record.id}`)}`,
-                    aggregateType: 'appointment',
-                    aggregateId: record.id,
-                    fromState: 'scheduled',
-                    toState: 'cancelled',
-                    reasonCode: input.reason,
-                    factsJson: JSON.stringify({
-                      cancellationPolicyId: evaluation.cancellation.policyId,
-                      cancellationPolicyVersion: evaluation.cancellation.policyVersion,
-                      refundPolicyId: evaluation.refund.policyId,
-                      refundPolicyVersion: evaluation.refund.policyVersion
-                    }),
-                    occurredAt: input.now,
-                    createdAt: input.now
-                  }),
-                  db
-                    .update(appointments)
-                    .set({
-                      status: 'cancelled',
-                      version: record.version + 1,
-                      updatedAt: input.now
-                    })
-                    .where(
-                      and(
-                        eq(appointments.id, record.id),
-                        eq(appointments.status, 'scheduled'),
-                        eq(appointments.version, record.version)
-                      )
-                    ),
-                  db
-                    .update(notificationIntents)
-                    .set({ status: 'cancelled', updatedAt: input.now })
-                    .where(
-                      and(
-                        eq(notificationIntents.sourceType, 'appointment'),
-                        eq(notificationIntents.sourceId, record.id),
-                        inArray(notificationIntents.status, [
-                          'pending',
-                          'processing',
-                          'failed'
-                        ])
-                      )
-                    ),
-                  db
-                    .update(scheduledWork)
-                    .set({ status: 'cancelled', updatedAt: input.now })
-                    .where(
-                      and(
-                        eq(scheduledWork.sourceType, 'appointment'),
-                        eq(scheduledWork.sourceId, record.id),
-                        inArray(scheduledWork.status, ['pending', 'running', 'failed'])
-                      )
-                    )
-                ]
-              }),
-              ...obligationRows.flatMap((row) => [
-                db.insert(refundObligations).values({
-                  id: row.id,
-                  appointmentId: row.appointmentId,
-                  bookingPartyId: row.bookingPartyId,
-                  amountMinor: row.amountMinor,
-                  currency: row.currency,
-                  idempotencyKey: row.idempotencyKey,
-                  createdAt: row.createdAt,
-                  updatedAt: row.updatedAt
-                }),
-                ...row.allocations.map((allocation, position) =>
-                  db.insert(refundObligationAllocations).values({
-                    refundObligationId: row.id,
-                    position,
-                    ...allocation
-                  })
-                )
-              ])
-            ])
-          ).pipe(
-            Effect.as(null),
-            Effect.catchTag('CapabilityUnavailable', (error) =>
-              Effect.gen(function* () {
-                const [command] = yield* orUnavailable('booking-cancellations')(
-                  db
-                    .select()
-                    .from(cancellationCommands)
-                    .where(
-                      and(
-                        eq(cancellationCommands.merchantId, input.merchantId),
-                        eq(cancellationCommands.scope, scope.kind),
-                        eq(cancellationCommands.targetId, targetId)
-                      )
-                    )
-                    .limit(1)
-                )
-                if (command) return command
-                return yield* error
-              })
-            )
-          )
-          if (concurrentCommand) return yield* readCommand(concurrentCommand)
-          const [stored] = yield* orUnavailable('booking-cancellations')(
-            db
-              .select()
-              .from(cancellationCommands)
-              .where(eq(cancellationCommands.id, commandId))
-              .limit(1)
-          )
-          if (!stored)
-            return yield* new CapabilityUnavailable({
-              capability: 'booking-cancellations',
-              reason: 'cancellation_commit_missing'
-            })
-          const result = yield* readCommand(stored)
-          return { ...result, replayed: false }
-        }),
-      recordRefundOutcome: (input) =>
+        })
+
+      const readObligations = (ids: readonly string[]) =>
         Effect.gen(function* () {
-          const [eventReplay] = yield* orUnavailable('booking-cancellations')(
-            db
-              .select()
-              .from(refundObligationEvents)
-              .where(eq(refundObligationEvents.providerEventId, input.providerEventId))
-              .limit(1)
-          )
-          if (eventReplay) {
-            if (eventReplay.refundObligationId !== input.obligationId)
-              return yield* new BookingCancellationRejected({
-                code: 'idempotency_key_reused'
-              })
-            return (yield* readObligations([eventReplay.refundObligationId]))[0]!
-          }
-          const [current] = yield* orUnavailable('booking-cancellations')(
+          if (ids.length === 0) return []
+          const rows = yield* orUnavailable('booking-cancellations')(
             db
               .select()
               .from(refundObligations)
-              .where(eq(refundObligations.id, input.obligationId))
-              .limit(1)
+              .where(inArray(refundObligations.id, ids))
           )
-          if (!current)
-            return yield* new BookingCancellationRejected({
-              code: 'refund_obligation_not_found'
+          const allocations = yield* orUnavailable('booking-cancellations')(
+            db
+              .select()
+              .from(refundObligationAllocations)
+              .where(inArray(refundObligationAllocations.refundObligationId, ids))
+              .orderBy(asc(refundObligationAllocations.position))
+          )
+          return rows.map(
+            (row): RefundObligation => ({
+              id: row.id,
+              appointmentId: row.appointmentId,
+              bookingPartyId: row.bookingPartyId,
+              status: row.status,
+              amountMinor: row.amountMinor,
+              currency: row.currency,
+              allocations: allocations
+                .filter((allocation) => allocation.refundObligationId === row.id)
+                .map(({ tender, referenceId, amountMinor }) => ({
+                  tender,
+                  referenceId,
+                  amountMinor
+                })),
+              idempotencyKey: row.idempotencyKey,
+              attemptCount: row.attemptCount,
+              failureCode: row.failureCode,
+              providerEventId: row.providerEventId,
+              createdAt: row.createdAt,
+              updatedAt: row.updatedAt
             })
-          if (current.status === 'succeeded' || current.status === 'failed_terminal')
-            return yield* new BookingCancellationRejected({
-              code: 'refund_obligation_terminal'
+          )
+        })
+
+      const readCommand = (command: typeof cancellationCommands.$inferSelect) =>
+        Effect.gen(function* () {
+          const result = command.resultJson
+          if (!result)
+            return yield* new CapabilityUnavailable({
+              capability: 'booking-cancellations',
+              reason: 'cancellation_result_missing'
             })
-          const allocations = (yield* readObligations([current.id]))[0]!.allocations
-          const external = allocations.filter(
-            (allocation) => allocation.tender === 'external_payment'
-          )
-          const giftCards = allocations.filter(
-            (allocation) => allocation.tender === 'gift_card'
-          )
-          const concurrentEvent = yield* orUnavailable('booking-cancellations')(
-            batch(db, [
-              db.insert(refundObligationEvents).values({
-                id: `roe_${stableSuffix(input.providerEventId)}`,
-                refundObligationId: current.id,
-                providerEventId: input.providerEventId,
-                outcome: input.outcome,
-                failureCode:
-                  input.outcome === 'succeeded'
-                    ? null
-                    : (input.failureCode ?? 'unknown'),
-                expectedAttemptCount: current.attemptCount,
-                occurredAt: input.now,
-                createdAt: input.now
-              }),
-              ...(input.outcome === 'succeeded'
-                ? [
-                    ...external.map((allocation, index) =>
-                      db
-                        .insert(paymentTransactions)
-                        .values({
-                          id: `ptx_${stableSuffix(`${current.id}:external:${index}`)}`,
-                          paymentId: allocation.referenceId!,
-                          kind: 'refund' as const,
-                          amountMinor: allocation.amountMinor,
-                          currency: current.currency,
-                          providerReference: `${input.providerEventId}:${index}`,
-                          occurredAt: input.now,
-                          createdAt: input.now
-                        })
-                        .onConflictDoNothing()
-                    ),
-                    ...external.map((allocation) =>
-                      db
-                        .update(payments)
-                        .set({
-                          refundedMinor: sql`${payments.refundedMinor} + ${allocation.amountMinor}`,
-                          status: sql`CASE WHEN ${payments.refundedMinor} + ${allocation.amountMinor} >= ${payments.capturedMinor} THEN 'refunded' ELSE 'partially_refunded' END`,
-                          updatedAt: input.now
-                        })
-                        .where(eq(payments.id, allocation.referenceId!))
-                    ),
-                    ...giftCards.map((allocation, index) =>
-                      db
-                        .insert(giftCardLedgerEntries)
-                        .values({
-                          id: `gcl_${stableSuffix(`${current.id}:gift-card:${index}`)}`,
-                          giftCardId: allocation.referenceId!,
-                          kind: 'refund' as const,
-                          amountMinor: allocation.amountMinor,
-                          bookingPartyId: current.bookingPartyId,
-                          idempotencyKey: `refund-obligation:${current.id}:${index}`,
-                          occurredAt: input.now,
-                          createdAt: input.now
-                        })
-                        .onConflictDoNothing()
-                    )
-                  ]
-                : []),
+          const records = yield* loadRecords({
+            merchantId: command.merchantId,
+            ...(command.scope === 'appointment'
+              ? { appointmentId: command.targetId }
+              : { bookingPartyId: command.targetId })
+          })
+          const obligations = yield* readObligations(result.refundObligationIds)
+          return {
+            commandId: command.id,
+            scope:
+              command.scope === 'appointment'
+                ? ({ kind: 'appointment', appointmentId: command.targetId } as const)
+                : ({ kind: 'party', bookingPartyId: command.targetId } as const),
+            appointments: records,
+            refundObligations: obligations,
+            notificationIntentIds: result.notificationIntentIds ?? [],
+            replayed: true
+          } satisfies CancellationResult
+        })
+
+      return {
+        evaluate: (input) =>
+          Effect.gen(function* () {
+            const [record] = yield* loadRecords({
+              merchantId: input.merchantId,
+              appointmentId: input.appointmentId
+            })
+            return record
+              ? evaluateCancellation(record, input.now)
+              : yield* new BookingCancellationRejected({
+                  code: 'appointment_not_found'
+                })
+          }),
+        cancel: (input) =>
+          Effect.gen(function* () {
+            const [replay] = yield* orUnavailable('booking-cancellations')(
               db
-                .update(refundObligations)
-                .set({
-                  status: input.outcome,
-                  attemptCount: current.attemptCount + 1,
+                .select()
+                .from(cancellationCommands)
+                .where(
+                  and(
+                    eq(cancellationCommands.merchantId, input.merchantId),
+                    eq(cancellationCommands.idempotencyKey, input.idempotencyKey)
+                  )
+                )
+                .limit(1)
+            )
+            const scope = input.scope
+            const targetId =
+              scope.kind === 'appointment' ? scope.appointmentId : scope.bookingPartyId
+            if (replay) {
+              if (replay.scope !== scope.kind || replay.targetId !== targetId)
+                return yield* new BookingCancellationRejected({
+                  code: 'idempotency_key_reused'
+                })
+              return yield* readCommand(replay)
+            }
+            const [existing] = yield* orUnavailable('booking-cancellations')(
+              db
+                .select()
+                .from(cancellationCommands)
+                .where(
+                  and(
+                    eq(cancellationCommands.merchantId, input.merchantId),
+                    eq(cancellationCommands.scope, scope.kind),
+                    eq(cancellationCommands.targetId, targetId)
+                  )
+                )
+                .limit(1)
+            )
+            if (existing) return yield* readCommand(existing)
+            const records = yield* loadRecords({
+              merchantId: input.merchantId,
+              ...(scope.kind === 'appointment'
+                ? { appointmentId: scope.appointmentId }
+                : { bookingPartyId: scope.bookingPartyId })
+            })
+            if (records.length === 0)
+              return yield* new BookingCancellationRejected({
+                code:
+                  scope.kind === 'appointment'
+                    ? 'appointment_not_found'
+                    : 'party_not_found'
+              })
+            const evaluations = records.map((record) =>
+              evaluateCancellation(record, input.now)
+            )
+            if (evaluations.some((evaluation) => !evaluation.cancellation.eligible))
+              return yield* new BookingCancellationRejected({
+                code: 'cancellation_ineligible'
+              })
+            const commandId = `ccm_${stableSuffix(`${input.merchantId}:${input.idempotencyKey}`)}`
+            const obligationRows = evaluations.flatMap((evaluation, index) =>
+              evaluation.refund.entitled
+                ? [
+                    {
+                      id: `rfo_${stableSuffix(`${input.idempotencyKey}:${records[index]!.id}`)}`,
+                      appointmentId: records[index]!.id,
+                      bookingPartyId: records[index]!.bookingPartyId,
+                      amountMinor: evaluation.refund.amountMinor,
+                      currency: evaluation.refund.currency,
+                      idempotencyKey: `refund:${records[index]!.id}`,
+                      createdAt: input.now,
+                      updatedAt: input.now,
+                      allocations: evaluation.refund.allocations
+                    }
+                  ]
+                : []
+            )
+            const notificationRows = yield* orUnavailable('booking-cancellations')(
+              db
+                .select({
+                  appointment: appointments,
+                  party: bookingParties,
+                  shop: shops,
+                  session: bookingSessions
+                })
+                .from(appointments)
+                .innerJoin(
+                  bookingParties,
+                  eq(bookingParties.id, appointments.bookingPartyId)
+                )
+                .innerJoin(shops, eq(shops.id, bookingParties.shopId))
+                .innerJoin(
+                  bookingSessions,
+                  eq(bookingSessions.id, bookingParties.bookingSessionId)
+                )
+                .where(
+                  inArray(
+                    appointments.id,
+                    records.map((record) => record.id)
+                  )
+                )
+            )
+            const preparedIntents = yield* Effect.forEach(records, (record) => {
+              const notification = notificationRows.find(
+                (candidate) => candidate.appointment.id === record.id
+              )
+              const snapshot = notification?.appointment.snapshot
+              if (!notification || !snapshot) return Effect.succeed(null)
+              const sourceVersion = record.version + 1
+              const locale = notification.session.locale === 'ro' ? 'ro' : 'en'
+              return notificationProtection
+                ? prepareBookingIntentMutation(
+                    db,
+                    {
+                      shopId: notification.shop.id,
+                      sourceId: record.id,
+                      sourceVersion,
+                      semanticDeduplicationKey: `cancellation:${record.id}:${sourceVersion}`,
+                      rawDestination: snapshot.customerDetails.phone,
+                      permissionGranted: false,
+                      purpose: 'appointment_cancellation',
+                      locale,
+                      availableAt: input.now,
+                      appointmentStartsAt: record.startsAt,
+                      createdAt: input.now,
+                      traceId: `cancellation:${commandId}`,
+                      facts: appointmentOperationalNotificationFacts({
+                        purpose: 'appointment_cancellation',
+                        locale,
+                        merchantLabel: notification.shop.publicName,
+                        startsAt: record.startsAt,
+                        timeZone: snapshot.merchantTimezone,
+                        appointmentId: record.id
+                      })
+                    },
+                    notificationProtection
+                  )
+                : Effect.succeed(null)
+            })
+            const notificationIntentIds = preparedIntents.flatMap((intent) =>
+              intent ? [intent.intentId] : []
+            )
+            const concurrentCommand = yield* orUnavailable('booking-cancellations')(
+              batch(db, [
+                db.insert(cancellationCommands).values({
+                  id: commandId,
+                  merchantId: input.merchantId,
+                  scope: scope.kind,
+                  targetId,
+                  idempotencyKey: input.idempotencyKey,
+                  resultJson: {
+                    appointmentIds: records.map((record) => record.id),
+                    refundObligationIds: obligationRows.map((row) => row.id),
+                    notificationIntentIds
+                  },
+                  createdAt: input.now
+                }),
+                ...records.flatMap((record, index) => {
+                  const evaluation = evaluations[index]!
+                  return [
+                    db.insert(appointmentCancellations).values({
+                      id: `acn_${stableSuffix(`${input.idempotencyKey}:${record.id}`)}`,
+                      appointmentId: record.id,
+                      commandId,
+                      appointmentVersion: record.version,
+                      reasonCode: input.reason,
+                      cancellationPolicyId: evaluation.cancellation.policyId,
+                      cancellationPolicyVersion: evaluation.cancellation.policyVersion,
+                      refundPolicyId: evaluation.refund.policyId,
+                      refundPolicyVersion: evaluation.refund.policyVersion,
+                      cancelledAt: input.now,
+                      createdAt: input.now
+                    }),
+                    db.insert(lifecycleHistory).values({
+                      id: `alh_${stableSuffix(`${input.idempotencyKey}:${record.id}`)}`,
+                      aggregateType: 'appointment',
+                      aggregateId: record.id,
+                      fromState: 'scheduled',
+                      toState: 'cancelled',
+                      reasonCode: input.reason,
+                      factsJson: JSON.stringify({
+                        cancellationPolicyId: evaluation.cancellation.policyId,
+                        cancellationPolicyVersion:
+                          evaluation.cancellation.policyVersion,
+                        refundPolicyId: evaluation.refund.policyId,
+                        refundPolicyVersion: evaluation.refund.policyVersion
+                      }),
+                      occurredAt: input.now,
+                      createdAt: input.now
+                    }),
+                    db
+                      .update(appointments)
+                      .set({
+                        status: 'cancelled',
+                        version: record.version + 1,
+                        updatedAt: input.now
+                      })
+                      .where(
+                        and(
+                          eq(appointments.id, record.id),
+                          eq(appointments.status, 'scheduled'),
+                          eq(appointments.version, record.version)
+                        )
+                      ),
+                    ...supersedeObsoleteBookingIntentMutations(db, {
+                      sourceId: record.id,
+                      beforeVersion: record.version + 1,
+                      now: input.now
+                    }),
+                    ...(preparedIntents[index]
+                      ? notificationIntentMutationStatements(preparedIntents[index]!)
+                      : [])
+                  ]
+                }),
+                ...obligationRows.flatMap((row) => [
+                  db.insert(refundObligations).values({
+                    id: row.id,
+                    appointmentId: row.appointmentId,
+                    bookingPartyId: row.bookingPartyId,
+                    amountMinor: row.amountMinor,
+                    currency: row.currency,
+                    idempotencyKey: row.idempotencyKey,
+                    createdAt: row.createdAt,
+                    updatedAt: row.updatedAt
+                  }),
+                  ...row.allocations.map((allocation, position) =>
+                    db.insert(refundObligationAllocations).values({
+                      refundObligationId: row.id,
+                      position,
+                      ...allocation
+                    })
+                  )
+                ])
+              ])
+            ).pipe(
+              Effect.as(null),
+              Effect.catchTag('CapabilityUnavailable', (error) =>
+                Effect.gen(function* () {
+                  const [command] = yield* orUnavailable('booking-cancellations')(
+                    db
+                      .select()
+                      .from(cancellationCommands)
+                      .where(
+                        and(
+                          eq(cancellationCommands.merchantId, input.merchantId),
+                          eq(cancellationCommands.scope, scope.kind),
+                          eq(cancellationCommands.targetId, targetId)
+                        )
+                      )
+                      .limit(1)
+                  )
+                  if (command) return command
+                  return yield* error
+                })
+              )
+            )
+            if (concurrentCommand) return yield* readCommand(concurrentCommand)
+            const [stored] = yield* orUnavailable('booking-cancellations')(
+              db
+                .select()
+                .from(cancellationCommands)
+                .where(eq(cancellationCommands.id, commandId))
+                .limit(1)
+            )
+            if (!stored)
+              return yield* new CapabilityUnavailable({
+                capability: 'booking-cancellations',
+                reason: 'cancellation_commit_missing'
+              })
+            const result = yield* readCommand(stored)
+            return { ...result, replayed: false }
+          }),
+        recordRefundOutcome: (input) =>
+          Effect.gen(function* () {
+            const [eventReplay] = yield* orUnavailable('booking-cancellations')(
+              db
+                .select()
+                .from(refundObligationEvents)
+                .where(
+                  eq(refundObligationEvents.providerEventId, input.providerEventId)
+                )
+                .limit(1)
+            )
+            if (eventReplay) {
+              if (eventReplay.refundObligationId !== input.obligationId)
+                return yield* new BookingCancellationRejected({
+                  code: 'idempotency_key_reused'
+                })
+              return (yield* readObligations([eventReplay.refundObligationId]))[0]!
+            }
+            const [current] = yield* orUnavailable('booking-cancellations')(
+              db
+                .select()
+                .from(refundObligations)
+                .where(eq(refundObligations.id, input.obligationId))
+                .limit(1)
+            )
+            if (!current)
+              return yield* new BookingCancellationRejected({
+                code: 'refund_obligation_not_found'
+              })
+            if (current.status === 'succeeded' || current.status === 'failed_terminal')
+              return yield* new BookingCancellationRejected({
+                code: 'refund_obligation_terminal'
+              })
+            const allocations = (yield* readObligations([current.id]))[0]!.allocations
+            const external = allocations.filter(
+              (allocation) => allocation.tender === 'external_payment'
+            )
+            const giftCards = allocations.filter(
+              (allocation) => allocation.tender === 'gift_card'
+            )
+            const concurrentEvent = yield* orUnavailable('booking-cancellations')(
+              batch(db, [
+                db.insert(refundObligationEvents).values({
+                  id: `roe_${stableSuffix(input.providerEventId)}`,
+                  refundObligationId: current.id,
+                  providerEventId: input.providerEventId,
+                  outcome: input.outcome,
                   failureCode:
                     input.outcome === 'succeeded'
                       ? null
                       : (input.failureCode ?? 'unknown'),
-                  providerEventId: input.providerEventId,
-                  updatedAt: input.now
+                  expectedAttemptCount: current.attemptCount,
+                  occurredAt: input.now,
+                  createdAt: input.now
+                }),
+                ...(input.outcome === 'succeeded'
+                  ? [
+                      ...external.map((allocation, index) =>
+                        db
+                          .insert(paymentTransactions)
+                          .values({
+                            id: `ptx_${stableSuffix(`${current.id}:external:${index}`)}`,
+                            paymentId: allocation.referenceId!,
+                            kind: 'refund' as const,
+                            amountMinor: allocation.amountMinor,
+                            currency: current.currency,
+                            providerReference: `${input.providerEventId}:${index}`,
+                            occurredAt: input.now,
+                            createdAt: input.now
+                          })
+                          .onConflictDoNothing()
+                      ),
+                      ...external.map((allocation) =>
+                        db
+                          .update(payments)
+                          .set({
+                            refundedMinor: sql`${payments.refundedMinor} + ${allocation.amountMinor}`,
+                            status: sql`CASE WHEN ${payments.refundedMinor} + ${allocation.amountMinor} >= ${payments.capturedMinor} THEN 'refunded' ELSE 'partially_refunded' END`,
+                            updatedAt: input.now
+                          })
+                          .where(eq(payments.id, allocation.referenceId!))
+                      ),
+                      ...giftCards.map((allocation, index) =>
+                        db
+                          .insert(giftCardLedgerEntries)
+                          .values({
+                            id: `gcl_${stableSuffix(`${current.id}:gift-card:${index}`)}`,
+                            giftCardId: allocation.referenceId!,
+                            kind: 'refund' as const,
+                            amountMinor: allocation.amountMinor,
+                            bookingPartyId: current.bookingPartyId,
+                            idempotencyKey: `refund-obligation:${current.id}:${index}`,
+                            occurredAt: input.now,
+                            createdAt: input.now
+                          })
+                          .onConflictDoNothing()
+                      )
+                    ]
+                  : []),
+                db
+                  .update(refundObligations)
+                  .set({
+                    status: input.outcome,
+                    attemptCount: current.attemptCount + 1,
+                    failureCode:
+                      input.outcome === 'succeeded'
+                        ? null
+                        : (input.failureCode ?? 'unknown'),
+                    providerEventId: input.providerEventId,
+                    updatedAt: input.now
+                  })
+                  .where(eq(refundObligations.id, current.id))
+              ])
+            ).pipe(
+              Effect.as(false),
+              Effect.catchTag('CapabilityUnavailable', (error) =>
+                Effect.gen(function* () {
+                  const [event] = yield* orUnavailable('booking-cancellations')(
+                    db
+                      .select()
+                      .from(refundObligationEvents)
+                      .where(
+                        eq(
+                          refundObligationEvents.providerEventId,
+                          input.providerEventId
+                        )
+                      )
+                      .limit(1)
+                  )
+                  if (event?.refundObligationId === input.obligationId) return true
+                  return yield* error
                 })
-                .where(eq(refundObligations.id, current.id))
-            ])
-          ).pipe(
-            Effect.as(false),
-            Effect.catchTag('CapabilityUnavailable', (error) =>
-              Effect.gen(function* () {
-                const [event] = yield* orUnavailable('booking-cancellations')(
-                  db
-                    .select()
-                    .from(refundObligationEvents)
-                    .where(
-                      eq(refundObligationEvents.providerEventId, input.providerEventId)
-                    )
-                    .limit(1)
-                )
-                if (event?.refundObligationId === input.obligationId) return true
-                return yield* error
-              })
+              )
             )
-          )
-          if (concurrentEvent) return (yield* readObligations([input.obligationId]))[0]!
-          return (yield* readObligations([current.id]))[0]!
-        })
-    }
-  })
-)
+            if (concurrentEvent)
+              return (yield* readObligations([input.obligationId]))[0]!
+            return (yield* readObligations([current.id]))[0]!
+          })
+      }
+    })
+  )
+
+export const LiveBookingCancellations = makeLiveBookingCancellations()

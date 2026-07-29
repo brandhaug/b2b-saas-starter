@@ -88,32 +88,8 @@ beforeAll(async () => {
       ['cnf_notify', 'apt_notify', 1, 'current', '2026-08-20T11:00:00.000Z', now]
     ],
     [
-      'INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, deduplication_key, status, available_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        'nti_notify',
-        'shp_notify',
-        'appointment.confirmed',
-        JSON.stringify({ email: 'mia@example.com' }),
-        JSON.stringify({ appointmentId: 'apt_notify' }),
-        'appointment',
-        'apt_notify',
-        'appointment.confirmed:apt_notify',
-        'pending',
-        now,
-        now,
-        now
-      ]
-    ],
-    [
-      'INSERT INTO booking_outbox (id, appointment_id, notification_intent_id, kind, trace_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [
-        'out_notify',
-        'apt_notify',
-        'nti_notify',
-        'appointment.created',
-        'trace_notify',
-        now
-      ]
+      'INSERT INTO booking_outbox (id, appointment_id, kind, trace_id, created_at) VALUES (?, ?, ?, ?, ?)',
+      ['out_notify', 'apt_notify', 'appointment.created', 'trace_notify', now]
     ],
     [
       'INSERT INTO platform_webhook_endpoints (id, merchant_id, url, signing_secret, status, events, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -154,7 +130,6 @@ describe('LiveBookingNotificationOutbox', () => {
     expect(competing.filter(Boolean)).toHaveLength(1)
     const work = competing.find(Boolean)!
     expect(work?.snapshot.customerDetails.email).toBe('mia@example.com')
-    expect(work?.whatsappStatus).toBe('pending')
     await expect(
       run(
         Effect.flatMap(BookingNotificationOutbox, (store) =>
@@ -172,17 +147,6 @@ describe('LiveBookingNotificationOutbox', () => {
     expect(event.id).toMatch(/^evt_/)
     expect(event.rawBody).not.toContain('mia@example.com')
     expect(event.rawBody).not.toContain('Cut')
-    await run(
-      Effect.flatMap(BookingNotificationOutbox, (store) =>
-        store.recordWhatsApp('out_notify', 'captured')
-      )
-    )
-    await expect(
-      test.d1
-        .prepare('SELECT whatsapp_status FROM booking_outbox WHERE id = ?')
-        .bind('out_notify')
-        .first()
-    ).resolves.toEqual({ whatsapp_status: 'captured' })
     expect(
       await run(
         Effect.flatMap(BookingNotificationOutbox, (store) =>
@@ -230,31 +194,5 @@ describe('LiveBookingNotificationOutbox', () => {
     expect(row).toEqual(
       expect.objectContaining({ status: 'delivered', response_status: 204 })
     )
-  })
-
-  it('terminally records legacy work that cannot be linked to a Notification Intent', async () => {
-    await test.d1
-      .prepare(
-        "UPDATE booking_outbox SET notification_intent_id = NULL, processed_at = NULL, claimed_at = NULL, webhook_status = 'pending' WHERE id = 'out_notify'"
-      )
-      .run()
-    await expect(
-      run(
-        Effect.flatMap(BookingNotificationOutbox, (store) =>
-          store.claim('out_notify', '2026-07-11T10:10:00.000Z')
-        )
-      )
-    ).resolves.toBeNull()
-    const row = await test.d1
-      .prepare(
-        'SELECT webhook_status, processed_at, claimed_at FROM booking_outbox WHERE id = ?'
-      )
-      .bind('out_notify')
-      .first()
-    expect(row).toEqual({
-      webhook_status: 'dead_lettered',
-      processed_at: '2026-07-11T10:10:00.000Z',
-      claimed_at: null
-    })
   })
 })

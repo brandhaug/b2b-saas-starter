@@ -19,6 +19,7 @@ import {
   CustomerIdentity
 } from '@b2b-saas-starter/capabilities/customer-identity'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import type { BookingEventsWakeup } from '@b2b-saas-starter/capabilities/notifications'
 import {
   GiftCardRedemptions,
   GiftCardSales,
@@ -62,10 +63,13 @@ export type BookingWorkerEnv = {
   readonly RATE_LIMITER_BOOKING_READ?: RateLimitBinding
   readonly RATE_LIMITER_BOOKING_WRITE?: RateLimitBinding
   readonly BOOKING_EVENTS_QUEUE?: {
-    readonly send: (message: { readonly outboxId: string }) => Promise<unknown>
+    readonly send: (message: BookingEventsWakeup) => Promise<unknown>
   }
   readonly CONFIRMATION_SIGNING_KEYS: string
   readonly CONFIRMATION_CURRENT_KEY_ID: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION?: string
   readonly PAYMENT_PROVIDER_NAME?: string
   readonly PAYMENT_PROVIDER_METHODS?: string
   readonly STRIPE_SECRET_KEY?: string
@@ -144,15 +148,26 @@ export const reconcilePaymentCallback = async (
   }
 }
 
-export const publishBookingWakeUp = async <A extends { readonly outboxId: string }>(
+export const publishBookingWakeUp = async <
+  A extends {
+    readonly outboxId?: string | undefined
+    readonly outboxIds?: readonly string[] | undefined
+    readonly notificationIntentIds?: readonly string[] | undefined
+  }
+>(
   queue: BookingWorkerEnv['BOOKING_EVENTS_QUEUE'],
   result: A
 ): Promise<A> => {
-  try {
-    await queue?.send({ outboxId: result.outboxId })
-  } catch {
-    // The durable outbox is authoritative; publication is only a wake-up.
-  }
+  if (!queue) return result
+  const outboxIds = result.outboxIds ?? (result.outboxId ? [result.outboxId] : [])
+  await Promise.allSettled([
+    ...outboxIds.map((outboxId) =>
+      queue.send({ version: 1, kind: 'booking-outbox', outboxId })
+    ),
+    ...(result.notificationIntentIds ?? []).map((intentId) =>
+      queue.send({ version: 1, kind: 'notification-intent', intentId })
+    )
+  ])
   return result
 }
 
@@ -945,6 +960,12 @@ export default {
                             : 'party_not_found'
                       })
                     )
+            ).pipe(
+              Effect.flatMap((result) =>
+                Effect.promise(() =>
+                  publishBookingWakeUp(readyEnv.BOOKING_EVENTS_QUEUE, result)
+                )
+              )
             )
         },
         rescheduling: {
@@ -980,13 +1001,19 @@ export default {
                     now: input.now
                   })
                 case 'commit':
-                  return yield* service.commit({
-                    merchantId: merchant.id,
-                    sessionId: input.command.sessionId,
-                    capabilityHash,
-                    idempotencyKey: input.command.idempotencyKey,
-                    now: input.now
-                  })
+                  return yield* Effect.flatMap(
+                    service.commit({
+                      merchantId: merchant.id,
+                      sessionId: input.command.sessionId,
+                      capabilityHash,
+                      idempotencyKey: input.command.idempotencyKey,
+                      now: input.now
+                    }),
+                    (result) =>
+                      Effect.promise(() =>
+                        publishBookingWakeUp(readyEnv.BOOKING_EVENTS_QUEUE, result)
+                      )
+                  )
               }
             }).pipe(Effect.provide(capabilitiesLayer))
         },

@@ -2,7 +2,7 @@ import { Effect, Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
-import { LiveBookingCancellations } from './booking-cancellation-adapter.ts'
+import { makeLiveBookingCancellations } from './booking-cancellation-adapter.ts'
 import { BookingCancellations } from './booking-cancellation.ts'
 
 let test: TestD1
@@ -18,7 +18,11 @@ const snapshot = (totalMinor: number) =>
     currency: 'USD',
     totalMinor,
     merchantTimezone: 'UTC',
-    customerDetails: { name: 'Ana', email: 'ana@example.test', phone: null },
+    customerDetails: {
+      name: 'Ana',
+      email: 'ana@example.test',
+      phone: '+40722123456'
+    },
     checkoutPath: 'online_payment',
     cancellationPolicy: {
       id: 'pol_cancel',
@@ -55,8 +59,7 @@ beforeAll(async () => {
     `INSERT INTO appointments (id, merchant_id, provider_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_other', 'mrc_other', 'prv_other', 'scheduled', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
     `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_gift', 'bpt_cancel', 'gift_card', 'gcd_cancel', 4000, 'USD', '${now}')`,
     `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_pay', 'bpt_cancel', 'external_payment', 'pay_cancel', 6000, 'USD', '${now}')`,
-    `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, source_version, deduplication_key, status, available_at, created_at, updated_at) VALUES ('nti_cancel_reminder', 'shp_cancel', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_cancel_one', 1, 'reminder:apt_cancel_one:1', 'pending', '2026-07-14T08:00:00.000Z', '${now}', '${now}')`,
-    `INSERT INTO scheduled_work (id, shop_id, kind, source_type, source_id, source_version, payload_json, idempotency_key, status, run_at, attempts, created_at, updated_at) VALUES ('scw_cancel_reminder', 'shp_cancel', 'appointment.reminder', 'appointment', 'apt_cancel_one', 1, '{}', 'work:reminder:apt_cancel_one:1', 'pending', '2026-07-14T08:00:00.000Z', 0, '${now}', '${now}')`
+    `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, source_version, deduplication_key, purpose, phase, status, available_at, created_at, updated_at) VALUES ('nti_cancel_reminder', 'shp_cancel', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_cancel_one', 1, 'reminder:apt_cancel_one:1', 'appointment_reminder', 'scheduled', 'pending', '2026-07-14T08:00:00.000Z', '${now}', '${now}')`
   ])
     await test.d1.prepare(statement).run()
 }, 60_000)
@@ -66,7 +69,13 @@ afterAll(async () => test.dispose())
 const run = <A>(effect: Effect.Effect<A, unknown, BookingCancellations>) =>
   Effect.runPromise(
     effect.pipe(
-      Effect.provide(LiveBookingCancellations.pipe(Layer.provide(layerFromD1(test.d1))))
+      Effect.provide(
+        makeLiveBookingCancellations({
+          encryption: 'test-notification-encryption',
+          fingerprint: 'test-notification-fingerprint',
+          keyVersion: 1
+        }).pipe(Layer.provide(layerFromD1(test.d1)))
+      )
     )
   )
 
@@ -101,10 +110,10 @@ describe('Live Booking cancellation', () => {
       test.d1.prepare('SELECT * FROM refund_obligations'),
       test.d1.prepare('SELECT * FROM refund_obligation_allocations ORDER BY position'),
       test.d1.prepare(
-        "SELECT status FROM notification_intents WHERE id = 'nti_cancel_reminder'"
+        "SELECT phase, result, result_reason, status FROM notification_intents WHERE id = 'nti_cancel_reminder'"
       ),
       test.d1.prepare(
-        "SELECT status FROM scheduled_work WHERE id = 'scw_cancel_reminder'"
+        "SELECT id, purpose, phase, source_version, trace_id FROM notification_intents WHERE source_id = 'apt_cancel_one' AND purpose = 'appointment_cancellation'"
       )
     ])
     expect(rows[0]!.results[0]).toMatchObject({ status: 'cancelled', version: 2 })
@@ -112,8 +121,18 @@ describe('Live Booking cancellation', () => {
     expect(rows[2]!.results).toHaveLength(1)
     expect(rows[3]!.results).toHaveLength(1)
     expect(rows[4]!.results).toHaveLength(2)
-    expect(rows[5]!.results[0]).toMatchObject({ status: 'cancelled' })
-    expect(rows[6]!.results[0]).toMatchObject({ status: 'cancelled' })
+    expect(rows[5]!.results[0]).toMatchObject({
+      phase: 'terminal',
+      result: 'not_sent',
+      result_reason: 'superseded',
+      status: 'cancelled'
+    })
+    expect(rows[6]!.results[0]).toMatchObject({
+      id: result.notificationIntentIds![0],
+      purpose: 'appointment_cancellation',
+      phase: 'ready',
+      source_version: 2
+    })
 
     const failed = await run(
       Effect.flatMap(BookingCancellations, (service) =>

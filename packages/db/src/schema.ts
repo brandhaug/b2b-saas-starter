@@ -845,7 +845,6 @@ export const bookingOutbox = sqliteTable(
       .notNull()
       .unique()
       .references(() => appointments.id, { onDelete: 'cascade' }),
-    notificationIntentId: text('notification_intent_id').unique(),
     kind: text('kind', { enum: ['appointment.created'] }).notNull(),
     traceId: text('trace_id').notNull(),
     createdAt: isoCreatedAt(),
@@ -864,12 +863,6 @@ export const bookingOutbox = sqliteTable(
     emailFailureCode: text('email_failure_code'),
     emailAttemptCount: integer('email_attempt_count').default(0).notNull(),
     emailNextAttemptAt: text('email_next_attempt_at'),
-    whatsappStatus: text('whatsapp_status')
-      .$type<
-        'pending' | 'captured' | 'ineligible' | 'needs_configuration' | 'not_applicable'
-      >()
-      .default('pending')
-      .notNull(),
     webhookStatus: text('webhook_status')
       .$type<'pending' | 'completed' | 'dead_lettered'>()
       .default('pending')
@@ -1788,6 +1781,7 @@ export const cancellationCommands = sqliteTable(
     resultJson: text('result_json', { mode: 'json' }).$type<{
       readonly appointmentIds: readonly string[]
       readonly refundObligationIds: readonly string[]
+      readonly notificationIntentIds?: readonly string[]
     }>(),
     createdAt: isoCreatedAt()
   },

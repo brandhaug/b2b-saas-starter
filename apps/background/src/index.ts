@@ -22,7 +22,7 @@ import {
   processOperationsNotification,
   recoverOperationsNotifications
 } from './operations-notifications.ts'
-import { LogWhatsAppDispatcherLayer } from './whatsapp.ts'
+import { decodeBookingEventsWakeup } from './booking-events-queue.ts'
 
 type Env = {
   readonly DB: D1Database
@@ -60,10 +60,6 @@ const bookingConfig = (env: Env) => {
         : env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
           ? ('configured' as const)
           : ('needs_configuration' as const),
-    whatsappProviderState:
-      env.ENVIRONMENT === 'development' || env.ENVIRONMENT === 'test'
-        ? ('capture' as const)
-        : ('needs_configuration' as const),
     confirmationKeyring: {
       currentKeyId: env.CONFIRMATION_CURRENT_KEY_ID ?? 'unconfigured',
       keys
@@ -86,7 +82,10 @@ const processBookingNotificationOutbox = (outboxId: string, now: string, env: En
       ...(env.BOOKING_EVENTS_QUEUE
         ? {
             scheduleRetry: (id: string, delaySeconds: number) =>
-              env.BOOKING_EVENTS_QUEUE!.send({ outboxId: id }, { delaySeconds })
+              env.BOOKING_EVENTS_QUEUE!.send(
+                { version: 1, kind: 'booking-outbox', outboxId: id },
+                { delaySeconds }
+              )
           }
         : {})
     }).pipe(
@@ -98,8 +97,7 @@ const processBookingNotificationOutbox = (outboxId: string, now: string, env: En
             ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
             : {})
         })
-      ),
-      Effect.provide(LogWhatsAppDispatcherLayer)
+      )
     )
   )
 
@@ -271,15 +269,21 @@ export default {
     }
     await Promise.all(
       batch.messages.map(async (message) => {
-        const body = message.body as { outboxId?: unknown }
-        if (typeof body?.outboxId !== 'string') {
+        const wakeup = decodeBookingEventsWakeup(message.body)
+        if (!wakeup) {
+          message.ack()
+          return
+        }
+        // Intent execution is installed by the next implementation slice. The
+        // durable intent remains authoritative and cron-discoverable meanwhile.
+        if (wakeup.kind === 'notification-intent') {
           message.ack()
           return
         }
         const result = await runtime.runPromise(
           Effect.result(
             processBookingNotificationOutbox(
-              body.outboxId,
+              wakeup.outboxId,
               new Date().toISOString(),
               env
             )

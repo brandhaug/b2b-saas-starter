@@ -43,13 +43,13 @@ import {
   emptySeedBookingCancellationStore,
   SeedBookingCancellations
 } from './booking/booking-cancellation.ts'
-import { LiveBookingCancellations } from './booking/booking-cancellation-adapter.ts'
+import { makeLiveBookingCancellations } from './booking/booking-cancellation-adapter.ts'
 import {
   BookingRescheduling,
   emptySeedBookingReschedulingStore,
   SeedBookingRescheduling
 } from './booking/booking-rescheduling.ts'
-import { LiveBookingRescheduling } from './booking/booking-rescheduling-adapter.ts'
+import { makeLiveBookingRescheduling } from './booking/booking-rescheduling-adapter.ts'
 import {
   BookingNotificationOutbox,
   LiveBookingNotificationOutbox,
@@ -483,6 +483,9 @@ export type LiveCapabilitiesOptions = {
   readonly confirmationKeyring?:
     | Parameters<typeof LiveBookingConfirmation>[0]
     | undefined
+  readonly notificationDestinationSecrets?:
+    | Parameters<typeof LiveBookingConfirmation>[1]
+    | undefined
 }
 
 export const makeLiveCapabilitiesLayer = (
@@ -538,11 +541,12 @@ export const makeLiveCapabilitiesLayer = (
     LiveBookingScheduling,
     liveBookingCheckoutLayer,
     LiveBookingConfirmation(
-      options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} }
+      options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} },
+      options.notificationDestinationSecrets
     ).pipe(Layer.provide(LivePaymentSettlement)),
     LiveAppointmentOperations,
-    LiveBookingCancellations,
-    LiveBookingRescheduling,
+    makeLiveBookingCancellations(options.notificationDestinationSecrets),
+    makeLiveBookingRescheduling(options.notificationDestinationSecrets),
     LiveBookingNotificationOutbox
   )
 }

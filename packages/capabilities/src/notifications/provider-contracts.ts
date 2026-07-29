@@ -174,6 +174,16 @@ export const ProviderQueueWakeup = Schema.Struct({
   kind: Schema.Literal('notification-intent'),
   intentId: NotificationIntentId
 })
+export const BookingOutboxQueueWakeup = Schema.Struct({
+  version: Schema.Literal(1),
+  kind: Schema.Literal('booking-outbox'),
+  outboxId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(128))
+})
+export const BookingEventsWakeupSchema = Schema.Union([
+  BookingOutboxQueueWakeup,
+  ProviderQueueWakeup
+])
+export type BookingEventsWakeup = typeof BookingEventsWakeupSchema.Type
 
 const MaskedRomanianDestination = Schema.String.check(
   Schema.isPattern(/^\+40•{7}\d{3}$/)

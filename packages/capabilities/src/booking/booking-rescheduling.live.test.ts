@@ -2,7 +2,7 @@ import { Effect, Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
-import { LiveBookingRescheduling } from './booking-rescheduling-adapter.ts'
+import { makeLiveBookingRescheduling } from './booking-rescheduling-adapter.ts'
 import {
   BookingRescheduling,
   type RescheduleSession,
@@ -30,7 +30,11 @@ const snapshot = JSON.stringify({
   currency: 'USD',
   totalMinor: 5_000,
   merchantTimezone: 'UTC',
-  customerDetails: { name: 'Ana', email: 'ana@example.test', phone: null },
+  customerDetails: {
+    name: 'Ana',
+    email: 'ana@example.test',
+    phone: '+40722123456'
+  },
   checkoutPath: 'pay_in_person'
 })
 const replacement = (startsAt = '2026-07-15T12:00:00.000Z'): RescheduleReplacement => ({
@@ -74,8 +78,7 @@ beforeAll(async () => {
     `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sal_reschedule', 'bpt_reschedule', 'external_payment', 'pay_original', 5000, 'USD', '${now}')`,
     `INSERT INTO checkout_policies (id, shop_id, scope, scope_id, kind, version, disclosure, effective_at, created_at) VALUES ('pol_checkout', 'shp_reschedule', 'shop', 'shp_reschedule', 'checkout', 3, 'Current rescheduling policy.', '${now}', '${now}')`,
     `INSERT INTO appointments (id, merchant_id, provider_id, booking_party_id, status, version, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_reschedule', 'mrc_reschedule', 'prv_old', 'bpt_reschedule', 'scheduled', 1, '2026-07-14T10:00:00.000Z', '2026-07-14T11:00:00.000Z', '${snapshot}', '${now}', '${now}')`,
-    `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, source_version, deduplication_key, status, available_at, created_at, updated_at) VALUES ('nti_old_reminder', 'shp_reschedule', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_reschedule', 1, 'reminder:apt_reschedule:1:old', 'pending', '2026-07-14T08:00:00.000Z', '${now}', '${now}')`,
-    `INSERT INTO scheduled_work (id, shop_id, kind, source_type, source_id, source_version, payload_json, idempotency_key, status, run_at, attempts, created_at, updated_at) VALUES ('scw_old_reminder', 'shp_reschedule', 'appointment.reminder', 'appointment', 'apt_reschedule', 1, '{}', 'work:reminder:apt_reschedule:1:old', 'pending', '2026-07-14T08:00:00.000Z', 0, '${now}', '${now}')`
+    `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, source_version, deduplication_key, purpose, phase, status, available_at, created_at, updated_at) VALUES ('nti_old_reminder', 'shp_reschedule', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_reschedule', 1, 'reminder:apt_reschedule:1:old', 'appointment_reminder', 'scheduled', 'pending', '2026-07-14T08:00:00.000Z', '${now}', '${now}')`
   ])
     await test.d1.prepare(statement).run()
 }, 60_000)
@@ -85,7 +88,13 @@ afterAll(async () => test.dispose())
 const run = <A>(effect: Effect.Effect<A, unknown, BookingRescheduling>) =>
   Effect.runPromise(
     effect.pipe(
-      Effect.provide(LiveBookingRescheduling.pipe(Layer.provide(layerFromD1(test.d1))))
+      Effect.provide(
+        makeLiveBookingRescheduling({
+          encryption: 'test-notification-encryption',
+          fingerprint: 'test-notification-fingerprint',
+          keyVersion: 1
+        }).pipe(Layer.provide(layerFromD1(test.d1)))
+      )
     )
   )
 
@@ -250,10 +259,10 @@ describe('Live Booking rescheduling', () => {
         "SELECT from_state, to_state, reason_code, facts_json FROM lifecycle_history WHERE aggregate_id = 'apt_reschedule'"
       ),
       test.d1.prepare(
-        "SELECT source_version, status, deduplication_key FROM notification_intents WHERE source_id = 'apt_reschedule' ORDER BY source_version"
+        "SELECT purpose, phase, result, source_version, status, deduplication_key FROM notification_intents WHERE source_id = 'apt_reschedule' ORDER BY source_version, purpose"
       ),
       test.d1.prepare(
-        "SELECT source_version, status FROM scheduled_work WHERE source_id = 'apt_reschedule' ORDER BY source_version"
+        "SELECT count(*) count FROM scheduled_work WHERE source_id = 'apt_reschedule'"
       ),
       test.d1.prepare('SELECT * FROM reschedule_commands')
     ])
@@ -270,13 +279,27 @@ describe('Live Booking rescheduling', () => {
       reason_code: 'customer_rescheduled'
     })
     expect(rows[2]!.results).toEqual([
-      expect.objectContaining({ source_version: 1, status: 'cancelled' }),
-      expect.objectContaining({ source_version: 2, status: 'pending' })
+      expect.objectContaining({
+        source_version: 1,
+        phase: 'terminal',
+        result: 'not_sent',
+        status: 'cancelled'
+      }),
+      expect.objectContaining({
+        source_version: 2,
+        purpose: 'appointment_reminder',
+        phase: 'scheduled',
+        status: 'pending'
+      }),
+      expect.objectContaining({
+        source_version: 2,
+        purpose: 'appointment_reschedule',
+        phase: 'ready',
+        status: 'pending'
+      })
     ])
-    expect(rows[3]!.results).toEqual([
-      expect.objectContaining({ source_version: 1, status: 'cancelled' }),
-      expect.objectContaining({ source_version: 2, status: 'pending' })
-    ])
+    expect(rows[3]!.results[0]).toMatchObject({ count: 0 })
+    expect(result.notificationIntentIds).toHaveLength(2)
     expect(rows[4]!.results).toHaveLength(1)
   })
 

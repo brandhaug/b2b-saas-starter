@@ -183,14 +183,12 @@ export type {
 } from './booking-rescheduling.ts'
 export {
   BookingNotificationOutbox,
-  SeedBookingNotificationOutbox,
-  planBookingWhatsAppConfirmation
+  SeedBookingNotificationOutbox
 } from './booking-notifications.ts'
 export type {
   BookingDeliveryAttemptInput,
   BookingNotificationOutboxShape,
   BookingNotificationWork,
-  BookingWhatsAppTemplateRequest,
   BookingWebhookEndpoint,
   BookingWebhookEvent
 } from './booking-notifications.ts'

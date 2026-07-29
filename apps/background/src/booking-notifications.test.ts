@@ -10,8 +10,6 @@ import {
   processBookingOutbox,
   signBookingWebhook
 } from './booking-notifications.ts'
-import { WhatsAppDispatcher, WhatsAppSendError } from './whatsapp.ts'
-import type { WhatsAppDispatcherShape } from './whatsapp.ts'
 
 describe('booking webhook contract', () => {
   it('matches a fixed HMAC-SHA256 raw-body signature vector', async () => {
@@ -47,7 +45,6 @@ describe('booking webhook contract', () => {
 describe('processBookingOutbox', () => {
   it('records email and durable completion independently of Appointment success', async () => {
     const recordEmail = vi.fn(() => Effect.void)
-    const recordWhatsApp = vi.fn(() => Effect.void)
     const finish = vi.fn(() => Effect.void)
     const send = vi.fn(() =>
       Effect.succeed({
@@ -56,16 +53,9 @@ describe('processBookingOutbox', () => {
         subject: 'Your appointment is confirmed'
       })
     )
-    const sendWhatsApp = vi.fn<WhatsAppDispatcherShape['send']>(() =>
-      Effect.succeed({
-        mode: 'log' as const,
-        providerMessageId: 'mock:nti_test'
-      })
-    )
     const work: BookingNotificationWork = {
       outboxId: 'out_test',
       appointmentId: 'apt_test',
-      notificationIntentId: 'nti_test',
       merchantId: 'mer_test',
       merchantSlug: 'mara',
       traceId: 'trace_test',
@@ -106,15 +96,13 @@ describe('processBookingOutbox', () => {
       },
       emailStatus: 'pending' as const,
       emailAttemptCount: 0,
-      emailNextAttemptAt: null,
-      whatsappStatus: 'pending' as const
+      emailNextAttemptAt: null
     }
     const claim = vi.fn(() => Effect.succeed(work))
     const store = Layer.succeed(BookingNotificationOutbox)({
       claim,
       recoverable: () => Effect.succeed([]),
       recordEmail,
-      recordWhatsApp,
       ensureEvent: () =>
         Effect.succeed({
           id: 'evt_test',
@@ -132,7 +120,6 @@ describe('processBookingOutbox', () => {
         now: work.createdAt,
         publicOrigin: 'https://example.com',
         emailProviderState: 'configured',
-        whatsappProviderState: 'capture',
         confirmationKeyring: {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
@@ -140,55 +127,32 @@ describe('processBookingOutbox', () => {
       }).pipe(
         Effect.provide(store),
         Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
-        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
         Effect.provide(FetchHttpClient.layer)
       )
     )
     expect(send).toHaveBeenCalledOnce()
     expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({ idempotencyKey: 'nti_test' })
+      expect.objectContaining({ idempotencyKey: 'out_test' })
     )
     expect(recordEmail).toHaveBeenCalledWith('out_test', 'delivered', null, 1, null)
-    expect(sendWhatsApp).toHaveBeenCalledOnce()
-    expect(sendWhatsApp).toHaveBeenCalledWith({
-      idempotencyKey: 'nti_test',
-      to: '+40722123456',
-      template: 'appointment_confirmation',
-      language: 'ro',
-      parameters: {
-        merchant: 'mara',
-        startsAt: '2026-07-20T10:00:00.000Z',
-        timeZone: 'Europe/Bucharest',
-        confirmationUrl: expect.stringMatching(
-          /^https:\/\/example\.com\/mara\/booking\/confirmations\/cnf_test\?token=/
-        )
-      }
-    })
-    expect(recordWhatsApp).toHaveBeenCalledWith('out_test', 'captured')
     expect(finish).toHaveBeenCalledWith('out_test', 'completed', work.createdAt)
 
     send.mockClear()
-    sendWhatsApp.mockClear()
     recordEmail.mockClear()
-    recordWhatsApp.mockClear()
     await Effect.runPromise(
       processBookingOutbox({
         outboxId: work.outboxId,
         now: work.createdAt,
         publicOrigin: 'https://example.com',
         emailProviderState: 'needs_configuration',
-        whatsappProviderState: 'needs_configuration',
         confirmationKeyring: { currentKeyId: 'current', keys: {} }
       }).pipe(
         Effect.provide(store),
         Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
-        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
         Effect.provide(FetchHttpClient.layer)
       )
     )
     expect(send).not.toHaveBeenCalled()
-    expect(sendWhatsApp).not.toHaveBeenCalled()
-    expect(recordWhatsApp).toHaveBeenCalledWith('out_test', 'needs_configuration')
     expect(recordEmail).toHaveBeenCalledWith(
       'out_test',
       'needs_configuration',
@@ -197,67 +161,6 @@ describe('processBookingOutbox', () => {
       null
     )
 
-    sendWhatsApp.mockClear()
-    recordWhatsApp.mockClear()
-    claim.mockImplementationOnce(() =>
-      Effect.succeed({ ...work, emailStatus: 'delivered' as const })
-    )
-    await Effect.runPromise(
-      processBookingOutbox({
-        outboxId: work.outboxId,
-        now: work.createdAt,
-        publicOrigin: 'https://example.com',
-        emailProviderState: 'configured',
-        whatsappProviderState: 'capture',
-        confirmationKeyring: {
-          currentKeyId: 'current',
-          keys: { current: 'confirmation-key' }
-        }
-      }).pipe(
-        Effect.provide(store),
-        Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
-        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
-        Effect.provide(FetchHttpClient.layer)
-      )
-    )
-    expect(send).not.toHaveBeenCalled()
-    expect(sendWhatsApp).toHaveBeenCalledOnce()
-    expect(recordWhatsApp).toHaveBeenCalledWith('out_test', 'captured')
-
-    const scheduleRetry = vi.fn().mockResolvedValue(undefined)
-    sendWhatsApp.mockImplementationOnce(() =>
-      Effect.fail(new WhatsAppSendError({ message: 'mock logger unavailable' }))
-    )
-    recordEmail.mockClear()
-    recordWhatsApp.mockClear()
-    finish.mockClear()
-    claim.mockImplementationOnce(() =>
-      Effect.succeed({ ...work, emailStatus: 'pending' as const })
-    )
-    await Effect.runPromise(
-      processBookingOutbox({
-        outboxId: work.outboxId,
-        now: work.createdAt,
-        publicOrigin: 'https://example.com',
-        emailProviderState: 'disabled',
-        whatsappProviderState: 'capture',
-        confirmationKeyring: {
-          currentKeyId: 'current',
-          keys: { current: 'confirmation-key' }
-        },
-        scheduleRetry
-      }).pipe(
-        Effect.provide(store),
-        Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
-        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
-        Effect.provide(FetchHttpClient.layer)
-      )
-    )
-    expect(recordEmail).toHaveBeenCalledWith('out_test', 'disabled', null, 0, null)
-    expect(recordWhatsApp).not.toHaveBeenCalled()
-    expect(scheduleRetry).toHaveBeenCalledWith('out_test', 30)
-    expect(finish).toHaveBeenCalledWith('out_test', 'pending', null)
-
     recordEmail.mockClear()
     await Effect.runPromise(
       processBookingOutbox({
@@ -265,7 +168,6 @@ describe('processBookingOutbox', () => {
         now: work.createdAt,
         publicOrigin: 'https://example.com',
         emailProviderState: 'configured',
-        whatsappProviderState: 'needs_configuration',
         confirmationKeyring: {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
@@ -284,7 +186,6 @@ describe('processBookingOutbox', () => {
               )
           })
         ),
-        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
         Effect.provide(FetchHttpClient.layer)
       )
     )
@@ -303,7 +204,6 @@ describe('processBookingOutbox', () => {
         now: work.createdAt,
         publicOrigin: 'https://example.com',
         emailProviderState: 'configured',
-        whatsappProviderState: 'needs_configuration',
         confirmationKeyring: {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
@@ -314,7 +214,6 @@ describe('processBookingOutbox', () => {
             claim: () => Effect.succeed({ ...work, emailAttemptCount: 6 }),
             recoverable: () => Effect.succeed([]),
             recordEmail,
-            recordWhatsApp,
             ensureEvent: () =>
               Effect.succeed({
                 id: 'evt_test',
@@ -339,7 +238,6 @@ describe('processBookingOutbox', () => {
               )
           })
         ),
-        Effect.provide(Layer.succeed(WhatsAppDispatcher)({ send: sendWhatsApp })),
         Effect.provide(FetchHttpClient.layer)
       )
     )
