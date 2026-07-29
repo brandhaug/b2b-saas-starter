@@ -86,6 +86,17 @@ describe('Operations Messaging governance', () => {
       }
     ])
     for (const statement of [
+      `INSERT INTO merchants
+       (id, public_name, slug, timezone, currency, plan, created_at, updated_at)
+       VALUES ('mer_governance', 'Governance Merchant', 'governance', 'UTC', 'EUR',
+        'solo', '${now.toISOString()}', '${now.toISOString()}')`,
+      `INSERT INTO brands (id, merchant_id, name, created_at, updated_at)
+       VALUES ('brd_governance', 'mer_governance', 'Governance',
+        '${now.toISOString()}', '${now.toISOString()}')`,
+      `INSERT INTO shops
+       (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at)
+       VALUES ('shp_governance', 'brd_governance', 'mer_governance', 'governance',
+        'Governance', 'UTC', 'EUR', '${now.toISOString()}', '${now.toISOString()}')`,
       `INSERT INTO messaging_channel_controls
        (id, environment, channel, provider, enabled, created_at, updated_at)
        VALUES ('mcc_governance_meta', 'test', 'whatsapp', 'meta', 1, '${now.toISOString()}', '${now.toISOString()}'),
@@ -357,11 +368,20 @@ describe('Operations Messaging governance', () => {
   })
 
   it('places and releases an exact retention hold with governance audit', async () => {
+    await test.d1
+      .prepare(
+        `INSERT INTO messaging_incident_quarantine
+         (id, source, ciphertext, key_version, body_fingerprint, received_at,
+          expires_at, created_at)
+         VALUES ('miq_governance_exact', 'meta', 'encrypted', 1, 'sha256:hold', ?, ?, ?)`
+      )
+      .bind(now.toISOString(), later.toISOString(), now.toISOString())
+      .run()
     const holdId = await run((service) =>
       service.placeRetentionHold({
         actor: actorA,
-        resourceType: 'notification_destination',
-        resourceId: 'ndst_governance_exact',
+        resourceType: 'incident_quarantine',
+        resourceId: 'miq_governance_exact',
         purpose: 'active_legal_request',
         reason: 'Preserve this exact destination for a legal request'
       })
@@ -383,6 +403,117 @@ describe('Operations Messaging governance', () => {
       status: 'released',
       released_by_operator_id: 'opr_governance_a'
     })
+  })
+
+  it('authorizes and audits privacy deletion while removing active suppression data', async () => {
+    await test.d1
+      .prepare(
+        `INSERT INTO suppression_directives
+         (id, shop_id, destination_fingerprint, scope, source, source_identity,
+          reason_code, effective_at, created_at)
+         VALUES ('sdir_governance_delete', 'shp_governance', 'sha256:delete',
+          'all_operational', 'customer_request', 'request:delete', 'privacy_deletion', ?, ?)`
+      )
+      .bind(now.toISOString(), now.toISOString())
+      .run()
+    await run((service) =>
+      service.schedulePrivacyDeletion({
+        actor: actorA,
+        shopId: 'shp_governance',
+        reason: 'Verified privacy deletion request for this exact Merchant',
+        confirmed: true
+      })
+    )
+    const suppression = await test.d1
+      .prepare(
+        `SELECT id FROM suppression_directives WHERE id = 'sdir_governance_delete'`
+      )
+      .first()
+    const audit = await test.d1
+      .prepare(
+        `SELECT event_type FROM audit_events
+         WHERE target_id = 'shp_governance'
+           AND event_type = 'messaging.privacy-deletion.scheduled'`
+      )
+      .first()
+    expect(suppression).toBeNull()
+    expect(audit).toMatchObject({
+      event_type: 'messaging.privacy-deletion.scheduled'
+    })
+  })
+
+  it('re-encrypts active protected material before recording a key rotation', async () => {
+    await test.d1.batch([
+      test.d1
+        .prepare(
+          `INSERT INTO notification_intents
+         (id, shop_id, topic, recipient_json, payload_json, source_type, source_id,
+          source_version, deduplication_key, purpose, phase, status, available_at,
+          created_at, updated_at)
+         VALUES ('nti_governance_rotation', 'shp_governance', 'appointment.reminder',
+          '{}', '{}', 'appointment', 'apt_governance_rotation', 1,
+          'rotation:governance', 'appointment_reminder', 'terminal', 'failed', ?, ?, ?)`
+        )
+        .bind(now.toISOString(), now.toISOString(), now.toISOString()),
+      test.d1
+        .prepare(
+          `INSERT INTO protected_messaging_destinations
+         (id, shop_id, intent_id, ciphertext, key_version, fingerprint, masked_value,
+          country_code, created_at)
+         VALUES ('pmd_governance_rotation', 'shp_governance',
+          'nti_governance_rotation', 'ciphertext-v1', 1, 'sha256:rotation',
+          '+40•••••••999', 'RO', ?)`
+        )
+        .bind(now.toISOString())
+    ])
+    const incident = await run((service) =>
+      service.openIncident({
+        actor: actorA,
+        kind: 'encryption_key_compromise',
+        severity: 'critical',
+        safeSummary: 'Destination encryption key requires replacement',
+        containmentScope: 'global',
+        environment: 'test',
+        reason: 'Active ciphertext may have been exposed with the old key'
+      })
+    )
+    await run((service) =>
+      service.contain({
+        actor: actorA,
+        incidentId: incident.incidentId,
+        reason: 'Stop delivery while protected records are re-encrypted',
+        confirmed: true
+      })
+    )
+    await run((service) =>
+      service.recordKeyRotation({
+        actor: actorA,
+        incidentId: incident.incidentId,
+        kind: 'destination_encryption',
+        previousVersion: '1',
+        nextVersion: '2',
+        invalidatedAt: now.toISOString(),
+        validatedAt: now.toISOString(),
+        evidenceReference: 'kms-rotation:destination-v2',
+        reason: 'All retained destination ciphertext was re-encrypted',
+        reencryptedResources: [
+          {
+            resourceType: 'protected_messaging_destination',
+            resourceId: 'pmd_governance_rotation',
+            ciphertext: 'ciphertext-v2',
+            previousKeyVersion: 1,
+            nextKeyVersion: 2
+          }
+        ]
+      })
+    )
+    const destination = await test.d1
+      .prepare(
+        `SELECT ciphertext, key_version FROM protected_messaging_destinations
+         WHERE id = 'pmd_governance_rotation'`
+      )
+      .first()
+    expect(destination).toMatchObject({ ciphertext: 'ciphertext-v2', key_version: 2 })
   })
 
   it('appends a reconciliation resolution and governance audit atomically', async () => {

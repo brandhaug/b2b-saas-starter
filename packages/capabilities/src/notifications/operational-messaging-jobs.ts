@@ -47,10 +47,6 @@ export type OperationalMessagingJobsShape = {
     readonly shopId?: string
     readonly limit: number
   }) => Effect.Effect<number, JobError>
-  readonly schedulePrivacyDeletion: (input: {
-    readonly now: string
-    readonly shopId: string
-  }) => Effect.Effect<number, JobError>
   readonly processRetention: (input: {
     readonly now: string
     readonly ownerId: string
@@ -385,6 +381,12 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
              WHERE mle.kind = 'delivery_charge' AND NOT EXISTS (
                SELECT 1 FROM chargeable_deliveries cd WHERE cd.intent_id = mle.intent_id
              )`,
+            `SELECT mle.shop_id, mle.intent_id, 'duplicate_charge' AS kind,
+                    'intent:' || mle.intent_id || ':duplicate_charge' AS source_identity,
+                    'An intent has more than one delivery charge' AS safe_summary
+             FROM messaging_balance_ledger_entries mle
+             WHERE mle.kind = 'delivery_charge' AND mle.intent_id IS NOT NULL
+             GROUP BY mle.shop_id, mle.intent_id HAVING COUNT(*) > 1`,
             `SELECT mbr.shop_id, mbr.intent_id, 'terminal_active_reservation' AS kind,
                     'reservation:' || mbr.id || ':terminal_active' AS source_identity,
                     'A terminal intent still holds an active reservation' AS safe_summary
@@ -511,13 +513,19 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
       Effect.tryPromise({
         try: async () => {
           const cutoff = before(input.now, 30 * day)
+          const submissionCeiling = before(input.now, 90 * day)
           const candidates = await raw
             .prepare(
               `SELECT pmd.id, pmd.shop_id, pmd.intent_id
                FROM protected_messaging_destinations pmd
                JOIN notification_intents ni ON ni.id = pmd.intent_id
-               WHERE pmd.erased_at IS NULL AND ni.terminal_at IS NOT NULL
-                 AND ni.terminal_at <= ? AND (? IS NULL OR pmd.shop_id = ?)
+               WHERE pmd.erased_at IS NULL
+                 AND (
+                   (ni.terminal_at IS NOT NULL AND ni.terminal_at <= ?) OR
+                   (SELECT MAX(sa.started_at) FROM submission_attempts sa
+                    WHERE sa.intent_id = pmd.intent_id) <= ?
+                 )
+                 AND (? IS NULL OR pmd.shop_id = ?)
                  AND NOT EXISTS (
                    SELECT 1 FROM messaging_retention_tombstones mrt
                    WHERE mrt.resource_type = 'protected_messaging_destination'
@@ -528,10 +536,11 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                    WHERE mrh.resource_type = 'protected_messaging_destination'
                      AND mrh.resource_id = pmd.id AND mrh.status = 'active'
                  )
-               ORDER BY ni.terminal_at, pmd.id LIMIT ?`
+               ORDER BY COALESCE(ni.terminal_at, ni.updated_at), pmd.id LIMIT ?`
             )
             .bind(
               cutoff,
+              submissionCeiling,
               input.shopId ?? null,
               input.shopId ?? null,
               validLimit(input.limit)
@@ -697,73 +706,6 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
         catch: unavailable('schedule-retention')
       })
 
-    const schedulePrivacyDeletion = (input: {
-      readonly now: string
-      readonly shopId: string
-    }) =>
-      Effect.tryPromise({
-        try: async () => {
-          const results = await raw.batch([
-            raw
-              .prepare(
-                `INSERT OR IGNORE INTO messaging_retention_tombstones
-                 (id, shop_id, resource_type, resource_id, action, status, due_at,
-                  attempt_count, created_at, updated_at)
-                 SELECT 'mrt_destination_' || pmd.id, pmd.shop_id,
-                        'protected_messaging_destination', pmd.id, 'erase_destination',
-                        'pending', ?, 0, ?, ?
-                 FROM protected_messaging_destinations pmd
-                 WHERE pmd.shop_id = ? AND pmd.erased_at IS NULL
-                   AND NOT EXISTS (
-                     SELECT 1 FROM messaging_retention_holds mrh
-                     WHERE mrh.resource_type = 'protected_messaging_destination'
-                       AND mrh.resource_id = pmd.id AND mrh.status = 'active'
-                   )`
-              )
-              .bind(input.now, input.now, input.now, input.shopId),
-            raw
-              .prepare(
-                `INSERT OR IGNORE INTO messaging_retention_tombstones
-                 (id, shop_id, resource_type, resource_id, action, status, due_at,
-                  attempt_count, created_at, updated_at)
-                 SELECT 'mrt_provider_reference_' || ppr.id, ppr.shop_id,
-                        'protected_provider_reference', ppr.id,
-                        'erase_provider_reference', 'pending', ?, 0, ?, ?
-                 FROM protected_provider_references ppr
-                 WHERE ppr.shop_id = ? AND ppr.erased_at IS NULL
-                   AND NOT EXISTS (
-                     SELECT 1 FROM messaging_retention_holds mrh
-                     WHERE mrh.resource_type = 'protected_provider_reference'
-                       AND mrh.resource_id = ppr.id AND mrh.status = 'active'
-                   )`
-              )
-              .bind(input.now, input.now, input.now, input.shopId),
-            raw
-              .prepare(
-                `INSERT OR IGNORE INTO messaging_retention_tombstones
-                 (id, shop_id, resource_type, resource_id, action, status, due_at,
-                  attempt_count, created_at, updated_at)
-                 SELECT 'mrt_controlled_facts_' || nicf.intent_id, nicf.shop_id,
-                        'notification_intent_controlled_facts', nicf.intent_id,
-                        'erase_facts', 'pending', ?, 0, ?, ?
-                 FROM notification_intent_controlled_facts nicf
-                 WHERE nicf.shop_id = ? AND nicf.erased_at IS NULL
-                   AND NOT EXISTS (
-                     SELECT 1 FROM messaging_retention_holds mrh
-                     WHERE mrh.resource_type = 'notification_intent_controlled_facts'
-                       AND mrh.resource_id = nicf.intent_id AND mrh.status = 'active'
-                   )`
-              )
-              .bind(input.now, input.now, input.now, input.shopId)
-          ])
-          return results.reduce(
-            (total, result) => total + (result.meta.changes ?? 0),
-            0
-          )
-        },
-        catch: unavailable('schedule-privacy-deletion')
-      })
-
     const processRetention = (input: {
       readonly now: string
       readonly ownerId: string
@@ -793,7 +735,13 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                      updated_at = ?
                  WHERE id = ? AND
                    (status IN ('pending', 'failed') OR
-                    (status = 'leased' AND leased_until <= ?))`
+                    (status = 'leased' AND leased_until <= ?))
+                   AND NOT EXISTS (
+                     SELECT 1 FROM messaging_retention_holds mrh
+                     WHERE mrh.resource_type = messaging_retention_tombstones.resource_type
+                       AND mrh.resource_id = messaging_retention_tombstones.resource_id
+                       AND mrh.status = 'active'
+                   )`
               )
               .bind(
                 input.ownerId,
@@ -877,6 +825,6 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
         catch: unavailable('process-retention')
       })
 
-    return { reconcile, scheduleRetention, schedulePrivacyDeletion, processRetention }
+    return { reconcile, scheduleRetention, processRetention }
   })
 )

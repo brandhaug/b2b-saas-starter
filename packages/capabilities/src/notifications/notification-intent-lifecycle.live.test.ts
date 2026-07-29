@@ -327,7 +327,7 @@ describe('Live Notification Intent lifecycle', () => {
     expect(row?.count).toBe(1)
   })
 
-  it('recovers a monotonic projection from concurrently reordered evidence writes', async () => {
+  it('recovers a monotonic projection from a callback and worker-query race', async () => {
     const input = {
       ...base,
       id: 'nti_live_evidence_race',
@@ -357,7 +357,12 @@ describe('Live Notification Intent lifecycle', () => {
         })
       })
     )
-    const ingest = (id: string, status: 'accepted' | 'delivered', observedAt: string) =>
+    const ingest = (
+      id: string,
+      status: 'accepted' | 'delivered',
+      observedAt: string,
+      source: 'callback' | 'query'
+    ) =>
       run(
         Effect.flatMap(NotificationIntentLifecycle, (service) =>
           service.ingestEvidence({
@@ -366,7 +371,7 @@ describe('Live Notification Intent lifecycle', () => {
             attemptId: prepared.attempt.id,
             environment: 'test',
             providerAccountKey: 'meta_test',
-            source: 'callback',
+            source,
             sourceEventKey: id,
             providerReferenceFingerprint: `sha256:${id.padEnd(64, 'd').slice(0, 64)}`,
             status,
@@ -377,8 +382,13 @@ describe('Live Notification Intent lifecycle', () => {
       )
 
     await Promise.all([
-      ingest('pevd_race_old_accepted', 'accepted', '2026-07-29T12:00:30.000Z'),
-      ingest('pevd_race_delivered', 'delivered', '2026-07-29T12:01:00.000Z')
+      ingest(
+        'pevd_race_old_accepted',
+        'accepted',
+        '2026-07-29T12:00:30.000Z',
+        'callback'
+      ),
+      ingest('pevd_race_delivered', 'delivered', '2026-07-29T12:01:00.000Z', 'query')
     ])
     const intent = await run(
       Effect.flatMap(NotificationIntentLifecycle, (service) =>

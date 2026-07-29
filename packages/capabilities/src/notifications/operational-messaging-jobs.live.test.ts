@@ -195,7 +195,7 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
     ).resolves.toMatchObject({ ciphertext: 'ciphertext-jobs' })
     await expect(
       run((jobs) =>
-        jobs.schedulePrivacyDeletion({ now: asIso(now), shopId: 'shp_jobs' })
+        jobs.scheduleRetention({ now: asIso(now), shopId: 'shp_jobs', limit: 20 })
       )
     ).resolves.toBe(0)
     await test.d1
@@ -208,7 +208,7 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
       .run()
     await expect(
       run((jobs) =>
-        jobs.schedulePrivacyDeletion({ now: asIso(now), shopId: 'shp_jobs' })
+        jobs.scheduleRetention({ now: asIso(now), shopId: 'shp_jobs', limit: 20 })
       )
     ).resolves.toBe(1)
     await expect(
@@ -312,5 +312,50 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
         )
         .first()
     ).resolves.toBeNull()
+  })
+
+  it('honors an exact hold placed after a tombstone was scheduled', async () => {
+    await test.d1.batch([
+      test.d1
+        .prepare(
+          `INSERT INTO messaging_incident_quarantine
+           (id, source, ciphertext, key_version, body_fingerprint, received_at,
+            expires_at, created_at)
+           VALUES ('quarantine_held_after_schedule', 'meta', 'encrypted-held', 1,
+            'sha256:held-after-schedule', ?, ?, ?)`
+        )
+        .bind(asIso(now), asIso(now), asIso(now)),
+      test.d1
+        .prepare(
+          `INSERT INTO messaging_retention_tombstones
+           (id, shop_id, resource_type, resource_id, action, status, due_at,
+            attempt_count, created_at, updated_at)
+           VALUES ('mrt_held_after_schedule', 'shp_jobs', 'incident_quarantine',
+            'quarantine_held_after_schedule', 'delete_quarantine', 'pending', ?, 0, ?, ?)`
+        )
+        .bind(asIso(now), asIso(now), asIso(now)),
+      test.d1
+        .prepare(
+          `INSERT INTO messaging_retention_holds
+           (id, resource_type, resource_id, purpose, status, reason,
+            placed_by_operator_id, placed_at, created_at, updated_at)
+           VALUES ('mrh_after_schedule', 'incident_quarantine',
+            'quarantine_held_after_schedule', 'incident-review', 'active',
+            'Preserve exact quarantine after scheduling', 'opr_jobs', ?, ?, ?)`
+        )
+        .bind(asIso(now), asIso(now), asIso(now))
+    ])
+    const result = await run((jobs) =>
+      jobs.processRetention({ now: asIso(now), ownerId: 'worker_hold_race', limit: 20 })
+    )
+    expect(result.completed).toBe(0)
+    await expect(
+      test.d1
+        .prepare(
+          `SELECT ciphertext FROM messaging_incident_quarantine
+           WHERE id = 'quarantine_held_after_schedule'`
+        )
+        .first()
+    ).resolves.toMatchObject({ ciphertext: 'encrypted-held' })
   })
 })

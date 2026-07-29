@@ -1,9 +1,10 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, notExists, sql } from 'drizzle-orm'
 import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
 import {
   auditEvents,
   merchantMessagingControls,
+  messagingIncidentQuarantine,
   messagingCallbackRejectionRules,
   messagingChannelControls,
   messagingIncidentEvents,
@@ -13,7 +14,12 @@ import {
   messagingReconciliationResolutions,
   messagingRecoveryApprovals,
   messagingRecoveryChecks,
-  messagingRetentionHolds
+  messagingRetentionHolds,
+  messagingRetentionTombstones,
+  notificationIntentControlledFacts,
+  protectedMessagingDestinations,
+  protectedProviderReferences,
+  suppressionDirectives
 } from '@b2b-saas-starter/db'
 import {
   hasOperatorPermission,
@@ -115,14 +121,34 @@ type KeyRotationInput = {
   readonly validatedAt: string
   readonly evidenceReference: string
   readonly reason: string
+  readonly reencryptedResources?: readonly {
+    readonly resourceType:
+      | 'protected_messaging_destination'
+      | 'protected_provider_reference'
+    readonly resourceId: string
+    readonly ciphertext: string
+    readonly previousKeyVersion: number
+    readonly nextKeyVersion: number
+  }[]
 }
 
 type PlaceRetentionHoldInput = {
   readonly actor: OperatorSessionReference
-  readonly resourceType: string
+  readonly resourceType:
+    | 'protected_messaging_destination'
+    | 'protected_provider_reference'
+    | 'notification_intent_controlled_facts'
+    | 'incident_quarantine'
   readonly resourceId: string
   readonly purpose: string
   readonly reason: string
+}
+
+type SchedulePrivacyDeletionInput = {
+  readonly actor: OperatorSessionReference
+  readonly shopId: string
+  readonly reason: string
+  readonly confirmed: boolean
 }
 
 type ReleaseRetentionHoldInput = {
@@ -155,6 +181,9 @@ export type MessagingGovernanceShape = {
   ) => Effect.Effect<string, MessagingGovernanceDenied>
   readonly releaseRetentionHold: (
     input: ReleaseRetentionHoldInput
+  ) => Effect.Effect<void, MessagingGovernanceDenied>
+  readonly schedulePrivacyDeletion: (
+    input: SchedulePrivacyDeletionInput
   ) => Effect.Effect<void, MessagingGovernanceDenied>
   readonly resolveCase: (
     input: ResolveCaseInput
@@ -346,6 +375,144 @@ export const makeMessagingGovernanceLayer = (
       throw denied(operation, 'verified_key_rotation_required')
   }
 
+  const scopeControlMutation = (input: {
+    readonly incident: IncidentRow
+    readonly metadata: IncidentMetadata
+    readonly principal: OperatorPrincipal
+    readonly reason: string
+    readonly now: Date
+    readonly contained: boolean
+    readonly operation: string
+  }) => {
+    const { incident, metadata, principal, contained } = input
+    const timestamp = input.now.toISOString()
+    const reason = input.reason.trim()
+    if (incident.containmentScope === 'merchant') {
+      if (!metadata.shopId) throw denied(input.operation, 'merchant_scope_required')
+      return db
+        .update(merchantMessagingControls)
+        .set({
+          frozen: contained,
+          freezeReason: contained ? reason : null,
+          updatedAt: timestamp
+        })
+        .where(eq(merchantMessagingControls.shopId, metadata.shopId))
+    }
+    if (incident.containmentScope === 'callback_rule') {
+      if (!metadata.provider || !metadata.channel)
+        throw denied(input.operation, 'provider_channel_scope_required')
+      if (!contained)
+        return db
+          .update(messagingCallbackRejectionRules)
+          .set({
+            enabled: false,
+            reason,
+            changedByOperatorId: principal.id,
+            updatedAt: timestamp
+          })
+          .where(
+            and(
+              eq(messagingCallbackRejectionRules.environment, metadata.environment),
+              eq(messagingCallbackRejectionRules.provider, metadata.provider),
+              eq(messagingCallbackRejectionRules.ruleKey, metadata.channel)
+            )
+          )
+      return db
+        .insert(messagingCallbackRejectionRules)
+        .values({
+          id: id('mcrr'),
+          incidentId: incident.id,
+          environment: metadata.environment,
+          provider: metadata.provider,
+          ruleKey: metadata.channel,
+          enabled: true,
+          reason,
+          changedByOperatorId: principal.id,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        })
+        .onConflictDoUpdate({
+          target: [
+            messagingCallbackRejectionRules.environment,
+            messagingCallbackRejectionRules.provider,
+            messagingCallbackRejectionRules.ruleKey
+          ],
+          set: {
+            incidentId: incident.id,
+            enabled: true,
+            reason,
+            changedByOperatorId: principal.id,
+            updatedAt: timestamp
+          }
+        })
+    }
+    const scope = incident.containmentScope
+    if (scope === 'provider_channel' && (!metadata.provider || !metadata.channel))
+      throw denied(input.operation, 'provider_channel_scope_required')
+    return db
+      .update(messagingChannelControls)
+      .set({
+        enabled: !contained,
+        reason,
+        changedByOperatorId: principal.id,
+        updatedAt: timestamp
+      })
+      .where(
+        scope === 'provider_channel'
+          ? and(
+              eq(messagingChannelControls.environment, metadata.environment),
+              eq(messagingChannelControls.provider, metadata.provider!),
+              eq(messagingChannelControls.channel, metadata.channel!)
+            )
+          : eq(messagingChannelControls.environment, metadata.environment)
+      )
+  }
+
+  const retentionResourceExists = async (
+    resourceType: PlaceRetentionHoldInput['resourceType'],
+    resourceId: string
+  ) => {
+    if (resourceType === 'protected_messaging_destination')
+      return (
+        (
+          await db
+            .select({ id: protectedMessagingDestinations.id })
+            .from(protectedMessagingDestinations)
+            .where(eq(protectedMessagingDestinations.id, resourceId))
+            .limit(1)
+        ).length === 1
+      )
+    if (resourceType === 'protected_provider_reference')
+      return (
+        (
+          await db
+            .select({ id: protectedProviderReferences.id })
+            .from(protectedProviderReferences)
+            .where(eq(protectedProviderReferences.id, resourceId))
+            .limit(1)
+        ).length === 1
+      )
+    if (resourceType === 'notification_intent_controlled_facts')
+      return (
+        (
+          await db
+            .select({ id: notificationIntentControlledFacts.intentId })
+            .from(notificationIntentControlledFacts)
+            .where(eq(notificationIntentControlledFacts.intentId, resourceId))
+            .limit(1)
+        ).length === 1
+      )
+    return (
+      (
+        await db
+          .select({ id: messagingIncidentQuarantine.id })
+          .from(messagingIncidentQuarantine)
+          .where(eq(messagingIncidentQuarantine.id, resourceId))
+          .limit(1)
+      ).length === 1
+    )
+  }
+
   const effect = <A>(operation: string, run: () => Promise<A>) =>
     Effect.tryPromise({
       try: run,
@@ -456,89 +623,15 @@ export const makeMessagingGovernanceLayer = (
         )
         if (incident.status !== 'open')
           throw denied('contain-incident', 'incident_not_open')
-        const updates = []
-        if (incident.containmentScope === 'merchant') {
-          if (!metadata.shopId)
-            throw denied('contain-incident', 'merchant_scope_required')
-          updates.push(
-            db
-              .update(merchantMessagingControls)
-              .set({
-                frozen: true,
-                freezeReason: input.reason.trim(),
-                updatedAt: now.toISOString()
-              })
-              .where(eq(merchantMessagingControls.shopId, metadata.shopId))
-          )
-        } else if (incident.containmentScope === 'provider_channel') {
-          if (!metadata.provider || !metadata.channel)
-            throw denied('contain-incident', 'provider_channel_scope_required')
-          updates.push(
-            db
-              .update(messagingChannelControls)
-              .set({
-                enabled: false,
-                reason: input.reason.trim(),
-                changedByOperatorId: principal.id,
-                updatedAt: now.toISOString()
-              })
-              .where(
-                and(
-                  eq(messagingChannelControls.environment, metadata.environment),
-                  eq(messagingChannelControls.provider, metadata.provider),
-                  eq(messagingChannelControls.channel, metadata.channel)
-                )
-              )
-          )
-        } else if (incident.containmentScope === 'callback_rule') {
-          if (!metadata.provider || !metadata.channel)
-            throw denied('contain-incident', 'provider_channel_scope_required')
-          updates.push(
-            db
-              .insert(messagingCallbackRejectionRules)
-              .values({
-                id: id('mcrr'),
-                incidentId: incident.id,
-                environment: metadata.environment,
-                provider: metadata.provider,
-                ruleKey: metadata.channel,
-                enabled: true,
-                reason: input.reason.trim(),
-                changedByOperatorId: principal.id,
-                createdAt: now.toISOString(),
-                updatedAt: now.toISOString()
-              })
-              .onConflictDoUpdate({
-                target: [
-                  messagingCallbackRejectionRules.environment,
-                  messagingCallbackRejectionRules.provider,
-                  messagingCallbackRejectionRules.ruleKey
-                ],
-                set: {
-                  incidentId: incident.id,
-                  enabled: true,
-                  reason: input.reason.trim(),
-                  changedByOperatorId: principal.id,
-                  updatedAt: now.toISOString()
-                }
-              })
-          )
-        } else {
-          updates.push(
-            db
-              .update(messagingChannelControls)
-              .set({
-                enabled: false,
-                reason: input.reason.trim(),
-                changedByOperatorId: principal.id,
-                updatedAt: now.toISOString()
-              })
-              .where(eq(messagingChannelControls.environment, metadata.environment))
-          )
-        }
-        const containmentUpdate = updates[0]
-        if (!containmentUpdate)
-          throw denied('contain-incident', 'containment_scope_unavailable')
+        const containmentUpdate = scopeControlMutation({
+          incident,
+          metadata,
+          principal,
+          reason: input.reason,
+          now,
+          contained: true,
+          operation: 'contain-incident'
+        })
         await db.batch([
           containmentUpdate,
           db
@@ -666,6 +759,80 @@ export const makeMessagingGovernanceLayer = (
           Date.parse(input.validatedAt) < Date.parse(input.invalidatedAt)
         )
           throw denied('record-key-rotation', 'rotation_timeline_invalid')
+        const reencryptedResources = input.reencryptedResources ?? []
+        if (
+          expectedKind === 'destination_encryption' &&
+          reencryptedResources.length === 0
+        )
+          throw denied('record-key-rotation', 'reencrypted_resources_required')
+        for (const resource of reencryptedResources) {
+          if (
+            !resource.ciphertext.trim() ||
+            resource.previousKeyVersion === resource.nextKeyVersion ||
+            resource.previousKeyVersion < 1 ||
+            resource.nextKeyVersion < 1
+          )
+            throw denied('record-key-rotation', 'reencryption_evidence_invalid')
+          const rows =
+            resource.resourceType === 'protected_messaging_destination'
+              ? await db
+                  .select({ keyVersion: protectedMessagingDestinations.keyVersion })
+                  .from(protectedMessagingDestinations)
+                  .where(
+                    and(
+                      eq(protectedMessagingDestinations.id, resource.resourceId),
+                      isNull(protectedMessagingDestinations.erasedAt)
+                    )
+                  )
+                  .limit(1)
+              : await db
+                  .select({ keyVersion: protectedProviderReferences.keyVersion })
+                  .from(protectedProviderReferences)
+                  .where(
+                    and(
+                      eq(protectedProviderReferences.id, resource.resourceId),
+                      isNull(protectedProviderReferences.erasedAt)
+                    )
+                  )
+                  .limit(1)
+          if (rows[0]?.keyVersion !== resource.previousKeyVersion)
+            throw denied('record-key-rotation', 'reencryption_source_version_mismatch')
+        }
+        const reencryptions = reencryptedResources.map((resource) =>
+          resource.resourceType === 'protected_messaging_destination'
+            ? db
+                .update(protectedMessagingDestinations)
+                .set({
+                  ciphertext: resource.ciphertext,
+                  keyVersion: resource.nextKeyVersion
+                })
+                .where(
+                  and(
+                    eq(protectedMessagingDestinations.id, resource.resourceId),
+                    eq(
+                      protectedMessagingDestinations.keyVersion,
+                      resource.previousKeyVersion
+                    ),
+                    isNull(protectedMessagingDestinations.erasedAt)
+                  )
+                )
+            : db
+                .update(protectedProviderReferences)
+                .set({
+                  ciphertext: resource.ciphertext,
+                  keyVersion: resource.nextKeyVersion
+                })
+                .where(
+                  and(
+                    eq(protectedProviderReferences.id, resource.resourceId),
+                    eq(
+                      protectedProviderReferences.keyVersion,
+                      resource.previousKeyVersion
+                    ),
+                    isNull(protectedProviderReferences.erasedAt)
+                  )
+                )
+        )
         await db.batch([
           db.insert(messagingKeyRotations).values({
             id: id('mkrot'),
@@ -682,6 +849,7 @@ export const makeMessagingGovernanceLayer = (
             actorOperatorId: principal.id,
             createdAt: now.toISOString()
           }),
+          ...reencryptions,
           db.insert(auditEvents).values(
             audit({
               principal,
@@ -713,6 +881,8 @@ export const makeMessagingGovernanceLayer = (
           !input.purpose.trim()
         )
           throw denied('place-retention-hold', 'exact_hold_scope_required')
+        if (!(await retentionResourceExists(input.resourceType, input.resourceId)))
+          throw denied('place-retention-hold', 'retention_resource_not_found')
         const holdId = id('mrhold')
         await db.batch([
           db.insert(messagingRetentionHolds).values({
@@ -785,6 +955,155 @@ export const makeMessagingGovernanceLayer = (
               reason: input.reason,
               now,
               metadata: { holdId: hold.id, purpose: hold.purpose }
+            })
+          )
+        ])
+      }),
+
+    schedulePrivacyDeletion: (input) =>
+      effect('schedule-privacy-deletion', async () => {
+        const now = currentTime()
+        const principal = await authorize(
+          db,
+          input.actor,
+          'messaging:incident',
+          'schedule-privacy-deletion',
+          now
+        )
+        if (!input.confirmed)
+          throw denied('schedule-privacy-deletion', 'confirmation_required')
+        if (!substantive(input.reason))
+          throw denied('schedule-privacy-deletion', 'substantive_reason_required')
+        const timestamp = now.toISOString()
+        const activeHold = (resourceType: string, resourceId: unknown) =>
+          notExists(
+            db
+              .select({ id: messagingRetentionHolds.id })
+              .from(messagingRetentionHolds)
+              .where(
+                and(
+                  eq(messagingRetentionHolds.resourceType, resourceType),
+                  eq(messagingRetentionHolds.resourceId, resourceId as never),
+                  eq(messagingRetentionHolds.status, 'active')
+                )
+              )
+          )
+        const destinationTombstones = db
+          .insert(messagingRetentionTombstones)
+          .select(
+            db
+              .select({
+                id: sql<string>`'mrt_destination_' || ${protectedMessagingDestinations.id}`.as(
+                  'id'
+                ),
+                shopId: protectedMessagingDestinations.shopId,
+                resourceType: sql<string>`'protected_messaging_destination'`.as(
+                  'resource_type'
+                ),
+                resourceId: protectedMessagingDestinations.id,
+                action: sql<'erase_destination'>`'erase_destination'`.as('action'),
+                status: sql<'pending'>`'pending'`.as('status'),
+                dueAt: sql<string>`${timestamp}`.as('due_at'),
+                attemptCount: sql<number>`0`.as('attempt_count'),
+                createdAt: sql<string>`${timestamp}`.as('created_at'),
+                updatedAt: sql<string>`${timestamp}`.as('updated_at')
+              })
+              .from(protectedMessagingDestinations)
+              .where(
+                and(
+                  eq(protectedMessagingDestinations.shopId, input.shopId),
+                  isNull(protectedMessagingDestinations.erasedAt),
+                  activeHold(
+                    'protected_messaging_destination',
+                    protectedMessagingDestinations.id
+                  )
+                )
+              )
+          )
+          .onConflictDoNothing()
+        const referenceTombstones = db
+          .insert(messagingRetentionTombstones)
+          .select(
+            db
+              .select({
+                id: sql<string>`'mrt_provider_reference_' || ${protectedProviderReferences.id}`.as(
+                  'id'
+                ),
+                shopId: protectedProviderReferences.shopId,
+                resourceType: sql<string>`'protected_provider_reference'`.as(
+                  'resource_type'
+                ),
+                resourceId: protectedProviderReferences.id,
+                action: sql<'erase_provider_reference'>`'erase_provider_reference'`.as(
+                  'action'
+                ),
+                status: sql<'pending'>`'pending'`.as('status'),
+                dueAt: sql<string>`${timestamp}`.as('due_at'),
+                attemptCount: sql<number>`0`.as('attempt_count'),
+                createdAt: sql<string>`${timestamp}`.as('created_at'),
+                updatedAt: sql<string>`${timestamp}`.as('updated_at')
+              })
+              .from(protectedProviderReferences)
+              .where(
+                and(
+                  eq(protectedProviderReferences.shopId, input.shopId),
+                  isNull(protectedProviderReferences.erasedAt),
+                  activeHold(
+                    'protected_provider_reference',
+                    protectedProviderReferences.id
+                  )
+                )
+              )
+          )
+          .onConflictDoNothing()
+        const factTombstones = db
+          .insert(messagingRetentionTombstones)
+          .select(
+            db
+              .select({
+                id: sql<string>`'mrt_controlled_facts_' || ${notificationIntentControlledFacts.intentId}`.as(
+                  'id'
+                ),
+                shopId: notificationIntentControlledFacts.shopId,
+                resourceType: sql<string>`'notification_intent_controlled_facts'`.as(
+                  'resource_type'
+                ),
+                resourceId: notificationIntentControlledFacts.intentId,
+                action: sql<'erase_facts'>`'erase_facts'`.as('action'),
+                status: sql<'pending'>`'pending'`.as('status'),
+                dueAt: sql<string>`${timestamp}`.as('due_at'),
+                attemptCount: sql<number>`0`.as('attempt_count'),
+                createdAt: sql<string>`${timestamp}`.as('created_at'),
+                updatedAt: sql<string>`${timestamp}`.as('updated_at')
+              })
+              .from(notificationIntentControlledFacts)
+              .where(
+                and(
+                  eq(notificationIntentControlledFacts.shopId, input.shopId),
+                  isNull(notificationIntentControlledFacts.erasedAt),
+                  activeHold(
+                    'notification_intent_controlled_facts',
+                    notificationIntentControlledFacts.intentId
+                  )
+                )
+              )
+          )
+          .onConflictDoNothing()
+        await db.batch([
+          destinationTombstones,
+          referenceTombstones,
+          factTombstones,
+          db
+            .delete(suppressionDirectives)
+            .where(eq(suppressionDirectives.shopId, input.shopId)),
+          db.insert(auditEvents).values(
+            audit({
+              principal,
+              eventType: 'messaging.privacy-deletion.scheduled',
+              targetType: 'shop',
+              targetId: input.shopId,
+              reason: input.reason,
+              now
             })
           )
         ])
@@ -919,72 +1238,15 @@ export const makeMessagingGovernanceLayer = (
         }
         await validateRequiredRotation(incident, metadata, 'complete-recovery')
 
-        const updates = []
-        if (incident.containmentScope === 'merchant') {
-          if (!metadata.shopId)
-            throw denied('complete-recovery', 'merchant_scope_required')
-          updates.push(
-            db
-              .update(merchantMessagingControls)
-              .set({ frozen: false, freezeReason: null, updatedAt: now.toISOString() })
-              .where(eq(merchantMessagingControls.shopId, metadata.shopId))
-          )
-        } else if (incident.containmentScope === 'provider_channel') {
-          if (!metadata.provider || !metadata.channel)
-            throw denied('complete-recovery', 'provider_channel_scope_required')
-          updates.push(
-            db
-              .update(messagingChannelControls)
-              .set({
-                enabled: true,
-                reason: input.reason.trim(),
-                changedByOperatorId: principal.id,
-                updatedAt: now.toISOString()
-              })
-              .where(
-                and(
-                  eq(messagingChannelControls.environment, metadata.environment),
-                  eq(messagingChannelControls.provider, metadata.provider),
-                  eq(messagingChannelControls.channel, metadata.channel)
-                )
-              )
-          )
-        } else if (incident.containmentScope === 'callback_rule') {
-          if (!metadata.provider || !metadata.channel)
-            throw denied('complete-recovery', 'provider_channel_scope_required')
-          updates.push(
-            db
-              .update(messagingCallbackRejectionRules)
-              .set({
-                enabled: false,
-                reason: input.reason.trim(),
-                changedByOperatorId: principal.id,
-                updatedAt: now.toISOString()
-              })
-              .where(
-                and(
-                  eq(messagingCallbackRejectionRules.environment, metadata.environment),
-                  eq(messagingCallbackRejectionRules.provider, metadata.provider),
-                  eq(messagingCallbackRejectionRules.ruleKey, metadata.channel)
-                )
-              )
-          )
-        } else {
-          updates.push(
-            db
-              .update(messagingChannelControls)
-              .set({
-                enabled: true,
-                reason: input.reason.trim(),
-                changedByOperatorId: principal.id,
-                updatedAt: now.toISOString()
-              })
-              .where(eq(messagingChannelControls.environment, metadata.environment))
-          )
-        }
-        const recoveryUpdate = updates[0]
-        if (!recoveryUpdate)
-          throw denied('complete-recovery', 'containment_scope_unavailable')
+        const recoveryUpdate = scopeControlMutation({
+          incident,
+          metadata,
+          principal,
+          reason: input.reason,
+          now,
+          contained: false,
+          operation: 'complete-recovery'
+        })
         await db.batch([
           recoveryUpdate,
           db
