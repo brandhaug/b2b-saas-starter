@@ -241,3 +241,5 @@ export class MessagingReadModel extends Context.Service<
   MessagingReadModel,
   MessagingReadModelShape
 >()('@b2b-saas-starter/capabilities/notifications/MessagingReadModel') {}
+
+export * from './operational-messaging-jobs.ts'

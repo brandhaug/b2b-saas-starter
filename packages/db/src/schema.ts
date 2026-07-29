@@ -3067,6 +3067,107 @@ export const messagingRetentionTombstones = sqliteTable(
   ]
 )
 
+export const messagingJobCursors = sqliteTable('messaging_job_cursors', {
+  jobName: text('job_name').primaryKey(),
+  cursorValue: text('cursor_value').notNull(),
+  leaseOwner: text('lease_owner'),
+  leasedUntil: text('leased_until'),
+  updatedAt: isoUpdatedAt()
+})
+
+export const messagingIncidentQuarantine = sqliteTable(
+  'messaging_incident_quarantine',
+  {
+    id: id(),
+    incidentId: text('incident_id').references(() => messagingIncidents.id, {
+      onDelete: 'set null'
+    }),
+    source: text('source').notNull(),
+    ciphertext: text('ciphertext').notNull(),
+    keyVersion: integer('key_version').notNull(),
+    bodyFingerprint: text('body_fingerprint').notNull(),
+    receivedAt: text('received_at').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [index('messaging_incident_quarantine_expiry_idx').on(table.expiresAt)]
+)
+
+export const messagingReconciliationResolutions = sqliteTable(
+  'messaging_reconciliation_resolutions',
+  {
+    id: id(),
+    caseId: text('case_id')
+      .notNull()
+      .references(() => messagingReconciliationCases.id, { onDelete: 'restrict' }),
+    disposition: text('disposition', { enum: ['resolved', 'waived'] }).notNull(),
+    classification: text('classification').notNull(),
+    source: text('source').notNull(),
+    reason: text('reason').notNull(),
+    actorOperatorId: text('actor_operator_id').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_reconciliation_resolutions_case_unique').on(table.caseId),
+    index('messaging_reconciliation_resolutions_actor_idx').on(
+      table.actorOperatorId,
+      table.createdAt
+    )
+  ]
+)
+
+export const messagingIncidentEvents = sqliteTable(
+  'messaging_incident_events',
+  {
+    id: id(),
+    incidentId: text('incident_id')
+      .notNull()
+      .references(() => messagingIncidents.id, { onDelete: 'restrict' }),
+    kind: text('kind', {
+      enum: ['opened', 'contained', 'recovery_started', 'resolved']
+    }).notNull(),
+    actorOperatorId: text('actor_operator_id').notNull(),
+    reason: text('reason').notNull(),
+    safeMetadata: text('safe_metadata', { mode: 'json' })
+      .$type<Record<string, unknown>>()
+      .default(sql`'{}'`)
+      .notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('messaging_incident_events_incident_idx').on(
+      table.incidentId,
+      table.createdAt,
+      table.id
+    )
+  ]
+)
+
+export const messagingRecoveryApprovals = sqliteTable(
+  'messaging_recovery_approvals',
+  {
+    id: id(),
+    incidentId: text('incident_id')
+      .notNull()
+      .references(() => messagingIncidents.id, { onDelete: 'restrict' }),
+    actorOperatorId: text('actor_operator_id').notNull(),
+    healthProbeReference: text('health_probe_reference').notNull(),
+    reconciliationReference: text('reconciliation_reference').notNull(),
+    residualRisk: text('residual_risk').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_recovery_approvals_incident_actor_unique').on(
+      table.incidentId,
+      table.actorOperatorId
+    ),
+    index('messaging_recovery_approvals_incident_idx').on(
+      table.incidentId,
+      table.createdAt
+    )
+  ]
+)
+
 export const merchantNotificationDeliverySummaries = sqliteView(
   'merchant_notification_delivery_summaries',
   {

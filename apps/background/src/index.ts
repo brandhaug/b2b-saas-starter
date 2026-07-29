@@ -18,6 +18,7 @@ import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
 import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { GiftCardRedemptions } from '@b2b-saas-starter/capabilities/gift-cards'
 import { createDb } from '@b2b-saas-starter/db/client'
+import { layerFromD1 } from '@b2b-saas-starter/db'
 import { makeOperationsNotificationOutboxLayer } from '@b2b-saas-starter/capabilities/operations'
 import {
   processOperationsNotification,
@@ -25,8 +26,10 @@ import {
 } from './operations-notifications.ts'
 import { decodeBookingEventsWakeup } from './booking-events-queue.ts'
 import {
+  LiveOperationalMessagingJobs,
   NotificationIntentExecution,
-  NotificationIntentLifecycle
+  NotificationIntentLifecycle,
+  OperationalMessagingJobs
 } from '@b2b-saas-starter/capabilities/notifications'
 import {
   pollLiveSmsoStatuses,
@@ -223,6 +226,20 @@ const recoverNotificationIntents = (now: string, env: Env) =>
     )
   ).pipe(Effect.provide(operationalMessagingLayer(env, now)), Effect.asVoid)
 
+const reconcileAndRetainOperationalMessaging = (now: string, env: Env) =>
+  Effect.gen(function* () {
+    const jobs = yield* OperationalMessagingJobs
+    const ownerId = `background:${crypto.randomUUID()}`
+    yield* jobs.reconcile({ now, ownerId, limit: 100 })
+    yield* jobs.scheduleRetention({ now, limit: 100 })
+    yield* jobs.processRetention({ now, ownerId, limit: 100 })
+  }).pipe(
+    Effect.provide(
+      LiveOperationalMessagingJobs.pipe(Layer.provide(layerFromD1(env.DB)))
+    ),
+    Effect.asVoid
+  )
+
 const operationsEmailProviderState = (env: Env) =>
   env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
     ? ('configured' as const)
@@ -284,6 +301,7 @@ export default {
               [
                 recoverBookingNotificationOutbox(now, env),
                 recoverNotificationIntents(now, env),
+                reconcileAndRetainOperationalMessaging(now, env),
                 recoverOperationsNotificationIntents(now, env),
                 Effect.flatMap(GiftCardRedemptions, (giftCards) =>
                   giftCards.releaseExpired({ now })
