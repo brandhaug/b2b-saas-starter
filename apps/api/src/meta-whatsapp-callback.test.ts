@@ -65,6 +65,31 @@ describe('unversioned Meta callback edge', () => {
     expect(post.status).toBe(503)
   })
 
+  it('keeps challenge verification up while rejecting contained POST callbacks', async () => {
+    const captureReceipt = vi.fn()
+    const handler = makeMetaWhatsAppCallbackHandler({
+      appSecret: 'app-secret',
+      verifyToken: 'verify-token',
+      maxBodyBytes: 64 * 1024,
+      captureReceipt,
+      ingest: vi.fn(async () => ({ intentIds: [], unresolvedCount: 0 })),
+      rejectCallback: async () => true
+    })
+    const challenge = await handler(
+      new Request(
+        'https://api.example.com/callbacks/meta/whatsapp?hub.mode=subscribe&hub.verify_token=verify-token&hub.challenge=still-up'
+      )
+    )
+    const post = await handler(
+      new Request('https://api.example.com/callbacks/meta/whatsapp', {
+        method: 'POST'
+      })
+    )
+    expect(await challenge.text()).toBe('still-up')
+    expect(post.status).toBe(503)
+    expect(captureReceipt).not.toHaveBeenCalled()
+  })
+
   it('verifies raw bytes, durably captures before ingest, and wakes work best effort', async () => {
     const order: string[] = []
     const captureReceipt = vi.fn(async () => {

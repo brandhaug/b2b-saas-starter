@@ -3093,6 +3093,34 @@ export const messagingIncidentQuarantine = sqliteTable(
   (table) => [index('messaging_incident_quarantine_expiry_idx').on(table.expiresAt)]
 )
 
+export const messagingRetentionHolds = sqliteTable(
+  'messaging_retention_holds',
+  {
+    id: id(),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    purpose: text('purpose').notNull(),
+    status: text('status', { enum: ['active', 'released'] }).notNull(),
+    reason: text('reason').notNull(),
+    placedByOperatorId: text('placed_by_operator_id').notNull(),
+    placedAt: text('placed_at').notNull(),
+    releasedByOperatorId: text('released_by_operator_id'),
+    releasedAt: text('released_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_retention_holds_active_resource_unique')
+      .on(table.resourceType, table.resourceId, table.purpose)
+      .where(sql`${table.status} = 'active'`),
+    index('messaging_retention_holds_resource_idx').on(
+      table.resourceType,
+      table.resourceId,
+      table.status
+    )
+  ]
+)
+
 export const messagingReconciliationResolutions = sqliteTable(
   'messaging_reconciliation_resolutions',
   {
@@ -3151,6 +3179,7 @@ export const messagingRecoveryApprovals = sqliteTable(
       .notNull()
       .references(() => messagingIncidents.id, { onDelete: 'restrict' }),
     actorOperatorId: text('actor_operator_id').notNull(),
+    operatorSessionId: text('operator_session_id').notNull(),
     healthProbeReference: text('health_probe_reference').notNull(),
     reconciliationReference: text('reconciliation_reference').notNull(),
     residualRisk: text('residual_risk').notNull(),
@@ -3164,6 +3193,97 @@ export const messagingRecoveryApprovals = sqliteTable(
     index('messaging_recovery_approvals_incident_idx').on(
       table.incidentId,
       table.createdAt
+    )
+  ]
+)
+
+export const messagingCallbackRejectionRules = sqliteTable(
+  'messaging_callback_rejection_rules',
+  {
+    id: id(),
+    incidentId: text('incident_id')
+      .notNull()
+      .references(() => messagingIncidents.id, { onDelete: 'restrict' }),
+    environment: text('environment').notNull(),
+    provider: text('provider', { enum: ['meta', 'smso'] }).notNull(),
+    ruleKey: text('rule_key').notNull(),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+    reason: text('reason').notNull(),
+    changedByOperatorId: text('changed_by_operator_id').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_callback_rejection_rules_scope_unique').on(
+      table.environment,
+      table.provider,
+      table.ruleKey
+    ),
+    index('messaging_callback_rejection_rules_active_idx').on(
+      table.environment,
+      table.provider,
+      table.enabled
+    )
+  ]
+)
+
+export const messagingRecoveryChecks = sqliteTable(
+  'messaging_recovery_checks',
+  {
+    id: id(),
+    incidentId: text('incident_id')
+      .notNull()
+      .references(() => messagingIncidents.id, { onDelete: 'restrict' }),
+    kind: text('kind', { enum: ['health_probe', 'reconciliation'] }).notNull(),
+    reference: text('reference').notNull(),
+    status: text('status', { enum: ['passed', 'failed'] }).notNull(),
+    observedAt: text('observed_at').notNull(),
+    actorOperatorId: text('actor_operator_id').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_recovery_checks_incident_kind_reference_unique').on(
+      table.incidentId,
+      table.kind,
+      table.reference
+    ),
+    index('messaging_recovery_checks_incident_status_idx').on(
+      table.incidentId,
+      table.kind,
+      table.status
+    )
+  ]
+)
+
+export const messagingKeyRotations = sqliteTable(
+  'messaging_key_rotations',
+  {
+    id: id(),
+    incidentId: text('incident_id')
+      .notNull()
+      .references(() => messagingIncidents.id, { onDelete: 'restrict' }),
+    kind: text('kind', {
+      enum: ['provider_credential', 'destination_encryption', 'provider_reference']
+    }).notNull(),
+    environment: text('environment').notNull(),
+    provider: text('provider', { enum: ['meta', 'smso'] }),
+    channel: text('channel', { enum: ['whatsapp', 'sms'] }),
+    previousVersion: text('previous_version').notNull(),
+    nextVersion: text('next_version').notNull(),
+    invalidatedAt: text('invalidated_at').notNull(),
+    validatedAt: text('validated_at').notNull(),
+    evidenceReference: text('evidence_reference').notNull(),
+    actorOperatorId: text('actor_operator_id').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('messaging_key_rotations_incident_kind_unique').on(
+      table.incidentId,
+      table.kind
+    ),
+    check(
+      'messaging_key_rotations_versions_differ_check',
+      sql`${table.previousVersion} <> ${table.nextVersion}`
     )
   ]
 )

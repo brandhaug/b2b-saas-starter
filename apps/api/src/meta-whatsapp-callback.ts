@@ -59,6 +59,7 @@ export const makeMetaWhatsAppCallbackHandler =
       readonly unresolvedCount: number
     }>
     readonly wake?: (intentId: string) => Promise<void>
+    readonly rejectCallback?: () => Promise<boolean>
     readonly now?: () => string
   }) =>
   async (request: Request): Promise<Response> => {
@@ -83,6 +84,8 @@ export const makeMetaWhatsAppCallbackHandler =
       })
     }
     if (request.method !== 'POST') return empty(405, { Allow: 'GET, POST' })
+    if (options.rejectCallback && (await options.rejectCallback()))
+      return empty(503, { 'retry-after': '30', 'cache-control': 'no-store' })
     const contentLength = Number(request.headers.get('content-length'))
     if (Number.isFinite(contentLength) && contentLength > options.maxBodyBytes)
       return empty(413)
@@ -153,6 +156,17 @@ export const makeD1MetaWhatsAppCallbackHandler = (env: ApiEnv) => {
     appSecret,
     verifyToken,
     maxBodyBytes: 64 * 1024,
+    rejectCallback: async () => {
+      const row = await env
+        .DB!.prepare(
+          `SELECT enabled FROM messaging_callback_rejection_rules
+         WHERE environment = ? AND provider = 'meta' AND rule_key = 'whatsapp'
+         LIMIT 1`
+        )
+        .bind(environment)
+        .first<{ enabled: number }>()
+      return row?.enabled === 1
+    },
     captureReceipt: (input) =>
       Effect.runPromise(
         captureMetaCallbackReceipt({

@@ -47,6 +47,10 @@ export type OperationalMessagingJobsShape = {
     readonly shopId?: string
     readonly limit: number
   }) => Effect.Effect<number, JobError>
+  readonly schedulePrivacyDeletion: (input: {
+    readonly now: string
+    readonly shopId: string
+  }) => Effect.Effect<number, JobError>
   readonly processRetention: (input: {
     readonly now: string
     readonly ownerId: string
@@ -73,8 +77,10 @@ type DuplicateDeliveryRow = {
 
 type FinancialMismatchRow = {
   shop_id: string
-  intent_id: string
-  kind: 'missing_charge' | 'duplicate_charge'
+  intent_id: string | null
+  kind: string
+  source_identity: string
+  safe_summary: string
 }
 
 type RetentionCandidateRow = {
@@ -117,6 +123,17 @@ const unavailable = (operation: string) => (cause: unknown) =>
 const validLimit = (limit: number) =>
   Number.isInteger(limit) && limit > 0 && limit <= 500 ? limit : 100
 
+const stableId = async (prefix: string, identity: string) => {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(identity)
+  )
+  const key = [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+  return `${prefix}_${key.slice(0, 32)}`
+}
+
 export const LiveOperationalMessagingJobs: Layer.Layer<
   OperationalMessagingJobs,
   never,
@@ -137,19 +154,38 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
           const limit = validLimit(input.limit)
           const alertCutoff = before(input.now, day)
           const closureCutoff = before(input.now, 7 * day)
-          const unknowns = await raw
+          const alertRows = await raw
+            .prepare(
+              `SELECT id, shop_id, intent_id, updated_at
+               FROM delivery_routes dr
+               WHERE state = 'submission_unknown' AND updated_at <= ?
+                 AND NOT EXISTS (
+                   SELECT 1 FROM messaging_reconciliation_cases mrc
+                   WHERE mrc.kind = 'submission_ambiguity'
+                     AND mrc.source_identity = 'route:' || dr.id
+                 )
+               ORDER BY updated_at, id LIMIT ?`
+            )
+            .bind(alertCutoff, limit)
+            .all<UnknownRouteRow>()
+          const closureRows = await raw
             .prepare(
               `SELECT id, shop_id, intent_id, updated_at
                FROM delivery_routes
                WHERE state = 'submission_unknown' AND updated_at <= ?
                ORDER BY updated_at, id LIMIT ?`
             )
-            .bind(alertCutoff, limit)
+            .bind(closureCutoff, limit)
             .all<UnknownRouteRow>()
+          const unknowns = [
+            ...new Map(
+              [...alertRows.results, ...closureRows.results].map((row) => [row.id, row])
+            ).values()
+          ]
 
           let ambiguityAlertsOpened = 0
           let ambiguitiesClosed = 0
-          for (const route of unknowns.results) {
+          for (const route of unknowns) {
             const leaseToken = `mjob_${crypto.randomUUID()}`
             const leasedUntil = after(input.now, 5 * 60 * 1_000)
             await raw
@@ -306,9 +342,8 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                          AND mrc.source_identity = 'intent:' || dr.intent_id
                      )
                    GROUP BY dr.intent_id, dr.shop_id HAVING COUNT(*) > 1
-                   ORDER BY dr.intent_id LIMIT ?`
+                   ORDER BY dr.intent_id`
                 )
-                .bind(limit)
                 .all<DuplicateDeliveryRow>()
             : { results: [] as DuplicateDeliveryRow[] }
           let duplicateDeliveryCasesOpened = 0
@@ -334,26 +369,79 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
             duplicateDeliveryCasesOpened += result.meta.changes ?? 0
           }
 
-          const financialRows = dailyLease
-            ? await raw
-                .prepare(
-                  `SELECT cd.shop_id, cd.intent_id,
-                          CASE WHEN COUNT(mle.id) = 0 THEN 'missing_charge'
-                               ELSE 'duplicate_charge' END AS kind
-                   FROM chargeable_deliveries cd
-                   LEFT JOIN messaging_balance_ledger_entries mle
-                     ON mle.intent_id = cd.intent_id AND mle.kind = 'delivery_charge'
-                   WHERE NOT EXISTS (
-                     SELECT 1 FROM messaging_reconciliation_cases mrc
-                     WHERE mrc.source_identity = 'intent:' || cd.intent_id || ':' ||
-                       CASE WHEN mle.id IS NULL THEN 'missing_charge' ELSE 'duplicate_charge' END
-                   )
-                   GROUP BY cd.shop_id, cd.intent_id HAVING COUNT(mle.id) <> 1
-                   ORDER BY cd.intent_id LIMIT ?`
-                )
-                .bind(limit)
-                .all<FinancialMismatchRow>()
-            : { results: [] as FinancialMismatchRow[] }
+          const financialQueries = [
+            `SELECT cd.shop_id, cd.intent_id, 'missing_charge' AS kind,
+                    'intent:' || cd.intent_id || ':missing_charge' AS source_identity,
+                    'A Chargeable Delivery has no matching ledger charge' AS safe_summary
+             FROM chargeable_deliveries cd
+             WHERE NOT EXISTS (
+               SELECT 1 FROM messaging_balance_ledger_entries mle
+               WHERE mle.intent_id = cd.intent_id AND mle.kind = 'delivery_charge'
+             )`,
+            `SELECT mle.shop_id, mle.intent_id, 'charge_without_delivery' AS kind,
+                    'ledger:' || mle.id || ':charge_without_delivery' AS source_identity,
+                    'A delivery charge has no Chargeable Delivery' AS safe_summary
+             FROM messaging_balance_ledger_entries mle
+             WHERE mle.kind = 'delivery_charge' AND NOT EXISTS (
+               SELECT 1 FROM chargeable_deliveries cd WHERE cd.intent_id = mle.intent_id
+             )`,
+            `SELECT mbr.shop_id, mbr.intent_id, 'terminal_active_reservation' AS kind,
+                    'reservation:' || mbr.id || ':terminal_active' AS source_identity,
+                    'A terminal intent still holds an active reservation' AS safe_summary
+             FROM messaging_balance_reservations mbr
+             JOIN notification_intents ni ON ni.id = mbr.intent_id
+             WHERE mbr.status = 'active' AND ni.phase = 'terminal'`,
+            `SELECT mff.shop_id, NULL AS intent_id, 'external_fact_without_ledger' AS kind,
+                    'external-fact:' || mff.id || ':missing_ledger' AS source_identity,
+                    'A confirmed payment or refund has no ledger entry' AS safe_summary
+             FROM messaging_financial_external_facts mff
+             WHERE mff.kind IN ('provider_payment', 'provider_refund')
+               AND mff.status = 'confirmed' AND NOT EXISTS (
+                 SELECT 1 FROM messaging_balance_ledger_entries mle
+                 WHERE mle.external_fact_id = mff.id
+               )`,
+            `SELECT mff.shop_id, NULL AS intent_id,
+                    'fiscal_fact_without_ledger_reference' AS kind,
+                    'external-fact:' || mff.id || ':missing_fiscal_link' AS source_identity,
+                    'An issued fiscal fact has no linked ledger reference' AS safe_summary
+             FROM messaging_financial_external_facts mff
+             WHERE mff.kind IN ('invoice', 'credit_note', 'efactura')
+               AND mff.status IN ('issued', 'submitted', 'accepted')
+               AND mff.reference IS NOT NULL AND NOT EXISTS (
+                 SELECT 1 FROM messaging_balance_ledger_entries mle
+                 WHERE mle.shop_id = mff.shop_id AND mle.fiscal_reference = mff.reference
+               )`,
+            `SELECT mbs.shop_id, NULL AS intent_id, 'untrusted_displayed_balance' AS kind,
+                    'balance:' || mbs.shop_id || ':negative_projection' AS source_identity,
+                    'The displayed Messaging Balance violates conservation' AS safe_summary
+             FROM merchant_messaging_balance_summaries mbs
+             WHERE mbs.posted_milli_euro < 0 OR mbs.reserved_milli_euro < 0
+                OR mbs.available_milli_euro < 0`,
+            `SELECT pmc.shop_id, pmc.intent_id, 'provider_cost_without_evidence' AS kind,
+                    'provider-cost:' || pmc.id || ':missing_evidence' AS source_identity,
+                    'A provider cost has no matching Provider Evidence' AS safe_summary
+             FROM provider_messaging_costs pmc
+             WHERE NOT EXISTS (
+               SELECT 1 FROM provider_evidence pe WHERE pe.attempt_id = pmc.attempt_id
+             )`,
+            `SELECT cd.shop_id, cd.intent_id, 'chargeable_route_not_delivered' AS kind,
+                    'delivery:' || cd.id || ':route_not_delivered' AS source_identity,
+                    'A Chargeable Delivery route is not projected Delivered' AS safe_summary
+             FROM chargeable_deliveries cd
+             JOIN delivery_routes dr ON dr.id = cd.route_id
+             WHERE dr.state <> 'delivered'`
+          ]
+          const financialRows = {
+            results: dailyLease
+              ? (
+                  await Promise.all(
+                    financialQueries.map((query) =>
+                      raw.prepare(query).all<FinancialMismatchRow>()
+                    )
+                  )
+                ).flatMap((result) => result.results)
+              : ([] as FinancialMismatchRow[])
+          }
           let financialCasesOpened = 0
           const frozen = new Set<string>()
           for (const row of financialRows.results) {
@@ -363,15 +451,15 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                   `INSERT OR IGNORE INTO messaging_reconciliation_cases
                    (id, shop_id, intent_id, kind, source_identity, status, severity,
                     safe_summary, opened_at, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, 'open', 'critical',
-                    'Messaging Balance evidence is not trusted', ?, ?, ?)`
+                   VALUES (?, ?, ?, ?, ?, 'open', 'critical', ?, ?, ?, ?)`
                 )
                 .bind(
-                  `mrcase_finance_${row.intent_id}_${row.kind}`,
+                  await stableId('mrcase_finance', row.source_identity),
                   row.shop_id,
                   row.intent_id,
                   row.kind,
-                  `intent:${row.intent_id}:${row.kind}`,
+                  row.source_identity,
+                  row.safe_summary,
                   input.now,
                   input.now,
                   input.now
@@ -402,7 +490,7 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
 
           return {
             inspected:
-              unknowns.results.length +
+              unknowns.length +
               duplicateRows.results.length +
               financialRows.results.length,
             ambiguityAlertsOpened,
@@ -434,6 +522,11 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                    SELECT 1 FROM messaging_retention_tombstones mrt
                    WHERE mrt.resource_type = 'protected_messaging_destination'
                      AND mrt.resource_id = pmd.id AND mrt.action = 'erase_destination'
+                 )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM messaging_retention_holds mrh
+                   WHERE mrh.resource_type = 'protected_messaging_destination'
+                     AND mrh.resource_id = pmd.id AND mrh.status = 'active'
                  )
                ORDER BY ni.terminal_at, pmd.id LIMIT ?`
             )
@@ -480,6 +573,11 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                      AND mrt.resource_id = ppr.id
                      AND mrt.action = 'erase_provider_reference'
                  )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM messaging_retention_holds mrh
+                   WHERE mrh.resource_type = 'protected_provider_reference'
+                     AND mrh.resource_id = ppr.id AND mrh.status = 'active'
+                 )
                ORDER BY ni.terminal_at, ppr.id LIMIT ?`
             )
             .bind(
@@ -521,6 +619,11 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                    WHERE mrt.resource_type = 'notification_intent_controlled_facts'
                      AND mrt.resource_id = nicf.intent_id AND mrt.action = 'erase_facts'
                  )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM messaging_retention_holds mrh
+                   WHERE mrh.resource_type = 'notification_intent_controlled_facts'
+                     AND mrh.resource_id = nicf.intent_id AND mrh.status = 'active'
+                 )
                ORDER BY ni.terminal_at, nicf.intent_id LIMIT ?`
             )
             .bind(
@@ -560,6 +663,12 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                      AND mrt.resource_id = messaging_incident_quarantine.id
                      AND mrt.action = 'delete_quarantine'
                  )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM messaging_retention_holds mrh
+                   WHERE mrh.resource_type = 'incident_quarantine'
+                     AND mrh.resource_id = messaging_incident_quarantine.id
+                     AND mrh.status = 'active'
+                 )
                ORDER BY expires_at, id LIMIT ?`
             )
             .bind(input.now, validLimit(input.limit))
@@ -586,6 +695,73 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
           return scheduled
         },
         catch: unavailable('schedule-retention')
+      })
+
+    const schedulePrivacyDeletion = (input: {
+      readonly now: string
+      readonly shopId: string
+    }) =>
+      Effect.tryPromise({
+        try: async () => {
+          const results = await raw.batch([
+            raw
+              .prepare(
+                `INSERT OR IGNORE INTO messaging_retention_tombstones
+                 (id, shop_id, resource_type, resource_id, action, status, due_at,
+                  attempt_count, created_at, updated_at)
+                 SELECT 'mrt_destination_' || pmd.id, pmd.shop_id,
+                        'protected_messaging_destination', pmd.id, 'erase_destination',
+                        'pending', ?, 0, ?, ?
+                 FROM protected_messaging_destinations pmd
+                 WHERE pmd.shop_id = ? AND pmd.erased_at IS NULL
+                   AND NOT EXISTS (
+                     SELECT 1 FROM messaging_retention_holds mrh
+                     WHERE mrh.resource_type = 'protected_messaging_destination'
+                       AND mrh.resource_id = pmd.id AND mrh.status = 'active'
+                   )`
+              )
+              .bind(input.now, input.now, input.now, input.shopId),
+            raw
+              .prepare(
+                `INSERT OR IGNORE INTO messaging_retention_tombstones
+                 (id, shop_id, resource_type, resource_id, action, status, due_at,
+                  attempt_count, created_at, updated_at)
+                 SELECT 'mrt_provider_reference_' || ppr.id, ppr.shop_id,
+                        'protected_provider_reference', ppr.id,
+                        'erase_provider_reference', 'pending', ?, 0, ?, ?
+                 FROM protected_provider_references ppr
+                 WHERE ppr.shop_id = ? AND ppr.erased_at IS NULL
+                   AND NOT EXISTS (
+                     SELECT 1 FROM messaging_retention_holds mrh
+                     WHERE mrh.resource_type = 'protected_provider_reference'
+                       AND mrh.resource_id = ppr.id AND mrh.status = 'active'
+                   )`
+              )
+              .bind(input.now, input.now, input.now, input.shopId),
+            raw
+              .prepare(
+                `INSERT OR IGNORE INTO messaging_retention_tombstones
+                 (id, shop_id, resource_type, resource_id, action, status, due_at,
+                  attempt_count, created_at, updated_at)
+                 SELECT 'mrt_controlled_facts_' || nicf.intent_id, nicf.shop_id,
+                        'notification_intent_controlled_facts', nicf.intent_id,
+                        'erase_facts', 'pending', ?, 0, ?, ?
+                 FROM notification_intent_controlled_facts nicf
+                 WHERE nicf.shop_id = ? AND nicf.erased_at IS NULL
+                   AND NOT EXISTS (
+                     SELECT 1 FROM messaging_retention_holds mrh
+                     WHERE mrh.resource_type = 'notification_intent_controlled_facts'
+                       AND mrh.resource_id = nicf.intent_id AND mrh.status = 'active'
+                   )`
+              )
+              .bind(input.now, input.now, input.now, input.shopId)
+          ])
+          return results.reduce(
+            (total, result) => total + (result.meta.changes ?? 0),
+            0
+          )
+        },
+        catch: unavailable('schedule-privacy-deletion')
       })
 
     const processRetention = (input: {
@@ -677,8 +853,6 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
                   )
                   .bind(input.now, input.now, tombstone.id, input.ownerId)
               ])
-              if ((results[0]?.meta.changes ?? 0) === 0)
-                throw new Error('retention_resource_unavailable')
               completed += results[1]?.meta.changes ?? 0
             } catch (cause) {
               failed += 1
@@ -703,6 +877,6 @@ export const LiveOperationalMessagingJobs: Layer.Layer<
         catch: unavailable('process-retention')
       })
 
-    return { reconcile, scheduleRetention, processRetention }
+    return { reconcile, scheduleRetention, schedulePrivacyDeletion, processRetention }
   })
 )

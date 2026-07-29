@@ -1,15 +1,19 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
 import {
   auditEvents,
   merchantMessagingControls,
+  messagingCallbackRejectionRules,
   messagingChannelControls,
   messagingIncidentEvents,
   messagingIncidents,
+  messagingKeyRotations,
   messagingReconciliationCases,
   messagingReconciliationResolutions,
-  messagingRecoveryApprovals
+  messagingRecoveryApprovals,
+  messagingRecoveryChecks,
+  messagingRetentionHolds
 } from '@b2b-saas-starter/db'
 import {
   hasOperatorPermission,
@@ -22,8 +26,18 @@ import {
 
 const severityValues = ['low', 'medium', 'high', 'critical'] as const
 const scopeValues = ['merchant', 'provider_channel', 'callback_rule', 'global'] as const
+const incidentKindValues = [
+  'duplicate_delivery',
+  'financial_uncertainty',
+  'credential_compromise',
+  'platform_integrity',
+  'encryption_key_compromise',
+  'privacy_exposure',
+  'forged_callback'
+] as const
 type Severity = (typeof severityValues)[number]
 type ContainmentScope = (typeof scopeValues)[number]
+type IncidentKind = (typeof incidentKindValues)[number]
 type Provider = 'meta' | 'smso'
 type Channel = 'whatsapp' | 'sms'
 
@@ -45,7 +59,7 @@ type IncidentResult = typeof MessagingIncidentCommandResult.Type
 
 type OpenIncidentInput = {
   readonly actor: OperatorSessionReference
-  readonly kind: string
+  readonly kind: IncidentKind
   readonly severity: Severity
   readonly safeSummary: string
   readonly containmentScope: ContainmentScope
@@ -81,6 +95,42 @@ type ResolveCaseInput = {
   readonly reason: string
 }
 
+type RecoveryCheckInput = {
+  readonly actor: OperatorSessionReference
+  readonly incidentId: string
+  readonly kind: 'health_probe' | 'reconciliation'
+  readonly reference: string
+  readonly status: 'passed' | 'failed'
+  readonly observedAt: string
+  readonly reason: string
+}
+
+type KeyRotationInput = {
+  readonly actor: OperatorSessionReference
+  readonly incidentId: string
+  readonly kind: 'provider_credential' | 'destination_encryption' | 'provider_reference'
+  readonly previousVersion: string
+  readonly nextVersion: string
+  readonly invalidatedAt: string
+  readonly validatedAt: string
+  readonly evidenceReference: string
+  readonly reason: string
+}
+
+type PlaceRetentionHoldInput = {
+  readonly actor: OperatorSessionReference
+  readonly resourceType: string
+  readonly resourceId: string
+  readonly purpose: string
+  readonly reason: string
+}
+
+type ReleaseRetentionHoldInput = {
+  readonly actor: OperatorSessionReference
+  readonly holdId: string
+  readonly reason: string
+}
+
 export type MessagingGovernanceShape = {
   readonly openIncident: (
     input: OpenIncidentInput
@@ -94,6 +144,18 @@ export type MessagingGovernanceShape = {
   readonly completeRecovery: (
     input: IncidentActionInput
   ) => Effect.Effect<IncidentResult, MessagingGovernanceDenied>
+  readonly recordRecoveryCheck: (
+    input: RecoveryCheckInput
+  ) => Effect.Effect<void, MessagingGovernanceDenied>
+  readonly recordKeyRotation: (
+    input: KeyRotationInput
+  ) => Effect.Effect<void, MessagingGovernanceDenied>
+  readonly placeRetentionHold: (
+    input: PlaceRetentionHoldInput
+  ) => Effect.Effect<string, MessagingGovernanceDenied>
+  readonly releaseRetentionHold: (
+    input: ReleaseRetentionHoldInput
+  ) => Effect.Effect<void, MessagingGovernanceDenied>
   readonly resolveCase: (
     input: ResolveCaseInput
   ) => Effect.Effect<void, MessagingGovernanceDenied>
@@ -109,14 +171,18 @@ const denied = (operation: string, reason: string) =>
   new MessagingGovernanceDenied({ operation, reason })
 
 const substantive = (value: string) => value.trim().length >= 12
+const validTimestamp = (value: string) => Number.isFinite(Date.parse(value))
 
-const requiredScopeFor = (kind: string): ContainmentScope | undefined => {
-  if (kind === 'duplicate_delivery' || kind === 'financial_uncertainty')
+const requiredScopeFor = (kind: IncidentKind): ContainmentScope => {
+  if (
+    kind === 'duplicate_delivery' ||
+    kind === 'financial_uncertainty' ||
+    kind === 'privacy_exposure'
+  )
     return 'merchant'
   if (kind === 'credential_compromise') return 'provider_channel'
-  if (kind === 'platform_integrity' || kind === 'encryption_key_compromise')
-    return 'global'
-  return undefined
+  if (kind === 'forged_callback') return 'callback_rule'
+  return 'global'
 }
 
 const authorize = async (
@@ -224,6 +290,62 @@ export const makeMessagingGovernanceLayer = (
     return { incident: row.incident, metadata: parseMetadata(row.safeMetadata) }
   }
 
+  const validateRecoveryEvidence = async (
+    incidentId: string,
+    healthProbeReference: string,
+    reconciliationReference: string,
+    operation: string
+  ) => {
+    const checks = await db
+      .select({
+        kind: messagingRecoveryChecks.kind,
+        reference: messagingRecoveryChecks.reference,
+        status: messagingRecoveryChecks.status
+      })
+      .from(messagingRecoveryChecks)
+      .where(eq(messagingRecoveryChecks.incidentId, incidentId))
+    const passed = (kind: 'health_probe' | 'reconciliation', reference: string) =>
+      checks.some(
+        (check) =>
+          check.kind === kind &&
+          check.reference === reference.trim() &&
+          check.status === 'passed'
+      )
+    if (!passed('health_probe', healthProbeReference))
+      throw denied(operation, 'passed_health_probe_required')
+    if (!passed('reconciliation', reconciliationReference))
+      throw denied(operation, 'passed_reconciliation_required')
+  }
+
+  const validateRequiredRotation = async (
+    incident: IncidentRow,
+    metadata: IncidentMetadata,
+    operation: string
+  ) => {
+    if (
+      !metadata.compromisedCredential &&
+      incident.kind !== 'encryption_key_compromise'
+    )
+      return
+    const requiredKind = metadata.compromisedCredential
+      ? 'provider_credential'
+      : 'destination_encryption'
+    const rows = await db
+      .select()
+      .from(messagingKeyRotations)
+      .where(eq(messagingKeyRotations.incidentId, incident.id))
+    const rotation = rows.find((row) => row.kind === requiredKind)
+    if (
+      !rotation ||
+      rotation.environment !== metadata.environment ||
+      (metadata.provider && rotation.provider !== metadata.provider) ||
+      (metadata.channel && rotation.channel !== metadata.channel) ||
+      Date.parse(rotation.invalidatedAt) < Date.parse(incident.openedAt) ||
+      Date.parse(rotation.validatedAt) < Date.parse(rotation.invalidatedAt)
+    )
+      throw denied(operation, 'verified_key_rotation_required')
+  }
+
   const effect = <A>(operation: string, run: () => Promise<A>) =>
     Effect.tryPromise({
       try: run,
@@ -252,7 +374,7 @@ export const makeMessagingGovernanceLayer = (
         if (!substantive(input.reason) || !substantive(input.safeSummary))
           throw denied('open-incident', 'substantive_reason_required')
         const required = requiredScopeFor(input.kind)
-        if (required && input.containmentScope !== required)
+        if (input.containmentScope !== required)
           throw denied('open-incident', 'containment_scope_too_broad')
         if (input.containmentScope === 'merchant' && !input.shopId)
           throw denied('open-incident', 'merchant_scope_required')
@@ -348,10 +470,7 @@ export const makeMessagingGovernanceLayer = (
               })
               .where(eq(merchantMessagingControls.shopId, metadata.shopId))
           )
-        } else if (
-          incident.containmentScope === 'provider_channel' ||
-          incident.containmentScope === 'callback_rule'
-        ) {
+        } else if (incident.containmentScope === 'provider_channel') {
           if (!metadata.provider || !metadata.channel)
             throw denied('contain-incident', 'provider_channel_scope_required')
           updates.push(
@@ -370,6 +489,39 @@ export const makeMessagingGovernanceLayer = (
                   eq(messagingChannelControls.channel, metadata.channel)
                 )
               )
+          )
+        } else if (incident.containmentScope === 'callback_rule') {
+          if (!metadata.provider || !metadata.channel)
+            throw denied('contain-incident', 'provider_channel_scope_required')
+          updates.push(
+            db
+              .insert(messagingCallbackRejectionRules)
+              .values({
+                id: id('mcrr'),
+                incidentId: incident.id,
+                environment: metadata.environment,
+                provider: metadata.provider,
+                ruleKey: metadata.channel,
+                enabled: true,
+                reason: input.reason.trim(),
+                changedByOperatorId: principal.id,
+                createdAt: now.toISOString(),
+                updatedAt: now.toISOString()
+              })
+              .onConflictDoUpdate({
+                target: [
+                  messagingCallbackRejectionRules.environment,
+                  messagingCallbackRejectionRules.provider,
+                  messagingCallbackRejectionRules.ruleKey
+                ],
+                set: {
+                  incidentId: incident.id,
+                  enabled: true,
+                  reason: input.reason.trim(),
+                  changedByOperatorId: principal.id,
+                  updatedAt: now.toISOString()
+                }
+              })
           )
         } else {
           updates.push(
@@ -422,6 +574,222 @@ export const makeMessagingGovernanceLayer = (
         return { ...incidentResult(incident), status: 'contained' }
       }),
 
+    recordRecoveryCheck: (input) =>
+      effect('record-recovery-check', async () => {
+        const now = currentTime()
+        const permission =
+          input.kind === 'reconciliation'
+            ? ('messaging:reconcile' as const)
+            : ('messaging:control' as const)
+        const principal = await authorize(
+          db,
+          input.actor,
+          permission,
+          'record-recovery-check',
+          now
+        )
+        if (
+          !substantive(input.reason) ||
+          !input.reference.trim() ||
+          !validTimestamp(input.observedAt)
+        )
+          throw denied('record-recovery-check', 'recovery_evidence_required')
+        const { incident } = await loadIncident(
+          input.incidentId,
+          'record-recovery-check'
+        )
+        if (incident.status !== 'contained' && incident.status !== 'recovering')
+          throw denied('record-recovery-check', 'incident_not_contained')
+        await db.batch([
+          db.insert(messagingRecoveryChecks).values({
+            id: id('mrchk'),
+            incidentId: incident.id,
+            kind: input.kind,
+            reference: input.reference.trim(),
+            status: input.status,
+            observedAt: input.observedAt,
+            actorOperatorId: principal.id,
+            createdAt: now.toISOString()
+          }),
+          db.insert(auditEvents).values(
+            audit({
+              principal,
+              eventType: 'messaging.incident.recovery-check-recorded',
+              targetType: 'messaging-incident',
+              targetId: incident.id,
+              reason: input.reason,
+              now,
+              metadata: {
+                kind: input.kind,
+                reference: input.reference.trim(),
+                status: input.status
+              }
+            })
+          )
+        ])
+      }),
+
+    recordKeyRotation: (input) =>
+      effect('record-key-rotation', async () => {
+        const now = currentTime()
+        const principal = await authorize(
+          db,
+          input.actor,
+          'messaging:control',
+          'record-key-rotation',
+          now
+        )
+        if (
+          !substantive(input.reason) ||
+          !input.previousVersion.trim() ||
+          !input.nextVersion.trim() ||
+          input.previousVersion.trim() === input.nextVersion.trim() ||
+          !input.evidenceReference.trim() ||
+          !validTimestamp(input.invalidatedAt) ||
+          !validTimestamp(input.validatedAt)
+        )
+          throw denied('record-key-rotation', 'key_rotation_evidence_required')
+        const { incident, metadata } = await loadIncident(
+          input.incidentId,
+          'record-key-rotation'
+        )
+        const expectedKind =
+          incident.kind === 'credential_compromise'
+            ? 'provider_credential'
+            : incident.kind === 'encryption_key_compromise'
+              ? 'destination_encryption'
+              : null
+        if (!expectedKind || input.kind !== expectedKind)
+          throw denied('record-key-rotation', 'rotation_kind_not_required')
+        if (
+          Date.parse(input.invalidatedAt) < Date.parse(incident.openedAt) ||
+          Date.parse(input.validatedAt) < Date.parse(input.invalidatedAt)
+        )
+          throw denied('record-key-rotation', 'rotation_timeline_invalid')
+        await db.batch([
+          db.insert(messagingKeyRotations).values({
+            id: id('mkrot'),
+            incidentId: incident.id,
+            kind: input.kind,
+            environment: metadata.environment,
+            provider: metadata.provider ?? null,
+            channel: metadata.channel ?? null,
+            previousVersion: input.previousVersion.trim(),
+            nextVersion: input.nextVersion.trim(),
+            invalidatedAt: input.invalidatedAt,
+            validatedAt: input.validatedAt,
+            evidenceReference: input.evidenceReference.trim(),
+            actorOperatorId: principal.id,
+            createdAt: now.toISOString()
+          }),
+          db.insert(auditEvents).values(
+            audit({
+              principal,
+              eventType: 'messaging.incident.key-rotation-recorded',
+              targetType: 'messaging-incident',
+              targetId: incident.id,
+              reason: input.reason,
+              now,
+              metadata: { kind: input.kind, nextVersion: input.nextVersion.trim() }
+            })
+          )
+        ])
+      }),
+
+    placeRetentionHold: (input) =>
+      effect('place-retention-hold', async () => {
+        const now = currentTime()
+        const principal = await authorize(
+          db,
+          input.actor,
+          'messaging:incident',
+          'place-retention-hold',
+          now
+        )
+        if (
+          !substantive(input.reason) ||
+          !input.resourceType.trim() ||
+          !input.resourceId.trim() ||
+          !input.purpose.trim()
+        )
+          throw denied('place-retention-hold', 'exact_hold_scope_required')
+        const holdId = id('mrhold')
+        await db.batch([
+          db.insert(messagingRetentionHolds).values({
+            id: holdId,
+            resourceType: input.resourceType.trim(),
+            resourceId: input.resourceId.trim(),
+            purpose: input.purpose.trim(),
+            status: 'active',
+            reason: input.reason.trim(),
+            placedByOperatorId: principal.id,
+            placedAt: now.toISOString(),
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString()
+          }),
+          db.insert(auditEvents).values(
+            audit({
+              principal,
+              eventType: 'messaging.retention-hold.placed',
+              targetType: input.resourceType.trim(),
+              targetId: input.resourceId.trim(),
+              reason: input.reason,
+              now,
+              metadata: { holdId, purpose: input.purpose.trim() }
+            })
+          )
+        ])
+        return holdId
+      }),
+
+    releaseRetentionHold: (input) =>
+      effect('release-retention-hold', async () => {
+        const now = currentTime()
+        const principal = await authorize(
+          db,
+          input.actor,
+          'messaging:incident',
+          'release-retention-hold',
+          now
+        )
+        if (!substantive(input.reason))
+          throw denied('release-retention-hold', 'substantive_reason_required')
+        const [hold] = await db
+          .select()
+          .from(messagingRetentionHolds)
+          .where(eq(messagingRetentionHolds.id, input.holdId))
+          .limit(1)
+        if (!hold || hold.status !== 'active')
+          throw denied('release-retention-hold', 'active_hold_not_found')
+        await db.batch([
+          db
+            .update(messagingRetentionHolds)
+            .set({
+              status: 'released',
+              releasedByOperatorId: principal.id,
+              releasedAt: now.toISOString(),
+              updatedAt: now.toISOString()
+            })
+            .where(
+              and(
+                eq(messagingRetentionHolds.id, hold.id),
+                eq(messagingRetentionHolds.status, 'active')
+              )
+            ),
+          db.insert(auditEvents).values(
+            audit({
+              principal,
+              eventType: 'messaging.retention-hold.released',
+              targetType: hold.resourceType,
+              targetId: hold.resourceId,
+              reason: input.reason,
+              now,
+              metadata: { holdId: hold.id, purpose: hold.purpose }
+            })
+          )
+        ])
+      }),
+
     approveRecovery: (input) =>
       effect('approve-recovery', async () => {
         const now = currentTime()
@@ -439,14 +807,25 @@ export const makeMessagingGovernanceLayer = (
           !input.residualRisk.trim()
         )
           throw denied('approve-recovery', 'recovery_evidence_required')
-        const { incident } = await loadIncident(input.incidentId, 'approve-recovery')
+        const { incident, metadata } = await loadIncident(
+          input.incidentId,
+          'approve-recovery'
+        )
         if (incident.status !== 'contained' && incident.status !== 'recovering')
           throw denied('approve-recovery', 'incident_not_contained')
+        await validateRecoveryEvidence(
+          incident.id,
+          input.healthProbeReference,
+          input.reconciliationReference,
+          'approve-recovery'
+        )
+        await validateRequiredRotation(incident, metadata, 'approve-recovery')
         await db.batch([
           db.insert(messagingRecoveryApprovals).values({
             id: id('mrap'),
             incidentId: incident.id,
             actorOperatorId: principal.id,
+            operatorSessionId: principal.sessionId,
             healthProbeReference: input.healthProbeReference.trim(),
             reconciliationReference: input.reconciliationReference.trim(),
             residualRisk: input.residualRisk.trim(),
@@ -503,15 +882,42 @@ export const makeMessagingGovernanceLayer = (
           throw denied('complete-recovery', 'incident_not_recovering')
         const approvalRows = await db
           .select({
-            count: sql<number>`count(distinct ${messagingRecoveryApprovals.actorOperatorId})`
+            actorOperatorId: messagingRecoveryApprovals.actorOperatorId,
+            operatorSessionId: messagingRecoveryApprovals.operatorSessionId,
+            healthProbeReference: messagingRecoveryApprovals.healthProbeReference,
+            reconciliationReference: messagingRecoveryApprovals.reconciliationReference
           })
           .from(messagingRecoveryApprovals)
           .where(eq(messagingRecoveryApprovals.incidentId, incident.id))
-        const count = approvalRows[0]?.count ?? 0
         const requiresTwo =
           incident.containmentScope === 'global' || metadata.compromisedCredential
-        if (requiresTwo && Number(count ?? 0) < 2)
+        const currentApprovers = new Set<string>()
+        for (const approval of approvalRows) {
+          try {
+            const approver = await authorize(
+              db,
+              { operatorSessionId: approval.operatorSessionId },
+              'messaging:control',
+              'complete-recovery',
+              now
+            )
+            if (approver.id === approval.actorOperatorId)
+              currentApprovers.add(approver.id)
+          } catch {
+            // Stale approvals remain evidence but grant no current authority.
+          }
+        }
+        if (requiresTwo && currentApprovers.size < 2)
           throw denied('complete-recovery', 'two_person_approval_required')
+        for (const approval of approvalRows) {
+          await validateRecoveryEvidence(
+            incident.id,
+            approval.healthProbeReference,
+            approval.reconciliationReference,
+            'complete-recovery'
+          )
+        }
+        await validateRequiredRotation(incident, metadata, 'complete-recovery')
 
         const updates = []
         if (incident.containmentScope === 'merchant') {
@@ -523,10 +929,7 @@ export const makeMessagingGovernanceLayer = (
               .set({ frozen: false, freezeReason: null, updatedAt: now.toISOString() })
               .where(eq(merchantMessagingControls.shopId, metadata.shopId))
           )
-        } else if (
-          incident.containmentScope === 'provider_channel' ||
-          incident.containmentScope === 'callback_rule'
-        ) {
+        } else if (incident.containmentScope === 'provider_channel') {
           if (!metadata.provider || !metadata.channel)
             throw denied('complete-recovery', 'provider_channel_scope_required')
           updates.push(
@@ -543,6 +946,26 @@ export const makeMessagingGovernanceLayer = (
                   eq(messagingChannelControls.environment, metadata.environment),
                   eq(messagingChannelControls.provider, metadata.provider),
                   eq(messagingChannelControls.channel, metadata.channel)
+                )
+              )
+          )
+        } else if (incident.containmentScope === 'callback_rule') {
+          if (!metadata.provider || !metadata.channel)
+            throw denied('complete-recovery', 'provider_channel_scope_required')
+          updates.push(
+            db
+              .update(messagingCallbackRejectionRules)
+              .set({
+                enabled: false,
+                reason: input.reason.trim(),
+                changedByOperatorId: principal.id,
+                updatedAt: now.toISOString()
+              })
+              .where(
+                and(
+                  eq(messagingCallbackRejectionRules.environment, metadata.environment),
+                  eq(messagingCallbackRejectionRules.provider, metadata.provider),
+                  eq(messagingCallbackRejectionRules.ruleKey, metadata.channel)
                 )
               )
           )

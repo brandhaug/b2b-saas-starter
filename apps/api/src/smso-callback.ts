@@ -77,6 +77,18 @@ export const handleSmsoCallbackEdge = async (
     return new Response(null, { status: 404 })
   if (request.method !== 'POST')
     return new Response(null, { status: 405, headers: { Allow: 'POST' } })
+  const rejection = await env.DB.prepare(
+    `SELECT enabled FROM messaging_callback_rejection_rules
+     WHERE environment = ? AND provider = 'smso' AND rule_key = 'sms'
+     LIMIT 1`
+  )
+    .bind(env.ENVIRONMENT ?? 'production')
+    .all<{ enabled: number }>()
+  if (rejection.results[0]?.enabled === 1)
+    return new Response(null, {
+      status: 503,
+      headers: { 'retry-after': '30', 'cache-control': 'no-store' }
+    })
   if (
     !request.headers
       .get('content-type')

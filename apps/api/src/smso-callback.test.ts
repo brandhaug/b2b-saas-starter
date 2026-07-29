@@ -9,19 +9,23 @@ const request = (body: string, pathSecret = secret) =>
     body
   })
 
-const environment = (matches = 1) => {
+const environment = (matches = 1, rejectCallbacks = false) => {
   const wakeups: unknown[] = []
   const env = {
     ENVIRONMENT: 'test',
     SMSO_CALLBACK_PATH_SECRET: secret,
     SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY: 'fingerprint-secret',
     DB: {
-      prepare: () => ({
+      prepare: (sql: string) => ({
         bind: () => ({
           all: async () => ({
-            results: Array.from({ length: matches }, (_, index) => ({
-              intent_id: `nti_callback_${index}`
-            }))
+            results: sql.includes('messaging_callback_rejection_rules')
+              ? rejectCallbacks
+                ? [{ enabled: 1 }]
+                : []
+              : Array.from({ length: matches }, (_, index) => ({
+                  intent_id: `nti_callback_${index}`
+                }))
           })
         })
       })
@@ -60,6 +64,17 @@ describe('SMSO.ro callback edge', () => {
       expect(response.status).toBe(202)
       expect(wakeups).toEqual([])
     }
+  })
+
+  it('rejects callbacks during scoped containment without waking work', async () => {
+    const { env, wakeups } = environment(1, true)
+    const response = await handleSmsoCallbackEdge(
+      request('uuid=8a5d2f89-90a1-4b65-b2cb-ffb78c4f65aa&status=delivered'),
+      env
+    )
+    expect(response.status).toBe(503)
+    expect(response.headers.get('retry-after')).toBe('30')
+    expect(wakeups).toEqual([])
   })
 
   it('rejects a wrong path secret, method, shape, content type, and oversized body', async () => {

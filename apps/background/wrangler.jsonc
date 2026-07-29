@@ -37,7 +37,7 @@
         "max_batch_size": 25,
         "max_batch_timeout": 5,
         "max_retries": 6,
-        "max_concurrency": 4,
+        "max_concurrency": 1,
         "retry_delay": 30
       }
     ]

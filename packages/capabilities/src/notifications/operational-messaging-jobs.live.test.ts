@@ -33,9 +33,11 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
               ('shp_other_jobs', 'EUR', '${createdAt}', '${createdAt}')`,
       `INSERT INTO messaging_financial_external_facts
        (id, shop_id, kind, provider, source_id, status, amount_milli_euro, currency,
-        reference, observed_at, created_at)
+       reference, observed_at, created_at)
        VALUES ('mff_jobs', 'shp_jobs', 'provider_payment', 'stripe', 'pi_jobs',
-        'confirmed', 10000, 'EUR', 'invoice:jobs', '${createdAt}', '${createdAt}')`,
+        'confirmed', 10000, 'EUR', 'invoice:jobs', '${createdAt}', '${createdAt}'),
+       ('mff_jobs_missing', 'shp_jobs', 'provider_refund', 'stripe', 'refund_jobs',
+        'confirmed', 100, 'EUR', 'credit-note:jobs', '${createdAt}', '${createdAt}')`,
       `INSERT INTO messaging_balance_ledger_entries
        (id, shop_id, direction, kind, amount_milli_euro, currency, source_type,
         source_id, idempotency_key, fiscal_reference, external_fact_id, occurred_at,
@@ -119,7 +121,12 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
       jobs.reconcile({ now: asIso(now), ownerId: 'worker_jobs', limit: 20 })
     )
 
-    expect(result).toMatchObject({ ambiguityAlertsOpened: 1, ambiguitiesClosed: 1 })
+    expect(result).toMatchObject({
+      ambiguityAlertsOpened: 1,
+      ambiguitiesClosed: 1,
+      financialCasesOpened: 1,
+      merchantsFinanciallyFrozen: 1
+    })
     await expect(
       test.d1
         .prepare(
@@ -143,9 +150,29 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
       status: 'released',
       release_reason: 'ambiguity_timeout'
     })
+    await expect(
+      test.d1
+        .prepare(
+          `SELECT kind, status FROM messaging_reconciliation_cases
+           WHERE source_identity = 'external-fact:mff_jobs_missing:missing_ledger'`
+        )
+        .first()
+    ).resolves.toMatchObject({ kind: 'external_fact_without_ledger', status: 'open' })
   })
 
   it('leases retryable tombstones and crypto-erases only the requested Merchant scope', async () => {
+    await test.d1
+      .prepare(
+        `INSERT INTO messaging_retention_holds
+         (id, resource_type, resource_id, purpose, status, reason,
+          placed_by_operator_id, placed_at, created_at, updated_at)
+         VALUES ('mrh_jobs_destination', 'protected_messaging_destination',
+          'pmd_jobs_erasure', 'privacy-complaint', 'active',
+          'Preserve the exact destination while the complaint is investigated',
+          'opr_jobs', ?, ?, ?)`
+      )
+      .bind(asIso(now), asIso(now), asIso(now))
+      .run()
     await run((jobs) =>
       jobs.scheduleRetention({ now: asIso(now), shopId: 'shp_jobs', limit: 20 })
     )
@@ -156,8 +183,39 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
       jobs.processRetention({ now: asIso(now), ownerId: 'worker_jobs', limit: 20 })
     )
 
-    expect(first.completed).toBe(3)
+    expect(first.completed).toBe(2)
     expect(retry.completed).toBe(0)
+    await expect(
+      test.d1
+        .prepare(
+          `SELECT ciphertext FROM protected_messaging_destinations
+           WHERE id = 'pmd_jobs_erasure'`
+        )
+        .first()
+    ).resolves.toMatchObject({ ciphertext: 'ciphertext-jobs' })
+    await expect(
+      run((jobs) =>
+        jobs.schedulePrivacyDeletion({ now: asIso(now), shopId: 'shp_jobs' })
+      )
+    ).resolves.toBe(0)
+    await test.d1
+      .prepare(
+        `UPDATE messaging_retention_holds
+         SET status = 'released', released_by_operator_id = 'opr_jobs',
+             released_at = ?, updated_at = ? WHERE id = 'mrh_jobs_destination'`
+      )
+      .bind(asIso(now), asIso(now))
+      .run()
+    await expect(
+      run((jobs) =>
+        jobs.schedulePrivacyDeletion({ now: asIso(now), shopId: 'shp_jobs' })
+      )
+    ).resolves.toBe(1)
+    await expect(
+      run((jobs) =>
+        jobs.processRetention({ now: asIso(now), ownerId: 'worker_jobs', limit: 20 })
+      )
+    ).resolves.toMatchObject({ completed: 1 })
     await expect(
       test.d1
         .prepare(
@@ -197,26 +255,42 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
   })
 
   it('records a failed tombstone and safely retries it after partial-job failure', async () => {
-    await test.d1
-      .prepare(
-        `INSERT INTO messaging_retention_tombstones
+    await test.d1.batch([
+      test.d1
+        .prepare(
+          `INSERT INTO messaging_incident_quarantine
+           (id, source, ciphertext, key_version, body_fingerprint, received_at,
+            expires_at, created_at)
+           VALUES ('quarantine_injected', 'meta', 'encrypted-quarantine', 1,
+            'sha256:quarantine', ?, ?, ?)`
+        )
+        .bind(asIso(now), asIso(now), asIso(now)),
+      test.d1
+        .prepare(
+          `INSERT INTO messaging_retention_tombstones
          (id, shop_id, resource_type, resource_id, action, status, due_at,
           attempt_count, created_at, updated_at)
          VALUES ('mrt_jobs_quarantine', 'shp_jobs', 'incident_quarantine',
-          'quarantine_missing', 'delete_quarantine', 'pending', ?, 0, ?, ?)`
+          'quarantine_injected', 'delete_quarantine', 'pending', ?, 0, ?, ?)`
+        )
+        .bind(asIso(now), asIso(now), asIso(now)),
+      test.d1.prepare(
+        `CREATE TRIGGER fail_quarantine_deletion
+         BEFORE DELETE ON messaging_incident_quarantine
+         BEGIN SELECT RAISE(FAIL, 'injected_retention_failure'); END`
       )
-      .bind(asIso(now), asIso(now), asIso(now))
-      .run()
+    ])
 
     const first = await run((jobs) =>
       jobs.processRetention({ now: asIso(now), ownerId: 'worker_jobs_a', limit: 20 })
     )
+    await test.d1.prepare(`DROP TRIGGER fail_quarantine_deletion`).run()
     const retry = await run((jobs) =>
       jobs.processRetention({ now: asIso(now), ownerId: 'worker_jobs_b', limit: 20 })
     )
 
     expect(first.failed).toBe(1)
-    expect(retry.failed).toBe(1)
+    expect(retry.completed).toBe(1)
     await expect(
       test.d1
         .prepare(
@@ -225,11 +299,18 @@ describe('Operational Messaging reconciliation and retention jobs', () => {
         )
         .first()
     ).resolves.toMatchObject({
-      status: 'failed',
+      status: 'completed',
       attempt_count: 2,
       lease_owner: null,
       leased_until: null,
-      last_failure_code: 'retention_resource_unavailable'
+      last_failure_code: null
     })
+    await expect(
+      test.d1
+        .prepare(
+          `SELECT id FROM messaging_incident_quarantine WHERE id = 'quarantine_injected'`
+        )
+        .first()
+    ).resolves.toBeNull()
   })
 })

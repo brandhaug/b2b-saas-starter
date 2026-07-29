@@ -10,7 +10,7 @@ describe('Messaging governance migration', () => {
 
   afterAll(async () => test.dispose())
 
-  it('adds durable cursors, quarantine, append-only resolutions, events, and approvals', async () => {
+  it('adds durable reconciliation, containment, recovery, and retention evidence', async () => {
     const rows = await test.d1
       .prepare(
         `SELECT name FROM sqlite_master
@@ -19,17 +19,25 @@ describe('Messaging governance migration', () => {
            'messaging_incident_quarantine',
            'messaging_reconciliation_resolutions',
            'messaging_incident_events',
-           'messaging_recovery_approvals'
+           'messaging_recovery_approvals',
+           'messaging_retention_holds',
+           'messaging_callback_rejection_rules',
+           'messaging_recovery_checks',
+           'messaging_key_rotations'
          ) ORDER BY name`
       )
       .all<{ name: string }>()
 
     expect(rows.results.map((row) => row.name)).toEqual([
+      'messaging_callback_rejection_rules',
       'messaging_incident_events',
       'messaging_incident_quarantine',
       'messaging_job_cursors',
+      'messaging_key_rotations',
       'messaging_reconciliation_resolutions',
-      'messaging_recovery_approvals'
+      'messaging_recovery_approvals',
+      'messaging_recovery_checks',
+      'messaging_retention_holds'
     ])
   })
 
@@ -50,9 +58,9 @@ describe('Messaging governance migration', () => {
         .prepare(
           `INSERT INTO messaging_recovery_approvals
            (id, incident_id, actor_operator_id, health_probe_reference,
-            reconciliation_reference, residual_risk, created_at)
+            reconciliation_reference, residual_risk, operator_session_id, created_at)
            VALUES (?, 'minc_migration', 'opr_migration', 'probe:one',
-            'reconciliation:one', 'low', ?)`
+            'reconciliation:one', 'low', 'ops_migration', ?)`
         )
         .bind(id, at)
 
