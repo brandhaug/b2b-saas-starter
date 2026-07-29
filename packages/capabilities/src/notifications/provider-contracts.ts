@@ -66,7 +66,9 @@ export const ProviderSubmissionRequest = Schema.Union([
   Schema.Struct({
     ...ProviderSubmissionFields,
     provider: Schema.Literal('meta'),
-    channel: Schema.Literal('whatsapp')
+    channel: Schema.Literal('whatsapp'),
+    templateKey: Schema.String.check(Schema.isPattern(/^[a-z0-9_]{1,512}$/)),
+    templateParameters: Schema.Array(ProtectedNotificationMaterial)
   }),
   Schema.Struct({
     ...ProviderSubmissionFields,
@@ -74,6 +76,18 @@ export const ProviderSubmissionRequest = Schema.Union([
     channel: Schema.Literal('sms')
   })
 ])
+
+export const ProviderCostFact = Schema.Struct({
+  costFactId: ProviderCostFactId,
+  attemptId: ProviderAttemptId,
+  intentId: NotificationIntentId,
+  provider: MessagingProvider,
+  amountMilliEuro: Schema.Int,
+  currency: Schema.Literal('EUR'),
+  units: Schema.Int,
+  recordedAt: ProviderUtcInstant,
+  source: Schema.Literals(['response', 'callback', 'query', 'invoice'])
+})
 
 export const ProviderSubmissionOutcome = Schema.Union([
   Schema.Struct({
@@ -84,12 +98,16 @@ export const ProviderSubmissionOutcome = Schema.Union([
   Schema.Struct({
     _tag: Schema.Literal('accepted'),
     providerReferenceFingerprint: ProviderFingerprint,
+    protectedProviderReference: Schema.optional(ProtectedNotificationMaterial),
+    costFacts: Schema.optional(Schema.Array(ProviderCostFact)),
     acceptedAt: ProviderUtcInstant
   }),
   Schema.Struct({
     _tag: Schema.Literal('rejected'),
     classification: Schema.Literals(['retryable', 'terminal']),
-    code: NormalizedProviderCode
+    code: NormalizedProviderCode,
+    providerCode: Schema.optional(Schema.Int),
+    classificationPolicyVersion: Schema.optional(Schema.String)
   }),
   Schema.Struct({
     _tag: Schema.Literal('throttled'),
@@ -156,18 +174,6 @@ export const ProviderQueryOutcome = Schema.Union([
     retryAfterSeconds: Schema.Number
   })
 ])
-
-export const ProviderCostFact = Schema.Struct({
-  costFactId: ProviderCostFactId,
-  attemptId: ProviderAttemptId,
-  intentId: NotificationIntentId,
-  provider: MessagingProvider,
-  amountMilliEuro: Schema.Int,
-  currency: Schema.Literal('EUR'),
-  units: Schema.Int,
-  recordedAt: ProviderUtcInstant,
-  source: Schema.Literals(['response', 'callback', 'query', 'invoice'])
-})
 
 export const ProviderQueueWakeup = Schema.Struct({
   version: Schema.Literal(1),

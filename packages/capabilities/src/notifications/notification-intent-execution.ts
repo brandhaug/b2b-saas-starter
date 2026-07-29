@@ -62,6 +62,32 @@ const providerRouteId = (routeId: string) => `prt_${routeId.replace(/^[^_]+_/, '
 const providerIdempotencyKey = (attemptId: string) => `idem_${attemptId}`
 const staleSubmissionMilliseconds = 30_000
 
+const metaTemplateParameters = (
+  purpose: NotificationIntentAggregate['purpose'],
+  facts: ControlledTemplateFacts
+) => {
+  const fields =
+    purpose === 'appointment_confirmation'
+      ? ([
+          'merchantLabel',
+          'localizedDate',
+          'time',
+          'locationLabel',
+          'reference',
+          'confirmationUrl'
+        ] as const)
+      : purpose === 'appointment_cancellation'
+        ? (['merchantLabel', 'localizedDate', 'time', 'reference'] as const)
+        : ([
+            'merchantLabel',
+            'localizedDate',
+            'time',
+            'locationLabel',
+            'reference'
+          ] as const)
+  return fields.map((field) => Redacted.make(facts[field]))
+}
+
 const eligibilityFor = (
   intent: NotificationIntentAggregate,
   execution: NotificationIntentExecutionContext,
@@ -104,6 +130,21 @@ export const makeNotificationIntentExecutionLayer = (options: {
     ciphertext: string,
     keyVersion: number
   ) => Effect.Effect<Redacted.Redacted<string>, CapabilityUnavailable>
+  readonly persistProviderAcceptance?: (input: {
+    readonly shopId: string
+    readonly intentId: string
+    readonly attemptId: string
+    readonly provider: 'meta' | 'smso'
+    readonly providerAccountKey: string
+    readonly providerReferenceFingerprint: string
+    readonly protectedProviderReference?: Redacted.Redacted<string>
+    readonly costFacts: readonly {
+      readonly amountMilliEuro: number
+      readonly units: number
+      readonly recordedAt: string
+    }[]
+    readonly acceptedAt: string
+  }) => Effect.Effect<void, CapabilityUnavailable>
 }): Layer.Layer<
   NotificationIntentExecution,
   never,
@@ -136,6 +177,10 @@ export const makeNotificationIntentExecutionLayer = (options: {
           readonly providerReferenceFingerprint?: string
           readonly sourceEventKey?: string
           readonly captureId?: string
+          readonly retryAfterSeconds?: number
+          readonly normalizedCode?: string
+          readonly providerCode?: number
+          readonly classificationPolicyVersion?: string
         } = {}
       ) =>
         outcome === 'captured'
@@ -158,6 +203,20 @@ export const makeNotificationIntentExecutionLayer = (options: {
               ...(details.providerReferenceFingerprint
                 ? {
                     providerReferenceFingerprint: details.providerReferenceFingerprint
+                  }
+                : {}),
+              ...(details.retryAfterSeconds
+                ? { retryAfterSeconds: details.retryAfterSeconds }
+                : {}),
+              ...(details.normalizedCode
+                ? { normalizedCode: details.normalizedCode }
+                : {}),
+              ...(details.providerCode === undefined
+                ? {}
+                : { providerCode: details.providerCode }),
+              ...(details.classificationPolicyVersion
+                ? {
+                    classificationPolicyVersion: details.classificationPolicyVersion
                   }
                 : {})
             })
@@ -321,7 +380,13 @@ export const makeNotificationIntentExecutionLayer = (options: {
                   ? {
                       ...providerRequest,
                       provider: 'meta',
-                      channel: 'whatsapp'
+                      channel: 'whatsapp',
+                      templateKey:
+                        evaluated.success.template.providerApproval!.templateKey,
+                      templateParameters: metaTemplateParameters(
+                        intent.purpose,
+                        submissionContext.facts
+                      )
                     }
                   : {
                       ...providerRequest,
@@ -354,6 +419,23 @@ export const makeNotificationIntentExecutionLayer = (options: {
                 )
                 return
               case 'accepted':
+                if (options.persistProviderAcceptance)
+                  yield* options.persistProviderAcceptance({
+                    shopId: intent.shopId,
+                    intentId: intent.id,
+                    attemptId: prepared.attempt.id,
+                    provider: prepared.route.provider,
+                    providerAccountKey:
+                      options.providerAccountKeys[prepared.route.provider],
+                    providerReferenceFingerprint: outcome.providerReferenceFingerprint,
+                    ...(outcome.protectedProviderReference
+                      ? {
+                          protectedProviderReference: outcome.protectedProviderReference
+                        }
+                      : {}),
+                    costFacts: outcome.costFacts ?? [],
+                    acceptedAt: outcome.acceptedAt
+                  })
                 yield* durableOutcome(
                   intent.id,
                   prepared.attempt.id,
@@ -374,7 +456,19 @@ export const makeNotificationIntentExecutionLayer = (options: {
                     ? 'rejected_terminal'
                     : 'rejected_retryable',
                   prepared.route.provider,
-                  { sourceEventKey: `response:${prepared.attempt.id}:${outcome.code}` }
+                  {
+                    sourceEventKey: `response:${prepared.attempt.id}:${outcome.code}`,
+                    normalizedCode: outcome.code,
+                    ...(outcome.providerCode === undefined
+                      ? {}
+                      : { providerCode: outcome.providerCode }),
+                    ...(outcome.classificationPolicyVersion
+                      ? {
+                          classificationPolicyVersion:
+                            outcome.classificationPolicyVersion
+                        }
+                      : {})
+                  }
                 )
                 if (outcome.classification !== 'terminal') return
                 break
@@ -385,7 +479,10 @@ export const makeNotificationIntentExecutionLayer = (options: {
                   input.now,
                   'rejected_retryable',
                   prepared.route.provider,
-                  { sourceEventKey: `response:${prepared.attempt.id}:throttled` }
+                  {
+                    sourceEventKey: `response:${prepared.attempt.id}:throttled`,
+                    retryAfterSeconds: outcome.retryAfterSeconds
+                  }
                 )
                 return
               case 'ambiguous':

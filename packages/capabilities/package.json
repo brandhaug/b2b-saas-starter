@@ -23,6 +23,7 @@
     "./customer-identity": "./src/customer-identity/index.ts",
     "./notifications": "./src/notifications/index.ts",
     "./notifications/testing": "./src/notifications/provider-contract-testing.ts",
+    "./notifications/providers/smso": "./src/notifications/smso-provider.ts",
     "./scheduled-work": "./src/scheduled-work/index.ts",
     "./operations": "./src/operations/index.ts",
     "./foundation/ids": "./src/ids.ts",
