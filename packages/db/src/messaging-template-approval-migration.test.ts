@@ -81,17 +81,23 @@ describe('messaging template approval metadata migration', () => {
     ).rejects.toThrow()
   })
 
-  it('seeds all controlled versions while keeping unqualified WhatsApp disabled', async () => {
+  it('preserves SMS v1 and activates the immutable help/STOP v2 versions', async () => {
     const rows = await test.d1
       .prepare(
         `SELECT channel, enabled, provider_approval_status, COUNT(*) AS total
          FROM messaging_template_versions
          GROUP BY channel, enabled, provider_approval_status
-         ORDER BY channel`
+         ORDER BY channel, enabled`
       )
       .all()
 
     expect(rows.results).toEqual([
+      {
+        channel: 'sms',
+        enabled: 0,
+        provider_approval_status: 'pending',
+        total: 8
+      },
       {
         channel: 'sms',
         enabled: 1,
@@ -103,6 +109,29 @@ describe('messaging template approval metadata migration', () => {
         enabled: 0,
         provider_approval_status: 'pending',
         total: 8
+      }
+    ])
+
+    const smsVersions = await test.d1
+      .prepare(
+        `SELECT version, enabled, body_fingerprint
+         FROM messaging_template_versions
+         WHERE purpose = 'appointment_confirmation' AND locale = 'ro' AND channel = 'sms'
+         ORDER BY version`
+      )
+      .all()
+    expect(smsVersions.results).toEqual([
+      {
+        version: 1,
+        enabled: 0,
+        body_fingerprint:
+          'sha256:998a641d32a9d74e4b30775ca9090c951705ec7a90b65e78bc97d5360631e3fa'
+      },
+      {
+        version: 2,
+        enabled: 1,
+        body_fingerprint:
+          'sha256:8ac171f906f52b00208f763498085d1f8286954bd2dd097dc81a23c790fdb904'
       }
     ])
   })

@@ -12,7 +12,6 @@ import {
   ProviderUtcInstant
 } from './provider-contracts.ts'
 
-type Locale = typeof MessagingLocale.Type
 type Purpose = typeof OperationalNotificationPurpose.Type
 
 export const ControlledTemplateFacts = Schema.Struct({
@@ -41,6 +40,9 @@ export const ControlledTemplateInvalidReason = Schema.Literals([
   'confirmation_url_not_allowed',
   'url_not_allowed',
   'unknown_controlled_field',
+  'required_field_missing',
+  'template_pattern_missing',
+  'template_fingerprint_mismatch',
   'whatsapp_envelope_exceeded',
   'sms_not_gsm7',
   'sms_segment_exceeded'
@@ -107,62 +109,136 @@ const purposes: readonly Purpose[] = [
 const bodyFingerprints: Readonly<Record<string, string>> = {
   'ro:appointment_confirmation:whatsapp':
     'sha256:252c1d7edf64265eccfd0f6f81d41976396d97253af1888c74eb61aeba7a9338',
-  'ro:appointment_confirmation:sms':
-    'sha256:20b411bcd5dcaf6d3a5554e5e62b8987b0b8c7a27ffe1bac339f7811ea1f2c9a',
+  'ro:appointment_confirmation:sms:v1':
+    'sha256:998a641d32a9d74e4b30775ca9090c951705ec7a90b65e78bc97d5360631e3fa',
+  'ro:appointment_confirmation:sms:v2':
+    'sha256:8ac171f906f52b00208f763498085d1f8286954bd2dd097dc81a23c790fdb904',
   'ro:appointment_reminder:whatsapp':
     'sha256:d8b34a816668643b8518574525c159ba16fd7fa2412481f086e4d8701ed671a0',
-  'ro:appointment_reminder:sms':
-    'sha256:518eeeb946bd838e2b62145bb4a08eedae73191f05e7190612ef250e9cd3e113',
+  'ro:appointment_reminder:sms:v1':
+    'sha256:b90b61075a5b34649b2c26d29204db64bec322ae04d15dd786858eada237f3c4',
+  'ro:appointment_reminder:sms:v2':
+    'sha256:d964cc92477f25d7316b38985de9d7aeee01ec545f10a3a5623d8dfa5968af48',
   'ro:appointment_cancellation:whatsapp':
     'sha256:2633b940e84a515922c9606b7c695ce0a87eefa29d60011dd1938c3aba860f10',
-  'ro:appointment_cancellation:sms':
-    'sha256:d9414fd3f0bb2aba6d8911db10723da51bbcf26875f09be5cbfacad32d418e3a',
+  'ro:appointment_cancellation:sms:v1':
+    'sha256:44278a7d1b3f175aeb41526c5e846233f90eddbf99379ae84e306c3709ea4320',
+  'ro:appointment_cancellation:sms:v2':
+    'sha256:02307e9d2565a858372740eca43b2876a656c23d68f4cf6114dc36a7882daa0c',
   'ro:appointment_reschedule:whatsapp':
     'sha256:75bb42949e955ff5129e121d6a79175ab2270ee35a4e448ce75d0106c94770e6',
-  'ro:appointment_reschedule:sms':
-    'sha256:2d6f8ff2f42d82d8f385c7e892660178b825a11691f088c367ea1a80e71fb119',
+  'ro:appointment_reschedule:sms:v1':
+    'sha256:e2ced6a7f80e92a6b0842075e89111edfa5973651b8aa9631910a04aeb3634c3',
+  'ro:appointment_reschedule:sms:v2':
+    'sha256:ab00343e3ea8253d4f56f9f91886e4c9e08f0c7fe9c694cbb6ad5dcba612163a',
   'en:appointment_confirmation:whatsapp':
     'sha256:b968cdc7530c9953831af9c6cec67894c0f357cd093cb03ff5a364597e5bbd1a',
-  'en:appointment_confirmation:sms':
-    'sha256:5b032484d3264322a1440366deb6c4ea2bf50241dc5aca27d9d228b12240ef02',
+  'en:appointment_confirmation:sms:v1':
+    'sha256:97c4eca8d01d2172238b26a13d9802ef963ed3a13ba9b9caf652745d9e39c418',
+  'en:appointment_confirmation:sms:v2':
+    'sha256:e5b130fc44c795704a34c249ee2bcf73fb8262cc87b95e2850c28ed7015a0961',
   'en:appointment_reminder:whatsapp':
     'sha256:1b25cb9b1f4d4e2ce41e7546633e2ce46b9ce41e8ec0cf3674dd4c9d39629f66',
-  'en:appointment_reminder:sms':
-    'sha256:ee6401f3fd17f90887a1c64e036bdbe7d04b80dc12db969e452725b0ff65c7aa',
+  'en:appointment_reminder:sms:v1':
+    'sha256:4cfc41cd2f6129a398ad47e23695def3f14c37d4b53e14af68a6d13cc4704a1a',
+  'en:appointment_reminder:sms:v2':
+    'sha256:7ba1118d0a7d5d8dd14d409e6e59e6a2740a08dfcb5011b152986a5fa926fc81',
   'en:appointment_cancellation:whatsapp':
     'sha256:712918e11451dd0054fa6da46d3ef272d10ccfee58c9e607742beff690a3c0e9',
-  'en:appointment_cancellation:sms':
-    'sha256:fb3710df8244cf5d121e7cd5d7d19ac58da60a95f96ab8d1ac3125eeaa8dd655',
+  'en:appointment_cancellation:sms:v1':
+    'sha256:b8aa7fe41d5ddf3f053f9d904ce2e1cdb19f5a999a51bea7ac09e9d51fc5422d',
+  'en:appointment_cancellation:sms:v2':
+    'sha256:3aa790c23299c3c15ab1af855d3f0281847eae6b22adff79f60990e378ebeae1',
   'en:appointment_reschedule:whatsapp':
     'sha256:2ddf8130d014974a516d26a958c114521eacafc85fea44926ce8f925a0e49609',
-  'en:appointment_reschedule:sms':
-    'sha256:74064bf66902b14cb19b3de09c3ae08f508ebcb0bb014ac29ac7a7785eef0f99'
+  'en:appointment_reschedule:sms:v1':
+    'sha256:eafb2b2640eadc54c20005aedb8facf2a4efed6c314e5802ad220ca143ee07cf',
+  'en:appointment_reschedule:sms:v2':
+    'sha256:1ddcf05959fed546b2a3467edf8b61a1fc3875e4c8ba72f143c3ec7fdf4811af'
 }
 
 export const controlledTemplateCatalog: readonly ControlledTemplate[] = (
   ['ro', 'en'] as const
 ).flatMap((locale) =>
   purposes.flatMap((purpose) =>
-    (['whatsapp', 'sms'] as const).map((channel) => ({
-      id: `mtv_${locale}_${purpose}_${channel}_v1`,
-      locale,
-      purpose,
-      channel,
-      version: 1,
-      bodyFingerprint: bodyFingerprints[`${locale}:${purpose}:${channel}`]!,
-      enabled: channel === 'sms',
-      providerApproval:
-        channel === 'whatsapp'
-          ? {
-              provider: 'meta' as const,
-              templateKey: `beesolo_${purpose}_${locale}_v1`,
-              requestedCategory: 'utility' as const,
-              status: 'pending' as const
-            }
-          : null
-    }))
+    (['whatsapp', 'sms'] as const).flatMap((channel) =>
+      (channel === 'sms' ? [1, 2] : [1]).map((version) => ({
+        id: `mtv_${locale}_${purpose}_${channel}_v${version}`,
+        locale,
+        purpose,
+        channel,
+        version,
+        bodyFingerprint:
+          bodyFingerprints[
+            channel === 'sms'
+              ? `${locale}:${purpose}:${channel}:v${version}`
+              : `${locale}:${purpose}:${channel}`
+          ]!,
+        enabled: channel === 'sms' && version === 2,
+        providerApproval:
+          channel === 'whatsapp'
+            ? {
+                provider: 'meta' as const,
+                templateKey: `beesolo_${purpose}_${locale}_v${version}`,
+                requestedCategory: 'utility' as const,
+                status: 'pending' as const
+              }
+            : null
+      }))
+    )
   )
 )
+
+const controlledBodyPatterns: Readonly<Record<string, string>> = {
+  mtv_ro_appointment_confirmation_whatsapp_v1:
+    'Programarea la {{merchantLabel}} este confirmată pentru {{localizedDate}}, {{time}}, la {{locationLabel}}. Referință: {{reference}}. Detalii: {{confirmationUrl}}. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
+  mtv_ro_appointment_confirmation_sms_v1:
+    '{{merchantSmsLabel}}: Confirmat {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}. {{confirmationUrl}}',
+  mtv_ro_appointment_confirmation_sms_v2:
+    '{{merchantSmsLabel}}: Confirmat {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}. {{confirmationUrl}} Aj/STOP:firma/beesolo',
+  mtv_ro_appointment_reminder_whatsapp_v1:
+    'Memento de la {{merchantLabel}}: programarea este {{localizedDate}}, {{time}}, la {{locationLabel}}. Referință: {{reference}}. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
+  mtv_ro_appointment_reminder_sms_v1:
+    '{{merchantSmsLabel}}: Memento {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}.',
+  mtv_ro_appointment_reminder_sms_v2:
+    '{{merchantSmsLabel}}: Memento {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}. Aj/STOP:firma/beesolo',
+  mtv_ro_appointment_cancellation_whatsapp_v1:
+    '{{merchantLabel}} a anulat programarea din {{localizedDate}}, {{time}}. Referință: {{reference}}. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
+  mtv_ro_appointment_cancellation_sms_v1:
+    '{{merchantSmsLabel}}: Anulat {{smsDate}} {{time}}. Ref {{reference}}.',
+  mtv_ro_appointment_cancellation_sms_v2:
+    '{{merchantSmsLabel}}: Anulat {{smsDate}} {{time}}. Ref {{reference}}. Aj/STOP:firma/beesolo',
+  mtv_ro_appointment_reschedule_whatsapp_v1:
+    '{{merchantLabel}} a reprogramat programarea pentru {{localizedDate}}, {{time}}, la {{locationLabel}}. Referință: {{reference}}. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
+  mtv_ro_appointment_reschedule_sms_v1:
+    '{{merchantSmsLabel}}: Reprogramat {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}.',
+  mtv_ro_appointment_reschedule_sms_v2:
+    '{{merchantSmsLabel}}: Reprogramat {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}. Aj/STOP:firma/beesolo',
+  mtv_en_appointment_confirmation_whatsapp_v1:
+    'Your appointment with {{merchantLabel}} is confirmed for {{localizedDate}} at {{time}}, at {{locationLabel}}. Reference: {{reference}}. Details: {{confirmationUrl}}. For help, contact the merchant or beesolo support.',
+  mtv_en_appointment_confirmation_sms_v1:
+    '{{merchantSmsLabel}}: Confirmed {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}. {{confirmationUrl}}',
+  mtv_en_appointment_confirmation_sms_v2:
+    '{{merchantSmsLabel}}: Confirmed {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}. {{confirmationUrl}} Help/STOP:biz/beesolo',
+  mtv_en_appointment_reminder_whatsapp_v1:
+    'Reminder from {{merchantLabel}}: your appointment is {{localizedDate}} at {{time}}, at {{locationLabel}}. Reference: {{reference}}. For help, contact the merchant or beesolo support.',
+  mtv_en_appointment_reminder_sms_v1:
+    '{{merchantSmsLabel}}: Reminder {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}.',
+  mtv_en_appointment_reminder_sms_v2:
+    '{{merchantSmsLabel}}: Reminder {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}. Help/STOP:biz/beesolo',
+  mtv_en_appointment_cancellation_whatsapp_v1:
+    '{{merchantLabel}} cancelled your appointment for {{localizedDate}} at {{time}}. Reference: {{reference}}. For help, contact the merchant or beesolo support.',
+  mtv_en_appointment_cancellation_sms_v1:
+    '{{merchantSmsLabel}}: Cancelled {{smsDate}} {{time}}. Ref {{reference}}.',
+  mtv_en_appointment_cancellation_sms_v2:
+    '{{merchantSmsLabel}}: Cancelled {{smsDate}} {{time}}. Ref {{reference}}. Help/STOP:biz/beesolo',
+  mtv_en_appointment_reschedule_whatsapp_v1:
+    '{{merchantLabel}} rescheduled your appointment to {{localizedDate}} at {{time}}, at {{locationLabel}}. Reference: {{reference}}. For help, contact the merchant or beesolo support.',
+  mtv_en_appointment_reschedule_sms_v1:
+    '{{merchantSmsLabel}}: Rescheduled {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}.',
+  mtv_en_appointment_reschedule_sms_v2:
+    '{{merchantSmsLabel}}: Rescheduled {{smsDate}} {{time}}, {{locationSmsLabel}}. Ref {{reference}}. Help/STOP:biz/beesolo'
+}
 
 const transliteration = new Map<string, string>([
   ['ă', 'a'],
@@ -295,6 +371,17 @@ const invalidFacts = (
     (field) => !controlledFactFields.has(field)
   )
   if (unknownField) return fail('unknown_controlled_field', unknownField)
+  for (const field of [
+    'merchantLabel',
+    'merchantSmsLabel',
+    'localizedDate',
+    'smsDate',
+    'time',
+    'locationLabel',
+    'locationSmsLabel',
+    'reference'
+  ] as const)
+    if (!facts[field].trim()) return fail('required_field_missing', field)
   if (facts.merchantLabel.length > 40)
     return fail('merchant_label_too_long', 'merchantLabel')
   if (facts.merchantSmsLabel.length > 24)
@@ -325,65 +412,24 @@ const invalidFacts = (
   return null
 }
 
-const whatsappBody = (
-  locale: Locale,
-  purpose: Purpose,
+const renderPattern = (
+  pattern: string,
+  channel: typeof MessagingChannel.Type,
   facts: ControlledTemplateFacts
 ) => {
-  if (locale === 'ro') {
-    switch (purpose) {
-      case 'appointment_confirmation':
-        return `Programarea la ${facts.merchantLabel} este confirmată pentru ${facts.localizedDate}, ${facts.time}, la ${facts.locationLabel}. Referință: ${facts.reference}. Detalii: ${facts.confirmationUrl}. Pentru ajutor, contactează comerciantul sau suportul beesolo.`
-      case 'appointment_reminder':
-        return `Memento de la ${facts.merchantLabel}: programarea este ${facts.localizedDate}, ${facts.time}, la ${facts.locationLabel}. Referință: ${facts.reference}. Pentru ajutor, contactează comerciantul sau suportul beesolo.`
-      case 'appointment_cancellation':
-        return `${facts.merchantLabel} a anulat programarea din ${facts.localizedDate}, ${facts.time}. Referință: ${facts.reference}. Pentru ajutor, contactează comerciantul sau suportul beesolo.`
-      case 'appointment_reschedule':
-        return `${facts.merchantLabel} a reprogramat programarea pentru ${facts.localizedDate}, ${facts.time}, la ${facts.locationLabel}. Referință: ${facts.reference}. Pentru ajutor, contactează comerciantul sau suportul beesolo.`
-    }
-  }
-  switch (purpose) {
-    case 'appointment_confirmation':
-      return `Your appointment with ${facts.merchantLabel} is confirmed for ${facts.localizedDate} at ${facts.time}, at ${facts.locationLabel}. Reference: ${facts.reference}. Details: ${facts.confirmationUrl}. For help, contact the merchant or beesolo support.`
-    case 'appointment_reminder':
-      return `Reminder from ${facts.merchantLabel}: your appointment is ${facts.localizedDate} at ${facts.time}, at ${facts.locationLabel}. Reference: ${facts.reference}. For help, contact the merchant or beesolo support.`
-    case 'appointment_cancellation':
-      return `${facts.merchantLabel} cancelled your appointment for ${facts.localizedDate} at ${facts.time}. Reference: ${facts.reference}. For help, contact the merchant or beesolo support.`
-    case 'appointment_reschedule':
-      return `${facts.merchantLabel} rescheduled your appointment to ${facts.localizedDate} at ${facts.time}, at ${facts.locationLabel}. Reference: ${facts.reference}. For help, contact the merchant or beesolo support.`
-  }
-}
-
-const smsBody = (locale: Locale, purpose: Purpose, facts: ControlledTemplateFacts) => {
-  const merchant = transliterateRomanianSms(facts.merchantSmsLabel)
-  const location = transliterateRomanianSms(facts.locationSmsLabel)
-  const reference = transliterateRomanianSms(facts.reference)
-  const help =
-    locale === 'ro' ? ' Ajutor/STOP:firma/beesolo.' : ' Help/STOP:shop/beesolo.'
-  const wording =
-    locale === 'ro'
+  const values: Readonly<Record<string, string>> =
+    channel === 'sms'
       ? {
-          appointment_confirmation: 'Confirmat',
-          appointment_reminder: 'Memento',
-          appointment_cancellation: 'Anulat',
-          appointment_reschedule: 'Reprogramat'
+          ...facts,
+          merchantSmsLabel: transliterateRomanianSms(facts.merchantSmsLabel),
+          locationSmsLabel: transliterateRomanianSms(facts.locationSmsLabel),
+          reference: transliterateRomanianSms(facts.reference)
         }
-      : {
-          appointment_confirmation: 'Confirmed',
-          appointment_reminder: 'Reminder',
-          appointment_cancellation: 'Cancelled',
-          appointment_reschedule: 'Rescheduled'
-        }
-  switch (purpose) {
-    case 'appointment_confirmation':
-      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${reference}. ${facts.confirmationUrl}${help}`
-    case 'appointment_reminder':
-      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${reference}.${help}`
-    case 'appointment_cancellation':
-      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}. Ref ${reference}.${help}`
-    case 'appointment_reschedule':
-      return `${merchant}: ${wording[purpose]} ${facts.smsDate} ${facts.time}, ${location}. Ref ${reference}.${help}`
-  }
+      : facts
+  return pattern.replace(
+    /\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g,
+    (_, field: string) => values[field] ?? ''
+  )
 }
 
 export const renderControlledTemplate = ({
@@ -396,10 +442,25 @@ export const renderControlledTemplate = ({
   Effect.gen(function* () {
     const invalid = invalidFacts(template, facts)
     if (invalid) return yield* Effect.fail(invalid)
-    const body =
-      template.channel === 'whatsapp'
-        ? whatsappBody(template.locale, template.purpose, facts)
-        : smsBody(template.locale, template.purpose, facts)
+    const pattern = controlledBodyPatterns[template.id]
+    if (!pattern)
+      return yield* Effect.fail(
+        new ControlledTemplateInvalid({
+          reason: 'template_pattern_missing'
+        })
+      )
+    const actualFingerprint = `sha256:${toHex(
+      yield* Effect.promise(() =>
+        crypto.subtle.digest('SHA-256', new TextEncoder().encode(pattern))
+      )
+    )}`
+    if (actualFingerprint !== template.bodyFingerprint)
+      return yield* Effect.fail(
+        new ControlledTemplateInvalid({
+          reason: 'template_fingerprint_mismatch'
+        })
+      )
+    const body = renderPattern(pattern, template.channel, facts)
     if (template.channel === 'whatsapp' && body.length > 500)
       return yield* Effect.fail(
         new ControlledTemplateInvalid({
@@ -497,12 +558,16 @@ const ineligible = (reason: typeof OperationalMessageIneligibleReason.Type) =>
 const activeSuppression = (
   directive: SuppressionDirective,
   input: OperationalMessageEligibilityInput
-) =>
-  directive.destinationFingerprint === input.destinationFingerprint &&
-  (directive.shopId === null || directive.shopId === input.shopId) &&
-  directive.effectiveAt <= input.now &&
-  (!directive.expiresAt || directive.expiresAt > input.now) &&
-  (!directive.revokedAt || directive.revokedAt > input.now)
+) => {
+  const now = Date.parse(input.now)
+  return (
+    directive.destinationFingerprint === input.destinationFingerprint &&
+    (directive.shopId === null || directive.shopId === input.shopId) &&
+    Date.parse(directive.effectiveAt) <= now &&
+    (!directive.expiresAt || Date.parse(directive.expiresAt) > now) &&
+    (!directive.revokedAt || Date.parse(directive.revokedAt) > now)
+  )
+}
 
 const localParts = (instant: string, timeZone: string) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -663,9 +728,13 @@ export const evaluateOperationalMessageEligibility = (
       facts: input.facts
     }).pipe(
       Effect.mapError(
-        () =>
+        (error) =>
           new OperationalMessageIneligible({
-            reason: 'invalid_controlled_content'
+            reason:
+              error.reason === 'template_pattern_missing' ||
+              error.reason === 'template_fingerprint_mismatch'
+                ? 'template_content_mismatch'
+                : 'invalid_controlled_content'
           })
       )
     )

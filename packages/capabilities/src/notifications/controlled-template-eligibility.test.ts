@@ -39,6 +39,11 @@ const approvedCatalog = controlledTemplateCatalog.map((template) =>
       }
     : template
 )
+const launchTemplateCatalog = controlledTemplateCatalog.filter(
+  (template) =>
+    (template.channel === 'whatsapp' && template.version === 1) ||
+    (template.channel === 'sms' && template.version === 2)
+)
 
 const eligibleInput = {
   shopId: 'shp_eligibility',
@@ -69,10 +74,10 @@ const eligibleInput = {
 
 describe('controlled Operational Messaging templates', () => {
   it('renders every Romanian and English version deterministically by channel', async () => {
-    expect(controlledTemplateCatalog).toHaveLength(16)
+    expect(controlledTemplateCatalog).toHaveLength(24)
 
     const outputs = await Promise.all(
-      controlledTemplateCatalog.map((template) =>
+      launchTemplateCatalog.map((template) =>
         Effect.runPromise(
           renderControlledTemplate({
             template,
@@ -94,64 +99,64 @@ describe('controlled Operational Messaging templates', () => {
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Confirmat 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. https://bsolo.ro/c/Ab3 Ajutor/STOP:firma/beesolo.',
-        gsm7Units: 129
+        body: 'Frizeria Stefan: Confirmat 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. https://bsolo.ro/c/Ab3 Aj/STOP:firma/beesolo',
+        gsm7Units: 124
       },
       {
         body: 'Memento de la Frizeria Ștefan: programarea este joi, 30 octombrie 2026, 09:30, la Strada Înfrățirii 10, București. Referință: BZ-1234. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Memento 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Ajutor/STOP:firma/beesolo.',
-        gsm7Units: 104
+        body: 'Frizeria Stefan: Memento 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Aj/STOP:firma/beesolo',
+        gsm7Units: 99
       },
       {
         body: 'Frizeria Ștefan a anulat programarea din joi, 30 octombrie 2026, 09:30. Referință: BZ-1234. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Anulat 30.10.2026 09:30. Ref BZ-1234. Ajutor/STOP:firma/beesolo.',
-        gsm7Units: 81
+        body: 'Frizeria Stefan: Anulat 30.10.2026 09:30. Ref BZ-1234. Aj/STOP:firma/beesolo',
+        gsm7Units: 76
       },
       {
         body: 'Frizeria Ștefan a reprogramat programarea pentru joi, 30 octombrie 2026, 09:30, la Strada Înfrățirii 10, București. Referință: BZ-1234. Pentru ajutor, contactează comerciantul sau suportul beesolo.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Reprogramat 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Ajutor/STOP:firma/beesolo.',
-        gsm7Units: 108
+        body: 'Frizeria Stefan: Reprogramat 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Aj/STOP:firma/beesolo',
+        gsm7Units: 103
       },
       {
         body: 'Your appointment with Frizeria Ștefan is confirmed for joi, 30 octombrie 2026 at 09:30, at Strada Înfrățirii 10, București. Reference: BZ-1234. Details: https://bsolo.ro/c/Ab3. For help, contact the merchant or beesolo support.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Confirmed 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. https://bsolo.ro/c/Ab3 Help/STOP:shop/beesolo.',
-        gsm7Units: 126
+        body: 'Frizeria Stefan: Confirmed 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. https://bsolo.ro/c/Ab3 Help/STOP:biz/beesolo',
+        gsm7Units: 124
       },
       {
         body: 'Reminder from Frizeria Ștefan: your appointment is joi, 30 octombrie 2026 at 09:30, at Strada Înfrățirii 10, București. Reference: BZ-1234. For help, contact the merchant or beesolo support.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Reminder 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Help/STOP:shop/beesolo.',
-        gsm7Units: 102
+        body: 'Frizeria Stefan: Reminder 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Help/STOP:biz/beesolo',
+        gsm7Units: 100
       },
       {
         body: 'Frizeria Ștefan cancelled your appointment for joi, 30 octombrie 2026 at 09:30. Reference: BZ-1234. For help, contact the merchant or beesolo support.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Cancelled 30.10.2026 09:30. Ref BZ-1234. Help/STOP:shop/beesolo.',
-        gsm7Units: 81
+        body: 'Frizeria Stefan: Cancelled 30.10.2026 09:30. Ref BZ-1234. Help/STOP:biz/beesolo',
+        gsm7Units: 79
       },
       {
         body: 'Frizeria Ștefan rescheduled your appointment to joi, 30 octombrie 2026 at 09:30, at Strada Înfrățirii 10, București. Reference: BZ-1234. For help, contact the merchant or beesolo support.',
         gsm7Units: null
       },
       {
-        body: 'Frizeria Stefan: Rescheduled 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Help/STOP:shop/beesolo.',
-        gsm7Units: 105
+        body: 'Frizeria Stefan: Rescheduled 30.10.2026 09:30, Strada Infratirii 10. Ref BZ-1234. Help/STOP:biz/beesolo',
+        gsm7Units: 103
       }
     ])
   })
@@ -188,7 +193,7 @@ describe('controlled Operational Messaging templates', () => {
         expect(Redacted.value(output.body).length).toBeLessThanOrEqual(500)
       else {
         expect(output.gsm7Units).not.toBeNull()
-        expect(output.gsm7Units).toBeLessThanOrEqual(160)
+        expect(output.gsm7Units).toBeLessThanOrEqual(155)
       }
     }
   })
@@ -205,6 +210,7 @@ describe('controlled Operational Messaging templates', () => {
     ['confirmation_url_invalid', { confirmationUrl: 'http://unsafe.test/x' }],
     ['confirmation_url_invalid', { confirmationUrl: 'https://evil.co/c/x' }],
     ['url_not_allowed', { merchantLabel: 'https://unsafe.test' }],
+    ['required_field_missing', { merchantLabel: '   ' }],
     ['unknown_controlled_field', { customerName: 'Irina' }],
     ['sms_not_gsm7', { merchantSmsLabel: 'Salon 😊' }]
   ] as const)('rejects invalid controlled content with %s', async (reason, patch) => {
@@ -447,6 +453,32 @@ describe('controlled Operational Messaging templates', () => {
     )
 
     expect(result.template.channel).toBe('whatsapp')
+  })
+
+  it('compares equivalent UTC suppression instants by time, not text form', async () => {
+    const error = await Effect.runPromise(
+      Effect.flip(
+        evaluateOperationalMessageEligibility(
+          {
+            ...eligibleInput,
+            suppressions: [
+              {
+                shopId: eligibleInput.shopId,
+                destinationFingerprint,
+                scope: 'all_operational',
+                effectiveAt: '2026-10-30T07:00:00Z'
+              }
+            ]
+          },
+          { catalog: approvedCatalog }
+        )
+      )
+    )
+
+    expect(error).toMatchObject({
+      _tag: 'OperationalMessageIneligible',
+      reason: 'destination_suppressed'
+    })
   })
 
   it.each([
