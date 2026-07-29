@@ -2272,6 +2272,50 @@ export const submissionAttempts = sqliteTable(
   ]
 )
 
+export const submissionOutcomes = sqliteTable(
+  'submission_outcomes',
+  {
+    id: id(),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    intentId: text('intent_id')
+      .notNull()
+      .references(() => notificationIntents.id, { onDelete: 'cascade' }),
+    routeId: text('route_id')
+      .notNull()
+      .references(() => deliveryRoutes.id, { onDelete: 'cascade' }),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => submissionAttempts.id, { onDelete: 'cascade' }),
+    outcome: text('outcome', {
+      enum: [
+        'captured',
+        'accepted',
+        'rejected_retryable',
+        'rejected_terminal',
+        'submission_unknown'
+      ]
+    }).notNull(),
+    observedAt: text('observed_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('submission_outcomes_attempt_unique').on(table.attemptId),
+    foreignKey({
+      name: 'submission_outcomes_attempt_route_intent_shop_fk',
+      columns: [table.attemptId, table.shopId, table.intentId, table.routeId],
+      foreignColumns: [
+        submissionAttempts.id,
+        submissionAttempts.shopId,
+        submissionAttempts.intentId,
+        submissionAttempts.routeId
+      ]
+    }).onDelete('cascade'),
+    index('submission_outcomes_intent_idx').on(table.intentId, table.observedAt)
+  ]
+)
+
 export const protectedProviderReferences = sqliteTable(
   'protected_provider_references',
   {
@@ -2343,7 +2387,16 @@ export const providerEvidence = sqliteTable(
     sourceEventKey: text('source_event_key').notNull(),
     providerReferenceFingerprint: text('provider_reference_fingerprint'),
     status: text('status', {
-      enum: ['accepted', 'delivered', 'read', 'terminal_failure']
+      enum: [
+        'captured',
+        'accepted',
+        'rejected_retryable',
+        'rejected_terminal',
+        'submission_unknown',
+        'delivered',
+        'read',
+        'terminal_failure'
+      ]
     }).notNull(),
     trusted: integer('trusted', { mode: 'boolean' }).notNull(),
     normalizedCode: text('normalized_code'),

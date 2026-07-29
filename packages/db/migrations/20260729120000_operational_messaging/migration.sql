@@ -211,6 +211,32 @@ CREATE TABLE `submission_attempts` (
 CREATE INDEX `submission_attempts_intent_idx`
   ON `submission_attempts` (`intent_id`, `created_at`);
 --> statement-breakpoint
+CREATE TABLE `submission_outcomes` (
+  `id` text PRIMARY KEY NOT NULL,
+  `shop_id` text NOT NULL,
+  `intent_id` text NOT NULL,
+  `route_id` text NOT NULL,
+  `attempt_id` text NOT NULL,
+  `outcome` text NOT NULL,
+  `observed_at` text NOT NULL,
+  `created_at` text NOT NULL,
+  CONSTRAINT `submission_outcomes_attempt_unique` UNIQUE (`attempt_id`),
+  CONSTRAINT `submission_outcomes_attempt_route_intent_shop_fk`
+    FOREIGN KEY (`attempt_id`, `shop_id`, `intent_id`, `route_id`)
+    REFERENCES `submission_attempts` (`id`, `shop_id`, `intent_id`, `route_id`) ON DELETE CASCADE,
+  CONSTRAINT `submission_outcomes_outcome_check`
+    CHECK (`outcome` IN (
+      'captured',
+      'accepted',
+      'rejected_retryable',
+      'rejected_terminal',
+      'submission_unknown'
+    ))
+);
+--> statement-breakpoint
+CREATE INDEX `submission_outcomes_intent_idx`
+  ON `submission_outcomes` (`intent_id`, `observed_at`);
+--> statement-breakpoint
 CREATE TABLE `protected_provider_references` (
   `id` text PRIMARY KEY NOT NULL,
   `shop_id` text NOT NULL,
@@ -272,7 +298,16 @@ CREATE TABLE `provider_evidence` (
   CONSTRAINT `provider_evidence_source_check`
     CHECK (`source` IN ('response', 'callback', 'query', 'operator')),
   CONSTRAINT `provider_evidence_status_check`
-    CHECK (`status` IN ('accepted', 'delivered', 'read', 'terminal_failure')),
+    CHECK (`status` IN (
+      'captured',
+      'accepted',
+      'rejected_retryable',
+      'rejected_terminal',
+      'submission_unknown',
+      'delivered',
+      'read',
+      'terminal_failure'
+    )),
   CONSTRAINT `provider_evidence_trusted_check` CHECK (`trusted` IN (0, 1))
 );
 --> statement-breakpoint

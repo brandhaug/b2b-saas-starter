@@ -151,9 +151,12 @@ import {
   ControlledTemplateEligibilityEngine,
   MessagingFinance,
   MessagingReadModel,
+  NotificationIntentLifecycle,
   NotificationIntents,
-  SeedControlledTemplateEligibilityEngine
+  SeedControlledTemplateEligibilityEngine,
+  SeedNotificationIntentLifecycle
 } from './notifications/index.ts'
+import { LiveNotificationIntentLifecycle } from './notifications/notification-intent-lifecycle.live.ts'
 import {
   LiveScheduledWorkQueue,
   SeedScheduledWorkQueue
@@ -220,6 +223,7 @@ export type CapabilityServices =
   | PaymentSettlement
   | CustomerEngagement
   | NotificationIntents
+  | NotificationIntentLifecycle
   | MessagingReadModel
   | MessagingFinance
   | ControlledTemplateEligibilityEngine
@@ -429,6 +433,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedPaymentSettlement(emptySeedPaymentSettlementStore()),
   SeedCustomerEngagement(),
   SeedNotificationIntents(),
+  SeedNotificationIntentLifecycle(),
   SeedMessagingReadModel(),
   SeedMessagingFinance(),
   SeedControlledTemplateEligibilityEngine(),
@@ -504,6 +509,10 @@ export const makeLiveCapabilitiesLayer = (
     LivePaymentSettlement,
     LiveCustomerEngagement,
     LiveNotificationIntents,
+    LiveNotificationIntentLifecycle.pipe(
+      Layer.provide(LiveMessagingFinance),
+      Layer.provide(LiveControlledTemplateEligibilityEngine)
+    ),
     LiveMessagingReadModel,
     LiveMessagingFinance,
     LiveControlledTemplateEligibilityEngine,

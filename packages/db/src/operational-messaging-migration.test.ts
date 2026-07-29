@@ -80,6 +80,7 @@ describe('operational messaging migration', () => {
            'notification_intent_controlled_facts',
            'delivery_routes',
            'submission_attempts',
+           'submission_outcomes',
            'protected_provider_references',
            'provider_evidence',
            'suppression_directives',
@@ -108,7 +109,7 @@ describe('operational messaging migration', () => {
       )
       .all<{ name: string; type: string }>()
 
-    expect(objects.results).toHaveLength(28)
+    expect(objects.results).toHaveLength(29)
     expect(objects.results.filter(({ type }) => type === 'view')).toHaveLength(8)
   })
 
