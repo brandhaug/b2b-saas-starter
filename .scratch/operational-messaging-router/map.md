@@ -50,6 +50,7 @@ Specify, implement, verify, and launch the Romania-first Operational Messaging R
 - [Synthesize and Seed the Implementation Program](./issues/12-synthesize-and-seed-implementation-program.md) — Sixteen new tracer-bullet tickets and two rewired live-route qualifications now form an acyclic path from deterministic contracts through production hardening to one conjunctive launch gate.
 - [Establish the Deterministic Provider Contract Harness](./issues/16-establish-deterministic-provider-contract-harness.md) — Typed, redaction-safe provider contracts, deterministic Meta/SMSO.ro Effect doubles, fixed fixtures, and fail-closed runtime selection now form the shared verification seam for later router slices.
 - [Expand D1 for Operational Messaging](./issues/17-expand-d1-for-operational-messaging.md) — Forward-only normalized D1 storage, exact financial and tenant constraints, retention foundations, and schema-decoded Seed/Live safe projections now support the router without switching producers or replaying history.
+- [Implement the Controlled Template and Eligibility Engine](./issues/18-implement-controlled-template-and-eligibility-engine.md) — Versioned RO/EN controlled templates, protected destinations, exact persisted approval, suppression/control eligibility, and DST-safe reminder scheduling now fail closed before reservation or submission.
 
 ## Not yet specified
 
