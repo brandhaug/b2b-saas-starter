@@ -1,16 +1,23 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { asc, eq } from 'drizzle-orm'
-import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
+import { asc, eq, or, sql } from 'drizzle-orm'
+import { layerFromD1, type PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
+import {
+  LiveMessagingFinance,
+  MessagingFinance,
+  MessagingFinanceRejected
+} from '../notifications/messaging-finance.ts'
 import {
   chargeableDeliveries,
   deliveryRoutes,
   merchantMessagingBalanceSummaries,
   merchants,
   messagingBalanceReservations,
+  messagingBalanceLedgerEntries,
   messagingChannelControls,
   messagingIncidents,
   messagingRateCards,
   messagingReconciliationCases,
+  messagingReconciliationResolutions,
   notificationIntents,
   protectedMessagingDestinations,
   providerEvidence,
@@ -18,6 +25,7 @@ import {
   shops,
   submissionAttempts
 } from '@b2b-saas-starter/db'
+import { CapabilityUnavailable } from '../errors.ts'
 import {
   hasOperatorPermission,
   makeOperationsAuthorizationLayer,
@@ -42,7 +50,8 @@ export const MessagingHealthSummary = Schema.Struct({
   complaintCount: Schema.Int,
   deliveredRouteCount: Schema.Int,
   merchantChargeMilliEuro: Schema.Int,
-  providerCostCount: Schema.Int
+  providerCostCount: Schema.Int,
+  providerCostMilliEuro: Schema.Number
 })
 
 export const MessagingCaseQueueItem = Schema.Struct({
@@ -162,7 +171,20 @@ export const MessagingCaseDetail = Schema.Struct({
       source: Schema.Literals(['response', 'callback', 'query', 'invoice']),
       recordedAt: Schema.String
     })
-  )
+  ),
+  reconciliation: Schema.Struct({
+    status: CaseStatus,
+    resolutions: Schema.Array(
+      Schema.Struct({
+        disposition: Schema.Literals(['resolved', 'waived']),
+        classification: Schema.String,
+        source: Schema.String,
+        reason: Schema.String,
+        createdAt: Schema.String
+      })
+    )
+  }),
+  complaints: Schema.Array(MessagingCaseQueueItem)
 })
 
 export const MessagingContainmentWorkspace = Schema.Struct({
@@ -224,6 +246,25 @@ export const MessagingFinanceWorkspace = Schema.Struct({
       source: Schema.Literals(['response', 'callback', 'query', 'invoice']),
       recordedAt: Schema.String
     })
+  ),
+  ledgerEntries: Schema.Array(
+    Schema.Struct({
+      entryId: Schema.String,
+      shopId: Schema.String,
+      direction: Schema.Literals(['credit', 'debit']),
+      kind: Schema.Literals([
+        'top_up',
+        'delivery_charge',
+        'operator_adjustment',
+        'refund',
+        'correction',
+        'promotional_credit'
+      ]),
+      amountMilliEuro: Schema.Int,
+      currency: Schema.String,
+      occurredAt: Schema.String,
+      reversed: Schema.Boolean
+    })
   )
 })
 
@@ -259,7 +300,7 @@ export class MessagingWorkspacesDenied extends Schema.TaggedErrorClass<Messaging
   { operation: Schema.String, reason: Schema.String }
 ) {}
 
-type WorkspaceError = MessagingWorkspacesDenied
+type WorkspaceError = MessagingWorkspacesDenied | CapabilityUnavailable
 type Overview = typeof MessagingWorkspaceOverview.Type
 type CaseDetail = typeof MessagingCaseDetail.Type
 type ChannelControl = (typeof MessagingContainmentWorkspace.Type.controls)[number]
@@ -288,6 +329,14 @@ export type MessagingWorkspacesShape = {
   readonly incidents: (
     actor: OperatorSessionReference
   ) => Effect.Effect<readonly IncidentItem[], WorkspaceError>
+  readonly correctLedgerEntry: (input: {
+    readonly actor: OperatorSessionReference
+    readonly shopId: string
+    readonly entryId: string
+    readonly correctionReason: string
+    readonly reason: string
+    readonly confirmed: boolean
+  }) => Effect.Effect<void, WorkspaceError>
 }
 
 export class MessagingWorkspaces extends Context.Service<
@@ -329,7 +378,10 @@ const wrap = <A>(operation: string, work: () => Promise<A>) =>
     catch: (error) =>
       error instanceof MessagingWorkspacesDenied
         ? error
-        : denied(operation, 'workspace_unavailable')
+        : new CapabilityUnavailable({
+            capability: 'operations-messaging-workspaces',
+            reason: error instanceof Error ? error.message : String(error)
+          })
   })
 
 type QueueRow = {
@@ -369,8 +421,11 @@ export const makeMessagingWorkspacesLayer = (
 ): Layer.Layer<MessagingWorkspaces> => {
   const currentTime = options.now ?? (() => new Date())
 
-  const loadQueue = async (): Promise<readonly QueueRow[]> =>
-    db
+  const loadQueue = async (input?: {
+    readonly query?: string
+    readonly caseId?: string
+  }): Promise<readonly QueueRow[]> => {
+    const base = db
       .select({
         caseId: messagingReconciliationCases.id,
         shopId: messagingReconciliationCases.shopId,
@@ -401,7 +456,32 @@ export const makeMessagingWorkspacesLayer = (
         asc(messagingReconciliationCases.openedAt),
         asc(messagingReconciliationCases.id)
       )
-      .limit(500)
+      .$dynamic()
+    if (input?.caseId)
+      return base.where(eq(messagingReconciliationCases.id, input.caseId)).limit(1)
+    const term = input?.query?.trim()
+    if (!term) return base.limit(100)
+    const normalized = `%${term.toLocaleLowerCase('en').replaceAll('%', '\\%').replaceAll('_', '\\_')}%`
+    const destination = /^\d{3}$/.test(term)
+      ? sql<boolean>`${protectedMessagingDestinations.maskedValue} LIKE ${`%${term}`}`
+      : sql<boolean>`false`
+    return base
+      .where(
+        or(
+          eq(notificationIntents.id, term),
+          eq(merchants.id, term),
+          sql<boolean>`lower(${merchants.publicName}) LIKE ${normalized} ESCAPE '\\'`,
+          sql<boolean>`lower(${merchants.slug}) LIKE ${normalized} ESCAPE '\\'`,
+          destination,
+          sql<boolean>`EXISTS (
+            SELECT 1 FROM submission_attempts AS matched_attempt
+            WHERE matched_attempt.intent_id = ${messagingReconciliationCases.intentId}
+              AND matched_attempt.id = ${term}
+          )`
+        )
+      )
+      .limit(100)
+  }
 
   return Layer.succeed(MessagingWorkspaces)({
     overview: ({ actor, query }) =>
@@ -413,55 +493,54 @@ export const makeMessagingWorkspacesLayer = (
           'messaging-overview',
           currentTime()
         )
-        const [rows, routes, charges, costs, matchingAttempts] = await Promise.all([
-          loadQueue(),
-          db.select({ state: deliveryRoutes.state }).from(deliveryRoutes),
+        const [rows, caseHealth, routes, charges, costs] = await Promise.all([
+          loadQueue(query === undefined ? undefined : { query }),
           db
-            .select({ chargeMilliEuro: chargeableDeliveries.chargeMilliEuro })
+            .select({
+              openCaseCount: sql<number>`sum(case when ${messagingReconciliationCases.status} in ('open', 'investigating') then 1 else 0 end)`,
+              ambiguousCount: sql<number>`sum(case when lower(${messagingReconciliationCases.kind}) like '%ambigu%' then 1 else 0 end)`,
+              complaintCount: sql<number>`sum(case when lower(${messagingReconciliationCases.kind}) like '%complaint%' then 1 else 0 end)`
+            })
+            .from(messagingReconciliationCases),
+          db
+            .select({ count: sql<number>`count(*)` })
+            .from(deliveryRoutes)
+            .where(eq(deliveryRoutes.state, 'delivered')),
+          db
+            .select({
+              total: sql<number>`coalesce(sum(${chargeableDeliveries.chargeMilliEuro}), 0)`
+            })
             .from(chargeableDeliveries),
-          db.select({ id: providerMessagingCosts.id }).from(providerMessagingCosts),
-          query?.trim()
-            ? db
-                .select({ intentId: submissionAttempts.intentId })
-                .from(submissionAttempts)
-                .where(eq(submissionAttempts.id, query.trim()))
-            : Promise.resolve([])
+          db
+            .select({
+              count: sql<number>`count(*)`,
+              euroMilli: sql<number>`coalesce(sum(case
+                when ${providerMessagingCosts.currency} <> 'EUR' then 0
+                when ${providerMessagingCosts.currencyScale} = 0 then ${providerMessagingCosts.amountMinorUnits} * 1000.0
+                when ${providerMessagingCosts.currencyScale} = 1 then ${providerMessagingCosts.amountMinorUnits} * 100.0
+                when ${providerMessagingCosts.currencyScale} = 2 then ${providerMessagingCosts.amountMinorUnits} * 10.0
+                when ${providerMessagingCosts.currencyScale} = 3 then ${providerMessagingCosts.amountMinorUnits} * 1.0
+                when ${providerMessagingCosts.currencyScale} = 4 then ${providerMessagingCosts.amountMinorUnits} / 10.0
+                when ${providerMessagingCosts.currencyScale} = 5 then ${providerMessagingCosts.amountMinorUnits} / 100.0
+                when ${providerMessagingCosts.currencyScale} = 6 then ${providerMessagingCosts.amountMinorUnits} / 1000.0
+                when ${providerMessagingCosts.currencyScale} = 7 then ${providerMessagingCosts.amountMinorUnits} / 10000.0
+                when ${providerMessagingCosts.currencyScale} = 8 then ${providerMessagingCosts.amountMinorUnits} / 100000.0
+                else ${providerMessagingCosts.amountMinorUnits} / 1000000.0 end), 0)`
+            })
+            .from(providerMessagingCosts)
         ])
-        const term = query?.trim() ?? ''
-        const normalized = term.toLocaleLowerCase('en')
-        const destinationDigits = /^\d{3}$/.test(term) ? term : undefined
-        const attemptIntentIds = new Set(matchingAttempts.map((row) => row.intentId))
-        const filtered = term
-          ? rows.filter(
-              (row) =>
-                row.caseId === term ||
-                row.intentId === term ||
-                row.shopId === term ||
-                row.merchantId === term ||
-                row.merchantName?.toLocaleLowerCase('en').includes(normalized) ||
-                row.merchantSlug?.toLocaleLowerCase('en').includes(normalized) ||
-                (destinationDigits
-                  ? row.maskedDestination?.endsWith(destinationDigits)
-                  : false) ||
-                (row.intentId ? attemptIntentIds.has(row.intentId) : false)
-            )
-          : rows
+        const health = caseHealth[0]
         return {
           health: {
-            openCaseCount: rows.filter(
-              (row) => row.status === 'open' || row.status === 'investigating'
-            ).length,
-            ambiguousCount: rows.filter((row) => /ambigu/i.test(row.kind)).length,
-            complaintCount: rows.filter((row) => /complaint/i.test(row.kind)).length,
-            deliveredRouteCount: routes.filter((route) => route.state === 'delivered')
-              .length,
-            merchantChargeMilliEuro: charges.reduce(
-              (total, charge) => total + charge.chargeMilliEuro,
-              0
-            ),
-            providerCostCount: costs.length
+            openCaseCount: health?.openCaseCount ?? 0,
+            ambiguousCount: health?.ambiguousCount ?? 0,
+            complaintCount: health?.complaintCount ?? 0,
+            deliveredRouteCount: routes[0]?.count ?? 0,
+            merchantChargeMilliEuro: charges[0]?.total ?? 0,
+            providerCostCount: costs[0]?.count ?? 0,
+            providerCostMilliEuro: costs[0]?.euroMilli ?? 0
           },
-          cases: filtered.slice(0, 100).map(queueItem)
+          cases: rows.map(queueItem)
         }
       }),
 
@@ -474,7 +553,7 @@ export const makeMessagingWorkspacesLayer = (
           'messaging-case-detail',
           currentTime()
         )
-        const rows = await loadQueue()
+        const rows = await loadQueue({ caseId })
         const row = rows.find((candidate) => candidate.caseId === caseId)
         if (!row?.intentId) throw denied('messaging-case-detail', 'case_not_found')
         const [
@@ -484,7 +563,9 @@ export const makeMessagingWorkspacesLayer = (
           evidenceRows,
           reservationRows,
           chargeRows,
-          costRows
+          costRows,
+          resolutionRows,
+          complaintRows
         ] = await Promise.all([
           db
             .select({
@@ -533,7 +614,49 @@ export const makeMessagingWorkspacesLayer = (
           db
             .select()
             .from(providerMessagingCosts)
-            .where(eq(providerMessagingCosts.intentId, row.intentId))
+            .where(eq(providerMessagingCosts.intentId, row.intentId)),
+          db
+            .select({
+              disposition: messagingReconciliationResolutions.disposition,
+              classification: messagingReconciliationResolutions.classification,
+              source: messagingReconciliationResolutions.source,
+              reason: messagingReconciliationResolutions.reason,
+              createdAt: messagingReconciliationResolutions.createdAt
+            })
+            .from(messagingReconciliationResolutions)
+            .where(eq(messagingReconciliationResolutions.caseId, caseId))
+            .orderBy(asc(messagingReconciliationResolutions.createdAt)),
+          db
+            .select({
+              caseId: messagingReconciliationCases.id,
+              shopId: messagingReconciliationCases.shopId,
+              merchantId: merchants.id,
+              merchantName: merchants.publicName,
+              merchantSlug: merchants.slug,
+              intentId: messagingReconciliationCases.intentId,
+              purpose: notificationIntents.purpose,
+              maskedDestination: protectedMessagingDestinations.maskedValue,
+              kind: messagingReconciliationCases.kind,
+              status: messagingReconciliationCases.status,
+              severity: messagingReconciliationCases.severity,
+              safeSummary: messagingReconciliationCases.safeSummary,
+              openedAt: messagingReconciliationCases.openedAt
+            })
+            .from(messagingReconciliationCases)
+            .leftJoin(shops, eq(shops.id, messagingReconciliationCases.shopId))
+            .leftJoin(merchants, eq(merchants.id, shops.merchantId))
+            .leftJoin(
+              notificationIntents,
+              eq(notificationIntents.id, messagingReconciliationCases.intentId)
+            )
+            .leftJoin(
+              protectedMessagingDestinations,
+              eq(protectedMessagingDestinations.intentId, notificationIntents.id)
+            )
+            .where(
+              sql`${messagingReconciliationCases.intentId} = ${row.intentId}
+                AND lower(${messagingReconciliationCases.kind}) LIKE '%complaint%'`
+            )
         ])
         const intent = intentRows[0]
         if (!intent) throw denied('messaging-case-detail', 'case_not_found')
@@ -610,7 +733,12 @@ export const makeMessagingWorkspacesLayer = (
             units: cost.units,
             source: cost.source,
             recordedAt: cost.recordedAt
-          }))
+          })),
+          reconciliation: {
+            status: row.status,
+            resolutions: resolutionRows
+          },
+          complaints: complaintRows.map(queueItem)
         }
       }),
 
@@ -650,7 +778,7 @@ export const makeMessagingWorkspacesLayer = (
           'messaging-finance',
           currentTime()
         )
-        const [rows, balances, charges, costs] = await Promise.all([
+        const [rows, balances, charges, costs, ledger] = await Promise.all([
           db.select().from(messagingRateCards).orderBy(asc(messagingRateCards.version)),
           db
             .select({
@@ -691,8 +819,26 @@ export const makeMessagingWorkspacesLayer = (
               recordedAt: providerMessagingCosts.recordedAt
             })
             .from(providerMessagingCosts)
-            .orderBy(asc(providerMessagingCosts.recordedAt))
+            .orderBy(asc(providerMessagingCosts.recordedAt)),
+          db
+            .select({
+              entryId: messagingBalanceLedgerEntries.id,
+              shopId: messagingBalanceLedgerEntries.shopId,
+              direction: messagingBalanceLedgerEntries.direction,
+              kind: messagingBalanceLedgerEntries.kind,
+              amountMilliEuro: messagingBalanceLedgerEntries.amountMilliEuro,
+              currency: messagingBalanceLedgerEntries.currency,
+              occurredAt: messagingBalanceLedgerEntries.occurredAt,
+              reversesEntryId: messagingBalanceLedgerEntries.reversesEntryId
+            })
+            .from(messagingBalanceLedgerEntries)
+            .orderBy(asc(messagingBalanceLedgerEntries.occurredAt))
         ])
+        const reversedEntries = new Set(
+          ledger.flatMap((entry) =>
+            entry.reversesEntryId ? [entry.reversesEntryId] : []
+          )
+        )
         return {
           rateCards: rows.map((row) => ({
             rateCardId: row.id,
@@ -704,7 +850,11 @@ export const makeMessagingWorkspacesLayer = (
           })),
           balances,
           charges,
-          providerCosts: costs
+          providerCosts: costs,
+          ledgerEntries: ledger.map(({ reversesEntryId: _, ...entry }) => ({
+            ...entry,
+            reversed: reversedEntries.has(entry.entryId)
+          }))
         }
       }),
 
@@ -746,6 +896,49 @@ export const makeMessagingWorkspacesLayer = (
           openedAt: row.openedAt,
           ...optional('resolvedAt', row.resolvedAt)
         }))
+      }),
+
+    correctLedgerEntry: (input) =>
+      wrap('messaging-finance-correction', async () => {
+        if (!input.confirmed)
+          throw denied('messaging-finance-correction', 'confirmation_required')
+        if (input.reason.trim().length < 12 || !input.correctionReason.trim())
+          throw denied('messaging-finance-correction', 'substantive_reason_required')
+        const principal = await authorize(
+          db,
+          input.actor,
+          'messaging:finance',
+          'messaging-finance-correction',
+          currentTime()
+        )
+        try {
+          await Effect.runPromise(
+            Effect.flatMap(MessagingFinance, (finance) =>
+              finance.correct({
+                shopId: input.shopId,
+                entryId: input.entryId,
+                correctionReason: input.correctionReason.trim(),
+                sourceType: 'operations_messaging_case',
+                sourceId: input.entryId,
+                idempotencyKey: `operations-correction:${input.entryId}:${input.correctionReason.trim()}`,
+                actorType: 'system_operator',
+                actorId: principal.id,
+                operatorPrincipal: principal,
+                reason: input.reason.trim(),
+                occurredAt: currentTime().toISOString()
+              })
+            ).pipe(
+              Effect.provide(LiveMessagingFinance),
+              Effect.provide(
+                layerFromD1(db.$client as Parameters<typeof layerFromD1>[0])
+              )
+            )
+          )
+        } catch (error) {
+          if (error instanceof MessagingFinanceRejected)
+            throw denied('messaging-finance-correction', error.reason)
+          throw error
+        }
       })
   })
 }

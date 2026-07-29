@@ -86,11 +86,41 @@ function MessagingCaseRoute() {
         </div>
         <div className="border border-border bg-card p-5">
           <h2 className="text-lg font-semibold">Provider costs</h2>
-          <p className="mt-3 text-sm">
-            {detail.providerCosts.length
-              ? `${detail.providerCosts.length} normalized cost facts`
-              : 'No provider cost facts'}
-          </p>
+          <p className="mt-3 text-sm">{providerCostSummary(detail.providerCosts)}</p>
+        </div>
+      </section>
+      <section className="mt-8 grid gap-4 lg:grid-cols-2">
+        <div className="border border-border bg-card p-5">
+          <h2 className="text-lg font-semibold">Reconciliation state</h2>
+          <p className="mt-3 text-sm capitalize">{detail.reconciliation.status}</p>
+          {detail.reconciliation.resolutions.map((resolution) => (
+            <div
+              className="mt-3 border-t border-border pt-3 text-sm"
+              key={`${resolution.source}:${resolution.createdAt}`}
+            >
+              <p className="font-medium">{resolution.classification}</p>
+              <p className="mt-1 text-muted-foreground">
+                {resolution.source} · {resolution.disposition}
+              </p>
+              <p className="mt-1 text-muted-foreground">{resolution.reason}</p>
+            </div>
+          ))}
+        </div>
+        <div className="border border-border bg-card p-5">
+          <h2 className="text-lg font-semibold">Linked complaints</h2>
+          {detail.complaints.length ? (
+            <ul className="mt-3 grid gap-2">
+              {detail.complaints.map((complaint) => (
+                <li className="text-sm" key={complaint.caseId}>
+                  {complaint.safeSummary} · {complaint.status}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No linked complaint activity.
+            </p>
+          )}
         </div>
       </section>
       <section className="mt-8 border border-border bg-card p-5">
@@ -198,4 +228,20 @@ function Fact({
       <p className={`mt-1 text-sm ${mono ? 'font-mono' : ''}`}>{value}</p>
     </div>
   )
+}
+
+const providerCostSummary = (
+  costs: readonly {
+    readonly amountMinorUnits: number
+    readonly currency: string
+    readonly currencyScale: number
+  }[]
+) => {
+  if (costs.length === 0) return 'No provider cost facts'
+  const totals = new Map<string, number>()
+  for (const cost of costs) {
+    const amount = cost.amountMinorUnits / 10 ** cost.currencyScale
+    totals.set(cost.currency, (totals.get(cost.currency) ?? 0) + amount)
+  }
+  return [...totals].map(([currency, amount]) => `${amount} ${currency}`).join(' · ')
 }

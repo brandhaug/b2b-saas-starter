@@ -380,6 +380,143 @@ export const containMessagingIncident = createServerFn({ method: 'POST' })
     )
   )
 
+const MessagingIncidentKind = Schema.Literals([
+  'duplicate_delivery',
+  'financial_uncertainty',
+  'credential_compromise',
+  'encryption_key_compromise',
+  'privacy_exposure',
+  'forged_callback'
+])
+
+export const openMessagingIncident = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        kind: MessagingIncidentKind,
+        severity: Schema.Literals(['low', 'medium', 'high', 'critical']),
+        safeSummary: BoundedText,
+        containmentScope: Schema.Literals([
+          'merchant',
+          'provider_channel',
+          'callback_rule',
+          'global'
+        ]),
+        environment: Identifier,
+        shopId: BoundedText,
+        provider: Schema.Literals(['', 'meta', 'smso']),
+        channel: Schema.Literals(['', 'whatsapp', 'sms']),
+        reason: BoundedText
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit('/api/operations/messaging/incidents', data, Schema.Null)
+  )
+
+export const recordMessagingRecoveryCheck = createServerFn({
+  method: 'POST'
+})
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        incidentId: Identifier,
+        kind: Schema.Literals(['health_probe', 'reconciliation']),
+        reference: Identifier,
+        status: Schema.Literals(['passed', 'failed']),
+        observedAt: Identifier,
+        reason: BoundedText
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/api/operations/messaging/incidents/${encodeURIComponent(data.incidentId)}/recovery-checks`,
+      data,
+      Schema.Null
+    )
+  )
+
+export const recordMessagingCredentialRotation = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        incidentId: Identifier,
+        previousVersion: Identifier,
+        nextVersion: Identifier,
+        invalidatedAt: Identifier,
+        validatedAt: Identifier,
+        evidenceReference: Identifier,
+        reason: BoundedText
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/api/operations/messaging/incidents/${encodeURIComponent(data.incidentId)}/credential-rotation`,
+      data,
+      Schema.Null
+    )
+  )
+
+export const approveMessagingRecovery = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        incidentId: Identifier,
+        reason: BoundedText,
+        healthProbeReference: Identifier,
+        reconciliationReference: Identifier,
+        residualRisk: BoundedText
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/api/operations/messaging/incidents/${encodeURIComponent(data.incidentId)}/recovery-approvals`,
+      data,
+      Schema.Null
+    )
+  )
+
+export const completeMessagingRecovery = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        incidentId: Identifier,
+        reason: BoundedText,
+        confirmed: Schema.Boolean
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/api/operations/messaging/incidents/${encodeURIComponent(data.incidentId)}/complete-recovery`,
+      { ...data, confirmed: String(data.confirmed) },
+      Schema.Null
+    )
+  )
+
+export const correctMessagingLedgerEntry = createServerFn({ method: 'POST' })
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        shopId: Identifier,
+        entryId: Identifier,
+        correctionReason: Identifier,
+        reason: BoundedText,
+        confirmed: Schema.Boolean
+      })
+    )
+  )
+  .handler(({ data }) =>
+    submit(
+      `/api/operations/messaging/finance/ledger/${encodeURIComponent(data.entryId)}/correct`,
+      { ...data, confirmed: String(data.confirmed) },
+      Schema.Null
+    )
+  )
+
 export const signInOperator = createServerFn({ method: 'POST' })
   .validator(
     Schema.decodeUnknownSync(

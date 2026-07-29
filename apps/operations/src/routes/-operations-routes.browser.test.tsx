@@ -14,8 +14,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const server = vi.hoisted(() => ({
   acceptOperatorInvitation: vi.fn(),
+  approveMessagingRecovery: vi.fn(),
   completeOperatorSecurityEnrollment: vi.fn(),
+  completeMessagingRecovery: vi.fn(),
   containMessagingIncident: vi.fn(),
+  correctMessagingLedgerEntry: vi.fn(),
   deleteOperator: vi.fn(),
   getAuditEvent: vi.fn(),
   getAuditEvents: vi.fn(),
@@ -31,6 +34,9 @@ const server = vi.hoisted(() => ({
   getOperationsSession: vi.fn(),
   getOperatorEnrollment: vi.fn(),
   inviteOperator: vi.fn(),
+  openMessagingIncident: vi.fn(),
+  recordMessagingCredentialRotation: vi.fn(),
+  recordMessagingRecoveryCheck: vi.fn(),
   resolveMessagingCase: vi.fn(),
   revokeOperatorInvitation: vi.fn(),
   searchOperations: vi.fn(),
@@ -130,7 +136,8 @@ beforeEach(() => {
         complaintCount: 0,
         deliveredRouteCount: 23,
         merchantChargeMilliEuro: 1035,
-        providerCostCount: 21
+        providerCostCount: 21,
+        providerCostMilliEuro: 712.5
       },
       cases: [
         {
@@ -217,12 +224,21 @@ beforeEach(() => {
         expiresAt: '2026-08-06T12:00:00.000Z'
       },
       charges: [],
-      providerCosts: []
+      providerCosts: [],
+      ledgerEntries: [],
+      reconciliation: { status: 'open', resolutions: [] },
+      complaints: []
     })
   )
   server.getMessagingContainment.mockResolvedValue(ready({ controls: [] }))
   server.getMessagingFinance.mockResolvedValue(
-    ready({ rateCards: [], balances: [], charges: [], providerCosts: [] })
+    ready({
+      rateCards: [],
+      balances: [],
+      charges: [],
+      providerCosts: [],
+      ledgerEntries: []
+    })
   )
   server.getMessagingReconciliation.mockResolvedValue(ready({ cases: [] }))
   server.getMessagingIncidents.mockResolvedValue(ready({ incidents: [] }))
@@ -273,6 +289,8 @@ describe('Operations TanStack routes', () => {
     ).toBeTruthy()
     expect(screen.getByText(/Northstar Studio/)).toBeTruthy()
     expect(screen.getByText(/\+40•••••••456/)).toBeTruthy()
+    expect(screen.getByText(/Appointment confirmation/)).toBeTruthy()
+    expect(screen.getByText(/Age:/)).toBeTruthy()
     const caseLink = screen.getByRole('link', {
       name: /submission evidence needs review/i
     })
@@ -366,6 +384,136 @@ describe('Operations TanStack routes', () => {
         data: {
           incidentId: 'incident-1',
           reason: 'Freeze only the affected Merchant while evidence is reviewed',
+          confirmed: true
+        }
+      })
+    )
+  })
+
+  it('keeps control posture usable without incident permission', async () => {
+    server.getMessagingContainment.mockResolvedValue(
+      ready({
+        controls: [
+          {
+            controlId: 'control-only',
+            environment: 'production',
+            channel: 'sms',
+            provider: 'smso',
+            enabled: false,
+            reason: 'Provider route paused',
+            updatedAt: '2026-07-30T12:00:00.000Z'
+          }
+        ]
+      })
+    )
+    server.getMessagingIncidents.mockResolvedValue({ state: 'forbidden' })
+    await renderRoute('/messaging/containment')
+
+    expect(await screen.findByText('Provider route paused')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Permission required' })).toBeTruthy()
+  })
+
+  it('records recovery evidence and confirms exact-scope re-enablement', async () => {
+    server.getMessagingIncidents.mockResolvedValue(
+      ready({
+        incidents: [
+          {
+            incidentId: 'incident-recovery',
+            provider: 'meta',
+            channel: 'whatsapp',
+            kind: 'forged_callback',
+            status: 'recovering',
+            severity: 'critical',
+            safeSummary: 'Callback signature validation was contained',
+            containmentScope: 'callback_rule',
+            openedAt: '2026-07-30T12:00:00.000Z'
+          }
+        ]
+      })
+    )
+    server.recordMessagingRecoveryCheck.mockResolvedValue(ready(null))
+    server.completeMessagingRecovery.mockResolvedValue(ready(null))
+    await renderRoute('/messaging/containment')
+
+    fireEvent.click(await screen.findByText('Recovery evidence and approval'))
+    fireEvent.change(screen.getByLabelText('Evidence reference'), {
+      target: { value: 'probe:callback-signature:42' }
+    })
+    fireEvent.change(screen.getAllByLabelText('Reason')[0]!, {
+      target: { value: 'Production signature probes now pass consistently' }
+    })
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Record recovery check' }).closest('form')!
+    )
+    await waitFor(() => expect(server.recordMessagingRecoveryCheck).toHaveBeenCalled())
+
+    const preview = screen.getByLabelText('Recovery preview')
+    expect(preview.textContent).toContain('resolved and scope re-enabled')
+    fireEvent.change(screen.getByLabelText('Completion reason'), {
+      target: { value: 'All required recovery evidence and approvals are current' }
+    })
+    fireEvent.click(
+      screen.getByLabelText('Confirm recovery and re-enable the exact scope')
+    )
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Complete recovery' }).closest('form')!
+    )
+    await waitFor(() =>
+      expect(server.completeMessagingRecovery).toHaveBeenCalledWith({
+        data: {
+          incidentId: 'incident-recovery',
+          reason: 'All required recovery evidence and approvals are current',
+          confirmed: true
+        }
+      })
+    )
+  })
+
+  it('previews and appends a compensating finance correction', async () => {
+    server.getMessagingFinance.mockResolvedValue(
+      ready({
+        rateCards: [],
+        balances: [],
+        charges: [],
+        providerCosts: [],
+        ledgerEntries: [
+          {
+            entryId: 'ledger-1',
+            shopId: 'shop-1',
+            direction: 'debit',
+            kind: 'operator_adjustment',
+            amountMilliEuro: 450,
+            currency: 'EUR',
+            occurredAt: '2026-07-30T12:00:00.000Z',
+            reversed: false
+          }
+        ]
+      })
+    )
+    server.correctMessagingLedgerEntry.mockResolvedValue(ready(null))
+    await renderRoute('/messaging/finance')
+
+    fireEvent.click(await screen.findByText('Preview correction'))
+    expect(screen.getByLabelText('Correction preview').textContent).toContain(
+      'append credit 450 m€'
+    )
+    fireEvent.change(screen.getByLabelText('Stable correction code'), {
+      target: { value: 'incorrect-operator-adjustment' }
+    })
+    fireEvent.change(screen.getByLabelText('Substantive reason'), {
+      target: { value: 'The source reconciliation proves this debit was invalid' }
+    })
+    fireEvent.click(screen.getByLabelText('Confirm compensating entry'))
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Append correction' }).closest('form')!
+    )
+    await waitFor(() =>
+      expect(server.correctMessagingLedgerEntry).toHaveBeenCalledWith({
+        data: {
+          shopId: 'shop-1',
+          entryId: 'ledger-1',
+          correctionReason: 'incorrect-operator-adjustment',
+          reason: 'The source reconciliation proves this debit was invalid',
           confirmed: true
         }
       })

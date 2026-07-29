@@ -637,6 +637,49 @@ export const createOperationsWorker = () => ({
     const messagingIncidentContainRoute = url.pathname.match(
       /^\/api\/operations\/messaging\/incidents\/([^/]+)\/contain$/
     )
+    if (
+      request.method === 'POST' &&
+      url.pathname === '/api/operations/messaging/incidents'
+    ) {
+      const form = await request.formData()
+      try {
+        await runMessagingGovernance((governance) =>
+          governance.openIncident({
+            actor: reference!,
+            kind: formText(form, 'kind') as
+              | 'duplicate_delivery'
+              | 'financial_uncertainty'
+              | 'credential_compromise'
+              | 'encryption_key_compromise'
+              | 'privacy_exposure'
+              | 'forged_callback',
+            severity: formText(form, 'severity') as
+              | 'low'
+              | 'medium'
+              | 'high'
+              | 'critical',
+            safeSummary: formText(form, 'safeSummary'),
+            containmentScope: formText(form, 'containmentScope') as
+              | 'merchant'
+              | 'provider_channel'
+              | 'callback_rule'
+              | 'global',
+            environment: formText(form, 'environment'),
+            ...(formText(form, 'shopId') ? { shopId: formText(form, 'shopId') } : {}),
+            ...(formText(form, 'provider')
+              ? { provider: formText(form, 'provider') as 'meta' | 'smso' }
+              : {}),
+            ...(formText(form, 'channel')
+              ? { channel: formText(form, 'channel') as 'whatsapp' | 'sms' }
+              : {}),
+            reason: formText(form, 'reason')
+          })
+        )
+        return Response.json(null)
+      } catch (error) {
+        return messagingGovernanceErrorResponse(error)
+      }
+    }
     if (request.method === 'POST' && messagingIncidentContainRoute) {
       const form = await request.formData()
       if (formText(form, 'confirmed') !== 'true')
@@ -653,6 +696,118 @@ export const createOperationsWorker = () => ({
         return Response.json(null)
       } catch (error) {
         return messagingGovernanceErrorResponse(error)
+      }
+    }
+    const messagingRecoveryCheckRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/incidents\/([^/]+)\/recovery-checks$/
+    )
+    if (request.method === 'POST' && messagingRecoveryCheckRoute) {
+      const form = await request.formData()
+      try {
+        await runMessagingGovernance((governance) =>
+          governance.recordRecoveryCheck({
+            actor: reference!,
+            incidentId: decodeURIComponent(messagingRecoveryCheckRoute[1]!),
+            kind: formText(form, 'kind') as 'health_probe' | 'reconciliation',
+            reference: formText(form, 'reference'),
+            status: formText(form, 'status') as 'passed' | 'failed',
+            observedAt: formText(form, 'observedAt'),
+            reason: formText(form, 'reason')
+          })
+        )
+        return Response.json(null)
+      } catch (error) {
+        return messagingGovernanceErrorResponse(error)
+      }
+    }
+    const messagingRecoveryApprovalRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/incidents\/([^/]+)\/recovery-approvals$/
+    )
+    const messagingCredentialRotationRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/incidents\/([^/]+)\/credential-rotation$/
+    )
+    if (request.method === 'POST' && messagingCredentialRotationRoute) {
+      const form = await request.formData()
+      try {
+        await runMessagingGovernance((governance) =>
+          governance.recordKeyRotation({
+            actor: reference!,
+            incidentId: decodeURIComponent(messagingCredentialRotationRoute[1]!),
+            kind: 'provider_credential',
+            previousVersion: formText(form, 'previousVersion'),
+            nextVersion: formText(form, 'nextVersion'),
+            invalidatedAt: formText(form, 'invalidatedAt'),
+            validatedAt: formText(form, 'validatedAt'),
+            evidenceReference: formText(form, 'evidenceReference'),
+            reason: formText(form, 'reason')
+          })
+        )
+        return Response.json(null)
+      } catch (error) {
+        return messagingGovernanceErrorResponse(error)
+      }
+    }
+    if (request.method === 'POST' && messagingRecoveryApprovalRoute) {
+      const form = await request.formData()
+      try {
+        await runMessagingGovernance((governance) =>
+          governance.approveRecovery({
+            actor: reference!,
+            incidentId: decodeURIComponent(messagingRecoveryApprovalRoute[1]!),
+            reason: formText(form, 'reason'),
+            healthProbeReference: formText(form, 'healthProbeReference'),
+            reconciliationReference: formText(form, 'reconciliationReference'),
+            residualRisk: formText(form, 'residualRisk')
+          })
+        )
+        return Response.json(null)
+      } catch (error) {
+        return messagingGovernanceErrorResponse(error)
+      }
+    }
+    const messagingRecoveryCompleteRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/incidents\/([^/]+)\/complete-recovery$/
+    )
+    if (request.method === 'POST' && messagingRecoveryCompleteRoute) {
+      const form = await request.formData()
+      if (formText(form, 'confirmed') !== 'true')
+        return Response.json({ error: 'confirmation_required' }, { status: 400 })
+      try {
+        await runMessagingGovernance((governance) =>
+          governance.completeRecovery({
+            actor: reference!,
+            incidentId: decodeURIComponent(messagingRecoveryCompleteRoute[1]!),
+            reason: formText(form, 'reason'),
+            confirmed: true
+          })
+        )
+        return Response.json(null)
+      } catch (error) {
+        return messagingGovernanceErrorResponse(error)
+      }
+    }
+    const messagingLedgerCorrectionRoute = url.pathname.match(
+      /^\/api\/operations\/messaging\/finance\/ledger\/([^/]+)\/correct$/
+    )
+    if (request.method === 'POST' && messagingLedgerCorrectionRoute) {
+      const form = await request.formData()
+      if (formText(form, 'confirmed') !== 'true')
+        return Response.json({ error: 'confirmation_required' }, { status: 400 })
+      const entryId = decodeURIComponent(messagingLedgerCorrectionRoute[1]!)
+      try {
+        await runMessaging((messaging) =>
+          messaging.correctLedgerEntry({
+            actor: reference!,
+            shopId: formText(form, 'shopId'),
+            entryId,
+            correctionReason: formText(form, 'correctionReason'),
+            reason: formText(form, 'reason'),
+            confirmed: true
+          })
+        )
+        return Response.json(null)
+      } catch (error) {
+        return messagingErrorResponse(error)
       }
     }
     if (request.method === 'GET' && auditDetailRoute) {

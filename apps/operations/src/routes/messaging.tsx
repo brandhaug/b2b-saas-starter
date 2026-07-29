@@ -43,7 +43,10 @@ function MessagingOverviewRoute() {
           label="Merchant charges"
           value={`${health.merchantChargeMilliEuro} m€`}
         />
-        <HealthFact label="Provider cost facts" value={health.providerCostCount} />
+        <HealthFact
+          label="Provider costs (EUR)"
+          value={`${health.providerCostMilliEuro} m€`}
+        />
       </section>
       <search>
         <form className="mt-8 flex flex-col gap-3 sm:flex-row" method="get">
@@ -84,14 +87,13 @@ function MessagingOverviewRoute() {
                       {item.merchantName ?? 'Platform-wide'} ·{' '}
                       {item.maskedDestination ?? 'Destination erased'}
                     </p>
-                    <p className="mt-1 font-mono text-xs text-muted-foreground">
-                      {item.intentId ?? item.caseId}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {purposeLabel(item.purpose)} · Age: {ageLabel(item.openedAt)}
                     </p>
                   </div>
-                  <div className="text-sm sm:text-right">
-                    <p className="font-medium capitalize">{item.severity}</p>
-                    <p className="text-muted-foreground">{item.status}</p>
-                  </div>
+                  <p className="text-sm capitalize text-muted-foreground sm:text-right">
+                    {item.status}
+                  </p>
                 </div>
               </li>
             ))}
@@ -133,4 +135,21 @@ function HealthFact({
       <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   )
+}
+
+const purposeLabel = (purpose: string | undefined) =>
+  purpose
+    ? purpose
+        .split('_')
+        .map((part, index) =>
+          index === 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part
+        )
+        .join(' ')
+    : 'Purpose unavailable'
+
+const ageLabel = (openedAt: string) => {
+  const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(openedAt)) / 60_000))
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d`
 }

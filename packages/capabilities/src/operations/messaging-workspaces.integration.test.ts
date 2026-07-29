@@ -158,7 +158,12 @@ describe('Operations Messaging workspaces', () => {
   it('projects a masked cross-Merchant queue and normalized evidence journey', async () => {
     const actor = { operatorSessionId: 'ops_message_reader' }
     const overview = await run((service) => service.overview({ actor, query: '456' }))
-    expect(overview.health).toMatchObject({ openCaseCount: 1, ambiguousCount: 1 })
+    expect(overview.health).toMatchObject({
+      openCaseCount: 1,
+      ambiguousCount: 1,
+      merchantChargeMilliEuro: 45,
+      providerCostMilliEuro: 23.9
+    })
     expect(overview.cases).toEqual([
       expect.objectContaining({
         caseId: 'mrcase_message',
@@ -186,7 +191,9 @@ describe('Operations Messaging workspaces', () => {
           normalizedCode: 'accepted'
         }
       ],
-      reservation: { reservationId: 'mbr_message', amountMilliEuro: 45 }
+      reservation: { reservationId: 'mbr_message', amountMilliEuro: 45 },
+      reconciliation: { status: 'open', resolutions: [] },
+      complaints: []
     })
     const serialized = JSON.stringify({ overview, detail })
     for (const secret of [
@@ -199,6 +206,26 @@ describe('Operations Messaging workspaces', () => {
       'provider-secret'
     ])
       expect(serialized).not.toContain(secret)
+  })
+
+  it('searches only the allowlisted identities and protected destination suffix', async () => {
+    const actor = { operatorSessionId: 'ops_message_reader' }
+    for (const query of [
+      'nti_message',
+      'pat_message',
+      'Northstar',
+      'mer_message',
+      '456'
+    ]) {
+      await expect(
+        run((service) => service.overview({ actor, query }))
+      ).resolves.toMatchObject({ cases: [{ caseId: 'mrcase_message' }] })
+    }
+    for (const query of ['mrcase_message', 'shp_message']) {
+      await expect(
+        run((service) => service.overview({ actor, query }))
+      ).resolves.toMatchObject({ cases: [] })
+    }
   })
 
   it('rechecks each workspace permission independently', async () => {
@@ -240,6 +267,18 @@ describe('Operations Messaging workspaces', () => {
     expect(finance.providerCosts).toEqual([
       expect.objectContaining({ amountMinorUnits: 239, currencyScale: 4 })
     ])
+    expect(finance.ledgerEntries).toEqual([
+      expect.objectContaining({
+        entryId: 'mle_message',
+        direction: 'credit',
+        reversed: false
+      }),
+      expect.objectContaining({
+        entryId: 'mle_delivery_message',
+        direction: 'debit',
+        reversed: false
+      })
+    ])
     await expect(
       run((service) => service.reconciliation(privileged))
     ).resolves.toHaveLength(1)
@@ -260,5 +299,41 @@ describe('Operations Messaging workspaces', () => {
         })
       )
     ).rejects.toBeInstanceOf(MessagingWorkspacesDenied)
+  })
+
+  it('appends an authorized compensating ledger entry without editing history', async () => {
+    const reader = { operatorSessionId: 'ops_message_reader' }
+    const privileged = { operatorSessionId: 'ops_message_privileged' }
+    const correction = {
+      shopId: 'shp_message',
+      entryId: 'mle_delivery_message',
+      correctionReason: 'invalid_delivery_charge',
+      reason: 'Reconciliation proves the delivery was not chargeable',
+      confirmed: true
+    } as const
+
+    await expect(
+      run((service) => service.correctLedgerEntry({ actor: reader, ...correction }))
+    ).rejects.toMatchObject({ reason: 'messaging:finance_required' })
+    await expect(
+      run((service) => service.correctLedgerEntry({ actor: privileged, ...correction }))
+    ).resolves.toBeUndefined()
+
+    const finance = await run((service) => service.finance(privileged))
+    expect(finance.ledgerEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          entryId: 'mle_delivery_message',
+          direction: 'debit',
+          reversed: true
+        }),
+        expect.objectContaining({
+          kind: 'correction',
+          direction: 'credit',
+          amountMilliEuro: 45,
+          reversed: false
+        })
+      ])
+    )
   })
 })
