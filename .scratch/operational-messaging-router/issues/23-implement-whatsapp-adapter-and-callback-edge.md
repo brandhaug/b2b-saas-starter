@@ -12,6 +12,8 @@ Implement the production-selectable WhatsApp Cloud API adapter and provider-spec
 
 ### Resolution — 2026-07-29
 
+Implemented in `3b4f84b` and wired into the production runtime in `0205350`.
+
 Implemented a production-selectable Meta WhatsApp Cloud API adapter behind the provider-neutral submission port. It sends the exact approved controlled-template key and ordered protected parameters, bounds native Fetch and response parsing, preserves Meta `Retry-After`, classifies only effective-dated known errors, treats transport/timeout/malformed/unknown submission results as ambiguous, and protects the `wamid` with keyed fingerprinting plus AES-GCM correlation before recording acceptance.
 
 Added the unversioned `/callbacks/meta/whatsapp` API edge with independently protected GET challenge verification and raw-byte HMAC-SHA256 POST verification before Effect Schema decoding. Method, signature, 64 KiB size, and shape failures fail closed. Signed receipts are append-only and durable before normalized evidence; unresolved correlation returns a retryable 503 instead of acknowledging a race, while successful ingestion best-effort publishes only PII-free intent wake-ups.
