@@ -9,9 +9,10 @@ import {
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import {
-  operatorRolePermissions,
+  operatorRoleRegistry,
   OperationsContractDenied,
-  OperationsImpersonation
+  OperationsImpersonation,
+  type OperatorPermission
 } from './operations-contracts.ts'
 
 const handoffLifetimeMs = 60_000
@@ -51,8 +52,10 @@ const unavailable = () =>
     reason: 'impersonation handoff persistence is unavailable'
   })
 
-const impersonationRoleNames = Object.entries(operatorRolePermissions)
-  .filter(([, permissions]) => permissions.includes('merchant:impersonate'))
+const impersonationRoleNames = Object.entries(operatorRoleRegistry)
+  .filter(([, role]) =>
+    (role.permissions as readonly OperatorPermission[]).includes('merchant:impersonate')
+  )
   .map(([role]) => role)
 
 const randomTicket = (): string => {

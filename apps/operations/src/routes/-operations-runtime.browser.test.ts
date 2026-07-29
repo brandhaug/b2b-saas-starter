@@ -195,7 +195,7 @@ describe('Operations real TanStack runtime', () => {
       .locator('input[name="expectedUpdatedAt"]')
       .first()
       .inputValue()
-    await operator.getByLabel('impersonation-auditor').check()
+    await operator.getByLabel('Messaging Reconciler').check()
     await operator.getByRole('button', { name: 'Save roles' }).click()
     await browserExpect(page.getByText(/Operator roles updated/i)).toBeVisible()
     await browserExpect
@@ -216,7 +216,7 @@ describe('Operations real TanStack runtime', () => {
 
     await page.goto(`${origin}/operators/invitations/new`)
     await page.getByLabel('Dedicated operator email').fill(enrollmentEmail)
-    await page.getByLabel('merchant-reader').check()
+    await page.getByLabel('Messaging Reader').check()
     await page.getByRole('button', { name: 'Send single-use invitation' }).click()
     await browserExpect(
       page.getByText(new RegExp(`Invitation sent to ${enrollmentEmail}`))

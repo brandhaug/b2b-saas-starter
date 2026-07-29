@@ -161,7 +161,12 @@ describe('Operations authentication contract', () => {
       'merchant-reader': ['merchant:read'],
       'merchant-impersonator': ['merchant:read', 'merchant:impersonate'],
       'impersonation-auditor': ['impersonation-audit:read'],
-      'operator-manager': ['operator:manage']
+      'operator-manager': ['operator:manage'],
+      'messaging-reader': ['messaging:read'],
+      'messaging-controller': ['messaging:control'],
+      'messaging-finance': ['messaging:finance'],
+      'messaging-reconciler': ['messaging:reconcile'],
+      'messaging-incident-responder': ['messaging:incident']
     } as const
     for (const role of operatorRoleNames) {
       for (const permission of operatorPermissions) {
@@ -176,6 +181,16 @@ describe('Operations authentication contract', () => {
           allowed
         )
       }
+    }
+
+    for (const role of [
+      'messaging-reader',
+      'messaging-controller',
+      'messaging-finance',
+      'messaging-reconciler',
+      'messaging-incident-responder'
+    ] as const) {
+      expect(hasOperatorPermission([role], 'merchant:impersonate'), role).toBe(false)
     }
   })
 

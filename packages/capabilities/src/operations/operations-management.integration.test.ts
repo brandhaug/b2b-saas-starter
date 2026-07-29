@@ -208,7 +208,13 @@ describe('Operations management integration boundary', () => {
           actor: fixture.actor,
           targetOperatorId: fixture.targetId,
           expectedUpdatedAt: now,
-          roles: ['merchant-reader', 'impersonation-auditor', 'operator-manager'],
+          roles: [
+            'messaging-reader',
+            'messaging-controller',
+            'messaging-finance',
+            'messaging-reconciler',
+            'messaging-incident-responder'
+          ],
           now: new Date('2026-07-19T10:00:01.000Z')
         })
       )
@@ -218,7 +224,7 @@ describe('Operations management integration boundary', () => {
       .from(user)
       .where(eq(user.id, fixture.targetId))
     expect(composed?.role).toBe(
-      'merchant-reader,impersonation-auditor,operator-manager'
+      'messaging-reader,messaging-controller,messaging-finance,messaging-reconciler,messaging-incident-responder'
     )
     await expect(
       authorize(
@@ -227,7 +233,13 @@ describe('Operations management integration boundary', () => {
         new Date('2026-07-19T10:00:01.000Z')
       )
     ).resolves.toMatchObject({
-      roles: ['merchant-reader', 'impersonation-auditor', 'operator-manager']
+      roles: [
+        'messaging-reader',
+        'messaging-controller',
+        'messaging-finance',
+        'messaging-reconciler',
+        'messaging-incident-responder'
+      ]
     })
 
     await fixture.run(

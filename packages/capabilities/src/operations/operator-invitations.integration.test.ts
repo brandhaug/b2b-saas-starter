@@ -73,7 +73,7 @@ describe('Operator Invitation capability boundary', () => {
           {
             actor: fixture.actor,
             email: 'new.operator@example.test',
-            roles: ['merchant-reader', 'impersonation-auditor'],
+            roles: ['messaging-reader', 'messaging-incident-responder'],
             tokenHash: 'invitation_hash_happy'
           },
           now
@@ -83,7 +83,7 @@ describe('Operator Invitation capability boundary', () => {
 
     expect(invitation).toMatchObject({
       email: 'new.operator@example.test',
-      roles: ['merchant-reader', 'impersonation-auditor'],
+      roles: ['messaging-reader', 'messaging-incident-responder'],
       expiresAt: new Date('2026-07-20T12:00:00.000Z')
     })
     const [stored] = await fixture.db
@@ -165,7 +165,7 @@ describe('Operator Invitation capability boundary', () => {
           {
             actor: fixture.actor,
             email: 'recipient@example.test',
-            roles: ['merchant-reader'],
+            roles: ['messaging-reader', 'messaging-reconciler'],
             tokenHash: 'invitation_hash_accept'
           },
           now
@@ -195,7 +195,7 @@ describe('Operator Invitation capability boundary', () => {
       emailVerified: true,
       twoFactorEnabled: false,
       identityClass: 'system_operator',
-      role: 'merchant-reader'
+      role: 'messaging-reader,messaging-reconciler'
     })
     expect(
       await fixture.db

@@ -4,40 +4,99 @@ import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
 import { auditEvents, session, user } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 
-export const operatorRoleNames = [
-  'merchant-reader',
-  'merchant-impersonator',
-  'impersonation-auditor',
-  'operator-manager',
-  'messaging-finance'
-] as const
-export const OperatorRole = Schema.Literals(operatorRoleNames)
-export type OperatorRole = typeof OperatorRole.Type
-
 export const operatorPermissionNames = [
   'merchant:read',
   'merchant:impersonate',
   'impersonation-audit:read',
   'operator:manage',
-  'messaging:finance'
+  'messaging:read',
+  'messaging:control',
+  'messaging:finance',
+  'messaging:reconcile',
+  'messaging:incident'
 ] as const
 export const OperatorPermission = Schema.Literals(operatorPermissionNames)
 export type OperatorPermission = typeof OperatorPermission.Type
 
-export const operatorRolePermissions: Readonly<
-  Record<OperatorRole, readonly OperatorPermission[]>
-> = {
-  'merchant-reader': ['merchant:read'],
-  'merchant-impersonator': ['merchant:read', 'merchant:impersonate'],
-  'impersonation-auditor': ['impersonation-audit:read'],
-  'operator-manager': ['operator:manage'],
-  'messaging-finance': ['messaging:finance']
-}
+export const operatorRoleRegistry = {
+  'merchant-reader': {
+    label: 'Merchant Reader',
+    category: 'merchant',
+    permissions: ['merchant:read']
+  },
+  'merchant-impersonator': {
+    label: 'Merchant Impersonator',
+    category: 'merchant',
+    permissions: ['merchant:read', 'merchant:impersonate']
+  },
+  'impersonation-auditor': {
+    label: 'Impersonation Auditor',
+    category: 'operations',
+    permissions: ['impersonation-audit:read']
+  },
+  'operator-manager': {
+    label: 'Operator Manager',
+    category: 'operations',
+    permissions: ['operator:manage']
+  },
+  'messaging-reader': {
+    label: 'Messaging Reader',
+    category: 'messaging',
+    permissions: ['messaging:read']
+  },
+  'messaging-controller': {
+    label: 'Messaging Controller',
+    category: 'messaging',
+    permissions: ['messaging:control']
+  },
+  'messaging-finance': {
+    label: 'Messaging Finance',
+    category: 'messaging',
+    permissions: ['messaging:finance']
+  },
+  'messaging-reconciler': {
+    label: 'Messaging Reconciler',
+    category: 'messaging',
+    permissions: ['messaging:reconcile']
+  },
+  'messaging-incident-responder': {
+    label: 'Messaging Incident Responder',
+    category: 'messaging',
+    permissions: ['messaging:incident']
+  }
+} as const satisfies Record<
+  string,
+  {
+    readonly label: string
+    readonly category: 'merchant' | 'operations' | 'messaging'
+    readonly permissions: readonly OperatorPermission[]
+  }
+>
+
+export type OperatorRole = keyof typeof operatorRoleRegistry
+
+export const operatorRoleNames = Object.keys(
+  operatorRoleRegistry
+) as readonly OperatorRole[]
+export const operatorDefaultRole = 'merchant-reader' satisfies OperatorRole
+export const messagingOperatorRoleNames = operatorRoleNames.filter(
+  (role) => operatorRoleRegistry[role].category === 'messaging'
+)
+export const operatorRoleOptions = operatorRoleNames.map((value) => ({
+  value,
+  label: operatorRoleRegistry[value].label
+}))
+export const OperatorRole = Schema.Literals(operatorRoleNames)
 
 export const hasOperatorPermission = (
   roles: readonly OperatorRole[],
   permission: OperatorPermission
-): boolean => roles.some((role) => operatorRolePermissions[role].includes(permission))
+): boolean =>
+  roles.some((role) => {
+    const permissions: readonly OperatorPermission[] =
+      operatorRoleRegistry[role].permissions
+    return permissions.includes(permission)
+  })
 
 export const OperatorSessionReference = Schema.Struct({
   operatorSessionId: Schema.String

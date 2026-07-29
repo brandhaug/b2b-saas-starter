@@ -295,6 +295,18 @@ describe('Operations pending impersonation handoff', () => {
     expect(JSON.stringify(audit)).not.toContain(ticket)
   })
 
+  it('denies Merchant impersonation to operators holding only messaging roles', async () => {
+    const operator = await addOperator('messaging_only', {
+      roles:
+        'messaging-reader,messaging-controller,messaging-finance,messaging-reconciler,messaging-incident-responder'
+    })
+    const target = await addTarget('messaging_only')
+
+    await expect(start({ ...operator, ...target })).rejects.toMatchObject({
+      _tag: 'OperationsContractDenied'
+    })
+  })
+
   it('atomically activates a valid handoff with provenance and a sanitized start Notification Intent', async () => {
     const result = await activate(ticket)
 

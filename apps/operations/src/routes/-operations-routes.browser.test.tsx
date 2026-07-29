@@ -209,13 +209,20 @@ describe('Operations TanStack routes', () => {
     fireEvent.change(screen.getByLabelText('Dedicated operator email'), {
       target: { value: 'new-operator@example.com' }
     })
-    fireEvent.click(screen.getByLabelText('merchant-reader'))
+    fireEvent.click(screen.getByLabelText('Messaging Reader'))
+    fireEvent.click(screen.getByLabelText('Messaging Incident Responder'))
     fireEvent.submit(
       screen
         .getByRole('button', { name: 'Send single-use invitation' })
         .closest('form')!
     )
     expect(await screen.findByText(/invitation sent to new-operator/i)).toBeTruthy()
+    expect(server.inviteOperator).toHaveBeenCalledWith({
+      data: {
+        email: 'new-operator@example.com',
+        roles: ['messaging-reader', 'messaging-incident-responder']
+      }
+    })
     fireEvent.click(screen.getByText('Revoke invitation'))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke invitation' }))
 
@@ -411,7 +418,7 @@ describe('Operations TanStack routes', () => {
     server.updateOperatorRoles.mockResolvedValueOnce(ready(null))
     await renderRoute('/operators')
 
-    fireEvent.click(screen.getByLabelText('impersonation-auditor'))
+    fireEvent.click(screen.getByLabelText('Messaging Reconciler'))
     fireEvent.submit(
       screen.getByRole('button', { name: 'Save roles' }).closest('form')!
     )
@@ -421,7 +428,7 @@ describe('Operations TanStack routes', () => {
         data: {
           operatorId: 'operator-2',
           expectedUpdatedAt: '2026-07-20T10:00:00.000Z',
-          roles: ['merchant-reader', 'impersonation-auditor']
+          roles: ['merchant-reader', 'messaging-reconciler']
         }
       })
     )

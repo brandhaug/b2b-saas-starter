@@ -12,13 +12,7 @@ import {
   inviteOperator,
   revokeOperatorInvitation
 } from '@/lib/server/operations-server-functions.ts'
-
-const roles = [
-  'merchant-reader',
-  'merchant-impersonator',
-  'impersonation-auditor',
-  'operator-manager'
-] as const
+import { operatorRoleOptions } from '@b2b-saas-starter/capabilities/operations'
 
 export const Route = createFileRoute('/operators_/invitations/new')({
   beforeLoad: requireOperationsSession,
@@ -73,10 +67,10 @@ function InviteOperatorPage() {
         <Field label="Dedicated operator email" name="email" type="email" required />
         <fieldset className="grid gap-2">
           <legend className="mb-2 text-sm font-semibold">Initial roles</legend>
-          {roles.map((role) => (
-            <label className="flex gap-2 text-sm" key={role}>
-              <input name="roles" type="checkbox" value={role} />
-              {role}
+          {operatorRoleOptions.map((role) => (
+            <label className="flex gap-2 text-sm" key={role.value}>
+              <input name="roles" type="checkbox" value={role.value} />
+              {role.label}
             </label>
           ))}
         </fieldset>

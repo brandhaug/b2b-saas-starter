@@ -6,7 +6,13 @@ import {
   OperationsAuditRecord,
   OperationsRateLimitRequest,
   ProvisionOperatorRequest,
-  makeOperationsContractFixtures
+  hasOperatorPermission,
+  makeOperationsContractFixtures,
+  messagingOperatorRoleNames,
+  operatorDefaultRole,
+  operatorRoleNames,
+  operatorRoleRegistry,
+  parseOperatorRoles
 } from './operations-contracts.ts'
 
 describe('Operations transport-neutral contracts', () => {
@@ -36,5 +42,40 @@ describe('Operations transport-neutral contracts', () => {
     )
     expect(serialized).not.toMatch(/"actor":\{[^}]*"roles"/)
     expect(serialized).not.toMatch(/"actor":\{[^}]*"operatorId"/)
+  })
+
+  it('publishes one exhaustive registry for independently assignable messaging roles', () => {
+    expect(messagingOperatorRoleNames).toEqual([
+      'messaging-reader',
+      'messaging-controller',
+      'messaging-finance',
+      'messaging-reconciler',
+      'messaging-incident-responder'
+    ])
+    expect(operatorRoleNames).toEqual(Object.keys(operatorRoleRegistry))
+    expect(operatorDefaultRole).toBe('merchant-reader')
+    expect(
+      Object.fromEntries(
+        messagingOperatorRoleNames.map((role) => [
+          operatorRoleRegistry[role].label,
+          operatorRoleRegistry[role].permissions
+        ])
+      )
+    ).toEqual({
+      'Messaging Reader': ['messaging:read'],
+      'Messaging Controller': ['messaging:control'],
+      'Messaging Finance': ['messaging:finance'],
+      'Messaging Reconciler': ['messaging:reconcile'],
+      'Messaging Incident Responder': ['messaging:incident']
+    })
+  })
+
+  it('fails closed for unknown persisted roles and grants no implicit messaging role', () => {
+    expect(parseOperatorRoles('messaging-admin,unknown')).toEqual([])
+    expect(parseOperatorRoles('messaging-reader,messaging-admin')).toEqual([
+      'messaging-reader'
+    ])
+    expect(hasOperatorPermission([], 'messaging:read')).toBe(false)
+    expect(hasOperatorPermission([operatorDefaultRole], 'messaging:read')).toBe(false)
   })
 })

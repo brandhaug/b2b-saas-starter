@@ -15,6 +15,8 @@ import { and, eq, isNull, ne } from 'drizzle-orm'
 import { Effect, Schema } from 'effect'
 import {
   operatorRoleNames,
+  operatorDefaultRole,
+  operatorRoleRegistry,
   parseOperatorRoles,
   hasOperatorPermission,
   operatorPermissionNames,
@@ -40,19 +42,36 @@ export type { OperatorPermission }
 export const operatorAccessControl = createAccessControl({
   merchant: ['read', 'impersonate'],
   'impersonation-audit': ['read'],
-  operator: ['manage']
+  operator: ['manage'],
+  messaging: ['read', 'control', 'finance', 'reconcile', 'incident']
 })
 
-export const operatorRoles = {
-  'merchant-reader': operatorAccessControl.newRole({ merchant: ['read'] }),
-  'merchant-impersonator': operatorAccessControl.newRole({
-    merchant: ['read', 'impersonate']
-  }),
-  'impersonation-auditor': operatorAccessControl.newRole({
-    'impersonation-audit': ['read']
-  }),
-  'operator-manager': operatorAccessControl.newRole({ operator: ['manage'] })
-} as const
+type OperatorAccessStatement = Parameters<typeof operatorAccessControl.newRole>[0]
+type OperatorAccessRole = ReturnType<typeof operatorAccessControl.newRole>
+
+const accessStatement = (
+  permissions: readonly OperatorPermission[]
+): OperatorAccessStatement => {
+  const statement: Record<string, string[]> = {}
+  for (const permission of permissions) {
+    const [resource, action] = permission.split(':')
+    if (!resource || !action)
+      throw new Error(`Invalid Operator Permission: ${permission}`)
+    const actions = statement[resource] ?? []
+    actions.push(action)
+    statement[resource] = actions
+  }
+  return statement as OperatorAccessStatement
+}
+
+export const operatorRoles = Object.fromEntries(
+  operatorRoleNames.map((role) => [
+    role,
+    operatorAccessControl.newRole(
+      accessStatement(operatorRoleRegistry[role].permissions)
+    )
+  ])
+) as Readonly<Record<OperatorRoleName, OperatorAccessRole>>
 
 export { hasOperatorPermission }
 
@@ -181,7 +200,7 @@ export const createOperationsAuth = (options: CreateOperationsAuthOptions) =>
       adminPlugin({
         ac: operatorAccessControl,
         roles: operatorRoles,
-        defaultRole: 'merchant-reader',
+        defaultRole: operatorDefaultRole,
         adminRoles: ['operator-manager']
       }),
       twoFactorPlugin({

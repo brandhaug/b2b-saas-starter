@@ -16,13 +16,7 @@ import {
 } from '@/lib/server/operations-server-functions.ts'
 import type { ManagedOperatorView } from '@/lib/server/operations-server-functions.ts'
 import type { MutationResult } from '@/lib/server/operations-server-functions.ts'
-
-const roles = [
-  'merchant-reader',
-  'merchant-impersonator',
-  'impersonation-auditor',
-  'operator-manager'
-] as const
+import { operatorRoleOptions } from '@b2b-saas-starter/capabilities/operations'
 
 const reportMutation = (
   result: MutationResult<unknown>,
@@ -158,15 +152,15 @@ function OperatorCard({
             <input name="expectedUpdatedAt" type="hidden" value={operator.updatedAt} />
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-semibold">Operator roles</legend>
-              {roles.map((role) => (
-                <label className="flex gap-2 text-sm" key={role}>
+              {operatorRoleOptions.map((role) => (
+                <label className="flex gap-2 text-sm" key={role.value}>
                   <input
-                    defaultChecked={operator.roles.includes(role)}
+                    defaultChecked={operator.roles.includes(role.value)}
                     name="roles"
                     type="checkbox"
-                    value={role}
+                    value={role.value}
                   />
-                  {role}
+                  {role.label}
                 </label>
               ))}
             </fieldset>
