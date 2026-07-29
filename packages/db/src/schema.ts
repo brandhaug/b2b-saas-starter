@@ -2086,6 +2086,20 @@ export const messagingTemplateVersions = sqliteTable(
     version: integer('version').notNull(),
     bodyFingerprint: text('body_fingerprint').notNull(),
     providerTemplateKey: text('provider_template_key'),
+    enabled: integer('enabled', { mode: 'boolean' }).default(false).notNull(),
+    providerRequestedCategory: text('provider_requested_category', {
+      enum: ['utility', 'marketing', 'authentication']
+    }).default('utility'),
+    providerObservedCategory: text('provider_observed_category', {
+      enum: ['utility', 'marketing', 'authentication']
+    }),
+    providerApprovalStatus: text('provider_approval_status', {
+      enum: ['pending', 'approved', 'rejected', 'disabled']
+    })
+      .default('pending')
+      .notNull(),
+    providerApprovedAt: text('provider_approved_at'),
+    providerApprovalEvidenceReference: text('provider_approval_evidence_reference'),
     effectiveAt: text('effective_at').notNull(),
     retiredAt: text('retired_at'),
     createdAt: isoCreatedAt()
