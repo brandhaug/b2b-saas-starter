@@ -5,12 +5,23 @@ import {
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   BookingPublication,
+  MerchantActivation,
   Scheduling,
+  type ActivationConfirmationInput,
+  type BlockedTimeInput,
+  type BusinessDetailsInput,
+  type DateOverrideInput,
+  type LaunchTestInput,
   type ScheduleRule,
   type ScheduleRuleInput
 } from '@b2b-saas-starter/capabilities/scheduling'
 
-type Services = BookingPublication | MerchantCatalog | MerchantContext | Scheduling
+type Services =
+  | BookingPublication
+  | MerchantActivation
+  | MerchantCatalog
+  | MerchantContext
+  | Scheduling
 export type SchedulingRunner = <A, E>(
   userId: string,
   effect: Effect.Effect<A, E, Services>
@@ -29,6 +40,7 @@ export const makeSchedulingRequestHandler = (dependencies: {
         const catalog = yield* MerchantCatalog
         const scheduling = yield* Scheduling
         const publication = yield* BookingPublication
+        const activation = yield* MerchantActivation
         const merchant = yield* MerchantContext
         const snapshot = yield* catalog.read()
         const rules = yield* Effect.forEach(snapshot.providers, (provider) =>
@@ -48,6 +60,8 @@ export const makeSchedulingRequestHandler = (dependencies: {
             ])
           ) as Readonly<Record<string, readonly ScheduleRule[]>>,
           availability,
+          controls: yield* scheduling.listControls(),
+          activation: yield* activation.read(),
           publication: yield* publication.current()
         }
       })
@@ -78,13 +92,103 @@ export const makeSchedulingRequestHandler = (dependencies: {
       )
     )
   },
+  previewRulesImpact: async (input: {
+    readonly providerId: string
+    readonly rules: readonly ScheduleRuleInput[]
+  }) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(Scheduling, (scheduling) =>
+        scheduling.previewProviderRulesImpact(input.providerId, input.rules)
+      )
+    )
+  },
+  saveActivation: async (input: ActivationConfirmationInput) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(MerchantActivation, (activation) =>
+        activation.saveConfirmations(input)
+      )
+    )
+  },
+  saveBusinessDetails: async (input: BusinessDetailsInput) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(MerchantActivation, (activation) =>
+        activation.saveBusinessDetails(input)
+      )
+    )
+  },
+  runLaunchTest: async (input: LaunchTestInput) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(MerchantActivation, (activation) =>
+        activation.runLaunchTest(input)
+      )
+    )
+  },
+  saveDateOverride: async (input: DateOverrideInput) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(Scheduling, (scheduling) => scheduling.saveDateOverride(input))
+    )
+  },
+  previewDateOverrideImpact: async (input: DateOverrideInput) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(Scheduling, (scheduling) =>
+        scheduling.previewDateOverrideImpact(input)
+      )
+    )
+  },
+  addBlockedTime: async (input: BlockedTimeInput) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(Scheduling, (scheduling) => scheduling.addBlockedTime(input))
+    )
+  },
+  previewBlockedTimeImpact: async (input: BlockedTimeInput) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(Scheduling, (scheduling) =>
+        scheduling.previewBlockedTimeImpact(input)
+      )
+    )
+  },
+  previewTimezoneImpact: async (timezone: string) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(Scheduling, (scheduling) =>
+        scheduling.previewTimezoneImpact(timezone)
+      )
+    )
+  },
+  changeTimezone: async (input: { timezone: string; confirmed: boolean }) => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(Scheduling, (scheduling) => scheduling.changeTimezone(input))
+    )
+  },
   setPublished: async (published: boolean) => {
     const userId = await dependencies.currentUserId()
     return dependencies.run(
       userId,
       Effect.gen(function* () {
         const publication = yield* BookingPublication
-        if (published) return yield* publication.publish()
+        if (published) {
+          const activation = yield* MerchantActivation
+          return yield* activation.publish()
+        }
         return yield* publication.unpublish()
       })
     )

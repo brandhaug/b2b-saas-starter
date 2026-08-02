@@ -47,6 +47,12 @@ export const ProviderProfileInput = Schema.Struct({
 })
 export type ProviderProfileInput = typeof ProviderProfileInput.Type
 
+export const ServiceBuffersInput = Schema.Struct({
+  beforeBufferMinutes: Schema.Number,
+  afterBufferMinutes: Schema.Number
+})
+export type ServiceBuffersInput = typeof ServiceBuffersInput.Type
+
 export const ProviderRecord = Schema.Struct({
   id: Schema.String,
   displayName: Schema.String,
@@ -72,6 +78,7 @@ export class MerchantCatalogInvalid extends Schema.TaggedErrorClass<MerchantCata
       'invalid_price',
       'invalid_currency',
       'invalid_duration',
+      'invalid_buffer',
       'item_not_found',
       'restricted_access'
     ])
@@ -95,6 +102,10 @@ export type MerchantCatalogShape = {
   readonly setServiceEligibility: (
     serviceId: string,
     providerIds: readonly string[]
+  ) => CatalogEffect<void>
+  readonly setServiceBuffers: (
+    serviceId: string,
+    input: ServiceBuffersInput
   ) => CatalogEffect<void>
   readonly updateProvider: (
     providerId: string,
@@ -335,6 +346,26 @@ export const SeedMerchantCatalog = (
           )
         }
       }),
+    setServiceBuffers: (serviceId, input) =>
+      Effect.gen(function* () {
+        const merchant = yield* MerchantContext
+        if (
+          !store.services.has(serviceId) ||
+          store.services.get(serviceId)?.merchantId !== merchant.id
+        )
+          return yield* Effect.fail(
+            new MerchantCatalogInvalid({ reason: 'item_not_found' })
+          )
+        if (
+          ![input.beforeBufferMinutes, input.afterBufferMinutes].every(
+            (value) =>
+              Number.isInteger(value) && value >= 0 && value <= 120 && value % 5 === 0
+          )
+        )
+          return yield* Effect.fail(
+            new MerchantCatalogInvalid({ reason: 'invalid_buffer' })
+          )
+      }),
     updateProvider: (providerId, input) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
@@ -559,6 +590,47 @@ export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> 
                   .onConflictDoNothing()
               )
             ]).pipe(Effect.mapError((error) => unavailable(error.reason)))
+          }),
+        setServiceBuffers: (serviceId, input) =>
+          Effect.gen(function* () {
+            const merchant = yield* MerchantContext
+            yield* ensureSubscriptionMutation(db, merchant.id)
+            if (
+              ![input.beforeBufferMinutes, input.afterBufferMinutes].every(
+                (value) =>
+                  Number.isInteger(value) &&
+                  value >= 0 &&
+                  value <= 120 &&
+                  value % 5 === 0
+              )
+            )
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'invalid_buffer' })
+              )
+            const existing = yield* orUnavailable('merchant-catalog')(
+              db
+                .select({ id: services.id })
+                .from(services)
+                .where(
+                  and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
+                )
+                .limit(1)
+            )
+            if (!existing[0])
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'item_not_found' })
+              )
+            yield* orUnavailable('merchant-catalog')(
+              db
+                .update(services)
+                .set({
+                  bookingConfigJson: input,
+                  updatedAt: new Date().toISOString()
+                })
+                .where(
+                  and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
+                )
+            )
           }),
         updateProvider: (providerId, input) =>
           Effect.gen(function* () {

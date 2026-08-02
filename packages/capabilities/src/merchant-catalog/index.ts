@@ -50,6 +50,7 @@ export {
   ProviderRecord,
   SeedMerchantCatalog,
   ServiceInput,
+  ServiceBuffersInput,
   ServiceRecord,
   seedEligibilityKey
 } from './merchant-catalog.ts'

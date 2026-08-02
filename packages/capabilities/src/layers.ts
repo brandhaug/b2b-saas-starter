@@ -116,6 +116,11 @@ import {
   SeedBookingPublication,
   SeedScheduling
 } from './scheduling/scheduling.ts'
+import {
+  LiveMerchantActivation,
+  MerchantActivation,
+  SeedMerchantActivation
+} from './scheduling/merchant-activation.ts'
 
 import { deriveSeedOperationalAppointments } from './seed-fixture.ts'
 import { LivePricingQuotes, SeedPricingQuotes } from './pricing/adapters.ts'
@@ -230,6 +235,7 @@ export type CapabilityServices =
   | ShopTopology
   | Scheduling
   | BookingPublication
+  | MerchantActivation
   | BookingSessions
   | BookingSelection
   | BookingScheduling
@@ -494,6 +500,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedMerchantCatalog(seedMerchantCatalogConfiguration),
   SeedScheduling(seedScheduling),
   SeedBookingPublication(seedScheduling),
+  SeedMerchantActivation,
   SeedBookingSessions(seedBookingSessions),
   SeedBookingSelection(seedBookingSelection),
   SeedBookingScheduling(seedBookingScheduling),
@@ -570,6 +577,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveMerchantCatalog,
     LiveScheduling,
     LiveBookingPublication,
+    LiveMerchantActivation,
     LiveBookingSessions,
     LiveBookingSelection,
     LiveBookingScheduling,

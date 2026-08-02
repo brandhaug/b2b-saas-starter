@@ -7,6 +7,7 @@ import {
   MerchantContext,
   ProviderInput,
   ServiceInput,
+  ServiceBuffersInput,
   type MerchantCatalogSnapshot,
   type MerchantIdentity,
   type ProviderRecord,
@@ -31,10 +32,15 @@ const ProviderMutation = Schema.Struct({
   id: Schema.optional(Schema.String),
   ...ProviderInput.fields
 })
+const BufferMutation = Schema.Struct({
+  serviceId: Schema.String,
+  ...ServiceBuffersInput.fields
+})
 
 const decodeService = Schema.decodeUnknownSync(ServiceMutation)
 const decodeEligibility = Schema.decodeUnknownSync(EligibilityMutation)
 const decodeProvider = Schema.decodeUnknownSync(ProviderMutation)
+const decodeBuffers = Schema.decodeUnknownSync(BufferMutation)
 
 const runCatalog: MerchantCatalogRunner = async (userId, effect) => {
   if (!env.DB) throw new Error('Merchant Catalog requires the Merchant App D1 binding.')
@@ -84,6 +90,14 @@ export const saveServiceEligibility = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<void> => {
     return runMerchantRequest('service-eligibility.update', (session) =>
       requestsFor(session.user.id).saveEligibility(data)
+    )
+  })
+
+export const saveServiceBuffers = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => decodeBuffers(input))
+  .handler(async ({ data }): Promise<void> => {
+    return runMerchantRequest('service.update', (session) =>
+      requestsFor(session.user.id).saveBuffers(data)
     )
   })
 

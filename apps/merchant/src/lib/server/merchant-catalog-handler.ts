@@ -6,6 +6,7 @@ import {
   type ProviderInput,
   type ProviderRecord,
   type ServiceInput,
+  type ServiceBuffersInput,
   type ServiceRecord
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 
@@ -47,6 +48,17 @@ export const makeMerchantCatalogRequestHandler = (dependencies: {
       userId,
       Effect.flatMap(MerchantCatalog, (catalog) =>
         catalog.setServiceEligibility(input.serviceId, input.providerIds)
+      )
+    )
+  },
+  saveBuffers: async (
+    input: ServiceBuffersInput & { readonly serviceId: string }
+  ): Promise<void> => {
+    const userId = await dependencies.currentUserId()
+    return dependencies.run(
+      userId,
+      Effect.flatMap(MerchantCatalog, (catalog) =>
+        catalog.setServiceBuffers(input.serviceId, input)
       )
     )
   },

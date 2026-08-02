@@ -139,6 +139,16 @@ beforeAll(async () => {
         createdAt: now,
         updatedAt: now
       })
+      yield* db.insert(merchantSubscriptions).values({
+        id: 'sub_live_schedule',
+        merchantId: merchant.id,
+        plan: 'solo',
+        interval: 'monthly',
+        status: 'trialing',
+        trialEndsAt: '2026-07-24T00:00:00.000Z',
+        createdAt: now,
+        updatedAt: now
+      })
     })
   )
 }, 60_000)
@@ -203,18 +213,15 @@ describe('Live Scheduling and publication', () => {
           .update(publicBookingPages)
           .set({ status: 'published' })
           .where(eq(publicBookingPages.merchantId, merchant.id))
-        yield* db.insert(merchantSubscriptions).values({
-          id: 'sub_live_schedule',
-          merchantId: merchant.id,
-          plan: 'solo',
-          interval: 'monthly',
-          status: 'restricted',
-          trialEndsAt: '2026-07-01T00:00:00.000Z',
-          restrictedAt: '2026-07-15T00:00:00.000Z',
-          retentionEndsAt: '2027-07-15T00:00:00.000Z',
-          createdAt: '2026-07-01T00:00:00.000Z',
-          updatedAt: '2026-07-15T00:00:00.000Z'
-        })
+        yield* db
+          .update(merchantSubscriptions)
+          .set({
+            status: 'restricted',
+            restrictedAt: '2026-07-15T00:00:00.000Z',
+            retentionEndsAt: '2027-07-15T00:00:00.000Z',
+            updatedAt: '2026-07-15T00:00:00.000Z'
+          })
+          .where(eq(merchantSubscriptions.merchantId, merchant.id))
       })
     )
     const denied = await run(
@@ -223,6 +230,17 @@ describe('Live Scheduling and publication', () => {
       )
     )
     expect(denied.reason).toBe('unpublished')
+    const restrictedAvailability = await run(
+      Effect.flatMap(Scheduling, (scheduling) =>
+        scheduling.availability({
+          providerId: 'prv_live_schedule',
+          serviceId: 'svc_live_schedule',
+          from: '2026-07-10T09:30:00.000Z',
+          days: 7
+        })
+      )
+    )
+    expect(restrictedAvailability.slots).toEqual([])
     const preferred = await runDb(
       Effect.flatMap(Database, (db) =>
         db

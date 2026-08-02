@@ -9,6 +9,7 @@ import {
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   emptySeedSchedulingStore,
+  SeedMerchantActivation,
   SeedBookingPublication,
   SeedScheduling
 } from '@b2b-saas-starter/capabilities/scheduling'
@@ -31,6 +32,7 @@ describe('Merchant scheduling request boundary', () => {
       SeedMerchantCatalog(catalogStore),
       SeedScheduling(schedulingStore),
       SeedBookingPublication(schedulingStore),
+      SeedMerchantActivation,
       testMerchantContext(scenario.merchant)
     )
     const run: SchedulingRunner = (_userId, effect) =>

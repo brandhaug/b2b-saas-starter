@@ -7,6 +7,9 @@ export {
   PublicationNotReady,
   ScheduleRule,
   ScheduleRuleInput,
+  DateOverrideInput,
+  BlockedTimeInput,
+  ScheduleRevisionConflict,
   Scheduling,
   SchedulingValidationError,
   SeedBookingPublication,
@@ -18,5 +21,11 @@ export {
   emptySeedSchedulingStore,
   readBookingReadiness
 } from './scheduling.ts'
-export type { AvailabilityControls, SeedSchedulingStore } from './scheduling.ts'
+export type {
+  AvailabilityControls,
+  BlockedTimeInput as BlockedTimeInputType,
+  DateOverrideInput as DateOverrideInputType,
+  ScheduleControls,
+  SeedSchedulingStore
+} from './scheduling.ts'
 export * from './merchant-activation.ts'
