@@ -68,7 +68,12 @@ const StripeEvent = Schema.Struct({
   id: Schema.String,
   type: Schema.String,
   created: Schema.Number,
-  data: Schema.Struct({ object: StripeObject })
+  data: Schema.Struct({
+    object: StripeObject,
+    previous_attributes: Schema.optional(
+      Schema.Struct({ cancel_at_period_end: Schema.optional(Schema.Boolean) })
+    )
+  })
 })
 type StripeEvent = typeof StripeEvent.Type
 const decodeStripeEvent = Schema.decodeUnknownSync(StripeEvent)
@@ -222,7 +227,10 @@ const evidenceFor = (
     amount: object.amount,
     amountRefunded: object.amount_refunded,
     status: object.status,
-    cancelAtPeriodEnd: object.cancel_at_period_end
+    cancelAtPeriodEnd:
+      event.data.previous_attributes?.cancel_at_period_end !== undefined
+        ? object.cancel_at_period_end
+        : undefined
   })
 }
 

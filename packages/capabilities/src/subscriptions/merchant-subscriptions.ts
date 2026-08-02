@@ -88,6 +88,16 @@ export const subscriptionEvidenceFromProviderEvent = (input: {
       return undefined
     return { ...base, kind: 'partial-refund' }
   }
+  if (
+    input.eventType === 'customer.subscription.updated' &&
+    input.cancelAtPeriodEnd !== undefined
+  )
+    return {
+      ...base,
+      kind: input.cancelAtPeriodEnd
+        ? 'subscription-cancel-scheduled'
+        : 'subscription-cancel-reversed'
+    }
   if (input.eventType === 'customer.subscription.updated' && input.actualPriceId) {
     const priceId =
       input.actualPriceId === input.monthlyPriceId
@@ -108,16 +118,6 @@ export const subscriptionEvidenceFromProviderEvent = (input: {
         currency: 'EUR'
       }
   }
-  if (
-    input.eventType === 'customer.subscription.updated' &&
-    input.cancelAtPeriodEnd !== undefined
-  )
-    return {
-      ...base,
-      kind: input.cancelAtPeriodEnd
-        ? 'subscription-cancel-scheduled'
-        : 'subscription-cancel-reversed'
-    }
   return undefined
 }
 

@@ -9,8 +9,10 @@ import {
 import {
   makeStripeBilling,
   changeStripeCancellation,
+  changeStripeInterval,
   MerchantSubscriptions,
   SubscriptionDenied,
+  startStripeCheckout,
   type BillingInterval,
   type MerchantSubscription,
   type SubscriptionNotice
@@ -86,25 +88,14 @@ export const startSoloCheckout = createServerFn({ method: 'POST' })
           Effect.gen(function* () {
             const merchant = yield* MerchantContext
             const subscription = yield* (yield* MerchantSubscriptions).get(merchant.id)
-            if (
-              subscription.access === 'active' ||
-              subscription.providerSubscriptionRef
-            )
-              return yield* Effect.fail(
-                new SubscriptionDenied({ reason: 'invalid_state' })
-              )
-            return yield* billing().createCheckout({
-              merchantId: merchant.id,
+            return yield* startStripeCheckout({
+              billing: billing(),
+              subscription,
               ownerEmail: session.user.email,
               interval: data.interval as BillingInterval,
               idempotencyKey: data.idempotencyKey,
               successUrl: `${env.MERCHANT_APP_ORIGIN ?? 'http://localhost:3072'}/settings/subscription?checkout=complete`,
-              cancelUrl: `${env.MERCHANT_APP_ORIGIN ?? 'http://localhost:3072'}/settings/subscription`,
-              existingCustomerRef: subscription.providerCustomerRef,
-              trialEndsAt:
-                subscription.access === 'trialing'
-                  ? subscription.trialEndsAt
-                  : undefined
+              cancelUrl: `${env.MERCHANT_APP_ORIGIN ?? 'http://localhost:3072'}/settings/subscription`
             })
           })
         )
@@ -173,21 +164,14 @@ export const scheduleSoloIntervalChange = createServerFn({ method: 'POST' })
           const merchant = yield* MerchantContext
           const subscriptions = yield* MerchantSubscriptions
           const subscription = yield* subscriptions.get(merchant.id)
-          if (
-            subscription.access !== 'active' ||
-            subscription.interval === data.interval
-          )
-            return yield* Effect.fail(
-              new SubscriptionDenied({ reason: 'invalid_state' })
-            )
-          const evidence = yield* billing().scheduleIntervalChange({
-            merchantId: merchant.id,
+          yield* changeStripeInterval({
+            subscriptions,
+            billing: billing(),
             subscription,
             interval: data.interval,
             idempotencyKey: data.idempotencyKey,
             now: new Date().toISOString()
           })
-          yield* subscriptions.recordEvidence(evidence)
         })
       )
     )

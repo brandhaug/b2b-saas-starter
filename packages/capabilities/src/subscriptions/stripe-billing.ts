@@ -146,6 +146,60 @@ export const changeStripeCancellation = (input: {
   })
 }
 
+export const startStripeCheckout = (input: {
+  readonly billing: StripeBilling
+  readonly subscription: MerchantSubscription
+  readonly ownerEmail: string
+  readonly interval: BillingInterval
+  readonly successUrl: string
+  readonly cancelUrl: string
+  readonly idempotencyKey: string
+}) => {
+  if (
+    input.subscription.access === 'active' ||
+    input.subscription.providerSubscriptionRef
+  )
+    return Effect.fail(new SubscriptionDenied({ reason: 'invalid_state' }))
+  return input.billing.createCheckout({
+    merchantId: input.subscription.merchantId,
+    ownerEmail: input.ownerEmail,
+    interval: input.interval,
+    successUrl: input.successUrl,
+    cancelUrl: input.cancelUrl,
+    idempotencyKey: input.idempotencyKey,
+    existingCustomerRef: input.subscription.providerCustomerRef,
+    trialEndsAt:
+      input.subscription.access === 'trialing'
+        ? input.subscription.trialEndsAt
+        : undefined
+  })
+}
+
+export const changeStripeInterval = (input: {
+  readonly subscriptions: MerchantSubscriptionsShape
+  readonly billing: StripeBilling
+  readonly subscription: MerchantSubscription
+  readonly interval: BillingInterval
+  readonly idempotencyKey: string
+  readonly now: string
+}) => {
+  if (
+    input.subscription.access !== 'active' ||
+    input.subscription.interval === input.interval
+  )
+    return Effect.fail(new SubscriptionDenied({ reason: 'invalid_state' }))
+  return Effect.flatMap(
+    input.billing.scheduleIntervalChange({
+      merchantId: input.subscription.merchantId,
+      subscription: input.subscription,
+      interval: input.interval,
+      idempotencyKey: input.idempotencyKey,
+      now: input.now
+    }),
+    input.subscriptions.recordEvidence
+  )
+}
+
 export const reconcileStripeSubscription = (input: {
   readonly subscriptions: MerchantSubscriptionsShape
   readonly billing: StripeBilling
@@ -157,6 +211,13 @@ export const reconcileStripeSubscription = (input: {
       merchantId: input.subscription.merchantId,
       subscription: input.subscription
     })
+    const evidence = reconciliationEvidence({
+      now: input.now,
+      subscription: input.subscription,
+      snapshot
+    })
+    if (evidence?.kind === 'invoice-paid')
+      return yield* input.subscriptions.reconcile(evidence)
     if (
       input.subscription.access === 'grace' &&
       input.subscription.graceEndsAt &&
@@ -179,11 +240,6 @@ export const reconcileStripeSubscription = (input: {
         providerSubscriptionRef: input.subscription.providerSubscriptionRef
       })
     }
-    const evidence = reconciliationEvidence({
-      now: input.now,
-      subscription: input.subscription,
-      snapshot
-    })
     return evidence
       ? yield* input.subscriptions.reconcile(evidence)
       : input.subscription
