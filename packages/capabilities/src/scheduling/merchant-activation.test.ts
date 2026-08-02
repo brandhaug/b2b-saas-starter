@@ -1,3 +1,4 @@
+import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   decideFirstPublication,
@@ -18,7 +19,8 @@ const completeFacts: ActivationFacts = {
   launchTestSourceRevision: 'configuration:7',
   subscriptionAccess: true,
   publishedIntent: false,
-  firstActivatedAt: null
+  firstActivatedAt: null,
+  bookingReadiness: true
 }
 
 describe('Solo Merchant Activation', () => {
@@ -43,15 +45,17 @@ describe('Solo Merchant Activation', () => {
 
   it('simulates confirmation without writing any operational facts', () => {
     expect(
-      simulateLaunchTest(
-        'configuration:7',
-        {
-          serviceId: 'svc_1',
-          providerId: 'prv_1',
-          startsAt: '2026-10-25T00:30:00.000Z',
-          customer: { name: 'Preview Customer', email: 'preview@example.com' }
-        },
-        ['2026-10-25T00:30:00.000Z']
+      Effect.runSync(
+        simulateLaunchTest(
+          'configuration:7',
+          {
+            serviceId: 'svc_1',
+            providerId: 'prv_1',
+            startsAt: '2026-10-25T00:30:00.000Z',
+            customer: { name: 'Preview Customer', email: 'preview@example.com' }
+          },
+          ['2026-10-25T00:30:00.000Z']
+        )
       )
     ).toMatchObject({
       createsAppointment: false,

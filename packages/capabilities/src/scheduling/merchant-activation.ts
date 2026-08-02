@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 
 export const activationSteps = [
   'business-details',
@@ -57,6 +57,7 @@ export type ActivationFacts = {
   readonly subscriptionAccess: boolean
   readonly publishedIntent: boolean
   readonly firstActivatedAt: string | null
+  readonly bookingReadiness: boolean
 }
 
 export type ActivationProgress = {
@@ -93,12 +94,7 @@ export const deriveActivationProgress = (
     resumeAt: incomplete[0] ?? null,
     readyForFirstPublication,
     currentlyPublic:
-      facts.publishedIntent &&
-      facts.subscriptionAccess &&
-      // After activation, ongoing exposure follows current booking readiness.
-      facts.businessDetailsComplete &&
-      facts.hasActiveEligibleService &&
-      facts.hasExplicitWeeklyHours,
+      facts.publishedIntent && facts.subscriptionAccess && facts.bookingReadiness,
     activated: facts.firstActivatedAt !== null
   }
 }
@@ -138,21 +134,27 @@ export type LaunchTestResult = {
   readonly sendsCustomerNotification: false
 }
 
+export class LaunchTestRejected extends Schema.TaggedErrorClass<LaunchTestRejected>()(
+  'LaunchTestRejected',
+  { reason: Schema.Literals(['invalid_customer', 'slot_unavailable']) }
+) {}
+
 /** A deliberately pure rehearsal result. Availability must be checked by the caller. */
 export const simulateLaunchTest = (
   sourceRevision: string,
   input: LaunchTestInput,
   availableStarts: readonly string[]
-): LaunchTestResult => {
+): Effect.Effect<LaunchTestResult, LaunchTestRejected> => {
   if (!input.customer.name.trim() || !input.customer.email.includes('@'))
-    throw new Error('invalid_customer')
-  if (!availableStarts.includes(input.startsAt)) throw new Error('slot_unavailable')
-  return {
+    return Effect.fail(new LaunchTestRejected({ reason: 'invalid_customer' }))
+  if (!availableStarts.includes(input.startsAt))
+    return Effect.fail(new LaunchTestRejected({ reason: 'slot_unavailable' }))
+  return Effect.succeed({
     kind: 'simulated-confirmation',
     sourceRevision,
     createsAppointment: false,
     createsCustomerRecord: false,
     consumesHold: false,
     sendsCustomerNotification: false
-  }
+  })
 }

@@ -274,8 +274,7 @@ const localParts = (instant: Date, timezone: string) => {
     parts.find((part) => part.type === type)?.value ?? ''
   return {
     date: `${read('year')}-${read('month')}-${read('day')}`,
-    time: `${read('hour')}:${read('minute')}`,
-    offset: read('timeZoneName')
+    time: `${read('hour')}:${read('minute')}`
   }
 }
 
