@@ -14,23 +14,24 @@ Live and Seed implementations must satisfy the same service shape. D1 failures m
 
 ## Bounded-context map
 
-| Context             | Intent node                |
-| ------------------- | -------------------------- |
-| Booking             | `src/booking/`             |
-| Merchant Catalog    | `src/merchant-catalog/`    |
-| Scheduling          | `src/scheduling/`          |
-| Pricing             | `src/pricing/`             |
-| Payments            | `src/payments/`            |
-| Gift Cards          | `src/gift-cards/`          |
-| Waiting List        | `src/waiting-list/`        |
-| Walk-ins            | `src/walk-ins/AGENTS.md`   |
-| Customer Identity   | `src/customer-identity/`   |
-| Customer Engagement | `src/customer-engagement/` |
-| Notifications       | `src/notifications/`       |
-| Scheduled Work      | `src/scheduled-work/`      |
-| Developer Platform  | `src/developer-platform/`  |
-| Governance          | `src/governance/`          |
-| Operations          | `src/operations/AGENTS.md` |
+| Context             | Intent node                        |
+| ------------------- | ---------------------------------- |
+| Booking             | `src/booking/`                     |
+| Merchant Catalog    | `src/merchant-catalog/`            |
+| Scheduling          | `src/scheduling/`                  |
+| Pricing             | `src/pricing/`                     |
+| Payments            | `src/payments/`                    |
+| Gift Cards          | `src/gift-cards/`                  |
+| Waiting List        | `src/waiting-list/`                |
+| Walk-ins            | `src/walk-ins/AGENTS.md`           |
+| Customer Identity   | `src/customer-identity/`           |
+| Customer Engagement | `src/customer-engagement/`         |
+| Customer Directory  | `src/customer-directory/AGENTS.md` |
+| Notifications       | `src/notifications/`               |
+| Scheduled Work      | `src/scheduled-work/`              |
+| Developer Platform  | `src/developer-platform/`          |
+| Governance          | `src/governance/`                  |
+| Operations          | `src/operations/AGENTS.md`         |
 
 ## Where to put a new capability
 

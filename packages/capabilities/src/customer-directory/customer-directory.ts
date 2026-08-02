@@ -110,9 +110,10 @@ type Mutation = {
   readonly now: string
 }
 type MatchInput = {
-  readonly appointmentId: string
+  readonly appointmentId: string | null
   readonly details: DirectoryCustomerDetails
   readonly now: string
+  readonly source?: 'appointment' | 'import'
 }
 type MergeInput = {
   readonly survivorId: string
@@ -246,6 +247,7 @@ export type CustomerDirectoryShape = {
     readonly now: string
     readonly inactiveBefore: string
     readonly actorId: string
+    readonly protectedRecordIds?: readonly string[]
   }) => Effect.Effect<number, CustomerDirectoryError, MerchantContext>
 }
 
@@ -288,6 +290,22 @@ const validateDetails = (
 }
 const activeBan = (record: CustomerRecord, now: string) =>
   record.ban && (!record.ban.expiresAt || record.ban.expiresAt > now)
+const strictestBan = (
+  left: CustomerBan | null,
+  right: CustomerBan | null,
+  now: string
+) => {
+  const active = [left, right].filter((ban): ban is CustomerBan =>
+    Boolean(ban && (!ban.expiresAt || ban.expiresAt > now))
+  )
+  return (
+    active.sort((a, b) => {
+      if (a.expiresAt === null) return -1
+      if (b.expiresAt === null) return 1
+      return b.expiresAt.localeCompare(a.expiresAt)
+    })[0] ?? null
+  )
+}
 const values = (details: DirectoryCustomerDetails) =>
   [
     details.email && `email:${details.email}`,
@@ -343,6 +361,16 @@ export const SeedCustomerDirectory = (
         const details = normalize(input.details)
         const invalid = validateDetails(details)
         if (invalid) return yield* Effect.fail(invalid)
+        const replay = input.appointmentId
+          ? [...store.records.values()].find(
+              (record) =>
+                record.merchantId === merchant.id &&
+                record.observations.some(
+                  (observation) => observation.appointmentId === input.appointmentId
+                )
+            )
+          : undefined
+        if (replay) return { record: replay, matched: true }
         const candidates = [...store.records.values()].filter(
           (record) =>
             record.merchantId === merchant.id &&
@@ -353,32 +381,39 @@ export const SeedCustomerDirectory = (
         const matching = candidates.filter((record) =>
           supplied.some((value) => recordValues(record).has(value))
         )
-        const exact = matching.filter((record) =>
-          supplied.every((value) => recordValues(record).has(value))
-        )
         const match =
-          supplied.length > 0 && matching.length === 1 && exact.length === 1
-            ? exact[0]
-            : undefined
+          supplied.length > 0 && matching.length === 1 ? matching[0] : undefined
         if (match) {
           const observation: CustomerObservation = {
             id: newCapabilityId('cuo'),
             appointmentId: input.appointmentId,
             details,
             observedAt: input.now,
-            source: 'appointment'
+            source: input.source ?? 'appointment'
           }
           const additional = contactsFrom(details)
             .filter(
               (contact) => !recordValues(match).has(`${contact.kind}:${contact.value}`)
             )
             .map((contact) => ({ ...contact, preferred: false }))
+          const revision = match.revision + 1
           const next = {
             ...match,
             status: 'active' as const,
             contacts: [...match.contacts, ...additional],
             observations: [...match.observations, observation],
-            lastActivityAt: input.now
+            lastActivityAt: input.now,
+            revision,
+            history: [
+              ...match.history,
+              history(
+                'edited',
+                'system',
+                'appointment_observation',
+                input.now,
+                revision
+              )
+            ]
           }
           store.records.set(next.id, next)
           return { record: next, matched: true }
@@ -389,7 +424,7 @@ export const SeedCustomerDirectory = (
           appointmentId: input.appointmentId,
           details,
           observedAt: input.now,
-          source: 'appointment'
+          source: input.source ?? 'appointment'
         }
         const record: CustomerRecord = {
           id,
@@ -471,7 +506,31 @@ export const SeedCustomerDirectory = (
           displayName: details.name,
           preferredEmail: details.email,
           preferredPhone: details.phone,
-          contacts: contactsFrom(details)
+          contacts: (record: CustomerRecord) => {
+            const desired = contactsFrom(details)
+            const desiredKeys = new Set(
+              desired.map((contact) => `${contact.kind}:${contact.value}`)
+            )
+            const historical = record.contacts.map((contact) =>
+              contact.preferred && !desiredKeys.has(`${contact.kind}:${contact.value}`)
+                ? { ...contact, preferred: false, status: 'superseded' as const }
+                : desired.some(
+                      (item) =>
+                        item.kind === contact.kind && item.value === contact.value
+                    )
+                  ? { ...contact, preferred: true, status: 'active' as const }
+                  : contact
+            )
+            const existing = new Set(
+              historical.map((contact) => `${contact.kind}:${contact.value}`)
+            )
+            return [
+              ...historical,
+              ...desired.filter(
+                (contact) => !existing.has(`${contact.kind}:${contact.value}`)
+              )
+            ]
+          }
         }
       }),
     addNote: (recordId, input) =>
@@ -558,10 +617,7 @@ export const SeedCustomerDirectory = (
             matching = candidates.filter((record) =>
               supplied.some((value) => recordValues(record).has(value))
             )
-          const exact =
-            matching.length === 1 &&
-            supplied.length > 0 &&
-            supplied.every((value) => recordValues(matching[0]!).has(value))
+          const exact = matching.length === 1 && supplied.length > 0
           return {
             row: index + 1,
             normalized,
@@ -585,9 +641,10 @@ export const SeedCustomerDirectory = (
           const row = input.rows[index]!
           const result = yield* Effect.result(
             self.matchOrCreate({
-              appointmentId: `import:${input.fileId}:${index}`,
+              appointmentId: null,
               details: row,
-              now: input.now
+              now: input.now,
+              source: 'import'
             })
           )
           if (result._tag === 'Failure') rejected += 1
@@ -617,15 +674,17 @@ export const SeedCustomerDirectory = (
             )
           }))
       }),
-    eraseExpired: ({ now, inactiveBefore, actorId }) =>
+    eraseExpired: ({ now, inactiveBefore, actorId, protectedRecordIds = [] }) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
+        const protectedIds = new Set(protectedRecordIds)
         let count = 0
         for (const record of store.records.values())
           if (
             record.merchantId === merchant.id &&
             record.status !== 'erased' &&
             record.lastActivityAt < inactiveBefore &&
+            !protectedIds.has(record.id) &&
             !activeBan(record, now)
           ) {
             const revision = record.revision + 1
@@ -712,6 +771,16 @@ const mergeRecords = (
 ): Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext> =>
   Effect.gen(function* () {
     const merchant = yield* MerchantContext
+    const commandKey = `${merchant.id}:${input.idempotencyKey}`
+    const commandFingerprint = fingerprint(input)
+    const replay = store.commands.get(commandKey)
+    if (replay) {
+      if (replay.fingerprint !== commandFingerprint)
+        return yield* Effect.fail(
+          new CapabilityConflict({ reason: 'idempotency_key_reused' })
+        )
+      return replay.result as CustomerRecord
+    }
     const survivor = store.records.get(input.survivorId),
       absorbed = store.records.get(input.absorbedId)
     if (
@@ -752,10 +821,7 @@ const mergeRecords = (
         a.createdAt.localeCompare(b.createdAt)
       ),
       consent: [...survivor.consent, ...absorbed.consent],
-      ban:
-        activeBan(absorbed, input.now) && !activeBan(survivor, input.now)
-          ? absorbed.ban
-          : survivor.ban,
+      ban: strictestBan(survivor.ban, absorbed.ban, input.now),
       possibleDuplicateOf: [],
       revision,
       lastActivityAt:
@@ -778,6 +844,10 @@ const mergeRecords = (
         history('merged', input.actorId, input.reason, input.now, absorbed.revision + 1)
       ]
     })
+    store.commands.set(commandKey, {
+      fingerprint: commandFingerprint,
+      result: merged
+    })
     return merged
   })
 
@@ -791,6 +861,19 @@ const splitRecord = (
 > =>
   Effect.gen(function* () {
     const merchant = yield* MerchantContext
+    const commandKey = `${merchant.id}:${input.idempotencyKey}`
+    const commandFingerprint = fingerprint(input)
+    const replay = store.commands.get(commandKey)
+    if (replay) {
+      if (replay.fingerprint !== commandFingerprint)
+        return yield* Effect.fail(
+          new CapabilityConflict({ reason: 'idempotency_key_reused' })
+        )
+      return replay.result as {
+        source: CustomerRecord
+        created: CustomerRecord
+      }
+    }
     const source = store.records.get(input.sourceId)
     if (!source || source.merchantId !== merchant.id)
       return yield* Effect.fail(new CapabilityNotFound({ resource: 'customer-record' }))
@@ -836,5 +919,10 @@ const splitRecord = (
     }
     store.records.set(source.id, remaining)
     store.records.set(id, created)
-    return { source: remaining, created }
+    const result = { source: remaining, created }
+    store.commands.set(commandKey, {
+      fingerprint: commandFingerprint,
+      result
+    })
+    return result
   })

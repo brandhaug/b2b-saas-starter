@@ -9,6 +9,9 @@ import {
   bookingSessions,
   brands,
   confirmationAccess,
+  appointmentFoundations,
+  customerRecords,
+  customerObservations,
   Database,
   layerFromD1,
   merchants,
@@ -43,6 +46,10 @@ import {
 } from './appointment-operations.ts'
 import { testMerchantContext } from '../merchant-catalog/merchant-context.ts'
 import type { BookingSession } from './booking-sessions.ts'
+import {
+  CustomerDirectory,
+  LiveCustomerDirectory
+} from '../customer-directory/index.ts'
 
 let test: TestD1
 const now = '2026-07-10T09:30:00.000Z'
@@ -96,7 +103,7 @@ const session = (
   absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
 })
 
-const seedSession = (id: string) =>
+const seedSession = (id: string, sessionQuote = quote) =>
   Effect.gen(function* () {
     const db = yield* Database
     yield* db.insert(bookingSessions).values({
@@ -119,11 +126,11 @@ const seedSession = (id: string) =>
       merchantId: 'mer_confirm',
       bookingSessionId: id,
       providerId: 'prv_confirm',
-      startsAt: quote.startsAt,
-      endsAt: quote.endsAt,
+      startsAt: sessionQuote.startsAt,
+      endsAt: sessionQuote.endsAt,
       createdAt: now,
       expiresAt: '2026-07-10T09:40:00.000Z',
-      quote
+      quote: sessionQuote
     })
   })
 
@@ -204,6 +211,11 @@ beforeAll(async () => {
         yield* seedSession('bsn_confirm')
         yield* seedSession('bsn_rollback')
         yield* seedSession('bsn_competing')
+        yield* seedSession('bsn_banned', {
+          ...quote,
+          startsAt: '2026-07-11T13:00:00.000Z',
+          endsAt: '2026-07-11T14:30:00.000Z'
+        })
       }),
       layerFromD1(test.d1)
     )
@@ -314,6 +326,9 @@ describe('Live Booking Confirmation', () => {
             sessions: yield* db.select().from(bookingSessions),
             holds: yield* db.select().from(timeSlotHolds),
             appointments: yield* db.select().from(appointments),
+            customerRecords: yield* db.select().from(customerRecords),
+            customerObservations: yield* db.select().from(customerObservations),
+            appointmentFoundations: yield* db.select().from(appointmentFoundations),
             access: yield* db.select().from(confirmationAccess),
             outbox: yield* db.select().from(bookingOutbox),
             notificationIntents: yield* db.select().from(notificationIntents),
@@ -343,6 +358,22 @@ describe('Live Booking Confirmation', () => {
     expect(
       stored.appointments.filter((row) => row.bookingSessionId === 'bsn_confirm')
     ).toHaveLength(1)
+    expect(stored.customerRecords).toEqual([
+      expect.objectContaining({ merchantId: 'mer_confirm', displayName: 'Mia' })
+    ])
+    expect(stored.customerObservations).toEqual([
+      expect.objectContaining({
+        appointmentId: first.appointment.id,
+        normalizedEmail: 'mia@example.com',
+        source: 'public_booking'
+      })
+    ])
+    expect(stored.appointmentFoundations).toEqual([
+      expect.objectContaining({
+        appointmentId: first.appointment.id,
+        customerRecordId: stored.customerRecords[0]!.id
+      })
+    ])
     expect(stored.access).toHaveLength(1)
     expect(stored.outbox).toEqual([
       expect.objectContaining({
@@ -890,5 +921,41 @@ describe('Live Booking Confirmation', () => {
         'cookie'
       )
     ).resolves.toEqual({ kind: 'not_found' })
+  })
+
+  it('enforces a matched Customer Ban with a generic public failure', async () => {
+    const directoryLayer = Layer.merge(
+      LiveCustomerDirectory.pipe(Layer.provide(layerFromD1(test.d1))),
+      testMerchantContext({
+        id: 'mer_confirm',
+        publicName: 'Confirm Live',
+        slug: 'confirm-live',
+        timezone: 'America/New_York',
+        currency: 'USD',
+        plan: 'solo'
+      })
+    )
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const directory = yield* CustomerDirectory
+          const record = (yield* directory.search('mia@example.com'))[0]!
+          yield* directory.setBan(record.id, {
+            expectedRevision: record.revision,
+            idempotencyKey: 'ban-public-confirmation',
+            actorId: 'usr_owner',
+            reason: 'Private reason must not escape',
+            expiresAt: null,
+            now
+          })
+        }),
+        directoryLayer
+      )
+    )
+
+    await expect(confirm('bsn_banned')).rejects.toMatchObject({
+      _tag: 'BookingConfirmationRejected',
+      reason: 'conflict'
+    })
   })
 })

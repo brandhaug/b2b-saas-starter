@@ -49,6 +49,7 @@ import type {
 } from '../notifications/index.ts'
 import { merchantReminderAvailableAt } from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
+import { prepareAppointmentCustomerAssociation } from '../customer-directory/appointment-association.ts'
 
 export type ConfirmationSigningKeyring = {
   readonly currentKeyId: string
@@ -1304,6 +1305,29 @@ export const LiveBookingConfirmation = (
                       ]
                     >([null, null])
               )
+              const customerAssociationStatements = (yield* Effect.all(
+                generated.map((item) =>
+                  prepareAppointmentCustomerAssociation(db, {
+                    merchantId: item.row.hold.merchantId,
+                    appointments: [
+                      {
+                        id: item.appointmentId,
+                        details: item.snapshot.customerDetails
+                      }
+                    ],
+                    origin: 'public_booking',
+                    now: input.now
+                  }).pipe(
+                    Effect.mapError(
+                      (error) =>
+                        new CapabilityUnavailable({
+                          capability: 'booking-confirmation',
+                          reason: error.reason
+                        })
+                    )
+                  )
+                )
+              )).flat()
               const statements: BatchStatement[] = generated.flatMap((item) => [
                 db.insert(appointments).select(
                   db
@@ -1363,6 +1387,7 @@ export const LiveBookingConfirmation = (
                   createdAt: input.now
                 })
               ])
+              statements.push(...customerAssociationStatements)
               statements.push(
                 ...preparedIntents.flatMap((intents) =>
                   intents.flatMap((intent) =>
@@ -1598,6 +1623,23 @@ export const LiveBookingConfirmation = (
                   notificationProtection
                 )
               : null
+            const customerAssociationStatements =
+              yield* prepareAppointmentCustomerAssociation(db, {
+                merchantId: row.session.merchantId,
+                appointments: [
+                  { id: appointmentId, details: snapshot.customerDetails }
+                ],
+                origin: 'public_booking',
+                now: input.now
+              }).pipe(
+                Effect.mapError(
+                  (error) =>
+                    new CapabilityUnavailable({
+                      capability: 'booking-confirmation',
+                      reason: error.reason
+                    })
+                )
+              )
             const statements: BatchStatement[] = [
               db.insert(appointments).select(
                 db
@@ -1672,7 +1714,8 @@ export const LiveBookingConfirmation = (
                     eq(bookingSessions.id, session.id),
                     eq(bookingSessions.lifecycle, 'active')
                   )
-                )
+                ),
+              ...customerAssociationStatements
             ]
             if (preparedIntent)
               statements.push(...notificationIntentMutationStatements(preparedIntent))

@@ -71,6 +71,16 @@ describe('Customer Directory contract', () => {
         })
       )
     )
+    const phoneOwner = await execute(
+      'mer_one',
+      Effect.flatMap(CustomerDirectory, (service) =>
+        service.matchOrCreate({
+          appointmentId: 'apt_phone',
+          details: observation({ email: null, phone: '+40 722 000 000' }),
+          now: '2026-08-04T09:00:00.000Z'
+        })
+      )
+    )
     const conflict = await execute(
       'mer_one',
       Effect.flatMap(CustomerDirectory, (service) =>
@@ -94,7 +104,10 @@ describe('Customer Directory contract', () => {
 
     expect(matched.record.id).toBe(first.record.id)
     expect(conflict.record.id).not.toBe(first.record.id)
-    expect(conflict.record.possibleDuplicateOf).toEqual([first.record.id])
+    expect(conflict.record.possibleDuplicateOf).toEqual([
+      first.record.id,
+      phoneOwner.record.id
+    ])
     expect(otherMerchant.record.id).not.toBe(first.record.id)
     expect(first.record.observations[0]?.details).toEqual({
       name: 'Ana Popescu',
@@ -189,7 +202,16 @@ describe('Customer Directory contract', () => {
           reason: 'Merge was mistaken',
           now: '2026-08-04T10:00:00.000Z'
         })
-        return { merged, split }
+        const replayedSplit = yield* service.split({
+          sourceId: merged.id,
+          observationIds: [right.record.observations[0]!.id],
+          expectedRevision: merged.revision,
+          idempotencyKey: 'split-1',
+          actorId: 'usr_owner',
+          reason: 'Merge was mistaken',
+          now: '2026-08-04T10:00:00.000Z'
+        })
+        return { merged, split, replayedSplit }
       })
     )
     expect(result.merged.observations).toHaveLength(2)
@@ -200,6 +222,7 @@ describe('Customer Directory contract', () => {
       ['apt_right']
     )
     expect(result.split.created.history[0]?.kind).toBe('split')
+    expect(result.replayedSplit).toEqual(result.split)
   })
 
   it('previews idempotent imports and rejects stale owner mutations safely', async () => {
@@ -259,5 +282,9 @@ describe('Customer Directory contract', () => {
     expect(result.stale._tag).toBe('Failure')
     expect(result.changed.ban).toBeNull()
     expect(result.exported[0]).not.toHaveProperty('notes')
+    expect(result.changed.observations[0]).toMatchObject({
+      appointmentId: null,
+      source: 'import'
+    })
   })
 })

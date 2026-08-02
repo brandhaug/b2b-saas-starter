@@ -3809,6 +3809,58 @@ export const customerContacts = sqliteTable('customer_contacts', {
   updatedAt: isoUpdatedAt()
 })
 
+export const customerObservations = sqliteTable('customer_observations', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  customerRecordId: text('customer_record_id')
+    .notNull()
+    .references(() => customerRecords.id, { onDelete: 'cascade' }),
+  appointmentId: text('appointment_id')
+    .notNull()
+    .references(() => appointments.id, { onDelete: 'restrict' }),
+  name: text('name').notNull(),
+  normalizedEmail: text('normalized_email'),
+  normalizedPhone: text('normalized_phone'),
+  source: text('source', {
+    enum: ['public_booking', 'merchant_created', 'record_completed']
+  }).notNull(),
+  observedAt: text('observed_at').notNull()
+})
+
+export const customerDuplicateSuggestions = sqliteTable(
+  'customer_duplicate_suggestions',
+  {
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    customerRecordId: text('customer_record_id')
+      .notNull()
+      .references(() => customerRecords.id, { onDelete: 'cascade' }),
+    possibleDuplicateId: text('possible_duplicate_id')
+      .notNull()
+      .references(() => customerRecords.id, { onDelete: 'cascade' }),
+    createdAt: text('created_at').notNull()
+  },
+  (table) => [
+    primaryKey({ columns: [table.customerRecordId, table.possibleDuplicateId] })
+  ]
+)
+
+export const customerBans = sqliteTable('customer_bans', {
+  customerRecordId: text('customer_record_id')
+    .primaryKey()
+    .references(() => customerRecords.id, { onDelete: 'cascade' }),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  reason: text('reason').notNull(),
+  actorId: text('actor_id').notNull(),
+  createdAt: text('created_at').notNull(),
+  expiresAt: text('expires_at')
+})
+
 export const customerDirectoryStates = sqliteTable('customer_directory_states', {
   merchantId: text('merchant_id')
     .primaryKey()
