@@ -807,17 +807,13 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
                     `UPDATE public_booking_pages SET status='published',updated_at=?
                      WHERE merchant_id=? AND EXISTS (SELECT 1 FROM merchant_subscriptions
                        WHERE merchant_id=? AND status IN ('trialing','active','grace'))
-                     AND EXISTS (SELECT 1 FROM services s JOIN provider_service_eligibility pse ON pse.service_id=s.id
-                       JOIN providers p ON p.id=pse.provider_id WHERE s.merchant_id=? AND s.status='active' AND p.status='active')
-                     AND EXISTS (SELECT 1 FROM schedule_rules WHERE merchant_id=?)`
+                     AND EXISTS (SELECT 1 FROM schedule_rules sr
+                       JOIN providers p ON p.id=sr.provider_id AND p.merchant_id=sr.merchant_id
+                       JOIN provider_service_eligibility pse ON pse.provider_id=p.id AND pse.merchant_id=p.merchant_id
+                       JOIN services s ON s.id=pse.service_id AND s.merchant_id=p.merchant_id
+                       WHERE sr.merchant_id=? AND p.status='active' AND s.status='active')`
                   )
-                  .bind(
-                    new Date().toISOString(),
-                    merchant.id,
-                    merchant.id,
-                    merchant.id,
-                    merchant.id
-                  )
+                  .bind(new Date().toISOString(), merchant.id, merchant.id, merchant.id)
                   .run(),
               catch: unavailable
             })
