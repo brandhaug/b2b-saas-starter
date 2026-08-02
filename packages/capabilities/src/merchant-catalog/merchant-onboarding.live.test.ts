@@ -205,7 +205,9 @@ describe('Live Merchant Onboarding', () => {
     await runDb(
       Effect.gen(function* () {
         const db = yield* Database
-        yield* db.delete(merchants).where(eq(merchants.id, resolved.id))
+        yield* db
+          .delete(publicBookingPages)
+          .where(eq(publicBookingPages.merchantId, resolved.id))
       })
     )
     const staleClaimRejected = await runMerchant(

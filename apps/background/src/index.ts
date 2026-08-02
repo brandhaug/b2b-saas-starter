@@ -1,6 +1,7 @@
 import { Effect, Layer, ManagedRuntime, Result } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
 import {
+  makeOperationalMessagingJobsLayer,
   makeOperationalMessagingExecutionLayer,
   selectCapabilitiesLayer,
   type BookingProductEnv
@@ -17,8 +18,8 @@ import { WaitingList } from '@b2b-saas-starter/capabilities/waiting-list'
 import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
 import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { GiftCardRedemptions } from '@b2b-saas-starter/capabilities/gift-cards'
+import { MerchantSubscriptions } from '@b2b-saas-starter/capabilities/subscriptions'
 import { createDb } from '@b2b-saas-starter/db/client'
-import { layerFromD1 } from '@b2b-saas-starter/db'
 import { makeOperationsNotificationOutboxLayer } from '@b2b-saas-starter/capabilities/operations'
 import {
   processOperationsNotification,
@@ -26,7 +27,6 @@ import {
 } from './operations-notifications.ts'
 import { decodeBookingEventsWakeup } from './booking-events-queue.ts'
 import {
-  LiveOperationalMessagingJobs,
   NotificationIntentExecution,
   NotificationIntentLifecycle,
   OperationalMessagingJobs
@@ -234,9 +234,7 @@ const reconcileAndRetainOperationalMessaging = (now: string, env: Env) =>
     yield* jobs.scheduleRetention({ now, limit: 100 })
     yield* jobs.processRetention({ now, ownerId, limit: 100 })
   }).pipe(
-    Effect.provide(
-      LiveOperationalMessagingJobs.pipe(Layer.provide(layerFromD1(env.DB)))
-    ),
+    Effect.provide(makeOperationalMessagingJobsLayer(capabilitiesEnv(env))),
     Effect.asVoid
   )
 
@@ -303,6 +301,9 @@ export default {
                 recoverNotificationIntents(now, env),
                 reconcileAndRetainOperationalMessaging(now, env),
                 recoverOperationsNotificationIntents(now, env),
+                Effect.flatMap(MerchantSubscriptions, (subscriptions) =>
+                  subscriptions.tick(now)
+                ).pipe(Effect.provide(capabilityLayer), Effect.asVoid),
                 Effect.flatMap(GiftCardRedemptions, (giftCards) =>
                   giftCards.releaseExpired({ now })
                 ).pipe(Effect.provide(capabilityLayer), Effect.asVoid),

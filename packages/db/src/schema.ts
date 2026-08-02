@@ -39,7 +39,7 @@ export const operationsNotificationStatuses = [
   'delivered',
   'failed'
 ] as const
-export const merchantPlans = ['solo', 'team'] as const
+export const merchantPlans = ['solo'] as const
 export const merchantStatuses = ['enabled', 'disabled'] as const
 export const providerStatuses = ['active', 'inactive'] as const
 export const providerBookingAccess = ['public', 'restricted'] as const
@@ -3604,6 +3604,317 @@ export const providerAccessProofs = sqliteTable(
     )
   ]
 )
+
+// BeeSolo expand-phase companion facts. Existing tables remain readable and
+// writable throughout the candidate/previous-Worker compatibility window.
+export const beesoloMigrationJobs = sqliteTable('beesolo_migration_jobs', {
+  id: id(),
+  migrationName: text('migration_name').notNull(),
+  factKind: text('fact_kind').notNull(),
+  cursor: text('cursor'),
+  status: text('status').notNull(),
+  processedCount: integer('processed_count').notNull(),
+  sourceCount: integer('source_count').notNull(),
+  failureCode: text('failure_code'),
+  startedAt: text('started_at'),
+  completedAt: text('completed_at'),
+  updatedAt: isoUpdatedAt()
+})
+
+export const beesoloMigrationEvidence = sqliteTable('beesolo_migration_evidence', {
+  id: id(),
+  migrationName: text('migration_name').notNull(),
+  phase: text('phase').notNull(),
+  factKind: text('fact_kind').notNull(),
+  rowCount: integer('row_count').notNull(),
+  invariantVersion: text('invariant_version').notNull(),
+  detailsJson: text('details_json').notNull(),
+  recordedAt: text('recorded_at').notNull()
+})
+
+export const merchantSubscriptions = sqliteTable('merchant_subscriptions', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .unique()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  plan: text('plan', { enum: ['solo'] })
+    .default('solo')
+    .notNull(),
+  ownerUserId: text('owner_user_id').references(() => user.id, {
+    onDelete: 'restrict'
+  }),
+  interval: text('interval', { enum: ['monthly', 'annual'] })
+    .default('monthly')
+    .notNull(),
+  status: text('status', {
+    enum: ['trialing', 'active', 'grace', 'restricted', 'cancelled']
+  }).notNull(),
+  providerCustomerRef: text('provider_customer_ref'),
+  providerSubscriptionRef: text('provider_subscription_ref').unique(),
+  trialEndsAt: text('trial_ends_at'),
+  currentPeriodEndsAt: text('current_period_ends_at'),
+  graceEndsAt: text('grace_ends_at'),
+  restrictedAt: text('restricted_at'),
+  retentionEndsAt: text('retention_ends_at'),
+  cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' })
+    .default(false)
+    .notNull(),
+  revision: integer('revision').default(1).notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const merchantSubscriptionTrialClaims = sqliteTable(
+  'merchant_subscription_trial_claims',
+  {
+    ownerUserId: text('owner_user_id')
+      .primaryKey()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .unique()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    claimedAt: text('claimed_at').notNull()
+  }
+)
+
+export const merchantSubscriptionEvents = sqliteTable('merchant_subscription_events', {
+  eventId: text('event_id').primaryKey(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  kind: text('kind').notNull(),
+  occurredAt: text('occurred_at').notNull(),
+  evidenceJson: text('evidence_json').notNull(),
+  receivedAt: text('received_at').notNull()
+})
+
+export const merchantSubscriptionPriceEvidence = sqliteTable(
+  'merchant_subscription_price_evidence',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    eventId: text('event_id')
+      .notNull()
+      .unique()
+      .references(() => merchantSubscriptionEvents.eventId, { onDelete: 'restrict' }),
+    priceId: text('price_id').notNull(),
+    interval: text('interval', { enum: ['monthly', 'annual'] }).notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text('currency', { enum: ['EUR'] }).notNull(),
+    excludesVat: integer('excludes_vat', { mode: 'boolean' }).notNull(),
+    recordedAt: text('recorded_at').notNull()
+  }
+)
+
+export const merchantSubscriptionNotices = sqliteTable(
+  'merchant_subscription_notices',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    kind: text('kind').notNull(),
+    effectiveAt: text('effective_at').notNull(),
+    acknowledgedAt: text('acknowledged_at'),
+    createdAt: text('created_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('merchant_subscription_notices_once').on(table.merchantId, table.kind)
+  ]
+)
+
+export const scheduleExceptions = sqliteTable('schedule_exceptions', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'cascade' }),
+  localDate: text('local_date').notNull(),
+  kind: text('kind', { enum: ['closed', 'replacement_hours'] }).notNull(),
+  intervalsJson: text('intervals_json').notNull(),
+  revision: integer('revision').default(1).notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const blockedTimes = sqliteTable('blocked_times', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'cascade' }),
+  startsAt: text('starts_at').notNull(),
+  endsAt: text('ends_at').notNull(),
+  reason: text('reason'),
+  revision: integer('revision').default(1).notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const customerRecords = sqliteTable('customer_records', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  displayName: text('display_name').notNull(),
+  status: text('status', { enum: ['active', 'quarantined', 'erased'] })
+    .default('active')
+    .notNull(),
+  preferredLocale: text('preferred_locale', { enum: ['en', 'ro'] })
+    .default('en')
+    .notNull(),
+  merchantNote: text('merchant_note'),
+  revision: integer('revision').default(1).notNull(),
+  lastActivityAt: text('last_activity_at').notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const customerContacts = sqliteTable('customer_contacts', {
+  id: id(),
+  customerRecordId: text('customer_record_id')
+    .notNull()
+    .references(() => customerRecords.id, { onDelete: 'cascade' }),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  kind: text('kind', { enum: ['email', 'phone'] }).notNull(),
+  normalizedValue: text('normalized_value').notNull(),
+  status: text('status', { enum: ['active', 'disputed', 'superseded', 'erased'] })
+    .default('active')
+    .notNull(),
+  isPreferred: integer('is_preferred', { mode: 'boolean' }).default(false).notNull(),
+  verifiedAt: text('verified_at'),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const appointmentSeries = sqliteTable('appointment_series', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  idempotencyKey: text('idempotency_key').notNull(),
+  serviceSnapshotJson: text('service_snapshot_json').notNull(),
+  customerSnapshotJson: text('customer_snapshot_json').notNull(),
+  weekday: integer('weekday').notNull(),
+  localStartTime: text('local_start_time').notNull(),
+  occurrenceCount: integer('occurrence_count').notNull(),
+  status: text('status', { enum: ['active', 'cancelled_remaining'] })
+    .default('active')
+    .notNull(),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const appointmentFoundations = sqliteTable('appointment_foundations', {
+  appointmentId: text('appointment_id')
+    .primaryKey()
+    .references(() => appointments.id, { onDelete: 'cascade' }),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  customerRecordId: text('customer_record_id').references(() => customerRecords.id, {
+    onDelete: 'set null'
+  }),
+  origin: text('origin', {
+    enum: ['public_booking', 'merchant_created', 'walk_in', 'waiting_list']
+  })
+    .default('public_booking')
+    .notNull(),
+  customerNote: text('customer_note'),
+  seriesId: text('series_id'),
+  seriesPosition: integer('series_position'),
+  foundationVersion: integer('foundation_version').default(1).notNull(),
+  createdAt: isoCreatedAt()
+})
+
+export const externalCollections = sqliteTable('external_collections', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  appointmentId: text('appointment_id')
+    .notNull()
+    .references(() => appointments.id, { onDelete: 'restrict' }),
+  idempotencyKey: text('idempotency_key').notNull(),
+  kind: text('kind', { enum: ['collection', 'return'] }).notNull(),
+  method: text('method', {
+    enum: ['cash', 'card_terminal', 'bank_transfer', 'other']
+  }).notNull(),
+  amountMinor: integer('amount_minor').notNull(),
+  currency: text('currency').notNull(),
+  recordedAt: text('recorded_at').notNull(),
+  createdAt: isoCreatedAt()
+})
+
+export const privacyRequests = sqliteTable('privacy_requests', {
+  id: id(),
+  merchantId: text('merchant_id').references(() => merchants.id, {
+    onDelete: 'restrict'
+  }),
+  requestType: text('request_type', {
+    enum: ['access', 'correction', 'erasure']
+  }).notNull(),
+  status: text('status').notNull(),
+  destinationFingerprint: text('destination_fingerprint').notNull(),
+  locale: text('locale', { enum: ['en', 'ro'] }).notNull(),
+  revision: integer('revision').default(1).notNull(),
+  receivedAt: text('received_at').notNull(),
+  verificationExpiresAt: text('verification_expires_at').notNull(),
+  governingDeadlineAt: text('governing_deadline_at').notNull(),
+  terminalAt: text('terminal_at'),
+  createdAt: isoCreatedAt(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const privacyRequestPreflights = sqliteTable('privacy_request_preflights', {
+  id: id(),
+  privacyRequestId: text('privacy_request_id')
+    .notNull()
+    .references(() => privacyRequests.id, { onDelete: 'restrict' }),
+  requestRevision: integer('request_revision').notNull(),
+  sourceRevision: text('source_revision').notNull(),
+  policyVersion: text('policy_version').notNull(),
+  manifestJson: text('manifest_json').notNull(),
+  approvedAt: text('approved_at'),
+  invalidatedAt: text('invalidated_at'),
+  createdAt: isoCreatedAt()
+})
+
+export const privacyActionLedger = sqliteTable('privacy_action_ledger', {
+  id: id(),
+  privacyRequestId: text('privacy_request_id').notNull(),
+  actionKey: text('action_key').notNull().unique(),
+  actionKind: text('action_kind').notNull(),
+  resourceType: text('resource_type').notNull(),
+  resourceRef: text('resource_ref').notNull(),
+  outcome: text('outcome', {
+    enum: ['pending', 'applied', 'held', 'failed']
+  }).notNull(),
+  policyVersion: text('policy_version').notNull(),
+  appliedAt: text('applied_at'),
+  createdAt: isoCreatedAt()
+})
+
+export const reportExports = sqliteTable('report_exports', {
+  id: id(),
+  merchantId: text('merchant_id')
+    .notNull()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  reportKind: text('report_kind').notNull(),
+  filtersJson: text('filters_json').notNull(),
+  status: text('status', { enum: ['pending', 'ready', 'failed', 'expired'] }).notNull(),
+  artifactRef: text('artifact_ref'),
+  generatedAt: text('generated_at'),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: isoCreatedAt()
+})
+
 export const capabilityAggregateRevisions = sqliteTable(
   'capability_aggregate_revisions',
   {

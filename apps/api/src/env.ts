@@ -17,6 +17,9 @@ export type ApiEnv = RateLimitBindings & {
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly TRANSACTIONAL_EMAIL_SENDER_VERIFIED?: string
   readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string
+  readonly STRIPE_SUBSCRIPTION_WEBHOOK_SECRET?: string
+  readonly STRIPE_SOLO_MONTHLY_PRICE_ID?: string
+  readonly STRIPE_SOLO_ANNUAL_PRICE_ID?: string
 }
 
 // Module-aware env validation (ADR 0035): derive module config status from

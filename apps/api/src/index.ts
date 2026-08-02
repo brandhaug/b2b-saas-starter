@@ -6,6 +6,10 @@ import {
   handleTransactionalEmailCallback,
   isTransactionalEmailCallbackPath
 } from './transactional-email-callback.ts'
+import {
+  handleStripeSubscriptionWebhook,
+  isStripeSubscriptionWebhookPath
+} from './stripe-subscription-webhook.ts'
 
 // The worker serves the `BookingProductApi` contract directly: routing,
 // request/response schema decoding, OpenAPI (/openapi.json), the Scalar
@@ -14,6 +18,8 @@ import {
 // hand-maintained route table to drift from the contract.
 export default {
   async fetch(request: Request, env: ApiEnv): Promise<Response> {
+    if (isStripeSubscriptionWebhookPath(request))
+      return handleStripeSubscriptionWebhook(request, env)
     if (isTransactionalEmailCallbackPath(request))
       return handleTransactionalEmailCallback(request, env)
     if (isSmsoCallbackPath(request)) return handleSmsoCallbackEdge(request, env)

@@ -4,6 +4,8 @@ import {
   batch,
   Database,
   merchantMemberships,
+  merchantSubscriptions,
+  merchantSubscriptionTrialClaims,
   merchants,
   providers,
   publicBookingPages,
@@ -42,7 +44,9 @@ export const MerchantOnboardingPayload = Schema.Struct({
   publicName: Schema.String.check(Schema.isMinLength(2), Schema.isMaxLength(80)),
   slug: Schema.String.check(Schema.isMinLength(3), Schema.isMaxLength(63)),
   timezone: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100)),
-  currency: Schema.String.check(Schema.isMinLength(3), Schema.isMaxLength(3))
+  currency: Schema.String.check(Schema.isMinLength(3), Schema.isMaxLength(3)),
+  billingInterval: Schema.optional(Schema.Literals(['monthly', 'annual'])),
+  idempotencyKey: Schema.optional(Schema.String)
 })
 export type MerchantOnboardingPayload = typeof MerchantOnboardingPayload.Type
 
@@ -52,7 +56,7 @@ export const MerchantRecord = Schema.Struct({
   slug: Schema.String,
   timezone: Schema.String,
   currency: Schema.String,
-  plan: Schema.Literals(['solo', 'team']),
+  plan: Schema.Literal('solo'),
   ownerUserId: Schema.String,
   defaultProvider: Schema.Struct({
     id: Schema.String,
@@ -438,6 +442,9 @@ const LiveMerchantOnboardingService: Layer.Layer<MerchantOnboarding, never, Data
               )
             }
             const now = new Date().toISOString()
+            const trialEndsAt = new Date(
+              Date.parse(now) + 14 * 86_400_000
+            ).toISOString()
             const merchantId = newCapabilityId('mer')
             const providerId = newCapabilityId('prv')
             const pageId = newCapabilityId('pg')
@@ -474,6 +481,24 @@ const LiveMerchantOnboardingService: Layer.Layer<MerchantOnboarding, never, Data
                 status: 'unpublished',
                 createdAt: now,
                 updatedAt: now
+              }),
+              db.insert(merchantSubscriptions).values({
+                id: newCapabilityId('sub'),
+                merchantId,
+                ownerUserId: userId,
+                plan: 'solo',
+                interval: input.billingInterval ?? 'monthly',
+                status: 'trialing',
+                trialEndsAt,
+                createdAt: now,
+                updatedAt: now
+              }),
+              db.insert(merchantSubscriptionTrialClaims).values({
+                ownerUserId: userId,
+                merchantId,
+                idempotencyKey: input.idempotencyKey ?? `merchant-onboarding:${userId}`,
+                requestFingerprint: JSON.stringify({ userId, ...input }),
+                claimedAt: now
               })
             ]).pipe(Effect.mapError(mapBatchFailure))
             return {
@@ -606,7 +631,7 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     slug: 'mara-booking-studio',
     timezone: 'Europe/Bucharest',
     currency: 'RON',
-    plan: 'team',
+    plan: 'solo',
     ownerUserId: owner.id
   } as const
   const provider = {
@@ -617,15 +642,6 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     bookingConfigJson: { shortName: 'Mara I.' },
     status: 'active',
     isDefault: true
-  } as const
-  const teamProvider = {
-    id: 'prv_seed_elena',
-    merchantId: merchant.id,
-    linkedUserId: null,
-    displayName: 'Elena Pop',
-    bookingConfigJson: { shortName: 'Elena P.' },
-    status: 'active',
-    isDefault: false
   } as const
   const services = [
     {
@@ -731,14 +747,6 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     'svc_seed_hair_beard_combo',
     'svc_seed_premium_grooming'
   ] as const satisfies ReadonlyArray<ServiceId>
-  const elenaServiceIds = [
-    'svc_seed_signature_cut',
-    'svc_seed_beard_detail',
-    'svc_seed_skin_fade',
-    'svc_seed_hot_towel_shave',
-    'svc_seed_hair_beard_combo',
-    'svc_seed_style_consultation'
-  ] as const satisfies ReadonlyArray<ServiceId>
   const instant = (offsetMinutes: number) =>
     new Date(Date.parse(anchorTime) + offsetMinutes * 60_000).toISOString()
   return {
@@ -747,7 +755,7 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     merchant,
     membership: { merchantId: merchant.id, userId: owner.id, role: 'owner' },
     provider,
-    providers: [provider, teamProvider],
+    providers: [provider],
     services,
     checkoutPolicy: {
       id: 'pol_seed_checkout',
@@ -763,11 +771,6 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
         merchantId: merchant.id,
         providerId: provider.id,
         serviceId
-      })),
-      ...elenaServiceIds.map((serviceId) => ({
-        merchantId: merchant.id,
-        providerId: teamProvider.id,
-        serviceId
       }))
     ],
     scheduleRules: [
@@ -778,14 +781,6 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
         weekday,
         startTime: '09:00',
         endTime: '17:00'
-      })),
-      ...[2, 3, 4, 5, 6].map((weekday) => ({
-        id: `sch_seed_elena_${weekday}`,
-        merchantId: merchant.id,
-        providerId: teamProvider.id,
-        weekday,
-        startTime: '10:00',
-        endTime: '18:00'
       }))
     ],
     appointments: [
@@ -834,21 +829,6 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
       merchantId: merchant.id,
       status: 'published'
     }
-  }
-}
-
-/** Derived test presentations preserve the canonical fixture as the only authored graph. */
-export const deriveSoloSeedBookingScenario = (
-  scenario: SeedBookingScenario
-): SeedBookingScenario => {
-  const defaultProvider = scenario.providers.find((provider) => provider.isDefault)!
-  return {
-    ...scenario,
-    merchant: { ...scenario.merchant, plan: 'solo' },
-    providers: [defaultProvider],
-    eligibility: scenario.eligibility.filter(
-      (pair) => pair.providerId === defaultProvider.id
-    )
   }
 }
 

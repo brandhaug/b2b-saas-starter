@@ -206,6 +206,12 @@ import {
   SeedSharedCapabilityFoundations,
   SharedCapabilityFoundations
 } from './foundation/index.ts'
+import {
+  emptySeedMerchantSubscriptionStore,
+  LiveMerchantSubscriptions,
+  MerchantSubscriptions,
+  SeedMerchantSubscriptions
+} from './subscriptions/index.ts'
 
 export type CapabilityServices =
   | PlatformApiTokenRegistry
@@ -246,6 +252,7 @@ export type CapabilityServices =
   | WalkIns
   | CustomerIdentity
   | WaitingList
+  | MerchantSubscriptions
   | SharedCapabilityFoundations
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
@@ -439,6 +446,7 @@ const seedBookingCheckoutLayer = SeedBookingCheckout(seedBookingCheckout).pipe(
 )
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
+  SeedMerchantSubscriptions(emptySeedMerchantSubscriptionStore()),
   SeedSharedCapabilityFoundations(),
   seedBookingPartiesLayer,
   seedPricingQuotesLayer,
@@ -520,6 +528,7 @@ export const makeLiveCapabilitiesLayer = (
     Layer.provide(Layer.merge(liveBookingPartiesLayer, livePricingQuotesLayer))
   )
   return Layer.mergeAll(
+    LiveMerchantSubscriptions,
     LiveSharedCapabilityFoundations,
     liveBookingPartiesLayer,
     livePricingQuotesLayer,
