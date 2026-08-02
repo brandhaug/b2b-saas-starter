@@ -1,7 +1,7 @@
 # Deliver Customer Directory Foundations
 
 Type: task
-Status: resolved
+Status: in-progress
 Blocked by: 25
 
 ## Question
@@ -10,14 +10,14 @@ Deliver the Merchant-scoped Customer Directory vertical slice used by booking an
 
 ## Acceptance criteria
 
-- [x] Public confirmation and Merchant Appointment creation can atomically match or create one Merchant-scoped Customer Record without name-only or cross-Merchant merging.
-- [x] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
+- [ ] Public confirmation and Merchant Appointment creation can atomically match or create one Merchant-scoped Customer Record without name-only or cross-Merchant merging.
+- [ ] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
 - [x] Bans and matching failures have generic public responses and create no cross-Merchant or private-reason disclosure.
 - [x] Existing Appointment snapshots remain immutable through directory edits, merges, splits, corrections, and retention actions.
 
 ## Comments
 
-### Resolution — 2026-08-02
+### Implementation checkpoint — 2026-08-02
 
 Added a dedicated Customer Directory capability with deterministic and Live D1
 adapters. Exact normalized email or phone matching is conservative and Merchant-local;
@@ -36,6 +36,10 @@ Appointment ID; Appointment Customer Details snapshots are never stored in or mu
 through the directory capability.
 
 Focused deterministic and real-D1 contracts pass, along with capabilities and database
-typechecks and scoped lint/format checks. The workspace-wide suite still contains
-unrelated pre-existing failures in Merchant Catalog/Booking Confirmation fixtures,
-Merchant route loading, and parallel Miniflare address allocation.
+typechecks and scoped lint/format checks. Review found that the first adapter does not
+yet participate in the Appointment transaction; import provenance, historical-contact
+edits, strictest-ban merge selection, merge/split idempotency, split assignment,
+retention guards, and asynchronous encrypted export also remain incomplete. The
+workspace-wide suite additionally contains unrelated pre-existing failures in Merchant
+Catalog/Booking Confirmation fixtures, Merchant route loading, and parallel Miniflare
+address allocation.
