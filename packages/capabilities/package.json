@@ -27,6 +27,7 @@
     "./scheduled-work": "./src/scheduled-work/index.ts",
     "./operations": "./src/operations/index.ts",
     "./foundation/ids": "./src/ids.ts",
+    "./foundation": "./src/foundation/index.ts",
     "./foundation/booking": "./src/booking/foundations.ts",
     "./foundation/merchant-catalog": "./src/merchant-catalog/foundations.ts",
     "./foundation/pricing": "./src/pricing/index.ts",

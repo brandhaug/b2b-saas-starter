@@ -201,6 +201,11 @@ import {
   WaitingList
 } from './waiting-list/index.ts'
 import { LiveWaitingList } from './waiting-list/adapters.ts'
+import {
+  LiveSharedCapabilityFoundations,
+  SeedSharedCapabilityFoundations,
+  SharedCapabilityFoundations
+} from './foundation/index.ts'
 
 export type CapabilityServices =
   | PlatformApiTokenRegistry
@@ -241,6 +246,7 @@ export type CapabilityServices =
   | WalkIns
   | CustomerIdentity
   | WaitingList
+  | SharedCapabilityFoundations
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
@@ -433,6 +439,7 @@ const seedBookingCheckoutLayer = SeedBookingCheckout(seedBookingCheckout).pipe(
 )
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
+  SeedSharedCapabilityFoundations(),
   seedBookingPartiesLayer,
   seedPricingQuotesLayer,
   SeedPaymentLedger(),
@@ -513,6 +520,7 @@ export const makeLiveCapabilitiesLayer = (
     Layer.provide(Layer.merge(liveBookingPartiesLayer, livePricingQuotesLayer))
   )
   return Layer.mergeAll(
+    LiveSharedCapabilityFoundations,
     liveBookingPartiesLayer,
     livePricingQuotesLayer,
     LivePaymentLedger,

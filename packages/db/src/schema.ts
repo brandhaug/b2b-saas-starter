@@ -3546,3 +3546,58 @@ export const providerAccessProofs = sqliteTable(
     )
   ]
 )
+export const capabilityAggregateRevisions = sqliteTable(
+  'capability_aggregate_revisions',
+  {
+    merchantId: text('merchant_id').notNull(),
+    capability: text('capability').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
+    revision: integer('revision').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (table) => [
+    primaryKey({ columns: [table.merchantId, table.capability, table.aggregateId] })
+  ]
+)
+export const capabilityCommands = sqliteTable('capability_commands', {
+  commandKey: text('command_key').primaryKey(),
+  merchantId: text('merchant_id').notNull(),
+  capability: text('capability').notNull(),
+  aggregateId: text('aggregate_id').notNull(),
+  payloadFingerprint: text('payload_fingerprint').notNull(),
+  resultJson: text('result_json').notNull(),
+  revision: integer('revision').notNull(),
+  createdAt: text('created_at').notNull()
+})
+export const capabilityHistory = sqliteTable('capability_history', {
+  id: text('id').primaryKey(),
+  merchantId: text('merchant_id').notNull(),
+  aggregateId: text('aggregate_id').notNull(),
+  revision: integer('revision').notNull(),
+  kind: text('kind').notNull(),
+  occurredAt: text('occurred_at').notNull()
+})
+export const capabilityAudit = sqliteTable('capability_audit', {
+  id: text('id').primaryKey(),
+  merchantId: text('merchant_id').notNull(),
+  aggregateId: text('aggregate_id').notNull(),
+  revision: integer('revision').notNull(),
+  actorKind: text('actor_kind').notNull(),
+  actorId: text('actor_id').notNull(),
+  impersonationId: text('impersonation_id'),
+  eventKind: text('event_kind').notNull(),
+  occurredAt: text('occurred_at').notNull()
+})
+export const capabilityOutbox = sqliteTable('capability_outbox', {
+  id: text('id').primaryKey(),
+  merchantId: text('merchant_id').notNull(),
+  aggregateId: text('aggregate_id').notNull(),
+  revision: integer('revision').notNull(),
+  kind: text('kind').notNull(),
+  status: text('status').notNull(),
+  claimedBy: text('claimed_by'),
+  claimedAt: text('claimed_at'),
+  availableAt: text('available_at').notNull(),
+  processedAt: text('processed_at'),
+  createdAt: text('created_at').notNull()
+})
