@@ -3809,25 +3809,35 @@ export const customerContacts = sqliteTable('customer_contacts', {
   updatedAt: isoUpdatedAt()
 })
 
-export const customerObservations = sqliteTable('customer_observations', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  customerRecordId: text('customer_record_id')
-    .notNull()
-    .references(() => customerRecords.id, { onDelete: 'cascade' }),
-  appointmentId: text('appointment_id')
-    .notNull()
-    .references(() => appointments.id, { onDelete: 'restrict' }),
-  name: text('name').notNull(),
-  normalizedEmail: text('normalized_email'),
-  normalizedPhone: text('normalized_phone'),
-  source: text('source', {
-    enum: ['public_booking', 'merchant_created', 'record_completed']
-  }).notNull(),
-  observedAt: text('observed_at').notNull()
-})
+export const customerObservations = sqliteTable(
+  'customer_observations',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    customerRecordId: text('customer_record_id')
+      .notNull()
+      .references(() => customerRecords.id, { onDelete: 'cascade' }),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    normalizedEmail: text('normalized_email'),
+    normalizedPhone: text('normalized_phone'),
+    source: text('source', {
+      enum: ['public_booking', 'merchant_created', 'record_completed']
+    }).notNull(),
+    observedAt: text('observed_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('customer_observations_appointment_unique').on(table.appointmentId),
+    index('customer_observations_record_time_idx').on(
+      table.customerRecordId,
+      table.observedAt
+    )
+  ]
+)
 
 export const customerDuplicateSuggestions = sqliteTable(
   'customer_duplicate_suggestions',
@@ -3844,7 +3854,11 @@ export const customerDuplicateSuggestions = sqliteTable(
     createdAt: text('created_at').notNull()
   },
   (table) => [
-    primaryKey({ columns: [table.customerRecordId, table.possibleDuplicateId] })
+    primaryKey({ columns: [table.customerRecordId, table.possibleDuplicateId] }),
+    check(
+      'customer_duplicate_suggestions_not_self',
+      sql`${table.customerRecordId} <> ${table.possibleDuplicateId}`
+    )
   ]
 )
 

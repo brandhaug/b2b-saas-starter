@@ -56,14 +56,12 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
     Effect.gen(function* () {
       const db = yield* Database
       const store = emptySeedCustomerDirectoryStore()
-      const loaded = new Set<string>()
       const seed = yield* Effect.provide(
         CustomerDirectory,
         SeedCustomerDirectory(store)
       )
       const ensure = (merchantId: string) =>
         Effect.gen(function* () {
-          if (loaded.has(merchantId)) return
           const [states, records, contacts, observations, bans] = yield* Effect.all([
             orUnavailable('customer-directory')(
               db
@@ -97,9 +95,13 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
             )
           ])
           const state = states[0]?.stateJson
-          if (state) restore(store, merchantId, state)
+          restore(
+            store,
+            merchantId,
+            state ?? { records: [], commands: [], imports: [] }
+          )
           for (const row of records) {
-            if (store.records.has(row.id)) continue
+            const persisted = store.records.get(row.id)
             const recordContacts = contacts
               .filter((contact) => contact.customerRecordId === row.id)
               .map((contact) => ({
@@ -124,7 +126,11 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 observedAt: observation.observedAt,
                 source: 'appointment' as const
               }))
+            const observationIds = new Set(
+              persisted?.observations.map((observation) => observation.id) ?? []
+            )
             store.records.set(row.id, {
+              ...persisted,
               id: row.id,
               merchantId,
               status:
@@ -142,19 +148,23 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 recordContacts.find(
                   (contact) => contact.kind === 'phone' && contact.preferred
                 )?.value ?? null,
-              contacts: recordContacts,
-              observations: recordObservations,
-              notes: [],
-              consent: [],
+              contacts: persisted?.contacts ?? recordContacts,
+              observations: [
+                ...(persisted?.observations ?? []),
+                ...recordObservations.filter(
+                  (observation) => !observationIds.has(observation.id)
+                )
+              ],
+              notes: persisted?.notes ?? [],
+              consent: persisted?.consent ?? [],
               ban: bans.find((ban) => ban.customerRecordId === row.id) ?? null,
-              possibleDuplicateOf: [],
-              mergedInto: null,
+              possibleDuplicateOf: persisted?.possibleDuplicateOf ?? [],
+              mergedInto: persisted?.mergedInto ?? null,
               revision: row.revision,
               lastActivityAt: row.lastActivityAt,
-              history: []
+              history: persisted?.history ?? []
             })
           }
-          loaded.add(merchantId)
         })
       const persist = (merchantId: string, now: string) =>
         Effect.gen(function* () {

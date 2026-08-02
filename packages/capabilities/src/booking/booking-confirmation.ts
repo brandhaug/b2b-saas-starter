@@ -1309,12 +1309,10 @@ export const LiveBookingConfirmation = (
                 generated.map((item) =>
                   prepareAppointmentCustomerAssociation(db, {
                     merchantId: item.row.hold.merchantId,
-                    appointments: [
-                      {
-                        id: item.appointmentId,
-                        details: item.snapshot.customerDetails
-                      }
-                    ],
+                    appointment: {
+                      id: item.appointmentId,
+                      details: item.snapshot.customerDetails
+                    },
                     origin: 'public_booking',
                     now: input.now
                   }).pipe(
@@ -1626,9 +1624,10 @@ export const LiveBookingConfirmation = (
             const customerAssociationStatements =
               yield* prepareAppointmentCustomerAssociation(db, {
                 merchantId: row.session.merchantId,
-                appointments: [
-                  { id: appointmentId, details: snapshot.customerDetails }
-                ],
+                appointment: {
+                  id: appointmentId,
+                  details: snapshot.customerDetails
+                },
                 origin: 'public_booking',
                 now: input.now
               }).pipe(

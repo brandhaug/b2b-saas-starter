@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import {
   appointmentFoundations,
   customerContacts,
@@ -16,15 +16,15 @@ import { CapabilityUnavailable } from '../errors.ts'
 
 export type AppointmentCustomerAssociationInput = {
   readonly merchantId: string
-  readonly appointments: readonly {
+  readonly appointment: {
     readonly id: string
     readonly details: {
       readonly name: string
       readonly email: string | null
       readonly phone: string | null
     }
-  }[]
-  readonly origin: 'public_booking' | 'merchant_created'
+  }
+  readonly origin: 'public_booking' | 'merchant_created' | 'record_completed'
   readonly now: string
 }
 
@@ -44,8 +44,7 @@ export const prepareAppointmentCustomerAssociation = (
   input: AppointmentCustomerAssociationInput
 ): Effect.Effect<readonly BatchStatement[], CapabilityUnavailable> =>
   Effect.gen(function* () {
-    if (input.appointments.length === 0) return []
-    const first = input.appointments[0]!
+    const first = input.appointment
     const details = {
       name: first.details.name.trim(),
       email: normalizeEmail(first.details.email),
@@ -118,7 +117,12 @@ export const prepareAppointmentCustomerAssociation = (
       statements.push(
         db
           .update(customerRecords)
-          .set({ lastActivityAt: input.now, updatedAt: input.now })
+          .set({
+            status: 'active',
+            lastActivityAt: input.now,
+            revision: sql`${customerRecords.revision} + 1`,
+            updatedAt: input.now
+          })
           .where(
             and(
               eq(customerRecords.id, matchedId),
@@ -156,27 +160,28 @@ export const prepareAppointmentCustomerAssociation = (
           })
         )
     }
-    for (const appointment of input.appointments) {
-      statements.push(
-        db.insert(appointmentFoundations).values({
-          appointmentId: appointment.id,
-          merchantId: input.merchantId,
-          customerRecordId: recordId,
-          origin: input.origin,
-          createdAt: input.now
-        }),
-        db.insert(customerObservations).values({
-          id: newCapabilityId('cuo'),
-          merchantId: input.merchantId,
-          customerRecordId: recordId,
-          appointmentId: appointment.id,
-          name: appointment.details.name.trim(),
-          normalizedEmail: normalizeEmail(appointment.details.email),
-          normalizedPhone: normalizePhone(appointment.details.phone),
-          source: input.origin,
-          observedAt: input.now
-        })
-      )
-    }
+    const appointment = input.appointment
+    const foundationOrigin =
+      input.origin === 'record_completed' ? 'merchant_created' : input.origin
+    statements.push(
+      db.insert(appointmentFoundations).values({
+        appointmentId: appointment.id,
+        merchantId: input.merchantId,
+        customerRecordId: recordId,
+        origin: foundationOrigin,
+        createdAt: input.now
+      }),
+      db.insert(customerObservations).values({
+        id: newCapabilityId('cuo'),
+        merchantId: input.merchantId,
+        customerRecordId: recordId,
+        appointmentId: appointment.id,
+        name: appointment.details.name.trim(),
+        normalizedEmail: normalizeEmail(appointment.details.email),
+        normalizedPhone: normalizePhone(appointment.details.phone),
+        source: input.origin,
+        observedAt: input.now
+      })
+    )
     return statements
   })

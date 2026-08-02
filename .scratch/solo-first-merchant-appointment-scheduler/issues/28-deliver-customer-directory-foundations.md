@@ -1,7 +1,7 @@
 # Deliver Customer Directory Foundations
 
 Type: task
-Status: resolved
+Status: in-progress
 Blocked by: 25
 
 ## Question
@@ -10,8 +10,8 @@ Deliver the Merchant-scoped Customer Directory vertical slice used by booking an
 
 ## Acceptance criteria
 
-- [x] Public confirmation and Merchant Appointment creation can atomically match or create one Merchant-scoped Customer Record without name-only or cross-Merchant merging.
-- [x] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
+- [ ] Public confirmation and Merchant Appointment creation can atomically match or create one Merchant-scoped Customer Record without name-only or cross-Merchant merging.
+- [ ] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
 - [x] Bans and matching failures have generic public responses and create no cross-Merchant or private-reason disclosure.
 - [x] Existing Appointment snapshots remain immutable through directory edits, merges, splits, corrections, and retention actions.
 
@@ -44,7 +44,7 @@ workspace-wide suite additionally contains unrelated pre-existing failures in Me
 Catalog/Booking Confirmation fixtures, Merchant route loading, and parallel Miniflare
 address allocation.
 
-### Completion — 2026-08-03
+### Review checkpoint — 2026-08-03
 
 Replaced the cross-Merchant startup cache with lazy Merchant-scoped relational reads and
 transactional projection writes. Public confirmation now prepares Customer Record,
@@ -62,3 +62,8 @@ and retention accepts protected record IDs derived from future Appointments, Que
 activity, or holds. Focused deterministic and Live D1 contracts cover atomic
 association, immutable Appointment snapshots, generic ban enforcement, Merchant
 isolation, stale recovery, and merge/split provenance.
+
+Final review kept this ticket open: Merchant-Created and Record Completed Appointment
+commands do not exist yet, merge/split must move relational Appointment associations,
+retention still needs authoritative activity/hold derivation and privacy fingerprints,
+and directory export still needs its encrypted asynchronous artifact and audit workflow.
