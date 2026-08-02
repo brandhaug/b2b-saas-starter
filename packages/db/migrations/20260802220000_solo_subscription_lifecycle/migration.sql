@@ -21,6 +21,14 @@ CREATE TABLE `merchant_subscription_events` (
 );--> statement-breakpoint
 CREATE INDEX `merchant_subscription_events_projection_idx` ON `merchant_subscription_events` (`merchant_id`,`occurred_at`,`event_id`);--> statement-breakpoint
 
+CREATE TABLE `merchant_subscription_unmatched_events` (
+  `event_id` text PRIMARY KEY NOT NULL,
+  `event_type` text NOT NULL,
+  `reason` text NOT NULL,
+  `received_at` text NOT NULL,
+  `reconciled_at` text
+);--> statement-breakpoint
+
 CREATE TABLE `merchant_subscription_price_evidence` (
   `id` text PRIMARY KEY NOT NULL,
   `merchant_id` text NOT NULL REFERENCES `merchants`(`id`) ON DELETE RESTRICT,
@@ -37,8 +45,9 @@ CREATE TABLE `merchant_subscription_notices` (
   `id` text PRIMARY KEY NOT NULL,
   `merchant_id` text NOT NULL REFERENCES `merchants`(`id`) ON DELETE RESTRICT,
   `kind` text NOT NULL,
+  `cycle_key` text NOT NULL,
   `effective_at` text NOT NULL,
   `acknowledged_at` text,
   `created_at` text NOT NULL,
-  UNIQUE(`merchant_id`,`kind`)
+  UNIQUE(`merchant_id`,`kind`,`cycle_key`)
 );--> statement-breakpoint

@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import {
   MerchantSubscriptions,
   type SubscriptionEvidence
@@ -6,12 +6,14 @@ import {
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { bookingProductEnv, type ApiEnv } from './env.ts'
 
-type StripeEvent = {
-  readonly id: string
-  readonly type: string
-  readonly created: number
-  readonly data: { readonly object: Record<string, unknown> }
-}
+const StripeEvent = Schema.Struct({
+  id: Schema.String,
+  type: Schema.String,
+  created: Schema.Number,
+  data: Schema.Struct({ object: Schema.Record(Schema.String, Schema.Unknown) })
+})
+type StripeEvent = typeof StripeEvent.Type
+const decodeStripeEvent = Schema.decodeUnknownSync(StripeEvent)
 
 const encoder = new TextEncoder()
 const hex = (bytes: ArrayBuffer) =>
@@ -54,6 +56,74 @@ const string = (value: unknown) => (typeof value === 'string' ? value : undefine
 const seconds = (value: unknown) =>
   typeof value === 'number' ? new Date(value * 1000).toISOString() : undefined
 
+const stripeObject = async (path: string, env: ApiEnv) => {
+  if (!env.STRIPE_SUBSCRIPTION_SECRET_KEY) return undefined
+  try {
+    const response = await fetch(`https://api.stripe.com/v1/${path}`, {
+      headers: { authorization: `Bearer ${env.STRIPE_SUBSCRIPTION_SECRET_KEY}` }
+    })
+    if (!response.ok) return undefined
+    const value = await response.json()
+    return typeof value === 'object' && value
+      ? (value as Record<string, unknown>)
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const correlatedEvent = async (
+  event: StripeEvent,
+  env: ApiEnv
+): Promise<StripeEvent> => {
+  if (
+    event.type !== 'charge.refunded' &&
+    event.type !== 'charge.dispute.created' &&
+    event.type !== 'charge.dispute.closed'
+  )
+    return event
+  const source = event.data.object
+  const chargeId = event.type.startsWith('charge.dispute')
+    ? string(source.charge)
+    : string(source.id)
+  if (!chargeId) return event
+  const charge =
+    event.type === 'charge.refunded'
+      ? source
+      : await stripeObject(`charges/${encodeURIComponent(chargeId)}`, env)
+  const invoiceId = charge ? string(charge.invoice) : undefined
+  if (!invoiceId) return event
+  const invoice = await stripeObject(
+    `invoices/${encodeURIComponent(invoiceId)}?expand[]=parent.subscription_details.subscription`,
+    env
+  )
+  if (!invoice) return event
+  const parent = invoice.parent as Record<string, unknown> | undefined
+  const details = parent?.subscription_details as Record<string, unknown> | undefined
+  const expanded = details?.subscription
+  const subscription =
+    typeof expanded === 'object' && expanded
+      ? (expanded as Record<string, unknown>)
+      : undefined
+  const subscriptionId =
+    string(subscription?.id) ?? string(expanded) ?? string(invoice.subscription)
+  const metadata = (subscription?.metadata ?? invoice.metadata ?? {}) as Record<
+    string,
+    unknown
+  >
+  return {
+    ...event,
+    data: {
+      object: {
+        ...source,
+        customer: charge?.customer ?? invoice.customer,
+        subscription: subscriptionId,
+        metadata
+      }
+    }
+  }
+}
+
 const evidenceFor = (
   event: StripeEvent,
   env: ApiEnv
@@ -87,6 +157,7 @@ const evidenceFor = (
         : actualPriceId === env.STRIPE_SOLO_ANNUAL_PRICE_ID
           ? 'price_solo_annual'
           : undefined
+
     return {
       ...base,
       kind:
@@ -110,6 +181,19 @@ const evidenceFor = (
     return { ...base, kind: 'chargeback-opened' }
   if (event.type === 'charge.dispute.closed' && object.status === 'won')
     return { ...base, kind: 'chargeback-won' }
+  if (event.type === 'charge.refunded') {
+    const amount = typeof object.amount === 'number' ? object.amount : undefined
+    const refunded =
+      typeof object.amount_refunded === 'number' ? object.amount_refunded : undefined
+    return {
+      ...base,
+      kind:
+        amount !== undefined && refunded === amount ? 'full-refund' : 'partial-refund',
+      ...(amount !== undefined && refunded === amount
+        ? { refundConsequence: 'end-access' as const }
+        : {})
+    }
+  }
   if (event.type === 'customer.subscription.updated')
     return {
       ...base,
@@ -143,12 +227,27 @@ export const handleStripeSubscriptionWebhook = async (
     return Response.json({ error: 'invalid_signature' }, { status: 400 })
   let event: StripeEvent
   try {
-    event = JSON.parse(body) as StripeEvent
+    event = decodeStripeEvent(JSON.parse(body))
   } catch {
     return Response.json({ error: 'invalid_payload' }, { status: 400 })
   }
+  event = await correlatedEvent(event, env)
   const evidence = evidenceFor(event, env)
-  if (!evidence) return new Response(null, { status: 204 })
+  if (!evidence) {
+    await env
+      .DB!.prepare(
+        `INSERT OR IGNORE INTO merchant_subscription_unmatched_events
+       (event_id, event_type, reason, received_at) VALUES (?, ?, ?, ?)`
+      )
+      .bind(
+        event.id,
+        event.type,
+        'correlation_or_event_not_supported',
+        new Date().toISOString()
+      )
+      .run()
+    return new Response(null, { status: 204 })
+  }
   await Effect.runPromise(
     Effect.flatMap(MerchantSubscriptions, (service) =>
       service.recordEvidence(evidence)

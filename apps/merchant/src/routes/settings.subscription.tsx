@@ -1,23 +1,48 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { MerchantSettingsDetailRoute } from '@/components/merchant-settings-detail-route.tsx'
 import { MerchantSubscriptionPanel } from '@/components/merchant-subscription-panel.tsx'
-import { getMerchantPlan } from '@/lib/server/merchant-catalog.ts'
+import {
+  cancelSoloAtPeriodEnd,
+  getOwnerBilling,
+  openBillingPortal,
+  startSoloCheckout,
+  undoSoloCancellation
+} from '@/lib/server/merchant-subscription.ts'
 
 export const Route = createFileRoute('/settings/subscription')({
-  loader: () => getMerchantPlan(),
+  loader: () => getOwnerBilling(),
   component: MerchantSubscription
 })
 
 function MerchantSubscription() {
-  const plan = Route.useLoaderData()
+  const subscription = Route.useLoaderData()
+  const key = () => crypto.randomUUID()
+  const manageBilling = async () => {
+    const result = subscription.providerCustomerRef
+      ? await openBillingPortal({ data: { idempotencyKey: key() } })
+      : await startSoloCheckout({
+          data: { interval: subscription.interval, idempotencyKey: key() }
+        })
+    window.location.assign(result.url)
+  }
+  const toggleCancellation = async () => {
+    if (subscription.cancelAtPeriodEnd)
+      await undoSoloCancellation({ data: { idempotencyKey: key() } })
+    else await cancelSoloAtPeriodEnd({ data: { idempotencyKey: key() } })
+  }
 
   return (
     <MerchantSettingsDetailRoute
       id="subscription"
       title="Subscription"
-      contentRevision={plan}
+      contentRevision={`${subscription.revision}:${subscription.access}`}
     >
-      <MerchantSubscriptionPanel plan={plan} />
+      <MerchantSubscriptionPanel
+        plan="solo"
+        subscription={subscription}
+        onManageBilling={manageBilling}
+        onToggleCancellation={toggleCancellation}
+      />
     </MerchantSettingsDetailRoute>
   )
 }

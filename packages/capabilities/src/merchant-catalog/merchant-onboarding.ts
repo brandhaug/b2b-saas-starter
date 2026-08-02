@@ -14,6 +14,7 @@ import {
   type EffectDatabase
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
+import { createSoloTrialProjection } from '../subscriptions/merchant-subscriptions.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { isSupportedCurrency } from './currency.ts'
@@ -93,7 +94,8 @@ export class MerchantOnboardingDenied extends Schema.TaggedErrorClass<MerchantOn
       'reserved_slug',
       'invalid_timezone',
       'invalid_currency',
-      'slug_unavailable'
+      'slug_unavailable',
+      'idempotency_conflict'
     ])
   }
 ) {}
@@ -154,13 +156,15 @@ export type SeedMerchantPerson = {
 export type SeedMerchantCatalogStore = {
   readonly people: Map<string, SeedMerchantPerson>
   readonly merchants: Map<string, MerchantRecord>
+  readonly onboardingRequests: Map<string, { fingerprint: string; merchantId: string }>
 }
 
 export const emptySeedMerchantCatalog = (
   people: readonly SeedMerchantPerson[]
 ): SeedMerchantCatalogStore => ({
   people: new Map(people.map((person) => [person.id, person])),
-  merchants: new Map()
+  merchants: new Map(),
+  onboardingRequests: new Map()
 })
 
 const validTimezone = (timezone: string): boolean => {
@@ -274,6 +278,19 @@ export const SeedMerchantOnboarding = (
             new MerchantOnboardingDenied({ reason: 'email_verification_required' })
           )
         }
+        const idempotencyKey = input.idempotencyKey ?? `merchant-onboarding:${userId}`
+        const fingerprint = JSON.stringify({ userId, ...input })
+        const replay = input.idempotencyKey
+          ? store.onboardingRequests.get(idempotencyKey)
+          : undefined
+        if (replay) {
+          if (replay.fingerprint !== fingerprint)
+            return yield* Effect.fail(
+              new MerchantOnboardingDenied({ reason: 'idempotency_conflict' })
+            )
+          const existing = findSeedForUser(store, userId)
+          if (existing?.id === replay.merchantId) return existing
+        }
         if (findSeedForUser(store, userId)) {
           return yield* Effect.fail(
             new MerchantOnboardingDenied({ reason: 'already_owns_merchant' })
@@ -288,6 +305,10 @@ export const SeedMerchantOnboarding = (
         const merchant = seedCreateRecord(person, input)
         // One mutation after all checks mirrors the Live adapter's one batch.
         store.merchants.set(input.slug, merchant)
+        store.onboardingRequests.set(idempotencyKey, {
+          fingerprint,
+          merchantId: merchant.id
+        })
         return merchant
       })
   } satisfies MerchantOnboardingShape)
@@ -435,6 +456,28 @@ const LiveMerchantOnboardingService: Layer.Layer<MerchantOnboarding, never, Data
                 new MerchantOnboardingDenied({ reason: 'email_verification_required' })
               )
             }
+            const idempotencyKey =
+              input.idempotencyKey ?? `merchant-onboarding:${userId}`
+            const requestFingerprint = JSON.stringify({ userId, ...input })
+            const replay = input.idempotencyKey
+              ? yield* orUnavailable('merchant-onboarding')(
+                  db
+                    .select()
+                    .from(merchantSubscriptionTrialClaims)
+                    .where(
+                      eq(merchantSubscriptionTrialClaims.idempotencyKey, idempotencyKey)
+                    )
+                    .limit(1)
+                )
+              : []
+            if (replay[0]) {
+              if (replay[0].requestFingerprint !== requestFingerprint)
+                return yield* Effect.fail(
+                  new MerchantOnboardingDenied({ reason: 'idempotency_conflict' })
+                )
+              const replayed = yield* findLiveForUser(db, userId)
+              if (replayed) return replayed
+            }
             const existing = yield* findLiveForUser(db, userId)
             if (existing) {
               return yield* Effect.fail(
@@ -442,12 +485,15 @@ const LiveMerchantOnboardingService: Layer.Layer<MerchantOnboarding, never, Data
               )
             }
             const now = new Date().toISOString()
-            const trialEndsAt = new Date(
-              Date.parse(now) + 14 * 86_400_000
-            ).toISOString()
             const merchantId = newCapabilityId('mer')
             const providerId = newCapabilityId('prv')
             const pageId = newCapabilityId('pg')
+            const trial = createSoloTrialProjection({
+              merchantId,
+              ownerUserId: userId,
+              interval: input.billingInterval ?? 'monthly',
+              now
+            })
             yield* batch(db, [
               db.insert(merchants).values({
                 id: merchantId,
@@ -487,17 +533,17 @@ const LiveMerchantOnboardingService: Layer.Layer<MerchantOnboarding, never, Data
                 merchantId,
                 ownerUserId: userId,
                 plan: 'solo',
-                interval: input.billingInterval ?? 'monthly',
+                interval: trial.interval,
                 status: 'trialing',
-                trialEndsAt,
+                trialEndsAt: trial.trialEndsAt,
                 createdAt: now,
                 updatedAt: now
               }),
               db.insert(merchantSubscriptionTrialClaims).values({
                 ownerUserId: userId,
                 merchantId,
-                idempotencyKey: input.idempotencyKey ?? `merchant-onboarding:${userId}`,
-                requestFingerprint: JSON.stringify({ userId, ...input }),
+                idempotencyKey,
+                requestFingerprint,
                 claimedAt: now
               })
             ]).pipe(Effect.mapError(mapBatchFailure))

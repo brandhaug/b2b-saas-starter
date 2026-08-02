@@ -72,7 +72,8 @@ export class SubscriptionDenied extends Schema.TaggedErrorClass<SubscriptionDeni
       'idempotency_conflict',
       'unsupported_price',
       'refund_consequence_required',
-      'billing_not_configured'
+      'billing_not_configured',
+      'provider_unavailable'
     ])
   }
 ) {}
@@ -92,6 +93,7 @@ export type SubscriptionNotice = {
     | 'retention-30-days'
     | 'retention-7-days'
   readonly effectiveAt: string
+  readonly cycleKey: string
 }
 
 export type MerchantSubscriptionsShape = {
@@ -149,6 +151,23 @@ export const emptySeedMerchantSubscriptionStore =
 
 const plusDays = (instant: string, days: number) =>
   new Date(Date.parse(instant) + days * 86_400_000).toISOString()
+
+export const createSoloTrialProjection = (input: {
+  readonly merchantId: string
+  readonly ownerUserId: string
+  readonly interval: BillingInterval
+  readonly now: string
+}): MerchantSubscription => ({
+  merchantId: input.merchantId,
+  ownerUserId: input.ownerUserId,
+  plan: 'solo',
+  interval: input.interval,
+  access: 'trialing',
+  price: SOLO_PRICES[input.interval],
+  trialEndsAt: plusDays(input.now, 14),
+  cancelAtPeriodEnd: false,
+  revision: 1
+})
 
 const priceInterval = (evidence: SubscriptionEvidence): BillingInterval | undefined => {
   if (
@@ -270,17 +289,7 @@ export const SeedMerchantSubscriptions = (
           return yield* Effect.fail(
             new SubscriptionDenied({ reason: 'person_already_used_trial' })
           )
-        const subscription: MerchantSubscription = {
-          merchantId: input.merchantId,
-          ownerUserId: input.ownerUserId,
-          plan: 'solo',
-          interval: input.interval,
-          access: 'trialing',
-          price: SOLO_PRICES[input.interval],
-          trialEndsAt: plusDays(input.now, 14),
-          cancelAtPeriodEnd: false,
-          revision: 1
-        }
+        const subscription = createSoloTrialProjection(input)
         store.subscriptions.set(input.merchantId, subscription)
         store.trialOwners.add(input.ownerUserId)
         store.idempotency.set(input.idempotencyKey, {
@@ -327,6 +336,21 @@ export const SeedMerchantSubscriptions = (
             (item) => item.merchantId === fact.merchantId
           )
         )
+        if (
+          projected.access === 'active' &&
+          (initial.access === 'grace' || initial.access === 'restricted')
+        ) {
+          const notice = {
+            merchantId: fact.merchantId,
+            kind: 'recovered' as const,
+            effectiveAt: fact.occurredAt,
+            cycleKey: fact.periodEndsAt ?? fact.eventId
+          }
+          store.notices.set(
+            `${notice.merchantId}:${notice.kind}:${notice.cycleKey}`,
+            notice
+          )
+        }
         store.subscriptions.set(fact.merchantId, projected)
         return projected
       }),
@@ -335,7 +359,7 @@ export const SeedMerchantSubscriptions = (
       Effect.sync(() => {
         const created: SubscriptionNotice[] = []
         const add = (notice: SubscriptionNotice) => {
-          const key = `${notice.merchantId}:${notice.kind}`
+          const key = `${notice.merchantId}:${notice.kind}:${notice.cycleKey}`
           if (!store.notices.has(key)) {
             store.notices.set(key, notice)
             created.push(notice)
@@ -348,14 +372,39 @@ export const SeedMerchantSubscriptions = (
               (Date.parse(current.trialEndsAt) - Date.parse(now)) / 86_400_000
             )
             if (days <= 7 && days > 3)
-              add({ merchantId, kind: 'trial-7-days', effectiveAt: now })
+              add({
+                merchantId,
+                kind: 'trial-7-days',
+                effectiveAt: now,
+                cycleKey: current.trialEndsAt
+              })
             if (days <= 3 && days > 1)
-              add({ merchantId, kind: 'trial-3-days', effectiveAt: now })
+              add({
+                merchantId,
+                kind: 'trial-3-days',
+                effectiveAt: now,
+                cycleKey: current.trialEndsAt
+              })
             if (days <= 1 && days > 0)
-              add({ merchantId, kind: 'trial-1-day', effectiveAt: now })
+              add({
+                merchantId,
+                kind: 'trial-1-day',
+                effectiveAt: now,
+                cycleKey: current.trialEndsAt
+              })
             if (days <= 0) {
-              add({ merchantId, kind: 'trial-expired', effectiveAt: now })
-              add({ merchantId, kind: 'restricted', effectiveAt: now })
+              add({
+                merchantId,
+                kind: 'trial-expired',
+                effectiveAt: now,
+                cycleKey: current.trialEndsAt
+              })
+              add({
+                merchantId,
+                kind: 'restricted',
+                effectiveAt: now,
+                cycleKey: current.trialEndsAt
+              })
               next = {
                 ...current,
                 access: 'restricted',
@@ -364,18 +413,26 @@ export const SeedMerchantSubscriptions = (
                 revision: current.revision + 1
               }
             }
-          } else if (
-            current.access === 'grace' &&
-            current.graceEndsAt &&
-            current.graceEndsAt <= now
-          ) {
-            add({ merchantId, kind: 'restricted', effectiveAt: now })
-            next = {
-              ...current,
-              access: 'restricted',
-              restrictedAt: now,
-              retentionEndsAt: plusDays(now, 365),
-              revision: current.revision + 1
+          } else if (current.access === 'grace' && current.graceEndsAt) {
+            const remaining = Math.ceil(
+              (Date.parse(current.graceEndsAt) - Date.parse(now)) / 86_400_000
+            )
+            const cycleKey = current.currentPeriodEndsAt ?? current.graceEndsAt
+            if (remaining <= 7 && remaining > 4)
+              add({ merchantId, kind: 'grace-started', effectiveAt: now, cycleKey })
+            if (remaining <= 4 && remaining > 1)
+              add({ merchantId, kind: 'grace-3-days', effectiveAt: now, cycleKey })
+            if (remaining <= 1 && remaining > 0)
+              add({ merchantId, kind: 'grace-6-days', effectiveAt: now, cycleKey })
+            if (remaining <= 0) {
+              add({ merchantId, kind: 'restricted', effectiveAt: now, cycleKey })
+              next = {
+                ...current,
+                access: 'restricted',
+                restrictedAt: now,
+                retentionEndsAt: plusDays(now, 365),
+                revision: current.revision + 1
+              }
             }
           }
           if (next.access === 'restricted' && next.retentionEndsAt) {
@@ -383,9 +440,19 @@ export const SeedMerchantSubscriptions = (
               (Date.parse(next.retentionEndsAt) - Date.parse(now)) / 86_400_000
             )
             if (days <= 30 && days > 7)
-              add({ merchantId, kind: 'retention-30-days', effectiveAt: now })
+              add({
+                merchantId,
+                kind: 'retention-30-days',
+                effectiveAt: now,
+                cycleKey: next.retentionEndsAt
+              })
             if (days <= 7 && days >= 0)
-              add({ merchantId, kind: 'retention-7-days', effectiveAt: now })
+              add({
+                merchantId,
+                kind: 'retention-7-days',
+                effectiveAt: now,
+                cycleKey: next.retentionEndsAt
+              })
           }
           store.subscriptions.set(merchantId, next)
         }
@@ -470,28 +537,63 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
         fact
       ])
       const now = new Date().toISOString()
+      const lifecycleNotice =
+        projected.access === 'active' &&
+        (current.access === 'grace' || current.access === 'restricted')
+          ? {
+              id: newCapabilityId('sno'),
+              merchantId: fact.merchantId,
+              kind: 'recovered',
+              cycleKey: fact.periodEndsAt ?? fact.eventId,
+              effectiveAt: fact.occurredAt,
+              createdAt: now
+            }
+          : projected.access === 'restricted' && current.access !== 'restricted'
+            ? {
+                id: newCapabilityId('sno'),
+                merchantId: fact.merchantId,
+                kind: 'restricted',
+                cycleKey: fact.eventId,
+                effectiveAt: fact.occurredAt,
+                createdAt: now
+              }
+            : undefined
       const writes = [
-        db.insert(merchantSubscriptionEvents).values({
-          eventId: fact.eventId,
-          merchantId: fact.merchantId,
-          kind: fact.kind,
-          occurredAt: fact.occurredAt,
-          evidenceJson: JSON.stringify(fact),
-          receivedAt: now
-        }),
+        db
+          .insert(merchantSubscriptionEvents)
+          .values({
+            eventId: fact.eventId,
+            merchantId: fact.merchantId,
+            kind: fact.kind,
+            occurredAt: fact.occurredAt,
+            evidenceJson: JSON.stringify(fact),
+            receivedAt: now
+          })
+          .onConflictDoNothing(),
         ...(interval
           ? [
-              db.insert(merchantSubscriptionPriceEvidence).values({
-                id: newCapabilityId('spe'),
-                merchantId: fact.merchantId,
-                eventId: fact.eventId,
-                priceId: fact.priceId!,
-                interval,
-                amountMinor: fact.amountMinor!,
-                currency: 'EUR' as const,
-                excludesVat: true,
-                recordedAt: now
-              })
+              db
+                .insert(merchantSubscriptionPriceEvidence)
+                .values({
+                  id: newCapabilityId('spe'),
+                  merchantId: fact.merchantId,
+                  eventId: fact.eventId,
+                  priceId: fact.priceId!,
+                  interval,
+                  amountMinor: fact.amountMinor!,
+                  currency: 'EUR' as const,
+                  excludesVat: true,
+                  recordedAt: now
+                })
+                .onConflictDoNothing()
+            ]
+          : []),
+        ...(lifecycleNotice
+          ? [
+              db
+                .insert(merchantSubscriptionNotices)
+                .values(lifecycleNotice)
+                .onConflictDoNothing()
             ]
           : []),
         db
@@ -546,17 +648,7 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
           return yield* Effect.fail(
             new SubscriptionDenied({ reason: 'person_already_used_trial' })
           )
-        const subscription: MerchantSubscription = {
-          merchantId: input.merchantId,
-          ownerUserId: input.ownerUserId,
-          plan: 'solo',
-          interval: input.interval,
-          access: 'trialing',
-          price: SOLO_PRICES[input.interval],
-          trialEndsAt: plusDays(input.now, 14),
-          cancelAtPeriodEnd: false,
-          revision: 1
-        }
+        const subscription = createSoloTrialProjection(input)
         yield* batch(db, [
           db.insert(merchantSubscriptions).values({
             id: newCapabilityId('sub'),
@@ -595,15 +687,32 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
           const created = yield* Effect.flatMap(MerchantSubscriptions, (service) =>
             service.tick(now)
           ).pipe(Effect.provide(SeedMerchantSubscriptions(memory)))
+          const existingNotices = yield* orUnavailable('merchant-subscriptions')(
+            db
+              .select({
+                kind: merchantSubscriptionNotices.kind,
+                cycleKey: merchantSubscriptionNotices.cycleKey
+              })
+              .from(merchantSubscriptionNotices)
+              .where(eq(merchantSubscriptionNotices.merchantId, current.merchantId))
+          )
+          const noticesToCreate = created.filter(
+            (notice) =>
+              !existingNotices.some(
+                (existing) =>
+                  existing.kind === notice.kind && existing.cycleKey === notice.cycleKey
+              )
+          )
           const next = memory.subscriptions.get(current.merchantId)!
           const writes = [
-            ...created.map((notice) =>
+            ...noticesToCreate.map((notice) =>
               db
                 .insert(merchantSubscriptionNotices)
                 .values({
                   id: newCapabilityId('sno'),
                   merchantId: notice.merchantId,
                   kind: notice.kind,
+                  cycleKey: notice.cycleKey,
                   effectiveAt: notice.effectiveAt,
                   createdAt: now
                 })
@@ -621,7 +730,7 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
               .where(eq(merchantSubscriptions.merchantId, current.merchantId))
           ]
           yield* batch(db, writes).pipe(Effect.mapError(unavailable))
-          notices.push(...created)
+          notices.push(...noticesToCreate)
         }
         return notices
       })

@@ -6,10 +6,12 @@ export type MerchantPlan = MerchantIdentity['plan']
 export type MerchantSubscriptionView = {
   readonly access: 'trialing' | 'active' | 'grace' | 'restricted'
   readonly interval: 'monthly' | 'annual'
-  readonly trialEndsAt?: string
-  readonly currentPeriodEndsAt?: string
-  readonly graceEndsAt?: string
-  readonly cancelAtPeriodEnd?: boolean
+  readonly trialEndsAt?: string | undefined
+  readonly currentPeriodEndsAt?: string | undefined
+  readonly graceEndsAt?: string | undefined
+  readonly cancelAtPeriodEnd?: boolean | undefined
+  readonly providerCustomerRef?: string | undefined
+  readonly providerSubscriptionRef?: string | undefined
   readonly billingConfigured: boolean
 }
 
@@ -22,10 +24,14 @@ const SOLO_FEATURES = [
 
 export function MerchantSubscriptionPanel({
   plan,
-  subscription
+  subscription,
+  onManageBilling,
+  onToggleCancellation
 }: {
   readonly plan: MerchantPlan
   readonly subscription?: MerchantSubscriptionView
+  readonly onManageBilling?: (() => Promise<void>) | undefined
+  readonly onToggleCancellation?: (() => Promise<void>) | undefined
 }) {
   const accessLabel = subscription
     ? (
@@ -110,7 +116,8 @@ export function MerchantSubscriptionPanel({
         </ul>
         <button
           type="button"
-          disabled
+          disabled={Boolean(subscription && !subscription.billingConfigured)}
+          onClick={() => void onManageBilling?.()}
           className="h-10 w-full rounded-full bg-foreground px-4 text-sm font-medium text-background opacity-45"
         >
           {subscription
@@ -119,6 +126,18 @@ export function MerchantSubscriptionPanel({
               : 'Manage billing'
             : 'Current plan'}
         </button>
+        {subscription?.providerSubscriptionRef ? (
+          <button
+            type="button"
+            disabled={!subscription.billingConfigured}
+            className="h-10 w-full rounded-full border border-border px-4 text-sm font-medium"
+            onClick={() => void onToggleCancellation?.()}
+          >
+            {subscription.cancelAtPeriodEnd
+              ? 'Undo scheduled cancellation'
+              : 'Cancel at period end'}
+          </button>
+        ) : null}
       </section>
       <span className="sr-only">{plan}</span>
     </div>

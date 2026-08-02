@@ -9,6 +9,7 @@ import {
 import {
   AvailabilityOfferEmail,
   EmailDispatcher,
+  SubscriptionLifecycleEmail,
   selectEmailDispatcherLayer,
   type SendEmailBinding
 } from '@b2b-saas-starter/email'
@@ -19,6 +20,7 @@ import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
 import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { GiftCardRedemptions } from '@b2b-saas-starter/capabilities/gift-cards'
 import { MerchantSubscriptions } from '@b2b-saas-starter/capabilities/subscriptions'
+import { makeStripeBilling } from '@b2b-saas-starter/capabilities/subscriptions'
 import { createDb } from '@b2b-saas-starter/db/client'
 import { makeOperationsNotificationOutboxLayer } from '@b2b-saas-starter/capabilities/operations'
 import {
@@ -42,6 +44,7 @@ type Env = {
   readonly CONFIRMATION_CURRENT_KEY_ID?: string
   readonly CONFIRMATION_SIGNING_KEYS?: string
   readonly PUBLIC_SITE_ORIGIN?: string
+  readonly MERCHANT_APP_ORIGIN?: string
   readonly EMAIL?: SendEmailBinding
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly OPERATIONAL_EMAIL_ENABLED?: string
@@ -65,6 +68,9 @@ type Env = {
   readonly WAITING_LIST_DELIVERY_CURRENT_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_LEGACY_KEY_ID?: string
   readonly WAITING_LIST_DELIVERY_KEYS?: string
+  readonly STRIPE_SUBSCRIPTION_SECRET_KEY?: string
+  readonly STRIPE_SOLO_MONTHLY_PRICE_ID?: string
+  readonly STRIPE_SOLO_ANNUAL_PRICE_ID?: string
 }
 
 const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
@@ -248,6 +254,147 @@ const operationsEmailProviderState = (env: Env) =>
 const operationsNotificationLayer = (env: Env) =>
   makeOperationsNotificationOutboxLayer(createDb(env.DB))
 
+const reconcileMerchantSubscriptions = (now: string, env: Env) => {
+  const provider = makeStripeBilling({
+    secretKey: env.STRIPE_SUBSCRIPTION_SECRET_KEY,
+    monthlyPriceId: env.STRIPE_SOLO_MONTHLY_PRICE_ID,
+    annualPriceId: env.STRIPE_SOLO_ANNUAL_PRICE_ID
+  })
+  if (provider.state !== 'configured') return Effect.void
+  return Effect.gen(function* () {
+    const rows = yield* Effect.promise(() =>
+      env.DB.prepare(
+        `SELECT merchant_id, provider_subscription_ref
+         FROM merchant_subscriptions WHERE provider_subscription_ref IS NOT NULL`
+      ).all<{ merchant_id: string; provider_subscription_ref: string }>()
+    )
+    const subscriptions = yield* MerchantSubscriptions
+    yield* Effect.forEach(
+      rows.results,
+      (row) =>
+        Effect.gen(function* () {
+          const current = yield* subscriptions.get(row.merchant_id)
+          const object = (yield* provider.retrieve({
+            merchantId: row.merchant_id,
+            subscription: current
+          })) as Record<string, unknown>
+          const customer =
+            typeof object.customer === 'string'
+              ? object.customer
+              : current.providerCustomerRef
+          const latest =
+            typeof object.latest_invoice === 'object' && object.latest_invoice
+              ? (object.latest_invoice as Record<string, unknown>)
+              : undefined
+          if (!customer || !latest || typeof latest.id !== 'string') return
+          const status = typeof latest.status === 'string' ? latest.status : undefined
+          const periodEndsAt =
+            typeof object.current_period_end === 'number'
+              ? new Date(object.current_period_end * 1000).toISOString()
+              : current.currentPeriodEndsAt
+          if (status !== 'paid' && status !== 'open' && status !== 'uncollectible')
+            return
+          yield* subscriptions.reconcile({
+            merchantId: row.merchant_id,
+            eventId: `reconcile:${row.provider_subscription_ref}:${latest.id}:${status}`,
+            occurredAt: now,
+            kind: status === 'paid' ? 'invoice-paid' : 'invoice-payment-failed',
+            providerCustomerRef: customer,
+            providerSubscriptionRef: row.provider_subscription_ref,
+            periodEndsAt,
+            priceId:
+              current.interval === 'monthly'
+                ? 'price_solo_monthly'
+                : 'price_solo_annual',
+            amountMinor: current.price.amountMinor,
+            currency: 'EUR'
+          })
+        }).pipe(Effect.catch(() => Effect.void)),
+      { concurrency: 4, discard: true }
+    )
+  }).pipe(Effect.provide(selectCapabilitiesLayer(capabilitiesEnv(env))), Effect.asVoid)
+}
+
+const processSubscriptionLifecycle = (now: string, env: Env) =>
+  Effect.gen(function* () {
+    const subscriptions = yield* MerchantSubscriptions
+    const email = yield* EmailDispatcher
+    yield* subscriptions.tick(now)
+    const noticeRows = yield* Effect.promise(() =>
+      env.DB.prepare(
+        `SELECT merchant_id, kind, cycle_key, effective_at
+         FROM merchant_subscription_notices
+         WHERE acknowledged_at IS NULL ORDER BY effective_at LIMIT 100`
+      ).all<{
+        merchant_id: string
+        kind: import('@b2b-saas-starter/capabilities/subscriptions').SubscriptionNotice['kind']
+        cycle_key: string
+        effective_at: string
+      }>()
+    )
+    const notices = noticeRows.results.map((row) => ({
+      merchantId: row.merchant_id,
+      kind: row.kind,
+      cycleKey: row.cycle_key,
+      effectiveAt: row.effective_at
+    }))
+    yield* Effect.forEach(
+      notices,
+      (notice) =>
+        Effect.gen(function* () {
+          const owner = yield* Effect.promise(() =>
+            env.DB.prepare(
+              `SELECT u.email AS email FROM merchant_memberships mm
+               JOIN user u ON u.id = mm.user_id
+               WHERE mm.merchant_id = ? AND mm.role = 'owner' AND u.email_verified = 1
+               LIMIT 1`
+            )
+              .bind(notice.merchantId)
+              .first<{ email: string }>()
+          )
+          if (!owner) return
+          const heading = notice.kind.startsWith('trial')
+            ? 'Your BeeSolo trial needs attention'
+            : notice.kind.startsWith('retention')
+              ? 'Your BeeSolo data retention deadline is approaching'
+              : notice.kind === 'recovered'
+                ? 'Your BeeSolo subscription recovered'
+                : 'Your BeeSolo subscription needs attention'
+          yield* email.send({
+            idempotencyKey: `subscription:${notice.merchantId}:${notice.kind}:${notice.cycleKey}`,
+            from: env.CLOUDFLARE_EMAIL_FROM ?? '',
+            to: owner.email,
+            subject: heading,
+            element: SubscriptionLifecycleEmail({
+              heading,
+              message: `Subscription lifecycle notice: ${notice.kind.replaceAll('-', ' ')}.`,
+              billingUrl: `${env.MERCHANT_APP_ORIGIN ?? 'http://localhost:3072'}/settings/subscription`
+            })
+          })
+          yield* Effect.promise(() =>
+            env.DB.prepare(
+              `UPDATE merchant_subscription_notices SET acknowledged_at = ?
+               WHERE merchant_id = ? AND kind = ? AND cycle_key = ? AND acknowledged_at IS NULL`
+            )
+              .bind(now, notice.merchantId, notice.kind, notice.cycleKey)
+              .run()
+          )
+        }).pipe(Effect.catch(() => Effect.void)),
+      { concurrency: 4, discard: true }
+    )
+  }).pipe(
+    Effect.provide(selectCapabilitiesLayer(capabilitiesEnv(env))),
+    Effect.provide(
+      selectEmailDispatcherLayer({
+        ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+        ...(env.CLOUDFLARE_EMAIL_FROM
+          ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+          : {})
+      })
+    ),
+    Effect.asVoid
+  )
+
 const processOperationsNotificationIntent = (intentId: string, now: string, env: Env) =>
   processOperationsNotification({
     intentId,
@@ -301,9 +448,8 @@ export default {
                 recoverNotificationIntents(now, env),
                 reconcileAndRetainOperationalMessaging(now, env),
                 recoverOperationsNotificationIntents(now, env),
-                Effect.flatMap(MerchantSubscriptions, (subscriptions) =>
-                  subscriptions.tick(now)
-                ).pipe(Effect.provide(capabilityLayer), Effect.asVoid),
+                reconcileMerchantSubscriptions(now, env),
+                processSubscriptionLifecycle(now, env),
                 Effect.flatMap(GiftCardRedemptions, (giftCards) =>
                   giftCards.releaseExpired({ now })
                 ).pipe(Effect.provide(capabilityLayer), Effect.asVoid),

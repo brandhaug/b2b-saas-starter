@@ -18,6 +18,7 @@ export type ApiEnv = RateLimitBindings & {
   readonly TRANSACTIONAL_EMAIL_SENDER_VERIFIED?: string
   readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string
   readonly STRIPE_SUBSCRIPTION_WEBHOOK_SECRET?: string
+  readonly STRIPE_SUBSCRIPTION_SECRET_KEY?: string
   readonly STRIPE_SOLO_MONTHLY_PRICE_ID?: string
   readonly STRIPE_SOLO_ANNUAL_PRICE_ID?: string
 }

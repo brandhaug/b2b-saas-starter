@@ -257,9 +257,7 @@ describe('Live Booking Confirmation', () => {
       Effect.provide(
         Effect.gen(function* () {
           const db = yield* Database
-          yield* db
-            .update(providers)
-            .set({ displayName: 'Renamed Ava', status: 'inactive' })
+          yield* db.update(providers).set({ displayName: 'Renamed Ava' })
           yield* db
             .update(services)
             .set({ name: 'Renamed Service', status: 'inactive' })

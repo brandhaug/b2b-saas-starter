@@ -3,6 +3,7 @@ import { and, eq, gt, lt, ne } from 'drizzle-orm'
 import {
   batch,
   Database,
+  merchantSubscriptions,
   appointments,
   merchants,
   providerServiceEligibility,
@@ -920,11 +921,19 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
           Effect.gen(function* () {
             const merchantRows = yield* orUnavailable('booking-publication')(
               db
-                .select({ merchant: merchants, page: publicBookingPages })
+                .select({
+                  merchant: merchants,
+                  page: publicBookingPages,
+                  subscription: merchantSubscriptions
+                })
                 .from(merchants)
                 .innerJoin(
                   publicBookingPages,
                   eq(publicBookingPages.merchantId, merchants.id)
+                )
+                .leftJoin(
+                  merchantSubscriptions,
+                  eq(merchantSubscriptions.merchantId, merchants.id)
                 )
                 .where(eq(merchants.slug, slug))
                 .limit(1)
@@ -934,7 +943,11 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
               return yield* Effect.fail(
                 new PublicBookingPageNotFound({ reason: 'unknown' })
               )
-            if (row.page.status !== 'published')
+            if (
+              row.page.status !== 'published' ||
+              row.subscription?.status === 'restricted' ||
+              row.subscription?.status === 'cancelled'
+            )
               return yield* Effect.fail(
                 new PublicBookingPageNotFound({ reason: 'unpublished' })
               )

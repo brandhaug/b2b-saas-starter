@@ -3692,6 +3692,17 @@ export const merchantSubscriptionEvents = sqliteTable('merchant_subscription_eve
   receivedAt: text('received_at').notNull()
 })
 
+export const merchantSubscriptionUnmatchedEvents = sqliteTable(
+  'merchant_subscription_unmatched_events',
+  {
+    eventId: text('event_id').primaryKey(),
+    eventType: text('event_type').notNull(),
+    reason: text('reason').notNull(),
+    receivedAt: text('received_at').notNull(),
+    reconciledAt: text('reconciled_at')
+  }
+)
+
 export const merchantSubscriptionPriceEvidence = sqliteTable(
   'merchant_subscription_price_evidence',
   {
@@ -3720,12 +3731,17 @@ export const merchantSubscriptionNotices = sqliteTable(
       .notNull()
       .references(() => merchants.id, { onDelete: 'restrict' }),
     kind: text('kind').notNull(),
+    cycleKey: text('cycle_key').notNull(),
     effectiveAt: text('effective_at').notNull(),
     acknowledgedAt: text('acknowledged_at'),
     createdAt: text('created_at').notNull()
   },
   (table) => [
-    uniqueIndex('merchant_subscription_notices_once').on(table.merchantId, table.kind)
+    uniqueIndex('merchant_subscription_notices_once').on(
+      table.merchantId,
+      table.kind,
+      table.cycleKey
+    )
   ]
 )
 

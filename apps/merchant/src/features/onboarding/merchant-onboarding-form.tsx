@@ -7,6 +7,7 @@ export function MerchantOnboardingForm() {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   return (
     <main className="merchant-safe-area-page mx-auto grid min-h-dvh max-w-5xl items-center gap-10 p-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -32,7 +33,11 @@ export function MerchantOnboardingForm() {
                 publicName: formValue(form, 'publicName'),
                 slug: formValue(form, 'slug'),
                 timezone: formValue(form, 'timezone'),
-                currency: formValue(form, 'currency')
+                currency: formValue(form, 'currency'),
+                billingInterval: formValue(form, 'billingInterval') as
+                  | 'monthly'
+                  | 'annual',
+                idempotencyKey
               }
             })
             await router.invalidate()
@@ -81,6 +86,18 @@ export function MerchantOnboardingForm() {
             <option value="RON">RON — Romanian leu</option>
             <option value="GBP">GBP — Pound sterling</option>
             <option value="USD">USD — US dollar</option>
+          </select>
+        </label>
+        <label className="grid gap-1.5 text-sm">
+          Solo billing interval
+          <select
+            className="h-9 rounded-md border bg-card px-3"
+            name="billingInterval"
+            defaultValue="monthly"
+            required
+          >
+            <option value="monthly">€19 monthly, excluding applicable VAT</option>
+            <option value="annual">€190 annually, excluding applicable VAT</option>
           </select>
         </label>
         {message ? <p className="text-sm text-destructive">{message}</p> : null}

@@ -15,6 +15,11 @@ interface MerchantWorkerEnv {
   readonly OPERATIONS_RATE_LIMIT_WINDOW_SECONDS?: string
   readonly PLATFORM_API_CURSOR_SECRET?: string
   readonly PUBLIC_SITE_ORIGIN?: string
+  readonly MERCHANT_APP_ORIGIN?: string
+  readonly STRIPE_SUBSCRIPTION_SECRET_KEY?: string
+  readonly STRIPE_SOLO_MONTHLY_PRICE_ID?: string
+  readonly STRIPE_SOLO_ANNUAL_PRICE_ID?: string
+  readonly STRIPE_BILLING_PORTAL_CONFIGURATION_ID?: string
   readonly RATE_LIMITER_AUTH_READ?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   readonly RATE_LIMITER_AUTH_WRITE?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   readonly RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit

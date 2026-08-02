@@ -100,6 +100,29 @@ export function AvailabilityOfferEmail(props: {
   )
 }
 
+export function SubscriptionLifecycleEmail(props: {
+  readonly heading: string
+  readonly message: string
+  readonly billingUrl: string
+}) {
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>{props.heading}</Preview>
+      <Body>
+        <Container>
+          <Heading>{props.heading}</Heading>
+          <Text>{props.message}</Text>
+          <Button href={props.billingUrl}>Review billing</Button>
+          <Text>
+            <Link href={props.billingUrl}>{props.billingUrl}</Link>
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
 export function AppointmentConfirmationEmail(props: AppointmentConfirmationEmailProps) {
   return (
     <Html lang="en">

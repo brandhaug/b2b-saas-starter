@@ -1,4 +1,5 @@
 import { Effect, Layer } from 'effect'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   Database,
@@ -6,6 +7,7 @@ import {
   brands,
   layerFromD1,
   merchants,
+  merchantSubscriptions,
   providerServiceEligibility,
   providers,
   publicBookingPages,
@@ -111,12 +113,15 @@ beforeAll(async () => {
         createdAt: now,
         updatedAt: now
       })
-      yield* db.insert(providerServiceEligibility).values({
-        merchantId: merchant.id,
-        providerId: 'prv_live_schedule',
-        serviceId: 'svc_live_schedule',
-        createdAt: now
-      })
+      yield* db
+        .insert(providerServiceEligibility)
+        .values({
+          merchantId: merchant.id,
+          providerId: 'prv_live_schedule',
+          serviceId: 'svc_live_schedule',
+          createdAt: now
+        })
+        .onConflictDoNothing()
       yield* db.insert(appointments).values({
         id: 'apt_live_schedule_busy',
         merchantId: merchant.id,
@@ -188,5 +193,45 @@ describe('Live Scheduling and publication', () => {
     expect(
       await runDb(Effect.flatMap(Database, (db) => db.select().from(scheduleRules)))
     ).toHaveLength(1)
+  })
+
+  it('keeps publication preference but makes the page unavailable while restricted', async () => {
+    await runDb(
+      Effect.gen(function* () {
+        const db = yield* Database
+        yield* db
+          .update(publicBookingPages)
+          .set({ status: 'published' })
+          .where(eq(publicBookingPages.merchantId, merchant.id))
+        yield* db.insert(merchantSubscriptions).values({
+          id: 'sub_live_schedule',
+          merchantId: merchant.id,
+          plan: 'solo',
+          interval: 'monthly',
+          status: 'restricted',
+          trialEndsAt: '2026-07-01T00:00:00.000Z',
+          restrictedAt: '2026-07-15T00:00:00.000Z',
+          retentionEndsAt: '2027-07-15T00:00:00.000Z',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-15T00:00:00.000Z'
+        })
+      })
+    )
+    const denied = await run(
+      Effect.flatMap(BookingPublication, (publication) =>
+        Effect.flip(publication.resolvePublished(merchant.slug))
+      )
+    )
+    expect(denied.reason).toBe('unpublished')
+    const preferred = await runDb(
+      Effect.flatMap(Database, (db) =>
+        db
+          .select({ status: publicBookingPages.status })
+          .from(publicBookingPages)
+          .where(eq(publicBookingPages.merchantId, merchant.id))
+          .limit(1)
+      )
+    )
+    expect(preferred[0]?.status).toBe('published')
   })
 })

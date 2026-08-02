@@ -251,7 +251,23 @@ export const LiveSharedCapabilityFoundations: Layer.Layer<
       execute: (input) =>
         Effect.tryPromise({
           try: async () => {
-            const denial = validate(input)
+            const subscription = await raw
+              .prepare(
+                'SELECT status FROM merchant_subscriptions WHERE merchant_id = ? LIMIT 1'
+              )
+              .bind(input.merchantId)
+              .first<{ status: string }>()
+            const effectiveInput: SharedCommandInput = {
+              ...input,
+              accessState:
+                input.accessState === 'held'
+                  ? 'held'
+                  : subscription?.status === 'restricted' ||
+                      subscription?.status === 'cancelled'
+                    ? 'restricted'
+                    : input.accessState
+            }
+            const denial = validate(effectiveInput)
             if (denial) throw denial
             const key = `${input.merchantId}:${input.capability}:${input.idempotencyKey}`
             const old = await raw

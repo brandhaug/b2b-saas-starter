@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const getMerchantPlan = vi.fn(async () => 'solo' as const)
+const getOwnerBilling = vi.fn(async () => ({
+  plan: 'solo' as const,
+  access: 'trialing' as const,
+  interval: 'monthly' as const,
+  revision: 1
+}))
 
-vi.mock('@/lib/server/merchant-catalog.ts', () => ({ getMerchantPlan }))
+vi.mock('@/lib/server/merchant-subscription.ts', () => ({ getOwnerBilling }))
 vi.mock('@/lib/server/merchant-session.ts', () => ({
   requireMerchantSession: vi.fn()
 }))
@@ -11,7 +16,7 @@ vi.mock('@/lib/server/merchant-messaging.ts', () => ({
 }))
 
 describe('Settings detail loading', () => {
-  it('reads the merchant plan only from the Subscription child route', async () => {
+  it('reads Owner Billing only from the Subscription child route', async () => {
     const { Route: settingsRoute } = await import('./settings.tsx')
     const { Route: subscriptionRoute } = await import('./settings.subscription.tsx')
 
@@ -22,6 +27,6 @@ describe('Settings detail loading', () => {
     if (typeof loader !== 'function') throw new Error('Subscription loader is missing')
     await loader({} as never)
 
-    expect(getMerchantPlan).toHaveBeenCalledOnce()
+    expect(getOwnerBilling).toHaveBeenCalledOnce()
   })
 })

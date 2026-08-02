@@ -23,7 +23,8 @@ const input = {
   publicName: 'Live Booking Studio',
   slug: 'live-booking-studio',
   timezone: 'Europe/Bucharest',
-  currency: 'RON'
+  currency: 'RON',
+  idempotencyKey: 'onboarding_live_verified'
 } as const
 
 beforeAll(async () => {
@@ -115,10 +116,33 @@ describe('Live Merchant Onboarding', () => {
     expect(counts).toEqual({ merchants: 1, memberships: 1, providers: 1, pages: 1 })
   })
 
+  it('replays the same atomic onboarding boundary without a second Merchant or trial', async () => {
+    const replayed = await runMerchant(
+      Effect.flatMap(MerchantOnboarding, (onboarding) =>
+        onboarding.complete('usr_live_verified', input)
+      )
+    )
+    expect(replayed.slug).toBe(input.slug)
+    const counts = await test.d1
+      .prepare(
+        `SELECT
+          (SELECT COUNT(*) FROM merchants) AS merchants,
+          (SELECT COUNT(*) FROM merchant_subscriptions) AS subscriptions,
+          (SELECT COUNT(*) FROM merchant_subscription_trial_claims) AS trials`
+      )
+      .first<{ merchants: number; subscriptions: number; trials: number }>()
+    expect(counts).toEqual({ merchants: 1, subscriptions: 1, trials: 1 })
+  })
+
   it('rolls back the entire graph when a slug is already owned', async () => {
     const denied = await runMerchant(
       Effect.flatMap(MerchantOnboarding, (onboarding) =>
-        Effect.flip(onboarding.complete('usr_live_other', input))
+        Effect.flip(
+          onboarding.complete('usr_live_other', {
+            ...input,
+            idempotencyKey: 'onboarding_live_other'
+          })
+        )
       )
     )
     expect(denied.reason).toBe('slug_unavailable')
