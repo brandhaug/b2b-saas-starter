@@ -1,7 +1,7 @@
 # Deliver Customer Directory Foundations
 
 Type: task
-Status: resolved
+Status: in-progress
 Blocked by: 25
 
 ## Question
@@ -71,3 +71,9 @@ relational observations and Appointment associations and persist immutable attri
 history. This ticket provides privacy-minimal export data and retention protection
 inputs; issue 36 owns encrypted asynchronous artifacts and audit/cleanup, while issue
 37 owns verified erasure, suppression fingerprints, holds, and snapshot anonymization.
+
+Post-implementation review reopened this ticket pending removal of the Live adapter's
+JSON shadow authority, database-enforced optimistic concurrency, and collision-safe
+multi-Appointment association. Duplicate suggestions and merged aggregate status now
+survive Live hydration, but these remaining persistence guarantees must be closed
+before the slice is resolved.

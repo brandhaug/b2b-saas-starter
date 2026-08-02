@@ -8,6 +8,7 @@ import {
   customerContacts,
   customerDirectoryStates,
   customerDirectoryHistory,
+  customerDuplicateSuggestions,
   customerObservations,
   customerRecords,
   type BatchStatement
@@ -64,7 +65,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
       )
       const ensure = (merchantId: string) =>
         Effect.gen(function* () {
-          const [states, records, contacts, observations, bans, histories] =
+          const [states, records, contacts, observations, bans, histories, duplicates] =
             yield* Effect.all([
               orUnavailable('customer-directory')(
                 db
@@ -101,6 +102,12 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   .select()
                   .from(customerDirectoryHistory)
                   .where(eq(customerDirectoryHistory.merchantId, merchantId))
+              ),
+              orUnavailable('customer-directory')(
+                db
+                  .select()
+                  .from(customerDuplicateSuggestions)
+                  .where(eq(customerDuplicateSuggestions.merchantId, merchantId))
               )
             ])
           const state = states[0]?.stateJson
@@ -162,11 +169,13 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
               id: row.id,
               merchantId,
               status:
-                row.status === 'erased'
-                  ? 'erased'
-                  : row.status === 'quarantined'
-                    ? 'archived'
-                    : 'active',
+                persisted?.status === 'merged'
+                  ? 'merged'
+                  : row.status === 'erased'
+                    ? 'erased'
+                    : row.status === 'quarantined'
+                      ? 'archived'
+                      : 'active',
               displayName: row.displayName,
               preferredEmail:
                 recordContacts.find(
@@ -194,7 +203,14 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
               notes: persisted?.notes ?? [],
               consent: persisted?.consent ?? [],
               ban: bans.find((ban) => ban.customerRecordId === row.id) ?? null,
-              possibleDuplicateOf: persisted?.possibleDuplicateOf ?? [],
+              possibleDuplicateOf: [
+                ...new Set([
+                  ...(persisted?.possibleDuplicateOf ?? []),
+                  ...duplicates
+                    .filter((item) => item.customerRecordId === row.id)
+                    .map((item) => item.possibleDuplicateId)
+                ])
+              ],
               mergedInto: persisted?.mergedInto ?? null,
               revision: row.revision,
               lastActivityAt: row.lastActivityAt,
