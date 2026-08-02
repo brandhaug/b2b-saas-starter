@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import type { ScheduleRule } from '@b2b-saas-starter/capabilities/scheduling'
+import { isPostalCodeRequired } from '@b2b-saas-starter/capabilities/scheduling'
 import {
   addBlockedTime,
   changeShopTimezone,
@@ -423,7 +424,7 @@ function ActivationJourney({
           <label key={key} className="grid gap-1 text-xs font-medium">
             {key.replace(/([A-Z])/g, ' $1')}
             <input
-              required
+              required={key !== 'postalCode' || isPostalCodeRequired(business.country)}
               value={value}
               onChange={(event) =>
                 setBusiness((current) => ({ ...current, [key]: event.target.value }))

@@ -426,18 +426,30 @@ export const deriveControlledAvailability = (input: {
   readonly timezone: string
   readonly serviceDurationMinutes: number
   readonly now: string
+  readonly from?: string
+  readonly days?: number
   readonly controls: AvailabilityControls
   readonly occupied?: readonly OccupiedInterval[]
 }): Availability => {
   const now = new Date(input.now)
-  const startDate = localDate(now, input.timezone)
-  const latestDate = addCalendarDays(startDate, input.controls.bookingHorizonDays)
+  const horizonStartDate = localDate(now, input.timezone)
+  const requestedStart = input.from ? new Date(input.from) : now
+  const startDate = localDate(requestedStart, input.timezone)
+  const horizonEndDate = addCalendarDays(
+    horizonStartDate,
+    input.controls.bookingHorizonDays
+  )
+  const requestedDays = Math.max(1, input.days ?? input.controls.bookingHorizonDays + 1)
+  const latestDate = [
+    addCalendarDays(startDate, requestedDays - 1),
+    horizonEndDate
+  ].sort()[0]!
   const earliest = now.getTime() + input.controls.minimumNoticeMinutes * 60_000
   const before = input.controls.beforeBufferMinutes ?? 0
   const after = input.controls.afterBufferMinutes ?? 0
   const conflicts = [...(input.occupied ?? []), ...(input.controls.blocked ?? [])]
   const slots: Array<{ startsAt: string; endsAt: string }> = []
-  for (let offset = 0; offset <= input.controls.bookingHorizonDays; offset++) {
+  for (let offset = 0; offset < requestedDays; offset++) {
     const date = addCalendarDays(startDate, offset)
     if (date > latestDate) break
     const exception = input.controls.exceptions?.find((item) => item.localDate === date)

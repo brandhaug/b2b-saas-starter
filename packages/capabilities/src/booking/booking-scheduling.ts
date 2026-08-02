@@ -9,11 +9,15 @@ import {
   bookingRequestServices,
   bookingSessionAdditionalServices,
   bookingSessions,
+  blockedTimes,
   Database,
+  merchantActivationStates,
+  merchantSubscriptions,
   merchants,
   providers,
   providerServiceEligibility,
   scheduleRules,
+  scheduleExceptions,
   services,
   shopProviders,
   shopServices,
@@ -26,7 +30,11 @@ import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import type { SeedBookingScenario } from '../merchant-catalog/merchant-onboarding.ts'
-import { deriveSlots, type ScheduleRule } from '../scheduling/scheduling.ts'
+import {
+  deriveControlledAvailability,
+  type AvailabilityControls,
+  type ScheduleRule
+} from '../scheduling/scheduling.ts'
 import type {
   ProviderPreference,
   SeedBookingSelectionStore
@@ -159,6 +167,8 @@ type SchedulingService = {
   readonly currency: string
   readonly durationMinutes: number
   readonly status: 'active' | 'inactive'
+  readonly beforeBufferMinutes: number
+  readonly afterBufferMinutes: number
 }
 type Conflict = {
   readonly providerId: string
@@ -180,6 +190,8 @@ type SchedulingInputs = {
   readonly rules: readonly ScheduleRule[]
   readonly appointments: readonly Conflict[]
   readonly holds: readonly Conflict[]
+  readonly controls: AvailabilityControls
+  readonly subscriptionAccess: boolean
 }
 
 type StoredHold = TimeSlotHold & {
@@ -365,27 +377,37 @@ const providerSlots = (
   input: SchedulingInputs,
   providerId: string,
   durationMinutes: number,
+  beforeBufferMinutes: number,
+  afterBufferMinutes: number,
   from: string,
   days: number,
   now: string,
   sessionId: string
 ): readonly BookingTimeSlot[] => {
+  if (!input.subscriptionAccess) return []
   const conflicts = [
     ...input.appointments,
     ...input.holds.filter(
       (hold) => hold.expiresAt! > now && hold.bookingSessionId !== sessionId
     )
   ].filter((conflict) => conflict.providerId === providerId)
-  return deriveSlots(
-    input.rules.filter((rule) => rule.providerId === providerId),
-    input.timezone,
-    durationMinutes,
+  return deriveControlledAvailability({
+    rules: input.rules.filter((rule) => rule.providerId === providerId),
+    timezone: input.timezone,
+    serviceDurationMinutes: durationMinutes,
+    now,
     from,
-    days
-  ).slots.filter(
+    days,
+    controls: {
+      ...input.controls,
+      beforeBufferMinutes,
+      afterBufferMinutes
+    },
+    occupied: conflicts
+  }).slots.filter(
     (slot) =>
       Date.parse(slot.startsAt) > Date.parse(now) &&
-      !conflicts.some((conflict) => overlap(slot, conflict))
+      Date.parse(slot.startsAt) >= Date.parse(from)
   )
 }
 
@@ -401,12 +423,22 @@ const candidates = (
     (total, service) => total + service.durationMinutes,
     0
   )
+  const beforeBufferMinutes = Math.max(
+    0,
+    ...selected.map((service) => service.beforeBufferMinutes)
+  )
+  const afterBufferMinutes = Math.max(
+    0,
+    ...selected.map((service) => service.afterBufferMinutes)
+  )
   const slots = new Map<string, BookingTimeSlot>()
   for (const provider of providers) {
     for (const slot of providerSlots(
       input,
       provider.id,
       durationMinutes,
+      beforeBufferMinutes,
+      afterBufferMinutes,
       range.from,
       range.days,
       range.now,
@@ -461,10 +493,26 @@ const providersAvailableForSlot = (
     (sum, service) => sum + service.durationMinutes,
     0
   )
+  const beforeBufferMinutes = Math.max(
+    0,
+    ...generated.selected.map((service) => service.beforeBufferMinutes)
+  )
+  const afterBufferMinutes = Math.max(
+    0,
+    ...generated.selected.map((service) => service.afterBufferMinutes)
+  )
   return generated.providers.filter((provider) =>
-    providerSlots(input, provider.id, duration, slot.startsAt, 1, now, sessionId).some(
-      (candidate) => candidate.startsAt === slot.startsAt
-    )
+    providerSlots(
+      input,
+      provider.id,
+      duration,
+      beforeBufferMinutes,
+      afterBufferMinutes,
+      slot.startsAt,
+      1,
+      now,
+      sessionId
+    ).some((candidate) => candidate.startsAt === slot.startsAt)
   )
 }
 
@@ -541,9 +589,15 @@ const seedInputs = (
     providers: scenario.providers.filter((provider) =>
       store.selections.shopProviders.has(`${selection.shopId}\0${provider.id}`)
     ),
-    services: scenario.services.filter((service) =>
-      store.selections.shopServices.has(`${selection.shopId}\0${service.id}`)
-    ),
+    services: scenario.services
+      .filter((service) =>
+        store.selections.shopServices.has(`${selection.shopId}\0${service.id}`)
+      )
+      .map((service) => ({
+        ...service,
+        beforeBufferMinutes: 0,
+        afterBufferMinutes: 0
+      })),
     eligibility: new Set(
       scenario.eligibility.map((pair) =>
         eligibilityKey(pair.providerId, pair.serviceId)
@@ -553,7 +607,13 @@ const seedInputs = (
     appointments: scenario.appointments
       .filter((appointment) => appointment.status === 'scheduled')
       .map((appointment) => appointment),
-    holds: [...store.holds.values()]
+    holds: [...store.holds.values()],
+    controls: {
+      startTimeIntervalMinutes: 15,
+      minimumNoticeMinutes: 0,
+      bookingHorizonDays: BOOKING_AVAILABILITY_HORIZON_DAYS
+    },
+    subscriptionAccess: true
   })
 }
 
@@ -753,7 +813,11 @@ const liveInputs = (
       ruleRows,
       additionalRows,
       appointmentRows,
-      holdRows
+      holdRows,
+      activationRows,
+      exceptionRows,
+      blockedRows,
+      subscriptionRows
     ] = yield* Effect.all([
       orUnavailable('booking-scheduling')(
         db
@@ -779,7 +843,8 @@ const liveInputs = (
             priceMinor: services.priceMinor,
             currency: services.currency,
             durationMinutes: services.durationMinutes,
-            status: services.status
+            status: services.status,
+            bookingConfigJson: services.bookingConfigJson
           })
           .from(services)
           .innerJoin(shopServices, eq(shopServices.serviceId, services.id))
@@ -829,8 +894,42 @@ const liveInputs = (
           .select()
           .from(timeSlotHolds)
           .where(eq(timeSlotHolds.merchantId, row.merchantId))
+      ),
+      orUnavailable('booking-scheduling')(
+        db
+          .select({ bookingPoliciesJson: merchantActivationStates.bookingPoliciesJson })
+          .from(merchantActivationStates)
+          .where(eq(merchantActivationStates.merchantId, row.merchantId))
+          .limit(1)
+      ),
+      orUnavailable('booking-scheduling')(
+        db
+          .select()
+          .from(scheduleExceptions)
+          .where(eq(scheduleExceptions.merchantId, row.merchantId))
+      ),
+      orUnavailable('booking-scheduling')(
+        db
+          .select()
+          .from(blockedTimes)
+          .where(eq(blockedTimes.merchantId, row.merchantId))
+      ),
+      orUnavailable('booking-scheduling')(
+        db
+          .select({ status: merchantSubscriptions.status })
+          .from(merchantSubscriptions)
+          .where(eq(merchantSubscriptions.merchantId, row.merchantId))
+          .limit(1)
       )
     ])
+    const policies = activationRows[0]?.bookingPoliciesJson as
+      | {
+          minimumNoticeMinutes?: number
+          bookingHorizonDays?: number
+          startTimeIntervalMinutes?: 5 | 10 | 15 | 30
+        }
+      | null
+      | undefined
     return {
       merchantId: row.merchantId,
       shopId: row.shopId,
@@ -842,13 +941,46 @@ const liveInputs = (
       primaryServiceId: row.primaryServiceId,
       additionalServiceIds: additionalRows.map((item) => item.serviceId),
       providers: providerRows,
-      services: serviceRows,
+      services: serviceRows.map(({ bookingConfigJson, ...service }) => ({
+        ...service,
+        beforeBufferMinutes:
+          typeof bookingConfigJson?.beforeBufferMinutes === 'number'
+            ? bookingConfigJson.beforeBufferMinutes
+            : 0,
+        afterBufferMinutes:
+          typeof bookingConfigJson?.afterBufferMinutes === 'number'
+            ? bookingConfigJson.afterBufferMinutes
+            : 0
+      })),
       eligibility: new Set(
         eligibilityRows.map((pair) => eligibilityKey(pair.providerId, pair.serviceId))
       ),
       rules: ruleRows,
       appointments: appointmentRows,
-      holds: holdRows
+      holds: holdRows,
+      controls: {
+        startTimeIntervalMinutes: policies?.startTimeIntervalMinutes ?? 15,
+        minimumNoticeMinutes: policies?.minimumNoticeMinutes ?? 120,
+        bookingHorizonDays: policies?.bookingHorizonDays ?? 60,
+        exceptions: exceptionRows.map((exception) => ({
+          localDate: exception.localDate,
+          kind: exception.kind,
+          intervals:
+            exception.kind === 'closed'
+              ? []
+              : (JSON.parse(exception.intervalsJson) as Array<{
+                  startTime: string
+                  endTime: string
+                }>)
+        })),
+        blocked: blockedRows.map((blocked) => ({
+          startsAt: blocked.startsAt,
+          endsAt: blocked.endsAt
+        }))
+      },
+      subscriptionAccess: ['trialing', 'active', 'grace'].includes(
+        subscriptionRows[0]?.status ?? ''
+      )
     }
   })
 
@@ -971,6 +1103,8 @@ const liveHoldParty = (
           AND NOT EXISTS (SELECT 1 FROM candidates a JOIN candidates b ON a.id < b.id AND a.provider_id = b.provider_id AND a.starts_at < b.ends_at AND a.ends_at > b.starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN time_slot_holds h ON h.provider_id = c2.provider_id AND h.expires_at > ? AND h.booking_session_id <> c2.booking_session_id AND h.starts_at < c2.ends_at AND h.ends_at > c2.starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN appointments a ON a.provider_id = c2.provider_id AND a.status = 'scheduled' AND a.starts_at < c2.ends_at AND a.ends_at > c2.starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN blocked_times b ON b.merchant_id = c2.merchant_id AND b.provider_id = c2.provider_id AND b.starts_at < c2.ends_at AND b.ends_at > c2.starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 WHERE NOT EXISTS (SELECT 1 FROM merchant_subscriptions s WHERE s.merchant_id = c2.merchant_id AND s.status IN ('trialing', 'active', 'grace')))
           AND EXISTS (SELECT 1 FROM booking_requests r JOIN booking_parties p ON p.id = r.booking_party_id WHERE r.id = c.booking_request_id AND p.booking_session_id = c.booking_session_id AND p.lifecycle = 'active')`,
       params: [...params, candidateRows.length, command.now]
     }
@@ -1139,10 +1273,6 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
               (candidate) => candidate.startsAt === command.startsAt
             )
             if (!slot) return yield* failure('slot_lost')
-            const duration = generated.selected.reduce(
-              (sum, service) => sum + service.durationMinutes,
-              0
-            )
             const providersForSlot = providersAvailableForSlot(
               input,
               generated,
@@ -1160,18 +1290,6 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 now: command.now
               })
               const { id, createdAt, expiresAt, quote } = stored
-              const matchingRule = input.rules.find(
-                (rule) =>
-                  rule.providerId === provider.id &&
-                  deriveSlots(
-                    [rule],
-                    input.timezone,
-                    duration,
-                    command.startsAt,
-                    1
-                  ).slots.some((candidate) => candidate.startsAt === slot.startsAt)
-              )
-              if (!matchingRule) continue
               const catalogChecks = [
                 `EXISTS (
                   SELECT 1 FROM booking_sessions
@@ -1209,9 +1327,8 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                     AND providers.display_name = ?
                 )`,
                 `EXISTS (
-                  SELECT 1 FROM schedule_rules
-                  WHERE id = ? AND merchant_id = ? AND provider_id = ?
-                    AND weekday = ? AND start_time = ? AND end_time = ?
+                  SELECT 1 FROM merchant_subscriptions
+                  WHERE merchant_id = ? AND status IN ('trialing', 'active', 'grace')
                 )`,
                 ...generated.selected.map(
                   () => `EXISTS (
@@ -1227,6 +1344,8 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                       AND services.status = 'active' AND services.name = ?
                       AND services.duration_minutes = ?
                       AND services.price_minor = ? AND services.currency = ?
+                      AND COALESCE(json_extract(services.booking_config_json, '$.beforeBufferMinutes'), 0) = ?
+                      AND COALESCE(json_extract(services.booking_config_json, '$.afterBufferMinutes'), 0) = ?
                   )`
                 )
               ]
@@ -1252,12 +1371,7 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 input.merchantId,
                 input.shopId,
                 provider.displayName,
-                matchingRule.id,
                 input.merchantId,
-                provider.id,
-                matchingRule.weekday,
-                matchingRule.startTime,
-                matchingRule.endTime,
                 ...generated.selected.flatMap((service) => [
                   provider.id,
                   service.id,
@@ -1266,7 +1380,9 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                   service.name,
                   service.durationMinutes,
                   service.priceMinor,
-                  service.currency
+                  service.currency,
+                  service.beforeBufferMinutes,
+                  service.afterBufferMinutes
                 ])
               ]
               const insertQuery = {
@@ -1281,6 +1397,10 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                            SELECT 1 FROM time_slot_holds
                            WHERE provider_id = ? AND expires_at > ?
                              AND booking_session_id <> ?
+                             AND starts_at < ? AND ends_at > ?
+                         ) AND NOT EXISTS (
+                           SELECT 1 FROM blocked_times
+                           WHERE merchant_id = ? AND provider_id = ?
                              AND starts_at < ? AND ends_at > ?
                          )`,
                 params: [
@@ -1302,7 +1422,29 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                   command.now,
                   session.id,
                   slot.endsAt,
-                  slot.startsAt
+                  slot.startsAt,
+                  input.merchantId,
+                  provider.id,
+                  new Date(
+                    Date.parse(slot.endsAt) +
+                      Math.max(
+                        0,
+                        ...generated.selected.map(
+                          (service) => service.afterBufferMinutes
+                        )
+                      ) *
+                        60_000
+                  ).toISOString(),
+                  new Date(
+                    Date.parse(slot.startsAt) -
+                      Math.max(
+                        0,
+                        ...generated.selected.map(
+                          (service) => service.beforeBufferMinutes
+                        )
+                      ) *
+                        60_000
+                  ).toISOString()
                 ]
               } satisfies CompiledBatchQuery
               const removePreviousQuery = {

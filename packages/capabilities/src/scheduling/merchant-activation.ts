@@ -49,6 +49,65 @@ export const launchBookingPolicies: BookingPolicies = {
 export const validateBookingPolicies = (policies: BookingPolicies): boolean =>
   policies.minimumNoticeMinutes < policies.bookingHorizonDays * 24 * 60
 
+const countriesWithoutPostalCodes = new Set([
+  'AE',
+  'AO',
+  'BS',
+  'BZ',
+  'BJ',
+  'BW',
+  'BF',
+  'BI',
+  'CM',
+  'CF',
+  'KM',
+  'CG',
+  'CD',
+  'CI',
+  'DJ',
+  'DM',
+  'GQ',
+  'ER',
+  'FJ',
+  'GA',
+  'GM',
+  'GH',
+  'GD',
+  'GN',
+  'GY',
+  'HK',
+  'JM',
+  'KI',
+  'LY',
+  'MO',
+  'MW',
+  'ML',
+  'MR',
+  'MU',
+  'NR',
+  'QA',
+  'RW',
+  'KN',
+  'LC',
+  'SC',
+  'SL',
+  'SB',
+  'SO',
+  'SR',
+  'SY',
+  'TL',
+  'TG',
+  'TO',
+  'TT',
+  'TV',
+  'UG',
+  'VU',
+  'YE',
+  'ZW'
+])
+export const isPostalCodeRequired = (country: string): boolean =>
+  !countriesWithoutPostalCodes.has(country.trim().toUpperCase())
+
 export type ActivationFacts = {
   readonly businessDetailsComplete: boolean
   readonly ownerProviderConfirmed: boolean
@@ -354,7 +413,9 @@ SELECT
     AND json_extract(sa.address_json, '$.country') IS NOT NULL
     AND COALESCE(json_extract(sa.address_json, '$.line1'), json_extract(sa.address_json, '$.street')) IS NOT NULL
     AND COALESCE(json_extract(sa.address_json, '$.locality'), json_extract(sa.address_json, '$.city')) IS NOT NULL
-    AND json_extract(sa.address_json, '$.postalCode') IS NOT NULL
+    AND (upper(json_extract(sa.address_json, '$.country')) IN
+      ('AE','AO','BS','BZ','BJ','BW','BF','BI','CM','CF','KM','CG','CD','CI','DJ','DM','GQ','ER','FJ','GA','GM','GH','GD','GN','GY','HK','JM','KI','LY','MO','MW','ML','MR','MU','NR','QA','RW','KN','LC','SC','SL','SB','SO','SR','SY','TL','TG','TO','TT','TV','UG','VU','YE','ZW')
+      OR length(trim(COALESCE(json_extract(sa.address_json, '$.postalCode'),'')))>0)
     AND COALESCE(json_extract(sa.address_json, '$.publicPhone'), json_extract(sa.address_json, '$.phone')) IS NOT NULL
     AND length(trim(sh.timezone)) > 0 THEN 1 ELSE 0 END AS business_details_complete,
   CASE WHEN mas.owner_provider_confirmed_at IS NOT NULL AND EXISTS (
@@ -368,7 +429,11 @@ SELECT
     WHERE s.merchant_id = m.id AND s.status = 'active' AND p.status = 'active'
       AND p.is_default = 1
   ) THEN 1 ELSE 0 END AS active_eligible_service,
-  CASE WHEN EXISTS (SELECT 1 FROM schedule_rules sr WHERE sr.merchant_id = m.id)
+  CASE WHEN EXISTS (SELECT 1 FROM schedule_rules sr
+    JOIN providers p ON p.id=sr.provider_id AND p.merchant_id=sr.merchant_id
+    WHERE sr.merchant_id = m.id AND p.status='active' AND p.is_default=1
+      AND EXISTS (SELECT 1 FROM provider_service_eligibility pse JOIN services s ON s.id=pse.service_id
+        WHERE pse.provider_id=p.id AND pse.merchant_id=m.id AND s.status='active'))
     THEN 1 ELSE 0 END AS explicit_weekly_hours,
   CASE WHEN mas.exception_review_confirmed_at IS NOT NULL THEN 1 ELSE 0 END AS exception_reviewed,
   CASE WHEN mas.policies_confirmed_at IS NOT NULL AND mas.booking_policies_json IS NOT NULL
@@ -399,7 +464,9 @@ SELECT
       ON pse.service_id=s.id JOIN providers p ON p.id=pse.provider_id
       WHERE s.merchant_id=m.id AND s.status='active' AND p.status='active')
     AND EXISTS (SELECT 1 FROM schedule_rules sr JOIN providers p ON p.id=sr.provider_id
-      WHERE sr.merchant_id=m.id AND p.status='active') THEN 1 ELSE 0 END AS booking_readiness
+      WHERE sr.merchant_id=m.id AND p.status='active' AND EXISTS (
+        SELECT 1 FROM provider_service_eligibility pse JOIN services s ON s.id=pse.service_id
+        WHERE pse.provider_id=p.id AND pse.merchant_id=m.id AND s.status='active')) THEN 1 ELSE 0 END AS booking_readiness
 FROM merchants m
 LEFT JOIN shops sh ON sh.merchant_id=m.id
 LEFT JOIN shop_addresses sa ON sa.shop_id=sh.id
@@ -569,10 +636,12 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
             input.country,
             input.line1,
             input.locality,
-            input.postalCode,
             input.publicPhone
           ]
-          if (required.some((value) => !value.trim()))
+          if (
+            required.some((value) => !value.trim()) ||
+            (isPostalCodeRequired(input.country) && !input.postalCode.trim())
+          )
             return yield* Effect.fail(
               unavailable('Every required Business Details field must be supplied.')
             )
@@ -798,12 +867,15 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
                    AND json_extract(sa.address_json,'$.country') IS NOT NULL
                    AND COALESCE(json_extract(sa.address_json,'$.line1'),json_extract(sa.address_json,'$.street')) IS NOT NULL
                    AND COALESCE(json_extract(sa.address_json,'$.locality'),json_extract(sa.address_json,'$.city')) IS NOT NULL
-                   AND json_extract(sa.address_json,'$.postalCode') IS NOT NULL
+                   AND (upper(json_extract(sa.address_json,'$.country')) IN
+                     ('AE','AO','BS','BZ','BJ','BW','BF','BI','CM','CF','KM','CG','CD','CI','DJ','DM','GQ','ER','FJ','GA','GM','GH','GD','GN','GY','HK','JM','KI','LY','MO','MW','ML','MR','MU','NR','QA','RW','KN','LC','SC','SL','SB','SO','SR','SY','TL','TG','TO','TT','TV','UG','VU','YE','ZW')
+                     OR length(trim(COALESCE(json_extract(sa.address_json,'$.postalCode'),'')))>0)
                    AND COALESCE(json_extract(sa.address_json,'$.publicPhone'),json_extract(sa.address_json,'$.phone')) IS NOT NULL
-                   AND EXISTS (SELECT 1 FROM services s JOIN provider_service_eligibility pse ON pse.service_id=s.id
-                     JOIN providers p ON p.id=pse.provider_id WHERE s.merchant_id=m.id AND s.status='active'
-                       AND p.status='active' AND p.is_default=1)
-                   AND EXISTS (SELECT 1 FROM schedule_rules sr WHERE sr.merchant_id=m.id)
+                   AND EXISTS (SELECT 1 FROM schedule_rules sr
+                     JOIN providers p ON p.id=sr.provider_id AND p.merchant_id=sr.merchant_id
+                     JOIN provider_service_eligibility pse ON pse.provider_id=p.id AND pse.merchant_id=p.merchant_id
+                     JOIN services s ON s.id=pse.service_id AND s.merchant_id=p.merchant_id
+                     WHERE sr.merchant_id=m.id AND p.status='active' AND p.is_default=1 AND s.status='active')
                    AND EXISTS (SELECT 1 FROM transactional_email_evidence tee WHERE tee.merchant_id=m.id
                      AND tee.purpose='owner_activation_test' AND tee.status IN ('captured','accepted','delivered'))
                ) AND EXISTS (SELECT 1 FROM merchant_subscriptions ms WHERE ms.merchant_id=?
