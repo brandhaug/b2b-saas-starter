@@ -3,7 +3,8 @@ import { Effect } from 'effect'
 import {
   MerchantSubscriptions,
   SeedMerchantSubscriptions,
-  emptySeedMerchantSubscriptionStore
+  emptySeedMerchantSubscriptionStore,
+  subscriptionEvidenceFromProviderEvent
 } from './merchant-subscriptions.ts'
 
 const run = <A, E>(effect: Effect.Effect<A, E, MerchantSubscriptions>) =>
@@ -12,6 +13,23 @@ const run = <A, E>(effect: Effect.Effect<A, E, MerchantSubscriptions>) =>
 let store: ReturnType<typeof emptySeedMerchantSubscriptionStore>
 
 describe('MerchantSubscriptions', () => {
+  it('classifies cancellation changes before the unchanged subscription price', () => {
+    expect(
+      subscriptionEvidenceFromProviderEvent({
+        merchantId: 'mer_1',
+        eventId: 'evt_cancel',
+        eventType: 'customer.subscription.updated',
+        occurredAt: '2026-08-02T12:00:00.000Z',
+        providerCustomerRef: 'cus_1',
+        providerSubscriptionRef: 'sub_1',
+        actualPriceId: 'price_monthly',
+        monthlyPriceId: 'price_monthly',
+        annualPriceId: 'price_annual',
+        cancelAtPeriodEnd: true
+      })?.kind
+    ).toBe('subscription-cancel-scheduled')
+  })
+
   it('creates one idempotent fourteen-day no-card Solo trial', async () => {
     store = emptySeedMerchantSubscriptionStore()
     const input = {
