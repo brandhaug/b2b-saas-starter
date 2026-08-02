@@ -385,6 +385,64 @@ export const operationsNotificationIntents = sqliteTable(
   ]
 )
 
+export const transactionalEmailEvidence = sqliteTable(
+  'transactional_email_evidence',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    ownerUserId: text('owner_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    purpose: text('purpose', { enum: ['owner_activation_test'] }).notNull(),
+    locale: text('locale', { enum: ['ro', 'en'] }).notNull(),
+    templateKey: text('template_key').notNull(),
+    maskedDestination: text('masked_destination').notNull(),
+    senderIdentity: text('sender_identity').notNull(),
+    providerReferenceFingerprint: text('provider_reference_fingerprint').unique(),
+    status: text('status', {
+      enum: [
+        'submitting',
+        'captured',
+        'accepted',
+        'delivered',
+        'failed',
+        'submission_unknown'
+      ]
+    }).notNull(),
+    failureCode: text('failure_code'),
+    attemptedAt: text('attempted_at').notNull(),
+    attemptCount: integer('attempt_count').default(1).notNull(),
+    retryable: integer('retryable', { mode: 'boolean' }).default(false).notNull(),
+    acceptedAt: text('accepted_at'),
+    deliveredAt: text('delivered_at'),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('transactional_email_evidence_readiness_idx').on(
+      table.merchantId,
+      table.purpose,
+      table.status
+    )
+  ]
+)
+
+export const transactionalEmailCallbackReceipts = sqliteTable(
+  'transactional_email_callback_receipts',
+  {
+    eventId: text('event_id').primaryKey(),
+    evidenceId: text('evidence_id').references(() => transactionalEmailEvidence.id, {
+      onDelete: 'set null'
+    }),
+    outcome: text('outcome', {
+      enum: ['pending', 'applied', 'ignored_unknown_submission']
+    }).notNull(),
+    receivedAt: text('received_at').notNull()
+  }
+)
+
 export const account = sqliteTable(
   'account',
   {

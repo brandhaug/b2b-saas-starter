@@ -14,6 +14,11 @@ import {
   makeD1MetaReferenceProtector,
   makeMetaWhatsAppSubmission
 } from './notifications/meta-whatsapp.ts'
+import {
+  makeConfiguredTransactionalEmailProvider,
+  makeLiveTransactionalEmailLayer,
+  selectTransactionalEmailProvider
+} from './notifications/transactional-email.ts'
 export { SeedLayer, type CapabilitiesLayer, type CapabilityServices } from './layers.ts'
 export { CapabilityUnavailable } from './errors.ts'
 
@@ -39,6 +44,65 @@ export type BookingProductEnv = {
   readonly META_WHATSAPP_REFERENCE_ENCRYPTION_KEY?: string | undefined
   readonly META_WHATSAPP_REFERENCE_FINGERPRINT_KEY?: string | undefined
   readonly META_WHATSAPP_REFERENCE_KEY_VERSION?: string | undefined
+  readonly EMAIL?:
+    | {
+        readonly send: (message: {
+          readonly idempotencyKey?: string
+          readonly from: string
+          readonly to: string | readonly string[]
+          readonly subject: string
+          readonly text?: string
+          readonly html?: string
+        }) => Promise<unknown>
+      }
+    | undefined
+  readonly CLOUDFLARE_EMAIL_FROM?: string | undefined
+  readonly TRANSACTIONAL_EMAIL_SENDER_VERIFIED?: string | undefined
+  readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string | undefined
+  readonly TRANSACTIONAL_EMAIL_DISABLED?: string | undefined
+}
+
+export const makeTransactionalEmailCapabilityLayer = (
+  env: BookingProductEnv & {
+    readonly ENVIRONMENT?: string | undefined
+  }
+) => {
+  const runtime =
+    env.ENVIRONMENT === 'test'
+      ? ('test' as const)
+      : env.ENVIRONMENT === 'development'
+        ? ('local' as const)
+        : env.ENVIRONMENT === 'preview'
+          ? ('preview' as const)
+          : ('production' as const)
+  const configured = Boolean(
+    env.EMAIL &&
+    env.CLOUDFLARE_EMAIL_FROM?.trim() &&
+    env.TRANSACTIONAL_EMAIL_SENDER_VERIFIED === 'true' &&
+    env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET?.trim()
+  )
+  const provider = selectTransactionalEmailProvider({
+    runtime,
+    disabled: env.TRANSACTIONAL_EMAIL_DISABLED === 'true',
+    ...(configured
+      ? {
+          provider: makeConfiguredTransactionalEmailProvider({
+            sender: env.CLOUDFLARE_EMAIL_FROM!,
+            callbackSecret: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET!,
+            send: async (message) => {
+              await env.EMAIL!.send(message)
+              return {
+                providerSubmissionId: message.idempotencyKey,
+                acceptedAt: new Date().toISOString()
+              }
+            }
+          })
+        }
+      : {})
+  })
+  return makeLiveTransactionalEmailLayer(provider).pipe(
+    Layer.provide(layerFromD1(env.DB))
+  )
 }
 
 export const selectCapabilitiesLayer = (

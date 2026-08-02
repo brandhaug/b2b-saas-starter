@@ -14,6 +14,9 @@ export type ApiEnv = RateLimitBindings & {
   readonly META_WHATSAPP_REFERENCE_FINGERPRINT_KEY?: string
   readonly SMSO_CALLBACK_PATH_SECRET?: string
   readonly SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
+  readonly CLOUDFLARE_EMAIL_FROM?: string
+  readonly TRANSACTIONAL_EMAIL_SENDER_VERIFIED?: string
+  readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string
 }
 
 // Module-aware env validation (ADR 0035): derive module config status from
