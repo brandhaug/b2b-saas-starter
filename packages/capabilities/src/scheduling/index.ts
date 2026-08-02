@@ -13,7 +13,10 @@ export {
   SeedScheduling,
   deriveBookingReadiness,
   deriveSlots,
+  civilTimeInstants,
+  deriveControlledAvailability,
   emptySeedSchedulingStore,
   readBookingReadiness
 } from './scheduling.ts'
-export type { SeedSchedulingStore } from './scheduling.ts'
+export type { AvailabilityControls, SeedSchedulingStore } from './scheduling.ts'
+export * from './merchant-activation.ts'

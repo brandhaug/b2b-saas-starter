@@ -259,6 +259,127 @@ const zonedInstant = (date: string, time: string, timezone: string): Date => {
   return new Date(candidate)
 }
 
+const localParts = (instant: Date, timezone: string) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'shortOffset'
+  }).formatToParts(instant)
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ''
+  return {
+    date: `${read('year')}-${read('month')}-${read('day')}`,
+    time: `${read('hour')}:${read('minute')}`,
+    offset: read('timeZoneName')
+  }
+}
+
+/** Returns zero instants for a DST gap and both instants for a DST fold. */
+export const civilTimeInstants = (
+  date: string,
+  time: string,
+  timezone: string
+): readonly Date[] => {
+  const nominal = Date.parse(`${date}T${time}:00.000Z`)
+  if (!Number.isFinite(nominal)) return []
+  const matches: Date[] = []
+  for (let delta = -14 * 60; delta <= 14 * 60; delta++) {
+    const candidate = new Date(nominal + delta * 60_000)
+    const local = localParts(candidate, timezone)
+    if (local.date === date && local.time === time) matches.push(candidate)
+  }
+  return matches
+}
+
+export type AvailabilityControls = {
+  readonly startTimeIntervalMinutes: 5 | 10 | 15 | 30
+  readonly minimumNoticeMinutes: number
+  readonly bookingHorizonDays: number
+  readonly beforeBufferMinutes?: number
+  readonly afterBufferMinutes?: number
+  readonly exceptions?: readonly {
+    readonly localDate: string
+    readonly kind: 'closed' | 'replacement_hours'
+    readonly intervals: readonly Pick<ScheduleRuleInput, 'startTime' | 'endTime'>[]
+  }[]
+  readonly blocked?: readonly OccupiedInterval[]
+}
+
+/** Civil-time availability with gaps/folds, overrides, windows, buffers and conflicts. */
+export const deriveControlledAvailability = (input: {
+  readonly rules: readonly ScheduleRule[]
+  readonly timezone: string
+  readonly serviceDurationMinutes: number
+  readonly now: string
+  readonly controls: AvailabilityControls
+  readonly occupied?: readonly OccupiedInterval[]
+}): Availability => {
+  const now = new Date(input.now)
+  const startDate = localDate(now, input.timezone)
+  const latestDate = addCalendarDays(startDate, input.controls.bookingHorizonDays)
+  const earliest = now.getTime() + input.controls.minimumNoticeMinutes * 60_000
+  const before = input.controls.beforeBufferMinutes ?? 0
+  const after = input.controls.afterBufferMinutes ?? 0
+  const conflicts = [...(input.occupied ?? []), ...(input.controls.blocked ?? [])]
+  const slots: Array<{ startsAt: string; endsAt: string }> = []
+  for (let offset = 0; offset <= input.controls.bookingHorizonDays; offset++) {
+    const date = addCalendarDays(startDate, offset)
+    if (date > latestDate) break
+    const exception = input.controls.exceptions?.find((item) => item.localDate === date)
+    if (exception?.kind === 'closed') continue
+    const weekday = new Date(`${date}T12:00:00.000Z`).getUTCDay()
+    const intervals = exception
+      ? exception.intervals
+      : input.rules.filter((rule) => rule.weekday === weekday)
+    for (const interval of intervals) {
+      const [hour, minute] = interval.startTime.split(':').map(Number) as [
+        number,
+        number
+      ]
+      const [endHour, endMinute] = interval.endTime.split(':').map(Number) as [
+        number,
+        number
+      ]
+      const intervalStartMinute = hour * 60 + minute
+      const intervalEndMinute = endHour * 60 + endMinute
+      for (
+        let localMinute = intervalStartMinute;
+        localMinute + input.serviceDurationMinutes <= intervalEndMinute;
+        localMinute += input.controls.startTimeIntervalMinutes
+      ) {
+        if (
+          localMinute - before < intervalStartMinute ||
+          localMinute + input.serviceDurationMinutes + after > intervalEndMinute
+        )
+          continue
+        const time = `${String(Math.floor(localMinute / 60)).padStart(2, '0')}:${String(localMinute % 60).padStart(2, '0')}`
+        for (const start of civilTimeInstants(date, time, input.timezone)) {
+          if (start.getTime() < earliest) continue
+          const end = new Date(start.getTime() + input.serviceDurationMinutes * 60_000)
+          const occupiedStart = new Date(
+            start.getTime() - before * 60_000
+          ).toISOString()
+          const occupiedEnd = new Date(end.getTime() + after * 60_000).toISOString()
+          if (
+            conflicts.some(
+              (item) => occupiedStart < item.endsAt && occupiedEnd > item.startsAt
+            )
+          )
+            continue
+          slots.push({ startsAt: start.toISOString(), endsAt: end.toISOString() })
+        }
+      }
+    }
+  }
+  slots.sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  return { timezone: input.timezone, slots }
+}
+
 export const deriveSlots = (
   rules: readonly ScheduleRule[],
   timezone: string,

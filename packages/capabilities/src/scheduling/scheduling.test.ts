@@ -14,6 +14,7 @@ import {
   SeedBookingPublication,
   SeedScheduling
 } from './scheduling.ts'
+import { civilTimeInstants, deriveControlledAvailability } from './scheduling.ts'
 
 const scenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
 
@@ -149,6 +150,45 @@ describe('Scheduling and Public Booking Page', () => {
       '2026-10-25T07:30:00.000Z',
       '2026-10-25T08:00:00.000Z',
       '2026-10-25T08:30:00.000Z'
+    ])
+  })
+
+  it('omits DST gaps and exposes both instants in a fold', () => {
+    expect(civilTimeInstants('2026-03-29', '03:30', 'Europe/Bucharest')).toEqual([])
+    expect(
+      civilTimeInstants('2026-10-25', '03:30', 'Europe/Bucharest').map((date) =>
+        date.toISOString()
+      )
+    ).toEqual(['2026-10-25T00:30:00.000Z', '2026-10-25T01:30:00.000Z'])
+  })
+
+  it('applies overrides, blocks, buffers, notice, horizon and a start grid', () => {
+    const result = deriveControlledAvailability({
+      rules: [
+        {
+          id: 'mon',
+          providerId: 'prv',
+          weekday: 1,
+          startTime: '09:00',
+          endTime: '11:00'
+        }
+      ],
+      timezone: 'Europe/Bucharest',
+      serviceDurationMinutes: 30,
+      now: '2026-07-12T20:00:00.000Z',
+      controls: {
+        startTimeIntervalMinutes: 15,
+        minimumNoticeMinutes: 600,
+        bookingHorizonDays: 1,
+        beforeBufferMinutes: 15,
+        afterBufferMinutes: 15,
+        blocked: [
+          { startsAt: '2026-07-13T06:35:00.000Z', endsAt: '2026-07-13T06:50:00.000Z' }
+        ]
+      }
+    })
+    expect(result.slots.map((slot) => slot.startsAt)).toEqual([
+      '2026-07-13T07:15:00.000Z'
     ])
   })
 })

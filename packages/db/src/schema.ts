@@ -3771,6 +3771,47 @@ export const blockedTimes = sqliteTable('blocked_times', {
   updatedAt: isoUpdatedAt()
 })
 
+export const merchantActivationStates = sqliteTable('merchant_activation_states', {
+  merchantId: text('merchant_id')
+    .primaryKey()
+    .references(() => merchants.id, { onDelete: 'cascade' }),
+  businessDetailsConfirmedAt: text('business_details_confirmed_at'),
+  ownerProviderConfirmedAt: text('owner_provider_confirmed_at'),
+  exceptionReviewConfirmedAt: text('exception_review_confirmed_at'),
+  bookingPoliciesJson: text('booking_policies_json', { mode: 'json' }).$type<{
+    minimumNoticeMinutes: number
+    bookingHorizonDays: number
+    cancellationCutoffHours: number
+    startTimeIntervalMinutes: 5 | 10 | 15 | 30
+    autoConfirm: true
+    paymentMethod: 'pay_in_person'
+  }>(),
+  policiesConfirmedAt: text('policies_confirmed_at'),
+  launchTestSourceRevision: text('launch_test_source_revision'),
+  launchTestPassedAt: text('launch_test_passed_at'),
+  firstActivatedAt: text('first_activated_at'),
+  revision: integer('revision').default(1).notNull(),
+  updatedAt: isoUpdatedAt()
+})
+
+export const merchantActivationHistory = sqliteTable(
+  'merchant_activation_history',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    kind: text('kind', { enum: ['launch_test_passed', 'first_published'] }).notNull(),
+    sourceRevision: text('source_revision').notNull(),
+    occurredAt: text('occurred_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('merchant_activation_first_publication_once')
+      .on(table.merchantId, table.kind)
+      .where(sql`${table.kind} = 'first_published'`)
+  ]
+)
+
 export const customerRecords = sqliteTable('customer_records', {
   id: id(),
   merchantId: text('merchant_id')
