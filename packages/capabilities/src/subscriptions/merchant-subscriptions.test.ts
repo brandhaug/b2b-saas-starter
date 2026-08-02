@@ -179,6 +179,24 @@ describe('MerchantSubscriptions', () => {
         )
       ).access
     ).toBe('restricted')
+    expect(
+      (
+        await Effect.runPromise(
+          service.reconcile({
+            merchantId: 'mer_1',
+            eventId: 'late-delivery-of-old-paid-invoice',
+            occurredAt: '2026-09-04T00:00:00.000Z',
+            kind: 'invoice-paid',
+            providerCustomerRef: 'cus',
+            providerSubscriptionRef: 'sub',
+            periodEndsAt: '2026-10-03T00:00:00.000Z',
+            priceId: 'price_solo_monthly',
+            amountMinor: 1900,
+            currency: 'EUR'
+          })
+        )
+      ).access
+    ).toBe('restricted')
     await expect(
       Effect.runPromise(
         service.recordEvidence({

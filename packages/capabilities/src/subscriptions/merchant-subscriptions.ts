@@ -7,6 +7,7 @@ import {
   merchantSubscriptionNotices,
   merchantSubscriptionPriceEvidence,
   merchantSubscriptions,
+  merchantSubscriptionUnmatchedEvents,
   merchantSubscriptionTrialClaims,
   type EffectDatabase
 } from '@b2b-saas-starter/db'
@@ -18,6 +19,107 @@ export const SOLO_PRICES = {
   monthly: { amountMinor: 1900, currency: 'EUR', excludesVat: true },
   annual: { amountMinor: 19000, currency: 'EUR', excludesVat: true }
 } as const
+
+export const subscriptionEvidenceFromProviderEvent = (input: {
+  readonly merchantId?: string | undefined
+  readonly eventId: string
+  readonly eventType: string
+  readonly occurredAt: string
+  readonly providerCustomerRef?: string | undefined
+  readonly providerSubscriptionRef?: string | undefined
+  readonly periodEndsAt?: string | undefined
+  readonly actualPriceId?: string | undefined
+  readonly monthlyPriceId?: string | undefined
+  readonly annualPriceId?: string | undefined
+  readonly currency?: string | undefined
+  readonly amount?: number | undefined
+  readonly amountRefunded?: number | undefined
+  readonly status?: string | undefined
+  readonly cancelAtPeriodEnd?: boolean | undefined
+}): SubscriptionEvidence | undefined => {
+  if (!input.merchantId || !input.providerCustomerRef || !input.providerSubscriptionRef)
+    return undefined
+  const base = {
+    merchantId: input.merchantId,
+    eventId: input.eventId,
+    occurredAt: input.occurredAt,
+    providerCustomerRef: input.providerCustomerRef,
+    providerSubscriptionRef: input.providerSubscriptionRef
+  }
+  if (input.eventType === 'checkout.session.completed')
+    return { ...base, kind: 'billing-identity-recorded' }
+  if (
+    input.eventType === 'invoice.paid' ||
+    input.eventType === 'invoice.payment_failed'
+  ) {
+    const priceId =
+      input.actualPriceId === input.monthlyPriceId
+        ? 'price_solo_monthly'
+        : input.actualPriceId === input.annualPriceId
+          ? 'price_solo_annual'
+          : undefined
+    return {
+      ...base,
+      kind:
+        input.eventType === 'invoice.paid' ? 'invoice-paid' : 'invoice-payment-failed',
+      periodEndsAt: input.periodEndsAt,
+      priceId,
+      amountMinor:
+        priceId === 'price_solo_monthly'
+          ? SOLO_PRICES.monthly.amountMinor
+          : priceId === 'price_solo_annual'
+            ? SOLO_PRICES.annual.amountMinor
+            : undefined,
+      currency: input.currency?.toUpperCase() === 'EUR' ? 'EUR' : undefined
+    }
+  }
+  if (input.eventType === 'customer.subscription.deleted')
+    return { ...base, kind: 'subscription-ended' }
+  if (input.eventType === 'charge.dispute.created')
+    return { ...base, kind: 'chargeback-opened' }
+  if (input.eventType === 'charge.dispute.closed' && input.status === 'won')
+    return { ...base, kind: 'chargeback-won' }
+  if (input.eventType === 'charge.refunded') {
+    if (
+      input.amount !== undefined &&
+      input.amountRefunded !== undefined &&
+      input.amountRefunded === input.amount
+    )
+      return undefined
+    return { ...base, kind: 'partial-refund' }
+  }
+  if (input.eventType === 'customer.subscription.updated' && input.actualPriceId) {
+    const priceId =
+      input.actualPriceId === input.monthlyPriceId
+        ? 'price_solo_monthly'
+        : input.actualPriceId === input.annualPriceId
+          ? 'price_solo_annual'
+          : undefined
+    if (priceId)
+      return {
+        ...base,
+        kind: 'interval-change-applied',
+        periodEndsAt: input.periodEndsAt,
+        priceId,
+        amountMinor:
+          priceId === 'price_solo_monthly'
+            ? SOLO_PRICES.monthly.amountMinor
+            : SOLO_PRICES.annual.amountMinor,
+        currency: 'EUR'
+      }
+  }
+  if (
+    input.eventType === 'customer.subscription.updated' &&
+    input.cancelAtPeriodEnd !== undefined
+  )
+    return {
+      ...base,
+      kind: input.cancelAtPeriodEnd
+        ? 'subscription-cancel-scheduled'
+        : 'subscription-cancel-reversed'
+    }
+  return undefined
+}
 
 export type BillingInterval = keyof typeof SOLO_PRICES
 export type SubscriptionAccess = 'trialing' | 'active' | 'grace' | 'restricted'
@@ -45,10 +147,13 @@ export type SubscriptionEvidence = {
   readonly eventId: string
   readonly occurredAt: string
   readonly kind:
+    | 'billing-identity-recorded'
     | 'invoice-paid'
     | 'invoice-payment-failed'
     | 'subscription-cancel-scheduled'
     | 'subscription-cancel-reversed'
+    | 'interval-change-scheduled'
+    | 'interval-change-applied'
     | 'subscription-ended'
     | 'chargeback-opened'
     | 'chargeback-won'
@@ -61,6 +166,7 @@ export type SubscriptionEvidence = {
   readonly amountMinor?: number | undefined
   readonly currency?: 'EUR' | undefined
   readonly refundConsequence?: 'end-access' | 'courtesy-preserve-access' | undefined
+  readonly shortenedPeriodEndsAt?: string | undefined
 }
 
 export class SubscriptionDenied extends Schema.TaggedErrorClass<SubscriptionDenied>()(
@@ -73,7 +179,8 @@ export class SubscriptionDenied extends Schema.TaggedErrorClass<SubscriptionDeni
       'unsupported_price',
       'refund_consequence_required',
       'billing_not_configured',
-      'provider_unavailable'
+      'provider_unavailable',
+      'invalid_state'
     ])
   }
 ) {}
@@ -90,11 +197,26 @@ export type SubscriptionNotice = {
     | 'grace-6-days'
     | 'restricted'
     | 'recovered'
+    | 'paid-success'
+    | 'scheduled-change'
+    | 'scheduled-change-3-days'
+    | 'scheduled-change-applied'
     | 'retention-30-days'
     | 'retention-7-days'
   readonly effectiveAt: string
   readonly cycleKey: string
 }
+
+export const subscriptionNoticeContent = (kind: SubscriptionNotice['kind']) => ({
+  heading: kind.startsWith('trial')
+    ? 'Your BeeSolo trial needs attention'
+    : kind.startsWith('retention')
+      ? 'Your BeeSolo data retention deadline is approaching'
+      : kind === 'recovered' || kind === 'paid-success'
+        ? 'Your BeeSolo subscription recovered'
+        : 'Your BeeSolo subscription needs attention',
+  message: `Subscription lifecycle notice: ${kind.replaceAll('-', ' ')}.`
+})
 
 export type MerchantSubscriptionsShape = {
   readonly startTrial: (input: {
@@ -113,9 +235,45 @@ export type MerchantSubscriptionsShape = {
   readonly reconcile: (
     evidence: SubscriptionEvidence
   ) => Effect.Effect<MerchantSubscription, SubscriptionDenied | CapabilityUnavailable>
+  readonly recordSupportRefund: (
+    evidence: SubscriptionEvidence &
+      (
+        | {
+            readonly kind: 'full-refund'
+            readonly refundConsequence: 'end-access' | 'courtesy-preserve-access'
+          }
+        | {
+            readonly kind: 'partial-refund'
+            readonly shortenedPeriodEndsAt?: string | undefined
+          }
+      )
+  ) => Effect.Effect<MerchantSubscription, SubscriptionDenied | CapabilityUnavailable>
   readonly tick: (
     now: string
   ) => Effect.Effect<readonly SubscriptionNotice[], CapabilityUnavailable>
+  readonly notices: (
+    merchantId: string
+  ) => Effect.Effect<readonly SubscriptionNotice[], CapabilityUnavailable>
+  readonly providerBacked: () => Effect.Effect<
+    readonly MerchantSubscription[],
+    CapabilityUnavailable
+  >
+  readonly pendingNoticeDeliveries: (
+    limit: number
+  ) => Effect.Effect<
+    readonly { readonly notice: SubscriptionNotice; readonly ownerEmail: string }[],
+    CapabilityUnavailable
+  >
+  readonly acknowledgeNotice: (
+    notice: SubscriptionNotice,
+    now: string
+  ) => Effect.Effect<void, CapabilityUnavailable>
+  readonly retainUnmatchedEvent: (input: {
+    readonly eventId: string
+    readonly eventType: string
+    readonly reason: string
+    readonly receivedAt: string
+  }) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class MerchantSubscriptions extends Context.Service<
@@ -201,6 +359,9 @@ const projectEvidence = (
       revision: value.revision + 1
     }
     switch (fact.kind) {
+      case 'billing-identity-recorded':
+        value = { ...value, ...common }
+        break
       case 'invoice-paid': {
         const interval = priceInterval(fact)
         if (!interval || !fact.periodEndsAt) break
@@ -232,6 +393,21 @@ const projectEvidence = (
       case 'subscription-cancel-reversed':
         value = { ...value, ...common, cancelAtPeriodEnd: false }
         break
+      case 'interval-change-scheduled':
+        value = { ...value, ...common }
+        break
+      case 'interval-change-applied': {
+        const interval = priceInterval(fact)
+        if (interval)
+          value = {
+            ...value,
+            ...common,
+            interval,
+            price: SOLO_PRICES[interval],
+            currentPeriodEndsAt: fact.periodEndsAt ?? value.currentPeriodEndsAt
+          }
+        break
+      }
       case 'subscription-ended':
       case 'chargeback-opened':
         value = {
@@ -264,6 +440,12 @@ const projectEvidence = (
           }
         break
       case 'partial-refund':
+        if (fact.shortenedPeriodEndsAt)
+          value = {
+            ...value,
+            ...common,
+            currentPeriodEndsAt: fact.shortenedPeriodEndsAt
+          }
         break
     }
   }
@@ -351,10 +533,50 @@ export const SeedMerchantSubscriptions = (
             notice
           )
         }
+        const evidenceNoticeKind =
+          fact.kind === 'invoice-paid'
+            ? ('paid-success' as const)
+            : fact.kind === 'invoice-payment-failed'
+              ? ('grace-started' as const)
+              : fact.kind === 'subscription-cancel-scheduled'
+                ? ('scheduled-change' as const)
+                : fact.kind === 'interval-change-scheduled'
+                  ? ('scheduled-change' as const)
+                  : fact.kind === 'interval-change-applied'
+                    ? ('scheduled-change-applied' as const)
+                    : fact.kind === 'subscription-ended' && initial.cancelAtPeriodEnd
+                      ? ('scheduled-change-applied' as const)
+                      : undefined
+        if (evidenceNoticeKind) {
+          const notice = {
+            merchantId: fact.merchantId,
+            kind: evidenceNoticeKind,
+            effectiveAt: fact.occurredAt,
+            cycleKey: fact.periodEndsAt ?? fact.eventId
+          }
+          store.notices.set(
+            `${notice.merchantId}:${notice.kind}:${notice.cycleKey}`,
+            notice
+          )
+        }
         store.subscriptions.set(fact.merchantId, projected)
         return projected
       }),
     reconcile: (fact) => service.recordEvidence(fact),
+    recordSupportRefund: (fact) => service.recordEvidence(fact),
+    notices: (merchantId) =>
+      Effect.succeed(
+        [...store.notices.values()].filter((notice) => notice.merchantId === merchantId)
+      ),
+    providerBacked: () =>
+      Effect.succeed(
+        [...store.subscriptions.values()].filter(
+          (subscription) => subscription.providerSubscriptionRef
+        )
+      ),
+    pendingNoticeDeliveries: () => Effect.succeed([]),
+    acknowledgeNotice: () => Effect.void,
+    retainUnmatchedEvent: () => Effect.void,
     tick: (now) =>
       Effect.sync(() => {
         const created: SubscriptionNotice[] = []
@@ -424,17 +646,20 @@ export const SeedMerchantSubscriptions = (
               add({ merchantId, kind: 'grace-3-days', effectiveAt: now, cycleKey })
             if (remaining <= 1 && remaining > 0)
               add({ merchantId, kind: 'grace-6-days', effectiveAt: now, cycleKey })
-            if (remaining <= 0) {
-              add({ merchantId, kind: 'restricted', effectiveAt: now, cycleKey })
-              next = {
-                ...current,
-                access: 'restricted',
-                restrictedAt: now,
-                retentionEndsAt: plusDays(now, 365),
-                revision: current.revision + 1
-              }
-            }
           }
+          if (
+            current.cancelAtPeriodEnd &&
+            current.currentPeriodEndsAt &&
+            Date.parse(current.currentPeriodEndsAt) - Date.parse(now) <=
+              3 * 86_400_000 &&
+            Date.parse(current.currentPeriodEndsAt) > Date.parse(now)
+          )
+            add({
+              merchantId,
+              kind: 'scheduled-change-3-days',
+              effectiveAt: now,
+              cycleKey: current.currentPeriodEndsAt
+            })
           if (next.access === 'restricted' && next.retentionEndsAt) {
             const days = Math.ceil(
               (Date.parse(next.retentionEndsAt) - Date.parse(now)) / 86_400_000
@@ -513,8 +738,14 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
         return yield* Effect.fail(
           new SubscriptionDenied({ reason: 'refund_consequence_required' })
         )
-      const interval = fact.kind === 'invoice-paid' ? priceInterval(fact) : undefined
-      if (fact.kind === 'invoice-paid' && !interval)
+      const interval =
+        fact.kind === 'invoice-paid' || fact.kind === 'interval-change-applied'
+          ? priceInterval(fact)
+          : undefined
+      if (
+        (fact.kind === 'invoice-paid' || fact.kind === 'interval-change-applied') &&
+        !interval
+      )
         return yield* Effect.fail(
           new SubscriptionDenied({ reason: 'unsupported_price' })
         )
@@ -557,7 +788,61 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
                 effectiveAt: fact.occurredAt,
                 createdAt: now
               }
-            : undefined
+            : fact.kind === 'invoice-paid'
+              ? {
+                  id: newCapabilityId('sno'),
+                  merchantId: fact.merchantId,
+                  kind: 'paid-success',
+                  cycleKey: fact.periodEndsAt ?? fact.eventId,
+                  effectiveAt: fact.occurredAt,
+                  createdAt: now
+                }
+              : fact.kind === 'invoice-payment-failed'
+                ? {
+                    id: newCapabilityId('sno'),
+                    merchantId: fact.merchantId,
+                    kind: 'grace-started',
+                    cycleKey: fact.periodEndsAt ?? fact.eventId,
+                    effectiveAt: fact.occurredAt,
+                    createdAt: now
+                  }
+                : fact.kind === 'subscription-cancel-scheduled'
+                  ? {
+                      id: newCapabilityId('sno'),
+                      merchantId: fact.merchantId,
+                      kind: 'scheduled-change',
+                      cycleKey: fact.periodEndsAt ?? fact.eventId,
+                      effectiveAt: fact.occurredAt,
+                      createdAt: now
+                    }
+                  : fact.kind === 'interval-change-scheduled'
+                    ? {
+                        id: newCapabilityId('sno'),
+                        merchantId: fact.merchantId,
+                        kind: 'scheduled-change',
+                        cycleKey: fact.periodEndsAt ?? fact.eventId,
+                        effectiveAt: fact.occurredAt,
+                        createdAt: now
+                      }
+                    : fact.kind === 'interval-change-applied'
+                      ? {
+                          id: newCapabilityId('sno'),
+                          merchantId: fact.merchantId,
+                          kind: 'scheduled-change-applied',
+                          cycleKey: fact.periodEndsAt ?? fact.eventId,
+                          effectiveAt: fact.occurredAt,
+                          createdAt: now
+                        }
+                      : fact.kind === 'subscription-ended' && current.cancelAtPeriodEnd
+                        ? {
+                            id: newCapabilityId('sno'),
+                            merchantId: fact.merchantId,
+                            kind: 'scheduled-change-applied',
+                            cycleKey: fact.periodEndsAt ?? fact.eventId,
+                            effectiveAt: fact.occurredAt,
+                            createdAt: now
+                          }
+                        : undefined
       const writes = [
         db
           .insert(merchantSubscriptionEvents)
@@ -649,7 +934,7 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
             new SubscriptionDenied({ reason: 'person_already_used_trial' })
           )
         const subscription = createSoloTrialProjection(input)
-        yield* batch(db, [
+        const write = batch(db, [
           db.insert(merchantSubscriptions).values({
             id: newCapabilityId('sub'),
             merchantId: input.merchantId,
@@ -669,11 +954,50 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
             claimedAt: input.now
           })
         ]).pipe(Effect.mapError(unavailable))
+        yield* write.pipe(
+          Effect.catch((failure) =>
+            Effect.gen(function* () {
+              const claims = yield* orUnavailable('merchant-subscriptions')(
+                db
+                  .select()
+                  .from(merchantSubscriptionTrialClaims)
+                  .where(
+                    eq(merchantSubscriptionTrialClaims.ownerUserId, input.ownerUserId)
+                  )
+                  .limit(1)
+              )
+              const claim = claims[0]
+              if (!claim) return yield* Effect.fail(failure)
+              if (claim.idempotencyKey !== input.idempotencyKey)
+                return yield* Effect.fail(
+                  new SubscriptionDenied({ reason: 'person_already_used_trial' })
+                )
+              if (claim.requestFingerprint !== fingerprint)
+                return yield* Effect.fail(
+                  new SubscriptionDenied({ reason: 'idempotency_conflict' })
+                )
+              yield* liveGet(db, claim.merchantId)
+            })
+          )
+        )
         return subscription
       }),
     get: (merchantId) => liveGet(db, merchantId),
     recordEvidence,
     reconcile: recordEvidence,
+    recordSupportRefund: recordEvidence,
+    notices: (merchantId) =>
+      orUnavailable('merchant-subscriptions')(
+        db
+          .select({
+            merchantId: merchantSubscriptionNotices.merchantId,
+            kind: merchantSubscriptionNotices.kind,
+            effectiveAt: merchantSubscriptionNotices.effectiveAt,
+            cycleKey: merchantSubscriptionNotices.cycleKey
+          })
+          .from(merchantSubscriptionNotices)
+          .where(eq(merchantSubscriptionNotices.merchantId, merchantId))
+      ).pipe(Effect.map((rows) => rows as readonly SubscriptionNotice[])),
     tick: (now) =>
       Effect.gen(function* () {
         const rows = yield* orUnavailable('merchant-subscriptions')(
@@ -733,7 +1057,72 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
           notices.push(...noticesToCreate)
         }
         return notices
-      })
+      }),
+    providerBacked: () =>
+      orUnavailable('merchant-subscriptions')(
+        db.select().from(merchantSubscriptions)
+      ).pipe(
+        Effect.map((rows) =>
+          rows
+            .map(fromRow)
+            .filter((subscription) => subscription.providerSubscriptionRef)
+        )
+      ),
+    pendingNoticeDeliveries: (limit) =>
+      Effect.tryPromise({
+        try: async () => {
+          const rows = await db.$client.config.db
+            .prepare(
+              `SELECT msn.merchant_id, msn.kind, msn.cycle_key, msn.effective_at,
+                      u.email AS owner_email
+               FROM merchant_subscription_notices msn
+               JOIN merchant_memberships mm
+                 ON mm.merchant_id = msn.merchant_id AND mm.role = 'owner'
+               JOIN user u ON u.id = mm.user_id AND u.email_verified = 1
+               WHERE msn.acknowledged_at IS NULL
+               ORDER BY msn.effective_at LIMIT ?`
+            )
+            .bind(Math.max(1, limit))
+            .all<{
+              merchant_id: string
+              kind: SubscriptionNotice['kind']
+              cycle_key: string
+              effective_at: string
+              owner_email: string
+            }>()
+          return rows.results.map((row) => ({
+            notice: {
+              merchantId: row.merchant_id,
+              kind: row.kind,
+              cycleKey: row.cycle_key,
+              effectiveAt: row.effective_at
+            },
+            ownerEmail: row.owner_email
+          }))
+        },
+        catch: unavailable
+      }),
+    acknowledgeNotice: (notice, now) =>
+      Effect.tryPromise({
+        try: async () => {
+          await db.$client.config.db
+            .prepare(
+              `UPDATE merchant_subscription_notices SET acknowledged_at = ?
+               WHERE merchant_id = ? AND kind = ? AND cycle_key = ?
+                 AND acknowledged_at IS NULL`
+            )
+            .bind(now, notice.merchantId, notice.kind, notice.cycleKey)
+            .run()
+        },
+        catch: unavailable
+      }),
+    retainUnmatchedEvent: (input) =>
+      orUnavailable('merchant-subscriptions')(
+        db
+          .insert(merchantSubscriptionUnmatchedEvents)
+          .values(input)
+          .onConflictDoNothing()
+      ).pipe(Effect.asVoid)
   }
 }
 

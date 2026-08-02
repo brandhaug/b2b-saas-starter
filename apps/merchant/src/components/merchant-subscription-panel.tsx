@@ -13,6 +13,9 @@ export type MerchantSubscriptionView = {
   readonly providerCustomerRef?: string | undefined
   readonly providerSubscriptionRef?: string | undefined
   readonly billingConfigured: boolean
+  readonly notices?:
+    | ReadonlyArray<{ readonly kind: string; readonly effectiveAt: string }>
+    | undefined
 }
 
 const SOLO_FEATURES = [
@@ -26,12 +29,14 @@ export function MerchantSubscriptionPanel({
   plan,
   subscription,
   onManageBilling,
-  onToggleCancellation
+  onToggleCancellation,
+  onSwitchInterval
 }: {
   readonly plan: MerchantPlan
   readonly subscription?: MerchantSubscriptionView
   readonly onManageBilling?: (() => Promise<void>) | undefined
   readonly onToggleCancellation?: (() => Promise<void>) | undefined
+  readonly onSwitchInterval?: (() => Promise<void>) | undefined
 }) {
   const accessLabel = subscription
     ? (
@@ -48,6 +53,18 @@ export function MerchantSubscriptionPanel({
       data-merchant-subscription-panel="true"
       className="mx-auto flex w-full max-w-md flex-col gap-8"
     >
+      {subscription?.notices?.length ? (
+        <section aria-label="Billing notices" className="space-y-2">
+          {subscription.notices.map((notice) => (
+            <output
+              key={`${notice.kind}:${notice.effectiveAt}`}
+              className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm"
+            >
+              {notice.kind.replaceAll('-', ' ')}
+            </output>
+          ))}
+        </section>
+      ) : null}
       <section
         aria-label="Subscription status"
         className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-muted/30"
@@ -136,6 +153,17 @@ export function MerchantSubscriptionPanel({
             {subscription.cancelAtPeriodEnd
               ? 'Undo scheduled cancellation'
               : 'Cancel at period end'}
+          </button>
+        ) : null}
+        {subscription?.access === 'active' ? (
+          <button
+            type="button"
+            disabled={!subscription.billingConfigured}
+            className="h-10 w-full rounded-full border border-border px-4 text-sm font-medium"
+            onClick={() => void onSwitchInterval?.()}
+          >
+            Switch to {subscription.interval === 'monthly' ? 'annual' : 'monthly'} at
+            renewal
           </button>
         ) : null}
       </section>

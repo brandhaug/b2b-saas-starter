@@ -26,6 +26,12 @@ controls; signed, idempotent event ingestion; unmatched-event retention; and sch
 provider-API reconciliation. Provider outages preserve the last authoritative D1
 projection rather than changing access.
 
+Follow-up hardening added typed nested Stripe decoding and modern invoice-parent
+correlation, stable provider occurrence times during reconciliation, automatic failed
+invoice voiding at Grace expiry, renewal-scheduled monthly/annual interval changes,
+and an authenticated Operations refund-decision ingress that requires the explicit
+full-refund access consequence (or an explicit partial-refund shortening).
+
 D1 projects Trialing, Active, Grace, and Restricted access from immutable provider
 evidence. Duplicate and out-of-order facts converge deterministically, paid recovery
 restores access, chargebacks restrict immediately, and full refunds carry an explicit

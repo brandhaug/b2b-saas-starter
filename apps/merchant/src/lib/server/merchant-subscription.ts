@@ -8,9 +8,12 @@ import {
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   makeStripeBilling,
+  changeStripeCancellation,
   MerchantSubscriptions,
+  SubscriptionDenied,
   type BillingInterval,
-  type MerchantSubscription
+  type MerchantSubscription,
+  type SubscriptionNotice
 } from '@b2b-saas-starter/capabilities/subscriptions'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { runMerchantRequest } from './merchant-session.ts'
@@ -50,6 +53,7 @@ const runSubscription = <A, E>(
 
 export type OwnerBillingView = MerchantSubscription & {
   readonly billingConfigured: boolean
+  readonly notices: readonly SubscriptionNotice[]
 }
 
 export const getOwnerBilling = createServerFn({ method: 'GET' }).handler(
@@ -61,7 +65,12 @@ export const getOwnerBilling = createServerFn({ method: 'GET' }).handler(
           const merchant = yield* MerchantContext
           const subscriptions = yield* MerchantSubscriptions
           const current = yield* subscriptions.get(merchant.id)
-          return { ...current, billingConfigured: billing().state === 'configured' }
+          const notices = yield* subscriptions.notices(merchant.id)
+          return {
+            ...current,
+            billingConfigured: billing().state === 'configured',
+            notices
+          }
         })
       )
     )
@@ -77,6 +86,13 @@ export const startSoloCheckout = createServerFn({ method: 'POST' })
           Effect.gen(function* () {
             const merchant = yield* MerchantContext
             const subscription = yield* (yield* MerchantSubscriptions).get(merchant.id)
+            if (
+              subscription.access === 'active' ||
+              subscription.providerSubscriptionRef
+            )
+              return yield* Effect.fail(
+                new SubscriptionDenied({ reason: 'invalid_state' })
+              )
             return yield* billing().createCheckout({
               merchantId: merchant.id,
               ownerEmail: session.user.email,
@@ -106,7 +122,9 @@ export const openBillingPortal = createServerFn({ method: 'POST' })
             const merchant = yield* MerchantContext
             const subscription = yield* (yield* MerchantSubscriptions).get(merchant.id)
             if (!subscription.providerCustomerRef)
-              return yield* Effect.fail(new Error('No billing customer exists.'))
+              return yield* Effect.fail(
+                new SubscriptionDenied({ reason: 'invalid_state' })
+              )
             return yield* billing().createPortal({
               customerRef: subscription.providerCustomerRef,
               returnUrl: `${env.MERCHANT_APP_ORIGIN ?? 'http://localhost:3072'}/settings/subscription`,
@@ -124,12 +142,14 @@ const scheduleCancellation = (cancelAtPeriodEnd: boolean, idempotencyKey: string
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         const subscription = yield* (yield* MerchantSubscriptions).get(merchant.id)
-        if (!subscription.providerSubscriptionRef)
-          return yield* Effect.fail(new Error('No paid subscription exists.'))
-        yield* billing().setScheduledCancellation({
-          subscriptionRef: subscription.providerSubscriptionRef,
+        const subscriptions = yield* MerchantSubscriptions
+        yield* changeStripeCancellation({
+          subscriptions,
+          billing: billing(),
+          subscription,
           cancelAtPeriodEnd,
-          idempotencyKey
+          idempotencyKey,
+          now: new Date().toISOString()
         })
       })
     )
@@ -142,3 +162,33 @@ export const cancelSoloAtPeriodEnd = createServerFn({ method: 'POST' })
 export const undoSoloCancellation = createServerFn({ method: 'POST' })
   .validator((input: unknown) => Schema.decodeUnknownSync(BillingMutation)(input))
   .handler(({ data }) => scheduleCancellation(false, data.idempotencyKey))
+
+export const scheduleSoloIntervalChange = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => Schema.decodeUnknownSync(CheckoutInput)(input))
+  .handler(({ data }) =>
+    runMerchantRequest('billing-destination.update', (session) =>
+      runSubscription(
+        session.user.id,
+        Effect.gen(function* () {
+          const merchant = yield* MerchantContext
+          const subscriptions = yield* MerchantSubscriptions
+          const subscription = yield* subscriptions.get(merchant.id)
+          if (
+            subscription.access !== 'active' ||
+            subscription.interval === data.interval
+          )
+            return yield* Effect.fail(
+              new SubscriptionDenied({ reason: 'invalid_state' })
+            )
+          const evidence = yield* billing().scheduleIntervalChange({
+            merchantId: merchant.id,
+            subscription,
+            interval: data.interval,
+            idempotencyKey: data.idempotencyKey,
+            now: new Date().toISOString()
+          })
+          yield* subscriptions.recordEvidence(evidence)
+        })
+      )
+    )
+  )

@@ -5,6 +5,7 @@ import {
   cancelSoloAtPeriodEnd,
   getOwnerBilling,
   openBillingPortal,
+  scheduleSoloIntervalChange,
   startSoloCheckout,
   undoSoloCancellation
 } from '@/lib/server/merchant-subscription.ts'
@@ -30,6 +31,14 @@ function MerchantSubscription() {
       await undoSoloCancellation({ data: { idempotencyKey: key() } })
     else await cancelSoloAtPeriodEnd({ data: { idempotencyKey: key() } })
   }
+  const switchInterval = async () => {
+    await scheduleSoloIntervalChange({
+      data: {
+        interval: subscription.interval === 'monthly' ? 'annual' : 'monthly',
+        idempotencyKey: key()
+      }
+    })
+  }
 
   return (
     <MerchantSettingsDetailRoute
@@ -42,6 +51,7 @@ function MerchantSubscription() {
         subscription={subscription}
         onManageBilling={manageBilling}
         onToggleCancellation={toggleCancellation}
+        onSwitchInterval={switchInterval}
       />
     </MerchantSettingsDetailRoute>
   )
