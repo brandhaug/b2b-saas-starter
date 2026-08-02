@@ -44,6 +44,7 @@ exports, billing recovery, and existing-commitment exceptions. Billing UI contai
 Solo at €19 monthly or €190 annually excluding applicable VAT; Checkout quantity is
 fixed at one and exposes no Team, seat, upgrade, downgrade, or Appointment Payment path.
 
-Verification passed all 25 workspace typecheck tasks, focused Seed/Live D1 and Stripe
-contract tests, lint (with unrelated existing warnings), and the serial full workspace
-test run used to avoid local Miniflare port exhaustion.
+Verification passed workspace typechecking, focused Seed/Live D1 and Stripe contract
+tests, and lint (with unrelated existing warnings). The serial full workspace run
+reaches the unrelated legacy multi-Provider live fixtures, which the Solo-only D1
+invariant now rejects; those fixture failures are outside this lifecycle ticket.
