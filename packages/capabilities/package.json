@@ -15,6 +15,7 @@
     "./pricing/testing": "./src/pricing/testing.ts",
     "./payments": "./src/payments/index.ts",
     "./customer-engagement": "./src/customer-engagement/index.ts",
+    "./customer-directory": "./src/customer-directory/index.ts",
     "./gift-cards": "./src/gift-cards/index.ts",
     "./gift-cards/testing": "./src/gift-cards/gift-card-sales.ts",
     "./waiting-list": "./src/waiting-list/index.ts",

@@ -3793,6 +3793,21 @@ export const customerContacts = sqliteTable('customer_contacts', {
   updatedAt: isoUpdatedAt()
 })
 
+export const customerDirectoryStates = sqliteTable('customer_directory_states', {
+  merchantId: text('merchant_id')
+    .primaryKey()
+    .references(() => merchants.id, { onDelete: 'restrict' }),
+  stateJson: text('state_json', { mode: 'json' })
+    .$type<{
+      records: Array<unknown>
+      commands: Array<[string, { fingerprint: string; result: unknown }]>
+      imports: Array<string>
+    }>()
+    .notNull(),
+  revision: integer('revision').default(0).notNull(),
+  updatedAt: isoUpdatedAt()
+})
+
 export const appointmentSeries = sqliteTable('appointment_series', {
   id: id(),
   merchantId: text('merchant_id')

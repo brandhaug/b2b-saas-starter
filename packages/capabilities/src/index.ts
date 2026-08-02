@@ -18,3 +18,16 @@ export * from './subscriptions/index.ts'
 export * from './ids.ts'
 export * from './runtime.ts'
 export * from './foundation/index.ts'
+export {
+  CustomerDirectory as CustomerDirectoryService,
+  CustomerDirectoryInvalid,
+  LiveCustomerDirectory,
+  SeedCustomerDirectory,
+  emptySeedCustomerDirectoryStore
+} from './customer-directory/index.ts'
+export type {
+  CustomerDirectoryShape,
+  CustomerDirectoryError,
+  CustomerRecord,
+  DirectoryCustomerDetails
+} from './customer-directory/index.ts'
