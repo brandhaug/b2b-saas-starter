@@ -1,10 +1,18 @@
 import { Effect, Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Database, layerFromD1, merchants } from '@b2b-saas-starter/db'
+import {
+  Database,
+  appointments,
+  batch,
+  layerFromD1,
+  merchants,
+  providers
+} from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import { LiveCustomerDirectory } from './adapters.ts'
 import { CustomerDirectory } from './customer-directory.ts'
+import { prepareAppointmentCustomerAssociation } from './appointment-association.ts'
 
 let test: TestD1
 const merchant = Layer.succeed(MerchantContext)({
@@ -33,6 +41,15 @@ beforeAll(async () => {
           timezone: 'Europe/Bucharest',
           currency: 'RON',
           plan: 'solo',
+          createdAt: '2026-08-02T10:00:00.000Z',
+          updatedAt: '2026-08-02T10:00:00.000Z'
+        })
+        yield* db.insert(providers).values({
+          id: 'prv_customer_live',
+          merchantId: 'mer_customer_live',
+          displayName: 'Owner',
+          status: 'active',
+          isDefault: true,
           createdAt: '2026-08-02T10:00:00.000Z',
           updatedAt: '2026-08-02T10:00:00.000Z'
         })
@@ -85,5 +102,98 @@ describe('Live Customer Directory contract', () => {
     )
     expect(restored[0]?.id).toBe(created.record.id)
     expect(restored[0]?.notes[0]?.text).toBe('Prefers quiet appointments')
+  })
+
+  it('moves relational Appointment associations through merge and split', async () => {
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db.insert(appointments).values([
+            {
+              id: 'apt_merge_left',
+              merchantId: 'mer_customer_live',
+              providerId: 'prv_customer_live',
+              status: 'completed',
+              startsAt: '2026-07-01T10:00:00.000Z',
+              endsAt: '2026-07-01T11:00:00.000Z',
+              createdAt: '2026-07-01T10:00:00.000Z',
+              updatedAt: '2026-07-01T10:00:00.000Z'
+            },
+            {
+              id: 'apt_merge_right',
+              merchantId: 'mer_customer_live',
+              providerId: 'prv_customer_live',
+              status: 'completed',
+              startsAt: '2026-07-02T10:00:00.000Z',
+              endsAt: '2026-07-02T11:00:00.000Z',
+              createdAt: '2026-07-02T10:00:00.000Z',
+              updatedAt: '2026-07-02T10:00:00.000Z'
+            }
+          ])
+          for (const [id, name, email] of [
+            ['apt_merge_left', 'Alex Left', 'left@example.com'],
+            ['apt_merge_right', 'Alex Right', 'right@example.com']
+          ] as const) {
+            const statements = yield* prepareAppointmentCustomerAssociation(db, {
+              merchantId: 'mer_customer_live',
+              appointment: { id, details: { name, email, phone: null } },
+              origin: 'record_completed',
+              now: '2026-08-02T12:00:00.000Z'
+            })
+            yield* batch(db, statements)
+          }
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+
+    const result = await run(
+      Effect.gen(function* () {
+        const directory = yield* CustomerDirectory
+        const left = (yield* directory.search('left@example.com'))[0]!
+        const right = (yield* directory.search('right@example.com'))[0]!
+        const merged = yield* directory.merge({
+          survivorId: left.id,
+          absorbedId: right.id,
+          expectedSurvivorRevision: left.revision,
+          expectedAbsorbedRevision: right.revision,
+          idempotencyKey: 'merge-live-links',
+          actorId: 'usr_owner',
+          reason: 'Confirmed duplicate',
+          now: '2026-08-02T13:00:00.000Z'
+        })
+        const moved = merged.observations.find(
+          (observation) => observation.appointmentId === 'apt_merge_right'
+        )!
+        return yield* directory.split({
+          sourceId: merged.id,
+          observationIds: [moved.id],
+          expectedRevision: merged.revision,
+          idempotencyKey: 'split-live-links',
+          actorId: 'usr_owner',
+          reason: 'Mistaken merge',
+          now: '2026-08-02T14:00:00.000Z'
+        })
+      })
+    )
+
+    const links = await test.d1
+      .prepare(
+        `SELECT appointment_id, customer_record_id FROM appointment_foundations
+         WHERE appointment_id IN ('apt_merge_left','apt_merge_right')
+         ORDER BY appointment_id`
+      )
+      .all<{ appointment_id: string; customer_record_id: string }>()
+    expect(links.results).toEqual([
+      {
+        appointment_id: 'apt_merge_left',
+        customer_record_id: result.source.id
+      },
+      {
+        appointment_id: 'apt_merge_right',
+        customer_record_id: result.created.id
+      }
+    ])
   })
 })

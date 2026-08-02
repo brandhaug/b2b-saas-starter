@@ -3875,6 +3875,31 @@ export const customerBans = sqliteTable('customer_bans', {
   expiresAt: text('expires_at')
 })
 
+export const customerDirectoryHistory = sqliteTable(
+  'customer_directory_history',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    customerRecordId: text('customer_record_id')
+      .notNull()
+      .references(() => customerRecords.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    actorId: text('actor_id').notNull(),
+    reason: text('reason'),
+    revision: integer('revision').notNull(),
+    occurredAt: text('occurred_at').notNull()
+  },
+  (table) => [
+    check('customer_directory_history_revision_positive', sql`${table.revision} > 0`),
+    index('customer_directory_history_record_revision_idx').on(
+      table.customerRecordId,
+      table.revision
+    )
+  ]
+)
+
 export const customerDirectoryStates = sqliteTable('customer_directory_states', {
   merchantId: text('merchant_id')
     .primaryKey()

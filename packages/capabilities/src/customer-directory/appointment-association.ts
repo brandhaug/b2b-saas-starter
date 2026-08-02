@@ -5,6 +5,7 @@ import {
   customerContacts,
   customerBans,
   customerDuplicateSuggestions,
+  customerDirectoryHistory,
   customerObservations,
   customerRecords,
   type BatchStatement,
@@ -62,9 +63,14 @@ export const prepareAppointmentCustomerAssociation = (
               .select({
                 customerRecordId: customerContacts.customerRecordId,
                 kind: customerContacts.kind,
-                value: customerContacts.normalizedValue
+                value: customerContacts.normalizedValue,
+                revision: customerRecords.revision
               })
               .from(customerContacts)
+              .innerJoin(
+                customerRecords,
+                eq(customerRecords.id, customerContacts.customerRecordId)
+              )
               .where(
                 and(
                   eq(customerContacts.merchantId, input.merchantId),
@@ -82,6 +88,10 @@ export const prepareAppointmentCustomerAssociation = (
           )
     const candidateIds = [...new Set(matches.map((match) => match.customerRecordId))]
     const matchedId = candidateIds.length === 1 ? candidateIds[0] : undefined
+    const resultingRevision = matchedId
+      ? (matches.find((match) => match.customerRecordId === matchedId)?.revision ?? 0) +
+        1
+      : 1
     if (matchedId) {
       const bans = yield* orUnavailable('customer-directory')(
         db
@@ -181,6 +191,17 @@ export const prepareAppointmentCustomerAssociation = (
         normalizedPhone: normalizePhone(appointment.details.phone),
         source: input.origin,
         observedAt: input.now
+      }),
+      db.insert(customerDirectoryHistory).values({
+        id: `cuh_${appointment.id}`,
+        merchantId: input.merchantId,
+        customerRecordId: recordId,
+        kind: matchedId ? 'appointment_observed' : 'created',
+        actorId:
+          input.origin === 'public_booking' ? 'public-customer' : 'merchant-owner',
+        reason: input.origin,
+        revision: resultingRevision,
+        occurredAt: input.now
       })
     )
     return statements

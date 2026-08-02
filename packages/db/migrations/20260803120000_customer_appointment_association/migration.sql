@@ -39,3 +39,17 @@ CREATE TABLE `customer_bans` (
 --> statement-breakpoint
 CREATE INDEX `customer_bans_merchant_expiry_idx`
 ON `customer_bans` (`merchant_id`,`expires_at`);
+--> statement-breakpoint
+CREATE TABLE `customer_directory_history` (
+  `id` text PRIMARY KEY NOT NULL,
+  `merchant_id` text NOT NULL REFERENCES `merchants`(`id`) ON DELETE RESTRICT,
+  `customer_record_id` text NOT NULL REFERENCES `customer_records`(`id`) ON DELETE CASCADE,
+  `kind` text NOT NULL,
+  `actor_id` text NOT NULL,
+  `reason` text,
+  `revision` integer NOT NULL CHECK (`revision` > 0),
+  `occurred_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX `customer_directory_history_record_revision_idx`
+ON `customer_directory_history` (`customer_record_id`,`revision`);

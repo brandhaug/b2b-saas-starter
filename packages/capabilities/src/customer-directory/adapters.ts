@@ -2,10 +2,12 @@ import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import {
   Database,
+  appointmentFoundations,
   batch,
   customerBans,
   customerContacts,
   customerDirectoryStates,
+  customerDirectoryHistory,
   customerObservations,
   customerRecords,
   type BatchStatement
@@ -62,38 +64,45 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
       )
       const ensure = (merchantId: string) =>
         Effect.gen(function* () {
-          const [states, records, contacts, observations, bans] = yield* Effect.all([
-            orUnavailable('customer-directory')(
-              db
-                .select()
-                .from(customerDirectoryStates)
-                .where(eq(customerDirectoryStates.merchantId, merchantId))
-            ),
-            orUnavailable('customer-directory')(
-              db
-                .select()
-                .from(customerRecords)
-                .where(eq(customerRecords.merchantId, merchantId))
-            ),
-            orUnavailable('customer-directory')(
-              db
-                .select()
-                .from(customerContacts)
-                .where(eq(customerContacts.merchantId, merchantId))
-            ),
-            orUnavailable('customer-directory')(
-              db
-                .select()
-                .from(customerObservations)
-                .where(eq(customerObservations.merchantId, merchantId))
-            ),
-            orUnavailable('customer-directory')(
-              db
-                .select()
-                .from(customerBans)
-                .where(eq(customerBans.merchantId, merchantId))
-            )
-          ])
+          const [states, records, contacts, observations, bans, histories] =
+            yield* Effect.all([
+              orUnavailable('customer-directory')(
+                db
+                  .select()
+                  .from(customerDirectoryStates)
+                  .where(eq(customerDirectoryStates.merchantId, merchantId))
+              ),
+              orUnavailable('customer-directory')(
+                db
+                  .select()
+                  .from(customerRecords)
+                  .where(eq(customerRecords.merchantId, merchantId))
+              ),
+              orUnavailable('customer-directory')(
+                db
+                  .select()
+                  .from(customerContacts)
+                  .where(eq(customerContacts.merchantId, merchantId))
+              ),
+              orUnavailable('customer-directory')(
+                db
+                  .select()
+                  .from(customerObservations)
+                  .where(eq(customerObservations.merchantId, merchantId))
+              ),
+              orUnavailable('customer-directory')(
+                db
+                  .select()
+                  .from(customerBans)
+                  .where(eq(customerBans.merchantId, merchantId))
+              ),
+              orUnavailable('customer-directory')(
+                db
+                  .select()
+                  .from(customerDirectoryHistory)
+                  .where(eq(customerDirectoryHistory.merchantId, merchantId))
+              )
+            ])
           const state = states[0]?.stateJson
           restore(
             store,
@@ -129,6 +138,25 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
             const observationIds = new Set(
               persisted?.observations.map((observation) => observation.id) ?? []
             )
+            const persistedContactKeys = new Set(
+              persisted?.contacts.map(
+                (contact) => `${contact.kind}:${contact.value}:${contact.status}`
+              ) ?? []
+            )
+            const persistedHistoryIds = new Set(
+              persisted?.history.map((entry) => entry.id) ?? []
+            )
+            const relationalHistory = histories
+              .filter((entry) => entry.customerRecordId === row.id)
+              .filter((entry) => !persistedHistoryIds.has(entry.id))
+              .map((entry) => ({
+                id: entry.id,
+                kind: entry.kind as CustomerRecord['history'][number]['kind'],
+                actorId: entry.actorId,
+                reason: entry.reason,
+                at: entry.occurredAt,
+                revision: entry.revision
+              }))
             store.records.set(row.id, {
               ...persisted,
               id: row.id,
@@ -148,7 +176,15 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 recordContacts.find(
                   (contact) => contact.kind === 'phone' && contact.preferred
                 )?.value ?? null,
-              contacts: persisted?.contacts ?? recordContacts,
+              contacts: [
+                ...(persisted?.contacts ?? []),
+                ...recordContacts.filter(
+                  (contact) =>
+                    !persistedContactKeys.has(
+                      `${contact.kind}:${contact.value}:${contact.status}`
+                    )
+                )
+              ],
               observations: [
                 ...(persisted?.observations ?? []),
                 ...recordObservations.filter(
@@ -162,7 +198,9 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
               mergedInto: persisted?.mergedInto ?? null,
               revision: row.revision,
               lastActivityAt: row.lastActivityAt,
-              history: persisted?.history ?? []
+              history: [...(persisted?.history ?? []), ...relationalHistory].sort(
+                (left, right) => left.revision - right.revision
+              )
             })
           }
         })
@@ -261,6 +299,37 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   expiresAt: record.ban.expiresAt
                 })
               )
+            for (const history of record.history)
+              statements.push(
+                db
+                  .insert(customerDirectoryHistory)
+                  .values({
+                    id: history.id,
+                    merchantId,
+                    customerRecordId: record.id,
+                    kind: history.kind,
+                    actorId: history.actorId,
+                    reason: history.reason,
+                    revision: history.revision,
+                    occurredAt: history.at
+                  })
+                  .onConflictDoNothing()
+              )
+            for (const observation of record.observations) {
+              if (!observation.appointmentId) continue
+              statements.push(
+                db
+                  .update(customerObservations)
+                  .set({ customerRecordId: record.id })
+                  .where(eq(customerObservations.id, observation.id)),
+                db
+                  .update(appointmentFoundations)
+                  .set({ customerRecordId: record.id })
+                  .where(
+                    eq(appointmentFoundations.appointmentId, observation.appointmentId)
+                  )
+              )
+            }
           }
           yield* orUnavailable('customer-directory')(batch(db, statements))
         })

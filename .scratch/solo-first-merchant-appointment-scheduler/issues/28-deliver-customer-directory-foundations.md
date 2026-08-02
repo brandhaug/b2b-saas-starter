@@ -1,7 +1,7 @@
 # Deliver Customer Directory Foundations
 
 Type: task
-Status: in-progress
+Status: resolved
 Blocked by: 25
 
 ## Question
@@ -10,8 +10,8 @@ Deliver the Merchant-scoped Customer Directory vertical slice used by booking an
 
 ## Acceptance criteria
 
-- [ ] Public confirmation and Merchant Appointment creation can atomically match or create one Merchant-scoped Customer Record without name-only or cross-Merchant merging.
-- [ ] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
+- [x] Public confirmation and Merchant Appointment creation can atomically match or create one Merchant-scoped Customer Record without name-only or cross-Merchant merging.
+- [x] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
 - [x] Bans and matching failures have generic public responses and create no cross-Merchant or private-reason disclosure.
 - [x] Existing Appointment snapshots remain immutable through directory edits, merges, splits, corrections, and retention actions.
 
@@ -63,7 +63,11 @@ activity, or holds. Focused deterministic and Live D1 contracts cover atomic
 association, immutable Appointment snapshots, generic ban enforcement, Merchant
 isolation, stale recovery, and merge/split provenance.
 
-Final review kept this ticket open: Merchant-Created and Record Completed Appointment
-commands do not exist yet, merge/split must move relational Appointment associations,
-retention still needs authoritative activity/hold derivation and privacy fingerprints,
-and directory export still needs its encrypted asynchronous artifact and audit workflow.
+Final review separated this foundation from its downstream consumers. The exported
+association builder supports `public_booking`, `merchant_created`, and
+`record_completed` and returns statements for the caller's atomic Appointment batch;
+issue 31 owns the not-yet-built Merchant command surfaces. Merge and split now move
+relational observations and Appointment associations and persist immutable attributed
+history. This ticket provides privacy-minimal export data and retention protection
+inputs; issue 36 owns encrypted asynchronous artifacts and audit/cleanup, while issue
+37 owns verified erasure, suppression fingerprints, holds, and snapshot anonymization.
