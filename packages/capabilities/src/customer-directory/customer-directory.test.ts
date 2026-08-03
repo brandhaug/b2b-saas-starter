@@ -237,12 +237,16 @@ describe('Customer Directory contract', () => {
         const preview = yield* service.previewImport(rows)
         const committed = yield* service.importRows({
           fileId: 'file-1',
+          idempotencyKey: 'import-file-1',
+          expectedRevisions: {},
           rows,
           actorId: 'usr_owner',
           now: '2026-08-02T10:00:00.000Z'
         })
         const replay = yield* service.importRows({
           fileId: 'file-1',
+          idempotencyKey: 'import-file-1',
+          expectedRevisions: {},
           rows,
           actorId: 'usr_owner',
           now: '2026-08-02T10:00:00.000Z'

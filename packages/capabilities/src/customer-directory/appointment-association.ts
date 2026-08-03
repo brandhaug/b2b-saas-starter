@@ -6,6 +6,7 @@ import {
   customerBans,
   customerDuplicateSuggestions,
   customerDirectoryHistory,
+  customerDirectoryStates,
   customerObservations,
   customerRecords,
   type BatchStatement,
@@ -36,12 +37,9 @@ const normalizePhone = (value: string | null) => {
 }
 const stableRecordId = (
   merchantId: string,
-  identifiers: readonly { kind: string; value: string }[]
+  identifier: { kind: string; value: string }
 ) => {
-  const value = `${merchantId}:${identifiers
-    .map(({ kind, value }) => `${kind}:${value}`)
-    .sort()
-    .join('|')}`
+  const value = `${merchantId}:${identifier.kind}:${identifier.value}`
   let hash = 2166136261
   for (let index = 0; index < value.length; index++) {
     hash ^= value.charCodeAt(index)
@@ -126,7 +124,10 @@ export const prepareAppointmentCustomerAssociation = (
     const recordId =
       matchedId ??
       (candidateIds.length === 0 && identifiers.length > 0
-        ? stableRecordId(input.merchantId, identifiers)
+        ? stableRecordId(
+            input.merchantId,
+            identifiers.find(({ kind }) => kind === 'email') ?? identifiers[0]!
+          )
         : newCapabilityId('cur'))
     const statements: BatchStatement[] = []
     if (!matchedId) {
@@ -172,7 +173,7 @@ export const prepareAppointmentCustomerAssociation = (
         db
           .insert(customerContacts)
           .values({
-            id: `cuc_${recordId}_${identifier.kind}_${stableRecordId('', [identifier]).slice(12)}`,
+            id: `cuc_${recordId}_${identifier.kind}_${stableRecordId('', identifier).slice(12)}`,
             customerRecordId: recordId,
             merchantId: input.merchantId,
             kind: identifier.kind,
@@ -221,17 +222,26 @@ export const prepareAppointmentCustomerAssociation = (
       db
         .insert(customerDirectoryHistory)
         .values({
-          id: `cuh_${appointment.id}`,
+          id: matchedId ? `cuh_${appointment.id}` : `cuh_${recordId}_created`,
           merchantId: input.merchantId,
           customerRecordId: recordId,
           kind: matchedId ? 'appointment_observed' : 'created',
           actorId:
             input.origin === 'public_booking' ? 'public-customer' : 'merchant-owner',
           reason: input.origin,
-          revision: resultingRevision,
+          revision: matchedId
+            ? sql<number>`(SELECT ${customerRecords.revision} FROM ${customerRecords} WHERE ${customerRecords.id} = ${recordId})`
+            : resultingRevision,
           occurredAt: input.now
         })
-        .onConflictDoNothing()
+        .onConflictDoNothing(),
+      db
+        .update(customerDirectoryStates)
+        .set({
+          revision: sql`${customerDirectoryStates.revision} + 1`,
+          updatedAt: input.now
+        })
+        .where(eq(customerDirectoryStates.merchantId, input.merchantId))
     )
     return statements
   })

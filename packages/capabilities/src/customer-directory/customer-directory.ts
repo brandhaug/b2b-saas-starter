@@ -222,6 +222,8 @@ export type CustomerDirectoryShape = {
   >
   readonly importRows: (input: {
     readonly fileId: string
+    readonly idempotencyKey: string
+    readonly expectedRevisions: Readonly<Record<string, number>>
     readonly rows: readonly (DirectoryCustomerDetails & {
       readonly externalReference?: string
     })[]
@@ -245,6 +247,8 @@ export type CustomerDirectoryShape = {
     MerchantContext
   >
   readonly eraseExpired: (input: {
+    readonly idempotencyKey: string
+    readonly expectedRevisions: Readonly<Record<string, number>>
     readonly now: string
     readonly inactiveBefore: string
     readonly actorId: string
@@ -641,13 +645,32 @@ export const makeCustomerDirectoryService = (
     importRows: (input) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
-        const importKey = `${merchant.id}:${input.fileId}`
+        const importKey = `${merchant.id}:${input.idempotencyKey}`
         if (store.imports.has(importKey)) return { created: 0, matched: 0, rejected: 0 }
         let created = 0,
           matched = 0,
           rejected = 0
         for (let index = 0; index < input.rows.length; index++) {
           const row = input.rows[index]!
+          const normalized = normalize(row)
+          const supplied = values(normalized)
+          const matching = [...store.records.values()].filter(
+            (record) =>
+              record.merchantId === merchant.id &&
+              record.status !== 'merged' &&
+              record.status !== 'erased' &&
+              supplied.some((value) => recordValues(record).has(value))
+          )
+          if (
+            matching.length === 1 &&
+            input.expectedRevisions[matching[0]!.id] !== matching[0]!.revision
+          )
+            return yield* Effect.fail(
+              new CapabilityConflict({
+                reason: 'stale_revision',
+                currentRevision: matching[0]!.revision
+              })
+            )
           const result = yield* Effect.result(
             self.matchOrCreate({
               appointmentId: null,
@@ -684,9 +707,19 @@ export const makeCustomerDirectoryService = (
             )
           }))
       }),
-    eraseExpired: ({ now, inactiveBefore, actorId, protectedRecordIds = [] }) =>
+    eraseExpired: ({
+      now,
+      inactiveBefore,
+      actorId,
+      protectedRecordIds = [],
+      idempotencyKey,
+      expectedRevisions
+    }) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
+        const commandKey = `${merchant.id}:${idempotencyKey}`
+        const replay = store.commands.get(commandKey)
+        if (replay) return replay.result as number
         const protectedIds = new Set(protectedRecordIds)
         let count = 0
         for (const record of store.records.values())
@@ -697,6 +730,13 @@ export const makeCustomerDirectoryService = (
             !protectedIds.has(record.id) &&
             !activeBan(record, now)
           ) {
+            if (expectedRevisions[record.id] !== record.revision)
+              return yield* Effect.fail(
+                new CapabilityConflict({
+                  reason: 'stale_revision',
+                  currentRevision: record.revision
+                })
+              )
             const revision = record.revision + 1
             store.records.set(record.id, {
               ...record,
@@ -716,6 +756,10 @@ export const makeCustomerDirectoryService = (
             })
             count += 1
           }
+        store.commands.set(commandKey, {
+          fingerprint: fingerprint(expectedRevisions),
+          result: count
+        })
         return count
       })
   }

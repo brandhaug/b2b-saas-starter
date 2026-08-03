@@ -80,7 +80,7 @@ describe('Live Customer Directory contract', () => {
             }))
           )
           const prepared = yield* Effect.all(
-            ['apt_converge_1', 'apt_converge_2'].map((id) =>
+            ['apt_converge_1', 'apt_converge_2'].map((id, index) =>
               prepareAppointmentCustomerAssociation(db, {
                 merchantId: 'mer_customer_live',
                 appointment: {
@@ -88,7 +88,7 @@ describe('Live Customer Directory contract', () => {
                   details: {
                     name: 'Same Customer',
                     email: 'same@example.com',
-                    phone: null
+                    phone: index === 0 ? null : '+40 700 000 001'
                   }
                 },
                 origin: 'merchant_created',
@@ -109,6 +109,14 @@ describe('Live Customer Directory contract', () => {
       )
       .all<{ customer_record_id: string }>()
     expect(links.results).toHaveLength(1)
+    const createdHistory = await test.d1
+      .prepare(
+        `SELECT revision FROM customer_directory_history
+         WHERE customer_record_id = ? AND kind = 'created'`
+      )
+      .bind(links.results[0]!.customer_record_id)
+      .all<{ revision: number }>()
+    expect(createdHistory.results).toEqual([{ revision: 1 }])
   })
 
   it('persists matching, revisions, attributed history, and idempotent recovery', async () => {

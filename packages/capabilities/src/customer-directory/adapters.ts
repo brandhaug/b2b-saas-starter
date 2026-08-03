@@ -60,6 +60,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
     Effect.gen(function* () {
       const db = yield* Database
       const store = emptySeedCustomerDirectoryStore()
+      const observedRevisions = new Map<string, number>()
       const directory = makeCustomerDirectoryService(store)
       const ensure = (merchantId: string) =>
         Effect.gen(function* () {
@@ -109,6 +110,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
               )
             ])
           const state = states[0]?.stateJson
+          observedRevisions.set(merchantId, states[0]?.revision ?? 0)
           restore(
             store,
             merchantId,
@@ -217,14 +219,8 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
             })
           }
         })
-      const persist = (merchantId: string, now: string) =>
+      const persist = (merchantId: string, now: string, expectedRevision: number) =>
         Effect.gen(function* () {
-          const current = yield* orUnavailable('customer-directory')(
-            db
-              .select({ revision: customerDirectoryStates.revision })
-              .from(customerDirectoryStates)
-              .where(eq(customerDirectoryStates.merchantId, merchantId))
-          )
           const stateWrite = db
             .insert(customerDirectoryStates)
             .values({
@@ -237,7 +233,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
               target: customerDirectoryStates.merchantId,
               set: {
                 stateJson: stateFor(store, merchantId),
-                revision: (current[0]?.revision ?? 0) + 1,
+                revision: expectedRevision + 1,
                 updatedAt: now
               }
             })
@@ -359,8 +355,11 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
           const merchant = yield* MerchantContext
           yield* ensure(merchant.id)
           const before = stateFor(store, merchant.id)
+          const expectedRevision = observedRevisions.get(merchant.id) ?? 0
           const result = yield* effect
-          const persisted = yield* Effect.result(persist(merchant.id, now))
+          const persisted = yield* Effect.result(
+            persist(merchant.id, now, expectedRevision)
+          )
           if (persisted._tag === 'Failure') {
             restore(store, merchant.id, before)
             if (persisted.failure.reason.includes('customer_directory_stale_revision'))
