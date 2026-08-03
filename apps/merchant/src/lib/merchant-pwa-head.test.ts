@@ -21,7 +21,7 @@ describe('authenticated Merchant App PWA document contract', () => {
     ])
   })
 
-  it('provides installed-window metadata without the iOS translucent status-bar offset', () => {
+  it('opts into the iOS edge-to-edge status-bar viewport', () => {
     expect(merchantPwaHeadMeta).toEqual([
       {
         name: 'theme-color',
@@ -35,11 +35,11 @@ describe('authenticated Merchant App PWA document contract', () => {
       },
       { name: 'mobile-web-app-capable', content: 'yes' },
       { name: 'apple-mobile-web-app-capable', content: 'yes' },
+      {
+        name: 'apple-mobile-web-app-status-bar-style',
+        content: 'black-translucent'
+      },
       { name: 'apple-mobile-web-app-title', content: 'BeeSolo' }
     ])
-    expect(merchantPwaHeadMeta).not.toContainEqual({
-      name: 'apple-mobile-web-app-status-bar-style',
-      content: 'black-translucent'
-    })
   })
 })

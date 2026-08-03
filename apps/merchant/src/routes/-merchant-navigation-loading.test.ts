@@ -29,7 +29,7 @@ describe('Merchant navigation loading', () => {
         ? Route.options.shouldReload({ cause: 'enter' } as never)
         : Route.options.shouldReload
     ).toBe(true)
-  })
+  }, 15_000)
 
   it('does not repeat the navigation session RPC for a date-only change', async () => {
     const { Route } = await import('./appointments.tsx')

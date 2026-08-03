@@ -14,7 +14,8 @@ import { MobileSheetStackProvider } from './merchant-shell/mobile/mobile-sheet-s
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  pathname: '/settings'
+  pathname: '/settings',
+  state: undefined as unknown
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -43,7 +44,7 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({
     pathname: mocks.pathname,
     search: { date: '2026-07-27' },
-    state: undefined
+    state: mocks.state
   }),
   useRouter: () => ({
     history: { back: vi.fn() },
@@ -55,6 +56,7 @@ let root: Root | undefined
 
 beforeEach(() => {
   mocks.pathname = '/settings'
+  mocks.state = undefined
   mocks.navigate.mockReset()
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
@@ -203,6 +205,58 @@ describe('desktop Merchant overlay routing', () => {
 })
 
 describe('mobile Merchant overlay routing', () => {
+  it('returns sibling sheets opened from Settings to the Settings sheet', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    mocks.state = { merchantOverlayReturnTo: '/settings' }
+
+    await act(async () =>
+      root?.render(<Harness pathname="/customers" presentation="mobile" />)
+    )
+
+    const backButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Back to Settings"]'
+    )
+    expect(backButton).not.toBeNull()
+
+    await act(async () => backButton?.click())
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/settings',
+      search: { date: '2026-07-27' },
+      replace: true,
+      viewTransition: false
+    })
+  })
+
+  it('dismisses the root Settings sheet to appointments from its handle', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(<Harness pathname="/settings" presentation="mobile" />)
+    )
+
+    expect(
+      container.querySelector('button[aria-label="Back to appointments"]')
+    ).toBeNull()
+    const closeHandle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Drag or tap to close Settings"]'
+    )
+    expect(closeHandle).not.toBeNull()
+
+    await act(async () => closeHandle?.click())
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 1_000)))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/appointments',
+      search: { date: '2026-07-27' },
+      replace: true,
+      viewTransition: false
+    })
+  })
+
   it('shows Subscription in the existing sheet host with a back action', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)

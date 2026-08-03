@@ -10,6 +10,13 @@ export type MobileCreateIntent = 'appointment' | 'block-time'
 
 type CreateActionSheetState = 'entering' | 'open' | 'closing'
 
+const IOS_ACTION_BUTTON_RESET = {
+  WebkitAppearance: 'none',
+  appearance: 'none',
+  boxShadow: 'none',
+  backgroundImage: 'none'
+} as const
+
 export function MobileCreateActionSheet({
   open,
   onRequestClose,
@@ -37,7 +44,6 @@ function MobileCreateActionSheetDialog({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const initialFocusRef = useRef<HTMLButtonElement>(null)
   const animationRef = useRef<(() => void) | null>(null)
   const afterCloseRef = useRef<(() => void) | null>(null)
   const closeFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -56,7 +62,7 @@ function MobileCreateActionSheetDialog({
     if (!dialog || !panel) return
     const distance = sheetDistance()
     panel.style.setProperty('--merchant-create-sheet-y', `${distance}px`)
-    initialFocusRef.current?.focus({ preventScroll: true })
+    dialog.focus({ preventScroll: true })
     animationRef.current = animateMobileSheetSpring({
       from: distance,
       max: window.innerHeight,
@@ -128,9 +134,10 @@ function MobileCreateActionSheetDialog({
       ref={dialogRef}
       aria-label="Add to schedule"
       aria-modal="true"
+      tabIndex={-1}
       data-mobile-create-action-sheet="true"
       data-mobile-create-action-sheet-state={state}
-      className="merchant-create-action-dialog m-0 max-h-none max-w-none border-0 bg-transparent p-0 text-foreground"
+      className="merchant-create-action-dialog m-0 max-h-none max-w-none border-0 bg-transparent p-0 text-foreground outline-none"
       onCancel={(event) => {
         event.preventDefault()
         requestClose()
@@ -139,7 +146,8 @@ function MobileCreateActionSheetDialog({
       <button
         type="button"
         aria-label="Close add menu"
-        className="merchant-create-action-backdrop fixed inset-0 border-0"
+        tabIndex={-1}
+        className="merchant-create-action-backdrop fixed inset-0 appearance-none border-0"
         onClick={requestClose}
       />
       <div
@@ -148,19 +156,20 @@ function MobileCreateActionSheetDialog({
       >
         <section
           aria-label="Create"
-          className="overflow-hidden rounded-[1.4rem] border border-border/60 bg-background shadow-2xl"
+          className="overflow-hidden rounded-[1.4rem] bg-background shadow-2xl"
         >
           <button
-            ref={initialFocusRef}
             type="button"
-            className="flex h-16 w-full items-center justify-center text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted"
+            style={IOS_ACTION_BUTTON_RESET}
+            className="flex h-14 w-full appearance-none items-center justify-center bg-transparent text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted"
             onClick={() => choose('appointment')}
           >
             Appointment
           </button>
           <button
             type="button"
-            className="flex h-16 w-full items-center justify-center border-t border-black/10 text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted dark:border-white/10"
+            style={IOS_ACTION_BUTTON_RESET}
+            className="flex h-14 w-full appearance-none items-center justify-center border-t bg-transparent text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted dark:border-white/10"
             onClick={() => choose('block-time')}
           >
             Block time
@@ -169,7 +178,7 @@ function MobileCreateActionSheetDialog({
 
         <button
           type="button"
-          className="flex h-16 w-full items-center justify-center rounded-[1.4rem] border border-border/60 bg-background text-[1.0625rem] font-bold text-info shadow-2xl transition-colors active:bg-muted"
+          className="flex h-14 w-full appearance-none items-center justify-center rounded-[1.4rem] bg-background text-[1.0625rem] font-bold text-info shadow-2xl transition-colors active:bg-muted"
           onClick={requestClose}
         >
           Cancel

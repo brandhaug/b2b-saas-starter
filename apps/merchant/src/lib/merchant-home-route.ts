@@ -1,4 +1,5 @@
 const MERCHANT_OVERLAY_ORIGIN = 'merchant-app'
+const MERCHANT_SETTINGS_PATH = '/settings'
 
 const MERCHANT_OVERLAY_PATHS = [
   /^\/about\/?$/,
@@ -15,11 +16,25 @@ export function merchantOverlayNavigationState<TState extends object>(
   previous: TState,
   merchantHomeDate?: string
 ) {
+  const { merchantOverlayReturnTo: _returnTo, ...retainedState } =
+    previous as TState & {
+      readonly merchantOverlayReturnTo?: unknown
+    }
   const retainedMerchantHomeDate = merchantHomeDateFromNavigationState(previous)
   return {
-    ...previous,
+    ...retainedState,
     merchantOverlayOrigin: MERCHANT_OVERLAY_ORIGIN,
     merchantHomeDate: merchantHomeDate ?? retainedMerchantHomeDate
+  }
+}
+
+export function merchantSettingsNavigationState<TState extends object>(
+  previous: TState,
+  merchantHomeDate?: string
+) {
+  return {
+    ...merchantOverlayNavigationState(previous, merchantHomeDate),
+    merchantOverlayReturnTo: MERCHANT_SETTINGS_PATH
   }
 }
 
@@ -39,6 +54,15 @@ export function merchantHomeDateFromNavigationState(state: unknown) {
     typeof state.merchantHomeDate === 'string'
     ? state.merchantHomeDate
     : undefined
+}
+
+export function returnsToMerchantSettings(state: unknown) {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    'merchantOverlayReturnTo' in state &&
+    state.merchantOverlayReturnTo === MERCHANT_SETTINGS_PATH
+  )
 }
 
 export function shouldRenderMerchantHome(pathname: string) {

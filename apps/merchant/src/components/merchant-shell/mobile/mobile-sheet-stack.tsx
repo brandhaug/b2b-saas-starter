@@ -19,10 +19,7 @@ export type MobileSheetDescriptor = {
 
 type MobileSheetStackValue = {
   readonly enabled: boolean
-  readonly menuOpen: boolean
   readonly descriptor: MobileSheetDescriptor | null
-  readonly openMenu: () => void
-  readonly closeMenu: () => void
   readonly registerRoute: (descriptor: MobileSheetDescriptor) => void
 }
 
@@ -34,19 +31,13 @@ export function MobileSheetStackProvider({
   readonly children: ReactNode
 }) {
   const enabled = useMerchantPresentation() === 'mobile'
-  const [menuOpen, setMenuOpen] = useState(false)
   const [descriptor, setDescriptor] = useState<MobileSheetDescriptor | null>(null)
-  const openMenu = useCallback(() => setMenuOpen(true), [])
-  const closeMenu = useCallback(() => setMenuOpen(false), [])
   const registerRoute = useCallback((next: MobileSheetDescriptor) => {
     setDescriptor((current) =>
       current?.title === next.title &&
       current.description === next.description &&
       current.layout === next.layout &&
-      current.section.kind === next.section.kind &&
-      (current.section.kind !== 'catalog' ||
-        (next.section.kind === 'catalog' &&
-          current.section.presentation === next.section.presentation))
+      current.section.kind === next.section.kind
         ? current
         : next
     )
@@ -54,13 +45,10 @@ export function MobileSheetStackProvider({
   const value = useMemo<MobileSheetStackValue>(
     () => ({
       enabled,
-      menuOpen,
       descriptor,
-      openMenu,
-      closeMenu,
       registerRoute
     }),
-    [closeMenu, descriptor, enabled, menuOpen, openMenu, registerRoute]
+    [descriptor, enabled, registerRoute]
   )
 
   return <MobileSheetStackContext value={value}>{children}</MobileSheetStackContext>

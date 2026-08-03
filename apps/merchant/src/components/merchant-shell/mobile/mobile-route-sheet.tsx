@@ -16,11 +16,11 @@ export function MobileRouteSheet({
   readonly onRequestBack?: (() => void) | undefined
   readonly onRequestClose?: (() => void) | undefined
 }) {
-  const sheet = useMobileRouteSheet({ onRequestBack, onRequestClose })
+  const sheet = useMobileRouteSheet({ layout, onRequestBack, onRequestClose })
   const sheetClassName =
     layout === 'task'
       ? 'merchant-route-sheet merchant-floating-sheet-panel z-10 m-0 flex max-w-none flex-col overflow-hidden border bg-background p-0 text-inherit'
-      : 'merchant-route-sheet relative z-10 m-0 mt-6 flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full max-w-none flex-col overflow-hidden rounded-t-[2.25rem] border-t bg-background p-0 text-inherit'
+      : 'merchant-route-sheet relative z-10 m-0 flex w-full max-w-none flex-col overflow-hidden rounded-t-[2.25rem] border-t bg-background p-0 text-inherit'
 
   return (
     <div
@@ -30,10 +30,12 @@ export function MobileRouteSheet({
       <dialog
         open
         ref={sheet.sheetRef}
-        aria-labelledby="merchant-mobile-sheet-title"
+        aria-label={layout === 'task' ? title : undefined}
+        aria-labelledby={layout === 'sheet' ? 'merchant-mobile-sheet-title' : undefined}
         aria-modal="true"
         data-mobile-surface={layout}
         data-mobile-sheet-state={sheet.sheetState}
+        data-mobile-task-detent={layout === 'task' ? sheet.taskDetent : undefined}
         onClickCapture={sheet.handleClickCapture}
         onTouchCancel={sheet.handleTouchCancel}
         onTouchEnd={sheet.handleTouchEnd}
@@ -55,32 +57,37 @@ export function MobileRouteSheet({
         >
           <span aria-hidden className="h-1 w-10 rounded-full bg-muted-foreground/20" />
         </button>
-        <header className="merchant-sheet-safe-inline z-20 grid h-10 shrink-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center bg-background">
-          {onRequestBack ? (
-            <button
-              type="button"
-              aria-label="Back to Settings"
-              className="grid size-10 place-items-center rounded-full text-foreground active:bg-muted"
-              onClick={onRequestBack}
+        {layout === 'sheet' ? (
+          <header className="merchant-sheet-safe-inline z-20 grid h-10 shrink-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center bg-background">
+            {onRequestBack ? (
+              <button
+                type="button"
+                aria-label="Back to Settings"
+                className="grid size-10 place-items-center rounded-full text-foreground active:bg-muted"
+                onClick={onRequestBack}
+              >
+                <ArrowLeft aria-hidden className="size-5" strokeWidth={1.8} />
+              </button>
+            ) : (
+              <span aria-hidden />
+            )}
+            <h1
+              id="merchant-mobile-sheet-title"
+              className="min-w-0 truncate text-center text-[0.9375rem] leading-[1.375rem] font-semibold"
             >
-              <ArrowLeft aria-hidden className="size-5" strokeWidth={1.8} />
-            </button>
-          ) : (
+              {title}
+            </h1>
             <span aria-hidden />
-          )}
-          <h1
-            id="merchant-mobile-sheet-title"
-            className="min-w-0 truncate text-center text-[0.9375rem] leading-[1.375rem] font-semibold"
-          >
-            {title}
-          </h1>
-          <span aria-hidden />
-        </header>
+          </header>
+        ) : null}
         <MobileSheetScrollport
-          contentSized={layout === 'task'}
+          contentSized={false}
           className="merchant-sheet-safe-inline pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
         >
-          <div data-mobile-route-content="true" className="[&>*:first-child]:mt-0">
+          <div
+            data-mobile-route-content="true"
+            className="h-full [&>*:first-child]:mt-0"
+          >
             {children}
           </div>
         </MobileSheetScrollport>

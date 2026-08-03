@@ -22,10 +22,7 @@ export function appointmentDetailValues(appointment: OperationalAppointment) {
   return {
     status: appointment.status.replace('_', ' '),
     scheduledTime: `${formatAppointmentDateTime(appointment.startsAt, snapshot.merchantTimezone)} – ${formatAppointmentTime(appointment.endsAt, snapshot.merchantTimezone)}`,
-    providerPreference:
-      snapshot.providerPreference.kind === 'any'
-        ? 'Any Provider'
-        : `Specific Provider · ${snapshot.assignedProvider.displayName}`,
+    providerPreference: snapshot.assignedProvider.displayName,
     quotedTotal: currencyFormatter(snapshot.currency).format(snapshot.totalMinor / 100)
   }
 }

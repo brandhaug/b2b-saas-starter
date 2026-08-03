@@ -8,7 +8,20 @@ import { MobileHomeActions } from './mobile-home-actions.tsx'
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, ...props }: { children: ReactNode; to: string }) => (
+  Link: ({
+    children,
+    to,
+    search: _search,
+    state: _state,
+    viewTransition: _viewTransition,
+    ...props
+  }: {
+    children: ReactNode
+    to: string
+    search?: unknown
+    state?: unknown
+    viewTransition?: boolean
+  }) => (
     <a href={to} {...props}>
       {children}
     </a>

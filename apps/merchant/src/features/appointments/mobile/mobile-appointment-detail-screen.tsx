@@ -1,39 +1,8 @@
 import type { OperationalAppointment } from '@b2b-saas-starter/capabilities/booking'
-import { CalendarPlus, Check, Circle, Mail, Minus, Phone, X } from 'lucide-react'
+import { CalendarPlus, Mail, Phone } from 'lucide-react'
 import type { ComponentType, SVGProps } from 'react'
 import { appointmentDetailValues } from '../shared/appointment-detail-values.ts'
 import { mobileAppointmentPaymentLabel } from './mobile-appointment-detail-model.ts'
-
-type AppointmentStatus = OperationalAppointment['status']
-
-type StatusPresentation = {
-  readonly label: string
-  readonly className: string
-  readonly icon: ComponentType<SVGProps<SVGSVGElement>>
-}
-
-const statusPresentations: Record<AppointmentStatus, StatusPresentation> = {
-  scheduled: {
-    label: 'Scheduled',
-    className: 'bg-info/12 text-info',
-    icon: Circle
-  },
-  completed: {
-    label: 'Completed',
-    className: 'bg-success/12 text-success',
-    icon: Check
-  },
-  cancelled: {
-    label: 'Cancelled',
-    className: 'bg-destructive/12 text-destructive',
-    icon: X
-  },
-  no_show: {
-    label: 'No show',
-    className: 'bg-destructive/12 text-destructive',
-    icon: Minus
-  }
-}
 
 export function MobileAppointmentDetailScreen({
   appointment,
@@ -46,62 +15,63 @@ export function MobileAppointmentDetailScreen({
 }) {
   const snapshot = appointment.snapshot
   const values = appointmentDetailValues(appointment)
-  const status = statusPresentations[appointment.status]
-  const StatusIcon = status.icon
   const serviceNames = snapshot.services.map((service) => service.name).join(' · ')
-  const bookingActionLabel =
-    appointment.status === 'completed' ? 'Book again' : 'New booking'
+  const bookingActionLabel = {
+    scheduled: 'New booking',
+    completed: 'Book again',
+    cancelled: 'Rebook',
+    no_show: 'Rebook'
+  }[appointment.status]
 
   return (
-    <article data-mobile-appointment-detail="true" className="flex flex-col pb-1">
-      <header className="pt-4">
-        <span
-          className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ${status.className}`}
-        >
-          <StatusIcon aria-hidden className="size-3.5" strokeWidth={2.5} />
-          {status.label}
-        </span>
-        <h2 className="mt-4 text-[2rem] leading-[1.05] font-bold tracking-[-0.035em] text-foreground">
+    <article
+      data-mobile-appointment-detail="true"
+      data-mobile-appointment-detail-density="compact"
+      data-appointment-status={appointment.status}
+      className="flex h-full min-h-full flex-col"
+    >
+      <header className="pt-2">
+        <h2 className="text-[1.75rem] leading-[1.05] font-bold tracking-[-0.035em] text-foreground">
           {snapshot.customerDetails.name}
         </h2>
         {contactActionsEnabled && snapshot.customerDetails.phone ? (
           <a
             href={`tel:${snapshot.customerDetails.phone}`}
-            className="mt-1.5 inline-block text-sm font-medium text-muted-foreground"
+            className="mt-1 inline-block text-[0.8125rem] font-medium text-muted-foreground"
           >
             {snapshot.customerDetails.phone}
           </a>
         ) : contactActionsEnabled ? (
-          <p className="mt-1.5 text-sm font-medium text-muted-foreground">
+          <p className="mt-1 text-[0.8125rem] font-medium text-muted-foreground">
             {snapshot.customerDetails.email}
           </p>
         ) : (
-          <p className="mt-1.5 text-sm font-medium text-muted-foreground">
+          <p className="mt-1 text-[0.8125rem] font-medium text-muted-foreground">
             Loading contact…
           </p>
         )}
       </header>
 
-      <section aria-label="Appointment schedule" className="mt-7">
-        <p className="text-[1.0625rem] leading-6 font-semibold text-foreground">
+      <section aria-label="Appointment schedule" className="mt-5">
+        <p className="text-[0.9375rem] leading-5 font-semibold text-foreground">
           {values.scheduledTime}
         </p>
-        <p className="mt-1 text-[0.9375rem] leading-5 text-muted-foreground">
+        <p className="mt-0.5 text-[0.8125rem] leading-5 text-muted-foreground">
           {serviceNames || 'Appointment'}
         </p>
-        <p className="mt-1 text-[0.8125rem] leading-5 text-muted-foreground">
+        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
           with {snapshot.assignedProvider.displayName}
         </p>
       </section>
 
       <section
         aria-label="Appointment total"
-        className="mt-6 rounded-[1.5rem] bg-muted/70 p-4"
+        className="mt-4 rounded-[1.25rem] bg-muted/70 p-3.5"
       >
         <div className="flex items-start justify-between gap-5">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Services</p>
-            <ul className="mt-2 grid gap-1">
+            <ul className="mt-1.5 grid gap-1">
               {snapshot.services.map((service) => (
                 <li
                   key={`${service.role}-${service.id}`}
@@ -119,12 +89,15 @@ export function MobileAppointmentDetailScreen({
             <span className="inline-flex rounded-lg bg-background/75 px-2 py-1 text-[0.6875rem] leading-4 font-bold tracking-wide uppercase">
               {mobileAppointmentPaymentLabel(appointment)}
             </span>
-            <p className="mt-2 text-2xl leading-none font-bold tracking-tight tabular-nums">
+            <p className="mt-1.5 text-xl leading-none font-bold tracking-tight tabular-nums">
               {values.quotedTotal}
             </p>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-between border-t border-border/65 pt-3 text-xs">
+        <div
+          data-mobile-task-expanded-only="true"
+          className="mt-3 flex items-center justify-between border-t border-border/65 pt-3 text-xs"
+        >
           <span className="text-muted-foreground">Provider preference</span>
           <span className="max-w-[60%] truncate text-right font-semibold text-foreground">
             {values.providerPreference}
@@ -132,9 +105,37 @@ export function MobileAppointmentDetailScreen({
         </div>
       </section>
 
+      <section
+        data-mobile-task-expanded-only="true"
+        aria-label="Customer contact"
+        className="mt-4 border-y border-border/60 py-3"
+      >
+        <p className="text-[0.6875rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+          Customer contact
+        </p>
+        <div className="mt-2 grid gap-1 text-sm font-medium">
+          {contactActionsEnabled ? (
+            <>
+              {snapshot.customerDetails.phone ? (
+                <a href={`tel:${snapshot.customerDetails.phone}`}>
+                  {snapshot.customerDetails.phone}
+                </a>
+              ) : (
+                <span className="text-muted-foreground">No phone number</span>
+              )}
+              <a href={`mailto:${snapshot.customerDetails.email}`}>
+                {snapshot.customerDetails.email}
+              </a>
+            </>
+          ) : (
+            <span className="text-muted-foreground">Loading contact…</span>
+          )}
+        </div>
+      </section>
+
       <nav
         aria-label="Appointment actions"
-        className="mt-auto grid grid-cols-3 gap-2 pt-8"
+        className="sticky bottom-0 z-10 mt-auto grid grid-cols-3 gap-2 bg-background pt-4 pb-1"
       >
         {contactActionsEnabled && snapshot.customerDetails.phone ? (
           <AppointmentAction
@@ -185,13 +186,13 @@ function AppointmentAction({
   readonly disabled?: boolean
 }) {
   const className = [
-    'flex min-h-24 flex-col items-center justify-center gap-2 rounded-[1.35rem] px-2 text-center transition-transform active:scale-[0.97]',
+    'flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-[1.2rem] px-2 text-center transition-transform active:scale-[0.97]',
     primary ? 'bg-primary text-primary-foreground' : 'bg-muted/75 text-foreground',
     disabled ? 'pointer-events-none opacity-40' : ''
   ].join(' ')
   const content = (
     <>
-      <Icon aria-hidden className="size-5" strokeWidth={2.25} />
+      <Icon aria-hidden className="size-[1.125rem]" strokeWidth={2.25} />
       <span className="text-xs font-semibold">{label}</span>
     </>
   )

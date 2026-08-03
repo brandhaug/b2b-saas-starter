@@ -127,7 +127,7 @@ describe('MobileCreateActionSheet interaction', () => {
       (button) => button.textContent === 'Block time'
     )
     expect(dialog?.open).toBe(true)
-    expect(document.activeElement?.textContent).toBe('Appointment')
+    expect(document.activeElement).toBe(dialog)
 
     await act(async () => blockTime?.click())
     expect(dialog?.dataset.mobileCreateActionSheetState).toBe('closing')

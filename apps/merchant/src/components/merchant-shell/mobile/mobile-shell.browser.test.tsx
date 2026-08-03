@@ -140,8 +140,8 @@ describe('MobileShell retained underlay', () => {
     )
 
     const homeBefore = container.querySelector('[data-appointments-home="true"]')
-    const settingsTrigger = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open settings"]'
+    const settingsTrigger = container.querySelector<HTMLAnchorElement>(
+      'a[aria-label="Open settings"]'
     )
     settingsTrigger?.focus()
 
@@ -414,6 +414,64 @@ describe('MobileShell retained underlay', () => {
     await act(async () =>
       action?.dispatchEvent(touchEvent('touchend', { x: 120, y: 390 }))
     )
+  })
+
+  it('expands a compact task sheet under an upward content swipe', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () =>
+      root?.render(
+        presentation(
+          <MobileShell
+            layout="task"
+            title="Appointment detail"
+            description="Appointment details"
+            section={{ kind: 'merchant' }}
+            destinations={destinations}
+          >
+            <button type="button">Appointment action</button>
+            <p data-mobile-task-expanded-only="true">More appointment options</p>
+          </MobileShell>
+        )
+      )
+    )
+    await waitForSheetSpring()
+
+    const sheet = container.querySelector<HTMLElement>('[data-mobile-surface="task"]')
+    const action = container.querySelector<HTMLButtonElement>(
+      '[data-mobile-surface="task"] [data-mobile-sheet-scroll] button'
+    )
+    expect(sheet?.dataset.mobileTaskDetent).toBe('compact')
+    expect(sheet?.style.getPropertyValue('--merchant-task-sheet-height')).toBe(
+      '422.40000000000003px'
+    )
+
+    await act(async () => {
+      action?.dispatchEvent(touchEvent('touchstart', { x: 120, y: 520 }))
+      action?.dispatchEvent(touchEvent('touchmove', { x: 120, y: 360 }))
+    })
+
+    expect(sheet?.dataset.mobileTaskDetent).toBe('expanded')
+    expect(
+      Number.parseFloat(
+        sheet?.style.getPropertyValue('--merchant-task-sheet-height') ?? ''
+      )
+    ).toBeGreaterThan(500)
+
+    await act(async () =>
+      action?.dispatchEvent(touchEvent('touchend', { x: 120, y: 360 }))
+    )
+    await waitForSheetSpring()
+
+    expect(sheet?.dataset.mobileTaskDetent).toBe('expanded')
+    expect(sheet?.dataset.mobileSheetState).toBe('open')
+    expect(
+      Number.parseFloat(
+        sheet?.style.getPropertyValue('--merchant-task-sheet-height') ?? ''
+      )
+    ).toBe(window.innerHeight - 16)
   })
 
   it('uses an explicit back button to return from a nested sheet route', async () => {

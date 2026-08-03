@@ -97,4 +97,32 @@ describe('authenticated Merchant App PWA assets', () => {
     expect(styles).toContain('.merchant-safe-area-page')
     expect(homeActions).toContain('merchant-safe-area-inline')
   })
+
+  it('anchors the translucent installed document to the full static viewport', async () => {
+    const styles = await readFile(new URL('../index.css', import.meta.url), 'utf8')
+
+    expect(styles).toContain(`@media (display-mode: standalone) {
+  html.merchant-mobile-document,
+  html.merchant-mobile-document body {
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+  }
+}`)
+  })
+
+  it('keeps every mobile sheet surface below the status-bar safe area', async () => {
+    const styles = await readFile(new URL('../index.css', import.meta.url), 'utf8')
+
+    expect(styles).toContain(
+      '--merchant-route-sheet-top: calc(env(safe-area-inset-top) + 1.5rem)'
+    )
+    expect(styles).toContain('height: calc(100vh - var(--merchant-route-sheet-top))')
+    expect(styles).toContain(
+      '--merchant-floating-sheet-top: max(0.5rem, env(safe-area-inset-top))'
+    )
+    expect(styles).toMatch(
+      /calc\(\s*100vh\s*-\s*var\(--merchant-floating-sheet-top\)\s*-\s*var\(--merchant-floating-sheet-bottom\)\s*\)/
+    )
+  })
 })

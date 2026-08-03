@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { MobileCalendarSheet } from './mobile-calendar-sheet.tsx'
 import { MobileCreateActionSheet } from './mobile-create-action-sheet.tsx'
 import { mobileCalendarDockAction } from './mobile-home-actions-model.ts'
+import { mobileSheetNavigationState } from './mobile-sheet-gesture.ts'
 import { MobileNewAppointmentSheet } from './mobile-new-appointment-sheet.tsx'
-import { useMobileSheetStack } from './mobile-sheet-stack.tsx'
 
 export function MobileHomeActions({
   appointmentDate,
@@ -14,12 +14,10 @@ export function MobileHomeActions({
   readonly appointmentDate: string
   readonly currentDate: string
 }) {
-  const stack = useMobileSheetStack()
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createGeneration, setCreateGeneration] = useState(0)
   const [newAppointmentOpen, setNewAppointmentOpen] = useState(false)
-  const settingsOpen = stack?.enabled === true && stack.menuOpen
   const calendarAction = mobileCalendarDockAction(appointmentDate, currentDate)
   const sideActionClass =
     'merchant-home-action-surface grid size-14 shrink-0 place-items-center rounded-full border text-foreground transition-transform active:scale-[0.94]'
@@ -34,17 +32,18 @@ export function MobileHomeActions({
         className="merchant-safe-area-inline pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4"
       >
         <div className="merchant-mobile-home-action-group pointer-events-auto flex w-full items-center justify-between">
-          <button
-            type="button"
+          <Link
+            to="/settings"
+            search={{ date: appointmentDate }}
+            state={(previous) => mobileSheetNavigationState(previous, appointmentDate)}
+            viewTransition={false}
             aria-label="Open settings"
             aria-haspopup="dialog"
-            aria-expanded={settingsOpen}
             data-mobile-home-action="settings"
             className={sideActionClass}
-            onClick={() => stack?.openMenu()}
           >
             <Settings aria-hidden className="size-6" strokeWidth={2.25} />
-          </button>
+          </Link>
 
           <button
             type="button"

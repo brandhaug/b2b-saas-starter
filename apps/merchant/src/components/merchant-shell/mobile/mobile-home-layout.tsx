@@ -22,7 +22,7 @@ export function MobileHomeLayout({
       <MerchantHomeAtmosphere showHero={false} />
       <section
         data-mobile-home-content="true"
-        className="merchant-safe-area-inline relative z-10 flex h-full min-h-0 min-w-0 flex-col px-5 pt-[max(2rem,env(safe-area-inset-top))]"
+        className="merchant-safe-area-inline relative z-10 flex h-full min-h-0 min-w-0 flex-col px-5 pt-[calc(env(safe-area-inset-top)+2rem)]"
       >
         {children}
       </section>

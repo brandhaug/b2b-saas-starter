@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react'
-import { useRouter } from '@tanstack/react-router'
+import { useLocation, useRouter } from '@tanstack/react-router'
 import { DesktopShell } from '@/components/merchant-shell/desktop/desktop-shell.tsx'
 import { merchantDestinations } from '@/components/merchant-shell/navigation.tsx'
-import { MobileNavigationMenu } from '@/components/merchant-shell/mobile/mobile-navigation-menu.tsx'
 import { MobileShell } from '@/components/merchant-shell/mobile/mobile-shell.tsx'
 import {
   useMobileSheetStack,
   type MobileSheetDescriptor
 } from '@/components/merchant-shell/mobile/mobile-sheet-stack.tsx'
 import { useMerchantPresentation } from '@/components/merchant-shell/merchant-presentation.tsx'
+import { returnsToMerchantSettings } from '@/lib/merchant-home-route.ts'
 import type { MerchantViewer } from '@/lib/merchant-viewer.ts'
 
 function fallbackMobileSheetDescriptor(pathname: string): MobileSheetDescriptor {
@@ -45,7 +45,7 @@ function fallbackMobileSheetDescriptor(pathname: string): MobileSheetDescriptor 
       pathname === '/services' ||
       pathname === '/providers' ||
       pathname === '/availability'
-        ? { kind: 'catalog', presentation: 'team' }
+        ? { kind: 'catalog' }
         : { kind: 'merchant' },
     title,
     description: '',
@@ -67,9 +67,12 @@ export function MerchantMobileSheetOutlet({
   readonly children: ReactNode
 }) {
   const presentation = useMerchantPresentation()
+  const location = useLocation()
   const router = useRouter()
   const stack = useMobileSheetStack()
   const nestedSettingsSheet = pathname.startsWith('/settings/')
+  const hasSettingsParent =
+    nestedSettingsSheet || returnsToMerchantSettings(location.state)
 
   if (presentation === 'desktop') {
     if (!overlayOpen) return <>{children}</>
@@ -99,72 +102,39 @@ export function MerchantMobileSheetOutlet({
 
   if (!stack) return <>{children}</>
 
-  const active = stack.menuOpen || overlayOpen
-  const descriptor = overlayOpen
-    ? nestedSettingsSheet
-      ? fallbackMobileSheetDescriptor(pathname)
-      : (stack.descriptor ?? fallbackMobileSheetDescriptor(pathname))
-    : {
-        section: { kind: 'merchant' } as const,
-        title: 'Settings',
-        description: 'Choose an area to manage.',
-        layout: 'sheet' as const
-      }
-  const destinations = merchantDestinations().filter(
-    (destination) => destination.to !== '/appointments'
-  )
-  const dismissNestedSheet = () => {
-    stack.closeMenu()
+  if (!overlayOpen) return <>{children}</>
+
+  const descriptor = nestedSettingsSheet
+    ? fallbackMobileSheetDescriptor(pathname)
+    : (stack.descriptor ?? fallbackMobileSheetDescriptor(pathname))
+  const navigateToSettings = () => {
+    void router.navigate({
+      to: '/settings',
+      search: appointmentDate ? { date: appointmentDate } : {},
+      replace: true,
+      viewTransition: false
+    })
+  }
+  const navigateToAppointments = () => {
     void router.navigate({
       to: '/appointments',
-      search: { date: appointmentDate },
+      search: appointmentDate ? { date: appointmentDate } : {},
       replace: true,
       viewTransition: false
     })
   }
 
   return (
-    <>
-      {overlayOpen ? null : children}
-      {active ? (
-        <MobileShell
-          layout={descriptor.layout}
-          section={descriptor.section}
-          destinations={merchantDestinations()}
-          title={descriptor.title}
-          description={descriptor.description}
-          onRequestBack={
-            nestedSettingsSheet
-              ? () => {
-                  void router.navigate({
-                    to: '/settings',
-                    search: appointmentDate ? { date: appointmentDate } : {},
-                    replace: true,
-                    viewTransition: false
-                  })
-                }
-              : overlayOpen && stack.menuOpen
-                ? () => router.history.back()
-                : undefined
-          }
-          onRequestClose={
-            overlayOpen && stack.menuOpen
-              ? dismissNestedSheet
-              : overlayOpen
-                ? undefined
-                : stack.closeMenu
-          }
-        >
-          {overlayOpen ? (
-            children
-          ) : (
-            <MobileNavigationMenu
-              destinations={destinations}
-              appointmentDate={appointmentDate}
-            />
-          )}
-        </MobileShell>
-      ) : null}
-    </>
+    <MobileShell
+      layout={descriptor.layout}
+      section={descriptor.section}
+      destinations={merchantDestinations()}
+      title={descriptor.title}
+      description={descriptor.description}
+      onRequestBack={hasSettingsParent ? navigateToSettings : undefined}
+      onRequestClose={hasSettingsParent ? navigateToSettings : navigateToAppointments}
+    >
+      {children}
+    </MobileShell>
   )
 }
