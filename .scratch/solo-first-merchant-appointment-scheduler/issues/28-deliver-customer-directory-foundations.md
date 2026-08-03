@@ -1,7 +1,7 @@
 # Deliver Customer Directory Foundations
 
 Type: task
-Status: claimed
+Status: resolved
 Blocked by: 25
 
 ## Question
@@ -11,7 +11,7 @@ Deliver the Merchant-scoped Customer Directory vertical slice used by booking an
 ## Acceptance criteria
 
 - [x] Public confirmation and Merchant Appointment creation can atomically match or create one Merchant-scoped Customer Record without name-only or cross-Merchant merging.
-- [ ] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
+- [x] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
 - [x] Bans and matching failures have generic public responses and create no cross-Merchant or private-reason disclosure.
 - [x] Existing Appointment snapshots remain immutable through directory edits, merges, splits, corrections, and retention actions.
 
@@ -99,3 +99,35 @@ Owner controls around merge/split, historical search, Merchant-created ban/archi
 policy, and export attribution. Capability and atomic-association integrity are the
 first repair slice; the legacy Merchant `/customers` and Appointment composer
 consumers remain part of this claimed ticket.
+
+### Final resolution — 2026-08-03
+
+Replaced the Merchant `/customers` route and Appointment composer client picker with
+authenticated reads of durable Merchant-scoped Customer Records keyed by stable record
+ID. Removed the Merchant App's legacy Appointment-derived directory request path. The
+directory workspace now supports revisioned preferred-detail and historical-contact
+edits, attributed private notes and history, destination-specific consent evidence,
+private bans, evidence-based duplicate merge, provenance-aware split, archive/restore,
+quoted CSV preview/import, and privacy-minimal export through the Effect capability and
+Live D1 layer.
+
+Mutation failures reload the authoritative directory for safe conflict recovery. Merge
+and split expose explicit preferred-detail, contact, note, consent, and observation
+assignments; split moves selected destinations instead of duplicating active matching
+evidence. Import keeps its reviewed rows frozen while refreshing authoritative revisions
+before a retry. Export remains a minimized data-producing capability; issue 36 owns the
+encrypted asynchronous artifact, attribution, delivery, expiry, and cleanup workflow.
+
+Focused Merchant tests cover the authenticated request boundary, durable composer
+selection, directory operations, quoted CSV import, and merge/split conflict recovery.
+Focused deterministic and Live D1 contracts cover idempotent Appointment association,
+explicit archive/ban policy, Merchant-parity insert/update guards, and immutable
+Appointment provenance. Issue 31 continues to own the actual Merchant Appointment command
+submission; this ticket supplies its durable `CustomerRecord.id` consumer and atomic
+`merchant_created` association seam without rewriting Appointment snapshots.
+
+The final two-axis review passes the issue specification with no remaining findings and
+finds no hard repository-standard violations. It retains one non-blocking architecture
+smell for follow-up: the Live adapter still reconciles overlapping legacy JSON state and
+normalized relational Customer Record projections; removing that transitional dual
+authority is a future deepening change, not a correctness blocker for this slice.
