@@ -1,3 +1,15 @@
+UPDATE `customer_contacts` AS candidate
+SET `status` = 'disputed', `is_preferred` = 0, `updated_at` = CURRENT_TIMESTAMP
+WHERE candidate.`status` = 'active'
+  AND EXISTS (
+    SELECT 1 FROM `customer_contacts` winner
+    WHERE winner.`merchant_id` = candidate.`merchant_id`
+      AND winner.`kind` = candidate.`kind`
+      AND winner.`normalized_value` = candidate.`normalized_value`
+      AND winner.`status` = 'active'
+      AND winner.`id` < candidate.`id`
+  );--> statement-breakpoint
+
 CREATE UNIQUE INDEX `customer_contacts_active_value_unique`
 ON `customer_contacts` (`merchant_id`,`kind`,`normalized_value`)
 WHERE `status` = 'active';--> statement-breakpoint

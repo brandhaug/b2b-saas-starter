@@ -27,10 +27,12 @@ export const CustomerObservationSchema = Schema.Struct({
 export type CustomerObservation = typeof CustomerObservationSchema.Type
 
 export const CustomerContactSchema = Schema.Struct({
+  id: Schema.optional(Schema.String),
   kind: Schema.Literals(['email', 'phone']),
   value: Schema.String,
   status: Schema.Literals(['active', 'disputed', 'superseded']),
-  preferred: Schema.Boolean
+  preferred: Schema.Boolean,
+  createdAt: Schema.optional(Schema.String)
 })
 export type CustomerContact = typeof CustomerContactSchema.Type
 
@@ -525,8 +527,19 @@ const contactsFrom = (details: DirectoryCustomerDetails): CustomerContact[] => {
     })
   return result
 }
+const fingerprintShape = (input: unknown): unknown => {
+  if (typeof input === 'string') return '<string>'
+  if (Array.isArray(input)) return input.map(fingerprintShape)
+  if (input && typeof input === 'object')
+    return Object.fromEntries(
+      Object.entries(input)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => [key, fingerprintShape(value)])
+    )
+  return input
+}
 const fingerprint = (input: unknown) =>
-  Effect.promise(() => hashSha256(JSON.stringify(input)))
+  Effect.promise(() => hashSha256(JSON.stringify(fingerprintShape(input))))
 const hasReason = (reason: string) => reason.trim().length > 0
 const mutableRecord = (record: CustomerRecord) =>
   record.status === 'active' || record.status === 'archived'
@@ -889,14 +902,30 @@ export const makeCustomerDirectoryService = (
           rejected = 0
         for (let index = 0; index < input.rows.length; index++) {
           const row = input.rows[index]!
+          const normalized = normalizeCustomerDetails(row)
           const rowKey = row.externalReference
             ? `${merchant.id}:import-row:${row.externalReference}`
             : null
-          if (rowKey && store.imports.has(rowKey)) {
+          const rowMappingPrefix = rowKey ? `${rowKey}=>` : null
+          const existingRowMapping = rowMappingPrefix
+            ? [...store.imports].find((entry) => entry.startsWith(rowMappingPrefix))
+            : undefined
+          if (existingRowMapping && rowMappingPrefix) {
+            const existingRecord = store.records.get(
+              existingRowMapping.slice(rowMappingPrefix.length)
+            )
+            if (
+              !existingRecord ||
+              existingRecord.displayName !== normalized.name ||
+              existingRecord.preferredEmail !== normalized.email ||
+              existingRecord.preferredPhone !== normalized.phone
+            )
+              return yield* Effect.fail(
+                new CapabilityConflict({ reason: 'idempotency_key_reused' })
+              )
             matched += 1
             continue
           }
-          const normalized = normalizeCustomerDetails(row)
           const { matching } = recordsMatchingDetails(
             matchableMerchantRecords(store, merchant.id),
             normalized
@@ -924,7 +953,8 @@ export const makeCustomerDirectoryService = (
           else {
             if (result.success.matched) matched += 1
             else created += 1
-            if (rowKey) store.imports.add(rowKey)
+            if (rowMappingPrefix)
+              store.imports.add(`${rowMappingPrefix}${result.success.record.id}`)
           }
         }
         store.imports.add(importKey)

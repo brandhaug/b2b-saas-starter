@@ -238,6 +238,15 @@ describe('Live Customer Directory contract', () => {
         })
       })
     )
+    const contactBefore = await test.d1
+      .prepare(
+        `SELECT id, created_at FROM customer_contacts
+         WHERE customer_record_id = ? AND normalized_value = 'mara@example.com'`
+      )
+      .bind(created.record.id)
+      .first<{ id: string; created_at: string }>()
+    expect(contactBefore?.id).not.toContain('mara')
+    expect(contactBefore?.id).not.toContain('example')
 
     const updated = await run(
       Effect.gen(function* () {
@@ -261,6 +270,14 @@ describe('Live Customer Directory contract', () => {
       kind: 'note_added',
       actorId: 'usr_owner'
     })
+    const contactAfter = await test.d1
+      .prepare(
+        `SELECT id, created_at FROM customer_contacts
+         WHERE customer_record_id = ? AND normalized_value = 'mara@example.com'`
+      )
+      .bind(created.record.id)
+      .first<{ id: string; created_at: string }>()
+    expect(contactAfter).toEqual(contactBefore)
 
     const restored = await run(
       Effect.flatMap(CustomerDirectory, (service) => service.search('mara@example.com'))
@@ -320,6 +337,46 @@ describe('Live Customer Directory contract', () => {
       .bind(created.record.id)
       .first<{ display_name: string; status: string }>()
     expect(erasedRow).toEqual({ display_name: 'Erased customer', status: 'erased' })
+
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db.insert(appointments).values({
+            id: 'apt_after_erasure',
+            merchantId: 'mer_customer_live',
+            providerId: 'prv_customer_live',
+            status: 'scheduled',
+            startsAt: '2027-08-03T10:00:00.000Z',
+            endsAt: '2027-08-03T11:00:00.000Z',
+            createdAt: '2027-08-02T10:00:00.000Z',
+            updatedAt: '2027-08-02T10:00:00.000Z'
+          })
+          const statements = yield* prepareAppointmentCustomerAssociation(db, {
+            merchantId: 'mer_customer_live',
+            appointment: {
+              id: 'apt_after_erasure',
+              details: {
+                name: 'Mara Ionescu',
+                email: 'mara@example.com',
+                phone: null
+              }
+            },
+            origin: 'public_booking',
+            now: '2027-08-02T10:00:00.000Z'
+          })
+          yield* batch(db, statements)
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+    const recreated = await test.d1
+      .prepare(
+        `SELECT customer_record_id FROM appointment_foundations
+         WHERE appointment_id = 'apt_after_erasure'`
+      )
+      .first<{ customer_record_id: string }>()
+    expect(recreated?.customer_record_id).not.toBe(created.record.id)
   })
 
   it('moves relational Appointment associations through merge and split', async () => {
@@ -607,6 +664,23 @@ describe('Live Customer Directory contract', () => {
         )
       )
     ).rejects.toMatchObject({ _tag: 'CapabilityUnavailable' })
+    await expect(
+      Effect.runPromise(
+        Effect.provide(
+          Effect.gen(function* () {
+            const db = yield* Database
+            return yield* prepareAppointmentCustomerAssociation(db, {
+              ...input,
+              merchantPolicy: { restoreArchived: true, allowBanned: true }
+            })
+          }),
+          layerFromD1(test.d1)
+        )
+      )
+    ).rejects.toMatchObject({
+      _tag: 'CapabilityUnavailable',
+      reason: 'ban override reason is required'
+    })
 
     await Effect.runPromise(
       Effect.provide(
@@ -614,7 +688,11 @@ describe('Live Customer Directory contract', () => {
           const db = yield* Database
           const statements = yield* prepareAppointmentCustomerAssociation(db, {
             ...input,
-            merchantPolicy: { restoreArchived: true, allowBanned: true }
+            merchantPolicy: {
+              restoreArchived: true,
+              allowBanned: true,
+              banOverrideReason: 'Owner approved this booking despite the ban'
+            }
           })
           yield* batch(db, statements)
         }),
@@ -627,7 +705,11 @@ describe('Live Customer Directory contract', () => {
           const db = yield* Database
           return yield* prepareAppointmentCustomerAssociation(db, {
             ...input,
-            merchantPolicy: { restoreArchived: true, allowBanned: true }
+            merchantPolicy: {
+              restoreArchived: true,
+              allowBanned: true,
+              banOverrideReason: 'Owner approved this booking despite the ban'
+            }
           })
         }),
         layerFromD1(test.d1)
@@ -638,5 +720,12 @@ describe('Live Customer Directory contract', () => {
       .prepare(`SELECT status FROM customer_records WHERE id = 'cur_archived_banned'`)
       .first<{ status: string }>()
     expect(restored?.status).toBe('active')
+    const overrideHistory = await test.d1
+      .prepare(
+        `SELECT reason FROM customer_directory_history
+         WHERE id = 'cuh_apt_archived_override'`
+      )
+      .first<{ reason: string }>()
+    expect(overrideHistory?.reason).toBe('Owner approved this booking despite the ban')
   })
 })

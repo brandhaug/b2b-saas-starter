@@ -3866,25 +3866,41 @@ export const merchantActivationHistory = sqliteTable(
   ]
 )
 
-export const customerRecords = sqliteTable('customer_records', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  displayName: text('display_name').notNull(),
-  status: text('status', { enum: ['active', 'quarantined', 'erased'] })
-    .default('active')
-    .notNull(),
-  preferredLocale: text('preferred_locale', { enum: ['en', 'ro'] })
-    .default('en')
-    .notNull(),
-  merchantNote: text('merchant_note'),
-  mergedInto: text('merged_into'),
-  revision: integer('revision').default(1).notNull(),
-  lastActivityAt: text('last_activity_at').notNull(),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
-})
+export const customerRecords = sqliteTable(
+  'customer_records',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    displayName: text('display_name').notNull(),
+    status: text('status', { enum: ['active', 'quarantined', 'erased'] })
+      .default('active')
+      .notNull(),
+    preferredLocale: text('preferred_locale', { enum: ['en', 'ro'] })
+      .default('en')
+      .notNull(),
+    merchantNote: text('merchant_note'),
+    mergedInto: text('merged_into'),
+    revision: integer('revision').default(1).notNull(),
+    lastActivityAt: text('last_activity_at').notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('customer_records_id_merchant_unique').on(table.id, table.merchantId),
+    index('customer_records_merchant_activity_idx').on(
+      table.merchantId,
+      table.lastActivityAt
+    ),
+    check('customer_records_revision_positive', sql`${table.revision} > 0`),
+    check(
+      'customer_records_status_valid',
+      sql`${table.status} IN ('active','quarantined','erased')`
+    ),
+    check('customer_records_locale_valid', sql`${table.preferredLocale} IN ('en','ro')`)
+  ]
+)
 
 export const customerContacts = sqliteTable(
   'customer_contacts',
@@ -3913,6 +3929,17 @@ export const customerContacts = sqliteTable(
     uniqueIndex('customer_contacts_preferred_kind_unique')
       .on(table.customerRecordId, table.kind)
       .where(sql`${table.isPreferred} = 1 AND ${table.status} = 'active'`),
+    foreignKey({
+      name: 'customer_contacts_record_merchant_fk',
+      columns: [table.customerRecordId, table.merchantId],
+      foreignColumns: [customerRecords.id, customerRecords.merchantId]
+    }).onDelete('cascade'),
+    check('customer_contacts_kind_valid', sql`${table.kind} IN ('email','phone')`),
+    check(
+      'customer_contacts_status_valid',
+      sql`${table.status} IN ('active','disputed','superseded','erased')`
+    ),
+    check('customer_contacts_preferred_boolean', sql`${table.isPreferred} IN (0,1)`)
   ]
 )
 
@@ -3969,18 +3996,24 @@ export const customerDuplicateSuggestions = sqliteTable(
   ]
 )
 
-export const customerBans = sqliteTable('customer_bans', {
-  customerRecordId: text('customer_record_id')
-    .primaryKey()
-    .references(() => customerRecords.id, { onDelete: 'cascade' }),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  reason: text('reason').notNull(),
-  actorId: text('actor_id').notNull(),
-  createdAt: text('created_at').notNull(),
-  expiresAt: text('expires_at')
-})
+export const customerBans = sqliteTable(
+  'customer_bans',
+  {
+    customerRecordId: text('customer_record_id')
+      .primaryKey()
+      .references(() => customerRecords.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    actorId: text('actor_id').notNull(),
+    createdAt: text('created_at').notNull(),
+    expiresAt: text('expires_at')
+  },
+  (table) => [
+    index('customer_bans_merchant_expiry_idx').on(table.merchantId, table.expiresAt)
+  ]
+)
 
 export const customerDirectoryHistory = sqliteTable(
   'customer_directory_history',
@@ -4041,27 +4074,36 @@ export const appointmentSeries = sqliteTable('appointment_series', {
   updatedAt: isoUpdatedAt()
 })
 
-export const appointmentFoundations = sqliteTable('appointment_foundations', {
-  appointmentId: text('appointment_id')
-    .primaryKey()
-    .references(() => appointments.id, { onDelete: 'cascade' }),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  customerRecordId: text('customer_record_id').references(() => customerRecords.id, {
-    onDelete: 'set null'
-  }),
-  origin: text('origin', {
-    enum: ['public_booking', 'merchant_created', 'walk_in', 'waiting_list']
-  })
-    .default('public_booking')
-    .notNull(),
-  customerNote: text('customer_note'),
-  seriesId: text('series_id'),
-  seriesPosition: integer('series_position'),
-  foundationVersion: integer('foundation_version').default(1).notNull(),
-  createdAt: isoCreatedAt()
-})
+export const appointmentFoundations = sqliteTable(
+  'appointment_foundations',
+  {
+    appointmentId: text('appointment_id')
+      .primaryKey()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    customerRecordId: text('customer_record_id').references(() => customerRecords.id, {
+      onDelete: 'set null'
+    }),
+    origin: text('origin', {
+      enum: ['public_booking', 'merchant_created', 'walk_in', 'waiting_list']
+    })
+      .default('public_booking')
+      .notNull(),
+    customerNote: text('customer_note'),
+    seriesId: text('series_id'),
+    seriesPosition: integer('series_position'),
+    foundationVersion: integer('foundation_version').default(1).notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('appointment_foundations_merchant_origin_idx').on(
+      table.merchantId,
+      table.origin
+    )
+  ]
+)
 
 export const externalCollections = sqliteTable('external_collections', {
   id: id(),

@@ -46,7 +46,7 @@ export function useCustomerDirectoryTransfer({
       void previewCustomerImport({ data: { rows } })
         .then((preview) => {
           setImportPreview({
-            fileId: commandKey(),
+            fileId: 'server-derived',
             idempotencyKey: commandKey(),
             rows,
             outcomes: preview

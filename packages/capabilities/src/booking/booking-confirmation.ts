@@ -57,6 +57,12 @@ import {
   prepareAppointmentCustomerAssociationBatch
 } from '../customer-directory/appointment-association.ts'
 
+const customerContactUniquenessFailed = (reason: string) =>
+  reason.includes('customer_contacts_active_value_unique') ||
+  reason.includes(
+    'customer_contacts.merchant_id, customer_contacts.kind, customer_contacts.normalized_value'
+  )
+
 export type ConfirmationSigningKeyring = {
   readonly currentKeyId: string
   readonly keys: Readonly<Record<string, string>>
@@ -1375,18 +1381,19 @@ export const LiveBookingConfirmation = (
                       ]
                     >([null, null])
               )
+              const customerAssociationInputs = generated.map((item) => ({
+                merchantId: item.row.hold.merchantId,
+                appointment: {
+                  id: item.appointmentId,
+                  details: item.snapshot.customerDetails
+                },
+                origin: 'public_booking' as const,
+                now: input.now
+              }))
               const customerAssociationStatements =
                 yield* prepareAppointmentCustomerAssociationBatch(
                   db,
-                  generated.map((item) => ({
-                    merchantId: item.row.hold.merchantId,
-                    appointment: {
-                      id: item.appointmentId,
-                      details: item.snapshot.customerDetails
-                    },
-                    origin: 'public_booking',
-                    now: input.now
-                  }))
+                  customerAssociationInputs
                 ).pipe(
                   Effect.mapError(
                     (error) =>
@@ -1462,6 +1469,7 @@ export const LiveBookingConfirmation = (
                   createdAt: input.now
                 })
               ])
+              const customerAssociationStart = statements.length
               statements.push(...customerAssociationStatements)
               statements.push(
                 ...preparedIntents.flatMap((intents) =>
@@ -1572,7 +1580,31 @@ export const LiveBookingConfirmation = (
                       ]
                     : [])
               )
-              const committed = yield* Effect.result(batch(db, statements))
+              let committed = yield* Effect.result(batch(db, statements))
+              if (
+                committed._tag === 'Failure' &&
+                customerContactUniquenessFailed(committed.failure.reason)
+              ) {
+                const retriedAssociations =
+                  yield* prepareAppointmentCustomerAssociationBatch(
+                    db,
+                    customerAssociationInputs
+                  ).pipe(
+                    Effect.mapError(
+                      (error) =>
+                        new CapabilityUnavailable({
+                          capability: 'booking-confirmation',
+                          reason: error.reason
+                        })
+                    )
+                  )
+                statements.splice(
+                  customerAssociationStart,
+                  customerAssociationStatements.length,
+                  ...retriedAssociations
+                )
+                committed = yield* Effect.result(batch(db, statements))
+              }
               if (committed._tag === 'Failure') {
                 const replayAfterFailure = yield* Effect.result(
                   readCommitted(session.id)
@@ -1721,16 +1753,20 @@ export const LiveBookingConfirmation = (
                   notificationProtection
                 )
               : null
+            const customerAssociationInput = {
+              merchantId: row.session.merchantId,
+              appointment: {
+                id: appointmentId,
+                details: snapshot.customerDetails
+              },
+              origin: 'public_booking',
+              now: input.now
+            } as const
             const customerAssociationStatements =
-              yield* prepareAppointmentCustomerAssociation(db, {
-                merchantId: row.session.merchantId,
-                appointment: {
-                  id: appointmentId,
-                  details: snapshot.customerDetails
-                },
-                origin: 'public_booking',
-                now: input.now
-              }).pipe(
+              yield* prepareAppointmentCustomerAssociation(
+                db,
+                customerAssociationInput
+              ).pipe(
                 Effect.mapError(
                   (error) =>
                     new CapabilityUnavailable({
@@ -1823,9 +1859,34 @@ export const LiveBookingConfirmation = (
                 ),
               ...customerAssociationStatements
             ]
+            const customerAssociationStart =
+              statements.length - customerAssociationStatements.length
             if (preparedIntent)
               statements.push(...notificationIntentMutationStatements(preparedIntent))
-            const committed = yield* Effect.result(batch(db, statements))
+            let committed = yield* Effect.result(batch(db, statements))
+            if (
+              committed._tag === 'Failure' &&
+              customerContactUniquenessFailed(committed.failure.reason)
+            ) {
+              const retriedAssociations = yield* prepareAppointmentCustomerAssociation(
+                db,
+                customerAssociationInput
+              ).pipe(
+                Effect.mapError(
+                  (error) =>
+                    new CapabilityUnavailable({
+                      capability: 'booking-confirmation',
+                      reason: error.reason
+                    })
+                )
+              )
+              statements.splice(
+                customerAssociationStart,
+                customerAssociationStatements.length,
+                ...retriedAssociations
+              )
+              committed = yield* Effect.result(batch(db, statements))
+            }
             if (committed._tag === 'Failure') {
               const replayAfterFailure = yield* Effect.result(readCommitted(session.id))
               if (replayAfterFailure._tag === 'Failure')

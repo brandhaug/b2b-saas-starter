@@ -13,7 +13,6 @@ import {
   type EffectDatabase
 } from '@b2b-saas-starter/db'
 import { newCapabilityId } from '../internal/ids.ts'
-import { hashSha256 } from '../internal/crypto.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { CapabilityUnavailable } from '../errors.ts'
 import {
@@ -35,7 +34,10 @@ const AppointmentAssociationBaseFields = {
   merchantPolicy: Schema.optional(
     Schema.Struct({
       restoreArchived: Schema.Boolean,
-      allowBanned: Schema.Boolean
+      allowBanned: Schema.Boolean,
+      banOverrideReason: Schema.optional(
+        Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1))
+      )
     })
   ),
   now: Schema.String
@@ -61,13 +63,6 @@ export type AppointmentCustomerAssociationInput =
 
 type AppointmentCustomerAssociationPlan = Map<string, string>
 
-const stableRecordId = (
-  merchantId: string,
-  identifier: { kind: string; value: string }
-) =>
-  hashSha256(`${merchantId}:${identifier.kind}:${identifier.value}`).then(
-    (hash) => `cur_contact_${hash.slice(0, 32)}`
-  )
 const plannedContactKey = (
   merchantId: string,
   identifier: { readonly kind: string; readonly value: string }
@@ -114,6 +109,17 @@ const prepareAppointmentCustomerAssociationWithPlan = (
       details.email ? { kind: 'email' as const, value: details.email } : null,
       details.phone ? { kind: 'phone' as const, value: details.phone } : null
     ].filter((item): item is NonNullable<typeof item> => item !== null)
+    if (
+      input.origin === 'merchant_created' &&
+      input.merchantPolicy?.allowBanned === true &&
+      !input.merchantPolicy.banOverrideReason?.trim()
+    )
+      return yield* Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'customer-directory',
+          reason: 'ban override reason is required'
+        })
+      )
     const matches =
       identifiers.length === 0
         ? []
@@ -160,6 +166,17 @@ const prepareAppointmentCustomerAssociationWithPlan = (
       ...new Set([...persistedCandidateIds, ...plannedCandidateIds])
     ]
     const matchedId = candidateIds.length === 1 ? candidateIds[0] : undefined
+    const persistedMatch = matchedId ? persistedCandidateIds.includes(matchedId) : false
+    const plannedMatchKeys = new Set(
+      plan && matchedId
+        ? identifiers
+            .filter(
+              (identifier) =>
+                plan.get(plannedContactKey(input.merchantId, identifier)) === matchedId
+            )
+            .map((identifier) => `${identifier.kind}:${identifier.value}`)
+        : []
+    )
     const matchedStatus = matches.find(
       ({ customerRecordId }) => customerRecordId === matchedId
     )?.recordStatus
@@ -198,21 +215,12 @@ const prepareAppointmentCustomerAssociationWithPlan = (
           })
         )
     }
-    const recordId = matchedId
-      ? matchedId
-      : candidateIds.length === 0 && identifiers.length > 0
-        ? yield* Effect.promise(() =>
-            stableRecordId(
-              input.merchantId,
-              identifiers.find(({ kind }) => kind === 'email') ?? identifiers[0]!
-            )
-          )
-        : newCapabilityId('cur')
+    const recordId = matchedId ?? newCapabilityId('cur')
     if (plan && candidateIds.length <= 1)
       for (const identifier of identifiers)
         plan.set(plannedContactKey(input.merchantId, identifier), recordId)
     const statements: BatchStatement[] = []
-    if (!matchedId) {
+    if (!persistedMatch) {
       statements.push(
         db
           .insert(customerRecords)
@@ -252,22 +260,22 @@ const prepareAppointmentCustomerAssociationWithPlan = (
           })
           .where(
             and(
-              eq(customerRecords.id, matchedId),
+              eq(customerRecords.id, recordId),
               eq(customerRecords.merchantId, input.merchantId)
             )
           )
       )
     }
     const matchedKeys = new Set(matches.map((match) => `${match.kind}:${match.value}`))
+    for (const key of plannedMatchKeys) matchedKeys.add(key)
     for (const identifier of identifiers) {
       if (matchedId && matchedKeys.has(`${identifier.kind}:${identifier.value}`))
         continue
-      const contactId = yield* Effect.promise(() => stableRecordId('', identifier))
       statements.push(
         db
           .insert(customerContacts)
           .values({
-            id: `cuc_${recordId}_${identifier.kind}_${contactId.slice(12)}`,
+            id: newCapabilityId('cuc'),
             customerRecordId: recordId,
             merchantId: input.merchantId,
             kind: identifier.kind,
@@ -339,7 +347,11 @@ const prepareAppointmentCustomerAssociationWithPlan = (
           kind: sql<string>`CASE WHEN (SELECT ${customerRecords.revision} FROM ${customerRecords} WHERE ${customerRecords.id} = ${recordId}) = 1 THEN 'created' ELSE 'appointment_observed' END`,
           actorId: historyActor.actorId,
           impersonatedBy: historyActor.impersonatedBy,
-          reason: input.origin,
+          reason:
+            input.origin === 'merchant_created' &&
+            input.merchantPolicy?.allowBanned === true
+              ? input.merchantPolicy.banOverrideReason!
+              : input.origin,
           revision: sql<number>`(SELECT ${customerRecords.revision} FROM ${customerRecords} WHERE ${customerRecords.id} = ${recordId})`,
           occurredAt: input.now
         })

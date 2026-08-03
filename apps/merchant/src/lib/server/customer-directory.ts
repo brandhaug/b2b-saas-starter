@@ -8,6 +8,8 @@ import {
 } from './customer-directory-handler.ts'
 import { runCustomerDirectoryRequest } from './customer-directory-runner.ts'
 import { runMerchantRequest } from './merchant-session.ts'
+import { createMerchantServerContext } from '../server-context.ts'
+import { customerImportFileId } from './customer-import-id.ts'
 
 const RecordId = Schema.Struct({ recordId: Schema.String })
 const Mutation = {
@@ -205,10 +207,15 @@ export const splitCustomer = createServerFn({ method: 'POST' })
 
 export const importCustomers = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(ImportRows))
-  .handler(({ data }) =>
-    mutate((requests) =>
+  .handler(async ({ data }) => {
+    const fileId = await customerImportFileId(
+      data.rows,
+      createMerchantServerContext().merchantSecret()
+    )
+    return mutate((requests) =>
       requests.importRows({
         ...data,
+        fileId,
         rows: data.rows.map((row) => ({
           name: row.name,
           email: row.email,
@@ -219,7 +226,7 @@ export const importCustomers = createServerFn({ method: 'POST' })
         }))
       })
     )
-  )
+  })
 
 export const previewCustomerImport = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(Schema.Struct({ rows: Schema.Array(ImportRow) })))

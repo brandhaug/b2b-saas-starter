@@ -616,6 +616,16 @@ describe('Customer Directory contract', () => {
           actorId: 'usr_owner',
           now: '2026-08-02T10:30:00.000Z'
         })
+        const changedRowReplay = yield* Effect.result(
+          service.importRows({
+            fileId: 'file-3',
+            idempotencyKey: 'changed-external-row',
+            expectedRevisions: { [record.id]: record.revision },
+            rows: [{ ...rows[0]!, name: 'Changed Imported Name' }],
+            actorId: 'usr_owner',
+            now: '2026-08-02T10:45:00.000Z'
+          })
+        )
         const changed = yield* service.addNote(record.id, {
           expectedRevision: record.revision,
           idempotencyKey: 'note-import',
@@ -638,6 +648,7 @@ describe('Customer Directory contract', () => {
           committed,
           replay,
           rowReplay,
+          changedRowReplay,
           changed,
           stale,
           exported: yield* service.exportMinimized()
@@ -649,6 +660,10 @@ describe('Customer Directory contract', () => {
     expect(result.committed).toEqual({ created: 1, matched: 0, rejected: 1 })
     expect(result.replay).toEqual(result.committed)
     expect(result.rowReplay).toEqual({ created: 0, matched: 1, rejected: 0 })
+    expect(result.changedRowReplay).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'idempotency_key_reused' })
+    })
     expect(result.stale._tag).toBe('Failure')
     expect(result.changed.ban).toBeNull()
     expect(result.exported[0]).not.toHaveProperty('notes')

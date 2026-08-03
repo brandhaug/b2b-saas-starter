@@ -15,7 +15,7 @@ import {
 } from '@b2b-saas-starter/db'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { CapabilityConflict, CapabilityUnavailable } from '../errors.ts'
-import { hashSha256 } from '../internal/crypto.ts'
+import { newCapabilityId } from '../internal/ids.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import {
   CustomerDirectory,
@@ -94,7 +94,11 @@ const stateFor = (
   merchantId: string,
   persistedSupplements: ReadonlyMap<string, RecordSupplement>
 ): State => {
-  const records = new Map(persistedSupplements)
+  const records = new Map(
+    [...persistedSupplements].filter(
+      ([, supplement]) => supplement.merchantId === merchantId
+    )
+  )
   for (const record of store.records.values())
     if (record.merchantId === merchantId) records.set(record.id, supplementFor(record))
   return {
@@ -158,7 +162,6 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
       const db = yield* Database
       const store = emptyCustomerDirectoryState()
       const observedRevisions = new Map<string, number>()
-      const persistedSupplements = new Map<string, RecordSupplement>()
       const directory = makeCustomerDirectoryService(store)
       const ensure = (merchantId: string, recordIds?: readonly string[]) =>
         Effect.gen(function* () {
@@ -247,9 +250,6 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
           const supplements = new Map(
             state.records.map((record) => [record.id, record] as const)
           )
-          persistedSupplements.clear()
-          for (const [id, supplement] of supplements)
-            persistedSupplements.set(id, supplement)
           const contactsByRecord = groupByRecord(contacts)
           const observationsByRecord = groupByRecord(observations)
           const bansByRecord = groupByRecord(bans)
@@ -259,13 +259,15 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
             const supplement = supplements.get(row.id)
             const recordContacts = (contactsByRecord.get(row.id) ?? []).map(
               (contact) => ({
+                id: contact.id,
                 kind: contact.kind,
                 value: contact.normalizedValue,
                 status:
                   contact.status === 'erased'
                     ? ('superseded' as const)
                     : contact.status,
-                preferred: contact.isPreferred
+                preferred: contact.isPreferred,
+                createdAt: contact.createdAt
               })
             )
             const recordObservations = (observationsByRecord.get(row.id) ?? []).map(
@@ -345,12 +347,14 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
               )
             })
           }
+          return supplements
         })
       const persist = (
         merchantId: string,
         now: string,
         expectedRevision: number,
-        before: MemoryState
+        before: MemoryState,
+        persistedSupplements: ReadonlyMap<string, RecordSupplement>
       ) =>
         Effect.gen(function* () {
           const stateWrite = db
@@ -446,26 +450,22 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   }
                 })
             )
-            for (const contact of record.contacts) {
-              const contactDigest = yield* Effect.promise(() =>
-                hashSha256(
-                  `${merchantId}:${record.id}:${contact.kind}:${contact.value}`
+            if (record.status !== 'merged')
+              for (const contact of record.contacts) {
+                statements.push(
+                  db.insert(customerContacts).values({
+                    id: contact.id ?? newCapabilityId('cuc'),
+                    customerRecordId: record.id,
+                    merchantId,
+                    kind: contact.kind,
+                    normalizedValue: contact.value,
+                    status: contact.status,
+                    isPreferred: contact.preferred,
+                    createdAt: contact.createdAt ?? now,
+                    updatedAt: now
+                  })
                 )
-              )
-              statements.push(
-                db.insert(customerContacts).values({
-                  id: `cuc_${contactDigest.slice(0, 32)}`,
-                  customerRecordId: record.id,
-                  merchantId,
-                  kind: contact.kind,
-                  normalizedValue: contact.value,
-                  status: record.status === 'merged' ? 'superseded' : contact.status,
-                  isPreferred: record.status === 'merged' ? false : contact.preferred,
-                  createdAt: now,
-                  updatedAt: now
-                })
-              )
-            }
+              }
             if (record.ban)
               statements.push(
                 db.insert(customerBans).values({
@@ -547,12 +547,12 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
       ) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
-          yield* ensure(merchant.id, recordIds)
+          const persistedSupplements = yield* ensure(merchant.id, recordIds)
           const before = memoryStateFor(store, merchant.id)
           const expectedRevision = observedRevisions.get(merchant.id) ?? 0
           const result = yield* effect
           const persisted = yield* Effect.result(
-            persist(merchant.id, now, expectedRevision, before)
+            persist(merchant.id, now, expectedRevision, before, persistedSupplements)
           )
           if (persisted._tag === 'Failure') {
             restoreMemory(store, merchant.id, before)
