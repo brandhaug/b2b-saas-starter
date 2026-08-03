@@ -1,4 +1,5 @@
 import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
+import { customerRecordMatchesQuery } from '@/features/customers/customer-contact-model.ts'
 
 export type AppointmentClient = {
   readonly id: string
@@ -34,11 +35,7 @@ export const groupAppointmentClients = (
 ): readonly AppointmentClientGroup[] => {
   const normalizedQuery = normalizedSearchValue(query)
   const filtered = normalizedQuery
-    ? entries.filter((entry) =>
-        [entry.displayName, entry.preferredEmail, entry.preferredPhone]
-          .filter((value): value is string => Boolean(value))
-          .some((value) => normalizedSearchValue(value).includes(normalizedQuery))
-      )
+    ? entries.filter((entry) => customerRecordMatchesQuery(entry, normalizedQuery))
     : entries
 
   const sorted = [...filtered].sort((left, right) =>

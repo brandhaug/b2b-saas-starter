@@ -229,6 +229,9 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
           )
           const statements: BatchStatement[] = [
             stateWrite,
+            db
+              .delete(customerDuplicateSuggestions)
+              .where(eq(customerDuplicateSuggestions.merchantId, merchantId)),
             ...records.flatMap((record) => [
               db
                 .delete(customerContacts)
@@ -301,6 +304,16 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   expiresAt: record.ban.expiresAt
                 })
               )
+            if (record.status !== 'merged' && record.status !== 'erased')
+              for (const possibleDuplicateId of record.possibleDuplicateOf)
+                statements.push(
+                  db.insert(customerDuplicateSuggestions).values({
+                    merchantId,
+                    customerRecordId: record.id,
+                    possibleDuplicateId,
+                    createdAt: now
+                  })
+                )
             for (const history of record.history)
               statements.push(
                 db

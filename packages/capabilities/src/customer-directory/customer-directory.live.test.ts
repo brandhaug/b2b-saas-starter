@@ -6,7 +6,9 @@ import {
   batch,
   layerFromD1,
   merchants,
-  providers
+  merchantMemberships,
+  providers,
+  user
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
@@ -34,6 +36,15 @@ beforeAll(async () => {
     Effect.provide(
       Effect.gen(function* () {
         const db = yield* Database
+        yield* db.insert(user).values({
+          id: 'usr_customer_live_owner',
+          name: 'Customer Owner',
+          email: 'owner@customer-live.test',
+          emailVerified: true,
+          identityClass: 'merchant_member',
+          createdAt: new Date('2026-08-02T10:00:00.000Z'),
+          updatedAt: new Date('2026-08-02T10:00:00.000Z')
+        })
         yield* db.insert(merchants).values({
           id: 'mer_customer_live',
           publicName: 'Customer Studio',
@@ -44,9 +55,16 @@ beforeAll(async () => {
           createdAt: '2026-08-02T10:00:00.000Z',
           updatedAt: '2026-08-02T10:00:00.000Z'
         })
+        yield* db.insert(merchantMemberships).values({
+          merchantId: 'mer_customer_live',
+          userId: 'usr_customer_live_owner',
+          role: 'owner',
+          createdAt: '2026-08-02T10:00:00.000Z'
+        })
         yield* db.insert(providers).values({
           id: 'prv_customer_live',
           merchantId: 'mer_customer_live',
+          linkedUserId: 'usr_customer_live_owner',
           displayName: 'Owner',
           status: 'active',
           isDefault: true,
@@ -205,6 +223,26 @@ describe('Live Customer Directory contract', () => {
       )
     )
 
+    const initialLinks = await test.d1
+      .prepare(
+        `SELECT appointment_id, customer_record_id FROM appointment_foundations
+         WHERE appointment_id IN ('apt_merge_left','apt_merge_right')
+         ORDER BY appointment_id`
+      )
+      .all<{ appointment_id: string; customer_record_id: string }>()
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_duplicate_suggestions
+         (merchant_id, customer_record_id, possible_duplicate_id, created_at)
+         VALUES ('mer_customer_live', ?, ?, ?)`
+      )
+      .bind(
+        initialLinks.results[0]!.customer_record_id,
+        initialLinks.results[1]!.customer_record_id,
+        '2026-08-02T09:00:00.000Z'
+      )
+      .run()
+
     const result = await run(
       Effect.gen(function* () {
         const directory = yield* CustomerDirectory
@@ -252,6 +290,13 @@ describe('Live Customer Directory contract', () => {
         customer_record_id: result.created.id
       }
     ])
+    const remainingSuggestions = await test.d1
+      .prepare(
+        `SELECT count(*) AS count FROM customer_duplicate_suggestions
+         WHERE merchant_id = 'mer_customer_live'`
+      )
+      .first<{ count: number }>()
+    expect(remainingSuggestions?.count).toBe(0)
   })
 
   it('rejects a contact whose Merchant does not own its Customer Record', async () => {

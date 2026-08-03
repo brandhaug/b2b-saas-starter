@@ -9,7 +9,8 @@ const customerRecord = (
   input: Pick<
     CustomerRecord,
     'id' | 'displayName' | 'preferredEmail' | 'preferredPhone'
-  >
+  > &
+    Partial<Pick<CustomerRecord, 'contacts' | 'observations'>>
 ): CustomerRecord => ({
   merchantId: 'mer_test',
   status: 'active',
@@ -37,7 +38,28 @@ const entries: readonly CustomerRecord[] = [
     id: 'cur_a',
     displayName: 'Alex Raucescu',
     preferredEmail: 'alex@example.test',
-    preferredPhone: '+40711111111'
+    preferredPhone: '+40711111111',
+    contacts: [
+      {
+        kind: 'email',
+        value: 'alex.old@example.test',
+        status: 'superseded',
+        preferred: false
+      }
+    ],
+    observations: [
+      {
+        id: 'cuo_alex_old',
+        appointmentId: 'apt_alex_old',
+        details: {
+          name: 'Alex Ionescu',
+          email: 'alex.old@example.test',
+          phone: null
+        },
+        observedAt: '2026-06-25T10:00:00.000Z',
+        source: 'appointment'
+      }
+    ]
   })
 ]
 
@@ -46,6 +68,12 @@ describe('appointment client model', () => {
     expect(groupAppointmentClients(entries, 'example.test')).toEqual([
       { letter: 'A', entries: [entries[1]] },
       { letter: 'B', entries: [entries[0]] }
+    ])
+    expect(groupAppointmentClients(entries, 'Alex Ionescu')).toEqual([
+      { letter: 'A', entries: [entries[1]] }
+    ])
+    expect(groupAppointmentClients(entries, 'alex.old@example')).toEqual([
+      { letter: 'A', entries: [entries[1]] }
     ])
   })
 

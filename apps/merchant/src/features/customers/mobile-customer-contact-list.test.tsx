@@ -59,13 +59,36 @@ const record = (
 
 const directory: CustomerDirectoryView = {
   entries: [
-    record(
-      'cur_mara',
-      'Mara Ionescu',
-      'mara@example.com',
-      '+40 700 000 001',
-      '2026-07-24T09:00:00.000Z'
-    ),
+    {
+      ...record(
+        'cur_mara',
+        'Mara Ionescu',
+        'mara@example.com',
+        '+40 700 000 001',
+        '2026-07-24T09:00:00.000Z'
+      ),
+      contacts: [
+        {
+          kind: 'email',
+          value: 'mara.old@example.com',
+          status: 'superseded',
+          preferred: false
+        }
+      ],
+      observations: [
+        {
+          id: 'cuo_mara_old',
+          appointmentId: 'apt_mara_old',
+          details: {
+            name: 'Mara Popescu',
+            email: 'mara.old@example.com',
+            phone: null
+          },
+          observedAt: '2026-06-24T09:00:00.000Z',
+          source: 'appointment'
+        }
+      ]
+    },
     record('cur_vlad', 'Vlad Pop', 'vlad@example.com', null, '2026-07-23T14:00:00.000Z')
   ]
 }
@@ -101,6 +124,12 @@ describe('MobileCustomerContactList', () => {
       directory.entries[1]
     ])
     expect(filterCustomerEntries(directory.entries, '000 001')).toEqual([
+      directory.entries[0]
+    ])
+    expect(filterCustomerEntries(directory.entries, 'Mara Popescu')).toEqual([
+      directory.entries[0]
+    ])
+    expect(filterCustomerEntries(directory.entries, 'mara.old@example')).toEqual([
       directory.entries[0]
     ])
     expect(filterCustomerEntries(directory.entries, 'missing')).toEqual([])

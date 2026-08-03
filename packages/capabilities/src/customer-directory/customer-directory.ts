@@ -577,19 +577,42 @@ export const makeCustomerDirectoryService = (
           }
         ]
       })),
-    setContactStatus: (recordId, input) =>
-      mutate(store, recordId, input, 'edited', (input) => ({
+    setContactStatus: (recordId, input) => {
+      const normalizedValue =
+        input.kind === 'email' ? email(input.value) : phone(input.value)
+      const becomesPreferred = input.preferred && input.status === 'active'
+      return mutate(store, recordId, input, 'edited', () => ({
         contacts: (record: CustomerRecord) =>
           record.contacts.map((contact) =>
-            contact.kind === input.kind &&
-            contact.value ===
-              (input.kind === 'email' ? email(input.value) : phone(input.value))
-              ? { ...contact, status: input.status, preferred: input.preferred }
-              : input.preferred && contact.kind === input.kind
+            contact.kind === input.kind && contact.value === normalizedValue
+              ? {
+                  ...contact,
+                  status: input.status,
+                  preferred: becomesPreferred
+                }
+              : becomesPreferred && contact.kind === input.kind
                 ? { ...contact, preferred: false }
                 : contact
-          )
-      })),
+          ),
+        ...(input.kind === 'email'
+          ? {
+              preferredEmail: (record: CustomerRecord) =>
+                becomesPreferred
+                  ? normalizedValue
+                  : record.preferredEmail === normalizedValue
+                    ? null
+                    : record.preferredEmail
+            }
+          : {
+              preferredPhone: (record: CustomerRecord) =>
+                becomesPreferred
+                  ? normalizedValue
+                  : record.preferredPhone === normalizedValue
+                    ? null
+                    : record.preferredPhone
+            })
+      }))
+    },
     recordConsent: (recordId, input) =>
       mutate(store, recordId, input, 'edited', (input) => ({
         consent: (record: CustomerRecord) =>
@@ -915,15 +938,19 @@ const mergeRecords = (
       )
     const preferred =
       input.preferredDetailsSourceId === absorbed.id ? absorbed : survivor
-    const contactKeys = new Set(
-      survivor.contacts.map((item) => `${item.kind}:${item.value}:${item.status}`)
-    )
-    const combinedContacts = [
-      ...survivor.contacts,
-      ...absorbed.contacts.filter(
-        (item) => !contactKeys.has(`${item.kind}:${item.value}:${item.status}`)
-      )
-    ]
+    const statusRank: Record<CustomerContact['status'], number> = {
+      active: 3,
+      disputed: 2,
+      superseded: 1
+    }
+    const contactsByDestination = new Map<string, CustomerContact>()
+    for (const contact of [...survivor.contacts, ...absorbed.contacts]) {
+      const key = `${contact.kind}:${contact.value}`
+      const existing = contactsByDestination.get(key)
+      if (!existing || statusRank[contact.status] > statusRank[existing.status])
+        contactsByDestination.set(key, contact)
+    }
+    const combinedContacts = [...contactsByDestination.values()]
     const merged: CustomerRecord = {
       ...survivor,
       displayName: preferred.displayName,
@@ -960,6 +987,7 @@ const mergeRecords = (
       ...absorbed,
       status: 'merged',
       mergedInto: survivor.id,
+      possibleDuplicateOf: [],
       revision: absorbed.revision + 1,
       history: [
         ...absorbed.history,

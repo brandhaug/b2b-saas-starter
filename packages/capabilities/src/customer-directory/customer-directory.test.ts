@@ -206,6 +206,101 @@ describe('Customer Directory contract', () => {
     ).toMatchObject({ status: 'superseded', preferred: false })
   })
 
+  it('keeps preferred fields aligned when a historical contact is reactivated', async () => {
+    const result = await run(
+      'mer_contact_preference',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_contact_preference',
+          details: observation({ email: 'old@example.com', phone: null }),
+          now: '2026-08-01T10:00:00.000Z'
+        })
+        const edited = yield* service.editPreferred(created.record.id, {
+          expectedRevision: created.record.revision,
+          idempotencyKey: 'edit-contact-preference',
+          actorId: 'usr_owner',
+          name: 'Ana Popescu',
+          email: 'new@example.com',
+          phone: null,
+          now: '2026-08-02T10:00:00.000Z'
+        })
+        return yield* service.setContactStatus(created.record.id, {
+          expectedRevision: edited.revision,
+          idempotencyKey: 'reactivate-contact-preference',
+          actorId: 'usr_owner',
+          kind: 'email',
+          value: 'old@example.com',
+          status: 'active',
+          preferred: true,
+          now: '2026-08-03T10:00:00.000Z'
+        })
+      })
+    )
+
+    expect(result.preferredEmail).toBe('old@example.com')
+    expect(
+      result.contacts.find((contact) => contact.value === 'old@example.com')
+    ).toMatchObject({ status: 'active', preferred: true })
+    expect(
+      result.contacts.find((contact) => contact.value === 'new@example.com')
+    ).toMatchObject({ preferred: false })
+  })
+
+  it('reconciles same-destination contact statuses before merge persistence', async () => {
+    const result = await run(
+      'mer_merge_contact_statuses',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const survivor = yield* service.matchOrCreate({
+          appointmentId: 'apt_merge_contact_survivor',
+          details: observation({ email: 'shared@example.com', phone: null }),
+          now: '2026-08-01T10:00:00.000Z'
+        })
+        const absorbed = yield* service.matchOrCreate({
+          appointmentId: 'apt_merge_contact_absorbed',
+          details: observation({ email: 'absorbed@example.com', phone: null }),
+          now: '2026-08-01T11:00:00.000Z'
+        })
+        const shared = yield* service.editPreferred(absorbed.record.id, {
+          expectedRevision: absorbed.record.revision,
+          idempotencyKey: 'edit-absorbed-shared-contact',
+          actorId: 'usr_owner',
+          name: 'Ana Duplicate',
+          email: 'shared@example.com',
+          phone: null,
+          now: '2026-08-02T10:00:00.000Z'
+        })
+        const disputed = yield* service.setContactStatus(absorbed.record.id, {
+          expectedRevision: shared.revision,
+          idempotencyKey: 'dispute-absorbed-shared-contact',
+          actorId: 'usr_owner',
+          kind: 'email',
+          value: 'shared@example.com',
+          status: 'disputed',
+          preferred: false,
+          now: '2026-08-02T11:00:00.000Z'
+        })
+        return yield* service.merge({
+          survivorId: survivor.record.id,
+          absorbedId: absorbed.record.id,
+          expectedSurvivorRevision: survivor.record.revision,
+          expectedAbsorbedRevision: disputed.revision,
+          idempotencyKey: 'merge-same-contact-statuses',
+          actorId: 'usr_owner',
+          reason: 'Same customer confirmed',
+          now: '2026-08-03T10:00:00.000Z'
+        })
+      })
+    )
+
+    expect(
+      result.contacts.filter(
+        (contact) => contact.kind === 'email' && contact.value === 'shared@example.com'
+      )
+    ).toEqual([expect.objectContaining({ status: 'active', preferred: true })])
+  })
+
   it('merges and splits with provenance without changing observations', async () => {
     const result = await run(
       'mer_merge',
