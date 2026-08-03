@@ -40,7 +40,6 @@ import {
   type CustomerDetails,
   type CustomerDetailsIssue,
   normalizeCustomerDetails,
-  appointmentCalendarExport,
   type BookingConfirmationResult,
   type ConfirmationReadResult,
   type CancellationResult
@@ -57,7 +56,11 @@ import type {
 } from '@b2b-saas-starter/capabilities/payments'
 import type { GiftCardReservation } from '@b2b-saas-starter/capabilities/gift-cards'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
-import { AppointmentCalendarExportPath } from './booking-confirmation-http-api.ts'
+import { handleBookingConfirmationHttpRequest } from './booking-confirmation-http.ts'
+import {
+  confirmationCookieName,
+  readConfirmationCookie
+} from './confirmation-access-cookie.ts'
 import {
   canonicalizeBookingRequest,
   matchCanonicalBookingRoute,
@@ -740,16 +743,6 @@ const jsonPrivate = (value: unknown): Response =>
 const readJson = (request: Request): BookingSessionEffect<unknown> =>
   Effect.promise(() => request.json().catch(() => null))
 
-const providerPreferenceFrom = (value: unknown): ProviderPreference | null => {
-  if (typeof value !== 'object' || value === null) return null
-  const input = value as Record<string, unknown>
-  if (input.kind === 'any') return { kind: 'any' }
-  if (input.kind === 'specific' && typeof input.providerId === 'string') {
-    return { kind: 'specific', providerId: input.providerId }
-  }
-  return null
-}
-
 const versionFrom = (value: unknown): number | null => {
   if (typeof value !== 'object' || value === null) return null
   const version = (value as Record<string, unknown>).version
@@ -880,81 +873,15 @@ export const handleBookingSessionRequest = (
     const now = dependencies.now?.() ?? new Date().toISOString()
     const clientKey = request.headers.get('cf-connecting-ip') ?? `path:${url.pathname}`
 
-    const calendarExportMatch =
-      segments.length === 7 &&
-      segments[2] === 'confirmations' &&
-      segments[4] === 'appointments' &&
-      segments[6] === 'calendar.ics'
-        ? { routeId: segments[3]!, appointmentId: segments[5]! }
-        : null
-    if (calendarExportMatch) {
-      if (
-        request.method !== 'GET' ||
-        !CONFIRMATION_ID.test(calendarExportMatch.routeId) ||
-        !SESSION_ID.test(calendarExportMatch.appointmentId) ||
-        !dependencies.confirmation
-      )
-        return withPrivateHeaders(hiddenNotFound())
-      const calendarPath = yield* Effect.result(
-        Schema.decodeUnknownEffect(AppointmentCalendarExportPath)({
-          merchantSlug,
-          routeId: calendarExportMatch.routeId,
-          appointmentId: calendarExportMatch.appointmentId
+    if (dependencies.confirmation && url.pathname.endsWith('/calendar.ics')) {
+      const calendarResponse = yield* Effect.promise(() =>
+        handleBookingConfirmationHttpRequest(request, {
+          read: dependencies.confirmation!.read,
+          takeRead: dependencies.takeRead,
+          now: () => now
         })
       )
-      if (calendarPath._tag === 'Failure') return withPrivateHeaders(hiddenNotFound())
-      if (!(yield* dependencies.takeRead(`calendar:${clientKey}`)))
-        return withPrivateHeaders(tooManyRequests())
-      const cookieName = `confirmation_${calendarPath.success.routeId}`
-      const credential = request.headers
-        .get('cookie')
-        ?.split(';')
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${cookieName}=`))
-        ?.slice(cookieName.length + 1)
-      if (!credential || !CONFIRMATION_TOKEN.test(credential))
-        return withPrivateHeaders(hiddenNotFound())
-      const access = yield* Effect.result(
-        dependencies.confirmation.read({
-          routeId: calendarPath.success.routeId,
-          merchantSlug: calendarPath.success.merchantSlug,
-          credential,
-          credentialKind: 'cookie',
-          now
-        })
-      )
-      if (access._tag === 'Failure') return withPrivateHeaders(unavailable())
-      if (access.success.kind !== 'found') return withPrivateHeaders(hiddenNotFound())
-      const calendar = yield* Effect.result(
-        appointmentCalendarExport({
-          generatedAt: now,
-          appointmentId: calendarPath.success.appointmentId,
-          appointments: access.success.confirmation.appointments.map(
-            ({ id, status, startsAt, endsAt, snapshot }) => ({
-              id,
-              status,
-              startsAt,
-              endsAt,
-              snapshot: {
-                services: snapshot.services.map(({ name }) => ({ name }))
-              }
-            })
-          ),
-          shop: access.success.confirmation.shop
-        })
-      )
-      if (calendar._tag === 'Failure')
-        return calendar.failure.reason === 'appointment_not_found'
-          ? withPrivateHeaders(hiddenNotFound())
-          : withPrivateHeaders(unavailable())
-      return withPrivateHeaders(
-        new Response(calendar.success, {
-          headers: {
-            'content-type': 'text/calendar; charset=utf-8',
-            'content-disposition': `attachment; filename="appointment-${calendarPath.success.appointmentId}.ics"`
-          }
-        })
-      )
+      if (calendarResponse) return calendarResponse
     }
 
     const rescheduleMatch =
@@ -979,13 +906,7 @@ export const handleBookingSessionRequest = (
       if (invalidMutation) return withPrivateHeaders(invalidMutation)
       if (!(yield* dependencies.takeWrite(`reschedule:${clientKey}`)))
         return withPrivateHeaders(tooManyRequests())
-      const cookieName = `confirmation_${rescheduleMatch.routeId}`
-      const credential = request.headers
-        .get('cookie')
-        ?.split(';')
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${cookieName}=`))
-        ?.slice(cookieName.length + 1)
+      const credential = readConfirmationCookie(request, rescheduleMatch.routeId)
       if (!credential || !CONFIRMATION_TOKEN.test(credential))
         return withPrivateHeaders(hiddenNotFound())
       const access = yield* Effect.result(
@@ -1080,13 +1001,7 @@ export const handleBookingSessionRequest = (
       if (invalidMutation) return withPrivateHeaders(invalidMutation)
       if (!(yield* dependencies.takeWrite(`cancellation:${clientKey}`)))
         return withPrivateHeaders(tooManyRequests())
-      const cookieName = `confirmation_${cancellationMatch.routeId}`
-      const credential = request.headers
-        .get('cookie')
-        ?.split(';')
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${cookieName}=`))
-        ?.slice(cookieName.length + 1)
+      const credential = readConfirmationCookie(request, cancellationMatch.routeId)
       if (!credential || !CONFIRMATION_TOKEN.test(credential))
         return withPrivateHeaders(hiddenNotFound())
       const access = yield* Effect.result(
@@ -1151,13 +1066,7 @@ export const handleBookingSessionRequest = (
         return withPrivateHeaders(hiddenNotFound())
       if (!(yield* dependencies.takeRead(`confirmation:data:${clientKey}`)))
         return withPrivateHeaders(tooManyRequests())
-      const cookieName = `confirmation_${routeId}`
-      const credential = request.headers
-        .get('cookie')
-        ?.split(';')
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${cookieName}=`))
-        ?.slice(cookieName.length + 1)
+      const credential = readConfirmationCookie(request, routeId)
       if (!credential || !CONFIRMATION_TOKEN.test(credential))
         return withPrivateHeaders(hiddenNotFound())
       const result = yield* Effect.result(
@@ -1201,13 +1110,8 @@ export const handleBookingSessionRequest = (
         !dependencies.confirmation
       )
         return withPrivateHeaders(hiddenNotFound())
-      const cookieName = `confirmation_${routeId}`
-      const cookieToken = request.headers
-        .get('cookie')
-        ?.split(';')
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${cookieName}=`))
-        ?.slice(cookieName.length + 1)
+      const cookieName = confirmationCookieName(routeId)
+      const cookieToken = readConfirmationCookie(request, routeId)
       const queryToken = url.searchParams.get('token')
       if (
         !(yield* dependencies.takeRead(
@@ -1519,64 +1423,10 @@ export const handleBookingSessionRequest = (
         : mapSessionFailure(result.failure, merchantSlug)
     }
     if (endpoint === 'provider' && request.method === 'POST') {
-      if (!dependencies.selection) return unavailable()
-      const body = yield* readJson(request)
-      const preference =
-        typeof body === 'object' && body !== null
-          ? providerPreferenceFrom((body as Record<string, unknown>).preference)
-          : null
-      const version = versionFrom(body)
-      const providerProof =
-        typeof body === 'object' &&
-        body !== null &&
-        typeof (body as Record<string, unknown>).providerProof === 'string'
-          ? String((body as Record<string, unknown>).providerProof)
-          : undefined
-      if (!preference || !version) return hiddenNotFound()
-      const result = yield* Effect.result(
-        dependencies.selection.chooseProvider(
-          authorization.success,
-          preference,
-          version,
-          providerProof,
-          now
-        )
-      )
-      if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
-        const latest = yield* Effect.result(
-          dependencies.selection.load(authorization.success, now)
-        )
-        if (latest._tag === 'Success') {
-          return withPrivateHeaders(
-            Response.json(
-              { kind: 'version_conflict', journey: latest.success },
-              { status: 409 }
-            )
-          )
-        }
-      }
-      return result._tag === 'Success'
-        ? jsonJourney(result.success)
-        : mapSessionFailure(result.failure, merchantSlug)
+      return hiddenNotFound()
     }
     if (endpoint === 'provider-access' && request.method === 'POST') {
-      if (!dependencies.selection?.verifyProviderAccess) return unavailable()
-      const body = yield* readJson(request)
-      if (typeof body !== 'object' || body === null) return hiddenNotFound()
-      const record = body as Record<string, unknown>
-      if (typeof record.providerId !== 'string' || typeof record.passcode !== 'string')
-        return hiddenNotFound()
-      const result = yield* Effect.result(
-        dependencies.selection.verifyProviderAccess(
-          authorization.success,
-          record.providerId,
-          record.passcode,
-          now
-        )
-      )
-      return result._tag === 'Success'
-        ? jsonPrivate(result.success)
-        : mapSessionFailure(result.failure, merchantSlug)
+      return hiddenNotFound()
     }
     if (endpoint === 'shop' && request.method === 'POST') {
       if (!dependencies.selection?.chooseShop) return unavailable()

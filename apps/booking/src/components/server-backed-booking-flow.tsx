@@ -74,7 +74,7 @@ type SettlementPaymentEligibility = PaymentMethodEligibility & {
   readonly externalPaymentMinor: number
 }
 
-type SelectionPage = 'locations' | 'providers' | 'services' | 'additional-services'
+type SelectionPage = 'locations' | 'services' | 'additional-services'
 
 export const isFinalSlotConflictResponse = async (
   response: Response
@@ -97,19 +97,8 @@ const selectionPath = (
     return buildCanonicalBookingPath({ kind: 'shop-selection', merchantSlug })
   const shop = journey.shops.find((candidate) => candidate.id === journey.shopId)
   if (!shop) return null
-  if (page === 'providers')
-    return buildCanonicalBookingPath({
-      kind: 'provider-selection',
-      merchantSlug,
-      shopSlug: shop.slug
-    })
   const preference = journey.providerPreference
-  if (!preference)
-    return buildCanonicalBookingPath({
-      kind: 'provider-selection',
-      merchantSlug,
-      shopSlug: shop.slug
-    })
+  if (!preference) return null
   if (page === 'services')
     return buildCanonicalBookingPath({
       kind: 'service-selection',
@@ -366,8 +355,8 @@ export function ServerBackedBookingFlow({
   })
   const selectionMutation = useMutation({
     mutationFn: async (mutation: {
-      readonly endpoint: 'shop' | 'provider' | 'services'
-      readonly input: string | ProviderPreference | ServiceSelection
+      readonly endpoint: 'shop' | 'services'
+      readonly input: string | ServiceSelection
       readonly expectedVersion: number
     }) => {
       const response = await fetch(`${base}/${mutation.endpoint}`, {
@@ -376,11 +365,7 @@ export function ServerBackedBookingFlow({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           version: mutation.expectedVersion,
-          [mutation.endpoint === 'shop'
-            ? 'shopId'
-            : mutation.endpoint === 'provider'
-              ? 'preference'
-              : 'selection']: mutation.input
+          [mutation.endpoint === 'shop' ? 'shopId' : 'selection']: mutation.input
         })
       })
       if (response.status === 409) {
@@ -402,12 +387,10 @@ export function ServerBackedBookingFlow({
       void queryClient.invalidateQueries({ queryKey: partyKey })
       const page =
         mutation.endpoint === 'shop'
-          ? 'providers'
-          : mutation.endpoint === 'provider'
-            ? 'services'
-            : value.journey.selection.primaryServiceId
-              ? 'additional-services'
-              : 'services'
+          ? 'services'
+          : value.journey.selection.primaryServiceId
+            ? 'additional-services'
+            : 'services'
       replaceBookingPath(selectionPath(merchantSlug, value.journey, page))
     }
   })
@@ -1309,9 +1292,7 @@ export function ServerBackedBookingFlow({
               initialPage:
                 initialRouteKind === 'shop-selection'
                   ? ('locations' as const)
-                  : initialRouteKind === 'provider-selection'
-                    ? ('providers' as const)
-                    : ('services' as const)
+                  : ('services' as const)
             }
           : {})}
         locale={locale}
@@ -1415,22 +1396,6 @@ export function ServerBackedBookingFlow({
             expectedVersion: journey.data.version
           })
         }
-        onChooseProvider={(preference) =>
-          selectionMutation.mutate({
-            endpoint: 'provider',
-            input: preference,
-            expectedVersion: journey.data.version
-          })
-        }
-        onChooseGiftCard={() => {
-          const shop = journey.data.shops.find(
-            (candidate) => candidate.id === journey.data.shopId
-          )
-          if (shop)
-            window.location.assign(
-              `/${encodeURIComponent(merchantSlug)}/booking/${encodeURIComponent(shop.slug)}/any/gift-cards`
-            )
-        }}
         onChooseServices={(selection) =>
           selectionMutation.mutate({
             endpoint: 'services',

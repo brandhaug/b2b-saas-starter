@@ -9,10 +9,6 @@ describe('canonical Booking path building', () => {
   it.each([
     [{ kind: 'shop-selection', merchantSlug: 'mara' } as const, '/mara/booking'],
     [
-      { kind: 'provider-selection', merchantSlug: 'mara', shopSlug: 'main' } as const,
-      '/mara/booking/main'
-    ],
-    [
       {
         kind: 'service-selection',
         merchantSlug: 'mara',
@@ -53,7 +49,6 @@ describe('canonical Booking path building', () => {
 describe('canonical Booking route contract', () => {
   it.each([
     ['/mara/booking', 'shop-selection'],
-    ['/mara/booking/downtown', 'provider-selection'],
     ['/mara/booking/downtown/any/services', 'service-selection'],
     [
       '/mara/booking/downtown/ava/services/signature-cut',
@@ -83,6 +78,7 @@ describe('canonical Booking route contract', () => {
 
   it('rejects placeholder and malformed path segments instead of guessing intent', () => {
     for (const pathname of [
+      '/mara/booking/downtown',
       '/mara/booking/downtown/ANY/services',
       '/mara/booking/downtown/ava/services/',
       '/mara/booking/downtown/%2F/services',

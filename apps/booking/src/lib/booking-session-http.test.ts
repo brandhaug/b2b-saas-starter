@@ -20,7 +20,7 @@ import {
 describe('Booking Session HTTP boundary', () => {
   const journey: BookingJourney = {
     version: 1,
-    presentation: 'team',
+    presentation: 'solo',
     shopId: 'shp_main',
     shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
     resolvedConfiguration: {
@@ -678,7 +678,7 @@ describe('Booking Session HTTP boundary', () => {
     ])
   })
 
-  it('reads and changes persisted journey selection only after Session authorization', async () => {
+  it('rejects the removed Provider-selection route after Session authorization', async () => {
     const capability = '9'.repeat(64)
     const calls: string[] = []
     const request = new Request(
@@ -730,13 +730,12 @@ describe('Booking Session HTTP boundary', () => {
       })
     )
 
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ providerPreference: { kind: 'any' } })
-    expect(calls).toEqual(['authorize:bsn_private', 'provider:any'])
+    expect(response.status).toBe(404)
+    expect(calls).toEqual(['authorize:bsn_private'])
     expect(response.headers.get('cache-control')).toBe('private, no-store')
   })
 
-  it('returns the latest canonical journey for a stale aggregate version', async () => {
+  it('does not revive the removed Provider route for a stale aggregate version', async () => {
     const capability = '8'.repeat(64)
     const latest = {
       ...journey,
@@ -790,11 +789,7 @@ describe('Booking Session HTTP boundary', () => {
       )
     )
 
-    expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({
-      kind: 'version_conflict',
-      journey: latest
-    })
+    expect(response.status).toBe(404)
   })
 
   it('persists a locale change through the authorized Session boundary', async () => {
@@ -1733,6 +1728,14 @@ describe('Booking Session HTTP boundary', () => {
         handleBookingSessionRequest(request('apt_calendar', ''), dependencies)
       )
     ).toMatchObject({ status: 404 })
+    const rateLimited = await Effect.runPromise(
+      handleBookingSessionRequest(request('apt_calendar'), {
+        ...dependencies,
+        takeRead: () => Effect.succeed(false)
+      })
+    )
+    expect(rateLimited.status).toBe(429)
+    expect(rateLimited.headers.get('cache-control')).toBe('private, no-store')
   })
 
   it('cancels only an appointment authorized by the protected confirmation', async () => {

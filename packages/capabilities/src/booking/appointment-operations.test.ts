@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Schema } from 'effect'
 import type { StoredAppointmentSnapshot } from '@b2b-saas-starter/db'
 import {
   AppointmentOperations,
+  AppointmentSnapshot,
   appointmentCalendarUtcRange,
   SeedAppointmentOperations,
   type OperationalAppointment
@@ -19,7 +20,7 @@ const merchant: MerchantIdentity = {
   slug: 'one-studio',
   timezone: 'Europe/Bucharest',
   currency: 'RON',
-  plan: 'team'
+  plan: 'solo'
 }
 
 const snapshot = (name: string, email: string): StoredAppointmentSnapshot => ({
@@ -41,7 +42,12 @@ const snapshot = (name: string, email: string): StoredAppointmentSnapshot => ({
   currency: 'RON',
   totalMinor: 9000,
   merchantTimezone: 'Europe/Bucharest',
-  customerDetails: { name, email, phone: '+40123456789' },
+  customerDetails: {
+    name,
+    email,
+    phone: '+40123456789',
+    note: 'Please use fragrance-free products.'
+  },
   checkoutPath: 'pay_in_person'
 })
 
@@ -138,6 +144,14 @@ describe('AppointmentOperations', () => {
     expect(hidden).toEqual({ kind: 'not_found' })
   })
 
+  it('keeps the optional Customer note in the typed immutable snapshot', () => {
+    const decoded = Schema.decodeUnknownSync(AppointmentSnapshot)(
+      snapshot('Alex Doe', 'shared@example.com')
+    )
+
+    expect(decoded.customerDetails.note).toBe('Please use fragrance-free products.')
+  })
+
   it('derives one Customer Directory entry per Appointment without deduplication', async () => {
     const directory = await run(
       Effect.flatMap(AppointmentOperations, (service) => service.customers())
@@ -152,6 +166,7 @@ describe('AppointmentOperations', () => {
     expect(new Set(directory.entries.map((entry) => entry.email))).toEqual(
       new Set(['shared@example.com'])
     )
+    expect(directory.entries.every((entry) => !('note' in entry))).toBe(true)
   })
 
   it('returns deterministic empty calendar and directory states', async () => {

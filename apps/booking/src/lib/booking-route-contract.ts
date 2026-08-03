@@ -7,7 +7,6 @@ export type BookingEmbedding = 'standalone' | 'widget' | 'google'
 
 export type CanonicalBookingRouteKind =
   | 'shop-selection'
-  | 'provider-selection'
   | 'service-selection'
   | 'additional-service-selection'
   | 'schedule'
@@ -35,11 +34,6 @@ export type CanonicalBookingRoute = {
 export type CanonicalBookingPathInput =
   | { readonly kind: 'shop-selection'; readonly merchantSlug: string }
   | {
-      readonly kind: 'provider-selection'
-      readonly merchantSlug: string
-      readonly shopSlug: string
-    }
-  | {
       readonly kind: 'service-selection'
       readonly merchantSlug: string
       readonly shopSlug: string
@@ -64,7 +58,6 @@ export function buildCanonicalBookingPath(input: CanonicalBookingPathInput): str
   if (input.kind === 'checkout')
     return `/${merchant}/booking/session/${encodeURIComponent(input.sessionId)}/checkout`
   const shop = encodeURIComponent(input.shopSlug)
-  if (input.kind === 'provider-selection') return `/${merchant}/booking/${shop}`
   const services = `/${merchant}/booking/${shop}/${encodeURIComponent(input.providerSlug)}/services`
   if (input.kind === 'service-selection') return services
   const selected = `${services}/${encodeURIComponent(input.serviceSlug)}`
@@ -135,7 +128,7 @@ export function matchCanonicalBookingRoute(
   }
 
   if (segments.length === 2) return route(segments, 'shop-selection')
-  if (segments.length === 3) return route(segments, 'provider-selection')
+  if (segments.length === 3) return null
   if (
     segments.length === 5 &&
     segments[2] === 'session' &&

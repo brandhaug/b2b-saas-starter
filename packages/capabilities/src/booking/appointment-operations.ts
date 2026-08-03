@@ -34,7 +34,8 @@ export const AppointmentSnapshot = Schema.Struct({
   customerDetails: Schema.Struct({
     name: Schema.String,
     email: Schema.String,
-    phone: Schema.NullOr(Schema.String)
+    phone: Schema.NullOr(Schema.String),
+    note: Schema.optional(Schema.String)
   }),
   checkoutPath: Schema.Literals(['pay_in_person', 'online_payment'])
 })
@@ -187,7 +188,9 @@ const customerProjection = (
     appointmentId: appointment.id,
     appointmentStatus: appointment.status,
     scheduledAt: appointment.startsAt,
-    ...appointment.snapshot.customerDetails
+    name: appointment.snapshot.customerDetails.name,
+    email: appointment.snapshot.customerDetails.email,
+    phone: appointment.snapshot.customerDetails.phone
   }))
 })
 

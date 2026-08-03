@@ -130,6 +130,7 @@ export type StoredAppointmentSnapshot = StoredBookingQuote & {
     readonly name: string
     readonly email: string
     readonly phone: string | null
+    readonly note?: string
   }
   readonly operationalMessagingPermission?: {
     readonly granted: boolean

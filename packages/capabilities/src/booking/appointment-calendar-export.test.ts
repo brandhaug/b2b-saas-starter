@@ -91,4 +91,55 @@ describe('Appointment Calendar Export', () => {
     )
     expect(calendar).not.toContain('\rATTENDEE:')
   })
+
+  it.each([
+    {
+      label: 'an invalid generation instant',
+      generatedAt: 'not-an-instant',
+      startsAt: '2026-08-04T07:00:00.000Z',
+      endsAt: '2026-08-04T08:00:00.000Z'
+    },
+    {
+      label: 'an invalid Appointment instant',
+      generatedAt: '2026-08-03T10:11:12.000Z',
+      startsAt: 'not-an-instant',
+      endsAt: '2026-08-04T08:00:00.000Z'
+    },
+    {
+      label: 'an empty Appointment interval',
+      generatedAt: '2026-08-03T10:11:12.000Z',
+      startsAt: '2026-08-04T08:00:00.000Z',
+      endsAt: '2026-08-04T08:00:00.000Z'
+    },
+    {
+      label: 'a reversed Appointment interval',
+      generatedAt: '2026-08-03T10:11:12.000Z',
+      startsAt: '2026-08-04T09:00:00.000Z',
+      endsAt: '2026-08-04T08:00:00.000Z'
+    }
+  ])(
+    'rejects $label through the typed error channel',
+    ({ generatedAt, startsAt, endsAt }) => {
+      const failure = Effect.runSync(
+        Effect.flip(
+          appointmentCalendarExport({
+            generatedAt,
+            appointmentId: 'apt_invalid',
+            appointments: [
+              {
+                id: 'apt_invalid',
+                status: 'scheduled',
+                startsAt,
+                endsAt,
+                snapshot: { services: [{ name: 'Cut' }] }
+              }
+            ],
+            shop: { publicName: 'Mara Studio' }
+          })
+        )
+      )
+
+      expect(failure.reason).toBe('invalid_snapshot')
+    }
+  )
 })

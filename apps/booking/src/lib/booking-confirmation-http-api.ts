@@ -12,17 +12,20 @@ export const AppointmentCalendarExportPath = Schema.Struct({
   appointmentId: Schema.String
 })
 
-export class AppointmentCalendarExportNotFound extends Schema.TaggedErrorClass<AppointmentCalendarExportNotFound>()(
-  'AppointmentCalendarExportNotFound',
-  {},
-  { httpApiStatus: 404 }
-) {}
+export const AppointmentCalendarExportNotFound = Schema.String.pipe(
+  HttpApiSchema.asText({ contentType: 'text/plain; charset=utf-8' }),
+  HttpApiSchema.status(404)
+)
 
-export class AppointmentCalendarExportUnavailable extends Schema.TaggedErrorClass<AppointmentCalendarExportUnavailable>()(
-  'AppointmentCalendarExportUnavailable',
-  {},
-  { httpApiStatus: 503 }
-) {}
+export const AppointmentCalendarExportRateLimited = Schema.String.pipe(
+  HttpApiSchema.asText({ contentType: 'text/plain; charset=utf-8' }),
+  HttpApiSchema.status(429)
+)
+
+export const AppointmentCalendarExportUnavailable = Schema.String.pipe(
+  HttpApiSchema.asText({ contentType: 'text/plain; charset=utf-8' }),
+  HttpApiSchema.status(503)
+)
 
 export const BookingConfirmationHttpGroup = HttpApiGroup.make(
   'booking-confirmation'
@@ -35,7 +38,11 @@ export const BookingConfirmationHttpGroup = HttpApiGroup.make(
       success: Schema.String.pipe(
         HttpApiSchema.asText({ contentType: 'text/calendar; charset=utf-8' })
       ),
-      error: [AppointmentCalendarExportNotFound, AppointmentCalendarExportUnavailable]
+      error: [
+        AppointmentCalendarExportNotFound,
+        AppointmentCalendarExportRateLimited,
+        AppointmentCalendarExportUnavailable
+      ]
     }
   )
 )

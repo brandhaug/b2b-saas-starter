@@ -18,7 +18,6 @@ import {
 } from 'react'
 import type {
   BookingJourney,
-  ProviderPreference,
   PublicBookableService,
   ServiceSelection,
   TimeSlotHold
@@ -26,7 +25,6 @@ import type {
 import { BookingIcon } from '../presentation/booking-icon.tsx'
 import { BookingPremiumThemeBoundary } from '../presentation/booking-premium-theme.tsx'
 import type { BookingLocale } from '../localization/booking-localization.ts'
-import { formatProviderAvailability } from '../presentation/provider-availability-format.ts'
 import {
   RoutePresence,
   RouteTitlePresence
@@ -37,12 +35,10 @@ import { BookingWidgetShell } from './booking-widget-shell.tsx'
 type BookingSelectionFlowProps = {
   readonly journey: BookingJourney
   readonly busy: boolean
-  readonly initialPage?: 'locations' | 'providers' | 'services'
-  readonly onNavigateBack?: (page: 'locations' | 'providers') => void
+  readonly initialPage?: 'locations' | 'services'
+  readonly onNavigateBack?: (page: 'locations') => void
   readonly onChooseShop?: (shopId: string) => void
-  readonly onChooseProvider: (preference: ProviderPreference) => void
   readonly onChooseServices: (selection: ServiceSelection) => void
-  readonly onChooseGiftCard?: () => void
   readonly locale?: BookingLocale
   readonly onContinue?: () => void
   readonly onTitleActionMount?: (element: HTMLDivElement | null) => void
@@ -90,9 +86,7 @@ function BookingSelectionFlowContent({
   journey,
   busy,
   onChooseShop,
-  onChooseProvider,
   onChooseServices,
-  onChooseGiftCard,
   onContinue,
   initialPage,
   onNavigateBack,
@@ -101,14 +95,9 @@ function BookingSelectionFlowContent({
   locale = 'en',
   messages = defaultMessages
 }: BookingSelectionFlowProps) {
-  const [editingProvider, setEditingProvider] = useState(initialPage === 'providers')
   const [editingLocation, setEditingLocation] = useState(
     initialPage === undefined || initialPage === 'locations'
   )
-  const [pendingProviderChoice, setPendingProviderChoice] = useState<{
-    readonly preference: ProviderPreference
-    readonly journeyVersion: number
-  } | null>(null)
   const [routeDirection, setRouteDirection] = useState<'forward' | 'back'>('forward')
   const [pendingShop, setPendingShop] = useState<{
     readonly id: string
@@ -116,8 +105,6 @@ function BookingSelectionFlowContent({
   } | null>(null)
   const [orderOpen, setOrderOpen] = useState(false)
   const [overlayTarget, setOverlayTarget] = useState<HTMLDivElement | null>(null)
-  const [giftCardSelected, setGiftCardSelected] = useState(false)
-  const giftCardTimer = useRef<number | null>(null)
   const [pendingServiceSelection, setPendingServiceSelection] = useState<{
     readonly serviceId: string
     readonly journeyVersion: number
@@ -135,13 +122,6 @@ function BookingSelectionFlowContent({
     journey.version > pendingShop.afterVersion
   const showLocations =
     journey.shops.length > 1 && editingLocation && !shopSelectionConfirmed
-  const providerChoicePending =
-    pendingProviderChoice?.journeyVersion === journey.version
-  const showProviders =
-    !showLocations &&
-    journey.presentation === 'team' &&
-    journey.services.length > 0 &&
-    (journey.providerPreference === null || editingProvider || providerChoicePending)
   const selectedPrimary = journey.services.find(
     (service) => service.id === journey.selection.primaryServiceId
   )
@@ -155,7 +135,6 @@ function BookingSelectionFlowContent({
 
   useEffect(
     () => () => {
-      if (giftCardTimer.current !== null) window.clearTimeout(giftCardTimer.current)
       if (serviceTransitionTimer.current !== null)
         window.clearTimeout(serviceTransitionTimer.current)
     },
@@ -217,23 +196,9 @@ function BookingSelectionFlowContent({
     onContinue?.()
   }
 
-  const chooseGiftCard = () => {
-    if (!onChooseGiftCard || giftCardSelected) return
-    setGiftCardSelected(true)
-    giftCardTimer.current = window.setTimeout(onChooseGiftCard, 300)
-  }
-
-  const chooseProvider = (preference: ProviderPreference) => {
-    setRouteDirection('forward')
-    setPendingProviderChoice({ preference, journeyVersion: journey.version })
-    setEditingProvider(false)
-    onChooseProvider(preference)
-  }
-
   const chooseShop = (shopId: string) => {
     setRouteDirection('forward')
     setEditingLocation(false)
-    setPendingProviderChoice(null)
     setPendingShop({ id: shopId, afterVersion: journey.version })
     onChooseShop?.(shopId)
   }
@@ -242,20 +207,13 @@ function BookingSelectionFlowContent({
     ? continuation.title
     : showLocations
       ? messages.chooseLocation
-      : showProviders
-        ? messages.chooseProvider
-        : messages.chooseService
-  const canGoBack =
-    showContinuation ||
-    (showProviders && journey.shops.length > 1) ||
-    (!showLocations && !showProviders && journey.presentation === 'team')
+      : messages.chooseService
+  const canGoBack = showContinuation || (!showLocations && journey.shops.length > 1)
   const routePresenceKey = showContinuation
     ? 'scheduling'
     : showLocations
       ? 'locations'
-      : showProviders
-        ? 'providers'
-        : 'services'
+      : 'services'
   const titleScrolled =
     titleScrollState.presenceKey === routePresenceKey && titleScrollState.scrolled
 
@@ -282,14 +240,10 @@ function BookingSelectionFlowContent({
                     continuation.onBack()
                     return
                   }
-                  setPendingProviderChoice(null)
-                  if (journey.shops.length > 1 && showProviders) {
+                  if (journey.shops.length > 1) {
                     setPendingShop(null)
                     setEditingLocation(true)
                     onNavigateBack?.('locations')
-                  } else {
-                    setEditingProvider(true)
-                    onNavigateBack?.('providers')
                   }
                 }}
                 {...stylex.props(styles.iconButton, styles.backButton)}
@@ -342,19 +296,6 @@ function BookingSelectionFlowContent({
                     messages={messages}
                     onChoose={chooseShop}
                   />
-                ) : showProviders ? (
-                  <ProviderGrid
-                    journey={journey}
-                    busy={busy}
-                    selectedPreference={
-                      providerChoicePending ? pendingProviderChoice.preference : null
-                    }
-                    messages={messages}
-                    onChoose={chooseProvider}
-                    locale={locale}
-                    giftCardSelected={giftCardSelected}
-                    {...(onChooseGiftCard ? { onChooseGiftCard: chooseGiftCard } : {})}
-                  />
                 ) : (
                   <AnimatePresence mode="wait" initial={false}>
                     <ServiceGrid
@@ -393,7 +334,7 @@ function BookingSelectionFlowContent({
       <LazyMotion features={domAnimation} strict>
         <div {...stylex.props(styles.orderBarFixed)}>
           <AnimatePresence>
-            {selectedPrimary && !showProviders && !orderOpen ? (
+            {selectedPrimary && !orderOpen ? (
               <m.div
                 key="viewOrderSafeArea"
                 data-testid="container:viewOrderSafeArea"
@@ -604,214 +545,6 @@ function LocationGrid({
           <p {...stylex.props(styles.locationEmpty)}>{messages.noLocationMatches}</p>
         ) : null}
       </div>
-    </div>
-  )
-}
-
-function ProviderGrid({
-  journey,
-  busy,
-  selectedPreference,
-  onChoose,
-  onChooseGiftCard,
-  messages,
-  locale,
-  giftCardSelected
-}: {
-  readonly journey: BookingJourney
-  readonly busy: boolean
-  readonly selectedPreference: ProviderPreference | null
-  readonly onChoose: (preference: ProviderPreference) => void
-  readonly onChooseGiftCard?: () => void
-  readonly messages: BookingSelectionMessages
-  readonly locale: BookingLocale
-  readonly giftCardSelected: boolean
-}) {
-  const publicProviderAvailable = journey.providers.some(
-    (provider) => provider.access === 'public' && provider.eligibleServiceIds.length > 0
-  )
-  const anyProviderDisabled = busy || !publicProviderAvailable
-  const anyProviderSelected = selectedPreference?.kind === 'any'
-  return (
-    <div {...stylex.props(styles.gridTwo)}>
-      <div
-        role="button"
-        tabIndex={anyProviderDisabled ? -1 : 0}
-        aria-disabled={anyProviderDisabled}
-        aria-pressed={anyProviderSelected}
-        aria-label={messages.anyProvider}
-        data-testid="card:chooseServiceFirst"
-        onClick={() => {
-          if (!anyProviderDisabled) onChoose({ kind: 'any' })
-        }}
-        onKeyDown={(event) =>
-          activateCard(event, anyProviderDisabled, () => onChoose({ kind: 'any' }))
-        }
-        {...stylex.props(
-          styles.providerCard,
-          anyProviderSelected && styles.providerCardSelected,
-          busy && styles.providerCardBusy,
-          !publicProviderAvailable && styles.providerCardDisabled
-        )}
-      >
-        <BookingIcon
-          iconRole="any-provider-selection"
-          {...stylex.props(styles.anyProviderIcon)}
-        />
-        <p
-          data-testid="text:chooseServiceFirst:mainText"
-          {...stylex.props(styles.anyProviderTitle)}
-        >
-          {messages.providerCards.anyProvider.titleLines[0]}
-          <br />
-          {messages.providerCards.anyProvider.titleLines[1]}
-        </p>
-        <p
-          data-testid="text:chooseServiceFirst:subText"
-          {...stylex.props(
-            styles.cardSmallText,
-            styles.anyProviderSubtitle,
-            anyProviderSelected && styles.providerAvailabilitySelected
-          )}
-        >
-          {messages.providerCards.anyProvider.subtitleLines[0]}
-          <br />
-          {messages.providerCards.anyProvider.subtitleLines[1]}
-        </p>
-      </div>
-      {journey.providers.map((provider) => {
-        const disabled =
-          busy || provider.access === 'restricted' || provider.nextAvailableAt === null
-        const displayName = provider.localizedName?.text ?? provider.displayName
-        const shortName = provider.shortName
-        const selected =
-          selectedPreference?.kind === 'specific' &&
-          selectedPreference.providerId === provider.id
-        const choose = () =>
-          onChoose({ kind: 'specific' as const, providerId: provider.id })
-        return (
-          <div
-            key={provider.id}
-            role="button"
-            tabIndex={disabled ? -1 : 0}
-            aria-disabled={disabled}
-            aria-pressed={selected}
-            aria-label={`${shortName}, ${
-              provider.access === 'restricted'
-                ? messages.providerRestricted
-                : provider.nextAvailableAt === null
-                  ? messages.providerNotAvailable
-                  : messages.chooseProvider
-            }`}
-            data-testid={`card:barber:${provider.id}`}
-            onClick={() => {
-              if (!disabled) choose()
-            }}
-            onKeyDown={(event) => activateCard(event, disabled, choose)}
-            {...stylex.props(
-              styles.providerCard,
-              selected && styles.providerCardSelected,
-              busy && styles.providerCardBusy,
-              (provider.access === 'restricted' || provider.nextAvailableAt === null) &&
-                styles.providerCardDisabled
-            )}
-          >
-            <div
-              data-testid={`avatar:barber:${provider.id}`}
-              {...stylex.props(styles.avatar)}
-            >
-              <div
-                {...stylex.props(
-                  styles.avatarReplacement,
-                  selected && styles.avatarReplacementSelected
-                )}
-              >
-                <p {...stylex.props(styles.avatarInitials)}>{initials(displayName)}</p>
-              </div>
-            </div>
-            <p
-              title={shortName}
-              data-testid={`text:barberName:${provider.id}`}
-              {...stylex.props(styles.providerName, styles.providerNameEllipsis)}
-            >
-              {shortName}
-            </p>
-            <div
-              data-testid={`divider:barber:${provider.id}`}
-              {...stylex.props(styles.providerDivider)}
-            />
-            <p
-              data-testid={`text:barberAvailability:${provider.id}`}
-              {...stylex.props(
-                styles.providerAvailability,
-                selected && styles.providerAvailabilitySelected
-              )}
-            >
-              {provider.access === 'restricted'
-                ? messages.providerRestricted
-                : provider.nextAvailableAt === null
-                  ? messages.providerNotAvailable
-                  : messages.providerAvailable}
-              {provider.access === 'restricted' || !provider.nextAvailableAt ? null : (
-                <>
-                  <br />
-                  {formatProviderAvailability(
-                    provider.nextAvailableAt,
-                    journey.shops.find((shop) => shop.id === journey.shopId)
-                      ?.timezone ?? 'UTC',
-                    locale
-                  )}
-                </>
-              )}
-              {provider.localizedName?.isSourceLanguageFallback
-                ? ` · ${messages.sourceLanguage}`
-                : null}
-            </p>
-          </div>
-        )
-      })}
-      {journey.canSellUnassignedGiftCard && onChooseGiftCard ? (
-        <div
-          role="button"
-          tabIndex={busy ? -1 : 0}
-          aria-disabled={busy}
-          aria-pressed={giftCardSelected}
-          aria-label={messages.providerCards.giftCard.titleLines.join(' ')}
-          data-testid="card:buyGiftCard"
-          onClick={() => {
-            if (!busy) onChooseGiftCard()
-          }}
-          onKeyDown={(event) => activateCard(event, busy, onChooseGiftCard)}
-          {...stylex.props(
-            styles.providerCard,
-            styles.providerCardVisible,
-            giftCardSelected && styles.providerCardSelected,
-            busy && styles.providerCardBusy
-          )}
-        >
-          <BookingIcon
-            iconRole="gift-card-selection"
-            {...stylex.props(styles.giftCardIcon)}
-          />
-          <p data-testid="text:title" {...stylex.props(styles.giftCardTitle)}>
-            {messages.providerCards.giftCard.titleLines[0]}
-            <br />
-            {messages.providerCards.giftCard.titleLines[1]}
-          </p>
-          <p
-            data-testid="text:subtitle"
-            {...stylex.props(
-              styles.cardSmallText,
-              styles.giftCardSubtitle,
-              giftCardSelected && styles.providerAvailabilitySelected
-            )}
-          >
-            {messages.providerCards.giftCard.subtitleLines[0]}
-            <br />
-            {messages.providerCards.giftCard.subtitleLines[1]}
-          </p>
-        </div>
-      ) : null}
     </div>
   )
 }

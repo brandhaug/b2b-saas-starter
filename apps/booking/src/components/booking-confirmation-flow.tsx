@@ -105,19 +105,22 @@ const safeImageUrl = (value: string | undefined) => {
 
 const calendarUrl = (
   kind: 'apple' | 'google' | 'yahoo',
-  title: string,
-  startsAt: string,
-  endsAt: string,
-  merchantSlug: string,
-  routeId: string,
-  appointmentId: string
+  target: {
+    readonly title: string
+    readonly interval: { readonly startsAt: string; readonly endsAt: string }
+    readonly confirmation: {
+      readonly merchantSlug: string
+      readonly routeId: string
+      readonly appointmentId: string
+    }
+  }
 ) => {
   const compact = (value: string) => value.replace(/[-:]/g, '').replace('.000', '')
   if (kind === 'google')
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${compact(startsAt)}/${compact(endsAt)}`
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(target.title)}&dates=${compact(target.interval.startsAt)}/${compact(target.interval.endsAt)}`
   if (kind === 'yahoo')
-    return `https://calendar.yahoo.com/?v=60&title=${encodeURIComponent(title)}&st=${compact(startsAt)}&et=${compact(endsAt)}`
-  return `/${encodeURIComponent(merchantSlug)}/booking/confirmations/${encodeURIComponent(routeId)}/appointments/${encodeURIComponent(appointmentId)}/calendar.ics`
+    return `https://calendar.yahoo.com/?v=60&title=${encodeURIComponent(target.title)}&st=${compact(target.interval.startsAt)}&et=${compact(target.interval.endsAt)}`
+  return `/${encodeURIComponent(target.confirmation.merchantSlug)}/booking/confirmations/${encodeURIComponent(target.confirmation.routeId)}/appointments/${encodeURIComponent(target.confirmation.appointmentId)}/calendar.ics`
 }
 
 export function BookingConfirmationRouteFlow({
@@ -658,15 +661,18 @@ function AppointmentCard({
                 }
                 onClick={() =>
                   window.open(
-                    calendarUrl(
-                      kind,
-                      confirmation.shop.publicName,
-                      appointment.startsAt,
-                      appointment.endsAt,
-                      merchantSlug,
-                      confirmation.routeId,
-                      appointment.id
-                    ),
+                    calendarUrl(kind, {
+                      title: confirmation.shop.publicName,
+                      interval: {
+                        startsAt: appointment.startsAt,
+                        endsAt: appointment.endsAt
+                      },
+                      confirmation: {
+                        merchantSlug,
+                        routeId: confirmation.routeId,
+                        appointmentId: appointment.id
+                      }
+                    }),
                     '_blank',
                     'noopener,noreferrer'
                   )

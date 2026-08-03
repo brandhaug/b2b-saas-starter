@@ -313,6 +313,31 @@ const rejected = (reason: BookingConfirmationRejected['reason']) =>
           : 'This appointment has already been confirmed'
   })
 
+const holdHasNoScheduledAppointmentOverlap = sql`NOT EXISTS (
+  SELECT 1 FROM appointments conflicting
+  WHERE conflicting.merchant_id = ${timeSlotHolds.merchantId}
+    AND conflicting.provider_id = ${timeSlotHolds.providerId}
+    AND conflicting.status = 'scheduled'
+    AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedStartsAt'), conflicting.starts_at)
+      < COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedEndsAt'), ${timeSlotHolds.endsAt})
+    AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedEndsAt'), conflicting.ends_at)
+      > COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedStartsAt'), ${timeSlotHolds.startsAt})
+)`
+
+const scheduledAppointmentOverlap = (input: {
+  readonly merchantId: string
+  readonly providerId: string
+  readonly occupiedStartsAt: string
+  readonly occupiedEndsAt: string
+}) =>
+  and(
+    eq(appointments.merchantId, input.merchantId),
+    eq(appointments.providerId, input.providerId),
+    eq(appointments.status, 'scheduled'),
+    sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedStartsAt'), ${appointments.startsAt}) < ${input.occupiedEndsAt}`,
+    sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedEndsAt'), ${appointments.endsAt}) > ${input.occupiedStartsAt}`
+  )
+
 const buildAppointmentFoundationInitialization = (
   db: typeof Database.Service,
   input: {
@@ -1399,7 +1424,7 @@ export const LiveBookingConfirmation = (
                         eq(timeSlotHolds.id, item.row.hold.id),
                         gt(timeSlotHolds.expiresAt, input.now),
                         subscriptionAllowsNewDemandSql(timeSlotHolds.merchantId),
-                        sql`NOT EXISTS (SELECT 1 FROM appointments conflicting WHERE conflicting.merchant_id = ${timeSlotHolds.merchantId} AND conflicting.provider_id = ${timeSlotHolds.providerId} AND conflicting.status = 'scheduled' AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedStartsAt'), conflicting.starts_at) < COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedEndsAt'), ${timeSlotHolds.endsAt}) AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedEndsAt'), conflicting.ends_at) > COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedStartsAt'), ${timeSlotHolds.startsAt}))`,
+                        holdHasNoScheduledAppointmentOverlap,
                         settlementGuard
                       )
                     )
@@ -1562,13 +1587,15 @@ export const LiveBookingConfirmation = (
                         .select({ id: appointments.id })
                         .from(appointments)
                         .where(
-                          and(
-                            eq(appointments.merchantId, item.row.hold.merchantId),
-                            eq(appointments.providerId, item.row.hold.providerId),
-                            eq(appointments.status, 'scheduled'),
-                            sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedStartsAt'), ${appointments.startsAt}) < ${item.row.hold.quote.occupiedEndsAt ?? item.row.hold.endsAt}`,
-                            sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedEndsAt'), ${appointments.endsAt}) > ${item.row.hold.quote.occupiedStartsAt ?? item.row.hold.startsAt}`
-                          )
+                          scheduledAppointmentOverlap({
+                            merchantId: item.row.hold.merchantId,
+                            providerId: item.row.hold.providerId,
+                            occupiedStartsAt:
+                              item.row.hold.quote.occupiedStartsAt ??
+                              item.row.hold.startsAt,
+                            occupiedEndsAt:
+                              item.row.hold.quote.occupiedEndsAt ?? item.row.hold.endsAt
+                          })
                         )
                         .limit(1)
                     )
@@ -1738,7 +1765,7 @@ export const LiveBookingConfirmation = (
                       eq(timeSlotHolds.id, row.hold.id),
                       gt(timeSlotHolds.expiresAt, input.now),
                       subscriptionAllowsNewDemandSql(timeSlotHolds.merchantId),
-                      sql`NOT EXISTS (SELECT 1 FROM appointments conflicting WHERE conflicting.merchant_id = ${timeSlotHolds.merchantId} AND conflicting.provider_id = ${timeSlotHolds.providerId} AND conflicting.status = 'scheduled' AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedStartsAt'), conflicting.starts_at) < COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedEndsAt'), ${timeSlotHolds.endsAt}) AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedEndsAt'), conflicting.ends_at) > COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedStartsAt'), ${timeSlotHolds.startsAt}))`
+                      holdHasNoScheduledAppointmentOverlap
                     )
                   )
               ),
@@ -1808,13 +1835,14 @@ export const LiveBookingConfirmation = (
                   .select({ id: appointments.id })
                   .from(appointments)
                   .where(
-                    and(
-                      eq(appointments.merchantId, row.hold.merchantId),
-                      eq(appointments.providerId, row.hold.providerId),
-                      eq(appointments.status, 'scheduled'),
-                      sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedStartsAt'), ${appointments.startsAt}) < ${row.hold.quote.occupiedEndsAt ?? row.hold.endsAt}`,
-                      sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedEndsAt'), ${appointments.endsAt}) > ${row.hold.quote.occupiedStartsAt ?? row.hold.startsAt}`
-                    )
+                    scheduledAppointmentOverlap({
+                      merchantId: row.hold.merchantId,
+                      providerId: row.hold.providerId,
+                      occupiedStartsAt:
+                        row.hold.quote.occupiedStartsAt ?? row.hold.startsAt,
+                      occupiedEndsAt:
+                        row.hold.quote.occupiedEndsAt ?? row.hold.endsAt
+                    })
                   )
                   .limit(1)
               )

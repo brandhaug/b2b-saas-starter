@@ -65,11 +65,15 @@ export const BookingQuote = Schema.Struct({
       role: Schema.Literals(['primary', 'additional']),
       name: Schema.String,
       durationMinutes: Schema.Number,
+      beforeBufferMinutes: Schema.optional(Schema.Number),
+      afterBufferMinutes: Schema.optional(Schema.Number),
       priceMinor: Schema.Number,
       currency: Schema.String
     })
   ),
   durationMinutes: Schema.Number,
+  occupiedStartsAt: Schema.optional(Schema.String),
+  occupiedEndsAt: Schema.optional(Schema.String),
   currency: Schema.String,
   totalMinor: Schema.Number
 })
@@ -492,9 +496,19 @@ const quoteFor = (
     role: index === 0 ? ('primary' as const) : ('additional' as const),
     name: service.name,
     durationMinutes: service.durationMinutes,
+    beforeBufferMinutes: service.beforeBufferMinutes,
+    afterBufferMinutes: service.afterBufferMinutes,
     priceMinor: service.priceMinor,
     currency: service.currency
   }))
+  const beforeBufferMinutes = Math.max(
+    0,
+    ...selected.map((service) => service.beforeBufferMinutes)
+  )
+  const afterBufferMinutes = Math.max(
+    0,
+    ...selected.map((service) => service.afterBufferMinutes)
+  )
   return {
     ...slot,
     providerPreference: input.preference,
@@ -504,6 +518,12 @@ const quoteFor = (
       (sum, service) => sum + service.durationMinutes,
       0
     ),
+    occupiedStartsAt: new Date(
+      Date.parse(slot.startsAt) - beforeBufferMinutes * 60_000
+    ).toISOString(),
+    occupiedEndsAt: new Date(
+      Date.parse(slot.endsAt) + afterBufferMinutes * 60_000
+    ).toISOString(),
     currency: snapshots[0]!.currency,
     totalMinor: snapshots.reduce((sum, service) => sum + service.priceMinor, 0)
   }
@@ -906,7 +926,8 @@ const liveInputs = (
           .select({
             providerId: appointments.providerId,
             startsAt: appointments.startsAt,
-            endsAt: appointments.endsAt
+            endsAt: appointments.endsAt,
+            snapshot: appointments.snapshot
           })
           .from(appointments)
           .where(
@@ -983,8 +1004,16 @@ const liveInputs = (
         eligibilityRows.map((pair) => eligibilityKey(pair.providerId, pair.serviceId))
       ),
       rules: ruleRows,
-      appointments: appointmentRows,
-      holds: holdRows,
+      appointments: appointmentRows.map(({ snapshot, ...appointment }) => ({
+        ...appointment,
+        startsAt: snapshot?.occupiedStartsAt ?? appointment.startsAt,
+        endsAt: snapshot?.occupiedEndsAt ?? appointment.endsAt
+      })),
+      holds: holdRows.map((hold) => ({
+        ...hold,
+        startsAt: hold.quote.occupiedStartsAt ?? hold.startsAt,
+        endsAt: hold.quote.occupiedEndsAt ?? hold.endsAt
+      })),
       controls: {
         startTimeIntervalMinutes: policies?.startTimeIntervalMinutes ?? 15,
         minimumNoticeMinutes: policies?.minimumNoticeMinutes ?? 120,
@@ -1108,7 +1137,7 @@ const liveHoldParty = (
     )
       return yield* failure('slot_lost')
     const valueSql = candidateRows
-      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .join(', ')
     const params = candidateRows.flatMap((item) => [
       item.id,
@@ -1118,19 +1147,21 @@ const liveHoldParty = (
       item.providerId,
       item.startsAt,
       item.endsAt,
+      item.quote.occupiedStartsAt ?? item.startsAt,
+      item.quote.occupiedEndsAt ?? item.endsAt,
       item.createdAt,
       item.expiresAt,
       JSON.stringify(item.quote)
     ])
     const insert: CompiledBatchQuery = {
-      sql: `WITH candidates(id, merchant_id, booking_session_id, booking_request_id, provider_id, starts_at, ends_at, created_at, expires_at, quote) AS (VALUES ${valueSql})
+      sql: `WITH candidates(id, merchant_id, booking_session_id, booking_request_id, provider_id, starts_at, ends_at, occupied_starts_at, occupied_ends_at, created_at, expires_at, quote) AS (VALUES ${valueSql})
         INSERT INTO time_slot_holds (id, merchant_id, booking_session_id, booking_request_id, provider_id, starts_at, ends_at, created_at, expires_at, quote)
-        SELECT * FROM candidates c
+        SELECT c.id,c.merchant_id,c.booking_session_id,c.booking_request_id,c.provider_id,c.starts_at,c.ends_at,c.created_at,c.expires_at,c.quote FROM candidates c
         WHERE (SELECT COUNT(*) FROM candidates) = ?
-          AND NOT EXISTS (SELECT 1 FROM candidates a JOIN candidates b ON a.id < b.id AND a.provider_id = b.provider_id AND a.starts_at < b.ends_at AND a.ends_at > b.starts_at)
-          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN time_slot_holds h ON h.provider_id = c2.provider_id AND h.expires_at > ? AND h.booking_session_id <> c2.booking_session_id AND h.starts_at < c2.ends_at AND h.ends_at > c2.starts_at)
-          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN appointments a ON a.provider_id = c2.provider_id AND a.status = 'scheduled' AND a.starts_at < c2.ends_at AND a.ends_at > c2.starts_at)
-          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN blocked_times b ON b.merchant_id = c2.merchant_id AND b.starts_at < c2.ends_at AND b.ends_at > c2.starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates a JOIN candidates b ON a.id < b.id AND a.provider_id = b.provider_id AND a.occupied_starts_at < b.occupied_ends_at AND a.occupied_ends_at > b.occupied_starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN time_slot_holds h ON h.provider_id = c2.provider_id AND h.expires_at > ? AND h.booking_session_id <> c2.booking_session_id AND COALESCE(json_extract(h.quote,'$.occupiedStartsAt'),h.starts_at) < c2.occupied_ends_at AND COALESCE(json_extract(h.quote,'$.occupiedEndsAt'),h.ends_at) > c2.occupied_starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN appointments a ON a.provider_id = c2.provider_id AND a.status = 'scheduled' AND COALESCE(json_extract(a.snapshot,'$.occupiedStartsAt'),a.starts_at) < c2.occupied_ends_at AND COALESCE(json_extract(a.snapshot,'$.occupiedEndsAt'),a.ends_at) > c2.occupied_starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN blocked_times b ON b.merchant_id = c2.merchant_id AND b.starts_at < c2.occupied_ends_at AND b.ends_at > c2.occupied_starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 WHERE NOT EXISTS (SELECT 1 FROM merchant_subscriptions s WHERE s.merchant_id = c2.merchant_id AND s.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES})))
           AND EXISTS (SELECT 1 FROM booking_requests r JOIN booking_parties p ON p.id = r.booking_party_id WHERE r.id = c.booking_request_id AND p.booking_session_id = c.booking_session_id AND p.lifecycle = 'active')`,
       params: [...params, candidateRows.length, command.now]
@@ -1419,12 +1450,14 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                          AND NOT EXISTS (
                            SELECT 1 FROM appointments
                            WHERE provider_id = ? AND status = 'scheduled'
-                             AND starts_at < ? AND ends_at > ?
+                             AND COALESCE(json_extract(snapshot,'$.occupiedStartsAt'),starts_at) < ?
+                             AND COALESCE(json_extract(snapshot,'$.occupiedEndsAt'),ends_at) > ?
                          ) AND NOT EXISTS (
                            SELECT 1 FROM time_slot_holds
                            WHERE provider_id = ? AND expires_at > ?
                              AND booking_session_id <> ?
-                             AND starts_at < ? AND ends_at > ?
+                             AND COALESCE(json_extract(quote,'$.occupiedStartsAt'),starts_at) < ?
+                             AND COALESCE(json_extract(quote,'$.occupiedEndsAt'),ends_at) > ?
                          ) AND NOT EXISTS (
                            SELECT 1 FROM blocked_times
                            WHERE merchant_id = ?
@@ -1443,34 +1476,16 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                   JSON.stringify(quote satisfies StoredBookingQuote),
                   ...catalogParams,
                   provider.id,
-                  slot.endsAt,
-                  slot.startsAt,
+                  quote.occupiedEndsAt ?? slot.endsAt,
+                  quote.occupiedStartsAt ?? slot.startsAt,
                   provider.id,
                   command.now,
                   session.id,
-                  slot.endsAt,
-                  slot.startsAt,
+                  quote.occupiedEndsAt ?? slot.endsAt,
+                  quote.occupiedStartsAt ?? slot.startsAt,
                   input.merchantId,
-                  new Date(
-                    Date.parse(slot.endsAt) +
-                      Math.max(
-                        0,
-                        ...generated.selected.map(
-                          (service) => service.afterBufferMinutes
-                        )
-                      ) *
-                        60_000
-                  ).toISOString(),
-                  new Date(
-                    Date.parse(slot.startsAt) -
-                      Math.max(
-                        0,
-                        ...generated.selected.map(
-                          (service) => service.beforeBufferMinutes
-                        )
-                      ) *
-                        60_000
-                  ).toISOString()
+                  quote.occupiedEndsAt ?? slot.endsAt,
+                  quote.occupiedStartsAt ?? slot.startsAt
                 ]
               } satisfies CompiledBatchQuery
               const removePreviousQuery = {

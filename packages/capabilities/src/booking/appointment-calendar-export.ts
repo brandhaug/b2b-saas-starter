@@ -125,6 +125,18 @@ export const appointmentCalendarExport = (
     return Effect.fail(
       new AppointmentCalendarExportUnavailable({ reason: 'appointment_not_found' })
     )
+  const generatedAt = Date.parse(input.generatedAt)
+  const startsAt = Date.parse(appointment.startsAt)
+  const endsAt = Date.parse(appointment.endsAt)
+  if (
+    !Number.isFinite(generatedAt) ||
+    !Number.isFinite(startsAt) ||
+    !Number.isFinite(endsAt) ||
+    startsAt >= endsAt
+  )
+    return Effect.fail(
+      new AppointmentCalendarExportUnavailable({ reason: 'invalid_snapshot' })
+    )
   return Effect.try({
     try: () =>
       renderAppointmentCalendar({
