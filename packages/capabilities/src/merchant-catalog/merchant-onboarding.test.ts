@@ -4,9 +4,9 @@ import {
   MerchantMembership,
   MerchantOnboarding,
   SeedMerchantOnboarding,
+  assertSeedBookingScenarioReleaseBaseline,
   buildSeedBookingScenario,
   deriveIncompleteSeedBookingScenario,
-  deriveSoloSeedBookingScenario,
   emptySeedMerchantCatalog,
   merchantPublicBookingUrl
 } from './merchant-onboarding.ts'
@@ -197,8 +197,8 @@ describe('Seed Booking Scenario builder', () => {
     expect(first.merchant.id).toBe('mer_seed_booking_studio')
     expect(first.membership.userId).not.toBe(first.provider.id)
     expect(first.publicBookingPage.status).toBe('published')
-    expect(first.scheduleRules).toHaveLength(10)
-    expect(first.providers).toHaveLength(2)
+    expect(first.scheduleRules).toHaveLength(5)
+    expect(first.providers).toHaveLength(1)
     expect(first.services.map((service) => service.name)).toEqual([
       'Signature Cut',
       'Beard Detail',
@@ -235,14 +235,6 @@ describe('Seed Booking Scenario builder', () => {
         'svc_seed_hot_towel_shave',
         'svc_seed_hair_beard_combo',
         'svc_seed_premium_grooming'
-      ],
-      prv_seed_elena: [
-        'svc_seed_signature_cut',
-        'svc_seed_beard_detail',
-        'svc_seed_skin_fade',
-        'svc_seed_hot_towel_shave',
-        'svc_seed_hair_beard_combo',
-        'svc_seed_style_consultation'
       ]
     })
     expect(
@@ -262,12 +254,24 @@ describe('Seed Booking Scenario builder', () => {
       expect.objectContaining({ id: 'apt_seed_past', status: 'completed' }),
       expect.objectContaining({ id: 'apt_seed_future', status: 'scheduled' })
     ])
-    expect(new Set(first.eligibility.map((pair) => pair.providerId)).size).toBe(2)
-    expect(deriveSoloSeedBookingScenario(first)).toMatchObject({
+    expect(new Set(first.eligibility.map((pair) => pair.providerId)).size).toBe(1)
+    expect(first).toMatchObject({
       merchant: { plan: 'solo' },
       providers: [{ isDefault: true }]
     })
     expect(deriveIncompleteSeedBookingScenario(first).services).toEqual([])
     expect(() => buildSeedBookingScenario('not-a-time')).toThrow()
+  })
+
+  it('rejects a sole Provider outside the fixture Merchant boundary', () => {
+    const scenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
+
+    expect(() =>
+      assertSeedBookingScenarioReleaseBaseline({
+        ...scenario,
+        provider: { ...scenario.provider, merchantId: 'mer_other' },
+        providers: [{ ...scenario.providers[0]!, merchantId: 'mer_other' }]
+      })
+    ).toThrow('Merchant boundary')
   })
 })

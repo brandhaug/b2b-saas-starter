@@ -21,9 +21,9 @@ export {
   MerchantRecord,
   RESERVED_MERCHANT_SLUGS,
   SeedMerchantOnboarding,
+  assertSeedBookingScenarioReleaseBaseline,
   buildSeedBookingScenario,
   deriveIncompleteSeedBookingScenario,
-  deriveSoloSeedBookingScenario,
   emptySeedMerchantCatalog,
   merchantPublicBookingUrl
 } from './merchant-onboarding.ts'
@@ -46,7 +46,7 @@ export {
   MerchantCatalog,
   MerchantCatalogInvalid,
   MerchantCatalogSnapshot,
-  ProviderInput,
+  ProviderProfileInput,
   ProviderRecord,
   SeedMerchantCatalog,
   ServiceInput,

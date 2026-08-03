@@ -1,5 +1,8 @@
 /// <reference types="bun-types" />
-import { buildSeedBookingScenario } from '@b2b-saas-starter/capabilities/merchant-catalog'
+import {
+  assertSeedBookingScenarioReleaseBaseline,
+  buildSeedBookingScenario
+} from '@b2b-saas-starter/capabilities/merchant-catalog'
 import {
   account,
   appointments,
@@ -25,6 +28,7 @@ import {
 import { getTableColumns, getTableName, type Table } from 'drizzle-orm'
 
 const scenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
+assertSeedBookingScenarioReleaseBaseline(scenario)
 const quote = (value: unknown): string => {
   if (value === null) return 'NULL'
   if (typeof value === 'number') return String(value)

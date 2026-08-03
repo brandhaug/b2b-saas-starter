@@ -209,14 +209,25 @@ export const prepareAppointmentCustomerAssociation = (
     const foundationOrigin =
       input.origin === 'record_completed' ? 'merchant_created' : input.origin
     statements.push(
-      db.insert(appointmentFoundations).values({
-        appointmentId: appointment.id,
-        merchantId: input.merchantId,
-        customerRecordId: recordId,
-        origin: foundationOrigin,
-        customerNote: appointment.details.note?.trim() || null,
-        createdAt: input.now
-      }),
+      db
+        .insert(appointmentFoundations)
+        .values({
+          appointmentId: appointment.id,
+          merchantId: input.merchantId,
+          customerRecordId: recordId,
+          origin: foundationOrigin,
+          customerNote: appointment.details.note?.trim() || null,
+          createdAt: input.now
+        })
+        .onConflictDoUpdate({
+          target: appointmentFoundations.appointmentId,
+          set: {
+            customerRecordId: recordId,
+            origin: foundationOrigin,
+            customerNote: appointment.details.note?.trim() || null
+          },
+          setWhere: eq(appointmentFoundations.merchantId, input.merchantId)
+        }),
       db.insert(customerObservations).values({
         id: newCapabilityId('cuo'),
         merchantId: input.merchantId,

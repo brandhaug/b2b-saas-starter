@@ -658,6 +658,82 @@ export type SeedBookingScenario = {
   }
 }
 
+/** Fails closed when the canonical production-shaped fixture drifts from Solo. */
+export const assertSeedBookingScenarioReleaseBaseline = (
+  scenario: SeedBookingScenario
+): void => {
+  const [provider] = scenario.providers
+  if (scenario.merchant.plan !== 'solo')
+    throw new Error('Seed Booking Scenario must use the Solo Plan')
+  if (
+    scenario.providers.length !== 1 ||
+    !provider ||
+    provider.id !== scenario.provider.id ||
+    provider.status !== 'active' ||
+    !provider.isDefault
+  )
+    throw new Error('Seed Booking Scenario must have one active default Provider')
+  if (
+    scenario.merchant.ownerUserId !== scenario.owner.id ||
+    scenario.membership.merchantId !== scenario.merchant.id ||
+    scenario.membership.userId !== scenario.owner.id ||
+    provider.linkedUserId !== scenario.owner.id
+  )
+    throw new Error('Seed Booking Scenario Owner-Provider binding is invalid')
+
+  const serviceIds = new Set(scenario.services.map(({ id }) => id))
+  if (
+    scenario.provider.merchantId !== scenario.merchant.id ||
+    provider.merchantId !== scenario.merchant.id ||
+    scenario.services.some(({ merchantId }) => merchantId !== scenario.merchant.id) ||
+    scenario.eligibility.some(
+      ({ merchantId, providerId, serviceId }) =>
+        merchantId !== scenario.merchant.id ||
+        providerId !== provider.id ||
+        !serviceIds.has(serviceId)
+    ) ||
+    scenario.scheduleRules.some(
+      ({ merchantId, providerId }) =>
+        merchantId !== scenario.merchant.id || providerId !== provider.id
+    ) ||
+    scenario.appointments.some(
+      ({ merchantId, providerId }) =>
+        merchantId !== scenario.merchant.id || providerId !== provider.id
+    ) ||
+    scenario.publicBookingPage.merchantId !== scenario.merchant.id
+  )
+    throw new Error('Seed Booking Scenario crosses its Merchant boundary')
+
+  const eligibleServiceIds = new Set(
+    scenario.eligibility.map(({ serviceId }) => serviceId)
+  )
+  if (
+    scenario.services.some(
+      ({ id, status }) => status === 'active' && !eligibleServiceIds.has(id)
+    )
+  )
+    throw new Error('Seed Booking Scenario has an ineligible active Service')
+
+  for (const [index, appointment] of scenario.appointments.entries()) {
+    const startsAt = Date.parse(appointment.startsAt)
+    const endsAt = Date.parse(appointment.endsAt)
+    if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || startsAt >= endsAt)
+      throw new Error('Seed Booking Scenario has an invalid Appointment interval')
+    for (const other of scenario.appointments.slice(index + 1)) {
+      if (startsAt < Date.parse(other.endsAt) && Date.parse(other.startsAt) < endsAt)
+        throw new Error('Seed Booking Scenario has overlapping Appointments')
+    }
+  }
+
+  const appointmentIds = new Set(scenario.appointments.map(({ id }) => id))
+  if (
+    scenario.confirmationAccess.some(
+      ({ appointmentId }) => !appointmentIds.has(appointmentId)
+    )
+  )
+    throw new Error('Seed Booking Scenario Confirmation access is orphaned')
+}
+
 /** The sole authored Booking fixture. The caller must supply its clock anchor. */
 export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenario => {
   if (

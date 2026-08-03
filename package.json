@@ -1,18 +1,10 @@
 {
-  "name": "b2b-saas-starter",
+  "name": "beesolo",
   "version": "0.1.0",
   "private": true,
-  "description": "Cloudflare-first B2B SaaS starter monorepo with TanStack Start, Effect v4, Drizzle D1, Better Auth, and Alchemy.",
-  "homepage": "https://github.com/brandhaug/b2b-saas-starter#readme",
-  "bugs": {
-    "url": "https://github.com/brandhaug/b2b-saas-starter/issues"
-  },
+  "description": "Cloudflare-first Solo appointment scheduler for one Merchant Owner-Provider operating one Shop.",
   "license": "MIT",
   "author": "Martin Brandhaug <martin@brandhaug.net>",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/brandhaug/b2b-saas-starter.git"
-  },
   "workspaces": [
     "apps/*",
     "infra",
@@ -39,6 +31,9 @@
     "format:check": "oxfmt --check",
     "check": "bun run parity:check && bun run typecheck && bun run lint && bun run format:check && bun run test",
     "parity:check": "bun apps/booking/scripts/check-full-parity-ledger.ts",
+    "release:baseline:generate": "bun scripts/release-baseline/run.ts",
+    "release:baseline": "bun run release:baseline:generate && bun scripts/release-baseline/verify.ts",
+    "release:candidate": "bun scripts/release-baseline/candidate.ts",
     "check:fix": "bun run lint:fix && bun run format",
     "db:generate": "bun --cwd packages/db db:generate",
     "db:migrate:local": "bun --cwd packages/db db:migrate:local",

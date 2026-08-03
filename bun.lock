@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "b2b-saas-starter",
+      "name": "beesolo",
       "dependencies": {
         "@b2b-saas-starter/capabilities": "workspace:*",
         "@b2b-saas-starter/db": "workspace:*",
