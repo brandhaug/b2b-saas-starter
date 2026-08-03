@@ -1029,6 +1029,24 @@ const splitRecord = (
       )
     const movedNoteIds = new Set(input.noteIds ?? [])
     const movedConsentIds = new Set(input.consentIds ?? [])
+    const movedDestinations = new Set(
+      (input.contactKeys ?? []).map((contact) => contact.value)
+    )
+    const requiredConsentIds = source.consent
+      .filter((evidence) => movedDestinations.has(evidence.destination))
+      .map((evidence) => evidence.id)
+    if (
+      explicitlyAssigned &&
+      (requiredConsentIds.some((id) => !movedConsentIds.has(id)) ||
+        source.consent.some(
+          (evidence) =>
+            movedConsentIds.has(evidence.id) &&
+            !movedDestinations.has(evidence.destination)
+        ))
+    )
+      return yield* Effect.fail(
+        new CustomerDirectoryInvalid({ reason: 'invalid_split_assignment' })
+      )
     const created: CustomerRecord = {
       ...source,
       id,
