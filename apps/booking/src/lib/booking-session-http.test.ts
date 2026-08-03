@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { Effect } from 'effect'
 import {
   BookingSchedulingRejected,
-  BookingPartyConflict,
   BookingSelectionRejected,
   BookingSessionGone,
   BookingConfirmationProcessing,
