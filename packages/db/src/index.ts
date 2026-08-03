@@ -7,6 +7,7 @@ export {
   layerFromDb,
   layerFromD1,
   promiseDatabaseFromEffect,
+  rawD1FromDatabase,
   type BatchStatement,
   type BatchQueryResult,
   type CompiledBatchQuery,

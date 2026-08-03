@@ -24,6 +24,9 @@ export const layerFromD1 = (d1: D1Client.D1ClientConfig['db']): Layer.Layer<Data
 export const promiseDatabaseFromEffect = (db: EffectDatabase): PromiseDrizzleDatabase =>
   createDb(db.$client.config.db)
 
+/** Infrastructure boundary for capability adapters that must compose raw D1 batches. */
+export const rawD1FromDatabase = (db: EffectDatabase) => db.$client.config.db
+
 export class DbBatchError extends Schema.TaggedErrorClass<DbBatchError>()(
   'DbBatchError',
   { reason: Schema.String }

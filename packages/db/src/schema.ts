@@ -4127,6 +4127,7 @@ export const capabilityCommands = sqliteTable('capability_commands', {
 export const capabilityHistory = sqliteTable('capability_history', {
   id: text('id').primaryKey(),
   merchantId: text('merchant_id').notNull(),
+  capability: text('capability').notNull(),
   aggregateId: text('aggregate_id').notNull(),
   revision: integer('revision').notNull(),
   kind: text('kind').notNull(),
@@ -4135,6 +4136,7 @@ export const capabilityHistory = sqliteTable('capability_history', {
 export const capabilityAudit = sqliteTable('capability_audit', {
   id: text('id').primaryKey(),
   merchantId: text('merchant_id').notNull(),
+  capability: text('capability').notNull(),
   aggregateId: text('aggregate_id').notNull(),
   revision: integer('revision').notNull(),
   actorKind: text('actor_kind').notNull(),
@@ -4146,6 +4148,7 @@ export const capabilityAudit = sqliteTable('capability_audit', {
 export const capabilityOutbox = sqliteTable('capability_outbox', {
   id: text('id').primaryKey(),
   merchantId: text('merchant_id').notNull(),
+  capability: text('capability').notNull(),
   aggregateId: text('aggregate_id').notNull(),
   revision: integer('revision').notNull(),
   kind: text('kind').notNull(),
@@ -4155,4 +4158,32 @@ export const capabilityOutbox = sqliteTable('capability_outbox', {
   availableAt: text('available_at').notNull(),
   processedAt: text('processed_at'),
   createdAt: text('created_at').notNull()
+})
+
+export const capabilityCallbackCorrelations = sqliteTable(
+  'capability_callback_correlations',
+  {
+    correlationId: text('correlation_id').primaryKey(),
+    merchantId: text('merchant_id').notNull(),
+    capability: text('capability').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: text('created_at').notNull()
+  }
+)
+
+export const capabilityTransactionGuards = sqliteTable(
+  'capability_transaction_guards',
+  {
+    id: text('id').primaryKey(),
+    accepted: integer('accepted').notNull()
+  }
+)
+
+export const merchantAccessHolds = sqliteTable('merchant_access_holds', {
+  id: text('id').primaryKey(),
+  merchantId: text('merchant_id').notNull(),
+  userId: text('user_id').notNull(),
+  reason: text('reason').notNull(),
+  placedAt: text('placed_at').notNull(),
+  releasedAt: text('released_at')
 })

@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { Database } from '@b2b-saas-starter/db'
+import { Database, rawD1FromDatabase } from '@b2b-saas-starter/db'
 import {
   CapabilityConflict,
   CapabilityDenied,
@@ -7,7 +7,13 @@ import {
   CapabilityUnavailable
 } from '../errors.ts'
 
-export const capabilityOperations = [
+const NonEmptyString = Schema.String.check(Schema.isMinLength(1))
+const IsoDateTime = Schema.String.check(
+  Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/)
+)
+const Revision = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+
+export const CapabilityOperation = Schema.Literals([
   'read',
   'mutation',
   'search',
@@ -15,206 +21,401 @@ export const capabilityOperations = [
   'export',
   'callback',
   'queued-action'
-] as const
-export type CapabilityOperation = (typeof capabilityOperations)[number]
-export type CapabilityActor =
-  | { readonly kind: 'owner'; readonly userId: string; readonly merchantId: string }
-  | {
-      readonly kind: 'impersonation'
-      readonly operatorId: string
-      readonly targetUserId: string
-      readonly merchantId: string
-      readonly impersonationId: string
-    }
-  | { readonly kind: 'system'; readonly workerId: string; readonly merchantId: string }
-  | {
-      readonly kind: 'callback'
-      readonly correlationId: string
-      readonly merchantId: string
-    }
+])
+export type CapabilityOperation = typeof CapabilityOperation.Type
+export const capabilityOperations = [...CapabilityOperation.literals]
 
-export type AccessState = 'active' | 'held' | 'restricted'
-export type PolicyRequest = {
-  readonly actor: CapabilityActor | null
-  readonly merchantId: string
-  readonly resourceMerchantId?: string | undefined
-  readonly operation: CapabilityOperation
-  readonly restrictedException?: 'billing-recovery' | 'existing-commitment' | undefined
-}
+export const CapabilityAuthorityReference = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal('owner-session'), sessionId: NonEmptyString }),
+  Schema.Struct({
+    kind: Schema.Literal('impersonated-session'),
+    merchantSessionId: NonEmptyString
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('callback-correlation'),
+    correlationId: NonEmptyString
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('claimed-work'),
+    workerId: NonEmptyString,
+    outboxId: NonEmptyString
+  })
+])
+export type CapabilityAuthorityReference = typeof CapabilityAuthorityReference.Type
 
-export const authorizeCapability = (input: PolicyRequest) => {
-  if (!input.actor) return new CapabilityDenied({ reason: 'session_required' })
-  if (input.actor.merchantId !== input.merchantId)
-    return new CapabilityNotFound({ resource: 'merchant-resource' })
-  if (input.resourceMerchantId && input.resourceMerchantId !== input.merchantId)
-    return new CapabilityNotFound({ resource: 'merchant-resource' })
-  if (input.operation === 'callback' && input.actor.kind !== 'callback')
-    return new CapabilityDenied({ reason: 'callback_correlation_required' })
-  if (input.operation === 'queued-action' && input.actor.kind !== 'system')
-    return new CapabilityDenied({ reason: 'worker_authority_required' })
-  if (
-    (input.actor.kind === 'system' || input.actor.kind === 'callback') &&
-    input.operation !== 'queued-action' &&
-    input.operation !== 'callback'
-  )
-    return new CapabilityDenied({ reason: 'owner_session_required' })
-  return null
-}
+export const SharedCommand = Schema.Struct({
+  authority: CapabilityAuthorityReference,
+  merchantId: NonEmptyString,
+  operation: CapabilityOperation,
+  capability: NonEmptyString,
+  aggregateId: NonEmptyString,
+  idempotencyKey: NonEmptyString,
+  payloadFingerprint: NonEmptyString,
+  expectedRevision: Revision,
+  resultJson: NonEmptyString,
+  historyKind: NonEmptyString,
+  outboxKind: Schema.optional(NonEmptyString),
+  availableAt: Schema.optional(IsoDateTime),
+  now: IsoDateTime
+})
+export type SharedCommandInput = typeof SharedCommand.Type
 
-export const accessAllows = (state: AccessState, input: PolicyRequest): boolean => {
-  if (state === 'held') return false
-  if (state !== 'restricted') return true
-  return (
-    input.operation === 'read' ||
-    input.operation === 'search' ||
-    input.operation === 'export' ||
-    input.restrictedException === 'billing-recovery' ||
-    input.restrictedException === 'existing-commitment'
-  )
-}
+export const DomainMutationRequest = Schema.Struct({
+  kind: NonEmptyString,
+  payloadJson: Schema.String
+})
+export type DomainMutationRequest = typeof DomainMutationRequest.Type
 
-export type SharedCommandInput = PolicyRequest & {
-  readonly accessState: AccessState
-  readonly capability: string
-  readonly aggregateId: string
-  readonly idempotencyKey: string
-  readonly payloadFingerprint: string
-  readonly expectedRevision: number
-  readonly resultJson: string
-  readonly historyKind: string
-  readonly outboxKind?: string | undefined
-  readonly now: string
-}
-export type SharedCommandResult = {
-  readonly aggregateId: string
-  readonly revision: number
-  readonly replayed: boolean
-  readonly resultJson: string
-}
-export type OutboxClaim = {
-  readonly id: string
-  readonly kind: string
-  readonly aggregateId: string
-  readonly revision: number
-}
+export const SharedCommandResult = Schema.Struct({
+  aggregateId: NonEmptyString,
+  revision: Revision,
+  replayed: Schema.Boolean,
+  resultJson: NonEmptyString
+})
+export type SharedCommandResult = typeof SharedCommandResult.Type
+
+export const OutboxClaim = Schema.Struct({
+  id: NonEmptyString,
+  kind: NonEmptyString,
+  aggregateId: NonEmptyString,
+  revision: Revision
+})
+export type OutboxClaim = typeof OutboxClaim.Type
+
+export const QueueWakeup = Schema.Struct({
+  version: Schema.Literal(1),
+  kind: Schema.Literal('capability-outbox'),
+  outboxId: NonEmptyString
+})
+export type QueueWakeup = typeof QueueWakeup.Type
+
+const SqlIdentifier = Schema.String.check(
+  Schema.isPattern(/^[a-z][a-z0-9_]*$/),
+  Schema.isMaxLength(64)
+)
+const SqlValue = Schema.Union([
+  Schema.String,
+  Schema.Number,
+  Schema.Boolean,
+  Schema.Null
+])
+const MerchantScopedMutation = Schema.Union([
+  Schema.Struct({
+    operation: Schema.Literal('insert'),
+    table: SqlIdentifier,
+    id: NonEmptyString,
+    values: Schema.Record(SqlIdentifier, SqlValue)
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('update'),
+    table: SqlIdentifier,
+    id: NonEmptyString,
+    values: Schema.Record(SqlIdentifier, SqlValue)
+  }),
+  Schema.Struct({
+    operation: Schema.Literal('delete'),
+    table: SqlIdentifier,
+    id: NonEmptyString
+  })
+])
+type MerchantScopedMutation = typeof MerchantScopedMutation.Type
+const DomainMutationPlan = Schema.Struct({
+  merchantId: NonEmptyString,
+  mutations: Schema.Array(MerchantScopedMutation)
+})
+type DomainMutationPlan = typeof DomainMutationPlan.Type
+
+export const OutboxClaimRequest = Schema.Struct({
+  workerId: NonEmptyString,
+  now: IsoDateTime,
+  staleBefore: IsoDateTime,
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 500 }))
+})
+export type OutboxClaimRequest = typeof OutboxClaimRequest.Type
+export const OutboxCompletionRequest = Schema.Struct({
+  id: NonEmptyString,
+  workerId: NonEmptyString,
+  now: IsoDateTime
+})
+export type OutboxCompletionRequest = typeof OutboxCompletionRequest.Type
+export const OutboxProcessRequest = Schema.Struct({
+  outboxId: NonEmptyString,
+  workerId: NonEmptyString,
+  now: IsoDateTime,
+  staleBefore: IsoDateTime
+})
+export type OutboxProcessRequest = typeof OutboxProcessRequest.Type
+
 type FoundationError =
   | CapabilityDenied
   | CapabilityNotFound
   | CapabilityConflict
   | CapabilityUnavailable
 
+export type SharedCapabilityFoundationsShape = {
+  readonly execute: (
+    input: SharedCommandInput,
+    domainInput?: DomainMutationRequest
+  ) => Effect.Effect<SharedCommandResult, FoundationError>
+  readonly claim: (
+    input: OutboxClaimRequest
+  ) => Effect.Effect<readonly OutboxClaim[], CapabilityUnavailable>
+  readonly complete: (
+    input: OutboxCompletionRequest
+  ) => Effect.Effect<void, CapabilityUnavailable>
+  readonly process: (
+    input: OutboxProcessRequest
+  ) => Effect.Effect<void, CapabilityUnavailable>
+}
+
 export class SharedCapabilityFoundations extends Context.Service<
   SharedCapabilityFoundations,
-  {
-    readonly execute: (
-      input: SharedCommandInput
-    ) => Effect.Effect<SharedCommandResult, FoundationError>
-    readonly claim: (input: {
-      readonly workerId: string
-      readonly now: string
-      readonly staleBefore: string
-      readonly limit: number
-    }) => Effect.Effect<readonly OutboxClaim[], CapabilityUnavailable>
-    readonly complete: (input: {
-      readonly id: string
-      readonly workerId: string
-      readonly now: string
-    }) => Effect.Effect<void, CapabilityUnavailable>
-  }
+  SharedCapabilityFoundationsShape
 >()('@b2b-saas-starter/capabilities/SharedCapabilityFoundations') {}
 
-const actorAudit = (actor: CapabilityActor) =>
-  actor.kind === 'owner'
-    ? { actorKind: 'owner', actorId: actor.userId, impersonationId: null }
-    : actor.kind === 'impersonation'
-      ? {
-          actorKind: 'operator',
-          actorId: actor.operatorId,
-          impersonationId: actor.impersonationId
-        }
-      : actor.kind === 'system'
-        ? { actorKind: 'system', actorId: actor.workerId, impersonationId: null }
-        : { actorKind: 'callback', actorId: actor.correlationId, impersonationId: null }
+type ResolvedAuthority = {
+  readonly merchantId: string
+  readonly actorKind: 'owner' | 'operator' | 'system' | 'callback'
+  readonly actorId: string
+  readonly impersonationId: string | null
+  readonly accessState: 'active' | 'held' | 'restricted'
+}
 
-const validate = (input: SharedCommandInput) => {
-  const denied = authorizeCapability(input)
-  if (denied) return denied
-  if (!accessAllows(input.accessState, input))
-    return new CapabilityDenied({
-      reason:
-        input.accessState === 'held' ? 'merchant_access_held' : 'restricted_access'
-    })
+const commandKey = (input: SharedCommandInput) =>
+  `${input.merchantId}:${input.capability}:${input.idempotencyKey}`
+const aggregateKey = (input: SharedCommandInput) =>
+  `${input.merchantId}:${input.capability}:${input.aggregateId}`
+const nextRevision = (input: SharedCommandInput) => input.expectedRevision + 1
+const outboxId = (input: SharedCommandInput, revision: number) =>
+  `cob_${input.capability}_${input.aggregateId}_${revision}`
+
+const validateDomainScope = (
+  mutation: DomainMutationPlan,
+  authority: ResolvedAuthority
+) => {
+  if (mutation.merchantId !== authority.merchantId)
+    return new CapabilityNotFound({ resource: 'merchant-resource' })
+  if (
+    mutation.mutations.some(
+      (item) =>
+        'values' in item && ('id' in item.values || 'merchant_id' in item.values)
+    )
+  )
+    return new CapabilityDenied({ reason: 'reserved_domain_column' })
   return null
 }
 
-type Stored = { fingerprint: string; result: SharedCommandResult }
-export const SeedSharedCapabilityFoundations =
-  (): Layer.Layer<SharedCapabilityFoundations> => {
-    const revisions = new Map<string, number>()
-    const commands = new Map<string, Stored>()
-    const outbox = new Map<
-      string,
-      OutboxClaim & {
-        status: 'pending' | 'claimed' | 'processed'
-        claimedBy?: string
-        claimedAt?: string
-      }
-    >()
-    return Layer.succeed(SharedCapabilityFoundations)({
-      execute: (input) =>
-        Effect.try({
-          try: () => {
-            const denial = validate(input)
-            if (denial) throw denial
-            const key = `${input.merchantId}:${input.capability}:${input.idempotencyKey}`
-            const existing = commands.get(key)
-            if (existing) {
-              if (existing.fingerprint !== input.payloadFingerprint)
-                throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
-              return { ...existing.result, replayed: true }
+const prepareDomainMutation =
+  (raw: D1Database, merchantId: string) => (mutation: MerchantScopedMutation) => {
+    const table = `"${mutation.table}"`
+    if (mutation.operation === 'delete')
+      return raw
+        .prepare(`DELETE FROM ${table} WHERE merchant_id = ? AND id = ?`)
+        .bind(merchantId, mutation.id)
+    const entries = Object.entries(mutation.values).sort(([left], [right]) =>
+      left.localeCompare(right)
+    )
+    if (mutation.operation === 'insert') {
+      const columns = ['id', 'merchant_id', ...entries.map(([column]) => column)]
+      return raw
+        .prepare(
+          `INSERT INTO ${table} (${columns.map((column) => `"${column}"`).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`
+        )
+        .bind(mutation.id, merchantId, ...entries.map(([, value]) => value))
+    }
+    if (entries.length === 0)
+      throw new CapabilityDenied({ reason: 'empty_domain_update' })
+    return raw
+      .prepare(
+        `UPDATE ${table} SET ${entries.map(([column]) => `"${column}" = ?`).join(', ')} WHERE merchant_id = ? AND id = ?`
+      )
+      .bind(...entries.map(([, value]) => value), merchantId, mutation.id)
+  }
+
+const authorizeResolved = (
+  input: SharedCommandInput,
+  authority: ResolvedAuthority,
+  resourceMerchantId: string | undefined,
+  restrictedMutationAllowed: boolean
+) => {
+  if (authority.merchantId !== input.merchantId)
+    return new CapabilityNotFound({ resource: 'merchant-resource' })
+  if (resourceMerchantId && resourceMerchantId !== authority.merchantId)
+    return new CapabilityNotFound({ resource: 'merchant-resource' })
+  if (input.operation === 'callback' && authority.actorKind !== 'callback')
+    return new CapabilityDenied({ reason: 'callback_correlation_required' })
+  if (input.operation === 'queued-action' && authority.actorKind !== 'system')
+    return new CapabilityDenied({ reason: 'worker_authority_required' })
+  if (
+    (authority.actorKind === 'system' || authority.actorKind === 'callback') &&
+    input.operation !== 'queued-action' &&
+    input.operation !== 'callback'
+  )
+    return new CapabilityDenied({ reason: 'owner_session_required' })
+  if (authority.accessState === 'held')
+    return new CapabilityDenied({ reason: 'merchant_access_held' })
+  if (
+    authority.accessState === 'restricted' &&
+    input.operation !== 'read' &&
+    input.operation !== 'search' &&
+    input.operation !== 'export' &&
+    !restrictedMutationAllowed
+  )
+    return new CapabilityDenied({ reason: 'restricted_access' })
+  return null
+}
+
+type SeedFoundationOptions = {
+  readonly authorities?: ReadonlyMap<string, ResolvedAuthority>
+  readonly publishWakeup?: (wakeup: QueueWakeup) => void
+  readonly buildDomainMutation?: (
+    input: SharedCommandInput,
+    domainInput: DomainMutationRequest | undefined
+  ) => DomainMutationPlan
+  readonly classifyRestrictedMutation?: (
+    input: SharedCommandInput,
+    domainInput: DomainMutationRequest | undefined,
+    context: { readonly resourceExists: boolean }
+  ) => boolean
+  readonly applyDomainMutation?: (mutation: DomainMutationPlan) => void
+  readonly handleOutbox?: (claim: OutboxClaim) => void
+}
+
+const authorityReferenceKey = (authority: CapabilityAuthorityReference) =>
+  authority.kind === 'owner-session'
+    ? `owner:${authority.sessionId}`
+    : authority.kind === 'impersonated-session'
+      ? `impersonation:${authority.merchantSessionId}`
+      : authority.kind === 'callback-correlation'
+        ? `callback:${authority.correlationId}`
+        : `work:${authority.workerId}:${authority.outboxId}`
+
+export const SeedSharedCapabilityFoundations = (
+  options: SeedFoundationOptions = {}
+): Layer.Layer<SharedCapabilityFoundations> => {
+  const revisions = new Map<string, number>()
+  const commands = new Map<
+    string,
+    { readonly fingerprint: string; readonly result: SharedCommandResult }
+  >()
+  const resourceOwners = new Map<string, string>()
+  const outbox = new Map<
+    string,
+    OutboxClaim & {
+      readonly availableAt: string
+      status: 'pending' | 'claimed' | 'processed'
+      claimedBy?: string
+      claimedAt?: string
+    }
+  >()
+  const resolve = (input: SharedCommandInput) => {
+    const authority = options.authorities?.get(authorityReferenceKey(input.authority))
+    if (!authority) throw new CapabilityDenied({ reason: 'authority_not_found' })
+    return authority
+  }
+  return Layer.succeed(SharedCapabilityFoundations)({
+    execute: (input, domainInput) =>
+      Effect.try({
+        try: () => {
+          const decoded = Schema.decodeUnknownSync(SharedCommand)(input)
+          const mutationRequest =
+            domainInput === undefined
+              ? undefined
+              : Schema.decodeUnknownSync(DomainMutationRequest)(domainInput)
+          if (domainInput !== undefined && !options.buildDomainMutation)
+            throw new CapabilityUnavailable({
+              capability: decoded.capability,
+              reason: 'domain_mutation_adapter_not_registered'
+            })
+          const mutation = Schema.decodeUnknownSync(DomainMutationPlan)(
+            options.buildDomainMutation?.(decoded, mutationRequest) ?? {
+              merchantId: decoded.merchantId,
+              mutations: []
             }
-            const current =
-              revisions.get(
-                `${input.merchantId}:${input.capability}:${input.aggregateId}`
-              ) ?? 0
-            if (current !== input.expectedRevision)
-              throw new CapabilityConflict({
-                reason: 'stale_revision',
-                currentRevision: current
+          )
+          const authority = resolve(decoded)
+          const resourceKey = `${decoded.capability}:${decoded.aggregateId}`
+          const denial = authorizeResolved(
+            decoded,
+            authority,
+            resourceOwners.get(resourceKey),
+            options.classifyRestrictedMutation?.(decoded, mutationRequest, {
+              resourceExists: resourceOwners.has(resourceKey)
+            }) ?? false
+          )
+          if (denial) throw denial
+          const domainDenial = validateDomainScope(mutation, authority)
+          if (domainDenial) throw domainDenial
+          const key = commandKey(decoded)
+          const existing = commands.get(key)
+          if (existing) {
+            if (existing.fingerprint !== decoded.payloadFingerprint)
+              throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
+            if (decoded.outboxKind)
+              options.publishWakeup?.({
+                version: 1,
+                kind: 'capability-outbox',
+                outboxId: outboxId(decoded, existing.result.revision)
               })
-            const result = {
-              aggregateId: input.aggregateId,
-              revision: current + 1,
-              replayed: false,
-              resultJson: input.resultJson
-            }
-            revisions.set(
-              `${input.merchantId}:${input.capability}:${input.aggregateId}`,
-              result.revision
-            )
-            commands.set(key, { fingerprint: input.payloadFingerprint, result })
-            if (input.outboxKind)
-              outbox.set(
-                `cob_${input.capability}_${input.aggregateId}_${result.revision}`,
-                {
-                  id: `cob_${input.capability}_${input.aggregateId}_${result.revision}`,
-                  kind: input.outboxKind,
-                  aggregateId: input.aggregateId,
-                  revision: result.revision,
-                  status: 'pending'
-                }
-              )
-            return result
-          },
-          catch: (error) => error as FoundationError
-        }),
-      claim: ({ workerId, now, staleBefore, limit }) =>
-        Effect.sync(() =>
-          [...outbox.values()]
+            return { ...existing.result, replayed: true }
+          }
+          const current = revisions.get(aggregateKey(decoded)) ?? 0
+          if (current !== decoded.expectedRevision)
+            throw new CapabilityConflict({
+              reason: 'stale_revision',
+              currentRevision: current
+            })
+          options.applyDomainMutation?.(mutation)
+          const revision = nextRevision(decoded)
+          const result = {
+            aggregateId: decoded.aggregateId,
+            revision,
+            replayed: false,
+            resultJson: decoded.resultJson
+          }
+          revisions.set(aggregateKey(decoded), revision)
+          resourceOwners.set(resourceKey, decoded.merchantId)
+          commands.set(key, { fingerprint: decoded.payloadFingerprint, result })
+          if (decoded.outboxKind) {
+            const id = outboxId(decoded, revision)
+            outbox.set(id, {
+              id,
+              kind: decoded.outboxKind,
+              aggregateId: decoded.aggregateId,
+              revision,
+              availableAt: decoded.availableAt ?? decoded.now,
+              status: 'pending'
+            })
+            options.publishWakeup?.({
+              version: 1,
+              kind: 'capability-outbox',
+              outboxId: id
+            })
+          }
+          return result
+        },
+        catch: (cause) =>
+          cause instanceof CapabilityDenied ||
+          cause instanceof CapabilityNotFound ||
+          cause instanceof CapabilityConflict ||
+          cause instanceof CapabilityUnavailable
+            ? cause
+            : new CapabilityUnavailable({
+                capability: 'shared-capability-foundations',
+                reason: cause instanceof Error ? cause.message : String(cause)
+              })
+      }),
+    claim: (input) =>
+      Effect.try({
+        try: () => {
+          const { workerId, now, staleBefore, limit } =
+            Schema.decodeUnknownSync(OutboxClaimRequest)(input)
+          return [...outbox.values()]
             .filter(
               (item) =>
-                item.status === 'pending' ||
-                (item.status === 'claimed' && item.claimedAt! <= staleBefore)
+                item.availableAt <= now &&
+                (item.status === 'pending' ||
+                  (item.status === 'claimed' && item.claimedAt! <= staleBefore))
             )
             .slice(0, Math.max(0, limit))
             .map((item) => {
@@ -228,243 +429,654 @@ export const SeedSharedCapabilityFoundations =
                 revision: item.revision
               }
             })
-        ),
-      complete: ({ id, workerId }) =>
-        Effect.sync(() => {
+        },
+        catch: (cause) =>
+          new CapabilityUnavailable({
+            capability: 'shared-capability-outbox',
+            reason: cause instanceof Error ? cause.message : String(cause)
+          })
+      }),
+    complete: (input) =>
+      Effect.try({
+        try: () => {
+          const { id, workerId } = Schema.decodeUnknownSync(OutboxCompletionRequest)(
+            input
+          )
           const item = outbox.get(id)
           if (item?.status === 'claimed' && item.claimedBy === workerId)
             item.status = 'processed'
-        })
-    })
-  }
+        },
+        catch: (cause) =>
+          new CapabilityUnavailable({
+            capability: 'shared-capability-outbox',
+            reason: cause instanceof Error ? cause.message : String(cause)
+          })
+      }),
+    process: (input) =>
+      Effect.try({
+        try: () => {
+          const decoded = Schema.decodeUnknownSync(OutboxProcessRequest)(input)
+          if (!options.handleOutbox) throw new Error('handler_not_registered')
+          const item = outbox.get(decoded.outboxId)
+          if (item?.status === 'processed') return
+          if (
+            !item ||
+            item.availableAt > decoded.now ||
+            (item.status === 'claimed' && item.claimedAt! > decoded.staleBefore)
+          )
+            throw new Error('outbox_not_due_or_claimable')
+          item.status = 'claimed'
+          item.claimedBy = decoded.workerId
+          item.claimedAt = decoded.now
+          options.handleOutbox({
+            id: item.id,
+            kind: item.kind,
+            aggregateId: item.aggregateId,
+            revision: item.revision
+          })
+          item.status = 'processed'
+        },
+        catch: (cause) =>
+          new CapabilityUnavailable({
+            capability: 'shared-capability-outbox',
+            reason: cause instanceof Error ? cause.message : String(cause)
+          })
+      })
+  })
+}
 
-export const LiveSharedCapabilityFoundations: Layer.Layer<
-  SharedCapabilityFoundations,
-  never,
-  Database
-> = Layer.effect(
-  SharedCapabilityFoundations,
-  Effect.gen(function* () {
-    const db = yield* Database
-    const raw = db.$client.config.db
-    return {
-      execute: (input) =>
+type LiveFoundationOptions = {
+  readonly publishWakeup?: (wakeup: QueueWakeup) => Promise<void>
+  readonly buildDomainMutation?: (
+    input: SharedCommandInput,
+    domainInput: DomainMutationRequest | undefined
+  ) => DomainMutationPlan | Promise<DomainMutationPlan>
+  readonly classifyRestrictedMutation?: (
+    input: SharedCommandInput,
+    domainInput: DomainMutationRequest | undefined,
+    context: { readonly resourceExists: boolean }
+  ) => boolean
+  readonly handleOutbox?: (claim: OutboxClaim) => Promise<void>
+}
+
+type AuthorityRow = {
+  readonly merchantId: string
+  readonly actorKind: ResolvedAuthority['actorKind']
+  readonly actorId: string
+  readonly impersonationId: string | null
+  readonly merchantStatus: string
+  readonly subscriptionStatus: string | null
+  readonly accessHold: number
+}
+
+const accessStateFrom = (row: AuthorityRow): ResolvedAuthority['accessState'] =>
+  row.accessHold === 1
+    ? 'held'
+    : row.subscriptionStatus === 'restricted' || row.subscriptionStatus === 'cancelled'
+      ? 'restricted'
+      : 'active'
+
+export const makeLiveSharedCapabilityFoundations = (
+  options: LiveFoundationOptions = {}
+): Layer.Layer<SharedCapabilityFoundations, never, Database> =>
+  Layer.effect(
+    SharedCapabilityFoundations,
+    Effect.gen(function* () {
+      const db = yield* Database
+      const raw = rawD1FromDatabase(db)
+      const resolveAuthority = async (
+        input: SharedCommandInput
+      ): Promise<ResolvedAuthority> => {
+        const reference = input.authority
+        let row: AuthorityRow | null = null
+        if (reference.kind === 'owner-session')
+          row = await raw
+            .prepare(
+              `SELECT mm.merchant_id merchantId, 'owner' actorKind, s.userId actorId,
+                      NULL impersonationId, m.status merchantStatus,
+                      ms.status subscriptionStatus,
+                      EXISTS (SELECT 1 FROM merchant_access_holds h
+                        WHERE h.merchant_id = m.id AND h.user_id = s.userId
+                          AND h.released_at IS NULL) accessHold
+               FROM session s
+               JOIN user u ON u.id = s.userId
+               JOIN merchant_memberships mm ON mm.user_id = s.userId AND mm.role = 'owner'
+               JOIN merchants m ON m.id = mm.merchant_id
+               LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id
+               WHERE s.id = ? AND s.expiresAt > unixepoch() AND u.banned = 0
+                 AND u.identityClass = 'merchant_member' AND m.status = 'enabled'
+                 AND ms.status IS NOT NULL LIMIT 1`
+            )
+            .bind(reference.sessionId)
+            .first<AuthorityRow>()
+        else if (reference.kind === 'impersonated-session')
+          row = await raw
+            .prepare(
+              `SELECT ir.merchant_id merchantId, 'operator' actorKind,
+                      ir.operator_id actorId, ir.id impersonationId,
+                      m.status merchantStatus, ms.status subscriptionStatus,
+                      EXISTS (SELECT 1 FROM merchant_access_holds h
+                        WHERE h.merchant_id = m.id AND h.user_id = ir.target_member_id
+                          AND h.released_at IS NULL) accessHold
+               FROM impersonation_records ir
+               JOIN session s ON s.id = ir.merchant_session_id
+                 AND s.userId = ir.target_member_id
+                 AND s.impersonatedBy = ir.operator_id
+               JOIN session operator_session ON operator_session.id = ir.operator_session_id
+                 AND operator_session.userId = ir.operator_id
+               JOIN user operator ON operator.id = ir.operator_id
+               JOIN twoFactor factor ON factor.userId = operator.id
+               JOIN user target ON target.id = ir.target_member_id
+               JOIN merchants m ON m.id = ir.merchant_id
+               JOIN merchant_memberships mm ON mm.merchant_id = m.id
+                 AND mm.user_id = ir.target_member_id AND mm.role = 'owner'
+               LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id
+               WHERE ir.merchant_session_id = ? AND ir.lifecycle = 'active'
+                 AND ir.active_expires_at > unixepoch() AND s.expiresAt > unixepoch()
+                 AND ir.termination_cause IS NULL
+                 AND operator.identityClass = 'system_operator'
+                 AND operator.banned = 0 AND operator.emailVerified = 1
+                 AND operator.twoFactorEnabled = 1
+                 AND operator_session.expiresAt > unixepoch()
+                 AND operator_session.operatorIdleExpiresAt > unixepoch()
+                 AND operator_session.operatorAbsoluteExpiresAt > unixepoch()
+                 AND factor.verified = 1
+                 AND (factor.lockedUntil IS NULL OR factor.lockedUntil <= unixepoch())
+                 AND instr(',' || operator.role || ',', ',merchant-impersonator,') > 0
+                 AND target.identityClass = 'merchant_member' AND target.banned = 0
+                 AND m.status = 'enabled' AND ms.status IS NOT NULL
+               LIMIT 1`
+            )
+            .bind(reference.merchantSessionId)
+            .first<AuthorityRow>()
+        else if (reference.kind === 'callback-correlation')
+          row = await raw
+            .prepare(
+              `SELECT c.merchant_id merchantId, 'callback' actorKind,
+                      c.correlation_id actorId, NULL impersonationId,
+                      m.status merchantStatus, ms.status subscriptionStatus,
+                      0 accessHold
+               FROM capability_callback_correlations c
+               JOIN merchants m ON m.id = c.merchant_id
+               LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id
+               WHERE c.correlation_id = ? AND c.capability = ?
+                 AND c.expires_at > CURRENT_TIMESTAMP AND m.status = 'enabled'
+                 AND ms.status IS NOT NULL LIMIT 1`
+            )
+            .bind(reference.correlationId, input.capability)
+            .first<AuthorityRow>()
+        else
+          row = await raw
+            .prepare(
+              `SELECT o.merchant_id merchantId, 'system' actorKind,
+                      o.claimed_by actorId, NULL impersonationId,
+                      m.status merchantStatus, ms.status subscriptionStatus,
+                      0 accessHold
+               FROM capability_outbox o
+               JOIN merchants m ON m.id = o.merchant_id
+               LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id
+               WHERE o.id = ? AND o.claimed_by = ? AND o.status = 'claimed'
+                 AND o.capability = ? AND m.status = 'enabled'
+                 AND ms.status IS NOT NULL LIMIT 1`
+            )
+            .bind(reference.outboxId, reference.workerId, input.capability)
+            .first<AuthorityRow>()
+        if (!row) throw new CapabilityDenied({ reason: 'authority_not_found' })
+        return {
+          merchantId: row.merchantId,
+          actorKind: row.actorKind,
+          actorId: row.actorId,
+          impersonationId: row.impersonationId,
+          accessState: accessStateFrom(row)
+        }
+      }
+      const publish = async (id: string) => {
+        if (!options.publishWakeup)
+          throw new CapabilityUnavailable({
+            capability: 'shared-capability-queue',
+            reason: 'queue_wakeup_unavailable'
+          })
+        await options.publishWakeup({
+          version: 1,
+          kind: 'capability-outbox',
+          outboxId: id
+        })
+      }
+      const execute: SharedCapabilityFoundationsShape['execute'] = (
+        input,
+        domainInput
+      ) =>
         Effect.tryPromise({
           try: async () => {
-            const subscription = await raw
+            const decoded = Schema.decodeUnknownSync(SharedCommand)(input)
+            const mutationRequest =
+              domainInput === undefined
+                ? undefined
+                : Schema.decodeUnknownSync(DomainMutationRequest)(domainInput)
+            if (domainInput !== undefined && !options.buildDomainMutation)
+              throw new CapabilityUnavailable({
+                capability: decoded.capability,
+                reason: 'domain_mutation_adapter_not_registered'
+              })
+            const mutation = Schema.decodeUnknownSync(DomainMutationPlan)(
+              (await options.buildDomainMutation?.(decoded, mutationRequest)) ?? {
+                merchantId: decoded.merchantId,
+                mutations: []
+              }
+            )
+            const authority = await resolveAuthority(decoded)
+            const resource = await raw
               .prepare(
-                'SELECT status FROM merchant_subscriptions WHERE merchant_id = ? LIMIT 1'
+                'SELECT merchant_id merchantId FROM capability_aggregate_revisions WHERE capability = ? AND aggregate_id = ? LIMIT 1'
               )
-              .bind(input.merchantId)
-              .first<{ status: string }>()
-            const effectiveInput: SharedCommandInput = {
-              ...input,
-              accessState:
-                input.accessState === 'held'
-                  ? 'held'
-                  : subscription?.status === 'restricted' ||
-                      subscription?.status === 'cancelled'
-                    ? 'restricted'
-                    : input.accessState
-            }
-            const denial = validate(effectiveInput)
+              .bind(decoded.capability, decoded.aggregateId)
+              .first<{ merchantId: string }>()
+            const denial = authorizeResolved(
+              decoded,
+              authority,
+              resource?.merchantId,
+              options.classifyRestrictedMutation?.(decoded, mutationRequest, {
+                resourceExists: resource?.merchantId === authority.merchantId
+              }) ?? false
+            )
             if (denial) throw denial
-            const key = `${input.merchantId}:${input.capability}:${input.idempotencyKey}`
+            const domainDenial = validateDomainScope(mutation, authority)
+            if (domainDenial) throw domainDenial
+            const key = commandKey(decoded)
             const old = await raw
               .prepare(
-                'SELECT payload_fingerprint, result_json, aggregate_id, revision FROM capability_commands WHERE command_key = ?'
+                'SELECT result_json resultJson, aggregate_id aggregateId, revision, payload_fingerprint fingerprint FROM capability_commands WHERE command_key = ?'
               )
               .bind(key)
               .first<{
-                payload_fingerprint: string
-                result_json: string
-                aggregate_id: string
+                resultJson: string
+                aggregateId: string
                 revision: number
+                fingerprint: string
               }>()
             if (old) {
-              if (old.payload_fingerprint !== input.payloadFingerprint)
+              if (old.fingerprint !== decoded.payloadFingerprint)
                 throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
-              return {
-                aggregateId: old.aggregate_id,
-                revision: old.revision,
-                replayed: true,
-                resultJson: old.result_json
-              }
+              if (decoded.outboxKind) await publish(outboxId(decoded, old.revision))
+              return { ...old, replayed: true }
             }
-            const actor = actorAudit(input.actor!)
-            const outboxId = `cob_${input.capability}_${input.aggregateId}_${input.expectedRevision + 1}`
-            const statements = [
-              raw
-                .prepare(
-                  `INSERT INTO capability_aggregate_revisions (merchant_id, capability, aggregate_id, revision, updated_at) SELECT ?, ?, ?, 1, ? WHERE ? = 0 ON CONFLICT(merchant_id, capability, aggregate_id) DO UPDATE SET revision = revision + 1, updated_at = excluded.updated_at WHERE revision = ?`
-                )
-                .bind(
-                  input.merchantId,
-                  input.capability,
-                  input.aggregateId,
-                  input.now,
-                  input.expectedRevision,
-                  input.expectedRevision
-                ),
-              raw
-                .prepare(
-                  `INSERT INTO capability_commands (command_key, merchant_id, capability, aggregate_id, payload_fingerprint, result_json, revision, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT revision FROM capability_aggregate_revisions WHERE merchant_id = ? AND capability = ? AND aggregate_id = ?) = ?`
-                )
-                .bind(
-                  key,
-                  input.merchantId,
-                  input.capability,
-                  input.aggregateId,
-                  input.payloadFingerprint,
-                  input.resultJson,
-                  input.expectedRevision + 1,
-                  input.now,
-                  input.merchantId,
-                  input.capability,
-                  input.aggregateId,
-                  input.expectedRevision + 1
-                ),
-              raw
-                .prepare(
-                  `INSERT INTO capability_history (id, merchant_id, aggregate_id, revision, kind, occurred_at) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM capability_commands WHERE command_key = ?)`
-                )
-                .bind(
-                  `chh_${key}`,
-                  input.merchantId,
-                  input.aggregateId,
-                  input.expectedRevision + 1,
-                  input.historyKind,
-                  input.now,
-                  key
-                ),
-              raw
-                .prepare(
-                  `INSERT INTO capability_audit (id, merchant_id, aggregate_id, revision, actor_kind, actor_id, impersonation_id, event_kind, occurred_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM capability_commands WHERE command_key = ?)`
-                )
-                .bind(
-                  `cau_${key}`,
-                  input.merchantId,
-                  input.aggregateId,
-                  input.expectedRevision + 1,
-                  actor.actorKind,
-                  actor.actorId,
-                  actor.impersonationId,
-                  input.historyKind,
-                  input.now,
-                  key
-                )
-            ]
-            if (input.outboxKind)
-              statements.push(
-                raw
-                  .prepare(
-                    `INSERT INTO capability_outbox (id, merchant_id, aggregate_id, revision, kind, status, available_at, created_at) SELECT ?, ?, ?, ?, ?, 'pending', ?, ? WHERE EXISTS (SELECT 1 FROM capability_commands WHERE command_key = ?)`
-                  )
-                  .bind(
-                    outboxId,
-                    input.merchantId,
-                    input.aggregateId,
-                    input.expectedRevision + 1,
-                    input.outboxKind,
-                    input.now,
-                    input.now,
-                    key
-                  )
-              )
-            await raw.batch(statements)
-            const created = await raw
+            const current = await raw
               .prepare(
-                'SELECT result_json, revision FROM capability_commands WHERE command_key = ?'
+                'SELECT revision FROM capability_aggregate_revisions WHERE merchant_id = ? AND capability = ? AND aggregate_id = ?'
               )
-              .bind(key)
-              .first<{ result_json: string; revision: number }>()
-            if (!created) {
-              const current = await raw
-                .prepare(
-                  'SELECT revision FROM capability_aggregate_revisions WHERE merchant_id = ? AND capability = ? AND aggregate_id = ?'
-                )
-                .bind(input.merchantId, input.capability, input.aggregateId)
-                .first<{ revision: number }>()
+              .bind(decoded.merchantId, decoded.capability, decoded.aggregateId)
+              .first<{ revision: number }>()
+            if ((current?.revision ?? 0) !== decoded.expectedRevision)
               throw new CapabilityConflict({
                 reason: 'stale_revision',
                 currentRevision: current?.revision ?? 0
               })
+            const revision = nextRevision(decoded)
+            const guardId = `guard:${key}`
+            const prepared = [
+              raw
+                .prepare(
+                  `INSERT INTO capability_transaction_guards (id, accepted)
+                   VALUES (?, CASE WHEN
+                     (? = 0 AND NOT EXISTS (SELECT 1 FROM capability_aggregate_revisions WHERE merchant_id = ? AND capability = ? AND aggregate_id = ?))
+                     OR EXISTS (SELECT 1 FROM capability_aggregate_revisions WHERE merchant_id = ? AND capability = ? AND aggregate_id = ? AND revision = ?)
+                   THEN 1 ELSE 0 END)`
+                )
+                .bind(
+                  guardId,
+                  decoded.expectedRevision,
+                  decoded.merchantId,
+                  decoded.capability,
+                  decoded.aggregateId,
+                  decoded.merchantId,
+                  decoded.capability,
+                  decoded.aggregateId,
+                  decoded.expectedRevision
+                ),
+              raw
+                .prepare(
+                  `INSERT INTO capability_aggregate_revisions (merchant_id, capability, aggregate_id, revision, updated_at)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(merchant_id, capability, aggregate_id)
+                   DO UPDATE SET revision = excluded.revision, updated_at = excluded.updated_at`
+                )
+                .bind(
+                  decoded.merchantId,
+                  decoded.capability,
+                  decoded.aggregateId,
+                  revision,
+                  decoded.now
+                ),
+              ...mutation.mutations.map(prepareDomainMutation(raw, decoded.merchantId)),
+              raw
+                .prepare(
+                  `INSERT INTO capability_commands
+                   (command_key, merchant_id, capability, aggregate_id, payload_fingerprint, result_json, revision, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+                )
+                .bind(
+                  key,
+                  decoded.merchantId,
+                  decoded.capability,
+                  decoded.aggregateId,
+                  decoded.payloadFingerprint,
+                  decoded.resultJson,
+                  revision,
+                  decoded.now
+                ),
+              raw
+                .prepare(
+                  `INSERT INTO capability_history
+                   (id, merchant_id, capability, aggregate_id, revision, kind, occurred_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)`
+                )
+                .bind(
+                  `chh_${key}`,
+                  decoded.merchantId,
+                  decoded.capability,
+                  decoded.aggregateId,
+                  revision,
+                  decoded.historyKind,
+                  decoded.now
+                ),
+              raw
+                .prepare(
+                  `INSERT INTO capability_audit
+                   (id, merchant_id, capability, aggregate_id, revision, actor_kind, actor_id, impersonation_id, event_kind, occurred_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                )
+                .bind(
+                  `cau_${key}`,
+                  decoded.merchantId,
+                  decoded.capability,
+                  decoded.aggregateId,
+                  revision,
+                  authority.actorKind,
+                  authority.actorId,
+                  authority.impersonationId,
+                  decoded.historyKind,
+                  decoded.now
+                )
+            ]
+            if (decoded.outboxKind)
+              prepared.push(
+                raw
+                  .prepare(
+                    `INSERT INTO capability_outbox
+                     (id, merchant_id, capability, aggregate_id, revision, kind, status, available_at, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+                  )
+                  .bind(
+                    outboxId(decoded, revision),
+                    decoded.merchantId,
+                    decoded.capability,
+                    decoded.aggregateId,
+                    revision,
+                    decoded.outboxKind,
+                    decoded.availableAt ?? decoded.now,
+                    decoded.now
+                  )
+              )
+            prepared.push(
+              raw
+                .prepare('DELETE FROM capability_transaction_guards WHERE id = ?')
+                .bind(guardId)
+            )
+            try {
+              await raw.batch(prepared)
+            } catch (cause) {
+              const winner = await raw
+                .prepare(
+                  'SELECT result_json resultJson, aggregate_id aggregateId, revision, payload_fingerprint fingerprint FROM capability_commands WHERE command_key = ?'
+                )
+                .bind(key)
+                .first<{
+                  resultJson: string
+                  aggregateId: string
+                  revision: number
+                  fingerprint: string
+                }>()
+              if (winner) {
+                if (winner.fingerprint !== decoded.payloadFingerprint)
+                  throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
+                if (decoded.outboxKind)
+                  await publish(outboxId(decoded, winner.revision))
+                return { ...winner, replayed: true }
+              }
+              const latest = await raw
+                .prepare(
+                  'SELECT revision FROM capability_aggregate_revisions WHERE merchant_id = ? AND capability = ? AND aggregate_id = ?'
+                )
+                .bind(decoded.merchantId, decoded.capability, decoded.aggregateId)
+                .first<{ revision: number }>()
+              if ((latest?.revision ?? 0) !== decoded.expectedRevision)
+                throw new CapabilityConflict({
+                  reason: 'stale_revision',
+                  currentRevision: latest?.revision ?? 0
+                })
+              throw cause
             }
+            if (decoded.outboxKind) await publish(outboxId(decoded, revision))
             return {
-              aggregateId: input.aggregateId,
-              revision: created.revision,
+              aggregateId: decoded.aggregateId,
+              revision,
               replayed: false,
-              resultJson: created.result_json
+              resultJson: decoded.resultJson
             }
           },
           catch: (cause) =>
             cause instanceof CapabilityDenied ||
             cause instanceof CapabilityNotFound ||
-            cause instanceof CapabilityConflict
+            cause instanceof CapabilityConflict ||
+            cause instanceof CapabilityUnavailable
               ? cause
               : new CapabilityUnavailable({
                   capability: 'shared-capability-foundations',
                   reason: cause instanceof Error ? cause.message : String(cause)
                 })
-        }),
-      claim: (input) =>
-        Effect.tryPromise({
-          try: async () => {
-            const candidates = await raw
-              .prepare(
-                `SELECT id FROM capability_outbox WHERE status = 'pending' OR (status = 'claimed' AND claimed_at <= ?) ORDER BY available_at, id LIMIT ?`
-              )
-              .bind(input.staleBefore, Math.max(0, input.limit))
-              .all<{ id: string }>()
-            const claimed: OutboxClaim[] = []
-            for (const row of candidates.results) {
-              const result = await raw
-                .prepare(
-                  `UPDATE capability_outbox SET status = 'claimed', claimed_by = ?, claimed_at = ? WHERE id = ? AND (status = 'pending' OR (status = 'claimed' AND claimed_at <= ?)) RETURNING id, kind, aggregate_id aggregateId, revision`
-                )
-                .bind(input.workerId, input.now, row.id, input.staleBefore)
-                .first<OutboxClaim>()
-              if (result) claimed.push(result)
-            }
-            return claimed
-          },
-          catch: (cause) =>
-            new CapabilityUnavailable({
-              capability: 'shared-capability-outbox',
-              reason: String(cause)
-            })
-        }),
-      complete: (input) =>
-        Effect.tryPromise({
-          try: async () => {
-            await raw
-              .prepare(
-                `UPDATE capability_outbox SET status = 'processed', processed_at = ? WHERE id = ? AND status = 'claimed' AND claimed_by = ?`
-              )
-              .bind(input.now, input.id, input.workerId)
-              .run()
-          },
-          catch: (cause) =>
-            new CapabilityUnavailable({
-              capability: 'shared-capability-outbox',
-              reason: String(cause)
-            })
         })
-    }
-  })
-)
+      return {
+        execute,
+        claim: (input) =>
+          Effect.tryPromise({
+            try: async () => {
+              const decoded = Schema.decodeUnknownSync(OutboxClaimRequest)(input)
+              const candidates = await raw
+                .prepare(
+                  `SELECT id FROM capability_outbox
+                   WHERE available_at <= ? AND
+                     (status = 'pending' OR (status = 'claimed' AND claimed_at <= ?))
+                   ORDER BY available_at, id LIMIT ?`
+                )
+                .bind(decoded.now, decoded.staleBefore, decoded.limit)
+                .all<{ id: string }>()
+              const claimed: OutboxClaim[] = []
+              for (const row of candidates.results) {
+                const result = await raw
+                  .prepare(
+                    `UPDATE capability_outbox
+                     SET status = 'claimed', claimed_by = ?, claimed_at = ?
+                     WHERE id = ? AND available_at <= ? AND
+                       (status = 'pending' OR (status = 'claimed' AND claimed_at <= ?))
+                     RETURNING id, kind, aggregate_id aggregateId, revision`
+                  )
+                  .bind(
+                    decoded.workerId,
+                    decoded.now,
+                    row.id,
+                    decoded.now,
+                    decoded.staleBefore
+                  )
+                  .first<OutboxClaim>()
+                if (result) claimed.push(result)
+              }
+              return claimed
+            },
+            catch: (cause) =>
+              new CapabilityUnavailable({
+                capability: 'shared-capability-outbox',
+                reason: String(cause)
+              })
+          }),
+        complete: (input) =>
+          Effect.tryPromise({
+            try: async () => {
+              const decoded = Schema.decodeUnknownSync(OutboxCompletionRequest)(input)
+              await raw
+                .prepare(
+                  `UPDATE capability_outbox SET status = 'processed', processed_at = ?
+                   WHERE id = ? AND status = 'claimed' AND claimed_by = ?`
+                )
+                .bind(decoded.now, decoded.id, decoded.workerId)
+                .run()
+            },
+            catch: (cause) =>
+              new CapabilityUnavailable({
+                capability: 'shared-capability-outbox',
+                reason: String(cause)
+              })
+          }),
+        process: (input) =>
+          Effect.tryPromise({
+            try: async () => {
+              const decoded = Schema.decodeUnknownSync(OutboxProcessRequest)(input)
+              if (!options.handleOutbox) throw new Error('handler_not_registered')
+              const claim = await raw
+                .prepare(
+                  `UPDATE capability_outbox
+                   SET status = 'claimed', claimed_by = ?, claimed_at = ?
+                   WHERE id = ? AND available_at <= ? AND
+                     (status = 'pending' OR (status = 'claimed' AND claimed_at <= ?))
+                   RETURNING id, kind, aggregate_id aggregateId, revision`
+                )
+                .bind(
+                  decoded.workerId,
+                  decoded.now,
+                  decoded.outboxId,
+                  decoded.now,
+                  decoded.staleBefore
+                )
+                .first<OutboxClaim>()
+              if (!claim) {
+                const existing = await raw
+                  .prepare('SELECT status FROM capability_outbox WHERE id = ?')
+                  .bind(decoded.outboxId)
+                  .first<{ status: string }>()
+                if (existing?.status === 'processed') return
+                throw new Error('outbox_not_due_or_claimable')
+              }
+              await options.handleOutbox(claim)
+              await raw
+                .prepare(
+                  `UPDATE capability_outbox SET status = 'processed', processed_at = ?
+                   WHERE id = ? AND status = 'claimed' AND claimed_by = ?`
+                )
+                .bind(decoded.now, decoded.outboxId, decoded.workerId)
+                .run()
+            },
+            catch: (cause) =>
+              new CapabilityUnavailable({
+                capability: 'shared-capability-outbox',
+                reason: cause instanceof Error ? cause.message : String(cause)
+              })
+          })
+      }
+    })
+  )
+
+export const LiveSharedCapabilityFoundations = makeLiveSharedCapabilityFoundations()
 
 export const AuthorizationMatrixRow = Schema.Struct({
-  operation: Schema.String,
+  capability: NonEmptyString,
+  operation: CapabilityOperation,
   owner: Schema.Boolean,
   held: Schema.Boolean,
   restricted: Schema.Boolean,
-  impersonation: Schema.Boolean
+  restrictedExceptions: Schema.Array(NonEmptyString),
+  impersonation: Schema.Boolean,
+  authority: Schema.Literals([
+    'owner-session',
+    'impersonated-session',
+    'callback-correlation',
+    'claimed-work'
+  ])
 })
-export const authorizationMatrix = capabilityOperations.map((operation) => ({
-  operation,
-  owner: true,
-  held: false,
-  restricted: operation === 'read' || operation === 'search' || operation === 'export',
-  impersonation: operation !== 'callback' && operation !== 'queued-action'
-}))
+export type AuthorizationMatrixRow = typeof AuthorizationMatrixRow.Type
+
+const matrixAuthority = (
+  operation: CapabilityOperation
+): AuthorizationMatrixRow['authority'] =>
+  operation === 'callback'
+    ? 'callback-correlation'
+    : operation === 'queued-action'
+      ? 'claimed-work'
+      : 'owner-session'
+
+export type AuthorizationCapabilityInventory = {
+  readonly capability: string
+  readonly operations: readonly CapabilityOperation[]
+  readonly restrictedExceptions?: Readonly<
+    Partial<Record<CapabilityOperation, readonly string[]>>
+  >
+}
+
+export const makeAuthorizationMatrix = (
+  inventory: readonly AuthorizationCapabilityInventory[]
+): readonly AuthorizationMatrixRow[] =>
+  inventory.flatMap((capability) =>
+    capability.operations.map((operation) => ({
+      capability: capability.capability,
+      operation,
+      owner: operation !== 'callback' && operation !== 'queued-action',
+      held: false,
+      restricted:
+        operation === 'read' || operation === 'search' || operation === 'export',
+      restrictedExceptions: [...(capability.restrictedExceptions?.[operation] ?? [])],
+      impersonation: operation !== 'callback' && operation !== 'queued-action',
+      authority: matrixAuthority(operation)
+    }))
+  )
+
+export const renderAuthorizationMatrix = (rows: readonly AuthorizationMatrixRow[]) => {
+  const header = [
+    'Capability',
+    'Operation',
+    'Required authority',
+    'Owner',
+    'Access Hold',
+    'Restricted Access',
+    'Impersonation',
+    'Cross-Merchant'
+  ]
+  const values = rows.map((row) => [
+    row.capability,
+    row.operation,
+    row.authority,
+    row.owner ? 'allow' : 'deny',
+    'deny',
+    row.restricted
+      ? 'allow'
+      : row.restrictedExceptions.length > 0
+        ? `deny; registered: ${row.restrictedExceptions.join(', ')}`
+        : 'deny',
+    row.impersonation ? 'allow with provenance' : 'deny',
+    'same-shape not found'
+  ])
+  const widths = header.map((heading, index) =>
+    Math.max(heading.length, ...values.map((row) => row[index]!.length), 3)
+  )
+  const tableRow = (cells: readonly string[]) =>
+    `| ${cells.map((cell, index) => cell.padEnd(widths[index]!)).join(' | ')} |`
+  return `${[
+    '# Authorization and Merchant-isolation matrix',
+    '',
+    'Generated from the Merchant capability inventory and bounded-context Restricted Access policies.',
+    '',
+    tableRow(header),
+    tableRow(widths.map((width) => '-'.repeat(width))),
+    ...values.map(tableRow),
+    '',
+    'Denied mutations must leave domain, notification, financial, outbox, and success-audit facts unchanged.',
+    ''
+  ].join('\n')}`
+}

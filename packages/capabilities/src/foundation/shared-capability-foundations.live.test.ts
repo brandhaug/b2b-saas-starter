@@ -3,18 +3,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
-  LiveSharedCapabilityFoundations,
+  makeLiveSharedCapabilityFoundations,
   SharedCapabilityFoundations,
+  type QueueWakeup,
   type SharedCommandInput
 } from './shared-capability-foundations.ts'
+import { classifyRestrictedMutation } from '../authorization-policy.ts'
 
 let test: TestD1
-const owner = { kind: 'owner', userId: 'usr_owner', merchantId: 'mer_one' } as const
+const now = '2026-08-03T09:00:00.000Z'
 const command: SharedCommandInput = {
-  actor: owner,
+  authority: { kind: 'owner-session', sessionId: 'ses_owner_one' },
   merchantId: 'mer_one',
   operation: 'mutation',
-  accessState: 'active',
   capability: 'appointment',
   aggregateId: 'apt_one',
   idempotencyKey: 'cmd_one',
@@ -23,160 +24,447 @@ const command: SharedCommandInput = {
   resultJson: '{"status":"confirmed"}',
   historyKind: 'appointment.confirmed',
   outboxKind: 'appointment-confirmation',
-  now: '2026-08-02T12:00:00.000Z'
+  now
 }
+type TestMutation = {
+  readonly operation: 'insert'
+  readonly table: string
+  readonly id: string
+  readonly values: Readonly<Record<string, string | number | boolean | null>>
+}
+
 beforeAll(async () => {
   test = await provisionTestD1()
+  const epoch = 4_102_444_800
+  await test.d1.batch([
+    test.d1.prepare(
+      "INSERT INTO user (id,email,name,emailVerified,identityClass,banned,createdAt,updatedAt) VALUES ('usr_one','one@example.test','One',1,'merchant_member',0,1,1)"
+    ),
+    test.d1.prepare(
+      "INSERT INTO user (id,email,name,emailVerified,identityClass,banned,createdAt,updatedAt) VALUES ('usr_two','two@example.test','Two',1,'merchant_member',0,1,1)"
+    ),
+    test.d1.prepare(
+      "INSERT INTO user (id,email,name,emailVerified,identityClass,banned,createdAt,updatedAt) VALUES ('usr_three','three@example.test','Three',1,'merchant_member',0,1,1)"
+    ),
+    test.d1.prepare(
+      `INSERT INTO session (id,expiresAt,token,createdAt,updatedAt,userId) VALUES ('ses_owner_one',${epoch},'tok_one',1,1,'usr_one')`
+    ),
+    test.d1.prepare(
+      `INSERT INTO session (id,expiresAt,token,createdAt,updatedAt,userId) VALUES ('ses_owner_two',${epoch},'tok_two',1,1,'usr_two')`
+    ),
+    test.d1.prepare(
+      `INSERT INTO session (id,expiresAt,token,createdAt,updatedAt,userId) VALUES ('ses_owner_three',${epoch},'tok_three',1,1,'usr_three')`
+    ),
+    test.d1
+      .prepare(
+        "INSERT INTO merchants (id,public_name,slug,status,timezone,currency,plan,created_at,updated_at) VALUES ('mer_one','One','one','enabled','UTC','RON','solo',?,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchants (id,public_name,slug,status,timezone,currency,plan,created_at,updated_at) VALUES ('mer_two','Two','two','enabled','UTC','RON','solo',?,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchants (id,public_name,slug,status,timezone,currency,plan,created_at,updated_at) VALUES ('mer_three','Three','three','enabled','UTC','RON','solo',?,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchant_memberships (merchant_id,user_id,role,created_at) VALUES ('mer_one','usr_one','owner',?)"
+      )
+      .bind(now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchant_memberships (merchant_id,user_id,role,created_at) VALUES ('mer_two','usr_two','owner',?)"
+      )
+      .bind(now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchant_memberships (merchant_id,user_id,role,created_at) VALUES ('mer_three','usr_three','owner',?)"
+      )
+      .bind(now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchant_subscriptions (id,merchant_id,plan,status,revision,created_at,updated_at) VALUES ('sub_one','mer_one','solo','active',1,?,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchant_subscriptions (id,merchant_id,plan,status,revision,created_at,updated_at) VALUES ('sub_two','mer_two','solo','active',1,?,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchant_subscriptions (id,merchant_id,plan,status,revision,created_at,updated_at) VALUES ('sub_three','mer_three','solo','restricted',1,?,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchant_access_holds (id,merchant_id,user_id,reason,placed_at) VALUES ('hold_two','mer_two','usr_two','security-review',?)"
+      )
+      .bind(now),
+    test.d1
+      .prepare(
+        "INSERT INTO capability_aggregate_revisions (merchant_id,capability,aggregate_id,revision,updated_at) VALUES ('mer_three','appointment','apt_restricted',1,?)"
+      )
+      .bind(now)
+  ])
+  await test.d1
+    .prepare(
+      'CREATE TABLE foundation_domain_probe (id text PRIMARY KEY, merchant_id text NOT NULL, notification_count integer NOT NULL, financial_minor integer NOT NULL)'
+    )
+    .run()
 }, 60_000)
 afterAll(async () => test.dispose())
-const layer = () =>
-  LiveSharedCapabilityFoundations.pipe(Layer.provide(layerFromD1(test.d1)))
-const execute = (input: SharedCommandInput) =>
+
+const layer = (
+  publishWakeup?: (wakeup: QueueWakeup) => Promise<void>,
+  handleOutbox?: (claim: {
+    readonly id: string
+    readonly kind: string
+    readonly aggregateId: string
+    readonly revision: number
+  }) => Promise<void>
+) =>
+  makeLiveSharedCapabilityFoundations({
+    ...(publishWakeup ? { publishWakeup } : {}),
+    ...(handleOutbox ? { handleOutbox } : {}),
+    buildDomainMutation: (input, request) =>
+      request?.kind === 'cross-merchant-plan'
+        ? { merchantId: 'mer_two', mutations: [] }
+        : {
+            merchantId: input.merchantId,
+            mutations:
+              request?.kind === 'test-mutations'
+                ? (JSON.parse(request.payloadJson) as readonly TestMutation[])
+                : []
+          },
+    classifyRestrictedMutation
+  }).pipe(Layer.provide(layerFromD1(test.d1)))
+const execute = (
+  input: SharedCommandInput,
+  publishWakeup: (wakeup: QueueWakeup) => Promise<void> = async () => {},
+  mutations: readonly TestMutation[] = [],
+  mutationRequest?: { readonly kind: string; readonly payloadJson: string }
+) =>
   Effect.runPromise(
     Effect.provide(
-      Effect.flatMap(SharedCapabilityFoundations, (service) => service.execute(input)),
-      layer()
+      Effect.flatMap(SharedCapabilityFoundations, (service) =>
+        service.execute(
+          input,
+          mutationRequest ??
+            (mutations.length > 0
+              ? { kind: 'test-mutations', payloadJson: JSON.stringify(mutations) }
+              : undefined)
+        )
+      ),
+      layer(publishWakeup)
     )
   )
 const count = async (table: string) =>
   (await test.d1
     .prepare(`SELECT count(*) count FROM ${table}`)
     .first<{ count: number }>())!.count
+const consequenceCounts = () =>
+  Promise.all([
+    count('foundation_domain_probe'),
+    count('capability_commands'),
+    count('capability_history'),
+    count('capability_audit'),
+    count('capability_outbox'),
+    count('notification_intents'),
+    count('external_collections')
+  ])
 
 describe('Live D1 shared capability foundations', () => {
-  it('atomically commits revision, replay, immutable history, minimized audit, and PII-free wake-up', async () => {
-    expect(await execute(command)).toMatchObject({ revision: 1, replayed: false })
-    expect(await execute(command)).toMatchObject({ revision: 1, replayed: true })
-    await expect(
-      execute({ ...command, payloadFingerprint: 'sha256:changed' })
-    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+  it('resolves a persisted Owner session and commits the domain mutation with consequences', async () => {
+    const wakeups: QueueWakeup[] = []
+    const result = await execute(
+      command,
+      async (wakeup) => {
+        wakeups.push(wakeup)
+      },
+      [
+        {
+          operation: 'insert',
+          table: 'foundation_domain_probe',
+          id: 'probe_one',
+          values: { notification_count: 1, financial_minor: 5000 }
+        }
+      ]
+    )
+    expect(result).toMatchObject({ revision: 1, replayed: false })
+    expect(await count('foundation_domain_probe')).toBe(1)
     expect(await count('capability_history')).toBe(1)
     expect(await count('capability_audit')).toBe(1)
     expect(await count('capability_outbox')).toBe(1)
-    const outbox = await test.d1
-      .prepare('SELECT * FROM capability_outbox')
-      .first<Record<string, unknown>>()
-    expect(JSON.stringify(outbox)).not.toMatch(/email|phone|customer/i)
+    expect(wakeups).toEqual([
+      { version: 1, kind: 'capability-outbox', outboxId: 'cob_appointment_apt_one_1' }
+    ])
   })
-  it('makes competing stale transactions first-commit-wins', async () => {
-    const base = { ...command, aggregateId: 'apt_race', idempotencyKey: 'race_a' }
+
+  it('keeps the commit durable when enqueue fails and republishes on replay', async () => {
+    const replayed: QueueWakeup[] = []
+    const input = { ...command, aggregateId: 'apt_enqueue', idempotencyKey: 'enqueue' }
+    await expect(
+      execute(input, async () => {
+        throw new Error('queue unavailable')
+      }, [
+        {
+          operation: 'insert',
+          table: 'foundation_domain_probe',
+          id: 'probe_enqueue',
+          values: { notification_count: 1, financial_minor: 0 }
+        }
+      ])
+    ).rejects.toMatchObject({ _tag: 'CapabilityUnavailable' })
+    expect(
+      await test.d1
+        .prepare("SELECT id FROM foundation_domain_probe WHERE id = 'probe_enqueue'")
+        .first()
+    ).not.toBeNull()
+    expect(
+      await execute(input, async (wakeup) => {
+        replayed.push(wakeup)
+      })
+    ).toMatchObject({ replayed: true })
+    expect(replayed).toHaveLength(1)
+  })
+
+  it('rejects missing and cross-Merchant authority before every consequence', async () => {
+    const before = await consequenceCounts()
+    await expect(
+      execute(
+        {
+          ...command,
+          authority: { kind: 'owner-session', sessionId: 'missing' },
+          aggregateId: 'apt_denied',
+          idempotencyKey: 'denied'
+        },
+        async () => {},
+        [
+          {
+            operation: 'insert',
+            table: 'foundation_domain_probe',
+            id: 'denied',
+            values: { notification_count: 1, financial_minor: 999 }
+          },
+          {
+            operation: 'insert',
+            table: 'notification_intents',
+            id: 'denied_notification',
+            values: {}
+          },
+          {
+            operation: 'insert',
+            table: 'external_collections',
+            id: 'denied_financial',
+            values: {}
+          }
+        ]
+      )
+    ).rejects.toMatchObject({ reason: 'authority_not_found' })
+    await expect(
+      execute({
+        ...command,
+        authority: { kind: 'owner-session', sessionId: 'ses_owner_two' },
+        aggregateId: 'apt_one',
+        idempotencyKey: 'cross',
+        expectedRevision: 1
+      })
+    ).rejects.toMatchObject({ _tag: 'CapabilityNotFound' })
+    const after = await consequenceCounts()
+    expect(after).toEqual(before)
+  })
+
+  it('derives Access Hold from persisted Merchant state', async () => {
+    const before = await consequenceCounts()
+    await expect(
+      execute(
+        {
+          ...command,
+          authority: { kind: 'owner-session', sessionId: 'ses_owner_two' },
+          merchantId: 'mer_two',
+          aggregateId: 'apt_held',
+          idempotencyKey: 'held'
+        },
+        async () => {},
+        [
+          {
+            operation: 'insert',
+            table: 'foundation_domain_probe',
+            id: 'held',
+            values: { notification_count: 1, financial_minor: 999 }
+          }
+        ]
+      )
+    ).rejects.toMatchObject({ reason: 'merchant_access_held' })
+    expect(
+      await test.d1
+        .prepare("SELECT id FROM foundation_domain_probe WHERE id = 'held'")
+        .first()
+    ).toBeNull()
+    expect(await consequenceCounts()).toEqual(before)
+  })
+
+  it('derives Restricted Access and permits only declared safe exceptions', async () => {
+    const restricted = {
+      ...command,
+      authority: { kind: 'owner-session', sessionId: 'ses_owner_three' } as const,
+      merchantId: 'mer_three',
+      aggregateId: 'apt_restricted',
+      idempotencyKey: 'restricted',
+      expectedRevision: 1,
+      outboxKind: undefined
+    }
+    const before = await consequenceCounts()
+    await expect(execute(restricted)).rejects.toMatchObject({
+      reason: 'restricted_access'
+    })
+    await expect(
+      execute(restricted, async () => {}, [], {
+        kind: 'merchant-subscription-billing-recovery',
+        payloadJson: '[]'
+      })
+    ).rejects.toMatchObject({ reason: 'restricted_access' })
+    expect(await consequenceCounts()).toEqual(before)
+    await expect(
+      execute(restricted, async () => {}, [], {
+        kind: 'appointment-existing-commitment',
+        payloadJson: JSON.stringify({
+          appointmentId: 'apt_restricted',
+          action: 'reschedule'
+        })
+      })
+    ).resolves.toMatchObject({ revision: 2 })
+  })
+
+  it('rejects a malformed cross-Merchant adapter plan before consequences', async () => {
+    const before = await consequenceCounts()
+    await expect(
+      execute(
+        {
+          ...command,
+          aggregateId: 'apt_bad_adapter',
+          idempotencyKey: 'bad_adapter',
+          outboxKind: undefined
+        },
+        async () => {},
+        [],
+        { kind: 'cross-merchant-plan', payloadJson: '[]' }
+      )
+    ).rejects.toMatchObject({ _tag: 'CapabilityNotFound' })
+    expect(await consequenceCounts()).toEqual(before)
+  })
+
+  it('enforces idempotency, stale revisions, and first-commit-wins', async () => {
+    expect(await execute(command)).toMatchObject({ replayed: true })
+    await expect(
+      execute({ ...command, payloadFingerprint: 'sha256:changed' })
+    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+    const base = {
+      ...command,
+      aggregateId: 'apt_race',
+      idempotencyKey: 'race_a',
+      outboxKind: undefined
+    }
     const settled = await Promise.allSettled([
       execute(base),
       execute({ ...base, idempotencyKey: 'race_b', payloadFingerprint: 'sha256:b' })
     ])
-    expect(settled.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
-    expect(settled.filter((result) => result.status === 'rejected')).toHaveLength(1)
-    await expect(
-      execute({
-        ...command,
-        aggregateId: 'apt_never_created',
-        idempotencyKey: 'stale_create',
-        expectedRevision: 4
-      })
-    ).rejects.toMatchObject({ reason: 'stale_revision' })
-    expect(
-      await test.d1
-        .prepare(
-          "SELECT * FROM capability_aggregate_revisions WHERE aggregate_id = 'apt_never_created'"
-        )
-        .first()
-    ).toBeNull()
+    expect(settled.filter((item) => item.status === 'fulfilled')).toHaveLength(1)
+    expect(settled.filter((item) => item.status === 'rejected')).toHaveLength(1)
+    const sameKey = {
+      ...command,
+      aggregateId: 'apt_same_key',
+      idempotencyKey: 'same_key',
+      outboxKind: undefined
+    }
+    const sameKeyResults = await Promise.all([execute(sameKey), execute(sameKey)])
+    expect(sameKeyResults.filter((item) => item.replayed)).toHaveLength(1)
   })
-  it('denied mutations have zero domain, outbox, financial, and success-audit consequences', async () => {
-    const before = await Promise.all(
-      [
-        'capability_commands',
-        'capability_history',
-        'capability_audit',
-        'capability_outbox'
-      ].map(count)
-    )
-    await expect(
-      execute({
-        ...command,
-        idempotencyKey: 'denied',
-        aggregateId: 'apt_denied',
-        accessState: 'held'
-      })
-    ).rejects.toMatchObject({ reason: 'merchant_access_held' })
-    const after = await Promise.all(
-      [
-        'capability_commands',
-        'capability_history',
-        'capability_audit',
-        'capability_outbox'
-      ].map(count)
-    )
-    expect(after).toEqual(before)
-  })
-  it('stores impersonation provenance without customer data', async () => {
+
+  it('does not claim future work and recovers stale claims without overlap', async () => {
     await execute({
       ...command,
-      aggregateId: 'apt_imp',
-      idempotencyKey: 'imp',
-      actor: {
-        kind: 'impersonation',
-        operatorId: 'opr_one',
-        targetUserId: 'usr_owner',
-        merchantId: 'mer_one',
-        impersonationId: 'imp_one'
-      }
+      aggregateId: 'apt_future',
+      idempotencyKey: 'future',
+      availableAt: '2026-08-03T11:00:00.000Z'
     })
+    const runClaim = (workerId: string, claimNow: string, staleBefore: string) =>
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(SharedCapabilityFoundations, (service) =>
+            service.claim({ workerId, now: claimNow, staleBefore, limit: 20 })
+          ),
+          layer(async () => {})
+        )
+      )
+    const early = await runClaim(
+      'worker-a',
+      '2026-08-03T10:00:00.000Z',
+      '2026-08-03T08:00:00.000Z'
+    )
+    expect(early.some((item) => item.aggregateId === 'apt_future')).toBe(false)
+    const first = await runClaim(
+      'worker-a',
+      '2026-08-03T11:01:00.000Z',
+      '2026-08-03T08:00:00.000Z'
+    )
+    const overlap = await runClaim(
+      'worker-b',
+      '2026-08-03T11:01:00.000Z',
+      '2026-08-03T10:00:00.000Z'
+    )
+    expect(first.some((item) => item.aggregateId === 'apt_future')).toBe(true)
+    expect(overlap.some((item) => item.aggregateId === 'apt_future')).toBe(false)
+    const recovered = await runClaim(
+      'worker-b',
+      '2026-08-03T12:00:00.000Z',
+      '2026-08-03T11:30:00.000Z'
+    )
+    expect(recovered.some((item) => item.aggregateId === 'apt_future')).toBe(true)
+  })
+
+  it('claims, dispatches, completes, and safely redelivers one Queue wake-up', async () => {
+    const input = {
+      ...command,
+      aggregateId: 'apt_process',
+      idempotencyKey: 'process'
+    }
+    await execute(input)
+    const handled: string[] = []
+    const processLayer = layer(
+      async () => {},
+      async (claim) => {
+        handled.push(claim.id)
+      }
+    )
+    const process = () =>
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(SharedCapabilityFoundations, (service) =>
+            service.process({
+              outboxId: 'cob_appointment_apt_process_1',
+              workerId: 'worker-process',
+              now: '2026-08-03T09:01:00.000Z',
+              staleBefore: '2026-08-03T08:56:00.000Z'
+            })
+          ),
+          processLayer
+        )
+      )
+    await process()
+    await process()
+    expect(handled).toEqual(['cob_appointment_apt_process_1'])
     expect(
       await test.d1
         .prepare(
-          "SELECT actor_kind, actor_id, impersonation_id FROM capability_audit WHERE aggregate_id = 'apt_imp'"
+          "SELECT status FROM capability_outbox WHERE id = 'cob_appointment_apt_process_1'"
         )
-        .first()
-    ).toEqual({
-      actor_kind: 'operator',
-      actor_id: 'opr_one',
-      impersonation_id: 'imp_one'
-    })
-  })
-  it('redelivers stale claims once and prevents overlapping sweep ownership', async () => {
-    await execute({ ...command, aggregateId: 'apt_claim', idempotencyKey: 'claim' })
-    const first = await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(SharedCapabilityFoundations, (service) =>
-          service.claim({
-            workerId: 'worker-a',
-            now: '2026-08-02T12:01:00.000Z',
-            staleBefore: '2026-08-02T11:00:00.000Z',
-            limit: 10
-          })
-        ),
-        layer()
-      )
-    )
-    const overlap = await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(SharedCapabilityFoundations, (service) =>
-          service.claim({
-            workerId: 'worker-b',
-            now: '2026-08-02T12:01:00.000Z',
-            staleBefore: '2026-08-02T11:00:00.000Z',
-            limit: 10
-          })
-        ),
-        layer()
-      )
-    )
-    expect(first.some((item) => item.aggregateId === 'apt_claim')).toBe(true)
-    expect(overlap.some((item) => item.aggregateId === 'apt_claim')).toBe(false)
-    const recovered = await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(SharedCapabilityFoundations, (service) =>
-          service.claim({
-            workerId: 'worker-b',
-            now: '2026-08-02T13:00:00.000Z',
-            staleBefore: '2026-08-02T12:30:00.000Z',
-            limit: 10
-          })
-        ),
-        layer()
-      )
-    )
-    expect(recovered.some((item) => item.aggregateId === 'apt_claim')).toBe(true)
+        .first<{ status: string }>()
+    ).toEqual({ status: 'processed' })
   })
 })

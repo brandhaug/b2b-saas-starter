@@ -19,6 +19,7 @@ import {
   CustomerIdentity
 } from '@b2b-saas-starter/capabilities/customer-identity'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import type { QueueWakeup } from '@b2b-saas-starter/capabilities/foundation'
 import type { BookingEventsWakeup } from '@b2b-saas-starter/capabilities/notifications'
 import {
   GiftCardRedemptions,
@@ -63,7 +64,7 @@ export type BookingWorkerEnv = {
   readonly RATE_LIMITER_BOOKING_READ?: RateLimitBinding
   readonly RATE_LIMITER_BOOKING_WRITE?: RateLimitBinding
   readonly BOOKING_EVENTS_QUEUE?: {
-    readonly send: (message: BookingEventsWakeup) => Promise<unknown>
+    readonly send: (message: BookingEventsWakeup | QueueWakeup) => Promise<unknown>
   }
   readonly CONFIRMATION_SIGNING_KEYS: string
   readonly CONFIRMATION_CURRENT_KEY_ID: string

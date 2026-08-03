@@ -41,6 +41,7 @@ export const bookingProductEnv = (env: ApiEnv): BookingProductEnv => {
   if (!env.DB) throw new Error('The Booking Product API requires its D1 binding.')
   return {
     DB: env.DB,
+    BOOKING_EVENTS_QUEUE: env.BOOKING_EVENTS_QUEUE,
     PLATFORM_API_CURSOR_SECRET: env.PLATFORM_API_CURSOR_SECRET,
     REQUIRE_PLATFORM_API_CURSOR_SECRET: env.ENVIRONMENT === 'production'
   }

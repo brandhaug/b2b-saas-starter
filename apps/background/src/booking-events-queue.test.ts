@@ -26,6 +26,17 @@ describe('Booking events Queue compatibility contract', () => {
       kind: 'notification-intent',
       intentId: 'nti_current'
     })
+    expect(
+      decodeBookingEventsWakeup({
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob_current'
+      })
+    ).toEqual({
+      version: 1,
+      kind: 'capability-outbox',
+      outboxId: 'cob_current'
+    })
   })
 
   it('rejects unknown versions, empty identifiers, and business-shaped payloads', () => {

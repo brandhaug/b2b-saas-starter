@@ -17,6 +17,34 @@ Complete the shared Effect v4 and Live D1 application seams needed by every late
 
 ## Comments
 
+### Resolution follow-up — 2026-08-03
+
+The reopened review findings are resolved. Live authority now comes from persisted
+Owner sessions, attributed impersonation sessions, callback correlations, or claimed
+work, with fail-closed subscription state and persisted Merchant Access Holds.
+Restricted Access exceptions are classified by bounded-context adapters from concrete,
+resource-bound commands rather than caller flags.
+
+The foundation now accepts schema-defined mutation requests and generates only typed
+Merchant-scoped insert, update, and delete statements. Domain changes, revisions,
+idempotency records, immutable history, minimized audit, and outbox work commit in one
+D1 batch. PII-free Queue wake-ups are processed through a registered background handler
+with due-time checks, exclusive claims, stale recovery, redelivery, and completion.
+
+The generated matrix structurally verifies the exact Merchant capability/operation
+inventory and bounded-context exceptions. Seed, real-D1, migration, Queue decoding,
+formatting, and lint checks pass; both final Standards and Spec reviews are clean.
+
+### Reopened — 2026-08-03
+
+Reopened after the second Standards and Spec review. The follow-up must replace
+caller-asserted authority and access facts with authoritative Live D1 resolution,
+include actual domain writes in the same transaction as replay, history, audit, and
+outbox consequences, add a real PII-free Queue wake-up boundary, prove denied domain,
+notification, financial, and success-audit effects, generate and structurally verify
+the complete capability matrix, prevent claims before `availableAt`, and introduce
+Effect schemas for the shared application contracts.
+
 ### Resolution — 2026-08-02
 
 Added the shared Effect v4 capability foundation and matching deterministic-test and

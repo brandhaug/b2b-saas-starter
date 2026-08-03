@@ -6,6 +6,7 @@ import {
   selectCapabilitiesLayer,
   type BookingProductEnv
 } from '@b2b-saas-starter/capabilities/runtime'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
   AvailabilityOfferEmail,
   EmailDispatcher,
@@ -37,6 +38,7 @@ import {
   NotificationIntentLifecycle,
   OperationalMessagingJobs
 } from '@b2b-saas-starter/capabilities/notifications'
+import { SharedCapabilityFoundations } from '@b2b-saas-starter/capabilities/foundation'
 import {
   pollLiveSmsoStatuses,
   selectConfiguredSmsoAdapter
@@ -83,6 +85,7 @@ const runtime = ManagedRuntime.make(
 )
 const capabilitiesEnv = (env: Env): BookingProductEnv => ({
   DB: env.DB,
+  BOOKING_EVENTS_QUEUE: env.BOOKING_EVENTS_QUEUE,
   OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY:
     env.OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY,
   OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY:
@@ -159,6 +162,24 @@ const processBookingNotificationOutbox = (outboxId: string, now: string, env: En
       )
     )
   )
+
+const capabilityOutboxHandler =
+  (now: string, env: Env) =>
+  async (claim: {
+    readonly id: string
+    readonly kind: string
+    readonly aggregateId: string
+    readonly revision: number
+  }) => {
+    if (claim.kind !== 'booking-notification')
+      throw new CapabilityUnavailable({
+        capability: 'shared-capability-outbox-handler',
+        reason: `handler_not_registered:${claim.kind}`
+      })
+    await runtime.runPromise(
+      processBookingNotificationOutbox(claim.aggregateId, now, env)
+    )
+  }
 
 const recoverBookingNotificationOutbox = (now: string, env: Env) =>
   recoverBookingOutbox(now).pipe(
@@ -466,9 +487,24 @@ export default {
           }
           const now = new Date().toISOString()
           const execution =
-            wakeup.kind === 'notification-intent'
-              ? processNotificationIntent(wakeup.intentId, now, env)
-              : processBookingNotificationOutbox(wakeup.outboxId, now, env)
+            wakeup.kind === 'capability-outbox'
+              ? Effect.flatMap(SharedCapabilityFoundations, (foundation) =>
+                  foundation.process({
+                    outboxId: wakeup.outboxId,
+                    workerId: `background:${message.id}`,
+                    now,
+                    staleBefore: new Date(Date.parse(now) - 5 * 60_000).toISOString()
+                  })
+                ).pipe(
+                  Effect.provide(
+                    selectCapabilitiesLayer(capabilitiesEnv(env), {
+                      capabilityOutboxHandler: capabilityOutboxHandler(now, env)
+                    })
+                  )
+                )
+              : wakeup.kind === 'notification-intent'
+                ? processNotificationIntent(wakeup.intentId, now, env)
+                : processBookingNotificationOutbox(wakeup.outboxId, now, env)
           const result = await runtime.runPromise(Effect.result(execution))
           if (Result.isSuccess(result)) message.ack()
           else message.retry({ delaySeconds: 30 })

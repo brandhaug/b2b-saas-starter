@@ -26,6 +26,13 @@ type D1Binding = Parameters<typeof makeLiveLayerFromD1>[0]
 
 export type BookingProductEnv = {
   readonly DB: D1Binding
+  readonly BOOKING_EVENTS_QUEUE?:
+    | {
+        readonly send: (
+          message: import('./foundation/index.ts').QueueWakeup
+        ) => Promise<unknown>
+      }
+    | undefined
   readonly PLATFORM_API_CURSOR_SECRET?: string | undefined
   readonly REQUIRE_PLATFORM_API_CURSOR_SECRET?: boolean | undefined
   readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string | undefined
@@ -133,7 +140,7 @@ export const selectCapabilitiesLayer = (
   env: BookingProductEnv,
   options: Pick<
     import('./layers.ts').LiveCapabilitiesOptions,
-    'confirmationKeyring' | 'notificationDestinationSecrets'
+    'confirmationKeyring' | 'notificationDestinationSecrets' | 'capabilityOutboxHandler'
   > = {}
 ): CapabilitiesLayer => {
   const destinationSecrets =
@@ -150,6 +157,16 @@ export const selectCapabilitiesLayer = (
     platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET,
     requirePlatformApiCursorSecret: env.REQUIRE_PLATFORM_API_CURSOR_SECRET,
     confirmationKeyring: options.confirmationKeyring,
+    capabilityOutboxHandler: options.capabilityOutboxHandler,
+    ...(env.BOOKING_EVENTS_QUEUE
+      ? {
+          capabilityQueueWakeup: async (
+            wakeup: import('./foundation/index.ts').QueueWakeup
+          ) => {
+            await env.BOOKING_EVENTS_QUEUE!.send(wakeup)
+          }
+        }
+      : {}),
     ...(destinationSecrets
       ? { notificationDestinationSecrets: destinationSecrets }
       : {})

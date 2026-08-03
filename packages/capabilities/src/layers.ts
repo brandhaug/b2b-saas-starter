@@ -207,10 +207,11 @@ import {
 } from './waiting-list/index.ts'
 import { LiveWaitingList } from './waiting-list/adapters.ts'
 import {
-  LiveSharedCapabilityFoundations,
+  makeLiveSharedCapabilityFoundations,
   SeedSharedCapabilityFoundations,
   SharedCapabilityFoundations
 } from './foundation/index.ts'
+import { classifyRestrictedMutation } from './authorization-policy.ts'
 import {
   CustomerDirectory,
   LiveCustomerDirectory,
@@ -523,6 +524,12 @@ export type LiveCapabilitiesOptions = {
   readonly notificationDestinationSecrets?:
     | Parameters<typeof LiveBookingConfirmation>[1]
     | undefined
+  readonly capabilityQueueWakeup?:
+    | ((wakeup: import('./foundation/index.ts').QueueWakeup) => Promise<void>)
+    | undefined
+  readonly capabilityOutboxHandler?:
+    | ((claim: import('./foundation/index.ts').OutboxClaim) => Promise<void>)
+    | undefined
 }
 
 export const makeLiveCapabilitiesLayer = (
@@ -544,7 +551,15 @@ export const makeLiveCapabilitiesLayer = (
   )
   return Layer.mergeAll(
     LiveMerchantSubscriptions,
-    LiveSharedCapabilityFoundations,
+    makeLiveSharedCapabilityFoundations({
+      classifyRestrictedMutation,
+      ...(options.capabilityQueueWakeup
+        ? { publishWakeup: options.capabilityQueueWakeup }
+        : {}),
+      ...(options.capabilityOutboxHandler
+        ? { handleOutbox: options.capabilityOutboxHandler }
+        : {})
+    }),
     LiveCustomerDirectory,
     liveBookingPartiesLayer,
     livePricingQuotesLayer,

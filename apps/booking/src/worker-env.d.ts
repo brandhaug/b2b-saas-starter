@@ -12,7 +12,8 @@ interface BookingWorkerEnv {
     }>
   }
   readonly BOOKING_EVENTS_QUEUE?: Queue<
-    import('@b2b-saas-starter/capabilities/notifications').BookingEventsWakeup
+    | import('@b2b-saas-starter/capabilities/notifications').BookingEventsWakeup
+    | import('@b2b-saas-starter/capabilities/foundation').QueueWakeup
   >
   readonly CONFIRMATION_SIGNING_KEYS: string
   readonly CONFIRMATION_CURRENT_KEY_ID: string

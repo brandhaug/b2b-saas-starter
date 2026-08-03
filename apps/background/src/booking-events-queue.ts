@@ -3,6 +3,10 @@ import {
   BookingEventsWakeupSchema,
   type BookingEventsWakeup
 } from '@b2b-saas-starter/capabilities/notifications'
+import {
+  QueueWakeup,
+  type QueueWakeup as CapabilityQueueWakeup
+} from '@b2b-saas-starter/capabilities/foundation'
 
 const legacyOutboxWakeup = Schema.Struct({
   outboxId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(128))
@@ -14,7 +18,9 @@ const legacyOutboxWakeup = Schema.Struct({
  */
 export const decodeBookingEventsWakeup = (
   value: unknown
-): BookingEventsWakeup | null => {
+): BookingEventsWakeup | CapabilityQueueWakeup | null => {
+  const capability = Schema.decodeUnknownOption(QueueWakeup)(value)
+  if (capability._tag === 'Some') return capability.value
   const current = Schema.decodeUnknownOption(BookingEventsWakeupSchema)(value)
   if (current._tag === 'Some') return current.value
   const legacy = Schema.decodeUnknownOption(legacyOutboxWakeup)(value)

@@ -1,21 +1,30 @@
 import { Effect } from 'effect'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { CapabilityDenied, CapabilityNotFound } from '../errors.ts'
 import {
-  accessAllows,
-  authorizationMatrix,
-  authorizeCapability,
+  capabilityOperations,
+  renderAuthorizationMatrix,
   SeedSharedCapabilityFoundations,
   SharedCapabilityFoundations,
+  type QueueWakeup,
   type SharedCommandInput
 } from './shared-capability-foundations.ts'
+import {
+  authorizationMatrix,
+  merchantCapabilityAuthorizationInventory
+} from '../authorization-policy.ts'
 
-const owner = { kind: 'owner', userId: 'usr_owner', merchantId: 'mer_one' } as const
+const authority = {
+  merchantId: 'mer_one',
+  actorKind: 'owner',
+  actorId: 'usr_owner',
+  impersonationId: null,
+  accessState: 'active'
+} as const
 const input: SharedCommandInput = {
-  actor: owner,
+  authority: { kind: 'owner-session', sessionId: 'ses_owner' },
   merchantId: 'mer_one',
   operation: 'mutation',
-  accessState: 'active',
   capability: 'test',
   aggregateId: 'agg_one',
   idempotencyKey: 'one',
@@ -24,57 +33,127 @@ const input: SharedCommandInput = {
   resultJson: '{"ok":true}',
   historyKind: 'changed',
   outboxKind: 'notify',
-  now: '2026-08-02T12:00:00.000Z'
+  now: '2026-08-03T09:00:00.000Z'
 }
-const run = <A>(effect: Effect.Effect<A, unknown, SharedCapabilityFoundations>) =>
-  Effect.runPromise(Effect.provide(effect, SeedSharedCapabilityFoundations()))
 
-describe('shared capability policy', () => {
-  it('uses non-disclosing not-found for cross-Merchant access', () => {
-    expect(
-      authorizeCapability({ ...input, resourceMerchantId: 'mer_two' })
-    ).toBeInstanceOf(CapabilityNotFound)
-    expect(authorizeCapability({ ...input, actor: null })).toBeInstanceOf(
-      CapabilityDenied
-    )
-  })
-  it('generates coverage for every ingress operation and restriction state', () => {
-    expect(authorizationMatrix.map((row) => row.operation)).toEqual([
-      'read',
-      'mutation',
-      'search',
-      'bulk-operation',
-      'export',
-      'callback',
-      'queued-action'
-    ])
-    expect(accessAllows('restricted', { ...input, operation: 'read' })).toBe(true)
-    expect(accessAllows('restricted', input)).toBe(false)
-    expect(
-      accessAllows('restricted', {
-        ...input,
-        restrictedException: 'existing-commitment'
-      })
-    ).toBe(true)
-    expect(accessAllows('held', { ...input, operation: 'read' })).toBe(false)
-  })
-  it('shares replay, changed-payload, revision, and attributed actor contracts', async () => {
-    const [first, replay] = await run(
-      Effect.gen(function* () {
-        const service = yield* SharedCapabilityFoundations
-        return [yield* service.execute(input), yield* service.execute(input)] as const
-      })
-    )
-    expect(first.revision).toBe(1)
-    expect(replay.replayed).toBe(true)
-    await expect(
-      run(
+describe('shared capability deterministic contract', () => {
+  it('resolves authority references and shares replay and changed-payload behavior', async () => {
+    const wakeups: QueueWakeup[] = []
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: new Map([['owner:ses_owner', authority]]),
+      publishWakeup: (wakeup) => wakeups.push(wakeup)
+    })
+    const result = await Effect.runPromise(
+      Effect.provide(
         Effect.gen(function* () {
           const service = yield* SharedCapabilityFoundations
-          yield* service.execute(input)
-          return yield* service.execute({ ...input, payloadFingerprint: 'sha256:b' })
-        })
+          const first = yield* service.execute(input)
+          const replay = yield* service.execute(input)
+          return { first, replay }
+        }),
+        layer
       )
-    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+    )
+    expect(result.first).toMatchObject({ revision: 1, replayed: false })
+    expect(result.replay).toMatchObject({ revision: 1, replayed: true })
+    expect(wakeups).toHaveLength(2)
+  })
+
+  it('rejects unknown authority without applying a domain mutation', async () => {
+    let domainChanges = 0
+    const layer = SeedSharedCapabilityFoundations({
+      buildDomainMutation: (command) => ({
+        merchantId: command.merchantId,
+        mutations: []
+      }),
+      applyDomainMutation: () => domainChanges++
+    })
+    await expect(
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(SharedCapabilityFoundations, (service) =>
+            service.execute(input, { kind: 'test', payloadJson: '{}' })
+          ),
+          layer
+        )
+      )
+    ).rejects.toMatchObject({ reason: 'authority_not_found' })
+    expect(domainChanges).toBe(0)
+  })
+
+  it('does not claim work before availableAt', async () => {
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: new Map([['owner:ses_owner', authority]])
+    })
+    const claimed = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const service = yield* SharedCapabilityFoundations
+          yield* service.execute({
+            ...input,
+            availableAt: '2026-08-03T10:00:00.000Z'
+          })
+          return yield* service.claim({
+            workerId: 'worker',
+            now: '2026-08-03T09:30:00.000Z',
+            staleBefore: '2026-08-03T08:30:00.000Z',
+            limit: 10
+          })
+        }),
+        layer
+      )
+    )
+    expect(claimed).toEqual([])
+  })
+
+  it('renders the checked-in matrix from the executable policy inventory', () => {
+    expect(
+      Object.fromEntries(
+        merchantCapabilityAuthorizationInventory.map((item) => [
+          item.capability,
+          [...item.operations]
+        ])
+      )
+    ).toEqual({
+      'merchant-catalog': ['read', 'mutation', 'search', 'bulk-operation', 'export'],
+      scheduling: ['read', 'mutation', 'search', 'bulk-operation'],
+      appointment: capabilityOperations,
+      'customer-directory': ['read', 'mutation', 'search', 'bulk-operation', 'export'],
+      'merchant-subscription': ['read', 'mutation', 'callback', 'queued-action'],
+      notifications: [
+        'read',
+        'mutation',
+        'search',
+        'bulk-operation',
+        'callback',
+        'queued-action'
+      ],
+      'waiting-list': ['read', 'mutation', 'search', 'bulk-operation', 'queued-action'],
+      'walk-ins': ['read', 'mutation', 'search', 'bulk-operation'],
+      'reporting-export': ['read', 'search', 'export', 'queued-action'],
+      'privacy-request': ['read', 'mutation', 'search', 'export', 'queued-action'],
+      'developer-platform': ['read', 'mutation', 'search', 'callback', 'queued-action'],
+      operations: ['read', 'mutation', 'search', 'bulk-operation']
+    })
+    const keys = authorizationMatrix.map((row) => `${row.capability}:${row.operation}`)
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(
+      authorizationMatrix.find((row) => row.operation === 'callback')
+    ).toMatchObject({
+      owner: false,
+      authority: 'callback-correlation'
+    })
+    expect(
+      authorizationMatrix.find((row) => row.operation === 'queued-action')
+    ).toMatchObject({ owner: false, authority: 'claimed-work' })
+    expect(renderAuthorizationMatrix(authorizationMatrix)).toBe(
+      readFileSync(
+        new URL(
+          '../../../../docs/generated/authorization-merchant-isolation-matrix.md',
+          import.meta.url
+        ),
+        'utf8'
+      )
+    )
   })
 })
