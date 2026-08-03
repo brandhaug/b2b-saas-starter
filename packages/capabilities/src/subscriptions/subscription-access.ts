@@ -1,4 +1,5 @@
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
+import type { D1Database } from '@cloudflare/workers-types'
 import { eq, sql, type SQLWrapper } from 'drizzle-orm'
 import { Database, merchantSubscriptions, shops } from '@b2b-saas-starter/db'
 import { CapabilityDenied, CapabilityUnavailable } from '../errors.ts'
@@ -13,6 +14,9 @@ export type SubscriptionAccessOperation =
   | 'existing-commitment'
 
 type SubscriptionStatus = typeof merchantSubscriptions.$inferSelect.status
+export const MerchantSubscriptionAccessState = Schema.Literals(['active', 'restricted'])
+export type MerchantSubscriptionAccessState =
+  typeof MerchantSubscriptionAccessState.Type
 
 export const NEW_DEMAND_SUBSCRIPTION_STATUSES = [
   'trialing',
@@ -28,6 +32,30 @@ export const subscriptionAllowsNewDemand = (
 ): boolean =>
   status !== null &&
   NEW_DEMAND_SUBSCRIPTION_STATUSES.some((candidate) => candidate === status)
+
+export const resolveMerchantSubscriptionAccessState = (
+  d1: D1Database,
+  merchantId: string
+): Effect.Effect<MerchantSubscriptionAccessState | null, CapabilityUnavailable> =>
+  Effect.tryPromise({
+    try: async () => {
+      const row = await d1
+        .prepare(
+          'SELECT status FROM merchant_subscriptions WHERE merchant_id = ? LIMIT 1'
+        )
+        .bind(merchantId)
+        .first<{ status: SubscriptionStatus }>()
+      if (!row) return null
+      return Schema.decodeUnknownSync(MerchantSubscriptionAccessState)(
+        subscriptionAllowsNewDemand(row.status) ? 'active' : 'restricted'
+      )
+    },
+    catch: (cause) =>
+      new CapabilityUnavailable({
+        capability: 'merchant-subscription-access',
+        reason: cause instanceof Error ? cause.message : String(cause)
+      })
+  })
 
 /** Atomic D1 predicate for writes that create new merchant demand. */
 export const subscriptionAllowsNewDemandSql = (merchantId: SQLWrapper) =>

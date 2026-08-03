@@ -4152,64 +4152,133 @@ export const capabilityAggregateRevisions = sqliteTable(
     updatedAt: text('updated_at').notNull()
   },
   (table) => [
-    primaryKey({ columns: [table.merchantId, table.capability, table.aggregateId] })
+    primaryKey({ columns: [table.merchantId, table.capability, table.aggregateId] }),
+    check(
+      'capability_aggregate_revisions_revision_positive',
+      sql`${table.revision} > 0`
+    )
   ]
 )
-export const capabilityCommands = sqliteTable('capability_commands', {
-  commandKey: text('command_key').primaryKey(),
-  merchantId: text('merchant_id').notNull(),
-  capability: text('capability').notNull(),
-  aggregateId: text('aggregate_id').notNull(),
-  payloadFingerprint: text('payload_fingerprint').notNull(),
-  resultJson: text('result_json').notNull(),
-  revision: integer('revision').notNull(),
-  createdAt: text('created_at').notNull()
-})
-export const capabilityHistory = sqliteTable('capability_history', {
-  id: text('id').primaryKey(),
-  merchantId: text('merchant_id').notNull(),
-  capability: text('capability').notNull(),
-  aggregateId: text('aggregate_id').notNull(),
-  revision: integer('revision').notNull(),
-  kind: text('kind').notNull(),
-  occurredAt: text('occurred_at').notNull()
-})
-export const capabilityAudit = sqliteTable('capability_audit', {
-  id: text('id').primaryKey(),
-  merchantId: text('merchant_id').notNull(),
-  capability: text('capability').notNull(),
-  aggregateId: text('aggregate_id').notNull(),
-  revision: integer('revision').notNull(),
-  actorKind: text('actor_kind').notNull(),
-  actorId: text('actor_id').notNull(),
-  impersonationId: text('impersonation_id'),
-  eventKind: text('event_kind').notNull(),
-  occurredAt: text('occurred_at').notNull()
-})
-export const capabilityOutbox = sqliteTable('capability_outbox', {
-  id: text('id').primaryKey(),
-  merchantId: text('merchant_id').notNull(),
-  capability: text('capability').notNull(),
-  aggregateId: text('aggregate_id').notNull(),
-  revision: integer('revision').notNull(),
-  kind: text('kind').notNull(),
-  status: text('status').notNull(),
-  claimedBy: text('claimed_by'),
-  claimedAt: text('claimed_at'),
-  availableAt: text('available_at').notNull(),
-  processedAt: text('processed_at'),
-  createdAt: text('created_at').notNull()
-})
+export const capabilityCommands = sqliteTable(
+  'capability_commands',
+  {
+    commandKey: text('command_key').primaryKey(),
+    merchantId: text('merchant_id').notNull(),
+    capability: text('capability').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
+    payloadFingerprint: text('payload_fingerprint').notNull(),
+    resultJson: text('result_json').notNull(),
+    revision: integer('revision').notNull(),
+    createdAt: text('created_at').notNull()
+  },
+  (table) => [
+    index('capability_commands_aggregate_idx').on(table.merchantId, table.aggregateId)
+  ]
+)
+export const capabilityHistory = sqliteTable(
+  'capability_history',
+  {
+    id: text('id').primaryKey(),
+    merchantId: text('merchant_id').notNull(),
+    capability: text('capability').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
+    revision: integer('revision').notNull(),
+    kind: text('kind').notNull(),
+    occurredAt: text('occurred_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('capability_history_aggregate_revision_unique').on(
+      table.merchantId,
+      table.capability,
+      table.aggregateId,
+      table.revision
+    )
+  ]
+)
+export const capabilityAudit = sqliteTable(
+  'capability_audit',
+  {
+    id: text('id').primaryKey(),
+    merchantId: text('merchant_id').notNull(),
+    capability: text('capability').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
+    revision: integer('revision').notNull(),
+    actorKind: text('actor_kind').notNull(),
+    actorId: text('actor_id').notNull(),
+    impersonationId: text('impersonation_id'),
+    eventKind: text('event_kind').notNull(),
+    occurredAt: text('occurred_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('capability_audit_aggregate_revision_unique').on(
+      table.merchantId,
+      table.capability,
+      table.aggregateId,
+      table.revision
+    )
+  ]
+)
+export const capabilityOutbox = sqliteTable(
+  'capability_outbox',
+  {
+    id: text('id').primaryKey(),
+    merchantId: text('merchant_id').notNull(),
+    capability: text('capability').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
+    revision: integer('revision').notNull(),
+    kind: text('kind').notNull(),
+    status: text('status', { enum: ['pending', 'claimed', 'processed'] })
+      .default('pending')
+      .notNull(),
+    claimedBy: text('claimed_by'),
+    claimedAt: text('claimed_at'),
+    availableAt: text('available_at').notNull(),
+    processedAt: text('processed_at'),
+    createdAt: text('created_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('capability_outbox_aggregate_revision_kind_unique').on(
+      table.merchantId,
+      table.capability,
+      table.aggregateId,
+      table.revision,
+      table.kind
+    ),
+    index('capability_outbox_recovery_idx').on(
+      table.status,
+      table.availableAt,
+      table.claimedAt
+    ),
+    index('capability_outbox_authority_idx').on(
+      table.id,
+      table.capability,
+      table.claimedBy,
+      table.status
+    ),
+    check(
+      'capability_outbox_status_valid',
+      sql`${table.status} IN ('pending','claimed','processed')`
+    )
+  ]
+)
 
 export const capabilityCallbackCorrelations = sqliteTable(
   'capability_callback_correlations',
   {
     correlationId: text('correlation_id').primaryKey(),
-    merchantId: text('merchant_id').notNull(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
     capability: text('capability').notNull(),
     expiresAt: text('expires_at').notNull(),
     createdAt: text('created_at').notNull()
-  }
+  },
+  (table) => [
+    index('capability_callback_correlations_expiry_idx').on(
+      table.capability,
+      table.expiresAt
+    )
+  ]
 )
 
 export const capabilityTransactionGuards = sqliteTable(
@@ -4217,14 +4286,29 @@ export const capabilityTransactionGuards = sqliteTable(
   {
     id: text('id').primaryKey(),
     accepted: integer('accepted').notNull()
-  }
+  },
+  (table) => [
+    check('capability_transaction_guards_accepted', sql`${table.accepted} = 1`)
+  ]
 )
 
-export const merchantAccessHolds = sqliteTable('merchant_access_holds', {
-  id: text('id').primaryKey(),
-  merchantId: text('merchant_id').notNull(),
-  userId: text('user_id').notNull(),
-  reason: text('reason').notNull(),
-  placedAt: text('placed_at').notNull(),
-  releasedAt: text('released_at')
-})
+export const merchantAccessHolds = sqliteTable(
+  'merchant_access_holds',
+  {
+    id: text('id').primaryKey(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    placedAt: text('placed_at').notNull(),
+    releasedAt: text('released_at')
+  },
+  (table) => [
+    uniqueIndex('merchant_access_holds_active_unique')
+      .on(table.merchantId, table.userId)
+      .where(sql`${table.releasedAt} IS NULL`)
+  ]
+)

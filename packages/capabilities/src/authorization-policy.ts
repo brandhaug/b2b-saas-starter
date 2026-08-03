@@ -67,6 +67,12 @@ export const merchantCapabilityAuthorizationInventory = [
     'callback',
     'queued-action'
   ]),
+  ownerCapability('pricing', ['read', 'mutation']),
+  ownerCapability('payments', ['read', 'mutation', 'callback']),
+  ownerCapability('gift-cards', ['read', 'mutation']),
+  ownerCapability('customer-identity', ['read', 'mutation', 'search']),
+  ownerCapability('customer-engagement', ['read', 'mutation', 'search']),
+  ownerCapability('scheduled-work', ['read', 'mutation', 'search', 'queued-action']),
   ownerCapability('operations', ['read', 'mutation', 'search', 'bulk-operation'])
 ] as const satisfies readonly AuthorizationCapabilityInventory[]
 

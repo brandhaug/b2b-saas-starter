@@ -9,6 +9,7 @@ import {
   type SharedCommandInput
 } from './shared-capability-foundations.ts'
 import { classifyRestrictedMutation } from '../authorization-policy.ts'
+import { resolveMerchantSubscriptionAccessState } from '../subscriptions/subscription-access.ts'
 
 let test: TestD1
 const now = '2026-08-03T09:00:00.000Z'
@@ -47,6 +48,9 @@ beforeAll(async () => {
       "INSERT INTO user (id,email,name,emailVerified,identityClass,banned,createdAt,updatedAt) VALUES ('usr_three','three@example.test','Three',1,'merchant_member',0,1,1)"
     ),
     test.d1.prepare(
+      "INSERT INTO user (id,email,name,emailVerified,identityClass,banned,createdAt,updatedAt) VALUES ('usr_four','four@example.test','Four',1,'merchant_member',0,1,1)"
+    ),
+    test.d1.prepare(
       `INSERT INTO session (id,expiresAt,token,createdAt,updatedAt,userId) VALUES ('ses_owner_one',${epoch},'tok_one',1,1,'usr_one')`
     ),
     test.d1.prepare(
@@ -54,6 +58,9 @@ beforeAll(async () => {
     ),
     test.d1.prepare(
       `INSERT INTO session (id,expiresAt,token,createdAt,updatedAt,userId) VALUES ('ses_owner_three',${epoch},'tok_three',1,1,'usr_three')`
+    ),
+    test.d1.prepare(
+      `INSERT INTO session (id,expiresAt,token,createdAt,updatedAt,userId) VALUES ('ses_owner_four',${epoch},'tok_four',1,1,'usr_four')`
     ),
     test.d1
       .prepare(
@@ -68,6 +75,11 @@ beforeAll(async () => {
     test.d1
       .prepare(
         "INSERT INTO merchants (id,public_name,slug,status,timezone,currency,plan,created_at,updated_at) VALUES ('mer_three','Three','three','enabled','UTC','RON','solo',?,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
+        "INSERT INTO merchants (id,public_name,slug,status,timezone,currency,plan,created_at,updated_at) VALUES ('mer_four','Four','four','enabled','UTC','RON','solo',?,?)"
       )
       .bind(now, now),
     test.d1
@@ -87,6 +99,11 @@ beforeAll(async () => {
       .bind(now),
     test.d1
       .prepare(
+        "INSERT INTO merchant_memberships (merchant_id,user_id,role,created_at) VALUES ('mer_four','usr_four','owner',?)"
+      )
+      .bind(now),
+    test.d1
+      .prepare(
         "INSERT INTO merchant_subscriptions (id,merchant_id,plan,status,revision,created_at,updated_at) VALUES ('sub_one','mer_one','solo','active',1,?,?)"
       )
       .bind(now, now),
@@ -102,12 +119,27 @@ beforeAll(async () => {
       .bind(now, now),
     test.d1
       .prepare(
+        "INSERT INTO merchant_subscriptions (id,merchant_id,plan,status,revision,created_at,updated_at) VALUES ('sub_four','mer_four','solo','active',1,?,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
         "INSERT INTO merchant_access_holds (id,merchant_id,user_id,reason,placed_at) VALUES ('hold_two','mer_two','usr_two','security-review',?)"
       )
       .bind(now),
     test.d1
       .prepare(
         "INSERT INTO capability_aggregate_revisions (merchant_id,capability,aggregate_id,revision,updated_at) VALUES ('mer_three','appointment','apt_restricted',1,?)"
+      )
+      .bind(now),
+    test.d1
+      .prepare(
+        "INSERT INTO capability_aggregate_revisions (merchant_id,capability,aggregate_id,revision,updated_at) VALUES ('mer_one','appointment','apt_shared',1,?), ('mer_four','appointment','apt_shared',1,?)"
+      )
+      .bind(now, now),
+    test.d1
+      .prepare(
+        "INSERT INTO capability_aggregate_revisions (merchant_id,capability,aggregate_id,revision,updated_at) VALUES ('mer_one','appointment','apt_shared_create',1,?)"
       )
       .bind(now)
   ])
@@ -141,7 +173,8 @@ const layer = (
                 ? (JSON.parse(request.payloadJson) as readonly TestMutation[])
                 : []
           },
-    classifyRestrictedMutation
+    classifyRestrictedMutation,
+    resolveMerchantAccess: resolveMerchantSubscriptionAccessState
   }).pipe(Layer.provide(layerFromD1(test.d1)))
 const execute = (
   input: SharedCommandInput,
@@ -179,8 +212,52 @@ const consequenceCounts = () =>
   ])
 
 describe('Live D1 shared capability foundations', () => {
+  it('evaluates authority expiry against the deterministic command clock', async () => {
+    await expect(
+      execute({
+        ...command,
+        aggregateId: 'apt_expired_clock',
+        idempotencyKey: 'expired_clock',
+        outboxKind: undefined,
+        now: '2101-01-01T00:00:00.000Z'
+      })
+    ).rejects.toMatchObject({ reason: 'authority_not_found' })
+  })
+
+  it('allows the rightful Merchant when another Merchant uses the same aggregate id', async () => {
+    await expect(
+      execute({
+        ...command,
+        authority: { kind: 'owner-session', sessionId: 'ses_owner_one' },
+        merchantId: 'mer_one',
+        aggregateId: 'apt_shared',
+        idempotencyKey: 'shared_one',
+        expectedRevision: 1,
+        outboxKind: undefined
+      })
+    ).resolves.toMatchObject({ revision: 2 })
+
+    await expect(
+      execute({
+        ...command,
+        authority: { kind: 'owner-session', sessionId: 'ses_owner_four' },
+        merchantId: 'mer_four',
+        aggregateId: 'apt_shared_create',
+        idempotencyKey: 'shared_create_four',
+        expectedRevision: 0,
+        outboxKind: undefined
+      })
+    ).resolves.toMatchObject({ revision: 1 })
+  })
+
   it('resolves a persisted Owner session and commits the domain mutation with consequences', async () => {
     const wakeups: QueueWakeup[] = []
+    const before = {
+      domain: await count('foundation_domain_probe'),
+      history: await count('capability_history'),
+      audit: await count('capability_audit'),
+      outbox: await count('capability_outbox')
+    }
     const result = await execute(
       command,
       async (wakeup) => {
@@ -196,10 +273,10 @@ describe('Live D1 shared capability foundations', () => {
       ]
     )
     expect(result).toMatchObject({ revision: 1, replayed: false })
-    expect(await count('foundation_domain_probe')).toBe(1)
-    expect(await count('capability_history')).toBe(1)
-    expect(await count('capability_audit')).toBe(1)
-    expect(await count('capability_outbox')).toBe(1)
+    expect(await count('foundation_domain_probe')).toBe(before.domain + 1)
+    expect(await count('capability_history')).toBe(before.history + 1)
+    expect(await count('capability_audit')).toBe(before.audit + 1)
+    expect(await count('capability_outbox')).toBe(before.outbox + 1)
     expect(wakeups).toEqual([
       { version: 1, kind: 'capability-outbox', outboxId: 'cob_appointment_apt_one_1' }
     ])

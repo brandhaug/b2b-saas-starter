@@ -106,6 +106,38 @@ describe('shared capability deterministic contract', () => {
     expect(claimed).toEqual([])
   })
 
+  it('lets two Merchants independently create the same aggregate id', async () => {
+    const secondAuthority = {
+      ...authority,
+      merchantId: 'mer_two',
+      actorId: 'usr_two'
+    }
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: new Map([
+        ['owner:ses_owner', authority],
+        ['owner:ses_two', secondAuthority]
+      ])
+    })
+    const results = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const service = yield* SharedCapabilityFoundations
+          const first = yield* service.execute({ ...input, outboxKind: undefined })
+          const second = yield* service.execute({
+            ...input,
+            authority: { kind: 'owner-session', sessionId: 'ses_two' },
+            merchantId: 'mer_two',
+            idempotencyKey: 'two',
+            outboxKind: undefined
+          })
+          return [first, second]
+        }),
+        layer
+      )
+    )
+    expect(results.map((result) => result.revision)).toEqual([1, 1])
+  })
+
   it('renders the checked-in matrix from the executable policy inventory', () => {
     expect(
       Object.fromEntries(
@@ -133,6 +165,12 @@ describe('shared capability deterministic contract', () => {
       'reporting-export': ['read', 'search', 'export', 'queued-action'],
       'privacy-request': ['read', 'mutation', 'search', 'export', 'queued-action'],
       'developer-platform': ['read', 'mutation', 'search', 'callback', 'queued-action'],
+      pricing: ['read', 'mutation'],
+      payments: ['read', 'mutation', 'callback'],
+      'gift-cards': ['read', 'mutation'],
+      'customer-identity': ['read', 'mutation', 'search'],
+      'customer-engagement': ['read', 'mutation', 'search'],
+      'scheduled-work': ['read', 'mutation', 'search', 'queued-action'],
       operations: ['read', 'mutation', 'search', 'bulk-operation']
     })
     const keys = authorizationMatrix.map((row) => `${row.capability}:${row.operation}`)

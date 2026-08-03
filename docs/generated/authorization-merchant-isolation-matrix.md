@@ -58,6 +58,23 @@ Generated from the Merchant capability inventory and bounded-context Restricted 
 | developer-platform    | search         | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
 | developer-platform    | callback       | callback-correlation | deny  | deny        | deny                                  | deny                  | same-shape not found |
 | developer-platform    | queued-action  | claimed-work         | deny  | deny        | deny                                  | deny                  | same-shape not found |
+| pricing               | read           | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| pricing               | mutation       | owner-session        | allow | deny        | deny                                  | allow with provenance | same-shape not found |
+| payments              | read           | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| payments              | mutation       | owner-session        | allow | deny        | deny                                  | allow with provenance | same-shape not found |
+| payments              | callback       | callback-correlation | deny  | deny        | deny                                  | deny                  | same-shape not found |
+| gift-cards            | read           | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| gift-cards            | mutation       | owner-session        | allow | deny        | deny                                  | allow with provenance | same-shape not found |
+| customer-identity     | read           | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| customer-identity     | mutation       | owner-session        | allow | deny        | deny                                  | allow with provenance | same-shape not found |
+| customer-identity     | search         | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| customer-engagement   | read           | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| customer-engagement   | mutation       | owner-session        | allow | deny        | deny                                  | allow with provenance | same-shape not found |
+| customer-engagement   | search         | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| scheduled-work        | read           | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| scheduled-work        | mutation       | owner-session        | allow | deny        | deny                                  | allow with provenance | same-shape not found |
+| scheduled-work        | search         | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
+| scheduled-work        | queued-action  | claimed-work         | deny  | deny        | deny                                  | deny                  | same-shape not found |
 | operations            | read           | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |
 | operations            | mutation       | owner-session        | allow | deny        | deny                                  | allow with provenance | same-shape not found |
 | operations            | search         | owner-session        | allow | deny        | allow                                 | allow with provenance | same-shape not found |

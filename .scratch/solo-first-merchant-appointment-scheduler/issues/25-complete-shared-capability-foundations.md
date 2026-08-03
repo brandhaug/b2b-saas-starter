@@ -17,6 +17,21 @@ Complete the shared Effect v4 and Live D1 application seams needed by every late
 
 ## Comments
 
+### Final review remediation — 2026-08-03
+
+Closed the last review findings: subscription lifecycle interpretation now remains in
+the Subscriptions context behind a required schema-defined Effect resolver; authority expiry
+uses the deterministic command clock; same aggregate IDs are isolated by preferring
+the requesting Merchant, allowing independent revision-zero creation, and otherwise
+returning same-shape not-found; and the generated
+matrix includes Pricing, Payments, Gift Cards, Customer Identity, Customer Engagement,
+and Scheduled Work.
+
+The authorization inventory now has an adjacent intent node, and the canonical Drizzle
+schema mirrors all migration checks, defaults, foreign keys, unique constraints, and
+recovery/authority indexes. Existing Subscription work already covered every safe Appointment action
+preserved under Restricted Access. Focused capability, schema, and migration tests pass.
+
 ### Resolution follow-up — 2026-08-03
 
 The reopened review findings are resolved. Live authority now comes from persisted

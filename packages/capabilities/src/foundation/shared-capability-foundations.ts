@@ -299,7 +299,7 @@ export const SeedSharedCapabilityFoundations = (
     string,
     { readonly fingerprint: string; readonly result: SharedCommandResult }
   >()
-  const resourceOwners = new Map<string, string>()
+  const resourceOwners = new Map<string, Set<string>>()
   const outbox = new Map<
     string,
     OutboxClaim & {
@@ -336,12 +336,18 @@ export const SeedSharedCapabilityFoundations = (
           )
           const authority = resolve(decoded)
           const resourceKey = `${decoded.capability}:${decoded.aggregateId}`
+          const owners = resourceOwners.get(resourceKey)
+          const resourceMerchantId = owners?.has(decoded.merchantId)
+            ? decoded.merchantId
+            : decoded.expectedRevision > 0
+              ? owners?.values().next().value
+              : undefined
           const denial = authorizeResolved(
             decoded,
             authority,
-            resourceOwners.get(resourceKey),
+            resourceMerchantId,
             options.classifyRestrictedMutation?.(decoded, mutationRequest, {
-              resourceExists: resourceOwners.has(resourceKey)
+              resourceExists: owners?.has(decoded.merchantId) ?? false
             }) ?? false
           )
           if (denial) throw denial
@@ -375,7 +381,9 @@ export const SeedSharedCapabilityFoundations = (
             resultJson: decoded.resultJson
           }
           revisions.set(aggregateKey(decoded), revision)
-          resourceOwners.set(resourceKey, decoded.merchantId)
+          const committedOwners = resourceOwners.get(resourceKey) ?? new Set<string>()
+          committedOwners.add(decoded.merchantId)
+          resourceOwners.set(resourceKey, committedOwners)
           commands.set(key, { fingerprint: decoded.payloadFingerprint, result })
           if (decoded.outboxKind) {
             const id = outboxId(decoded, revision)
@@ -498,6 +506,10 @@ type LiveFoundationOptions = {
     context: { readonly resourceExists: boolean }
   ) => boolean
   readonly handleOutbox?: (claim: OutboxClaim) => Promise<void>
+  readonly resolveMerchantAccess: (
+    d1: D1Database,
+    merchantId: string
+  ) => Effect.Effect<'active' | 'restricted' | null, CapabilityUnavailable>
 }
 
 type AuthorityRow = {
@@ -506,19 +518,16 @@ type AuthorityRow = {
   readonly actorId: string
   readonly impersonationId: string | null
   readonly merchantStatus: string
-  readonly subscriptionStatus: string | null
   readonly accessHold: number
 }
 
-const accessStateFrom = (row: AuthorityRow): ResolvedAuthority['accessState'] =>
-  row.accessHold === 1
-    ? 'held'
-    : row.subscriptionStatus === 'restricted' || row.subscriptionStatus === 'cancelled'
-      ? 'restricted'
-      : 'active'
+const accessStateFrom = (
+  row: AuthorityRow,
+  merchantAccess: 'active' | 'restricted'
+): ResolvedAuthority['accessState'] => (row.accessHold === 1 ? 'held' : merchantAccess)
 
 export const makeLiveSharedCapabilityFoundations = (
-  options: LiveFoundationOptions = {}
+  options: LiveFoundationOptions
 ): Layer.Layer<SharedCapabilityFoundations, never, Database> =>
   Layer.effect(
     SharedCapabilityFoundations,
@@ -535,7 +544,6 @@ export const makeLiveSharedCapabilityFoundations = (
             .prepare(
               `SELECT mm.merchant_id merchantId, 'owner' actorKind, s.userId actorId,
                       NULL impersonationId, m.status merchantStatus,
-                      ms.status subscriptionStatus,
                       EXISTS (SELECT 1 FROM merchant_access_holds h
                         WHERE h.merchant_id = m.id AND h.user_id = s.userId
                           AND h.released_at IS NULL) accessHold
@@ -543,19 +551,18 @@ export const makeLiveSharedCapabilityFoundations = (
                JOIN user u ON u.id = s.userId
                JOIN merchant_memberships mm ON mm.user_id = s.userId AND mm.role = 'owner'
                JOIN merchants m ON m.id = mm.merchant_id
-               LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id
-               WHERE s.id = ? AND s.expiresAt > unixepoch() AND u.banned = 0
+               WHERE s.id = ?1 AND s.expiresAt > unixepoch(?2) AND u.banned = 0
                  AND u.identityClass = 'merchant_member' AND m.status = 'enabled'
-                 AND ms.status IS NOT NULL LIMIT 1`
+               LIMIT 1`
             )
-            .bind(reference.sessionId)
+            .bind(reference.sessionId, input.now)
             .first<AuthorityRow>()
         else if (reference.kind === 'impersonated-session')
           row = await raw
             .prepare(
               `SELECT ir.merchant_id merchantId, 'operator' actorKind,
                       ir.operator_id actorId, ir.id impersonationId,
-                      m.status merchantStatus, ms.status subscriptionStatus,
+                      m.status merchantStatus,
                       EXISTS (SELECT 1 FROM merchant_access_holds h
                         WHERE h.merchant_id = m.id AND h.user_id = ir.target_member_id
                           AND h.released_at IS NULL) accessHold
@@ -571,64 +578,65 @@ export const makeLiveSharedCapabilityFoundations = (
                JOIN merchants m ON m.id = ir.merchant_id
                JOIN merchant_memberships mm ON mm.merchant_id = m.id
                  AND mm.user_id = ir.target_member_id AND mm.role = 'owner'
-               LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id
-               WHERE ir.merchant_session_id = ? AND ir.lifecycle = 'active'
-                 AND ir.active_expires_at > unixepoch() AND s.expiresAt > unixepoch()
+               WHERE ir.merchant_session_id = ?1 AND ir.lifecycle = 'active'
+                 AND ir.active_expires_at > unixepoch(?2) AND s.expiresAt > unixepoch(?2)
                  AND ir.termination_cause IS NULL
                  AND operator.identityClass = 'system_operator'
                  AND operator.banned = 0 AND operator.emailVerified = 1
                  AND operator.twoFactorEnabled = 1
-                 AND operator_session.expiresAt > unixepoch()
-                 AND operator_session.operatorIdleExpiresAt > unixepoch()
-                 AND operator_session.operatorAbsoluteExpiresAt > unixepoch()
+                 AND operator_session.expiresAt > unixepoch(?2)
+                 AND operator_session.operatorIdleExpiresAt > unixepoch(?2)
+                 AND operator_session.operatorAbsoluteExpiresAt > unixepoch(?2)
                  AND factor.verified = 1
-                 AND (factor.lockedUntil IS NULL OR factor.lockedUntil <= unixepoch())
+                 AND (factor.lockedUntil IS NULL OR factor.lockedUntil <= unixepoch(?2))
                  AND instr(',' || operator.role || ',', ',merchant-impersonator,') > 0
                  AND target.identityClass = 'merchant_member' AND target.banned = 0
-                 AND m.status = 'enabled' AND ms.status IS NOT NULL
+                 AND m.status = 'enabled'
                LIMIT 1`
             )
-            .bind(reference.merchantSessionId)
+            .bind(reference.merchantSessionId, input.now)
             .first<AuthorityRow>()
         else if (reference.kind === 'callback-correlation')
           row = await raw
             .prepare(
               `SELECT c.merchant_id merchantId, 'callback' actorKind,
                       c.correlation_id actorId, NULL impersonationId,
-                      m.status merchantStatus, ms.status subscriptionStatus,
+                      m.status merchantStatus,
                       0 accessHold
                FROM capability_callback_correlations c
                JOIN merchants m ON m.id = c.merchant_id
-               LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id
-               WHERE c.correlation_id = ? AND c.capability = ?
-                 AND c.expires_at > CURRENT_TIMESTAMP AND m.status = 'enabled'
-                 AND ms.status IS NOT NULL LIMIT 1`
+               WHERE c.correlation_id = ?1 AND c.capability = ?2
+                 AND unixepoch(c.expires_at) > unixepoch(?3)
+                 AND m.status = 'enabled' LIMIT 1`
             )
-            .bind(reference.correlationId, input.capability)
+            .bind(reference.correlationId, input.capability, input.now)
             .first<AuthorityRow>()
         else
           row = await raw
             .prepare(
               `SELECT o.merchant_id merchantId, 'system' actorKind,
                       o.claimed_by actorId, NULL impersonationId,
-                      m.status merchantStatus, ms.status subscriptionStatus,
+                      m.status merchantStatus,
                       0 accessHold
                FROM capability_outbox o
                JOIN merchants m ON m.id = o.merchant_id
-               LEFT JOIN merchant_subscriptions ms ON ms.merchant_id = m.id
                WHERE o.id = ? AND o.claimed_by = ? AND o.status = 'claimed'
-                 AND o.capability = ? AND m.status = 'enabled'
-                 AND ms.status IS NOT NULL LIMIT 1`
+                 AND o.capability = ? AND m.status = 'enabled' LIMIT 1`
             )
             .bind(reference.outboxId, reference.workerId, input.capability)
             .first<AuthorityRow>()
         if (!row) throw new CapabilityDenied({ reason: 'authority_not_found' })
+        const merchantAccess = await Effect.runPromise(
+          options.resolveMerchantAccess(raw, row.merchantId)
+        )
+        if (!merchantAccess)
+          throw new CapabilityDenied({ reason: 'authority_not_found' })
         return {
           merchantId: row.merchantId,
           actorKind: row.actorKind,
           actorId: row.actorId,
           impersonationId: row.impersonationId,
-          accessState: accessStateFrom(row)
+          accessState: accessStateFrom(row, merchantAccess)
         }
       }
       const publish = async (id: string) => {
@@ -666,18 +674,30 @@ export const makeLiveSharedCapabilityFoundations = (
               }
             )
             const authority = await resolveAuthority(decoded)
-            const resource = await raw
+            const ownResource = await raw
               .prepare(
-                'SELECT merchant_id merchantId FROM capability_aggregate_revisions WHERE capability = ? AND aggregate_id = ? LIMIT 1'
+                `SELECT merchant_id merchantId FROM capability_aggregate_revisions
+                 WHERE merchant_id = ? AND capability = ? AND aggregate_id = ? LIMIT 1`
               )
-              .bind(decoded.capability, decoded.aggregateId)
+              .bind(decoded.merchantId, decoded.capability, decoded.aggregateId)
               .first<{ merchantId: string }>()
+            const foreignResource =
+              !ownResource && decoded.expectedRevision > 0
+                ? await raw
+                    .prepare(
+                      `SELECT merchant_id merchantId FROM capability_aggregate_revisions
+                       WHERE merchant_id <> ? AND capability = ? AND aggregate_id = ? LIMIT 1`
+                    )
+                    .bind(decoded.merchantId, decoded.capability, decoded.aggregateId)
+                    .first<{ merchantId: string }>()
+                : null
+            const resource = ownResource ?? foreignResource
             const denial = authorizeResolved(
               decoded,
               authority,
               resource?.merchantId,
               options.classifyRestrictedMutation?.(decoded, mutationRequest, {
-                resourceExists: resource?.merchantId === authority.merchantId
+                resourceExists: ownResource?.merchantId === authority.merchantId
               }) ?? false
             )
             if (denial) throw denial
@@ -984,8 +1004,6 @@ export const makeLiveSharedCapabilityFoundations = (
       }
     })
   )
-
-export const LiveSharedCapabilityFoundations = makeLiveSharedCapabilityFoundations()
 
 export const AuthorizationMatrixRow = Schema.Struct({
   capability: NonEmptyString,

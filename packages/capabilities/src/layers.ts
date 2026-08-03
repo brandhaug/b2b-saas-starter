@@ -224,6 +224,7 @@ import {
   MerchantSubscriptions,
   SeedMerchantSubscriptions
 } from './subscriptions/index.ts'
+import { resolveMerchantSubscriptionAccessState } from './subscriptions/subscription-access.ts'
 
 export type CapabilityServices =
   | PlatformApiTokenRegistry
@@ -553,6 +554,7 @@ export const makeLiveCapabilitiesLayer = (
     LiveMerchantSubscriptions,
     makeLiveSharedCapabilityFoundations({
       classifyRestrictedMutation,
+      resolveMerchantAccess: resolveMerchantSubscriptionAccessState,
       ...(options.capabilityQueueWakeup
         ? { publishWakeup: options.capabilityQueueWakeup }
         : {}),
