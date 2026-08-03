@@ -127,5 +127,24 @@ describe('Live Booking Parties', () => {
       )
     )
     expect(activated.activeRequestId).toBe(secondId)
+    const providerOverride = await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingParties, (parties) =>
+          parties.updateRequest(
+            'bpt_group',
+            secondId,
+            { providerPreference: 'any', providerId: 'prv_attacker' },
+            activated.version,
+            now
+          )
+        ),
+        layer
+      )
+    )
+    expect(providerOverride.version).toBe(activated.version)
+    expect(providerOverride.requests[1]).toMatchObject({
+      providerPreference: null,
+      providerId: null
+    })
   })
 })

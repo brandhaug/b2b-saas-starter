@@ -373,7 +373,10 @@ describe('Booking Scheduling', () => {
     )
 
     expect(held.expiresAt).toBe('2026-07-10T09:40:00.000Z')
-    expect(held.quote.providerPreference).toEqual({ kind: 'any' })
+    expect(held.quote.providerPreference).toEqual({
+      kind: 'specific',
+      providerId: 'prv_seed_default'
+    })
     expect(held.quote.assignedProvider.id).toBe('prv_seed_default')
     expect(held.quote.services.map(({ role, id }) => ({ role, id }))).toEqual([
       { role: 'primary', id: 'svc_seed_signature_cut' },
@@ -449,7 +452,10 @@ describe('Booking Scheduling', () => {
       failure: { _tag: 'BookingSchedulingRejected', reason: 'slot_lost' }
     })
     expect(store.selections.selections.get('bsn_two')).toMatchObject({
-      providerPreference: { kind: 'any' },
+      providerPreference: {
+        kind: 'specific',
+        providerId: 'prv_seed_default'
+      },
       primaryServiceId: 'svc_seed_signature_cut',
       additionalServiceIds: ['svc_seed_beard_detail']
     })

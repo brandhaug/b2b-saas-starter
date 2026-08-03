@@ -424,6 +424,7 @@ const capture = async (
         await cancel.isVisible()
       )
       await cancel.click()
+      await page.getByTestId('button:confirmCancel').click()
       await page
         .getByText(
           translateBookingMessage(scenario.locale, 'status.appointment_cancelled')

@@ -64,7 +64,7 @@ describe('Booking Parties', () => {
     expect(removed.requests[0]).toMatchObject({ id: 'brq_coordinator', position: 0 })
   })
 
-  it('clears only dependent interval facts after a material selection change', async () => {
+  it('ignores provider-choice material at the Booking Parties boundary', async () => {
     const layer = SeedBookingParties([initial])
     const updated = await Effect.runPromise(
       Effect.provide(
@@ -81,8 +81,8 @@ describe('Booking Parties', () => {
       )
     )
     expect(updated.requests[0]).toMatchObject({
-      providerPreference: 'any',
-      providerId: null,
+      providerPreference: 'specific',
+      providerId: 'prv_one',
       primaryServiceId: null,
       serviceIds: [],
       holdId: null,
@@ -90,7 +90,7 @@ describe('Booking Parties', () => {
       endsAt: null,
       customerDetails: { name: 'Coordinator' }
     })
-    expect(updated.version).toBe(2)
+    expect(updated.version).toBe(1)
   })
 
   it('preserves pricing material and holds when only Customer Details change', async () => {

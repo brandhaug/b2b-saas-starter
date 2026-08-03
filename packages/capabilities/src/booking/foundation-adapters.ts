@@ -220,34 +220,19 @@ export const SeedBookingParties = (
       change(id, version, (party) => {
         if (!party.requests.some((request) => request.id === requestId)) return party
         const schedulingChanged =
-          material.providerPreference !== undefined ||
-          material.providerId !== undefined ||
-          material.primaryServiceId !== undefined ||
-          material.serviceIds !== undefined
+          material.primaryServiceId !== undefined || material.serviceIds !== undefined
         return {
           ...party,
           version: schedulingChanged ? version + 1 : version,
           requests: party.requests.map((request) => {
             if (request.id !== requestId) return request
-            const providerChanged =
-              material.providerPreference !== undefined ||
-              material.providerId !== undefined
-            const providerPreference =
-              material.providerPreference === undefined
-                ? request.providerPreference
-                : material.providerPreference
-            const providerId =
-              material.providerId === undefined
-                ? request.providerId
-                : material.providerId
-            const primaryServiceId = providerChanged
-              ? null
-              : (material.primaryServiceId ?? request.primaryServiceId)
-            const serviceIds = providerChanged
-              ? []
-              : material.serviceIds
-                ? [...material.serviceIds]
-                : request.serviceIds
+            const providerPreference = request.providerPreference
+            const providerId = request.providerId
+            const primaryServiceId =
+              material.primaryServiceId ?? request.primaryServiceId
+            const serviceIds = material.serviceIds
+              ? [...material.serviceIds]
+              : request.serviceIds
             if (providerPreference && primaryServiceId) {
               requestSelections.set(request.id, {
                 bookingSessionId: party.bookingSessionId,
@@ -553,13 +538,11 @@ export const LiveBookingParties: Layer.Layer<BookingParties, never, Database> =
             const request = party.requests.find((item) => item.id === requestId)
             if (!request) return party
             const schedulingChanged =
-              material.providerPreference !== undefined ||
-              material.providerId !== undefined ||
               material.primaryServiceId !== undefined ||
               material.serviceIds !== undefined
-            const providerChanged =
-              material.providerPreference !== undefined ||
-              material.providerId !== undefined
+            if (!schedulingChanged && material.customerDetails === undefined) {
+              return party
+            }
             const serviceIds = material.serviceIds ?? request.serviceIds
             const createdAt = now
             yield* atomicMutation(
@@ -576,16 +559,9 @@ export const LiveBookingParties: Layer.Layer<BookingParties, never, Database> =
                 db
                   .update(bookingRequests)
                   .set({
-                    ...(material.providerPreference !== undefined
-                      ? { providerPreference: material.providerPreference }
-                      : {}),
-                    ...(material.providerId !== undefined
-                      ? { providerId: material.providerId }
-                      : {}),
                     ...(material.primaryServiceId !== undefined
                       ? { primaryServiceId: material.primaryServiceId }
                       : {}),
-                    ...(providerChanged ? { primaryServiceId: null } : {}),
                     ...(material.customerDetails !== undefined
                       ? {
                           customerDetailsJson: material.customerDetails
@@ -603,20 +579,19 @@ export const LiveBookingParties: Layer.Layer<BookingParties, never, Database> =
                       eq(bookingRequests.bookingPartyId, bookingPartyId)
                     )
                   ),
-                ...(material.serviceIds !== undefined || providerChanged
+                ...(material.serviceIds !== undefined
                   ? [
                       db
                         .delete(bookingRequestServices)
                         .where(eq(bookingRequestServices.bookingRequestId, requestId)),
-                      ...(providerChanged ? [] : serviceIds).map(
-                        (serviceId, position) =>
-                          db.insert(bookingRequestServices).values({
-                            bookingRequestId: requestId,
-                            serviceId,
-                            role: position === 0 ? 'primary' : 'additional',
-                            position,
-                            createdAt
-                          })
+                      ...serviceIds.map((serviceId, position) =>
+                        db.insert(bookingRequestServices).values({
+                          bookingRequestId: requestId,
+                          serviceId,
+                          role: position === 0 ? 'primary' : 'additional',
+                          position,
+                          createdAt
+                        })
                       )
                     ]
                   : [])
