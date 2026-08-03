@@ -460,7 +460,7 @@ describe('DesktopRouteModal motion', () => {
 
     const afterClose = vi.fn()
 
-    const renderSubscription = async (plan: 'solo' | 'team') =>
+    const renderSubscription = async (plan: 'solo') =>
       act(async () =>
         root?.render(
           <DesktopShell
@@ -487,7 +487,7 @@ describe('DesktopRouteModal motion', () => {
         )
       )
 
-    await renderSubscription('team')
+    await renderSubscription('solo')
 
     await act(async () => vi.advanceTimersByTime(16))
     await act(async () => vi.advanceTimersByTime(500))
@@ -497,25 +497,17 @@ describe('DesktopRouteModal motion', () => {
     )
     expect(sidecar?.dataset.desktopSecondaryDialog).toBe('subscription')
     expect(sidecar?.textContent).toContain('Subscription')
-    expect(sidecar?.textContent).toContain('Team')
-    expect(sidecar?.textContent).toContain('Needs configuration')
+    expect(sidecar?.textContent).toContain('Solo')
+    expect(sidecar?.textContent).toContain('Billing')
     expect(sidecar?.textContent).not.toContain('$')
     expect(
       sidecar?.querySelector('[data-mobile-sheet-scroll-fade="bottom"]')
     ).toBeTruthy()
 
-    const teamPlanButton = Array.from(
-      sidecar?.querySelectorAll<HTMLButtonElement>('button') ?? []
-    ).find((button) => button.textContent === 'Team')
-    teamPlanButton?.focus()
-    expect(document.activeElement).toBe(teamPlanButton)
-
     await renderSubscription('solo')
     expect(container.querySelector('.merchant-desktop-sidecar')).toBe(sidecar)
     expect(sidecar?.dataset.desktopSecondaryState).toBe('open')
-    expect(document.activeElement).toBe(teamPlanButton)
-    expect(sidecar?.textContent).toContain('One active provider')
-    expect(sidecar?.textContent).not.toContain('Multiple providers')
+    expect(sidecar?.textContent).toContain('One active professional')
 
     await act(async () =>
       sidecar
@@ -523,7 +515,7 @@ describe('DesktopRouteModal motion', () => {
         ?.click()
     )
 
-    await renderSubscription('team')
+    await renderSubscription('solo')
     expect(sidecar?.dataset.desktopSecondaryState).toBe('closing')
 
     await act(async () => vi.advanceTimersByTime(180))

@@ -10,18 +10,12 @@ import {
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { makeMerchantCatalogRequestHandler } from './merchant-catalog-handler.ts'
 
-const team: MerchantIdentity = {
-  id: 'mer_team_app',
-  publicName: 'Team App Studio',
-  slug: 'team-app-studio',
+const solo: MerchantIdentity = {
+  id: 'mer_solo_app',
+  publicName: 'Solo App Studio',
+  slug: 'solo-app-studio',
   timezone: 'Europe/Bucharest',
   currency: 'RON',
-  plan: 'team'
-}
-const solo: MerchantIdentity = {
-  ...team,
-  id: 'mer_solo_app',
-  slug: 'solo-app-studio',
   plan: 'solo'
 }
 
@@ -29,16 +23,6 @@ const makeHarness = () => {
   const store: SeedMerchantCatalogConfigurationStore = {
     services: new Map(),
     providers: new Map([
-      [
-        'prv_team_default',
-        {
-          id: 'prv_team_default',
-          merchantId: team.id,
-          displayName: 'Team Owner',
-          status: 'active',
-          isDefault: true
-        }
-      ],
       [
         'prv_solo_default',
         {
@@ -52,10 +36,7 @@ const makeHarness = () => {
     ]),
     eligibility: new Set()
   }
-  const identities = new Map([
-    ['usr_team', team],
-    ['usr_solo', solo]
-  ])
+  const identities = new Map([['usr_solo', solo]])
   const run = <A, E>(
     userId: string,
     effect: Effect.Effect<A, E, MerchantCatalog | MerchantContext>
@@ -82,7 +63,7 @@ const makeHarness = () => {
 describe('Merchant Catalog request handler', () => {
   it('runs the durable Details-to-Providers lifecycle through the resolved user', async () => {
     const harness = makeHarness()
-    const requests = harness.forUser('usr_team')
+    const requests = harness.forUser('usr_solo')
     const service = await requests.saveService({
       name: 'App Cut',
       description: null,
@@ -94,7 +75,7 @@ describe('Merchant Catalog request handler', () => {
     })
     await requests.saveEligibility({
       serviceId: service.id,
-      providerIds: ['prv_team_default']
+      providerIds: ['prv_solo_default']
     })
     await requests.saveService({ ...service, status: 'inactive' })
     const snapshot = await requests.read()
@@ -102,18 +83,17 @@ describe('Merchant Catalog request handler', () => {
     expect(snapshot.services[0]).toMatchObject({
       id: service.id,
       status: 'inactive',
-      eligibleProviderIds: ['prv_team_default']
+      eligibleProviderIds: ['prv_solo_default']
     })
     expect(harness.store.services.has(service.id)).toBe(true)
   })
 
-  it('surfaces validation and prevents Solo Provider mutation at the request seam', async () => {
+  it('surfaces validation and updates only the persisted Owner-Provider', async () => {
     const harness = makeHarness()
-    const teamRequests = harness.forUser('usr_team')
     const soloRequests = harness.forUser('usr_solo')
 
     await expect(
-      teamRequests.saveService({
+      soloRequests.saveService({
         name: 'Invalid',
         priceMinor: 0,
         currency: 'RON',
@@ -123,12 +103,10 @@ describe('Merchant Catalog request handler', () => {
     ).rejects.toMatchObject({ reason: 'invalid_price' })
     await expect(
       soloRequests.saveProvider({
-        id: 'prv_solo_default',
-        displayName: 'Hidden mutation',
-        isDefault: true,
-        status: 'active'
+        id: 'prv_missing',
+        displayName: 'Hidden mutation'
       })
-    ).rejects.toMatchObject({ reason: 'team_required' })
+    ).rejects.toMatchObject({ reason: 'item_not_found' })
     expect(harness.store.services.size).toBe(0)
   })
 })

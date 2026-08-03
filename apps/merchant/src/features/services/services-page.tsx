@@ -22,7 +22,7 @@ export function ServicesPage({
 
   return (
     <MerchantShell
-      section={{ kind: 'catalog', presentation: catalog.presentation }}
+      section={{ kind: 'catalog' }}
       title="Services"
       description="Configure customer-facing details first, then choose the Providers who can perform each Service. Inactive Services stay available for history."
     >

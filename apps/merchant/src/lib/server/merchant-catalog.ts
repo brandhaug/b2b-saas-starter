@@ -5,7 +5,7 @@ import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
   liveMerchantContext,
   MerchantContext,
-  ProviderInput,
+  ProviderProfileInput,
   ServiceInput,
   ServiceBuffersInput,
   type MerchantCatalogSnapshot,
@@ -29,8 +29,8 @@ const EligibilityMutation = Schema.Struct({
   providerIds: Schema.Array(Schema.String)
 })
 const ProviderMutation = Schema.Struct({
-  id: Schema.optional(Schema.String),
-  ...ProviderInput.fields
+  id: Schema.String,
+  ...ProviderProfileInput.fields
 })
 const BufferMutation = Schema.Struct({
   serviceId: Schema.String,

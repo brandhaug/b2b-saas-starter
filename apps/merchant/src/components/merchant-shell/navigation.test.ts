@@ -8,7 +8,6 @@ describe('merchantDestinations', () => {
       'Walk-ins',
       'Customers',
       'Services',
-      'Providers',
       'Availability',
       'Settings'
     ])

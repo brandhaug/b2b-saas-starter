@@ -1,10 +1,7 @@
 import type { MerchantCatalogSnapshot } from '@b2b-saas-starter/capabilities/merchant-catalog'
 
-export const catalogDestinations = (presentation: 'solo' | 'team') => [
+export const catalogDestinations = () => [
   { label: 'Services', to: '/services' as const },
-  ...(presentation === 'team'
-    ? [{ label: 'Providers', to: '/providers' as const }]
-    : []),
   { label: 'Availability', to: '/availability' as const }
 ]
 
@@ -16,10 +13,7 @@ export const serviceProviderChoices = (
     catalog.services.find((service) => service.id === serviceId)?.eligibleProviderIds ??
       []
   )
-  const providers =
-    catalog.presentation === 'solo'
-      ? catalog.providers.filter((provider) => provider.isDefault)
-      : catalog.providers
+  const providers = catalog.providers.filter((provider) => provider.isDefault)
   return providers.map((provider) => ({
     id: provider.id,
     displayName: provider.displayName,

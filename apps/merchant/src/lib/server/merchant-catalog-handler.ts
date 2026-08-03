@@ -3,7 +3,7 @@ import {
   MerchantCatalog,
   MerchantContext,
   type MerchantCatalogSnapshot,
-  type ProviderInput,
+  type ProviderProfileInput,
   type ProviderRecord,
   type ServiceInput,
   type ServiceBuffersInput,
@@ -20,7 +20,7 @@ export type EligibilityMutation = {
   readonly serviceId: string
   readonly providerIds: readonly string[]
 }
-export type ProviderMutation = ProviderInput & { readonly id?: string | undefined }
+export type ProviderMutation = ProviderProfileInput & { readonly id: string }
 
 export const makeMerchantCatalogRequestHandler = (dependencies: {
   readonly currentUserId: () => Promise<string>
@@ -66,9 +66,7 @@ export const makeMerchantCatalogRequestHandler = (dependencies: {
     const userId = await dependencies.currentUserId()
     return dependencies.run(
       userId,
-      Effect.flatMap(MerchantCatalog, (catalog) =>
-        id ? catalog.updateProvider(id, input) : catalog.createProvider(input)
-      )
+      Effect.flatMap(MerchantCatalog, (catalog) => catalog.updateProvider(id, input))
     )
   }
 })

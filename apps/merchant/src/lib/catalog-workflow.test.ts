@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MerchantCatalogSnapshot } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { catalogDestinations, serviceProviderChoices } from './catalog-workflow.ts'
 
-const snapshot = (presentation: 'solo' | 'team'): MerchantCatalogSnapshot => ({
-  presentation,
+const snapshot = (): MerchantCatalogSnapshot => ({
   services: [
     {
       id: 'svc_cut',
@@ -24,37 +23,18 @@ const snapshot = (presentation: 'solo' | 'team'): MerchantCatalogSnapshot => ({
       status: 'active',
       isDefault: true,
       eligibleServiceIds: ['svc_cut']
-    },
-    {
-      id: 'prv_team',
-      displayName: 'Elena',
-      status: 'active',
-      isDefault: false,
-      eligibleServiceIds: []
     }
   ]
 })
 
 describe('Merchant Catalog presentation', () => {
-  it('keeps Services visible but removes Provider administration from Solo', () => {
-    expect(catalogDestinations('solo').map((item) => item.label)).toEqual([
+  it('keeps Services visible and exposes only the Owner-Provider choice', () => {
+    expect(catalogDestinations().map((item) => item.label)).toEqual([
       'Services',
       'Availability'
     ])
-    expect(serviceProviderChoices(snapshot('solo'), 'svc_cut')).toEqual([
+    expect(serviceProviderChoices(snapshot(), 'svc_cut')).toEqual([
       { id: 'prv_default', displayName: 'Mara', selected: true }
-    ])
-  })
-
-  it('uses the reduced Services and Providers vocabulary for Team', () => {
-    expect(catalogDestinations('team').map((item) => item.label)).toEqual([
-      'Services',
-      'Providers',
-      'Availability'
-    ])
-    expect(serviceProviderChoices(snapshot('team'), 'svc_cut')).toEqual([
-      { id: 'prv_default', displayName: 'Mara', selected: true },
-      { id: 'prv_team', displayName: 'Elena', selected: false }
     ])
   })
 })

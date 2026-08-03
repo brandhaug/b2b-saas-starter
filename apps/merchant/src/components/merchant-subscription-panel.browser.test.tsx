@@ -16,23 +16,17 @@ afterEach(async () => {
 })
 
 describe('MerchantSubscriptionPanel interactions', () => {
-  it('compares plans in place without mutating the current plan', async () => {
+  it('renders one immutable Solo entitlement without plan controls', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
 
-    await act(async () => root?.render(<MerchantSubscriptionPanel plan="team" />))
+    await act(async () => root?.render(<MerchantSubscriptionPanel plan="solo" />))
 
     const panel = container.querySelector('[data-merchant-subscription-panel]')
-    const solo = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Solo'
-    )
-    await act(async () => solo?.click())
-
     expect(container.querySelector('[data-merchant-subscription-panel]')).toBe(panel)
-    expect(solo?.getAttribute('aria-pressed')).toBe('true')
-    expect(container.textContent).toContain('One active provider')
-    expect(container.textContent).toContain('Billing not configured')
-    expect(container.textContent).toContain('Team')
+    expect(container.textContent).toContain('One active professional')
+    expect(container.textContent).not.toContain('Team')
+    expect(container.querySelectorAll('button')).toHaveLength(1)
   })
 })

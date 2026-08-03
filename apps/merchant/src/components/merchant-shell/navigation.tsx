@@ -1,6 +1,6 @@
 export type MerchantShellSection =
   | { readonly kind: 'merchant' }
-  | { readonly kind: 'catalog'; readonly presentation: 'solo' | 'team' }
+  | { readonly kind: 'catalog' }
 
 export type MerchantDestination = {
   readonly label: string
@@ -19,7 +19,6 @@ const merchantSectionDestinations: readonly MerchantDestination[] = [
   { label: 'Walk-ins', to: '/walk-ins' },
   { label: 'Customers', to: '/customers' },
   { label: 'Services', to: '/services' },
-  { label: 'Providers', to: '/providers' },
   { label: 'Availability', to: '/availability' },
   { label: 'Settings', to: '/settings' }
 ]

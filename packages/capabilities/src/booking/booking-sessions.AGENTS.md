@@ -18,6 +18,6 @@ capability authorization.
 - Idle expiry is 30 minutes and absolute expiry is two hours. A valid capability for
   an expired or consumed session receives the safe gone result; all other failed
   private-access checks collapse to the same not-found error.
-- Provider Preference and Service selections are owned by the adjacent
+- Owner-Provider binding and Service selections are owned by the adjacent
   `BookingSelection` capability; callers must authorize here before passing the
   returned `BookingSession` to that interface.

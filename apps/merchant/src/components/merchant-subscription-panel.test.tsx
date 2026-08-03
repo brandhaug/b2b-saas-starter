@@ -10,17 +10,10 @@ describe('MerchantSubscriptionPanel', () => {
     expect(html).toContain('Solo')
     expect(html).toContain('Current plan')
     expect(html).toContain('Billing')
-    expect(html).toContain('Needs configuration')
-    expect(html).toContain('billing provider is connected')
-    expect(html).toContain('See Team plan details')
+    expect(html).toContain('Billing configuration is not connected yet')
+    expect(html).toContain('One active professional')
+    expect(html).not.toContain('Team')
     expect(html).not.toContain('$')
     expect(html).not.toContain('Upgrade now')
-  })
-
-  it('renders Team as the current plan when that is the merchant presentation', () => {
-    const html = renderToStaticMarkup(<MerchantSubscriptionPanel plan="team" />)
-
-    expect(html).toMatch(/aria-pressed="true"[^>]*>Team<\/button>/)
-    expect(html).toContain('Multiple providers')
   })
 })
