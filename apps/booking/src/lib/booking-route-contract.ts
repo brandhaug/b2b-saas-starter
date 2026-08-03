@@ -14,8 +14,6 @@ export type CanonicalBookingRouteKind =
   | 'confirmation'
   | 'appointment-cancellation'
   | 'party-cancellation'
-  | 'gift-card-purchase'
-  | 'gift-card-receipt'
   | 'waiting-list-offer'
   | 'walk-in-landing'
   | 'walk-in-service'
@@ -155,9 +153,6 @@ export function matchCanonicalBookingRoute(
   ) {
     return route(segments, 'party-cancellation', true)
   }
-  if (segments.length === 4 && segments[2] === 'gift-card-sales') {
-    return route(segments, 'gift-card-receipt', true)
-  }
   if (segments.length === 4 && segments[2] === 'waiting-list') {
     return route(segments, 'waiting-list-offer', true)
   }
@@ -177,9 +172,6 @@ export function matchCanonicalBookingRoute(
   }
   if (segments.length === 5 && segments[4] === 'services') {
     return route(segments, 'service-selection')
-  }
-  if (segments.length === 5 && segments[4] === 'gift-cards') {
-    return route(segments, 'gift-card-purchase')
   }
   if (segments.length === 6 && segments[4] === 'services') {
     return route(segments, 'additional-service-selection')

@@ -62,8 +62,6 @@ describe('canonical Booking route contract', () => {
       'appointment-cancellation'
     ],
     ['/mara/booking/confirmations/confirmation_123/cancel', 'party-cancellation'],
-    ['/mara/booking/downtown/any/gift-cards', 'gift-card-purchase'],
-    ['/mara/booking/gift-card-sales/sale_123', 'gift-card-receipt'],
     ['/mara/booking/waiting-list/offer_123', 'waiting-list-offer'],
     ['/mara/booking/downtown/walk-ins', 'walk-in-landing'],
     ['/mara/booking/downtown/any/services/signature-cut/walk-in', 'walk-in-service'],
@@ -82,7 +80,9 @@ describe('canonical Booking route contract', () => {
       '/mara/booking/downtown/ANY/services',
       '/mara/booking/downtown/ava/services/',
       '/mara/booking/downtown/%2F/services',
-      '/mara/booking/downtown/ava/services/cut/unknown'
+      '/mara/booking/downtown/ava/services/cut/unknown',
+      '/mara/booking/downtown/any/gift-cards',
+      '/mara/booking/gift-card-sales/sale_123'
     ]) {
       expect(matchCanonicalBookingRoute(pathname)).toBeNull()
     }

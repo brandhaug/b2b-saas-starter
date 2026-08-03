@@ -34,11 +34,17 @@ const snapshot = (name: string, email: string): StoredAppointmentSnapshot => ({
       role: 'primary',
       name: 'Original Service',
       durationMinutes: 45,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
       priceMinor: 9000,
       currency: 'RON'
     }
   ],
   durationMinutes: 45,
+  beforeBufferMinutes: 0,
+  afterBufferMinutes: 0,
+  occupiedStartsAt: '2026-07-11T09:00:00.000Z',
+  occupiedEndsAt: '2026-07-11T09:45:00.000Z',
   currency: 'RON',
   totalMinor: 9000,
   merchantTimezone: 'Europe/Bucharest',

@@ -22,7 +22,6 @@ import {
   type BookingAvailability,
   type BookingSchedulingRecovery,
   type BookingJourney,
-  type ProviderPreference,
   type ServiceSelection,
   type CheckoutReview,
   type CheckoutPreparation,
@@ -32,7 +31,6 @@ import {
   legacyBookingPolicySteps,
   pendingNotificationPolicyTargets
 } from '@b2b-saas-starter/capabilities/booking'
-import type { PaymentView } from '@b2b-saas-starter/capabilities/payments'
 
 import { BookingCheckoutFlow } from './booking-checkout-flow.tsx'
 import { BookingSchedulingFlow } from './booking-scheduling-flow.tsx'
@@ -142,21 +140,13 @@ export function ServerBackedBookingFlow({
   readonly onSignIn?: () => void
 }) {
   const { locale, message } = useBookingLocalization()
-  const paymentReturn =
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('payment_return') === '1'
-  const paymentCancelled =
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('payment_cancel') === '1'
   const queryClient = useQueryClient()
   const routeStartsScheduling =
     initialRouteKind === 'schedule' || initialRouteKind === 'checkout'
-  const [scheduling, setScheduling] = useState(paymentReturn || routeStartsScheduling)
+  const [scheduling, setScheduling] = useState(routeStartsScheduling)
   const [slotLost, setSlotLost] = useState(false)
   const [holdExpired, setHoldExpired] = useState(false)
-  const [checkout, setCheckout] = useState(
-    paymentReturn || initialRouteKind === 'checkout'
-  )
+  const [checkout, setCheckout] = useState(initialRouteKind === 'checkout')
   const [legacyCheckoutPhase, setLegacyCheckoutPhase] =
     useState<LegacyCheckoutPhase>('policies')
   const legacyBookPending = useRef(false)
@@ -167,10 +157,7 @@ export function ServerBackedBookingFlow({
     readonly CustomerDetailsIssue[]
   >([])
   const [expiredSession, setExpiredSession] = useState(false)
-  const [confirmationProcessing, setConfirmationProcessing] = useState(
-    paymentReturn && !paymentCancelled
-  )
-  const paymentReturnConfirmed = useRef(false)
+  const [confirmationProcessing, setConfirmationProcessing] = useState(false)
   const [selectionRefreshed, setSelectionRefreshed] = useState(false)
   const [partyNow, setPartyNow] = useState('9999-12-31T23:59:59.999Z')
   useEffect(() => {
@@ -250,55 +237,6 @@ export function ServerBackedBookingFlow({
       return Schema.decodeUnknownSync(BookingPartySchema)(await response.json())
     }
   })
-  const returnedPayment = useQuery({
-    queryKey: ['booking-payment-return', merchantSlug, sessionId],
-    enabled: paymentReturn && Boolean(party.data),
-    retry: false,
-    refetchInterval: paymentCancelled ? false : 2_000,
-    queryFn: async () => {
-      const response = await fetch(`${base}/payment-status`, {
-        credentials: 'same-origin'
-      })
-      if (!response.ok) throw new Error('payment status unavailable')
-      return (await response.json()) as PaymentView | null
-    }
-  })
-  useEffect(() => {
-    const returned = returnedPayment.data
-    if (!returned) return
-    if (paymentCancelled) {
-      setConfirmationProcessing(false)
-      return
-    }
-    if (returned.payment.status !== 'captured' || paymentReturnConfirmed.current) {
-      return
-    }
-    paymentReturnConfirmed.current = true
-    void fetch(`${base}/confirm`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: '{}'
-    })
-      .then(async (response) => {
-        if (await isFinalSlotConflictResponse(response)) {
-          await recoverFinalSlotConflict()
-          return null
-        }
-        if (!response.ok) throw new Error('confirmation unavailable')
-        return (await response.json()) as { readonly location: string }
-      })
-      .then((result) => {
-        if (result) window.location.assign(result.location)
-      })
-      .catch((error) => void telemetry.report(error))
-  }, [
-    base,
-    paymentCancelled,
-    recoverFinalSlotConflict,
-    returnedPayment.data,
-    telemetry
-  ])
   const partyMutation = useMutation({
     mutationFn: async ({
       endpoint,
@@ -810,9 +748,7 @@ export function ServerBackedBookingFlow({
           review={review}
           preparation={preparationForCheckout}
           {...(onSignIn ? { onSignIn } : {})}
-          busy={
-            detailsMutation.isPending || finalizeMutation.isPending
-          }
+          busy={detailsMutation.isPending || finalizeMutation.isPending}
           validationIssues={validationIssues}
           validationMessages={{
             name_required: message('validation.name_required'),
@@ -907,8 +843,7 @@ export function ServerBackedBookingFlow({
           ...preparationForCheckout.policyEligibility
         })
       : []
-    if (checkout && (paymentReturn || initialRouteKind === 'checkout'))
-      return checkoutFlow('standalone')
+    if (checkout && initialRouteKind === 'checkout') return checkoutFlow('standalone')
     const effectiveLegacyCheckoutPhase =
       applicableLegacyPolicyKinds.length === 0 ? 'userInfo' : legacyCheckoutPhase
     checkoutFormOpen =
@@ -1103,6 +1038,8 @@ export function ServerBackedBookingFlow({
         locale={locale}
         messages={{
           chooseLocation: message('selection.choose_location'),
+          back: message('action.back'),
+          viewOrder: message('action.view_order'),
           chooseService: message('selection.choose_service'),
           allCategories: message('selection.all_categories'),
           uncategorized: message('selection.uncategorized'),

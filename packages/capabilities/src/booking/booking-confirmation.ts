@@ -498,6 +498,7 @@ export const SeedBookingConfirmation = (
             )
           return {
             kind: 'found' as const,
+            expiresAt: metadata.expiresAt,
             cookieCredential: yield* Effect.promise(() =>
               deriveConfirmationCookieCredential(metadata, keyring)
             ),

@@ -50,12 +50,6 @@ import {
   PricingQuoteNotFound,
   QuoteUnconfirmable
 } from '@b2b-saas-starter/capabilities/pricing'
-import type {
-  OnlinePaymentMethod,
-  PaymentMethodEligibility,
-  PaymentView
-} from '@b2b-saas-starter/capabilities/payments'
-import type { GiftCardReservation } from '@b2b-saas-starter/capabilities/gift-cards'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
 import { handleBookingConfirmationHttpRequest } from './booking-confirmation-http.ts'
 import {
@@ -476,69 +470,6 @@ export type BookingSessionHttpDependencies = {
       CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
     >
   }
-  readonly payments?: {
-    readonly status: (
-      session: BookingSession
-    ) => BookingSessionEffect<
-      PaymentView | null,
-      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
-    >
-    readonly methods: (
-      session: BookingSession,
-      input: {
-        readonly now: string
-        readonly wallets: {
-          readonly applePay: boolean
-          readonly googlePay: boolean
-          readonly cashAppPay: boolean
-        }
-      }
-    ) => BookingSessionEffect<
-      PaymentMethodEligibility & {
-        readonly giftCardMinor: number
-        readonly externalPaymentMinor: number
-      },
-      | CapabilityUnavailable
-      | BookingCheckoutFailure
-      | { readonly _tag: string; readonly code?: string }
-    >
-    readonly settle: (
-      session: BookingSession,
-      input: {
-        readonly method: OnlinePaymentMethod
-        readonly idempotencyKey: string
-        readonly paymentMethodReference: string
-        readonly now: string
-      }
-    ) => BookingSessionEffect<
-      { readonly view: PaymentView; readonly nextActionUrl: string | null },
-      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
-    >
-  }
-  readonly giftCards?: {
-    readonly reserve: (
-      session: BookingSession,
-      input: {
-        readonly giftCardCode: string
-        readonly amountMinor: number
-        readonly idempotencyKey: string
-        readonly now: string
-      }
-    ) => BookingSessionEffect<
-      GiftCardReservation,
-      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
-    >
-    readonly release: (
-      session: BookingSession,
-      input: {
-        readonly idempotencyKey: string
-        readonly now: string
-      }
-    ) => BookingSessionEffect<
-      number,
-      CapabilityUnavailable | { readonly _tag: string; readonly code?: string }
-    >
-  }
   readonly takeRead: (key: string) => BookingSessionEffect<boolean>
   readonly takeWrite: (key: string) => BookingSessionEffect<boolean>
   readonly fallback: (request: Request) => BookingSessionEffect<Response>
@@ -559,12 +490,6 @@ const unavailable = (): Response =>
     status: 503,
     headers: { 'cache-control': 'private, no-store', 'retry-after': '60' }
   })
-
-const GiftCardReservationInput = Schema.Struct({
-  giftCardCode: Schema.String.check(Schema.isMinLength(1)),
-  amountMinor: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
-  idempotencyKey: Schema.String.check(Schema.isMinLength(8))
-})
 
 const expired = (
   merchantSlug: string,
@@ -1087,7 +1012,7 @@ export const handleBookingSessionRequest = (
       const credential = queryToken ?? cookieToken
       if (!credential || !CONFIRMATION_TOKEN.test(credential))
         return withPrivateHeaders(hiddenNotFound())
-      const result = yield* Effect.result(
+      let result = yield* Effect.result(
         dependencies.confirmation.read({
           routeId,
           merchantSlug,
@@ -1096,6 +1021,23 @@ export const handleBookingSessionRequest = (
           now
         })
       )
+      if (
+        result._tag === 'Success' &&
+        result.success.kind === 'not_found' &&
+        queryToken &&
+        cookieToken &&
+        CONFIRMATION_TOKEN.test(cookieToken)
+      ) {
+        result = yield* Effect.result(
+          dependencies.confirmation.read({
+            routeId,
+            merchantSlug,
+            credential: cookieToken,
+            credentialKind: 'cookie',
+            now
+          })
+        )
+      }
       if (result._tag === 'Failure') return withPrivateHeaders(unavailable())
       if (result.success.kind === 'not_found')
         return withPrivateHeaders(hiddenNotFound())
@@ -1256,6 +1198,14 @@ export const handleBookingSessionRequest = (
       if (invalid) return invalid
     }
     const endpoint = segments.length === 5 ? segments[4] : null
+    if (
+      endpoint === 'gift-card-reserve' ||
+      endpoint === 'gift-card-release' ||
+      endpoint === 'payment-methods' ||
+      endpoint === 'payment-status' ||
+      endpoint === 'payment-settle'
+    )
+      return withPrivateHeaders(hiddenNotFound())
     const publicRoute = sessionLocator.startsWith('brt_')
     const explicitCapability = request.headers.get('x-booking-session-capability')
     const candidates = [
@@ -1487,15 +1437,6 @@ export const handleBookingSessionRequest = (
       const result = yield* Effect.result(
         dependencies.scheduling.release(authorization.success)
       )
-      if (result._tag === 'Success' && dependencies.giftCards) {
-        const giftCardRelease = yield* Effect.result(
-          dependencies.giftCards.release(authorization.success, {
-            idempotencyKey: `hold-abandon:${authorization.success.id}`,
-            now
-          })
-        )
-        if (giftCardRelease._tag === 'Failure') return unavailable()
-      }
       return result._tag === 'Success'
         ? withPrivateHeaders(new Response(null, { status: 204 }))
         : mapSessionFailure(result.failure, merchantSlug)
@@ -1627,101 +1568,6 @@ export const handleBookingSessionRequest = (
       return result._tag === 'Success'
         ? jsonPrivate(result.success)
         : mapSessionFailure(result.failure, merchantSlug)
-    }
-    if (endpoint === 'gift-card-reserve' && request.method === 'POST') {
-      if (!dependencies.giftCards) return unavailable()
-      const body = yield* readJson(request)
-      const decoded = yield* Effect.result(
-        Schema.decodeUnknownEffect(GiftCardReservationInput)(body)
-      )
-      if (decoded._tag === 'Failure') return hiddenNotFound()
-      const result = yield* Effect.result(
-        dependencies.giftCards.reserve(authorization.success, {
-          ...decoded.success,
-          now
-        })
-      )
-      return result._tag === 'Success'
-        ? jsonPrivate(result.success)
-        : withPrivateHeaders(
-            Response.json(
-              {
-                kind:
-                  'code' in result.failure
-                    ? result.failure.code
-                    : 'gift_card_unavailable'
-              },
-              { status: 409 }
-            )
-          )
-    }
-    if (endpoint === 'gift-card-release' && request.method === 'DELETE') {
-      if (!dependencies.giftCards) return unavailable()
-      const result = yield* Effect.result(
-        dependencies.giftCards.release(authorization.success, {
-          idempotencyKey: request.headers.get('idempotency-key') ?? crypto.randomUUID(),
-          now
-        })
-      )
-      return result._tag === 'Success' ? jsonPrivate(result.success) : unavailable()
-    }
-    if (endpoint === 'payment-methods' && request.method === 'GET') {
-      if (!dependencies.payments) return unavailable()
-      const result = yield* Effect.result(
-        dependencies.payments.methods(authorization.success, {
-          now,
-          wallets: {
-            applePay: url.searchParams.get('applePay') === '1',
-            googlePay: url.searchParams.get('googlePay') === '1',
-            cashAppPay: url.searchParams.get('cashAppPay') === '1'
-          }
-        })
-      )
-      return result._tag === 'Success' ? jsonPrivate(result.success) : unavailable()
-    }
-    if (endpoint === 'payment-status' && request.method === 'GET') {
-      if (!dependencies.payments) return unavailable()
-      const result = yield* Effect.result(
-        dependencies.payments.status(authorization.success)
-      )
-      return result._tag === 'Success' ? jsonPrivate(result.success) : unavailable()
-    }
-    if (endpoint === 'payment-settle' && request.method === 'POST') {
-      if (!dependencies.payments) return unavailable()
-      const body = yield* readJson(request)
-      const decoded = yield* Effect.result(
-        Schema.decodeUnknownEffect(
-          Schema.Struct({
-            method: Schema.Literals([
-              'card',
-              'saved_card',
-              'apple_pay',
-              'google_pay',
-              'cash_app_pay',
-              'klarna'
-            ]),
-            idempotencyKey: Schema.String.check(Schema.isMinLength(8)),
-            paymentMethodReference: Schema.String.check(Schema.isMinLength(1))
-          })
-        )(body)
-      )
-      if (decoded._tag === 'Failure') return hiddenNotFound()
-      const result = yield* Effect.result(
-        dependencies.payments.settle(authorization.success, {
-          ...decoded.success,
-          now
-        })
-      )
-      if (result._tag === 'Failure') {
-        const code = 'code' in result.failure ? result.failure.code : undefined
-        return withPrivateHeaders(
-          Response.json(
-            { kind: code ?? 'payment_failed' },
-            { status: code === 'payment_processing' ? 202 : 409 }
-          )
-        )
-      }
-      return jsonPrivate(result.success)
     }
     if (endpoint === 'confirm' && request.method === 'POST') {
       const input = yield* readJson(request)

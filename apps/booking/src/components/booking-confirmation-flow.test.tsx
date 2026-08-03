@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BookingConfirmationPresentation } from '../lib/booking-confirmation-presentation.ts'
 import { BookingConfirmationRouteFlow } from './booking-confirmation-flow.tsx'
@@ -189,7 +196,7 @@ describe('Booking confirmation route flow', () => {
     expect(screen.getByTestId('text:shopAddress').tagName).toBe('P')
     expect(screen.getByTestId('btn:getDirections').firstElementChild?.tagName).toBe('P')
     const taxesToggle = screen.getByTestId('unfold:taxes-n-fees')
-    expect(taxesToggle.tagName).toBe('P')
+    expect(taxesToggle.tagName).toBe('BUTTON')
     expect(taxesToggle.querySelector('svg')?.getAttribute('width')).toBe('9')
     expect(taxesToggle.querySelector('svg')?.getAttribute('height')).toBe('16')
     expect(taxesToggle.querySelector('path')?.getAttribute('d')).toContain(
@@ -241,6 +248,54 @@ describe('Booking confirmation route flow', () => {
       scheduleAnother.compareDocumentPosition(shop) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(scheduleAnother.closest('[data-booking-shell="canonical"]')).toBeTruthy()
+  })
+
+  it('keeps each appointment manageable in a mixed-status Booking Party', async () => {
+    const mixed = {
+      ...confirmation,
+      status: 'cancelled' as const,
+      appointments: [
+        {
+          ...confirmation.appointments[0],
+          id: 'apt_CANCELLED',
+          status: 'cancelled' as const
+        },
+        {
+          ...confirmation.appointments[0],
+          id: 'apt_SCHEDULED',
+          status: 'scheduled' as const,
+          startsAt: '2026-07-20T08:00:00.000Z',
+          endsAt: '2026-07-20T09:00:00.000Z',
+          snapshot: {
+            ...snapshot,
+            startsAt: '2026-07-20T08:00:00.000Z',
+            endsAt: '2026-07-20T09:00:00.000Z'
+          }
+        }
+      ]
+    } satisfies BookingConfirmationPresentation
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json(mixed))
+    )
+
+    render(
+      <BookingConfirmationRouteFlow
+        merchantSlug="mara-booking-studio"
+        routeId="cnf_demo"
+        embedding="standalone"
+      />
+    )
+
+    const cancelledStatus = await screen.findByTestId('text:status:apt_CANCELLED')
+    const scheduledStatus = screen.getByTestId('text:status:apt_SCHEDULED')
+    expect(cancelledStatus.textContent).toContain('Cancelled')
+    expect(scheduledStatus.textContent).toContain('Scheduled')
+    const cards = screen.getAllByTestId('container:orderApptGroup')
+    expect(within(cards[0]!).queryByTestId('btn:calendar:apple')).toBeNull()
+    expect(within(cards[1]!).getByTestId('btn:calendar:apple')).toBeTruthy()
+    fireEvent.click(within(cards[1]!).getByTestId('btn:time'))
+    expect(await screen.findByTestId('popup:rescheduleAppointment')).toBeTruthy()
   })
 
   it('expands the real nonzero tax and fee adjustments like legacy', async () => {

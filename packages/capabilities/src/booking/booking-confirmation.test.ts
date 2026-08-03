@@ -35,11 +35,17 @@ const quote = (requestId: string, providerId: string, startsAt: string) => ({
       role: 'primary' as const,
       name: scenario.services[0]!.name,
       durationMinutes: scenario.services[0]!.durationMinutes,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
       priceMinor: scenario.services[0]!.priceMinor,
       currency: scenario.services[0]!.currency
     }
   ],
   durationMinutes: 60,
+  beforeBufferMinutes: 0,
+  afterBufferMinutes: 0,
+  occupiedStartsAt: startsAt,
+  occupiedEndsAt: new Date(Date.parse(startsAt) + 3_600_000).toISOString(),
   currency: 'RON',
   totalMinor: 10000
 })

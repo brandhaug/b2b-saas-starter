@@ -114,16 +114,16 @@ export type StoredBookingQuote = {
     readonly role: 'primary' | 'additional'
     readonly name: string
     readonly durationMinutes: number
-    readonly beforeBufferMinutes?: number | undefined
-    readonly afterBufferMinutes?: number | undefined
+    readonly beforeBufferMinutes: number
+    readonly afterBufferMinutes: number
     readonly priceMinor: number
     readonly currency: string
   }>
   readonly durationMinutes: number
-  readonly beforeBufferMinutes?: number | undefined
-  readonly afterBufferMinutes?: number | undefined
-  readonly occupiedStartsAt?: string | undefined
-  readonly occupiedEndsAt?: string | undefined
+  readonly beforeBufferMinutes: number
+  readonly afterBufferMinutes: number
+  readonly occupiedStartsAt: string
+  readonly occupiedEndsAt: string
   readonly currency: string
   readonly totalMinor: number
 }

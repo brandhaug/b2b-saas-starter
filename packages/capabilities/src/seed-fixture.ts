@@ -39,8 +39,19 @@ export const deriveSeedOperationalAppointments = (input: {
         endsAt: appointment.endsAt,
         providerPreference: { kind: 'any' },
         assignedProvider: input.provider,
-        services: [{ ...input.service, role: 'primary' }],
+        services: [
+          {
+            ...input.service,
+            role: 'primary',
+            beforeBufferMinutes: 0,
+            afterBufferMinutes: 0
+          }
+        ],
         durationMinutes: input.service.durationMinutes,
+        beforeBufferMinutes: 0,
+        afterBufferMinutes: 0,
+        occupiedStartsAt: appointment.startsAt,
+        occupiedEndsAt: appointment.endsAt,
         currency: input.merchant.currency,
         totalMinor: input.service.priceMinor,
         merchantTimezone: input.merchant.timezone,

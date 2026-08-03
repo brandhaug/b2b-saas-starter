@@ -130,7 +130,7 @@ function BookingSelectionFlowContent({
   const checkoutOrder = Boolean(heldOrder || continuation?.pendingCheckout)
   const pendingCheckout = Boolean(continuation?.pendingCheckout && !heldOrder)
   const orderCtaLabel =
-    heldOrder?.ctaLabel ?? continuation?.pendingCheckout?.ctaLabel ?? 'View order'
+    heldOrder?.ctaLabel ?? continuation?.pendingCheckout?.ctaLabel ?? messages.viewOrder
   const displayedOrderTotal = heldOrder?.quote.totalMinor ?? total(journey)
 
   useEffect(
@@ -228,7 +228,7 @@ function BookingSelectionFlowContent({
             {canGoBack ? (
               <m.button
                 type="button"
-                aria-label="Back"
+                aria-label={messages.back}
                 data-testid="btn:back"
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 24, opacity: 0.3 }}
@@ -338,12 +338,6 @@ function BookingSelectionFlowContent({
               <m.div
                 key="viewOrderSafeArea"
                 data-testid="container:viewOrderSafeArea"
-                role="button"
-                aria-label="Open order"
-                aria-disabled={pendingCheckout}
-                onClick={() => {
-                  if (!pendingCheckout) setOrderOpen(true)
-                }}
                 initial={{ scale: 0.8, bottom: -88 }}
                 animate={{ scale: 1, bottom: 0 }}
                 exit={{
@@ -368,6 +362,7 @@ function BookingSelectionFlowContent({
                     displayedOrderTotal,
                     heldOrder?.quote.currency ?? selectedPrimary.currency
                   )}`}
+                  onClick={() => setOrderOpen(true)}
                   {...stylex.props(
                     styles.orderBar,
                     checkoutOrder && styles.orderBarCheckout
@@ -854,6 +849,8 @@ function ServiceCategorySelect({
 
 export type BookingSelectionMessages = {
   readonly chooseLocation: string
+  readonly back: string
+  readonly viewOrder: string
   readonly chooseService: string
   readonly allCategories: string
   readonly uncategorized: string
@@ -882,6 +879,8 @@ export type BookingSelectionMessages = {
 
 const defaultMessages: BookingSelectionMessages = {
   chooseLocation: 'Choose a location',
+  back: 'Back',
+  viewOrder: 'View order',
   chooseService: 'Choose a service',
   allCategories: 'All categories',
   uncategorized: 'Uncategorized',

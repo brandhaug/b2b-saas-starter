@@ -59,7 +59,7 @@ describe('Booking Session HTTP boundary', () => {
     ]
   }
 
-  it('exposes configured methods and settles through the private Session contract', async () => {
+  it('does not expose online Payment methods or settlement through the public Booking Session', async () => {
     const capability = '8'.repeat(64)
     const session = {
       id: 'bsn_payment_http',
@@ -71,48 +71,10 @@ describe('Booking Session HTTP boundary', () => {
       idleExpiresAt: '2026-07-10T10:00:00.000Z',
       absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
     }
-    const settled = {
-      payment: {
-        id: 'pay_http',
-        bookingPartyId: 'bpt_http',
-        pricingQuoteId: 'pqt_http',
-        amountMinor: 5000,
-        currency: 'USD',
-        status: 'captured' as const,
-        authorizedMinor: 0,
-        capturedMinor: 5000,
-        refundedMinor: 0
-      },
-      attempt: {
-        id: 'pat_http',
-        paymentId: 'pay_http',
-        idempotencyKey: 'payment-submit-http',
-        provider: 'deterministic',
-        method: 'apple_pay' as const,
-        outcome: 'succeeded' as const,
-        providerReference: 'pi_http',
-        failureCode: null
-      }
-    }
-    let settlementInput: unknown
     const dependencies = {
       publicSiteOrigin: 'https://www.example.test',
       enter: () => Effect.die(new Error('not called')),
       authorize: () => Effect.succeed(session),
-      payments: {
-        status: () => Effect.succeed(null),
-        methods: () =>
-          Effect.succeed({
-            state: 'ready' as const,
-            methods: ['card', 'apple_pay'] as const,
-            giftCardMinor: 0,
-            externalPaymentMinor: 2500
-          }),
-        settle: (_session: unknown, input: unknown) => {
-          settlementInput = input
-          return Effect.succeed({ view: settled, nextActionUrl: null })
-        }
-      },
       takeRead: () => Effect.succeed(true),
       takeWrite: () => Effect.succeed(true),
       fallback: () => Effect.die(new Error('not called')),
@@ -133,12 +95,7 @@ describe('Booking Session HTTP boundary', () => {
         dependencies
       )
     )
-    expect(await methods.json()).toEqual({
-      state: 'ready',
-      methods: ['card', 'apple_pay'],
-      giftCardMinor: 0,
-      externalPaymentMinor: 2500
-    })
+    expect(methods.status).toBe(404)
     const response = await Effect.runPromise(
       handleBookingSessionRequest(
         new Request(
@@ -156,16 +113,7 @@ describe('Booking Session HTTP boundary', () => {
         dependencies
       )
     )
-    expect(response.status).toBe(200)
-    expect(
-      ((await response.json()) as { view: { payment: { status: string } } }).view
-        .payment.status
-    ).toBe('captured')
-    expect(settlementInput).toMatchObject({
-      method: 'apple_pay',
-      idempotencyKey: 'payment-submit-http',
-      paymentMethodReference: 'pm_http'
-    })
+    expect(response.status).toBe(404)
   })
 
   it('routes authorized party switching and coordinated holds through the real private contract', async () => {
@@ -1118,7 +1066,6 @@ describe('Booking Session HTTP boundary', () => {
       totalMinor: 5000
     }
     let received: unknown
-    let receivedGiftCard: unknown
     const checkoutCommands: string[] = []
     let checkoutReady = true
     const dependencies = {
@@ -1179,23 +1126,6 @@ describe('Booking Session HTTP boundary', () => {
                 new CheckoutReviewUnavailable({ reason: 'policy_unaccepted' })
               )
         }
-      },
-      giftCards: {
-        reserve: (_session: unknown, input: unknown) => {
-          receivedGiftCard = input
-          return Effect.succeed({
-            id: 'gcr_one',
-            giftCardId: 'gcd_one',
-            bookingPartyId: 'bpt_one',
-            amountMinor: 2500,
-            currency: 'USD',
-            status: 'active' as const,
-            expiresAt: '2026-07-10T09:40:00.000Z',
-            createdAt: '2026-07-10T09:30:00.000Z',
-            updatedAt: '2026-07-10T09:30:00.000Z'
-          })
-        },
-        release: () => Effect.succeed(1)
       },
       confirmation: {
         read: () => Effect.die(new Error('not called')),
@@ -1334,13 +1264,7 @@ describe('Booking Session HTTP boundary', () => {
         dependencies
       )
     )
-    expect(giftCard.status).toBe(200)
-    expect(receivedGiftCard).toEqual({
-      giftCardCode: 'CODE-ONE',
-      amountMinor: 2500,
-      idempotencyKey: 'gift-card-one',
-      now: '2026-07-10T09:30:00.000Z'
-    })
+    expect(giftCard.status).toBe(404)
 
     const invalid = await Effect.runPromise(
       handleBookingSessionRequest(
@@ -1532,19 +1456,22 @@ describe('Booking Session HTTP boundary', () => {
       snapshot
     }
     const readKeys: string[] = []
+    let bearerExchanged = false
     const dependencies = {
       publicSiteOrigin: 'https://www.example.test',
       enter: () => Effect.die(new Error('not called')),
       authorize: () => Effect.die(new Error('not called')),
       confirmation: {
         confirm: () => Effect.die(new Error('not called')),
-        read: () =>
-          Effect.succeed({
-            kind: 'found' as const,
-            confirmation,
-            cookieCredential,
-            expiresAt: '2027-07-13T10:00:00.000Z'
-          })
+        read: (input: { readonly credentialKind: 'bearer' | 'cookie' }) =>
+          input.credentialKind === 'bearer' && bearerExchanged
+            ? Effect.succeed({ kind: 'not_found' as const })
+            : Effect.succeed({
+                kind: 'found' as const,
+                confirmation,
+                cookieCredential,
+                expiresAt: '2027-07-13T10:00:00.000Z'
+              })
       },
       takeRead: (key: string) => {
         readKeys.push(key)
@@ -1575,6 +1502,18 @@ describe('Booking Session HTTP boundary', () => {
     expect(exchange.headers.get('set-cookie')).toContain('Max-Age=31536000')
     expect(exchange.headers.get('set-cookie')).toContain('HttpOnly')
     expect(exchange.headers.get('set-cookie')).not.toContain('Domain=')
+
+    bearerExchanged = true
+    const replay = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(`https://www.example.test${path}?token=${token}`, {
+          headers: { cookie: `confirmation_cnf_clean=${cookieCredential}` }
+        }),
+        dependencies
+      )
+    )
+    expect(replay.status).toBe(303)
+    expect(replay.headers.get('location')).toBe(path)
 
     const clean = await Effect.runPromise(
       handleBookingSessionRequest(
@@ -1631,6 +1570,7 @@ describe('Booking Session HTTP boundary', () => {
     expect(data.headers.get('cache-control')).toBe('private, no-store')
     expect(data.headers.get('referrer-policy')).toBe('no-referrer')
     expect(readKeys).toEqual([
+      `confirmation:exchange:path:${path}`,
       `confirmation:exchange:path:${path}`,
       `confirmation:display:path:${path}`,
       `confirmation:data:path:${path}/data`

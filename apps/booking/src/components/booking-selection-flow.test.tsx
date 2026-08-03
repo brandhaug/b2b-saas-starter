@@ -131,6 +131,109 @@ describe('Booking selection flow', () => {
     fireEvent.click(screen.getByTestId('btn:viewOrder'))
     const cart = screen.getByRole('dialog', { name: /order summary/i })
     expect(within(cart).getByTestId('text:cart:subtotal').textContent).toBe('$45.00')
+    expect(within(cart).getByTestId('text:serviceName').textContent).toBe(
+      'Signature Cut'
+    )
+    expect(within(cart).getByTestId('text:barberTotal').textContent).toBe('$45.00')
+    expect(
+      (within(cart).getByTestId('btn:chooseTime') as HTMLButtonElement).disabled
+    ).toBe(false)
+  })
+
+  it('preserves the title and scroll chrome contract', () => {
+    render(
+      <BookingSelectionFlow
+        journey={soloJourney}
+        busy={false}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    const title = screen.getByTestId('container:title')
+    const scrollable = screen.getByTestId('container:scrollable')
+    const initialClass = title.className
+    Object.defineProperty(scrollable, 'scrollTop', {
+      configurable: true,
+      value: 24,
+      writable: true
+    })
+    fireEvent.scroll(scrollable)
+    expect(title.className).not.toBe(initialClass)
+    expect(screen.getByText('Choose a service')).toBeTruthy()
+  })
+
+  it('expands Service information without selecting the Service', () => {
+    const chooseServices = vi.fn()
+    render(
+      <BookingSelectionFlow
+        journey={soloJourney}
+        busy={false}
+        onChooseServices={chooseServices}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'More information about Signature Cut' })
+    )
+    expect(screen.getByText('A precise cut, wash, and style.')).toBeTruthy()
+    expect(chooseServices).not.toHaveBeenCalled()
+    expect(screen.getByTestId('service:svc_cut').getAttribute('aria-pressed')).toBe(
+      'false'
+    )
+  })
+
+  it('activates a Service card from the keyboard and disables cards while busy', () => {
+    const chooseServices = vi.fn()
+    const view = render(
+      <BookingSelectionFlow
+        journey={soloJourney}
+        busy={false}
+        onChooseServices={chooseServices}
+      />
+    )
+
+    const service = screen.getByTestId('service:svc_cut')
+    expect(service.getAttribute('role')).toBe('button')
+    expect(service.tabIndex).toBe(0)
+    fireEvent.keyDown(service, { key: 'Enter' })
+    expect(chooseServices).toHaveBeenCalledWith({
+      primaryServiceId: 'svc_cut',
+      additionalServiceIds: []
+    })
+
+    view.rerender(
+      <BookingSelectionFlow
+        journey={soloJourney}
+        busy
+        onChooseServices={chooseServices}
+      />
+    )
+    expect(service.getAttribute('aria-disabled')).toBe('true')
+    expect(service.tabIndex).toBe(-1)
+  })
+
+  it('disables order actions while checkout is pending', () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...soloJourney,
+          selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] }
+        }}
+        busy={false}
+        onChooseServices={vi.fn()}
+        continuation={{
+          title: 'Choose a time',
+          content: <div>Scheduling</div>,
+          onBack: vi.fn(),
+          pendingCheckout: { ctaLabel: 'Preparing order' }
+        }}
+      />
+    )
+
+    expect((screen.getByTestId('btn:viewOrder') as HTMLButtonElement).disabled).toBe(
+      true
+    )
+    expect(screen.getByTestId('btn:viewOrder').textContent).toContain('Preparing order')
   })
 
   it('renders an explicit empty-catalog recovery state', () => {

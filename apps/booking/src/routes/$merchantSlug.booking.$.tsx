@@ -1,7 +1,6 @@
 import { createFileRoute, useLocation } from '@tanstack/react-router'
 import { CanonicalBookingShell } from '../components/canonical-booking-shell.tsx'
 import { BookingConfirmationRouteFlow } from '../components/booking-confirmation-flow.tsx'
-import { GiftCardRouteFlow } from '../components/gift-card-route-flow.tsx'
 import { WalkInRouteFlow } from '../components/walk-in-route-flow.tsx'
 import { WaitingListRouteFlow } from '../components/waiting-list-route-flow.tsx'
 import {
@@ -51,15 +50,6 @@ function CanonicalNestedBookingRoute() {
     return (
       <WaitingListRouteFlow
         pathname={location.pathname}
-        locale={route?.locale ?? 'en'}
-        embedding={route?.embedding ?? 'standalone'}
-      />
-    )
-  if (matched?.kind === 'gift-card-purchase' || matched?.kind === 'gift-card-receipt')
-    return (
-      <GiftCardRouteFlow
-        pathname={location.pathname}
-        kind={matched.kind === 'gift-card-purchase' ? 'purchase' : 'receipt'}
         locale={route?.locale ?? 'en'}
         embedding={route?.embedding ?? 'standalone'}
       />

@@ -1,6 +1,6 @@
 import startServer from '@tanstack/react-start/server-entry'
 import { env as workerEnv } from 'cloudflare:workers'
-import { Effect, Layer, Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import {
   BookingSelection,
   BookingScheduling,
@@ -21,27 +21,11 @@ import {
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import type { QueueWakeup } from '@b2b-saas-starter/capabilities/foundation'
 import type { BookingEventsWakeup } from '@b2b-saas-starter/capabilities/notifications'
-import {
-  GiftCardRedemptions,
-  GiftCardSales,
-  hashGiftCardReceiptToken,
-  purchaseAndIssueGiftCard
-} from '@b2b-saas-starter/capabilities/gift-cards'
 import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
-import {
-  eligiblePaymentMethods,
-  PaymentProvider,
-  PaymentProviderFailure,
-  PaymentProviderResult,
-  PaymentSettlement,
-  PaymentSettlementConflict,
-  settleAcceptedPricingQuote
-} from '@b2b-saas-starter/capabilities/payments'
+import { PaymentProviderResult } from '@b2b-saas-starter/capabilities/payments'
 import { readTraceHeader, reportOperationalError } from '@b2b-saas-starter/logger'
 import { handleBookingSessionRequest } from './lib/booking-session-http.ts'
-import { makeStripePaymentProvider } from './lib/stripe-payment-provider.ts'
-import { handleGiftCardRequest } from './lib/gift-card-http.ts'
 import {
   customerAuthProviderOutcome,
   customerAuthProviderState,
@@ -87,31 +71,11 @@ export type BookingWorkerEnv = {
   }
 }
 
-const ONLINE_METHODS = [
-  'card',
-  'saved_card',
-  'apple_pay',
-  'google_pay',
-  'cash_app_pay',
-  'klarna'
-] as const
-
 const PaymentProviderCallback = Schema.Struct({
   paymentId: Schema.String.check(Schema.isMinLength(1)),
   providerEventId: Schema.String.check(Schema.isMinLength(1)),
   facts: PaymentProviderResult.fields.facts
 })
-
-const configuredPaymentMethods = (env: BookingWorkerEnv) => {
-  const requested = new Set(
-    (env.PAYMENT_PROVIDER_METHODS ?? '')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean)
-  )
-  if (requested.size === 0 && env.STRIPE_SECRET_KEY) requested.add('card')
-  return ONLINE_METHODS.filter((method) => requested.has(method))
-}
 
 const hashRescheduleCapability = async (capability: string) =>
   Array.from(
@@ -345,63 +309,6 @@ export default {
         }
       )
     }
-    const paymentProvider =
-      readyEnv.PAYMENT_PROVIDER ??
-      (readyEnv.STRIPE_SECRET_KEY
-        ? makeStripePaymentProvider({
-            secretKey: readyEnv.STRIPE_SECRET_KEY,
-            ...(readyEnv.STRIPE_WEBHOOK_SECRET
-              ? { webhookSecret: readyEnv.STRIPE_WEBHOOK_SECRET }
-              : {})
-          })
-        : undefined)
-    const paymentProviderName =
-      readyEnv.PAYMENT_PROVIDER_NAME ??
-      (readyEnv.STRIPE_SECRET_KEY ? 'stripe' : 'unconfigured')
-    const methods = configuredPaymentMethods(readyEnv)
-    const paymentProviderLayer = Layer.succeed(PaymentProvider)({
-      configuration: {
-        provider: paymentProviderName,
-        state:
-          methods.length === 0
-            ? 'disabled'
-            : paymentProvider
-              ? 'configured'
-              : 'needs_configuration',
-        methods
-      },
-      settle: (input) =>
-        Effect.tryPromise({
-          try: async () => {
-            if (!paymentProvider) throw new Error('provider_not_configured')
-            const response = await paymentProvider.fetch(
-              new Request('https://payment-provider.invalid/settle', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({
-                  paymentId: input.payment.id,
-                  attemptId: input.attempt.id,
-                  amountMinor: input.payment.amountMinor,
-                  currency: input.payment.currency,
-                  method: input.attempt.method,
-                  paymentMethodReference: input.paymentMethodReference,
-                  idempotencyKey: input.attempt.idempotencyKey,
-                  returnUrl: input.returnUrl
-                })
-              })
-            )
-            if (!response.ok) throw new Error(`provider_${response.status}`)
-            return Schema.decodeUnknownSync(PaymentProviderResult)(
-              await response.json()
-            )
-          },
-          catch: (cause) =>
-            new PaymentProviderFailure({
-              code: cause instanceof Error ? cause.message : 'provider_error'
-            })
-        })
-    })
-    const runtimeLayer = Layer.merge(capabilitiesLayer, paymentProviderLayer)
     const waitingListResponse = await handleWaitingListRequest(request, {
       apply: (input) =>
         Effect.runPromise(
@@ -471,41 +378,6 @@ export default {
       }
     })
     if (waitingListResponse) return waitingListResponse
-    const giftCardResponse = await handleGiftCardRequest(request, {
-      resolveSelection: ({ merchantSlug, shopSlug, providerSlug }) =>
-        Effect.flatMap(GiftCardSales, (sales) =>
-          sales.resolvePurchaseRoute({
-            merchantSlug,
-            shopSlug,
-            providerLocator: providerSlug
-          })
-        ).pipe(Effect.provide(capabilitiesLayer)),
-      listProducts: (selection) =>
-        Effect.flatMap(GiftCardSales, (sales) => sales.listProducts(selection)).pipe(
-          Effect.provide(capabilitiesLayer)
-        ),
-      purchase: (input) =>
-        signingKeys[readyEnv.CONFIRMATION_CURRENT_KEY_ID]
-          ? purchaseAndIssueGiftCard({
-              ...input,
-              receiptKeyring: {
-                currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
-                keys: signingKeys
-              }
-            }).pipe(Effect.provide(runtimeLayer))
-          : Effect.fail({ _tag: 'CapabilityUnavailable' }),
-      receiptState: (input) =>
-        Effect.flatMap(GiftCardSales, (sales) => sales.receiptState(input)).pipe(
-          Effect.provide(capabilitiesLayer)
-        ),
-      exchangeReceiptAccess: (input) =>
-        Effect.flatMap(GiftCardSales, (sales) =>
-          sales.exchangeReceiptAccess(input)
-        ).pipe(Effect.provide(capabilitiesLayer)),
-      hashToken: hashGiftCardReceiptToken,
-      now: () => new Date().toISOString()
-    })
-    if (giftCardResponse) return giftCardResponse
     const walkInResponse = await handleWalkInRequest(request, {
       resolveShop: (input) =>
         Effect.flatMap(ShopTopology, (topology) =>
@@ -525,41 +397,6 @@ export default {
         )
     })
     if (walkInResponse) return walkInResponse
-    const callbackMatch = new URL(request.url).pathname.match(
-      /^\/[^/]+\/booking\/payment-callback\/([^/]+)$/
-    )
-    if (callbackMatch && request.method === 'POST') {
-      if (!paymentProvider || callbackMatch[1] !== paymentProviderName)
-        return new Response('Not found', { status: 404 })
-      return reconcilePaymentCallback(
-        request,
-        callbackMatch[1]!,
-        paymentProvider,
-        async (event) => {
-          const now = new Date().toISOString()
-          await reconcilePaymentAndResumeGiftCard(
-            () =>
-              Effect.runPromise(
-                Effect.flatMap(PaymentSettlement, (payments) =>
-                  payments.reconcile({
-                    paymentId: event.paymentId,
-                    provider: callbackMatch[1]!,
-                    providerEventId: event.providerEventId,
-                    facts: event.facts ?? [],
-                    now
-                  })
-                ).pipe(Effect.provide(capabilitiesLayer))
-              ),
-            (paymentId) =>
-              Effect.runPromise(
-                Effect.flatMap(GiftCardSales, (sales) =>
-                  sales.resumeIssuanceForPayment({ paymentId, now })
-                ).pipe(Effect.provide(capabilitiesLayer))
-              )
-          )
-        }
-      )
-    }
     return Effect.runPromise(
       handleBookingSessionRequest(request, {
         publicSiteOrigin: readyEnv.PUBLIC_SITE_ORIGIN,
@@ -729,130 +566,6 @@ export default {
                 checkout.reviewParty(session, input)
               ),
               capabilitiesLayer
-            )
-        },
-        giftCards: {
-          reserve: (session, input) =>
-            Effect.gen(function* () {
-              const parties = yield* BookingParties
-              const party = yield* parties.findForSession(session.id)
-              const checkout = yield* BookingCheckout
-              const preparation = yield* checkout.prepare(session, { now: input.now })
-              if (!preparation.quote)
-                return yield* new PaymentSettlementConflict({
-                  code: 'quote_unconfirmable'
-                })
-              const cards = yield* GiftCardRedemptions
-              return yield* cards.reserve({
-                giftCardCode: input.giftCardCode,
-                bookingPartyId: party.id,
-                amountMinor: input.amountMinor,
-                maximumAmountMinor: preparation.quote.totalMinor,
-                expiresAt: preparation.quote.expiresAt,
-                idempotencyKey: input.idempotencyKey,
-                now: input.now
-              })
-            }).pipe(Effect.provide(capabilitiesLayer)),
-          release: (session, input) =>
-            Effect.gen(function* () {
-              const parties = yield* BookingParties
-              const party = yield* parties.findForSession(session.id)
-              const cards = yield* GiftCardRedemptions
-              return yield* cards.release({
-                bookingPartyId: party.id,
-                idempotencyKey: input.idempotencyKey,
-                now: input.now
-              })
-            }).pipe(Effect.provide(capabilitiesLayer))
-        },
-        payments: {
-          status: (session) =>
-            Effect.gen(function* () {
-              const parties = yield* BookingParties
-              const party = yield* parties.findForSession(session.id)
-              const payments = yield* PaymentSettlement
-              return yield* payments.findForParty(party.id)
-            }).pipe(Effect.provide(capabilitiesLayer)),
-          methods: (session, input) =>
-            Effect.gen(function* () {
-              const checkout = yield* BookingCheckout
-              const preparation = yield* checkout.prepare(session, {
-                now: input.now
-              })
-              if (!preparation.quote)
-                return {
-                  state: 'disabled' as const,
-                  methods: [],
-                  giftCardMinor: 0,
-                  externalPaymentMinor: 0
-                }
-              const parties = yield* BookingParties
-              const party = yield* parties.findForSession(session.id)
-              const cards = yield* GiftCardRedemptions
-              const plan = yield* cards.planSettlement({
-                bookingPartyId: party.id,
-                quoteTotalMinor: preparation.quote.totalMinor,
-                currency: preparation.quote.currency,
-                now: input.now
-              })
-              if (plan.externalPaymentMinor === 0)
-                return {
-                  state: 'disabled' as const,
-                  methods: [],
-                  giftCardMinor: plan.giftCardMinor,
-                  externalPaymentMinor: 0
-                }
-              const eligibility = yield* eligiblePaymentMethods({
-                currency: preparation.quote.currency,
-                amountMinor: plan.externalPaymentMinor,
-                savedMethodCount: 0,
-                wallets: input.wallets
-              })
-              return {
-                ...eligibility,
-                giftCardMinor: plan.giftCardMinor,
-                externalPaymentMinor: plan.externalPaymentMinor
-              }
-            }).pipe(
-              Effect.provide(paymentProviderLayer),
-              Effect.provide(capabilitiesLayer)
-            ),
-          settle: (session, input) =>
-            Effect.gen(function* () {
-              const checkout = yield* BookingCheckout
-              const preparation = yield* checkout.prepare(session, { now: input.now })
-              if (!preparation.quote)
-                return yield* new PaymentSettlementConflict({
-                  code: 'quote_unconfirmable'
-                })
-              const party = yield* BookingParties
-              const currentParty = yield* party.findForSession(session.id)
-              const cards = yield* GiftCardRedemptions
-              const plan = yield* cards.planSettlement({
-                bookingPartyId: currentParty.id,
-                quoteTotalMinor: preparation.quote.totalMinor,
-                currency: preparation.quote.currency,
-                now: input.now
-              })
-              if (plan.externalPaymentMinor === 0)
-                return yield* new PaymentSettlementConflict({
-                  code: 'external_payment_unexpected'
-                })
-              return yield* settleAcceptedPricingQuote({
-                bookingPartyId: currentParty.id,
-                bookingPartyVersion: currentParty.version,
-                pricingQuoteId: preparation.quote.id,
-                amountMinor: plan.externalPaymentMinor,
-                currency: preparation.quote.currency,
-                method: input.method,
-                idempotencyKey: input.idempotencyKey,
-                paymentMethodReference: input.paymentMethodReference,
-                returnUrl: `${readyEnv.PUBLIC_SITE_ORIGIN.replace(/\/$/, '')}/${encodeURIComponent(session.merchantSlug)}/booking/session/${encodeURIComponent(session.id)}?payment_return=1`,
-                now: input.now
-              })
-            }).pipe(
-              Effect.provide(paymentProviderLayer),
-              Effect.provide(capabilitiesLayer)
             )
         },
         confirmation: {

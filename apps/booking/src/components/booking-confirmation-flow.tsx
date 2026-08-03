@@ -103,23 +103,13 @@ const safeImageUrl = (value: string | undefined) => {
   }
 }
 
-const calendarUrl = (
-  kind: 'apple' | 'google' | 'yahoo',
-  target: {
-    readonly title: string
-    readonly interval: { readonly startsAt: string; readonly endsAt: string }
-    readonly confirmation: {
-      readonly merchantSlug: string
-      readonly routeId: string
-      readonly appointmentId: string
-    }
+const calendarUrl = (target: {
+  readonly confirmation: {
+    readonly merchantSlug: string
+    readonly routeId: string
+    readonly appointmentId: string
   }
-) => {
-  const compact = (value: string) => value.replace(/[-:]/g, '').replace('.000', '')
-  if (kind === 'google')
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(target.title)}&dates=${compact(target.interval.startsAt)}/${compact(target.interval.endsAt)}`
-  if (kind === 'yahoo')
-    return `https://calendar.yahoo.com/?v=60&title=${encodeURIComponent(target.title)}&st=${compact(target.interval.startsAt)}&et=${compact(target.interval.endsAt)}`
+}) => {
   return `/${encodeURIComponent(target.confirmation.merchantSlug)}/booking/confirmations/${encodeURIComponent(target.confirmation.routeId)}/appointments/${encodeURIComponent(target.confirmation.appointmentId)}/calendar.ics`
 }
 
@@ -250,7 +240,9 @@ function BookingConfirmationView({
   } as const
   const [scrolled, setScrolled] = useState(false)
   const [popupOpen, setPopupOpen] = useState(false)
-  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState<string | null>(
+    null
+  )
   const [popupTarget, setPopupTarget] = useState<HTMLDivElement | null>(null)
   const [mutation, setMutation] = useState<'idle' | 'pending' | 'failed'>('idle')
   const groupTotal = confirmation.appointments.reduce(
@@ -323,7 +315,7 @@ function BookingConfirmationView({
               cancelled={appointment.status === 'cancelled'}
               scheduled={appointment.status === 'scheduled'}
               group={isGroup}
-              onReschedule={() => setRescheduleOpen(true)}
+              onReschedule={() => setRescheduleAppointmentId(appointment.id)}
             />
           ))}
           {isGroup ? (
@@ -401,7 +393,13 @@ function BookingConfirmationView({
                   type="button"
                   data-testid="btn:reschedule"
                   disabled={mutation === 'pending'}
-                  onClick={() => setRescheduleOpen(true)}
+                  onClick={() =>
+                    setRescheduleAppointmentId(
+                      confirmation.appointments.find(
+                        (appointment) => appointment.status === 'scheduled'
+                      )?.id ?? null
+                    )
+                  }
                   {...stylex.props(styles.actionButton)}
                 >
                   {copy('reservation.reschedule')}
@@ -430,16 +428,20 @@ function BookingConfirmationView({
         data-testid="reservation-popup-root"
         {...stylex.props(
           styles.popupMount,
-          (popupOpen || rescheduleOpen) && styles.popupMountOpen
+          (popupOpen || rescheduleAppointmentId !== null) && styles.popupMountOpen
         )}
       />
       <BookingConfirmationReschedulePopup
         target={popupTarget}
-        open={rescheduleOpen}
+        open={rescheduleAppointmentId !== null}
         confirmation={confirmation}
-        appointment={confirmation.appointments[0]!}
+        appointment={
+          confirmation.appointments.find(
+            (appointment) => appointment.id === rescheduleAppointmentId
+          ) ?? confirmation.appointments[0]!
+        }
         merchantSlug={merchantSlug}
-        onClose={() => setRescheduleOpen(false)}
+        onClose={() => setRescheduleAppointmentId(null)}
       />
       <BookingPopupSheet
         target={popupTarget}
@@ -531,6 +533,14 @@ function AppointmentCard({
     copy('label.appointment_at')
   )
   const providerName = legacyProviderShortName(snapshot.assignedProvider.displayName)
+  const appointmentStatus = copy(
+    {
+      scheduled: 'status.appointment_scheduled',
+      completed: 'status.appointment_completed',
+      cancelled: 'status.appointment_cancelled',
+      no_show: 'status.appointment_no_show'
+    }[appointment.status] as Parameters<typeof copy>[0]
+  )
 
   return (
     <section
@@ -607,6 +617,10 @@ function AppointmentCard({
         <div {...stylex.props(styles.serviceTimeWrapper)} />
       </div>
       <div {...stylex.props(styles.breakdown)}>
+        <div {...stylex.props(styles.row)}>
+          <span>{copy('reservation.status')}</span>
+          <span data-testid={`text:status:${appointment.id}`}>{appointmentStatus}</span>
+        </div>
         {!cancelled ? (
           <div {...stylex.props(styles.row)}>
             <span>{copy('reservation.confirmation_code')}</span>
@@ -624,7 +638,7 @@ function AppointmentCard({
         </div>
         <div {...stylex.props(styles.row)}>
           <span>{copy('label.time')}</span>
-          {!group && scheduled ? (
+          {scheduled ? (
             <button
               type="button"
               data-testid="btn:time"
@@ -655,21 +669,10 @@ function AppointmentCard({
                 key={kind}
                 type="button"
                 data-testid={`btn:calendar:${kind}`}
-                aria-label={
-                  kind === 'apple'
-                    ? 'iCalendar'
-                    : kind === 'google'
-                      ? 'Google Calendar'
-                      : 'Yahoo Calendar'
-                }
+                aria-label="iCalendar"
                 onClick={() =>
                   window.open(
-                    calendarUrl(kind, {
-                      title: confirmation.shop.publicName,
-                      interval: {
-                        startsAt: appointment.startsAt,
-                        endsAt: appointment.endsAt
-                      },
+                    calendarUrl({
                       confirmation: {
                         merchantSlug,
                         routeId: confirmation.routeId,
@@ -682,7 +685,7 @@ function AppointmentCard({
                 }
                 {...stylex.props(styles.calendarButton)}
               >
-                <CalendarIcon kind={kind} />
+                <CalendarIcon />
               </button>
             ))}
           </div>
@@ -751,7 +754,8 @@ function TaxesAndFeesExpandable({
             exit={{ height: 0, opacity: 1, overflow: 'hidden' }}
             transition={{ times: [0, 0.99, 1], duration: 0.15 }}
           >
-            <p
+            <button
+              type="button"
               data-testid="unfold:taxes-n-fees"
               onClick={() => setExpanded(true)}
               {...stylex.props(styles.taxesToggle)}
@@ -761,7 +765,7 @@ function TaxesAndFeesExpandable({
                 iconRole="navigation-back"
                 {...stylex.props(styles.taxesChevron)}
               />
-            </p>
+            </button>
           </m.div>
         ) : (
           <m.div
@@ -847,48 +851,18 @@ function ConfirmationIcon({ cancelled }: { readonly cancelled: boolean }) {
   )
 }
 
-function CalendarIcon({ kind }: { readonly kind: 'apple' | 'google' | 'yahoo' }) {
-  if (kind === 'apple')
-    return (
-      <svg
-        width="14px"
-        height="16px"
-        viewBox="0 0 14 16"
-        aria-hidden="true"
-        {...stylex.props(styles.calendarIcon)}
-      >
-        <path
-          fill="currentColor"
-          d="m10.883 8.5c.022 2.421 2.124 3.227 2.147 3.237-.018.057-.336 1.149-1.107 2.276-.667.975-1.359 1.946-2.45 1.966-1.07.02-1.415-.635-2.64-.635-1.224 0-1.607.615-2.621.655-1.052.04-1.854-1.054-2.527-2.025C.311 11.987-.739 8.36.671 5.912c.7-1.216 1.952-1.986 3.31-2.005 1.034-.02 2.009.695 2.641.695s1.817-.86 3.063-.733c.521.021 1.986.21 2.926 1.587-.076.047-1.747 1.02-1.729 3.044ZM8.869 2.555c.559-.676.935-1.618.832-2.555-.805.032-1.779.537-2.357 1.213-.517.598-.97 1.556-.848 2.475.898.069 1.815-.457 2.373-1.133Z"
-        />
-      </svg>
-    )
-  if (kind === 'google')
-    return (
-      <svg
-        width="16px"
-        height="16px"
-        viewBox="0 0 16 16"
-        aria-hidden="true"
-        {...stylex.props(styles.calendarIcon)}
-      >
-        <path
-          fill="currentColor"
-          d="M15.991 8.15c0-.656-.054-1.134-.172-1.63h-7.66v2.958h4.496c-.09.736-.58 1.843-1.667 2.587l-.016.099 2.422 1.833.168.017c1.54-1.391 2.429-3.437 2.429-5.864ZM8.159 15.945c2.203 0 4.052-.708 5.403-1.931l-2.574-1.949c-.69.47-1.614.797-2.829.797-2.157 0-3.989-1.39-4.641-3.313l-.096.008-2.518 1.904-.033.09c1.342 2.604 4.097 4.394 7.288 4.394ZM3.518 9.549a4.786 4.786 0 0 1-.272-1.577c0-.549.1-1.08.263-1.576l-.004-.106-2.55-1.935-.084.039A7.803 7.803 0 0 0 .001 7.972c0 1.284.317 2.498.87 3.579l2.647-2.002ZM8.159 3.083c1.532 0 2.565.646 3.155 1.187l2.302-2.197C12.202.788 10.362 0 8.16 0 4.968 0 2.212 1.79.87 4.394l2.638 2.002c.662-1.923 2.493-3.313 4.65-3.313Z"
-        />
-      </svg>
-    )
+function CalendarIcon() {
   return (
     <svg
       width="14px"
       height="16px"
-      viewBox="0 -1 14 16"
+      viewBox="0 0 14 16"
       aria-hidden="true"
       {...stylex.props(styles.calendarIcon)}
     >
       <path
         fill="currentColor"
-        d="M13.663 0H9.356L6.83 5.89 4.307 0H0l4.694 10.954L2.96 15h4.307C9.42 9.973 11.523 4.993 13.663 0Z"
+        d="m10.883 8.5c.022 2.421 2.124 3.227 2.147 3.237-.018.057-.336 1.149-1.107 2.276-.667.975-1.359 1.946-2.45 1.966-1.07.02-1.415-.635-2.64-.635-1.224 0-1.607.615-2.621.655-1.052.04-1.854-1.054-2.527-2.025C.311 11.987-.739 8.36.671 5.912c.7-1.216 1.952-1.986 3.31-2.005 1.034-.02 2.009.695 2.641.695s1.817-.86 3.063-.733c.521.021 1.986.21 2.926 1.587-.076.047-1.747 1.02-1.729 3.044ZM8.869 2.555c.559-.676.935-1.618.832-2.555-.805.032-1.779.537-2.357 1.213-.517.598-.97 1.556-.848 2.475.898.069 1.815-.457 2.373-1.133Z"
       />
     </svg>
   )

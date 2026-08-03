@@ -141,11 +141,17 @@ describe('Booking Scheduling', () => {
             role: 'primary' as const,
             name: 'Cut',
             durationMinutes: 30,
+            beforeBufferMinutes: 0,
+            afterBufferMinutes: 0,
             priceMinor: 5000,
             currency: 'RON'
           }
         ],
         durationMinutes: 30,
+        beforeBufferMinutes: 0,
+        afterBufferMinutes: 0,
+        occupiedStartsAt: '2026-07-13T06:00:00.000Z',
+        occupiedEndsAt: '2026-07-13T06:30:00.000Z',
         currency: 'RON',
         totalMinor: 5000
       }
@@ -181,7 +187,9 @@ describe('Booking Scheduling', () => {
       quote: {
         ...candidate.quote,
         startsAt: '2026-07-13T06:15:00.000Z',
-        endsAt: '2026-07-13T06:45:00.000Z'
+        endsAt: '2026-07-13T06:45:00.000Z',
+        occupiedStartsAt: '2026-07-13T06:15:00.000Z',
+        occupiedEndsAt: '2026-07-13T06:45:00.000Z'
       }
     }))
     conflicted.set('hld_competing', {
