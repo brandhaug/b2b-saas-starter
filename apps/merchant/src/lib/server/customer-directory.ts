@@ -22,7 +22,7 @@ const Mutation = {
   expectedRevision: Schema.Number,
   idempotencyKey: Schema.String
 } as const
-const AuditReason = Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1))
+const NonBlankText = Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1))
 const EditPreferred = Schema.Struct({
   ...Mutation,
   name: Schema.String,
@@ -40,17 +40,17 @@ const SetContactStatus = Schema.Struct({
 const RecordConsent = Schema.Struct({
   ...Mutation,
   purpose: Schema.Literals(['operational_mobile', 'marketing']),
-  destination: AuditReason,
-  wordingVersion: AuditReason,
-  source: AuditReason,
+  destination: NonBlankText,
+  wordingVersion: NonBlankText,
+  source: NonBlankText,
   withdrawn: Schema.Boolean
 })
 const SetBan = Schema.Struct({
   ...Mutation,
-  reason: AuditReason,
+  reason: NonBlankText,
   expiresAt: Schema.NullOr(Schema.String)
 })
-const LiftBan = Schema.Struct({ ...Mutation, reason: AuditReason })
+const LiftBan = Schema.Struct({ ...Mutation, reason: NonBlankText })
 const Archive = Schema.Struct({ ...Mutation, archived: Schema.Boolean })
 const Merge = Schema.Struct({
   survivorId: Schema.String,
@@ -59,7 +59,7 @@ const Merge = Schema.Struct({
   expectedAbsorbedRevision: Schema.Number,
   idempotencyKey: Schema.String,
   preferredDetailsSourceId: Schema.optional(Schema.String),
-  reason: AuditReason
+  reason: NonBlankText
 }).check(
   Schema.makeFilter((input) =>
     input.survivorId === input.absorbedId
@@ -89,7 +89,7 @@ const Split = Schema.Struct({
   ),
   noteIds: Schema.optional(Schema.Array(Schema.String)),
   consentIds: Schema.optional(Schema.Array(Schema.String)),
-  reason: AuditReason
+  reason: NonBlankText
 })
 const ImportRow = Schema.Struct({
   name: Schema.String,

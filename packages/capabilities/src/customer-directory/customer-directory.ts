@@ -828,11 +828,13 @@ export const makeCustomerDirectoryService = (
       )
     },
     recordConsent: (recordId, input) => {
+      const trimmedDestination = input.destination.trim()
       const destination =
         input.purpose === 'operational_mobile'
-          ? normalizeCustomerPhone(input.destination)
-          : (normalizeCustomerEmail(input.destination) ??
-            normalizeCustomerPhone(input.destination))
+          ? normalizeCustomerPhone(trimmedDestination)
+          : trimmedDestination.includes('@')
+            ? normalizeCustomerEmail(trimmedDestination)
+            : normalizeCustomerPhone(trimmedDestination)
       const normalizedInput = { ...input, destination: destination ?? '' }
       return mutate(
         store,

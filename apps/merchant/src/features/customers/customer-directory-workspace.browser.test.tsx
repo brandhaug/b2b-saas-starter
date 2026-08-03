@@ -71,12 +71,12 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-const renderWorkspace = async () => {
+const renderWorkspace = async (initialRecords = records) => {
   const container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   await act(async () =>
-    root?.render(<CustomerDirectoryWorkspace initialRecords={records} />)
+    root?.render(<CustomerDirectoryWorkspace initialRecords={initialRecords} />)
   )
   return container
 }
@@ -89,6 +89,38 @@ const formWithButton = (container: HTMLElement, label: string) =>
   )
 
 describe('CustomerDirectoryWorkspace conflict recovery', () => {
+  it('withdraws the displayed consent purpose for its exact destination', async () => {
+    const marketingRecord: CustomerRecord = {
+      ...records[0]!,
+      consent: [
+        {
+          id: 'cue_marketing',
+          purpose: 'marketing',
+          destination: 'ana@example.com',
+          wordingVersion: 'marketing-v1',
+          source: 'merchant_directory',
+          grantedAt: '2026-08-03T11:00:00.000Z',
+          withdrawnAt: null
+        }
+      ]
+    }
+    server.recordCustomerConsent.mockResolvedValueOnce(marketingRecord)
+    const container = await renderWorkspace([marketingRecord])
+    const button = [...container.querySelectorAll('button')].find((candidate) =>
+      candidate.textContent?.includes('Record withdrawal')
+    )!
+
+    await act(async () => button.click())
+
+    expect(server.recordCustomerConsent).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        purpose: 'marketing',
+        destination: 'ana@example.com',
+        withdrawn: true
+      })
+    })
+  })
+
   it('downloads the privacy-minimal Customer Directory export', async () => {
     server.exportCustomers.mockResolvedValueOnce([
       {

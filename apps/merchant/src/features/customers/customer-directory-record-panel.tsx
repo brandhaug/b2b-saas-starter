@@ -146,7 +146,15 @@ export function CustomerDirectoryRecordPanel({
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => recordConsent(contact.value, false)}
+                      onClick={() =>
+                        recordConsent(
+                          {
+                            purpose: 'operational_mobile',
+                            destination: contact.value
+                          },
+                          false
+                        )
+                      }
                       className="rounded-lg border px-2 py-1"
                     >
                       Record permission
@@ -169,7 +177,7 @@ export function CustomerDirectoryRecordPanel({
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => recordConsent(evidence.destination, true)}
+                      onClick={() => recordConsent(evidence, true)}
                       className="rounded-lg border px-2 py-1"
                     >
                       Record withdrawal

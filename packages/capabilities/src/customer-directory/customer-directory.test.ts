@@ -968,8 +968,19 @@ describe('Customer Directory contract', () => {
           withdrawn: false,
           now: '2026-08-03T12:00:00.000Z'
         })
-        const disputed = yield* service.setContactStatus(created.record.id, {
+        const marketing = yield* service.recordConsent(created.record.id, {
           expectedRevision: granted.revision,
+          idempotencyKey: 'valid-marketing-phone-consent',
+          actorId: 'usr_owner',
+          purpose: 'marketing',
+          destination: '+40 722 111 222',
+          wordingVersion: 'marketing-v1',
+          source: 'merchant_directory',
+          withdrawn: false,
+          now: '2026-08-03T12:30:00.000Z'
+        })
+        const disputed = yield* service.setContactStatus(created.record.id, {
+          expectedRevision: marketing.revision,
           idempotencyKey: 'dispute-consented-phone',
           actorId: 'usr_owner',
           kind: 'phone',
@@ -1002,7 +1013,7 @@ describe('Customer Directory contract', () => {
             now: '2026-08-03T15:00:00.000Z'
           })
         )
-        return { invalid, withdrawn, repeatedWithdrawal }
+        return { invalid, marketing, withdrawn, repeatedWithdrawal }
       })
     )
 
@@ -1010,6 +1021,7 @@ describe('Customer Directory contract', () => {
       _tag: 'Failure',
       failure: expect.objectContaining({ reason: 'invalid_consent' })
     })
+    expect(result.marketing.consent[1]?.destination).toBe('+40722111222')
     expect(result.withdrawn.consent[0]?.withdrawnAt).toBe('2026-08-03T14:00:00.000Z')
     expect(result.repeatedWithdrawal).toMatchObject({
       _tag: 'Failure',

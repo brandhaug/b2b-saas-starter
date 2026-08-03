@@ -180,7 +180,10 @@ export const useCustomerDirectoryWorkspace = (
       })
     )
   }
-  const recordConsent = (destination: string, withdrawn: boolean) => {
+  const recordConsent = (
+    evidence: Pick<CustomerRecord['consent'][number], 'purpose' | 'destination'>,
+    withdrawn: boolean
+  ) => {
     if (!selected) return
     void run(() =>
       recordCustomerConsent({
@@ -188,8 +191,8 @@ export const useCustomerDirectoryWorkspace = (
           recordId: selected.id,
           expectedRevision: selected.revision,
           idempotencyKey: commandKey(),
-          purpose: 'operational_mobile',
-          destination,
+          purpose: evidence.purpose,
+          destination: evidence.destination,
           wordingVersion: 'merchant-recorded-v1',
           source: 'merchant_directory',
           withdrawn
