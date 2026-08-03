@@ -405,7 +405,7 @@ describe('server-backed Booking scheduling', () => {
   it('keeps the single-customer shell free of group controls', async () => {
     const journey: BookingJourney = {
       version: 1,
-      presentation: 'team',
+      presentation: 'solo',
       shopId: 'shp_main',
       shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
       resolvedConfiguration: {

@@ -307,9 +307,9 @@ describe('Booking Selection', () => {
         Effect.flatMap(BookingSelection, (selection) => selection.load(session))
       )
     ).toMatchObject({
-      providerPreference: null,
-      selection: { primaryServiceId: null },
-      reconciliation: ['provider_unavailable', 'combination_unavailable']
+      providerPreference: { kind: 'specific', providerId: 'prv_ava' },
+      selection: { primaryServiceId: 'svc_cut' },
+      reconciliation: []
     })
   })
 

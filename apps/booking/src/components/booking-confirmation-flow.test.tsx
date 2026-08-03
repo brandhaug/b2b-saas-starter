@@ -170,25 +170,14 @@ describe('Booking confirmation route flow', () => {
         .querySelector('svg')
         ?.getAttribute('width')
     ).toBe('14px')
+    expect(screen.queryByTestId('btn:calendar:google')).toBeNull()
+    expect(screen.queryByTestId('btn:calendar:yahoo')).toBeNull()
     expect(
       screen
-        .getByTestId('btn:calendar:google')
+        .getByTestId('btn:calendar:apple')
         .querySelector('svg')
-        ?.getAttribute('width')
+        ?.getAttribute('height')
     ).toBe('16px')
-    expect(
-      screen
-        .getByTestId('btn:calendar:yahoo')
-        .querySelector('svg')
-        ?.getAttribute('width')
-    ).toBe('14px')
-    for (const kind of ['apple', 'google', 'yahoo'])
-      expect(
-        screen
-          .getByTestId(`btn:calendar:${kind}`)
-          .querySelector('svg')
-          ?.getAttribute('height')
-      ).toBe('16px')
     const openCalendar = vi.spyOn(window, 'open').mockImplementation(() => null)
     fireEvent.click(screen.getByTestId('btn:calendar:apple'))
     expect(openCalendar).toHaveBeenCalledWith(

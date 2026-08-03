@@ -618,7 +618,7 @@ function ServiceGrid({
           messages={messages}
           onClick={() => onChoose({ primaryServiceId: null, additionalServiceIds: [] })}
         />
-        <h2 {...stylex.props(styles.sectionTitle)}>Anything you wish to add?</h2>
+        <h2 {...stylex.props(styles.sectionTitle)}>{messages.additionalServices}</h2>
         <div {...stylex.props(styles.serviceGrid)}>
           {compatibleAdditions.map((service, index) => {
             const selected = additionalIds.has(service.id)
@@ -859,6 +859,10 @@ export type BookingSelectionMessages = {
   readonly uncategorized: string
   readonly serviceCategory: string
   readonly chooseServiceFirst: string
+  readonly additionalServices: string
+  readonly orderSummary: string
+  readonly removeService: string
+  readonly moreInformation: string
   readonly chooseTime: string
   readonly shop: string
   readonly nearby: string
@@ -883,6 +887,10 @@ const defaultMessages: BookingSelectionMessages = {
   uncategorized: 'Uncategorized',
   serviceCategory: 'Service category',
   chooseServiceFirst: 'Choose a service first',
+  additionalServices: 'Anything you wish to add?',
+  orderSummary: 'Order summary',
+  removeService: 'Remove {service}',
+  moreInformation: 'More information about {service}',
   chooseTime: 'Choose a time',
   shop: 'Shop',
   nearby: 'Nearby',
@@ -895,12 +903,10 @@ const defaultMessages: BookingSelectionMessages = {
   appointmentAt: 'at',
   durationMinutesShort: 'min',
   noServicesTitle: 'No services are bookable',
-  noServicesCopy:
-    'There are no active services available for your professional choice.',
+  noServicesCopy: 'There are no active services available for online booking.',
   inactiveEntitiesCopy:
-    'Previously available professionals or services are no longer active. Choose another option.',
-  invalidAssociationsCopy:
-    'The available professionals and services cannot currently be booked together.'
+    'Previously available services are no longer active. Choose another option.',
+  invalidAssociationsCopy: 'The available services cannot currently be booked.'
 }
 
 function LegacyServiceTitle({
@@ -1044,6 +1050,29 @@ function LegacyServiceCard({
         confirmed && styles.confirmedServiceCardSpace
       )}
     >
+      {showInfoButton ? (
+        <button
+          type="button"
+          data-testid="btn:info"
+          aria-label={messages.moreInformation.replace('{service}', service.name)}
+          onClick={onInfoClick}
+          {...stylex.props(styles.serviceCardInfoButton)}
+        >
+          <svg
+            aria-hidden="true"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            {...stylex.props(styles.serviceCardInfoIcon)}
+          >
+            <path
+              d="M7.657 15.058c4.021 0 7.346-3.325 7.346-7.346 0-4.028-3.325-7.346-7.353-7.346C3.629.366.311 3.684.311 7.712c0 4.02 3.325 7.346 7.346 7.346Zm0-.952c-3.545 0-6.394-2.857-6.394-6.394 0-3.545 2.849-6.401 6.387-6.401 3.545 0 6.401 2.856 6.409 6.4 0 3.538-2.857 6.395-6.402 6.395Zm-.044-9.155c.454 0 .806-.352.806-.799 0-.446-.352-.805-.806-.805-.447 0-.805.359-.805.805 0 .447.358.799.805.799Zm-1.267 6.76h3.003c.235 0 .418-.176.418-.403 0-.227-.183-.41-.418-.41H8.294V6.796c0-.3-.153-.505-.44-.505H6.442c-.235 0-.418.183-.418.403 0 .234.183.41.418.41h.959v3.794H6.346c-.234 0-.417.183-.417.41 0 .227.183.403.417.403Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+      ) : null}
       <div
         role="button"
         tabIndex={busy ? -1 : 0}
@@ -1052,7 +1081,9 @@ function LegacyServiceCard({
         aria-disabled={busy}
         aria-pressed={isSelected}
         aria-label={
-          isSelected && (confirmed || addon) ? `Remove ${service.name}` : service.name
+          isSelected && (confirmed || addon)
+            ? messages.removeService.replace('{service}', service.name)
+            : service.name
         }
         onClick={
           isExpanded
@@ -1078,32 +1109,6 @@ function LegacyServiceCard({
           busy && styles.serviceCardBusy
         )}
       >
-        {showInfoButton ? (
-          <button
-            type="button"
-            data-testid="btn:info"
-            aria-label={`More information about ${service.name}`}
-            onClick={(event) => {
-              event.stopPropagation()
-              onInfoClick()
-            }}
-            {...stylex.props(styles.serviceCardInfoButton)}
-          >
-            <svg
-              aria-hidden="true"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              {...stylex.props(styles.serviceCardInfoIcon)}
-            >
-              <path
-                d="M7.657 15.058c4.021 0 7.346-3.325 7.346-7.346 0-4.028-3.325-7.346-7.353-7.346C3.629.366.311 3.684.311 7.712c0 4.02 3.325 7.346 7.346 7.346Zm0-.952c-3.545 0-6.394-2.857-6.394-6.394 0-3.545 2.849-6.401 6.387-6.401 3.545 0 6.401 2.856 6.409 6.4 0 3.538-2.857 6.395-6.402 6.395Zm-.044-9.155c.454 0 .806-.352.806-.799 0-.446-.352-.805-.806-.805-.447 0-.805.359-.805.805 0 .447.358.799.805.799Zm-1.267 6.76h3.003c.235 0 .418-.176.418-.403 0-.227-.183-.41-.418-.41H8.294V6.796c0-.3-.153-.505-.44-.505H6.442c-.235 0-.418.183-.418.403 0 .234.183.41.418.41h.959v3.794H6.346c-.234 0-.417.183-.417.41 0 .227.183.403.417.403Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-        ) : null}
         <LegacyServiceTitle
           name={service.name}
           expanded={isExpanded}
@@ -1294,7 +1299,7 @@ function OrderSummary({
     <m.div
       role="dialog"
       aria-modal="true"
-      aria-label="Order summary"
+      aria-label={messages.orderSummary}
       data-testid="cart:booking"
       data-cart-state={fullscreen ? 'fullscreen' : 'expanded'}
       data-cart-mode={quote ? 'scheduleChosen' : undefined}

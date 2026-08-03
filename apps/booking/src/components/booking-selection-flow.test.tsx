@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BookingJourney } from '@b2b-saas-starter/capabilities/booking'
 import { BookingSelectionFlow } from './booking-selection-flow.tsx'
@@ -136,5 +143,131 @@ describe('Booking selection flow', () => {
     )
 
     expect(screen.getByText('No services are bookable')).toBeTruthy()
+  })
+
+  it('searches and selects a Shop before continuing to Services', async () => {
+    const chooseShop = vi.fn()
+    const journey: BookingJourney = {
+      ...soloJourney,
+      shops: [
+        ...soloJourney.shops,
+        {
+          id: 'shp_river',
+          slug: 'river',
+          name: 'Riverside',
+          addressLines: ['21 Mercer Street', 'New York, NY 10013']
+        }
+      ]
+    }
+    const view = render(
+      <BookingSelectionFlow
+        journey={journey}
+        busy={false}
+        onChooseShop={chooseShop}
+        onChooseServices={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Mercer' } })
+    expect(screen.queryByRole('button', { name: 'Main Shop' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /riverside/i }))
+    expect(chooseShop).toHaveBeenCalledWith('shp_river')
+
+    view.rerender(
+      <BookingSelectionFlow
+        journey={{ ...journey, shopId: 'shp_river', version: 2 }}
+        busy={false}
+        onChooseShop={chooseShop}
+        onChooseServices={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(screen.getByText('Choose a service')).toBeTruthy())
+  })
+
+  it('supports keyboard category filtering and restores focus on Escape', () => {
+    const journey: BookingJourney = {
+      ...soloJourney,
+      services: [
+        ...soloJourney.services,
+        {
+          id: 'svc_misc',
+          name: 'Consultation',
+          category: null,
+          priceMinor: 1000,
+          currency: 'USD',
+          durationMinutes: 15,
+          eligibleProviderIds: ['prv_owner']
+        }
+      ]
+    }
+    render(
+      <BookingSelectionFlow journey={journey} busy={false} onChooseServices={vi.fn()} />
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Service category' })
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.keyDown(screen.getByTestId('category:Grooming'), { key: 'Escape' })
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(trigger)
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByTestId('category:uncategorized'))
+    expect(screen.getByTestId('service:svc_misc')).toBeTruthy()
+    expect(screen.queryByTestId('service:svc_cut')).toBeNull()
+  })
+
+  it('clears a pending Service highlight after a newer journey rejects it', async () => {
+    const chooseServices = vi.fn()
+    const view = render(
+      <BookingSelectionFlow
+        journey={soloJourney}
+        busy={false}
+        onChooseServices={chooseServices}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('service:svc_cut'))
+    view.rerender(
+      <BookingSelectionFlow
+        journey={soloJourney}
+        busy
+        onChooseServices={chooseServices}
+      />
+    )
+    view.rerender(
+      <BookingSelectionFlow
+        journey={{ ...soloJourney, version: 2 }}
+        busy={false}
+        onChooseServices={chooseServices}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('service:svc_cut').dataset.autoSelected).toBe('false')
+    )
+  })
+
+  it('closes the order summary, restores focus, and preserves scroll position', async () => {
+    render(
+      <BookingSelectionFlow
+        journey={{
+          ...soloJourney,
+          selection: { primaryServiceId: 'svc_cut', additionalServiceIds: [] }
+        }}
+        busy={false}
+        onChooseServices={vi.fn()}
+      />
+    )
+    const opener = screen.getByTestId('btn:viewOrder')
+    fireEvent.click(opener)
+    const scrollable = screen.getByTestId('container:scrollable')
+    Object.defineProperty(scrollable, 'scrollTop', {
+      configurable: true,
+      value: 0,
+      writable: true
+    })
+    fireEvent.click(screen.getByTestId('btn:close'))
+    await waitFor(() => expect(document.activeElement).toBe(opener))
+    expect(scrollable.scrollTop).toBe(0)
   })
 })

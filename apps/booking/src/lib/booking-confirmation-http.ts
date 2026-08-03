@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Layer, Path } from 'effect'
+import { Effect, FileSystem, Layer, Path, Schema } from 'effect'
 import {
   Etag,
   HttpPlatform,
@@ -8,6 +8,7 @@ import {
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import {
   appointmentCalendarExport,
+  AppointmentSnapshot,
   type ConfirmationReadResult
 } from '@b2b-saas-starter/capabilities/booking'
 import { BookingConfirmationHttpApi } from './booking-confirmation-http-api.ts'
@@ -77,22 +78,29 @@ const handlers = (dependencies: BookingConfirmationHttpDependencies) =>
               Effect.flatMap((access) => {
                 if (access.kind !== 'found')
                   return Effect.succeed(text('Not found', 404))
-                return appointmentCalendarExport({
-                  generatedAt: now,
-                  appointmentId: params.appointmentId,
-                  appointments: access.confirmation.appointments.map(
-                    ({ id, status, startsAt, endsAt, snapshot }) => ({
-                      id,
-                      status,
-                      startsAt,
-                      endsAt,
-                      snapshot: {
-                        services: snapshot.services.map(({ name }) => ({ name }))
-                      }
+                return Effect.forEach(
+                  access.confirmation.appointments,
+                  ({ id, status, startsAt, endsAt, snapshot }) =>
+                    Schema.decodeUnknownEffect(AppointmentSnapshot)(snapshot).pipe(
+                      Effect.map((decoded) => ({
+                        id,
+                        status,
+                        startsAt,
+                        endsAt,
+                        snapshot: {
+                          services: decoded.services.map(({ name }) => ({ name }))
+                        }
+                      }))
+                    )
+                ).pipe(
+                  Effect.flatMap((appointments) =>
+                    appointmentCalendarExport({
+                      generatedAt: now,
+                      appointmentId: params.appointmentId,
+                      appointments,
+                      shop: access.confirmation.shop
                     })
                   ),
-                  shop: access.confirmation.shop
-                }).pipe(
                   Effect.map((calendar) =>
                     HttpServerResponse.text(calendar, {
                       headers: {
@@ -104,7 +112,8 @@ const handlers = (dependencies: BookingConfirmationHttpDependencies) =>
                   ),
                   Effect.catch((error) =>
                     Effect.succeed(
-                      error.reason === 'appointment_not_found'
+                      error._tag === 'AppointmentCalendarExportUnavailable' &&
+                        error.reason === 'appointment_not_found'
                         ? text('Not found', 404)
                         : text('Temporarily unavailable', 503)
                     )

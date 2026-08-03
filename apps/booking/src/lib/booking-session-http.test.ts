@@ -1502,7 +1502,8 @@ describe('Booking Session HTTP boundary', () => {
           Effect.succeed({
             kind: 'found' as const,
             confirmation,
-            cookieCredential
+            cookieCredential,
+            expiresAt: '2027-07-13T10:00:00.000Z'
           })
       },
       takeRead: (key: string) => {
@@ -1510,6 +1511,7 @@ describe('Booking Session HTTP boundary', () => {
         return Effect.succeed(true)
       },
       takeWrite: () => Effect.succeed(true),
+      now: () => '2026-07-13T10:00:00.000Z',
       fallback: () =>
         Effect.succeed(
           new Response(
@@ -1530,7 +1532,7 @@ describe('Booking Session HTTP boundary', () => {
     expect(exchange.headers.get('set-cookie')).toContain(`Path=${path}`)
     expect(exchange.headers.get('set-cookie')).toContain(cookieCredential)
     expect(exchange.headers.get('set-cookie')).not.toContain(token)
-    expect(exchange.headers.get('set-cookie')).toContain('Max-Age=86400')
+    expect(exchange.headers.get('set-cookie')).toContain('Max-Age=31536000')
     expect(exchange.headers.get('set-cookie')).toContain('HttpOnly')
     expect(exchange.headers.get('set-cookie')).not.toContain('Domain=')
 
@@ -1665,6 +1667,7 @@ describe('Booking Session HTTP boundary', () => {
         read: () =>
           Effect.succeed({
             kind: 'found' as const,
+            expiresAt: '2026-08-13T10:00:00.000Z',
             confirmation: {
               routeId: 'cnf_calendar',
               status: 'scheduled' as const,
@@ -1736,6 +1739,44 @@ describe('Booking Session HTTP boundary', () => {
     )
     expect(rateLimited.status).toBe(429)
     expect(rateLimited.headers.get('cache-control')).toBe('private, no-store')
+
+    const malformed = await Effect.runPromise(
+      handleBookingSessionRequest(request('apt_calendar'), {
+        ...dependencies,
+        confirmation: {
+          ...dependencies.confirmation,
+          read: () =>
+            Effect.succeed({
+              kind: 'found' as const,
+              expiresAt: '2026-08-13T10:00:00.000Z',
+              cookieCredential,
+              confirmation: {
+                routeId: 'cnf_calendar',
+                status: 'scheduled' as const,
+                startsAt: snapshot.startsAt,
+                endsAt: snapshot.endsAt,
+                locale: 'en' as const,
+                snapshot,
+                appointments: [
+                  {
+                    id: 'apt_calendar',
+                    status: 'scheduled' as const,
+                    startsAt: snapshot.startsAt,
+                    endsAt: snapshot.endsAt,
+                    snapshot: {
+                      ...snapshot,
+                      services: null
+                    } as unknown as typeof snapshot,
+                    adjustments: []
+                  }
+                ],
+                shop: { publicName: 'Mara Studio' }
+              }
+            })
+        }
+      })
+    )
+    expect(malformed.status).toBe(503)
   })
 
   it('cancels only an appointment authorized by the protected confirmation', async () => {

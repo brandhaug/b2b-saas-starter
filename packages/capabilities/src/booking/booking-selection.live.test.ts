@@ -1,25 +1,24 @@
 import { Effect, Layer } from 'effect'
-import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   brands,
-  bookingParties,
   Database,
   layerFromD1,
+  merchantMemberships,
   merchants,
+  merchantSubscriptions,
   providers,
-  providerServiceEligibility,
   publicBookingPages,
   services,
   shopAddresses,
   shopProviders,
   shopServices,
-  shops
+  shops,
+  user
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { BookingSessions, LiveBookingSessions } from './booking-sessions.ts'
 import { BookingSelection, LiveBookingSelection } from './booking-selection.ts'
-import { hashSha256 } from '../internal/crypto.ts'
 
 let test: TestD1
 const now = '2026-07-10T10:00:00.000Z'
@@ -30,13 +29,37 @@ beforeAll(async () => {
     Effect.provide(
       Effect.gen(function* () {
         const db = yield* Database
+        yield* db.insert(user).values({
+          id: 'usr_selection_owner',
+          name: 'Selection Owner',
+          email: 'owner@selection.test',
+          emailVerified: true,
+          identityClass: 'merchant_member',
+          createdAt: new Date(now),
+          updatedAt: new Date(now)
+        })
         yield* db.insert(merchants).values({
           id: 'mer_selection',
           publicName: 'Selection',
           slug: 'selection',
           timezone: 'UTC',
           currency: 'USD',
-          plan: 'team',
+          plan: 'solo',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(merchantMemberships).values({
+          merchantId: 'mer_selection',
+          userId: 'usr_selection_owner',
+          role: 'owner',
+          createdAt: now
+        })
+        yield* db.insert(merchantSubscriptions).values({
+          id: 'sub_selection',
+          merchantId: 'mer_selection',
+          plan: 'solo',
+          interval: 'monthly',
+          status: 'active',
           createdAt: now,
           updatedAt: now
         })
@@ -79,26 +102,16 @@ beforeAll(async () => {
           createdAt: now,
           updatedAt: now
         })
-        yield* db.insert(providers).values([
-          {
-            id: 'prv_one',
-            merchantId: 'mer_selection',
-            displayName: 'One',
-            status: 'active',
-            isDefault: true,
-            createdAt: now,
-            updatedAt: now
-          },
-          {
-            id: 'prv_two',
-            merchantId: 'mer_selection',
-            displayName: 'Two',
-            status: 'active',
-            isDefault: false,
-            createdAt: now,
-            updatedAt: now
-          }
-        ])
+        yield* db.insert(providers).values({
+          id: 'prv_one',
+          merchantId: 'mer_selection',
+          linkedUserId: 'usr_selection_owner',
+          displayName: 'One',
+          status: 'active',
+          isDefault: true,
+          createdAt: now,
+          updatedAt: now
+        })
         yield* db.insert(services).values([
           {
             id: 'svc_primary',
@@ -126,24 +139,11 @@ beforeAll(async () => {
             updatedAt: now
           }
         ])
-        yield* db.insert(providerServiceEligibility).values([
-          {
-            merchantId: 'mer_selection',
-            providerId: 'prv_one',
-            serviceId: 'svc_primary',
-            createdAt: now
-          },
-          {
-            merchantId: 'mer_selection',
-            providerId: 'prv_one',
-            serviceId: 'svc_extra',
-            createdAt: now
-          }
-        ])
-        yield* db.insert(shopProviders).values([
-          { shopId: 'shp_selection', providerId: 'prv_one', createdAt: now },
-          { shopId: 'shp_selection', providerId: 'prv_two', createdAt: now }
-        ])
+        yield* db.insert(shopProviders).values({
+          shopId: 'shp_selection',
+          providerId: 'prv_one',
+          createdAt: now
+        })
         yield* db.insert(shopServices).values([
           { shopId: 'shp_selection', serviceId: 'svc_primary', createdAt: now },
           { shopId: 'shp_selection', serviceId: 'svc_extra', createdAt: now }
@@ -157,7 +157,7 @@ beforeAll(async () => {
 afterAll(async () => test.dispose())
 
 describe('Live Booking Selection', () => {
-  it('atomically persists Any Provider and ordered Services across layer recreation', async () => {
+  it('atomically persists the sole Provider and ordered Services across layer recreation', async () => {
     const dbLayer = layerFromD1(test.d1)
     const sessionsLayer = LiveBookingSessions.pipe(Layer.provide(dbLayer))
     const issued = await Effect.runPromise(
@@ -171,9 +171,7 @@ describe('Live Booking Selection', () => {
     const selectionLayer = LiveBookingSelection.pipe(Layer.provide(dbLayer))
     const providerJourney = await Effect.runPromise(
       Effect.provide(
-        Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseProvider(issued.session, { kind: 'any' }, 1)
-        ),
+        Effect.flatMap(BookingSelection, (selection) => selection.load(issued.session)),
         selectionLayer
       )
     )
@@ -196,7 +194,14 @@ describe('Live Booking Selection', () => {
       Effect.provide(
         Effect.result(
           Effect.flatMap(BookingSelection, (selection) =>
-            selection.chooseProvider(issued.session, { kind: 'any' }, 2)
+            selection.chooseServices(
+              issued.session,
+              {
+                primaryServiceId: 'svc_primary',
+                additionalServiceIds: ['svc_extra']
+              },
+              providerJourney.version
+            )
           )
         ),
         selectionLayer
@@ -221,7 +226,10 @@ describe('Live Booking Selection', () => {
         refreshedLayer
       )
     )
-    expect(refreshed.providerPreference).toEqual({ kind: 'any' })
+    expect(refreshed.providerPreference).toEqual({
+      kind: 'specific',
+      providerId: 'prv_one'
+    })
     expect(refreshed.version).toBe(3)
     expect(refreshed.selection).toEqual({
       primaryServiceId: 'svc_primary',
@@ -236,123 +244,5 @@ describe('Live Booking Selection', () => {
         coordinates: { latitude: 40.724, longitude: -74.001 }
       })
     ])
-
-    const verifierHash = await hashSha256('2468')
-    await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(Database, (db) =>
-          db
-            .update(providers)
-            .set({
-              bookingAccess: 'restricted',
-              bookingAccessVerifierHash: verifierHash
-            })
-            .where(eq(providers.id, 'prv_one'))
-        ),
-        layerFromD1(test.d1)
-      )
-    )
-    const proof = await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(BookingSelection, (selection) =>
-          selection.verifyProviderAccess(
-            issued.session,
-            'prv_one',
-            '2468',
-            new Date().toISOString()
-          )
-        ),
-        refreshedLayer
-      )
-    )
-    const restricted = await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseProvider(
-            issued.session,
-            { kind: 'specific', providerId: 'prv_one' },
-            refreshed.version,
-            proof.proof
-          )
-        ),
-        refreshedLayer
-      )
-    )
-    expect(restricted.providerPreference).toEqual({
-      kind: 'specific',
-      providerId: 'prv_one'
-    })
-    const expired = await Effect.runPromise(
-      Effect.provide(
-        Effect.result(
-          Effect.flatMap(BookingSelection, (selection) =>
-            selection.chooseProvider(
-              issued.session,
-              { kind: 'specific', providerId: 'prv_one' },
-              restricted.version,
-              proof.proof,
-              proof.expiresAt
-            )
-          )
-        ),
-        refreshedLayer
-      )
-    )
-    expect(expired).toMatchObject({
-      _tag: 'Failure',
-      failure: { _tag: 'BookingSelectionRejected' }
-    })
-
-    await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(Database, (db) =>
-          db
-            .update(providers)
-            .set({ status: 'inactive' })
-            .where(eq(providers.id, 'prv_one'))
-        ),
-        layerFromD1(test.d1)
-      )
-    )
-    const normalized = await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(BookingSelection, (selection) => selection.load(issued.session)),
-        refreshedLayer
-      )
-    )
-    expect(normalized.providerPreference).toBeNull()
-    expect(normalized.selection).toEqual({
-      primaryServiceId: null,
-      additionalServiceIds: []
-    })
-    await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(Database, (db) =>
-          db
-            .update(bookingParties)
-            .set({ lifecycle: 'confirming' })
-            .where(eq(bookingParties.bookingSessionId, issued.session.id))
-        ),
-        layerFromD1(test.d1)
-      )
-    )
-    const terminal = await Effect.runPromise(
-      Effect.provide(
-        Effect.result(
-          Effect.flatMap(BookingSelection, (selection) =>
-            selection.chooseProvider(
-              issued.session,
-              { kind: 'specific', providerId: 'prv_two' },
-              normalized.version
-            )
-          )
-        ),
-        refreshedLayer
-      )
-    )
-    expect(terminal).toMatchObject({
-      _tag: 'Failure',
-      failure: { _tag: 'BookingSelectionRejected' }
-    })
   }, 15_000)
 })

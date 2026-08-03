@@ -455,7 +455,7 @@ const journey = (
   reconciliation: BookingJourney['reconciliation'] = []
 ): BookingJourney => ({
   version: selection.version ?? 1,
-  presentation: catalog.presentation,
+  presentation: bookingSoloLaunchPolicy.presentation,
   shopId: catalog.shopId,
   shops: [...catalog.shops],
   resolvedConfiguration: catalog.resolvedConfiguration,

@@ -20,7 +20,6 @@ export type BookingIconRole =
   | 'dismiss'
   | 'calendar-scheduling'
   | 'service-category'
-  | 'any-provider-selection'
   | 'gift-card-selection'
   | 'sign-in-cta'
   | 'popup-close'
@@ -217,7 +216,6 @@ const iconNameByRole: Readonly<
   dismiss: 'x',
   'calendar-scheduling': 'calendar-days',
   'service-category': 'scissors',
-  'any-provider-selection': 'legacy-any-provider-arrows',
   'gift-card-selection': 'legacy-gift-card',
   'sign-in-cta': 'legacy-sign-in-cta',
   'popup-close': 'legacy-popup-close',

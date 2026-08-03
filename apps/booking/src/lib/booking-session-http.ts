@@ -1149,7 +1149,12 @@ export const handleBookingSessionRequest = (
           [
             `${cookieName}=${result.success.cookieCredential}`,
             `Path=${canonicalPath}`,
-            'Max-Age=86400',
+            `Max-Age=${Math.max(
+              0,
+              Math.ceil(
+                (Date.parse(result.success.expiresAt) - Date.parse(now)) / 1_000
+              )
+            )}`,
             'HttpOnly',
             url.protocol === 'https:' ? 'Secure' : null,
             'SameSite=Lax'

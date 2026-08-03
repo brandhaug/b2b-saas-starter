@@ -320,7 +320,8 @@ function BookingConfirmationView({
               appointment={appointment}
               confirmation={confirmation}
               merchantSlug={merchantSlug}
-              cancelled={isCancelled}
+              cancelled={appointment.status === 'cancelled'}
+              scheduled={appointment.status === 'scheduled'}
               group={isGroup}
               onReschedule={() => setRescheduleOpen(true)}
             />
@@ -497,6 +498,7 @@ function AppointmentCard({
   confirmation,
   merchantSlug,
   cancelled,
+  scheduled,
   group,
   onReschedule
 }: {
@@ -504,6 +506,7 @@ function AppointmentCard({
   readonly confirmation: BookingConfirmationPresentationData
   readonly merchantSlug: string
   readonly cancelled: boolean
+  readonly scheduled: boolean
   readonly group: boolean
   readonly onReschedule: () => void
 }) {
@@ -621,7 +624,7 @@ function AppointmentCard({
         </div>
         <div {...stylex.props(styles.row)}>
           <span>{copy('label.time')}</span>
-          {!group && !cancelled ? (
+          {!group && scheduled ? (
             <button
               type="button"
               data-testid="btn:time"
@@ -641,13 +644,13 @@ function AppointmentCard({
           )}
         </div>
       </div>
-      {!cancelled ? (
+      {scheduled ? (
         <div {...stylex.props(styles.calendar)}>
           <p {...stylex.props(styles.calendarLabel)}>
             {copy('reservation.add_to_calendar')}
           </p>
           <div {...stylex.props(styles.calendarActions)}>
-            {(['apple', 'google', 'yahoo'] as const).map((kind) => (
+            {(['apple'] as const).map((kind) => (
               <button
                 key={kind}
                 type="button"

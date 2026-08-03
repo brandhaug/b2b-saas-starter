@@ -51,6 +51,7 @@ import type {
 } from '../notifications/index.ts'
 import { merchantReminderAvailableAt } from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
+import { AppointmentSnapshot as AppointmentSnapshotSchema } from './appointment-operations.ts'
 import {
   prepareAppointmentCustomerAssociation,
   prepareAppointmentCustomerAssociationBatch
@@ -115,7 +116,6 @@ type Failure =
   | BookingConfirmationRejected
   | BookingConfirmationProcessing
   | CapabilityUnavailable
-const AppointmentSnapshot = Schema.Unknown as Schema.Schema<StoredAppointmentSnapshot>
 const defaultRefundPolicy = {
   id: 'refund:default:v1',
   version: 1,
@@ -127,7 +127,7 @@ const CustomerConfirmationAppointment = Schema.Struct({
   status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
   startsAt: Schema.String,
   endsAt: Schema.String,
-  snapshot: AppointmentSnapshot,
+  snapshot: AppointmentSnapshotSchema,
   adjustments: Schema.optional(
     Schema.Array(
       Schema.Struct({
@@ -143,7 +143,7 @@ export const CustomerConfirmation = Schema.Struct({
   startsAt: Schema.String,
   endsAt: Schema.String,
   locale: Schema.Literals(['en', 'es', 'fr', 'ro']),
-  snapshot: AppointmentSnapshot,
+  snapshot: AppointmentSnapshotSchema,
   appointments: Schema.Array(CustomerConfirmationAppointment),
   shop: Schema.Struct({
     publicName: Schema.String,
@@ -159,7 +159,8 @@ export const ConfirmationReadResult = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal('found'),
     confirmation: CustomerConfirmation,
-    cookieCredential: Schema.String
+    cookieCredential: Schema.String,
+    expiresAt: Schema.String
   }),
   Schema.Struct({
     kind: Schema.Literal('expired'),
@@ -943,6 +944,7 @@ export const LiveBookingConfirmation = (
               : []
             return {
               kind: 'found' as const,
+              expiresAt: metadata.expiresAt,
               cookieCredential: yield* Effect.promise(() =>
                 deriveConfirmationCookieCredential(metadata, keyring)
               ),

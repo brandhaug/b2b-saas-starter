@@ -23,11 +23,15 @@ export const AppointmentSnapshot = Schema.Struct({
       role: Schema.Literals(['primary', 'additional']),
       name: Schema.String,
       durationMinutes: Schema.Number,
+      beforeBufferMinutes: Schema.optional(Schema.Number),
+      afterBufferMinutes: Schema.optional(Schema.Number),
       priceMinor: Schema.Number,
       currency: Schema.String
     })
   ),
   durationMinutes: Schema.Number,
+  beforeBufferMinutes: Schema.optional(Schema.Number),
+  afterBufferMinutes: Schema.optional(Schema.Number),
   currency: Schema.String,
   totalMinor: Schema.Number,
   merchantTimezone: Schema.String,

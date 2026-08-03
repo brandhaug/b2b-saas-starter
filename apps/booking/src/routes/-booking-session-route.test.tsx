@@ -15,7 +15,7 @@ describe('protected Booking Session route', () => {
   it('reloads persisted selection from the Merchant-scoped Session URL', async () => {
     const journey: BookingJourney = {
       version: 1,
-      presentation: 'team',
+      presentation: 'solo',
       shopId: 'shp_main',
       shops: [{ id: 'shp_main', slug: 'main', name: 'Main Shop' }],
       resolvedConfiguration: {
