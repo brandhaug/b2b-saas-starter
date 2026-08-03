@@ -15,6 +15,9 @@ export const ServerEnvSchema = Schema.Struct({
   POSTHOG_KEY: optional,
   POSTHOG_HOST: optional,
   CLOUDFLARE_EMAIL_FROM: optional,
+  TRANSACTIONAL_EMAIL_SENDER_VERIFIED: optional,
+  TRANSACTIONAL_EMAIL_CALLBACK_SECRET: optional,
+  TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY: optional,
   TURNSTILE_SITE_KEY: optional,
   TURNSTILE_SECRET_KEY: optional,
   WORKERS_AI_ENABLED: optional,
@@ -38,7 +41,9 @@ export const optionalModuleEnvSecretKeys = [
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'TURNSTILE_SECRET_KEY',
-  'OPENAI_API_KEY'
+  'OPENAI_API_KEY',
+  'TRANSACTIONAL_EMAIL_CALLBACK_SECRET',
+  'TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
 export const optionalModuleEnvPlainKeys = [
@@ -47,6 +52,7 @@ export const optionalModuleEnvPlainKeys = [
   'POSTHOG_HOST',
   'TURNSTILE_SITE_KEY',
   'CLOUDFLARE_EMAIL_FROM',
+  'TRANSACTIONAL_EMAIL_SENDER_VERIFIED',
   'WORKERS_AI_ENABLED',
   'OPENAI_BASE_URL',
   'OPENAI_MODEL_ID'

@@ -1,4 +1,4 @@
-import { Effect, Result, type Scope } from 'effect'
+import { Effect, Layer, Result, type Scope } from 'effect'
 import type { HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import {
@@ -11,8 +11,16 @@ import {
   PlatformUnauthorized,
   PlatformWebhookEndpointDisabled,
   RateLimited,
+  TransactionalEmailCallbackInvalid,
+  TransactionalEmailCallbackUnavailable,
   BookingProductApi
 } from '@b2b-saas-starter/api'
+import { layerFromD1 } from '@b2b-saas-starter/db'
+import {
+  TransactionalEmail,
+  makeConfiguredTransactionalEmailProvider,
+  makeLiveTransactionalEmailLayer
+} from '@b2b-saas-starter/capabilities/notifications'
 import {
   PlatformApiReads,
   PlatformApiTokenRegistry,
@@ -202,6 +210,58 @@ export const healthGroup = (env: ApiEnv) =>
     handlers.handle('check', ({ request }) =>
       observed(env, request, 'health', Effect.succeed({ status: 'ok' as const }))
     )
+  )
+export const transactionalEmailCallbackGroup = (env: ApiEnv) =>
+  HttpApiBuilder.group(BookingProductApi, 'transactional-email-callback', (handlers) =>
+    handlers.handle('receive', ({ headers, payload }) => {
+      if (
+        !env.DB ||
+        !env.EMAIL ||
+        !env.CLOUDFLARE_EMAIL_FROM ||
+        env.TRANSACTIONAL_EMAIL_SENDER_VERIFIED !== 'true' ||
+        !env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET ||
+        !env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY
+      )
+        return Effect.fail(
+          new TransactionalEmailCallbackUnavailable({
+            code: 'transactional_email_needs_configuration'
+          })
+        )
+      const provider = makeConfiguredTransactionalEmailProvider({
+        sender: env.CLOUDFLARE_EMAIL_FROM,
+        callbackSecret: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET,
+        providerReferenceFingerprintKey:
+          env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY,
+        send: async () => {
+          throw new Error('callback-only provider')
+        }
+      })
+      return Effect.flatMap(TransactionalEmail, (email) =>
+        email.receiveCallback({
+          rawBody: payload,
+          signature: headers['webhook-signature'],
+          timestamp: headers['webhook-timestamp'],
+          now: new Date().toISOString()
+        })
+      ).pipe(
+        Effect.map((outcome) => ({ outcome })),
+        Effect.catchTag('TransactionalEmailCallbackRejected', (error) =>
+          Effect.fail(new TransactionalEmailCallbackInvalid({ code: error.code }))
+        ),
+        Effect.catchTag('CapabilityUnavailable', () =>
+          Effect.fail(
+            new TransactionalEmailCallbackUnavailable({
+              code: 'transactional_email_unavailable'
+            })
+          )
+        ),
+        Effect.provide(
+          makeLiveTransactionalEmailLayer(provider).pipe(
+            Layer.provide(layerFromD1(env.DB))
+          )
+        )
+      )
+    })
   )
 export const merchantGroup = (env: ApiEnv) =>
   HttpApiBuilder.group(BookingProductApi, 'merchant', (handlers) =>

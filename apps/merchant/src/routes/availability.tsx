@@ -165,12 +165,15 @@ function ActivationJourney({
     publicPhone: activation.businessDetails.publicPhone
   })
   const [policies, setPolicies] = useState(activation.policies)
-  const save = (operation: Promise<unknown>, success: string) => {
+  const save = <A,>(
+    operation: Promise<A>,
+    success: string | ((value: A) => string)
+  ) => {
     onPending(true)
     onMessage('Saving…')
     void operation
-      .then(() => {
-        onMessage(success)
+      .then((value) => {
+        onMessage(typeof success === 'function' ? success(value) : success)
         return onSaved()
       })
       .catch((error: unknown) =>
@@ -293,7 +296,12 @@ function ActivationJourney({
               sendOwnerActivationTestEmail({
                 data: { locale: 'en', commandId: crypto.randomUUID() }
               }),
-              'Activation email accepted.'
+              (evidence) =>
+                evidence.status === 'accepted' || evidence.status === 'delivered'
+                  ? 'Activation email accepted.'
+                  : evidence.status === 'captured'
+                    ? 'Activation email captured locally; no message was delivered.'
+                    : `Activation email ${evidence.status.replaceAll('_', ' ')}: ${evidence.failureCode ?? 'provider outcome unavailable'}.`
             )
           }
           className="h-9 rounded-md border px-3 text-sm"

@@ -4,6 +4,7 @@ interface MerchantWorkerEnv {
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly TRANSACTIONAL_EMAIL_SENDER_VERIFIED?: string
   readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string
+  readonly TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
   readonly TRANSACTIONAL_EMAIL_DISABLED?: string
   readonly ENVIRONMENT?: string
   readonly MERCHANT_AUTH_SECRET?: string

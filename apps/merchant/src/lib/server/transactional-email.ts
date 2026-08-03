@@ -33,7 +33,8 @@ const emailEnv = (): BookingProductEnv & { readonly ENVIRONMENT?: string } => ({
               to: typeof message.to === 'string' ? message.to : message.to.join(','),
               subject: message.subject,
               text: message.text ?? '',
-              html: message.html ?? message.text ?? ''
+              html: message.html ?? message.text ?? '',
+              ...(message.headers ? { headers: message.headers } : {})
             })
         }
       }
@@ -46,6 +47,12 @@ const emailEnv = (): BookingProductEnv & { readonly ENVIRONMENT?: string } => ({
     : {}),
   ...(env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET
     ? { TRANSACTIONAL_EMAIL_CALLBACK_SECRET: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET }
+    : {}),
+  ...(env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY
+    ? {
+        TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY:
+          env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY
+      }
     : {}),
   ...(env.TRANSACTIONAL_EMAIL_DISABLED
     ? { TRANSACTIONAL_EMAIL_DISABLED: env.TRANSACTIONAL_EMAIL_DISABLED }

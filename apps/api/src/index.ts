@@ -3,10 +3,6 @@ import { getWebHandler } from './http.ts'
 import { makeD1MetaWhatsAppCallbackHandler } from './meta-whatsapp-callback.ts'
 import { handleSmsoCallbackEdge, isSmsoCallbackPath } from './smso-callback.ts'
 import {
-  handleTransactionalEmailCallback,
-  isTransactionalEmailCallbackPath
-} from './transactional-email-callback.ts'
-import {
   handleStripeSubscriptionWebhook,
   isStripeSubscriptionWebhookPath
 } from './stripe-subscription-webhook.ts'
@@ -20,8 +16,6 @@ export default {
   async fetch(request: Request, env: ApiEnv): Promise<Response> {
     if (isStripeSubscriptionWebhookPath(request))
       return handleStripeSubscriptionWebhook(request, env)
-    if (isTransactionalEmailCallbackPath(request))
-      return handleTransactionalEmailCallback(request, env)
     if (isSmsoCallbackPath(request)) return handleSmsoCallbackEdge(request, env)
     if (new URL(request.url).pathname === '/callbacks/meta/whatsapp')
       return makeD1MetaWhatsAppCallbackHandler(env)(request)

@@ -47,10 +47,12 @@ describe('Transactional Email readiness', () => {
       provider: {
         state: 'configured',
         sender: 'booking@beesolo.example',
+        fingerprintDestination: () => Effect.succeed('destination-fingerprint'),
         submit: () =>
           Effect.succeed({
             _tag: 'accepted' as const,
-            providerSubmissionId: 'provider-secret-reference',
+            providerReferenceFingerprint:
+              'hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             acceptedAt: now
           }),
         verifyCallback: () => Effect.succeed({ _tag: 'ignored' as const })
@@ -91,6 +93,35 @@ describe('Transactional Email readiness', () => {
     expect(local.state).toBe('capture')
   })
 
+  it('contains raw provider references inside the configured adapter', async () => {
+    const provider = makeConfiguredTransactionalEmailProvider({
+      sender: 'booking@beesolo.example',
+      callbackSecret: 'callback-secret',
+      providerReferenceFingerprintKey: 'provider-reference-key',
+      send: async () => ({
+        providerSubmissionId: 'raw-provider-secret',
+        acceptedAt: now
+      })
+    })
+    const result = await Effect.runPromise(
+      provider.submit({
+        idempotencyKey: 'provider-boundary',
+        from: 'booking@beesolo.example',
+        to: 'owner@example.test',
+        subject: 'Subject',
+        text: 'Body',
+        locale: 'en',
+        templateKey: 'test'
+      })
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'accepted',
+      providerReferenceFingerprint: expect.stringMatching(/^hmac-sha256:[a-f0-9]{64}$/)
+    })
+    expect(JSON.stringify(result)).not.toContain('raw-provider-secret')
+  })
+
   it('does not blind-retry a timed-out submission and replays the same evidence', async () => {
     let submissions = 0
     const layer = makeSeedTransactionalEmailLayer({
@@ -98,6 +129,7 @@ describe('Transactional Email readiness', () => {
       provider: makeConfiguredTransactionalEmailProvider({
         sender: 'booking@beesolo.example',
         callbackSecret: 'callback-secret',
+        providerReferenceFingerprintKey: 'provider-reference-key',
         timeoutMs: 1,
         send: async () => {
           submissions += 1
@@ -130,6 +162,12 @@ describe('Transactional Email readiness', () => {
     expect(first.status).toBe('submission_unknown')
     expect(replay).toEqual(first)
     expect(submissions).toBe(1)
+    expect(
+      await run(
+        Effect.flatMap(TransactionalEmail, (email) => email.readiness('mrc_one')),
+        layer
+      )
+    ).toMatchObject({ state: 'failed', reason: 'provider_timeout' })
   })
 
   it('retries only an explicitly safe transient failure with the stable key', async () => {
@@ -139,6 +177,7 @@ describe('Transactional Email readiness', () => {
       provider: {
         state: 'configured',
         sender: 'booking@beesolo.example',
+        fingerprintDestination: () => Effect.succeed('destination-fingerprint'),
         submit: () => {
           submissions += 1
           return Effect.succeed(
@@ -150,7 +189,8 @@ describe('Transactional Email readiness', () => {
                 }
               : {
                   _tag: 'accepted' as const,
-                  providerSubmissionId: 'submission-after-retry',
+                  providerReferenceFingerprint:
+                    'hmac-sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
                   acceptedAt: now
                 }
           )
@@ -187,10 +227,35 @@ describe('Transactional Email readiness', () => {
     expect(submissions).toBe(2)
   })
 
+  it('rejects changed command payload under an existing idempotency key', async () => {
+    const layer = makeSeedTransactionalEmailLayer({ runtime: 'test' })
+    const send = (locale: 'ro' | 'en') =>
+      run(
+        Effect.flatMap(TransactionalEmail, (email) =>
+          email.sendOwnerActivationTest({
+            merchantId: 'mrc_one',
+            ownerUserId: 'usr_owner',
+            verifiedOwnerEmail: 'owner@example.test',
+            locale,
+            idempotencyKey: 'activation-payload-conflict',
+            now
+          })
+        ),
+        layer
+      )
+
+    await send('en')
+    await expect(send('ro')).rejects.toMatchObject({
+      _tag: 'TransactionalEmailRejected',
+      reason: 'idempotency_key_conflict'
+    })
+  })
+
   it('verifies callback signatures and ignores duplicate callback events', async () => {
     const provider = makeConfiguredTransactionalEmailProvider({
       sender: 'booking@beesolo.example',
       callbackSecret: 'callback-secret',
+      providerReferenceFingerprintKey: 'provider-reference-key',
       send: async () => ({ providerSubmissionId: 'submission-one', acceptedAt: now })
     })
     const layer = makeSeedTransactionalEmailLayer({ runtime: 'production', provider })
@@ -209,7 +274,7 @@ describe('Transactional Email readiness', () => {
     )
     const rawBody = JSON.stringify({
       eventId: 'evt_one',
-      providerSubmissionId: 'submission-one',
+      messageId: 'submission-one',
       status: 'delivered',
       occurredAt: now
     })
@@ -227,8 +292,63 @@ describe('Transactional Email readiness', () => {
         layer
       )
 
-    expect(await callback('invalid')).toBe('ignored')
+    await expect(callback('invalid')).rejects.toMatchObject({
+      _tag: 'TransactionalEmailCallbackRejected',
+      code: 'invalid_signature'
+    })
     expect(await callback(signature)).toBe('applied')
     expect(await callback(signature)).toBe('duplicate')
+  })
+
+  it('keeps failed readiness when a failure callback precedes acceptance', async () => {
+    const provider = makeConfiguredTransactionalEmailProvider({
+      sender: 'booking@beesolo.example',
+      callbackSecret: 'callback-secret',
+      providerReferenceFingerprintKey: 'provider-reference-key',
+      send: async () => ({
+        providerSubmissionId: 'submission-early-failure',
+        acceptedAt: now
+      })
+    })
+    const layer = makeSeedTransactionalEmailLayer({ runtime: 'production', provider })
+    const rawBody = JSON.stringify({
+      eventId: 'evt_early_failure',
+      messageId: 'submission-early-failure',
+      status: 'failed',
+      occurredAt: now,
+      code: 'hard_bounce'
+    })
+    const signature = await provider.signCallbackForTest!(now, rawBody)
+    expect(
+      await run(
+        Effect.flatMap(TransactionalEmail, (email) =>
+          email.receiveCallback({ rawBody, signature, timestamp: now, now })
+        ),
+        layer
+      )
+    ).toBe('ignored')
+    const evidence = await run(
+      Effect.flatMap(TransactionalEmail, (email) =>
+        email.sendOwnerActivationTest({
+          merchantId: 'mrc_early_failure',
+          ownerUserId: 'usr_owner',
+          verifiedOwnerEmail: 'owner@example.test',
+          locale: 'en',
+          idempotencyKey: 'activation-early-failure',
+          now
+        })
+      ),
+      layer
+    )
+
+    expect(evidence).toMatchObject({ status: 'failed', failureCode: 'hard_bounce' })
+    expect(
+      await run(
+        Effect.flatMap(TransactionalEmail, (email) =>
+          email.readiness('mrc_early_failure')
+        ),
+        layer
+      )
+    ).toMatchObject({ state: 'failed', reason: 'hard_bounce' })
   })
 })

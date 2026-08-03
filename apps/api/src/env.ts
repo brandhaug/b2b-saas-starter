@@ -5,6 +5,16 @@ import type { RateLimitBindings } from './rate-limit.ts'
 // layers, the web-handler assembly, and the fetch entrypoint.
 export type ApiEnv = RateLimitBindings & {
   readonly DB?: D1Database
+  readonly EMAIL?: {
+    readonly send: (message: {
+      readonly from: string
+      readonly to: string | readonly string[]
+      readonly subject: string
+      readonly text?: string
+      readonly html?: string
+      readonly headers?: Readonly<Record<string, string>>
+    }) => Promise<unknown>
+  }
   readonly PLATFORM_API_CURSOR_SECRET?: string
   readonly ENVIRONMENT?: string
   readonly BOOKING_EVENTS_QUEUE?: Queue
@@ -17,6 +27,7 @@ export type ApiEnv = RateLimitBindings & {
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly TRANSACTIONAL_EMAIL_SENDER_VERIFIED?: string
   readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string
+  readonly TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
   readonly STRIPE_SUBSCRIPTION_WEBHOOK_SECRET?: string
   readonly STRIPE_SUBSCRIPTION_SECRET_KEY?: string
   readonly STRIPE_SOLO_MONTHLY_PRICE_ID?: string

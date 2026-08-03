@@ -53,12 +53,14 @@ export type BookingProductEnv = {
           readonly subject: string
           readonly text?: string
           readonly html?: string
+          readonly headers?: Readonly<Record<string, string>>
         }) => Promise<unknown>
       }
     | undefined
   readonly CLOUDFLARE_EMAIL_FROM?: string | undefined
   readonly TRANSACTIONAL_EMAIL_SENDER_VERIFIED?: string | undefined
   readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string | undefined
+  readonly TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string | undefined
   readonly TRANSACTIONAL_EMAIL_DISABLED?: string | undefined
 }
 
@@ -79,7 +81,8 @@ export const makeTransactionalEmailCapabilityLayer = (
     env.EMAIL &&
     env.CLOUDFLARE_EMAIL_FROM?.trim() &&
     env.TRANSACTIONAL_EMAIL_SENDER_VERIFIED === 'true' &&
-    env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET?.trim()
+    env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET?.trim() &&
+    env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?.trim()
   )
   const provider = selectTransactionalEmailProvider({
     runtime,
@@ -89,11 +92,32 @@ export const makeTransactionalEmailCapabilityLayer = (
           provider: makeConfiguredTransactionalEmailProvider({
             sender: env.CLOUDFLARE_EMAIL_FROM!,
             callbackSecret: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET!,
+            providerReferenceFingerprintKey:
+              env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY!,
             send: async (message) => {
-              await env.EMAIL!.send(message)
+              const response = await env.EMAIL!.send({
+                from: message.from,
+                to: message.to,
+                subject: message.subject,
+                text: message.text,
+                headers: { 'X-BeeSolo-Idempotency-Key': message.idempotencyKey }
+              })
+              if (
+                !response ||
+                typeof response !== 'object' ||
+                !('messageId' in response) ||
+                typeof response.messageId !== 'string' ||
+                response.messageId.length === 0
+              )
+                throw new Error('email_provider_acceptance_reference_missing')
               return {
-                providerSubmissionId: message.idempotencyKey,
-                acceptedAt: new Date().toISOString()
+                providerSubmissionId: response.messageId,
+                acceptedAt:
+                  'acceptedAt' in response &&
+                  typeof response.acceptedAt === 'string' &&
+                  Number.isFinite(Date.parse(response.acceptedAt))
+                    ? response.acceptedAt
+                    : new Date().toISOString()
               }
             }
           })

@@ -83,6 +83,16 @@ export class RateLimited extends Schema.TaggedErrorClass<RateLimited>()(
   { bucket: Schema.String },
   { httpApiStatus: 429 }
 ) {}
+export class TransactionalEmailCallbackInvalid extends Schema.TaggedErrorClass<TransactionalEmailCallbackInvalid>()(
+  'TransactionalEmailCallbackInvalid',
+  { code: Schema.String },
+  { httpApiStatus: 400 }
+) {}
+export class TransactionalEmailCallbackUnavailable extends Schema.TaggedErrorClass<TransactionalEmailCallbackUnavailable>()(
+  'TransactionalEmailCallbackUnavailable',
+  { code: Schema.String },
+  { httpApiStatus: 503 }
+) {}
 
 const AUTH_ERRORS = [
   PlatformUnauthorized,
@@ -145,6 +155,23 @@ const AppointmentQuery = Schema.Struct({
 export const HealthApi = HttpApiGroup.make('health').add(
   HttpApiEndpoint.get('check', '/health', {
     success: Schema.Struct({ status: Schema.Literal('ok') })
+  })
+)
+export const TransactionalEmailCallbackApi = HttpApiGroup.make(
+  'transactional-email-callback'
+).add(
+  HttpApiEndpoint.post('receive', '/callbacks/email/transactional', {
+    headers: Schema.Struct({
+      'webhook-signature': Schema.String,
+      'webhook-timestamp': Schema.String
+    }),
+    payload: Schema.String.pipe(
+      HttpApiSchema.asText({ contentType: 'application/json' })
+    ),
+    success: Schema.Struct({
+      outcome: Schema.Literals(['applied', 'duplicate', 'ignored', 'out_of_order'])
+    }).pipe(HttpApiSchema.status(202)),
+    error: [TransactionalEmailCallbackInvalid, TransactionalEmailCallbackUnavailable]
   })
 )
 export const MerchantApi = HttpApiGroup.make('merchant').add(
@@ -341,6 +368,7 @@ export const PlatformWebhookApi = HttpApiGroup.make('platform-webhooks')
 
 export const BookingProductApi = HttpApi.make('booking-product-platform-api')
   .add(HealthApi)
+  .add(TransactionalEmailCallbackApi)
   .add(MerchantApi)
   .add(ServicesApi)
   .add(ProvidersApi)

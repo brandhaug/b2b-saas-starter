@@ -35,3 +35,34 @@ Focused deterministic and Live D1 tests passed (9 tests), as did formatting, sco
 lint, and the API/capabilities/database typechecks. The full workspace run reached
 unrelated existing failures: a Miniflare `EADDRNOTAVAIL` resource failure and legacy
 Merchant Catalog Live fixtures that violate the Solo Owner-Provider invariant.
+
+### Reopened — 2026-08-03
+
+Reopened after the exact-commit rereview found that the Owner command was not reachable,
+the production adapter fabricated callback correlation, callback ordering and retries
+were not concurrency-safe, invalid callbacks were acknowledged, Live failed readiness
+was lost, and the callback edge bypassed the Effect HTTP API contract.
+
+### Repair resolution — 2026-08-03
+
+The production adapter now consumes Cloudflare's real `messageId`, carries the stable
+command key in a supported email header, and converts provider message and event IDs to
+keyed HMAC fingerprints at the I/O boundary. Provider codes and occurrence times are
+normalized before persistence. The central environment catalog forwards the verified
+sender attestation, callback secret, and fingerprint key to deployed Workers.
+
+Live D1 uses atomic first-send and safe-retry claims, rejects same-key changed payloads
+with exact destination fingerprints, reconciles callbacks that precede acceptance, and
+prevents duplicate or out-of-order terminal regressions. The migration safely replays
+legacy terminal evidence, fails closed on unverifiable legacy retries, and intentionally
+does not retain legacy callback receipts containing raw provider event IDs. Seed and Live
+readiness now agree for failure and ambiguous submission outcomes.
+
+The Owner activation surface reports accepted, delivered, captured, failed, and unknown
+evidence truthfully. Callback ingress is part of the typed Effect HTTP API and rejects bad
+signatures with HTTP 400. Focused capability, Live D1, HTTP contract, and environment
+verification passed (33 tests), along with scoped formatting, lint, and DB/API typechecks.
+The full workspace run still encountered unrelated concurrent-work failures in the
+foundation migration suite and shared Merchant Catalog typing. Cloudflare provider-level
+deduplication and live delivery-callback sourcing remain release qualification concerns;
+the capability does not claim either as proven provider behavior.

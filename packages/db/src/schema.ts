@@ -400,6 +400,7 @@ export const transactionalEmailEvidence = sqliteTable(
     locale: text('locale', { enum: ['ro', 'en'] }).notNull(),
     templateKey: text('template_key').notNull(),
     maskedDestination: text('masked_destination').notNull(),
+    destinationFingerprint: text('destination_fingerprint'),
     senderIdentity: text('sender_identity').notNull(),
     providerReferenceFingerprint: text('provider_reference_fingerprint').unique(),
     status: text('status', {
@@ -418,6 +419,7 @@ export const transactionalEmailEvidence = sqliteTable(
     retryable: integer('retryable', { mode: 'boolean' }).default(false).notNull(),
     acceptedAt: text('accepted_at'),
     deliveredAt: text('delivered_at'),
+    latestProviderOccurredAt: text('latest_provider_occurred_at'),
     updatedAt: isoUpdatedAt()
   },
   (table) => [
@@ -437,8 +439,14 @@ export const transactionalEmailCallbackReceipts = sqliteTable(
       onDelete: 'set null'
     }),
     outcome: text('outcome', {
-      enum: ['pending', 'applied', 'ignored_unknown_submission']
+      enum: ['pending', 'applied', 'out_of_order', 'ignored_unknown_submission']
     }).notNull(),
+    providerReferenceFingerprint: text('provider_reference_fingerprint'),
+    providerStatus: text('provider_status', {
+      enum: ['delivered', 'failed']
+    }),
+    providerOccurredAt: text('provider_occurred_at'),
+    normalizedCode: text('normalized_code'),
     receivedAt: text('received_at').notNull()
   }
 )

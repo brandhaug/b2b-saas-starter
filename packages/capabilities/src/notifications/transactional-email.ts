@@ -1,8 +1,9 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import {
   Database,
   merchantMemberships,
+  rawD1FromDatabase,
   transactionalEmailCallbackReceipts,
   transactionalEmailEvidence as emailEvidenceTable,
   user
@@ -60,6 +61,7 @@ export class TransactionalEmailRejected extends Schema.TaggedErrorClass<Transact
     reason: Schema.Literals([
       'owner_email_not_verified',
       'invalid_destination',
+      'idempotency_key_conflict',
       'needs_configuration',
       'disabled'
     ])
@@ -70,7 +72,7 @@ export type EmailProviderSubmission =
   | { readonly _tag: 'captured'; readonly capturedAt: string }
   | {
       readonly _tag: 'accepted'
-      readonly providerSubmissionId: string
+      readonly providerReferenceFingerprint: string
       readonly acceptedAt: string
     }
   | { readonly _tag: 'failed'; readonly code: string; readonly retryable: boolean }
@@ -79,8 +81,8 @@ export type EmailProviderSubmission =
 export type EmailProviderCallback =
   | {
       readonly _tag: 'verified'
-      readonly providerSubmissionId: string
-      readonly eventId: string
+      readonly providerReferenceFingerprint: string
+      readonly eventFingerprint: string
       readonly status: 'delivered' | 'failed'
       readonly occurredAt: string
       readonly code?: string
@@ -91,6 +93,9 @@ export type EmailProviderCallback =
 export type TransactionalEmailProvider = {
   readonly state: TransactionalEmailProviderState
   readonly sender?: string
+  readonly fingerprintDestination: (
+    destination: string
+  ) => Effect.Effect<string, CapabilityUnavailable>
   readonly submit: (input: {
     readonly idempotencyKey: string
     readonly from: string
@@ -109,6 +114,11 @@ export type TransactionalEmailProvider = {
   readonly signCallbackForTest?: (timestamp: string, rawBody: string) => Promise<string>
 }
 
+export class TransactionalEmailCallbackRejected extends Schema.TaggedErrorClass<TransactionalEmailCallbackRejected>()(
+  'TransactionalEmailCallbackRejected',
+  { code: Schema.String }
+) {}
+
 const hex = (value: ArrayBuffer) =>
   Array.from(new Uint8Array(value), (byte) => byte.toString(16).padStart(2, '0')).join(
     ''
@@ -125,6 +135,14 @@ const hmac = async (secret: string, value: string) => {
   return hex(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value)))
 }
 
+const providerReferenceFingerprint = async (secret: string, value: string) =>
+  `hmac-sha256:${await hmac(secret, value)}`
+
+const normalizeProviderFailureCode = (value: unknown) =>
+  value === 'hard_bounce' || value === 'complaint' || value === 'rejected'
+    ? value
+    : 'provider_failed'
+
 const sameSignature = (left: string, right: string) => {
   if (left.length !== right.length) return false
   let difference = 0
@@ -136,6 +154,7 @@ const sameSignature = (left: string, right: string) => {
 export const makeConfiguredTransactionalEmailProvider = (input: {
   readonly sender: string
   readonly callbackSecret: string
+  readonly providerReferenceFingerprintKey: string
   readonly timeoutMs?: number
   readonly send: (message: {
     readonly idempotencyKey: string
@@ -150,6 +169,13 @@ export const makeConfiguredTransactionalEmailProvider = (input: {
   return {
     state: 'configured',
     sender: input.sender,
+    fingerprintDestination: (destination) =>
+      Effect.promise(() =>
+        providerReferenceFingerprint(
+          input.providerReferenceFingerprintKey,
+          `destination:${destination}`
+        )
+      ),
     submit: (message) =>
       Effect.tryPromise({
         try: () => input.send(message),
@@ -159,8 +185,20 @@ export const makeConfiguredTransactionalEmailProvider = (input: {
             reason: 'provider_request_failed'
           })
       }).pipe(
-        Effect.map(
-          (accepted): EmailProviderSubmission => ({ _tag: 'accepted', ...accepted })
+        Effect.flatMap((accepted) =>
+          Effect.map(
+            Effect.promise(() =>
+              providerReferenceFingerprint(
+                input.providerReferenceFingerprintKey,
+                accepted.providerSubmissionId
+              )
+            ),
+            (fingerprint): EmailProviderSubmission => ({
+              _tag: 'accepted',
+              providerReferenceFingerprint: fingerprint,
+              acceptedAt: accepted.acceptedAt
+            })
+          )
         ),
         Effect.catch(() =>
           Effect.succeed<EmailProviderSubmission>({
@@ -188,21 +226,37 @@ export const makeConfiguredTransactionalEmailProvider = (input: {
           const expected = await sign(timestamp, rawBody)
           if (!sameSignature(expected, signature))
             return { _tag: 'rejected', code: 'invalid_signature' }
-          const parsed = JSON.parse(rawBody) as Record<string, unknown>
+          let parsed: Record<string, unknown>
+          try {
+            parsed = JSON.parse(rawBody) as Record<string, unknown>
+          } catch {
+            return { _tag: 'rejected', code: 'invalid_payload' }
+          }
           if (
             typeof parsed.eventId !== 'string' ||
-            typeof parsed.providerSubmissionId !== 'string' ||
+            parsed.eventId.length === 0 ||
+            typeof parsed.messageId !== 'string' ||
+            parsed.messageId.length === 0 ||
             (parsed.status !== 'delivered' && parsed.status !== 'failed') ||
-            typeof parsed.occurredAt !== 'string'
+            typeof parsed.occurredAt !== 'string' ||
+            !Number.isFinite(Date.parse(parsed.occurredAt))
           )
             return { _tag: 'rejected', code: 'invalid_payload' }
           return {
             _tag: 'verified',
-            eventId: parsed.eventId,
-            providerSubmissionId: parsed.providerSubmissionId,
+            eventFingerprint: await providerReferenceFingerprint(
+              input.providerReferenceFingerprintKey,
+              parsed.eventId
+            ),
+            providerReferenceFingerprint: await providerReferenceFingerprint(
+              input.providerReferenceFingerprintKey,
+              parsed.messageId
+            ),
             status: parsed.status,
-            occurredAt: parsed.occurredAt,
-            ...(typeof parsed.code === 'string' ? { code: parsed.code } : {})
+            occurredAt: new Date(Date.parse(parsed.occurredAt)).toISOString(),
+            ...(parsed.status === 'failed'
+              ? { code: normalizeProviderFailureCode(parsed.code) }
+              : {})
           }
         },
         catch: () =>
@@ -237,6 +291,13 @@ const maskEmail = (email: string) => {
 const captureProvider = (): TransactionalEmailProvider => ({
   state: 'capture',
   sender: 'capture@beesolo.local',
+  fingerprintDestination: (destination) =>
+    Effect.promise(() =>
+      providerReferenceFingerprint(
+        'beesolo-local-capture-destination-key',
+        `destination:${destination}`
+      )
+    ),
   submit: () =>
     Effect.succeed({ _tag: 'captured', capturedAt: new Date().toISOString() }),
   verifyCallback: () => Effect.succeed({ _tag: 'ignored' })
@@ -246,6 +307,13 @@ const unavailableProvider = (
   state: 'needs_configuration' | 'disabled'
 ): TransactionalEmailProvider => ({
   state,
+  fingerprintDestination: () =>
+    Effect.fail(
+      new CapabilityUnavailable({
+        capability: 'transactional-email-provider',
+        reason: state
+      })
+    ),
   submit: () =>
     Effect.fail(
       new CapabilityUnavailable({
@@ -293,7 +361,10 @@ export type TransactionalEmailShape = {
     readonly signature: string
     readonly timestamp: string
     readonly now: string
-  }) => Effect.Effect<'applied' | 'duplicate' | 'ignored', CapabilityUnavailable>
+  }) => Effect.Effect<
+    'applied' | 'duplicate' | 'ignored' | 'out_of_order',
+    CapabilityUnavailable | TransactionalEmailCallbackRejected
+  >
 }
 
 export class TransactionalEmail extends Context.Service<
@@ -308,20 +379,72 @@ export const makeSeedTransactionalEmailLayer = (input: {
 }): Layer.Layer<TransactionalEmail> => {
   const provider = selectTransactionalEmailProvider(input)
   const evidenceByIdempotency = new Map<string, TransactionalEmailEvidence>()
+  const commandSignatures = new Map<string, string>()
   const evidenceByProviderId = new Map<string, TransactionalEmailEvidence>()
   const readiness = new Map<string, NotificationReadiness>()
   const callbackEvents = new Set<string>()
+  const latestProviderOccurrence = new Map<string, string>()
+  const pendingCallbacks = new Map<
+    string,
+    readonly Extract<EmailProviderCallback, { readonly _tag: 'verified' }>[]
+  >()
 
   const configurationReadiness = (merchantId: string): NotificationReadiness =>
     provider.state === 'needs_configuration' || provider.state === 'disabled'
       ? { merchantId, state: provider.state, reason: `email_${provider.state}` }
       : { merchantId, state: 'not_tested' }
 
+  const applySeedCallback = (
+    callback: Extract<EmailProviderCallback, { readonly _tag: 'verified' }>
+  ) => {
+    const existing = evidenceByProviderId.get(callback.providerReferenceFingerprint)
+    if (!existing) return 'ignored' as const
+    const latest = latestProviderOccurrence.get(existing.evidenceId)
+    if (
+      (latest && latest >= callback.occurredAt) ||
+      existing.status === 'delivered' ||
+      existing.status === 'failed'
+    )
+      return 'out_of_order' as const
+    const updated: TransactionalEmailEvidence =
+      callback.status === 'delivered'
+        ? {
+            ...existing,
+            status: 'delivered',
+            deliveredAt: callback.occurredAt,
+            retryable: false
+          }
+        : {
+            ...existing,
+            status: 'failed',
+            failureCode: callback.code ?? 'provider_failed',
+            retryable: false
+          }
+    latestProviderOccurrence.set(existing.evidenceId, callback.occurredAt)
+    evidenceByProviderId.set(callback.providerReferenceFingerprint, updated)
+    for (const [key, value] of evidenceByIdempotency)
+      if (value.evidenceId === existing.evidenceId)
+        evidenceByIdempotency.set(key, updated)
+    readiness.set(
+      existing.merchantId,
+      updated.status === 'failed'
+        ? {
+            merchantId: existing.merchantId,
+            state: 'failed',
+            reason: updated.failureCode ?? 'provider_failed'
+          }
+        : {
+            merchantId: existing.merchantId,
+            state: 'ready',
+            acceptedEvidenceId: existing.evidenceId
+          }
+    )
+    return 'applied' as const
+  }
+
   return Layer.succeed(TransactionalEmail)({
     sendOwnerActivationTest: (command) =>
       Effect.gen(function* () {
-        const replay = evidenceByIdempotency.get(command.idempotencyKey)
-        if (replay && !replay.retryable) return replay
         if (!command.verifiedOwnerEmail)
           return yield* new TransactionalEmailRejected({
             reason: 'owner_email_not_verified'
@@ -336,6 +459,23 @@ export const makeSeedTransactionalEmailLayer = (input: {
           return yield* new TransactionalEmailRejected({ reason: provider.state })
         }
         const template = templates[command.locale]
+        const destinationFingerprint =
+          yield* provider.fingerprintDestination(destination)
+        const signature = JSON.stringify([
+          command.merchantId,
+          command.ownerUserId,
+          command.locale,
+          template.key,
+          destinationFingerprint,
+          provider.sender ?? ''
+        ])
+        const replay = evidenceByIdempotency.get(command.idempotencyKey)
+        const priorSignature = commandSignatures.get(command.idempotencyKey)
+        if (replay && priorSignature !== signature)
+          return yield* new TransactionalEmailRejected({
+            reason: 'idempotency_key_conflict'
+          })
+        if (replay && !replay.retryable) return replay
         const result = yield* provider.submit({
           idempotencyKey: command.idempotencyKey,
           from: provider.sender ?? '',
@@ -378,64 +518,59 @@ export const makeSeedTransactionalEmailLayer = (input: {
                     retryable: result.retryable
                   }
         evidenceByIdempotency.set(command.idempotencyKey, evidence)
+        commandSignatures.set(command.idempotencyKey, signature)
         if (result._tag === 'accepted') {
-          evidenceByProviderId.set(result.providerSubmissionId, evidence)
+          evidenceByProviderId.set(result.providerReferenceFingerprint, evidence)
           if (provider.state === 'configured')
             readiness.set(command.merchantId, {
               merchantId: command.merchantId,
               state: 'ready',
               acceptedEvidenceId: evidence.evidenceId
             })
+          const pending =
+            pendingCallbacks.get(result.providerReferenceFingerprint) ?? []
+          for (const callback of [...pending].sort((left, right) =>
+            right.occurredAt.localeCompare(left.occurredAt)
+          ))
+            applySeedCallback(callback)
+          pendingCallbacks.delete(result.providerReferenceFingerprint)
         } else if (result._tag === 'failed') {
           readiness.set(command.merchantId, {
             merchantId: command.merchantId,
             state: 'failed',
             reason: result.code
           })
+        } else if (result._tag === 'submission_unknown') {
+          readiness.set(command.merchantId, {
+            merchantId: command.merchantId,
+            state: 'failed',
+            reason: result.code
+          })
         }
-        return evidence
+        return evidenceByIdempotency.get(command.idempotencyKey) ?? evidence
       }),
     readiness: (merchantId) =>
       Effect.succeed(readiness.get(merchantId) ?? configurationReadiness(merchantId)),
     receiveCallback: (callbackInput) =>
       Effect.gen(function* () {
         const callback = yield* provider.verifyCallback(callbackInput)
-        if (callback._tag !== 'verified') return 'ignored' as const
-        if (callbackEvents.has(callback.eventId)) return 'duplicate' as const
-        callbackEvents.add(callback.eventId)
-        const existing = evidenceByProviderId.get(callback.providerSubmissionId)
-        if (!existing) return 'ignored' as const
-        const updated: TransactionalEmailEvidence =
-          callback.status === 'delivered'
-            ? {
-                ...existing,
-                status: 'delivered',
-                deliveredAt: callback.occurredAt,
-                retryable: false
-              }
-            : {
-                ...existing,
-                status: 'failed',
-                failureCode: callback.code ?? 'provider_failed',
-                retryable: false
-              }
-        evidenceByProviderId.set(callback.providerSubmissionId, updated)
-        for (const [key, value] of evidenceByIdempotency)
-          if (value.evidenceId === existing.evidenceId)
-            evidenceByIdempotency.set(key, updated)
-        return 'applied' as const
+        if (callback._tag === 'rejected')
+          return yield* new TransactionalEmailCallbackRejected({
+            code: callback.code
+          })
+        if (callback._tag === 'ignored') return 'ignored' as const
+        if (callbackEvents.has(callback.eventFingerprint)) return 'duplicate' as const
+        callbackEvents.add(callback.eventFingerprint)
+        const outcome = applySeedCallback(callback)
+        if (outcome === 'ignored')
+          pendingCallbacks.set(callback.providerReferenceFingerprint, [
+            ...(pendingCallbacks.get(callback.providerReferenceFingerprint) ?? []),
+            callback
+          ])
+        return outcome
       })
   })
 }
-
-const fingerprintProviderReference = (value: string) =>
-  Effect.promise(async () => {
-    const digest = await crypto.subtle.digest(
-      'SHA-256',
-      new TextEncoder().encode(value)
-    )
-    return `sha256:${hex(digest)}`
-  })
 
 const evidenceProjection = (row: typeof emailEvidenceTable.$inferSelect) => ({
   evidenceId: row.id,
@@ -459,6 +594,7 @@ export const makeLiveTransactionalEmailLayer = (
     TransactionalEmail,
     Effect.gen(function* () {
       const db = yield* Database
+      const rawD1 = rawD1FromDatabase(db)
       const readEvidence = (idempotencyKey: string) =>
         orUnavailable('transactional-email')(
           db
@@ -467,11 +603,116 @@ export const makeLiveTransactionalEmailLayer = (
             .where(eq(emailEvidenceTable.idempotencyKey, idempotencyKey))
             .limit(1)
         )
+      const applyVerifiedCallback = (callback: {
+        readonly eventFingerprint: string
+        readonly providerReferenceFingerprint: string
+        readonly status: 'delivered' | 'failed'
+        readonly occurredAt: string
+        readonly code?: string
+      }) =>
+        Effect.tryPromise({
+          try: async () => {
+            const evidence = await rawD1
+              .prepare(
+                `SELECT id FROM transactional_email_evidence
+                 WHERE provider_reference_fingerprint = ? LIMIT 1`
+              )
+              .bind(callback.providerReferenceFingerprint)
+              .first<{ id: string }>()
+            if (!evidence) return 'ignored' as const
+            const status = callback.status
+            await rawD1.batch([
+              rawD1
+                .prepare(
+                  `UPDATE transactional_email_evidence
+                   SET status = ?, delivered_at = ?, failure_code = ?, retryable = 0,
+                       latest_provider_occurred_at = ?, updated_at = ?
+                   WHERE id = ? AND status = 'accepted'
+                     AND (latest_provider_occurred_at IS NULL OR latest_provider_occurred_at < ?)`
+                )
+                .bind(
+                  status,
+                  status === 'delivered' ? callback.occurredAt : null,
+                  status === 'failed' ? (callback.code ?? 'provider_failed') : null,
+                  callback.occurredAt,
+                  callback.occurredAt,
+                  evidence.id,
+                  callback.occurredAt
+                ),
+              rawD1
+                .prepare(
+                  `UPDATE transactional_email_callback_receipts
+                   SET evidence_id = ?, outcome = CASE
+                     WHEN EXISTS (
+                       SELECT 1 FROM transactional_email_evidence
+                       WHERE id = ? AND status = ? AND latest_provider_occurred_at = ?
+                     ) THEN 'applied' ELSE 'out_of_order' END
+                   WHERE event_id = ? AND outcome = 'pending'`
+                )
+                .bind(
+                  evidence.id,
+                  evidence.id,
+                  status,
+                  callback.occurredAt,
+                  callback.eventFingerprint
+                )
+            ])
+            const receipt = await rawD1
+              .prepare(
+                `SELECT outcome FROM transactional_email_callback_receipts
+                 WHERE event_id = ? LIMIT 1`
+              )
+              .bind(callback.eventFingerprint)
+              .first<{ outcome: 'applied' | 'out_of_order' }>()
+            return receipt?.outcome ?? ('out_of_order' as const)
+          },
+          catch: (cause) =>
+            new CapabilityUnavailable({
+              capability: 'transactional-email',
+              reason: cause instanceof Error ? cause.message : String(cause)
+            })
+        })
+      const reconcilePendingCallbacks = (fingerprint: string) =>
+        Effect.tryPromise({
+          try: async () => {
+            const pending = await rawD1
+              .prepare(
+                `SELECT event_id, provider_status, provider_occurred_at, normalized_code
+                 FROM transactional_email_callback_receipts
+                 WHERE provider_reference_fingerprint = ? AND outcome = 'pending'
+                 ORDER BY provider_occurred_at DESC`
+              )
+              .bind(fingerprint)
+              .all<{
+                event_id: string
+                provider_status: 'delivered' | 'failed'
+                provider_occurred_at: string
+                normalized_code: string | null
+              }>()
+            return pending.results
+          },
+          catch: (cause) =>
+            new CapabilityUnavailable({
+              capability: 'transactional-email',
+              reason: cause instanceof Error ? cause.message : String(cause)
+            })
+        }).pipe(
+          Effect.flatMap((pending) =>
+            Effect.forEach(pending, (item) =>
+              applyVerifiedCallback({
+                eventFingerprint: item.event_id,
+                providerReferenceFingerprint: fingerprint,
+                status: item.provider_status,
+                occurredAt: item.provider_occurred_at,
+                ...(item.normalized_code ? { code: item.normalized_code } : {})
+              })
+            )
+          ),
+          Effect.asVoid
+        )
       return {
         sendOwnerActivationTest: (command) =>
           Effect.gen(function* () {
-            const existing = (yield* readEvidence(command.idempotencyKey))[0]
-            if (existing && !existing.retryable) return evidenceProjection(existing)
             if (
               provider.state === 'needs_configuration' ||
               provider.state === 'disabled'
@@ -500,11 +741,14 @@ export const makeLiveTransactionalEmailLayer = (
                 reason: 'invalid_destination'
               })
             const template = templates[command.locale]
-            const evidenceId = existing?.id ?? `eml_${crypto.randomUUID()}`
-            if (!existing)
-              yield* orUnavailable('transactional-email')(
-                db.insert(emailEvidenceTable).values({
-                  id: evidenceId,
+            const destinationFingerprint =
+              yield* provider.fingerprintDestination(destination)
+            const proposedEvidenceId = `eml_${crypto.randomUUID()}`
+            const inserted = yield* orUnavailable('transactional-email')(
+              db
+                .insert(emailEvidenceTable)
+                .values({
+                  id: proposedEvidenceId,
                   merchantId: command.merchantId,
                   ownerUserId: command.ownerUserId,
                   idempotencyKey: command.idempotencyKey,
@@ -512,6 +756,7 @@ export const makeLiveTransactionalEmailLayer = (
                   locale: command.locale,
                   templateKey: template.key,
                   maskedDestination: maskEmail(destination),
+                  destinationFingerprint,
                   senderIdentity: provider.sender ?? '',
                   status: 'submitting',
                   attemptedAt: command.now,
@@ -519,9 +764,40 @@ export const makeLiveTransactionalEmailLayer = (
                   retryable: false,
                   updatedAt: command.now
                 })
+                .onConflictDoNothing({ target: emailEvidenceTable.idempotencyKey })
+                .returning({ id: emailEvidenceTable.id })
+            )
+            let evidenceId = inserted[0]?.id
+            if (!evidenceId) {
+              const existing = (yield* readEvidence(command.idempotencyKey))[0]
+              if (!existing)
+                return yield* new CapabilityUnavailable({
+                  capability: 'transactional-email',
+                  reason: 'idempotency_claim_lost'
+                })
+              if (
+                existing.merchantId !== command.merchantId ||
+                existing.ownerUserId !== command.ownerUserId ||
+                existing.locale !== command.locale ||
+                existing.templateKey !== template.key ||
+                existing.senderIdentity !== (provider.sender ?? '')
               )
-            else
-              yield* orUnavailable('transactional-email')(
+                return yield* new TransactionalEmailRejected({
+                  reason: 'idempotency_key_conflict'
+                })
+              if (existing.destinationFingerprint === null) {
+                if (existing.retryable)
+                  return yield* new TransactionalEmailRejected({
+                    reason: 'idempotency_key_conflict'
+                  })
+                return evidenceProjection(existing)
+              }
+              if (existing.destinationFingerprint !== destinationFingerprint)
+                return yield* new TransactionalEmailRejected({
+                  reason: 'idempotency_key_conflict'
+                })
+              if (!existing.retryable) return evidenceProjection(existing)
+              const claimed = yield* orUnavailable('transactional-email')(
                 db
                   .update(emailEvidenceTable)
                   .set({
@@ -531,8 +807,26 @@ export const makeLiveTransactionalEmailLayer = (
                     retryable: false,
                     updatedAt: command.now
                   })
-                  .where(eq(emailEvidenceTable.id, evidenceId))
+                  .where(
+                    and(
+                      eq(emailEvidenceTable.id, existing.id),
+                      eq(emailEvidenceTable.status, 'failed'),
+                      eq(emailEvidenceTable.retryable, true)
+                    )
+                  )
+                  .returning({ id: emailEvidenceTable.id })
               )
+              if (claimed.length === 0) {
+                const replay = (yield* readEvidence(command.idempotencyKey))[0]
+                if (!replay)
+                  return yield* new CapabilityUnavailable({
+                    capability: 'transactional-email',
+                    reason: 'idempotency_claim_lost'
+                  })
+                return evidenceProjection(replay)
+              }
+              evidenceId = existing.id
+            }
             const result = yield* provider.submit({
               idempotencyKey: command.idempotencyKey,
               from: provider.sender ?? '',
@@ -543,9 +837,7 @@ export const makeLiveTransactionalEmailLayer = (
               templateKey: template.key
             })
             const providerFingerprint =
-              result._tag === 'accepted'
-                ? yield* fingerprintProviderReference(result.providerSubmissionId)
-                : null
+              result._tag === 'accepted' ? result.providerReferenceFingerprint : null
             const status =
               result._tag === 'captured'
                 ? ('captured' as const)
@@ -568,8 +860,15 @@ export const makeLiveTransactionalEmailLayer = (
                   retryable: result._tag === 'failed' && result.retryable,
                   updatedAt: command.now
                 })
-                .where(eq(emailEvidenceTable.id, evidenceId))
+                .where(
+                  and(
+                    eq(emailEvidenceTable.id, evidenceId),
+                    eq(emailEvidenceTable.status, 'submitting')
+                  )
+                )
             )
+            if (providerFingerprint)
+              yield* reconcilePendingCallbacks(providerFingerprint)
             const row = (yield* readEvidence(command.idempotencyKey))[0]!
             return evidenceProjection(row)
           }),
@@ -592,41 +891,47 @@ export const makeLiveTransactionalEmailLayer = (
                   and(
                     eq(emailEvidenceTable.merchantId, merchantId),
                     eq(emailEvidenceTable.purpose, 'owner_activation_test'),
-                    inArray(emailEvidenceTable.status, ['accepted', 'delivered'])
+                    eq(emailEvidenceTable.senderIdentity, provider.sender ?? '')
                   )
                 )
-                .orderBy(desc(emailEvidenceTable.acceptedAt))
+                .orderBy(desc(emailEvidenceTable.attemptedAt))
                 .limit(1)
             )
-            return latest
-              ? {
-                  merchantId,
-                  state: 'ready' as const,
-                  acceptedEvidenceId: latest.id
-                }
-              : { merchantId, state: 'not_tested' as const }
+            if (!latest) return { merchantId, state: 'not_tested' as const }
+            if (latest.status === 'accepted' || latest.status === 'delivered')
+              return {
+                merchantId,
+                state: 'ready' as const,
+                acceptedEvidenceId: latest.id
+              }
+            if (latest.status === 'failed' || latest.status === 'submission_unknown')
+              return {
+                merchantId,
+                state: 'failed' as const,
+                reason: latest.failureCode ?? latest.status
+              }
+            return { merchantId, state: 'not_tested' as const }
           }),
         receiveCallback: (callbackInput) =>
           Effect.gen(function* () {
             const callback = yield* provider.verifyCallback(callbackInput)
-            if (callback._tag !== 'verified') return 'ignored' as const
-            const fingerprint = yield* fingerprintProviderReference(
-              callback.providerSubmissionId
-            )
-            const [evidence] = yield* orUnavailable('transactional-email')(
-              db
-                .select()
-                .from(emailEvidenceTable)
-                .where(eq(emailEvidenceTable.providerReferenceFingerprint, fingerprint))
-                .limit(1)
-            )
+            if (callback._tag === 'rejected')
+              return yield* new TransactionalEmailCallbackRejected({
+                code: callback.code
+              })
+            if (callback._tag === 'ignored') return 'ignored' as const
+            const fingerprint = callback.providerReferenceFingerprint
             const inserted = yield* orUnavailable('transactional-email')(
               db
                 .insert(transactionalEmailCallbackReceipts)
                 .values({
-                  eventId: callback.eventId,
-                  evidenceId: evidence?.id ?? null,
+                  eventId: callback.eventFingerprint,
+                  evidenceId: null,
                   outcome: 'pending',
+                  providerReferenceFingerprint: fingerprint,
+                  providerStatus: callback.status,
+                  providerOccurredAt: callback.occurredAt,
+                  normalizedCode: callback.code ?? null,
                   receivedAt: callbackInput.now
                 })
                 .onConflictDoNothing({
@@ -635,45 +940,9 @@ export const makeLiveTransactionalEmailLayer = (
                 .returning({ eventId: transactionalEmailCallbackReceipts.eventId })
             )
             if (inserted.length === 0) {
-              const [receipt] = yield* orUnavailable('transactional-email')(
-                db
-                  .select({ outcome: transactionalEmailCallbackReceipts.outcome })
-                  .from(transactionalEmailCallbackReceipts)
-                  .where(
-                    eq(transactionalEmailCallbackReceipts.eventId, callback.eventId)
-                  )
-                  .limit(1)
-              )
-              if (receipt?.outcome !== 'pending') return 'duplicate' as const
+              return 'duplicate' as const
             }
-            if (!evidence) return 'ignored' as const
-            yield* orUnavailable('transactional-email')(
-              db
-                .update(emailEvidenceTable)
-                .set(
-                  callback.status === 'delivered'
-                    ? {
-                        status: 'delivered',
-                        deliveredAt: callback.occurredAt,
-                        retryable: false,
-                        updatedAt: callbackInput.now
-                      }
-                    : {
-                        status: 'failed',
-                        failureCode: callback.code ?? 'provider_failed',
-                        retryable: false,
-                        updatedAt: callbackInput.now
-                      }
-                )
-                .where(eq(emailEvidenceTable.id, evidence.id))
-            )
-            yield* orUnavailable('transactional-email')(
-              db
-                .update(transactionalEmailCallbackReceipts)
-                .set({ outcome: 'applied', evidenceId: evidence.id })
-                .where(eq(transactionalEmailCallbackReceipts.eventId, callback.eventId))
-            )
-            return 'applied' as const
+            return yield* applyVerifiedCallback(callback)
           })
       }
     })

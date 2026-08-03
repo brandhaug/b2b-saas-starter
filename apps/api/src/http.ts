@@ -16,7 +16,8 @@ import {
   platformApiTokenGroup,
   platformWebhookGroup,
   providersGroup,
-  servicesGroup
+  servicesGroup,
+  transactionalEmailCallbackGroup
 } from './handlers.ts'
 import { makeRateLimiterLayer } from './rate-limit.ts'
 
@@ -42,6 +43,7 @@ const makeApiLayer = (
 
   const groups = Layer.mergeAll(
     healthGroup(env),
+    transactionalEmailCallbackGroup(env),
     merchantGroup(env),
     servicesGroup(env),
     providersGroup(env),

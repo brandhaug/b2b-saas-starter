@@ -20,6 +20,7 @@ describe('Booking Product Platform API v1', () => {
     }
     expect(document.info.title).toBe('Booking Product Platform API')
     expect(Object.keys(document.paths).sort()).toEqual([
+      '/callbacks/email/transactional',
       '/health',
       '/v1/api-tokens',
       '/v1/api-tokens/{tokenId}',
@@ -37,6 +38,26 @@ describe('Booking Product Platform API v1', () => {
     ])
     expect(document.paths['/workspaces/{slug}/overview']).toBeUndefined()
     expect(document.paths['/mcp']).toBeUndefined()
+  })
+
+  test('routes transactional email callbacks through the typed API contract', async () => {
+    const response = await handlerFor()(
+      new Request('https://api.test/callbacks/email/transactional', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'webhook-signature': 'invalid',
+          'webhook-timestamp': '2026-08-02T10:00:00.000Z'
+        },
+        body: '{}'
+      })
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({
+      _tag: 'TransactionalEmailCallbackUnavailable',
+      code: 'transactional_email_needs_configuration'
+    })
   })
 
   test('requires a Platform bearer token and returns private typed errors', async () => {

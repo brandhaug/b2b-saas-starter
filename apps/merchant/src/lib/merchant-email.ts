@@ -5,6 +5,7 @@ export type MerchantEmailBinding = {
     readonly subject: string
     readonly text: string
     readonly html: string
+    readonly headers?: Readonly<Record<string, string>>
   }) => Promise<unknown>
 }
 
