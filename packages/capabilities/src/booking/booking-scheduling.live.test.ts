@@ -409,59 +409,32 @@ describe('Live Booking Scheduling', () => {
     const firstRequestId = party.requests[0]!.id
     party = await runParty(
       Effect.flatMap(BookingParties, (service) =>
-        service.updateRequest(
-          party.id,
-          firstRequestId,
-          { providerPreference: 'any', providerId: null },
-          party.version,
-          now
-        )
-      )
-    )
-    party = await runParty(
-      Effect.flatMap(BookingParties, (service) =>
-        service.updateRequest(
-          party.id,
-          firstRequestId,
-          {
-            primaryServiceId: 'svc_schedule_primary',
-            serviceIds: ['svc_schedule_primary', 'svc_schedule_extra']
-          },
-          party.version,
-          now
-        )
-      )
-    )
-    party = await runParty(
-      Effect.flatMap(BookingParties, (service) =>
         service.addRequest(party.id, party.version, now)
       )
     )
     const secondRequestId = party.requests[1]!.id
     party = await runParty(
       Effect.flatMap(BookingParties, (service) =>
-        service.updateRequest(
-          party.id,
-          secondRequestId,
-          { providerPreference: 'any', providerId: null },
-          party.version,
-          now
-        )
+        service.activateRequest(party.id, secondRequestId, party.version, now)
+      )
+    )
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(BookingSelection, (selection) =>
+          selection.chooseServices(
+            session,
+            {
+              primaryServiceId: 'svc_schedule_primary',
+              additionalServiceIds: ['svc_schedule_extra']
+            },
+            party.version
+          )
+        ),
+        LiveBookingSelection.pipe(Layer.provide(layerFromD1(test.d1)))
       )
     )
     party = await runParty(
-      Effect.flatMap(BookingParties, (service) =>
-        service.updateRequest(
-          party.id,
-          secondRequestId,
-          {
-            primaryServiceId: 'svc_schedule_primary',
-            serviceIds: ['svc_schedule_primary', 'svc_schedule_extra']
-          },
-          party.version,
-          now
-        )
-      )
+      Effect.flatMap(BookingParties, (service) => service.findForSession(session.id))
     )
 
     const competitor = await prepareSession()
