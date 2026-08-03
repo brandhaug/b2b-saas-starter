@@ -5,7 +5,8 @@ import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
   TransactionalEmail,
   makeConfiguredTransactionalEmailProvider,
-  makeLiveTransactionalEmailLayer
+  makeLiveTransactionalEmailLayer,
+  ownerActivationTestIdempotencyKey
 } from './transactional-email.ts'
 import { makeTransactionalEmailCapabilityLayer } from '../runtime.ts'
 
@@ -296,7 +297,10 @@ describe('Live Transactional Email', () => {
       ownerUserId: 'usr_email_owner',
       verifiedOwnerEmail: null,
       locale: 'en' as const,
-      idempotencyKey: 'live-activation-concurrent-retry',
+      idempotencyKey: ownerActivationTestIdempotencyKey(
+        'mrc_email',
+        'live-activation-concurrent-retry'
+      ),
       now: '2026-08-02T11:00:00.000Z'
     }
     const invoke = () =>
@@ -313,13 +317,13 @@ describe('Live Transactional Email', () => {
       )
     expect(await invoke()).toMatchObject({ status: 'failed', retryable: true })
     expect(await recover()).toMatchObject({
-      idempotencyKey: command.idempotencyKey,
+      commandId: 'live-activation-concurrent-retry',
       evidence: { status: 'failed', retryable: true }
     })
     const firstRetry = invoke()
     await started
     expect(await recover()).toMatchObject({
-      idempotencyKey: command.idempotencyKey,
+      commandId: 'live-activation-concurrent-retry',
       evidence: { status: 'submitting', retryable: false }
     })
     const secondRetry = invoke()
@@ -328,6 +332,66 @@ describe('Live Transactional Email', () => {
 
     expect(submissions).toBe(2)
     expect(new Set(evidence.map((item) => item.evidenceId)).size).toBe(1)
+  })
+
+  it('recovers the later command when two attempts share a timestamp', async () => {
+    let submissions = 0
+    let release!: () => void
+    let signalStarted!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve
+    })
+    const provider = makeConfiguredTransactionalEmailProvider({
+      sender: 'booking@beesolo.example',
+      callbackSecret: 'callback-secret',
+      providerReferenceFingerprintKey: 'provider-reference-key',
+      send: async () => {
+        submissions += 1
+        if (submissions === 2) {
+          signalStarted()
+          await blocked
+        }
+        return {
+          providerSubmissionId: `provider-same-time-${submissions}`,
+          acceptedAt: '2026-08-02T12:00:00.000Z'
+        }
+      }
+    })
+    const layer = makeLiveTransactionalEmailLayer(provider).pipe(
+      Layer.provide(layerFromD1(test.d1))
+    )
+    const send = (commandId: string) =>
+      Effect.runPromise(
+        Effect.flatMap(TransactionalEmail, (email) =>
+          email.sendOwnerActivationTest({
+            merchantId: 'mrc_email',
+            ownerUserId: 'usr_email_owner',
+            verifiedOwnerEmail: null,
+            locale: 'ro',
+            idempotencyKey: ownerActivationTestIdempotencyKey('mrc_email', commandId),
+            now: '2026-08-02T12:00:00.000Z'
+          })
+        ).pipe(Effect.provide(layer))
+      )
+
+    expect(await send('same-time-one')).toMatchObject({ status: 'accepted' })
+    const second = send('same-time-two')
+    await started
+    const recovered = await Effect.runPromise(
+      Effect.flatMap(TransactionalEmail, (email) =>
+        email.recoverableOwnerActivationTest('mrc_email')
+      ).pipe(Effect.provide(layer))
+    )
+    release()
+    await second
+
+    expect(recovered).toMatchObject({
+      commandId: 'same-time-two',
+      evidence: { status: 'submitting', locale: 'ro' }
+    })
   })
 
   it('rejects retrying the same key after the verified destination changes', async () => {

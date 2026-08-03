@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import {
   Database,
   merchantMemberships,
@@ -42,18 +42,39 @@ export const TransactionalEmailEvidence = Schema.Struct({
 })
 export type TransactionalEmailEvidence = typeof TransactionalEmailEvidence.Type
 
+export const canReuseOwnerActivationTestCommand = (
+  evidence: Pick<TransactionalEmailEvidence, 'retryable' | 'status'>
+) => evidence.retryable || evidence.status === 'submitting'
+
+const ownerActivationTestPrefix = (merchantId: string) =>
+  `owner-activation-test:${merchantId}:`
+
+export const ownerActivationTestIdempotencyKey = (
+  merchantId: string,
+  commandId: string
+) => `${ownerActivationTestPrefix(merchantId)}${commandId}`
+
+const ownerActivationTestCommandId = (merchantId: string, idempotencyKey: string) => {
+  const prefix = ownerActivationTestPrefix(merchantId)
+  if (!idempotencyKey.startsWith(prefix)) return null
+  const commandId = idempotencyKey.slice(prefix.length)
+  return commandId || null
+}
+
 export type RecoverableOwnerActivationTest = {
-  readonly idempotencyKey: string
+  readonly commandId: string
   readonly evidence: TransactionalEmailEvidence
 }
 
 const recoverableOwnerActivationTest = (
+  merchantId: string,
   idempotencyKey: string,
   evidence: TransactionalEmailEvidence
-): RecoverableOwnerActivationTest | null =>
-  evidence.retryable || evidence.status === 'submitting'
-    ? { idempotencyKey, evidence }
-    : null
+): RecoverableOwnerActivationTest | null => {
+  if (!canReuseOwnerActivationTestCommand(evidence)) return null
+  const commandId = ownerActivationTestCommandId(merchantId, idempotencyKey)
+  return commandId ? { commandId, evidence } : null
+}
 
 export const NotificationReadiness = Schema.Struct({
   merchantId: Schema.String,
@@ -578,7 +599,7 @@ export const makeSeedTransactionalEmailLayer = (input: {
           latest = entry
       }
       return Effect.succeed(
-        latest ? recoverableOwnerActivationTest(latest[0], latest[1]) : null
+        latest ? recoverableOwnerActivationTest(merchantId, latest[0], latest[1]) : null
       )
     },
     readiness: (merchantId) =>
@@ -635,6 +656,25 @@ export const makeLiveTransactionalEmailLayer = (
             .select()
             .from(emailEvidenceTable)
             .where(eq(emailEvidenceTable.idempotencyKey, idempotencyKey))
+            .limit(1)
+        )
+      const latestOwnerActivationEvidence = (merchantId: string) =>
+        orUnavailable('transactional-email')(
+          db
+            .select()
+            .from(emailEvidenceTable)
+            .where(
+              and(
+                eq(emailEvidenceTable.merchantId, merchantId),
+                eq(emailEvidenceTable.purpose, 'owner_activation_test'),
+                eq(emailEvidenceTable.senderIdentity, provider.sender ?? '')
+              )
+            )
+            .orderBy(
+              desc(emailEvidenceTable.attemptedAt),
+              desc(emailEvidenceTable.updatedAt),
+              desc(sql`rowid`)
+            )
             .limit(1)
         )
       const applyVerifiedCallback = (callback: {
@@ -908,25 +948,10 @@ export const makeLiveTransactionalEmailLayer = (
           }),
         recoverableOwnerActivationTest: (merchantId) =>
           Effect.gen(function* () {
-            const [latest] = yield* orUnavailable('transactional-email')(
-              db
-                .select()
-                .from(emailEvidenceTable)
-                .where(
-                  and(
-                    eq(emailEvidenceTable.merchantId, merchantId),
-                    eq(emailEvidenceTable.purpose, 'owner_activation_test'),
-                    eq(emailEvidenceTable.senderIdentity, provider.sender ?? '')
-                  )
-                )
-                .orderBy(
-                  desc(emailEvidenceTable.attemptedAt),
-                  desc(emailEvidenceTable.updatedAt)
-                )
-                .limit(1)
-            )
+            const [latest] = yield* latestOwnerActivationEvidence(merchantId)
             return latest
               ? recoverableOwnerActivationTest(
+                  merchantId,
                   latest.idempotencyKey,
                   evidenceProjection(latest)
                 )
@@ -943,20 +968,7 @@ export const makeLiveTransactionalEmailLayer = (
                 state: provider.state,
                 reason: `email_${provider.state}`
               } as NotificationReadiness
-            const [latest] = yield* orUnavailable('transactional-email')(
-              db
-                .select()
-                .from(emailEvidenceTable)
-                .where(
-                  and(
-                    eq(emailEvidenceTable.merchantId, merchantId),
-                    eq(emailEvidenceTable.purpose, 'owner_activation_test'),
-                    eq(emailEvidenceTable.senderIdentity, provider.sender ?? '')
-                  )
-                )
-                .orderBy(desc(emailEvidenceTable.attemptedAt))
-                .limit(1)
-            )
+            const [latest] = yield* latestOwnerActivationEvidence(merchantId)
             if (!latest) return { merchantId, state: 'not_tested' as const }
             if (latest.status === 'accepted' || latest.status === 'delivered')
               return {

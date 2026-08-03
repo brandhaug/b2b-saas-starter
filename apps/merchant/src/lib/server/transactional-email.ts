@@ -3,6 +3,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { Effect, Layer, Schema } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
+  ownerActivationTestIdempotencyKey,
   TransactionalEmail,
   type TransactionalEmailEvidence
 } from '@b2b-saas-starter/capabilities/notifications'
@@ -21,9 +22,6 @@ const OwnerActivationTestInput = Schema.Struct({
   commandId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(128))
 })
 const decodeInput = Schema.decodeUnknownSync(OwnerActivationTestInput)
-
-const ownerActivationTestPrefix = (merchantId: string) =>
-  `owner-activation-test:${merchantId}:`
 
 const emailEnv = (): BookingProductEnv & { readonly ENVIRONMENT?: string } => ({
   DB: env.DB,
@@ -80,7 +78,10 @@ export const sendOwnerActivationTestEmail = createServerFn({ method: 'POST' })
               ownerUserId: session.user.id,
               verifiedOwnerEmail: null,
               locale: data.locale,
-              idempotencyKey: `${ownerActivationTestPrefix(merchant.id)}${data.commandId}`,
+              idempotencyKey: ownerActivationTestIdempotencyKey(
+                merchant.id,
+                data.commandId
+              ),
               now: new Date().toISOString()
             })
           }).pipe(
@@ -107,11 +108,7 @@ export const getRecoverableOwnerActivationTestEmail = createServerFn({
         const merchant = yield* MerchantContext
         const email = yield* TransactionalEmail
         const attempt = yield* email.recoverableOwnerActivationTest(merchant.id)
-        if (!attempt) return null
-        const prefix = ownerActivationTestPrefix(merchant.id)
-        if (!attempt.idempotencyKey.startsWith(prefix)) return null
-        const commandId = attempt.idempotencyKey.slice(prefix.length)
-        return commandId ? { commandId, evidence: attempt.evidence } : null
+        return attempt
       }).pipe(
         Effect.provide(
           Layer.merge(

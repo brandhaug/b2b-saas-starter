@@ -11,30 +11,35 @@ describe('Owner activation email attempts', () => {
       .mockReturnValueOnce('command-one')
       .mockReturnValueOnce('command-two')
 
-    const first = startOwnerActivationEmailAttempt(null, createCommandId)
+    const first = startOwnerActivationEmailAttempt(null, createCommandId, 'ro')
     const retryable = completeOwnerActivationEmailAttempt(first, {
       status: 'failed',
       retryable: true
     })
-    const retry = startOwnerActivationEmailAttempt(retryable, createCommandId)
+    const retry = startOwnerActivationEmailAttempt(retryable, createCommandId, 'en')
     const submitting = completeOwnerActivationEmailAttempt(retry, {
       status: 'submitting',
       retryable: false
     })
     const inProgressRetry = startOwnerActivationEmailAttempt(
       submitting,
-      createCommandId
+      createCommandId,
+      'en'
     )
     const complete = completeOwnerActivationEmailAttempt(inProgressRetry, {
       status: 'accepted',
       retryable: false
     })
-    const next = startOwnerActivationEmailAttempt(complete, createCommandId)
+    const next = startOwnerActivationEmailAttempt(complete, createCommandId, 'en')
 
     expect(first.commandId).toBe('command-one')
+    expect(first.locale).toBe('ro')
     expect(retry.commandId).toBe('command-one')
+    expect(retry.locale).toBe('ro')
     expect(inProgressRetry.commandId).toBe('command-one')
+    expect(inProgressRetry.locale).toBe('ro')
     expect(next.commandId).toBe('command-two')
+    expect(next.locale).toBe('en')
     expect(createCommandId).toHaveBeenCalledTimes(2)
   })
 })

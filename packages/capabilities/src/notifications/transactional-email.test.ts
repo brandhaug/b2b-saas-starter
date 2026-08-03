@@ -4,6 +4,7 @@ import {
   TransactionalEmail,
   makeConfiguredTransactionalEmailProvider,
   makeSeedTransactionalEmailLayer,
+  ownerActivationTestIdempotencyKey,
   selectTransactionalEmailProvider
 } from './transactional-email.ts'
 
@@ -203,7 +204,10 @@ describe('Transactional Email readiness', () => {
       ownerUserId: 'usr_owner',
       verifiedOwnerEmail: 'owner@example.test',
       locale: 'en' as const,
-      idempotencyKey: 'activation-safe-retry',
+      idempotencyKey: ownerActivationTestIdempotencyKey(
+        'mrc_one',
+        'activation-safe-retry'
+      ),
       now
     }
     const send = () =>
@@ -227,7 +231,7 @@ describe('Transactional Email readiness', () => {
         layer
       )
     ).toMatchObject({
-      idempotencyKey: command.idempotencyKey,
+      commandId: 'activation-safe-retry',
       evidence: { status: 'failed', retryable: true }
     })
     expect(await send()).toMatchObject({

@@ -185,7 +185,11 @@ function ActivationJourney({
         setEmailAttempt(
           recovered
             ? completeOwnerActivationEmailAttempt(
-                { commandId: recovered.commandId, reuseCommand: false },
+                {
+                  commandId: recovered.commandId,
+                  locale: recovered.evidence.locale,
+                  reuseCommand: false
+                },
                 recovered.evidence
               )
             : null
@@ -329,12 +333,14 @@ function ActivationJourney({
           type="button"
           disabled={pending || !emailAttemptLoaded}
           onClick={() => {
-            const attempt = startOwnerActivationEmailAttempt(emailAttempt, () =>
-              crypto.randomUUID()
+            const attempt = startOwnerActivationEmailAttempt(
+              emailAttempt,
+              () => crypto.randomUUID(),
+              'en'
             )
             save(
               sendOwnerActivationTestEmail({
-                data: { locale: 'en', commandId: attempt.commandId }
+                data: { locale: attempt.locale, commandId: attempt.commandId }
               }),
               (evidence) => {
                 setEmailAttempt(completeOwnerActivationEmailAttempt(attempt, evidence))
