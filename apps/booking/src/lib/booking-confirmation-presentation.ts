@@ -79,8 +79,15 @@ export const BookingConfirmationPresentation = Schema.Struct({
 export type BookingConfirmationPresentation =
   typeof BookingConfirmationPresentation.Type
 
+type PresentationSnapshotSource = CustomerConfirmation['snapshot'] & {
+  readonly policyAcceptance?: StoredAppointmentSnapshot['policyAcceptance'] | undefined
+  readonly cancellationPolicy?:
+    | StoredAppointmentSnapshot['cancellationPolicy']
+    | undefined
+}
+
 const presentSnapshot = (
-  snapshot: StoredAppointmentSnapshot
+  snapshot: PresentationSnapshotSource
 ): typeof PresentationSnapshot.Type => ({
   startsAt: snapshot.startsAt,
   endsAt: snapshot.endsAt,

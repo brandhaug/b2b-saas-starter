@@ -262,12 +262,13 @@ describe('Booking confirmation route flow', () => {
       status: 'cancelled' as const,
       appointments: [
         {
-          ...confirmation.appointments[0],
+          ...confirmation.appointments[0]!,
           id: 'apt_CANCELLED',
-          status: 'cancelled' as const
+          status: 'cancelled' as const,
+          adjustments: []
         },
         {
-          ...confirmation.appointments[0],
+          ...confirmation.appointments[0]!,
           id: 'apt_SCHEDULED',
           status: 'scheduled' as const,
           startsAt: '2026-07-20T08:00:00.000Z',
@@ -276,7 +277,8 @@ describe('Booking confirmation route flow', () => {
             ...snapshot,
             startsAt: '2026-07-20T08:00:00.000Z',
             endsAt: '2026-07-20T09:00:00.000Z'
-          }
+          },
+          adjustments: []
         }
       ]
     } satisfies BookingConfirmationPresentation

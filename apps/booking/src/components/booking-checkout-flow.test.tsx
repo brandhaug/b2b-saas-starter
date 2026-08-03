@@ -387,11 +387,17 @@ describe('Booking checkout', () => {
                 role: 'primary',
                 name: 'Cut',
                 durationMinutes: 60,
+                beforeBufferMinutes: 0,
+                afterBufferMinutes: 0,
                 priceMinor: 5000,
                 currency: 'USD'
               }
             ],
             durationMinutes: 60,
+            beforeBufferMinutes: 0,
+            afterBufferMinutes: 0,
+            occupiedStartsAt: '2026-07-13T09:00:00.000Z',
+            occupiedEndsAt: '2026-07-13T10:00:00.000Z',
             currency: 'USD',
             totalMinor: 5000
           }

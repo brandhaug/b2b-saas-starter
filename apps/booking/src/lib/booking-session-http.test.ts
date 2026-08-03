@@ -1057,11 +1057,17 @@ describe('Booking Session HTTP boundary', () => {
           role: 'primary' as const,
           name: 'Cut',
           durationMinutes: 60,
+          beforeBufferMinutes: 0,
+          afterBufferMinutes: 0,
           priceMinor: 5000,
           currency: 'USD'
         }
       ],
       durationMinutes: 60,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
+      occupiedStartsAt: '2026-07-13T09:00:00.000Z',
+      occupiedEndsAt: '2026-07-13T10:00:00.000Z',
       currency: 'USD',
       totalMinor: 5000
     }
@@ -1396,11 +1402,17 @@ describe('Booking Session HTTP boundary', () => {
           role: 'primary' as const,
           name: 'Cut',
           durationMinutes: 60,
+          beforeBufferMinutes: 0,
+          afterBufferMinutes: 0,
           priceMinor: 5000,
           currency: 'USD'
         }
       ],
       durationMinutes: 60,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
+      occupiedStartsAt: '2026-07-13T09:00:00.000Z',
+      occupiedEndsAt: '2026-07-13T10:00:00.000Z',
       currency: 'USD',
       totalMinor: 5000,
       merchantTimezone: 'America/New_York',
@@ -1774,6 +1786,10 @@ describe('Booking Session HTTP boundary', () => {
       assignedProvider: { id: 'prv_ava', displayName: 'Ava' },
       services: [],
       durationMinutes: 60,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
+      occupiedStartsAt: '2026-07-14T09:00:00.000Z',
+      occupiedEndsAt: '2026-07-14T10:00:00.000Z',
       currency: 'USD',
       totalMinor: 5000,
       merchantTimezone: 'UTC',
@@ -1807,7 +1823,8 @@ describe('Booking Session HTTP boundary', () => {
               appointments,
               shop: { publicName: 'Mara Studio' }
             },
-            cookieCredential
+            cookieCredential,
+            expiresAt: '2026-08-13T10:00:00.000Z'
           })
       },
       cancellations: {
@@ -1883,7 +1900,8 @@ describe('Booking Session HTTP boundary', () => {
               appointments: [{ id: 'apt_one' } as never],
               shop: { publicName: 'Mara Studio' }
             },
-            cookieCredential
+            cookieCredential,
+            expiresAt: '2026-08-13T10:00:00.000Z'
           })
       },
       rescheduling: {
