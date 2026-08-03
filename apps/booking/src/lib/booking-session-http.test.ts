@@ -155,6 +155,7 @@ describe('Booking Session HTTP boundary', () => {
     }
     let activated = ''
     let heldRequests: readonly string[] = []
+    let updateCalls = 0
     const dependencies = {
       publicSiteOrigin: 'https://www.example.test',
       enter: () => Effect.die(new Error('not called')),
@@ -164,7 +165,10 @@ describe('Booking Session HTTP boundary', () => {
         add: () => Effect.succeed(party),
         remove: () => Effect.succeed(party),
         reorder: () => Effect.succeed(party),
-        update: () => Effect.succeed(party),
+        update: () => {
+          updateCalls += 1
+          return Effect.succeed(party)
+        },
         activate: (_partyId: string, requestId: string) => {
           activated = requestId
           return Effect.succeed({ ...party, activeRequestId: requestId, version: 3 })
@@ -208,6 +212,48 @@ describe('Booking Session HTTP boundary', () => {
     )
     expect(activatedResponse.status).toBe(200)
     expect(activated).toBe('brq_two')
+    const providerOverrideResponse = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(
+          'https://www.example.test/mara-studio/booking/session/bsn_group/party-update',
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              version: 2,
+              requestId: 'brq_two',
+              material: {
+                providerPreference: 'any',
+                providerId: null,
+                primaryServiceId: 'svc_one'
+              }
+            })
+          }
+        ),
+        dependencies
+      )
+    )
+    expect(providerOverrideResponse.status).toBe(404)
+    expect(updateCalls).toBe(0)
+    const serviceUpdateResponse = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(
+          'https://www.example.test/mara-studio/booking/session/bsn_group/party-update',
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              version: 2,
+              requestId: 'brq_two',
+              material: { primaryServiceId: 'svc_one', serviceIds: ['svc_one'] }
+            })
+          }
+        ),
+        dependencies
+      )
+    )
+    expect(serviceUpdateResponse.status).toBe(200)
+    expect(updateCalls).toBe(1)
     const heldResponse = await Effect.runPromise(
       handleBookingSessionRequest(
         new Request(

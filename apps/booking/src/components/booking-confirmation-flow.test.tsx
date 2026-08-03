@@ -216,7 +216,9 @@ describe('Booking confirmation route flow', () => {
     )
 
     fireEvent.click(screen.getByTestId('btn:cancel'))
-    const cancelPopup = await screen.findByRole('dialog', { name: 'Cancel order' })
+    const cancelPopup = await screen.findByRole('dialog', {
+      name: 'Cancel this appointment'
+    })
     expect(cancelPopup.closest('[data-booking-shell="canonical"]')).toBe(shell)
     expect(document.body.style.overflow).toBe('')
   })
@@ -323,7 +325,7 @@ describe('Booking confirmation route flow', () => {
 
     fireEvent.click(within(cards[1]!).getByTestId('btn:cancel:apt_SCHEDULED'))
     const cancelPopup = await screen.findByRole('dialog', {
-      name: 'Cancel appointment'
+      name: 'Cancel this appointment'
     })
     expect(cancelPopup).toBeTruthy()
     expect(
@@ -337,6 +339,50 @@ describe('Booking confirmation route flow', () => {
         expect.objectContaining({ method: 'POST' })
       )
     )
+  })
+
+  it('distinguishes party-wide cancellation from individual Appointment actions', async () => {
+    const group = {
+      ...confirmation,
+      appointments: [
+        confirmation.appointments[0]!,
+        {
+          ...confirmation.appointments[0]!,
+          id: 'apt_SECOND',
+          startsAt: '2026-07-20T08:00:00.000Z',
+          endsAt: '2026-07-20T09:00:00.000Z',
+          snapshot: {
+            ...snapshot,
+            startsAt: '2026-07-20T08:00:00.000Z',
+            endsAt: '2026-07-20T09:00:00.000Z',
+            occupiedStartsAt: '2026-07-20T08:00:00.000Z',
+            occupiedEndsAt: '2026-07-20T09:00:00.000Z'
+          }
+        }
+      ]
+    } satisfies BookingConfirmationPresentation
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json(group))
+    )
+
+    render(
+      <BookingConfirmationRouteFlow
+        merchantSlug="mara-booking-studio"
+        routeId="cnf_demo"
+        embedding="standalone"
+      />
+    )
+
+    expect(
+      await screen.findAllByRole('button', { name: 'Cancel this appointment' })
+    ).toHaveLength(2)
+    const cancelParty = screen.getByTestId('btn:cancel')
+    expect(cancelParty.textContent).toBe('Cancel every appointment')
+    fireEvent.click(cancelParty)
+    expect(
+      await screen.findByRole('dialog', { name: 'Cancel every appointment' })
+    ).toBeTruthy()
   })
 
   it('expands the real nonzero tax and fee adjustments like legacy', async () => {

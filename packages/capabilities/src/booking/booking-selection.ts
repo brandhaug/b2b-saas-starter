@@ -207,7 +207,7 @@ export type SeedBookingSelectionStore = {
     {
       readonly id: string
       readonly slug: string
-      readonly presentation: 'solo' | 'team'
+      readonly presentation: 'solo'
       readonly publicName?: string
       readonly bookingConfiguration?: BookingConfiguration | null
     }
@@ -271,7 +271,7 @@ export const emptySeedBookingSelectionStore = (
     readonly merchants?: readonly {
       readonly id: string
       readonly slug: string
-      readonly presentation: 'solo' | 'team'
+      readonly presentation: 'solo'
       readonly publicName?: string
       readonly bookingConfiguration?: BookingConfiguration | null
     }[]
@@ -362,7 +362,7 @@ export const emptySeedBookingSelectionStore = (
 
 type Catalog = {
   readonly merchantId: string
-  readonly presentation: 'solo' | 'team'
+  readonly presentation: 'solo'
   readonly shopId: string
   readonly shops: readonly {
     readonly id: string
@@ -455,7 +455,7 @@ const journey = (
   reconciliation: BookingJourney['reconciliation'] = []
 ): BookingJourney => ({
   version: selection.version ?? 1,
-  presentation: bookingSoloLaunchPolicy.presentation,
+  presentation: catalog.presentation,
   shopId: catalog.shopId,
   shops: [...catalog.shops],
   resolvedConfiguration: catalog.resolvedConfiguration,
@@ -482,12 +482,10 @@ const preferenceAccepts = (
     const provider = catalog.providers.find((item) => item.id === preference.providerId)
     if (!provider) return false
     if (provider.access === 'restricted' && !allowRestricted) return false
-    if (catalog.presentation === 'solo' && !provider.isDefault) return false
     return serviceIds.every((serviceId) =>
       provider.eligibleServiceIds.includes(serviceId)
     )
   }
-  if (catalog.presentation !== 'team') return false
   return catalog.providers.some(
     (provider) =>
       provider.access === 'public' &&
@@ -762,9 +760,6 @@ const withSoloDefault = (
 ): Effect.Effect<StoredSelection> => {
   if (bookingSoloLaunchPolicy.publicProviderChoice !== 'automatic-sole-provider')
     return Effect.succeed(selection)
-  if (selection.providerPreference !== null) {
-    return Effect.succeed(selection)
-  }
   const eligibleDefaults = catalog.providers.filter(
     (provider) =>
       provider.isDefault &&
@@ -772,10 +767,16 @@ const withSoloDefault = (
       provider.eligibleServiceIds.length > 0
   )
   if (eligibleDefaults.length !== 1) return Effect.succeed(selection)
-  return Effect.succeed({
-    ...selection,
-    providerPreference: { kind: 'specific', providerId: eligibleDefaults[0]!.id }
-  })
+  const providerId = eligibleDefaults[0]!.id
+  return Effect.succeed(
+    selection.providerPreference?.kind === 'specific' &&
+      selection.providerPreference.providerId === providerId
+      ? selection
+      : {
+          ...selection,
+          providerPreference: { kind: 'specific', providerId }
+        }
+  )
 }
 
 const normalizeSelection = (
@@ -953,10 +954,14 @@ export const SeedBookingSelection = (
           )
             return yield* rejected()
         }
+        const normalized = yield* withSoloDefault(catalog, {
+          ...current,
+          providerPreference: preference
+        })
         const selected: StoredSelection = {
           version: expectedVersion + 1,
           shopId: catalog.shopId,
-          providerPreference: preference,
+          providerPreference: normalized.providerPreference,
           primaryServiceId: null,
           additionalServiceIds: []
         }
@@ -1655,10 +1660,14 @@ export const LiveBookingSelection: Layer.Layer<BookingSelection, never, Database
               )
               if (!proof) return yield* rejected()
             }
+            const normalized = yield* withSoloDefault(state.catalog, {
+              ...state.selection,
+              providerPreference: preference
+            })
             const selected: StoredSelection = {
               version: expectedVersion,
               shopId: state.catalog.shopId,
-              providerPreference: preference,
+              providerPreference: normalized.providerPreference,
               primaryServiceId: null,
               additionalServiceIds: []
             }

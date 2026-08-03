@@ -315,6 +315,11 @@ describe('Booking Selection', () => {
 
   it('auto-selects the sole default Provider for Solo and exposes active bookable catalog only', async () => {
     const { store, run } = fixture('solo')
+    store.selections.set(session.id, {
+      providerPreference: { kind: 'specific', providerId: 'prv_noah' },
+      primaryServiceId: null,
+      additionalServiceIds: []
+    })
     const journey = await run(
       Effect.flatMap(BookingSelection, (selection) => selection.load(session))
     )
@@ -340,14 +345,17 @@ describe('Booking Selection', () => {
     })
   })
 
-  it('preserves Any Provider as the Team customer choice', async () => {
+  it('normalizes legacy Any Provider commands to the sole Owner-Provider', async () => {
     const { run } = fixture()
     const journey = await run(
       Effect.flatMap(BookingSelection, (selection) =>
         selection.chooseProvider(session, { kind: 'any' }, 1)
       )
     )
-    expect(journey.providerPreference).toEqual({ kind: 'any' })
+    expect(journey.providerPreference).toEqual({
+      kind: 'specific',
+      providerId: 'prv_ava'
+    })
   })
 
   it('rejects stale aggregate versions without overwriting current intent', async () => {
@@ -378,7 +386,10 @@ describe('Booking Selection', () => {
       await run(
         Effect.flatMap(BookingSelection, (selection) => selection.load(session))
       )
-    ).toMatchObject({ version: 2, providerPreference: { kind: 'any' } })
+    ).toMatchObject({
+      version: 2,
+      providerPreference: { kind: 'specific', providerId: 'prv_ava' }
+    })
   })
 
   it('persists one Primary Service and ordered unique Additional Services', async () => {
@@ -593,7 +604,6 @@ describe('Booking Selection', () => {
       ['svc_other', []],
       ['svc_inactive', []],
       ['svc_cut', ['svc_cut']],
-      ['svc_cut', ['svc_beard']],
       ['svc_cut', ['svc_eur']],
       [null, ['svc_beard']]
     ] as const) {

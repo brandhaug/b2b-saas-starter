@@ -649,6 +649,11 @@ const bookingRequestMaterialFrom = (value: unknown): BookingRequestMaterial | nu
   }
 }
 
+const containsPublicProviderChoice = (value: unknown): boolean =>
+  typeof value === 'object' &&
+  value !== null &&
+  (Object.hasOwn(value, 'providerPreference') || Object.hasOwn(value, 'providerId'))
+
 const servicesFrom = (value: unknown): ServiceSelection | null => {
   try {
     return Schema.decodeUnknownSync(ServiceSelectionSchema)(value)
@@ -1311,6 +1316,7 @@ export const handleBookingSessionRequest = (
                 )
               : endpoint === 'party-update' &&
                   typeof record.requestId === 'string' &&
+                  !containsPublicProviderChoice(record.material) &&
                   material
                 ? dependencies.parties.update(
                     current.success.id,

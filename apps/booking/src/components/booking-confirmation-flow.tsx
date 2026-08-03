@@ -275,8 +275,8 @@ function BookingConfirmationView({
       : `/appointments/${encodeURIComponent(confirmation.appointments[0]?.id ?? '')}/cancel`
   const cancelTitle =
     cancelAppointmentId === null
-      ? copy('reservation.cancel_title')
-      : copy('reservation.cancel')
+      ? copy(isGroup ? 'confirmation.cancel_party' : 'confirmation.cancel_appointment')
+      : copy('confirmation.cancel_appointment')
   const cancelCopy =
     cancelAppointmentId === null
       ? copy('reservation.cancel_copy')
@@ -446,7 +446,11 @@ function BookingConfirmationView({
                   styles.dangerAction
                 )}
               >
-                {copy('reservation.cancel')}
+                {copy(
+                  isGroup
+                    ? 'confirmation.cancel_party'
+                    : 'confirmation.cancel_appointment'
+                )}
               </button>
             </section>
           ) : null}
@@ -735,7 +739,7 @@ function AppointmentCard({
               onClick={onCancel}
               {...stylex.props(styles.actionButton, styles.dangerAction)}
             >
-              {copy('reservation.cancel')}
+              {copy('confirmation.cancel_appointment')}
             </button>
           ) : null}
         </div>
