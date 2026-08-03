@@ -515,6 +515,19 @@ describe('Live D1 shared capability foundations', () => {
         expectedRevision: 1
       })
     ).rejects.toMatchObject({ _tag: 'CapabilityNotFound' })
+    const crossMerchantReplay = {
+      ...command,
+      authority: { kind: 'owner-session', sessionId: 'ses_owner_two' } as const
+    }
+    const [exactReplay, changedReplay] = await Promise.allSettled([
+      execute(crossMerchantReplay),
+      execute({ ...crossMerchantReplay, payloadFingerprint: 'sha256:changed' })
+    ])
+    expect(exactReplay).toMatchObject({
+      status: 'rejected',
+      reason: { _tag: 'CapabilityNotFound', resource: 'merchant-resource' }
+    })
+    expect(changedReplay).toEqual(exactReplay)
     const after = await consequenceCounts()
     expect(after).toEqual(before)
   })

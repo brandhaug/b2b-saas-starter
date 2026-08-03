@@ -6,7 +6,6 @@ import {
   renderAuthorizationMatrix,
   SeedSharedCapabilityFoundations,
   SharedCapabilityFoundations,
-  type CapabilityAuthorityReference,
   type QueueWakeup,
   type SharedCommandInput
 } from './shared-capability-foundations.ts'
@@ -15,17 +14,24 @@ import {
   merchantCapabilityAuthorizationInventory
 } from '../authorization-policy.ts'
 
-const authority = {
+type TestAuthority = {
+  readonly merchantId: string
+  readonly actorKind: 'owner' | 'operator' | 'system' | 'callback'
+  readonly actorId: string
+  readonly impersonationId: string | null
+  readonly accessState: 'active' | 'held' | 'restricted'
+}
+const authority: TestAuthority = {
   merchantId: 'mer_one',
   actorKind: 'owner',
   actorId: 'usr_owner',
   impersonationId: null,
   accessState: 'active'
-} as const
-const authorityKey = (reference: CapabilityAuthorityReference) =>
-  JSON.stringify([reference])
-const ownerAuthorityKey = (sessionId: string) =>
-  authorityKey({ kind: 'owner-session', sessionId })
+}
+const ownerAuthority = (sessionId: string, resolved = authority) => ({
+  reference: { kind: 'owner-session', sessionId } as const,
+  authority: resolved
+})
 const input: SharedCommandInput = {
   authority: { kind: 'owner-session', sessionId: 'ses_owner' },
   merchantId: 'mer_one',
@@ -45,7 +51,7 @@ describe('shared capability deterministic contract', () => {
   it('resolves authority references and shares replay and changed-payload behavior', async () => {
     const wakeups: QueueWakeup[] = []
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]]),
+      authorities: [ownerAuthority('ses_owner')],
       publishWakeup: (wakeup) => wakeups.push(wakeup)
     })
     const result = await Effect.runPromise(
@@ -91,7 +97,7 @@ describe('shared capability deterministic contract', () => {
 
   it('does not claim work before availableAt', async () => {
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]])
+      authorities: [ownerAuthority('ses_owner')]
     })
     const claimed = await Effect.runPromise(
       Effect.provide(
@@ -122,10 +128,10 @@ describe('shared capability deterministic contract', () => {
       actorId: 'usr_two'
     }
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([
-        [ownerAuthorityKey('ses_owner'), authority],
-        [ownerAuthorityKey('ses_two'), secondAuthority]
-      ]),
+      authorities: [
+        ownerAuthority('ses_owner'),
+        ownerAuthority('ses_two', secondAuthority)
+      ],
       publishWakeup: (wakeup) => wakeups.push(wakeup)
     })
     const results = await Effect.runPromise(
@@ -166,10 +172,10 @@ describe('shared capability deterministic contract', () => {
       actorId: 'usr_two'
     }
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([
-        [ownerAuthorityKey('ses_owner'), authority],
-        [ownerAuthorityKey('ses_two'), secondAuthority]
-      ])
+      authorities: [
+        ownerAuthority('ses_owner'),
+        ownerAuthority('ses_two', secondAuthority)
+      ]
     })
     const run = (command: SharedCommandInput) =>
       Effect.runPromise(
@@ -208,9 +214,48 @@ describe('shared capability deterministic contract', () => {
     expect(unknown).toEqual(foreign)
   })
 
+  it('does not expose idempotency state before cross-Merchant authorization', async () => {
+    const secondAuthority = {
+      ...authority,
+      merchantId: 'mer_two',
+      actorId: 'usr_two'
+    }
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: [
+        ownerAuthority('ses_owner'),
+        ownerAuthority('ses_two', secondAuthority)
+      ]
+    })
+    const run = (command: SharedCommandInput) =>
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(SharedCapabilityFoundations, (service) =>
+            service.execute(command)
+          ),
+          layer
+        )
+      )
+
+    await run({ ...input, outboxKind: undefined })
+    const crossMerchant = {
+      ...input,
+      authority: { kind: 'owner-session', sessionId: 'ses_two' } as const,
+      outboxKind: undefined
+    }
+    const [exact, changed] = await Promise.allSettled([
+      run(crossMerchant),
+      run({ ...crossMerchant, payloadFingerprint: 'sha256:changed' })
+    ])
+    expect(exact).toMatchObject({
+      status: 'rejected',
+      reason: { _tag: 'CapabilityNotFound', resource: 'merchant-resource' }
+    })
+    expect(changed).toEqual(exact)
+  })
+
   it('rejects same-key replay when structural command or domain input changes', async () => {
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]]),
+      authorities: [ownerAuthority('ses_owner')],
       buildDomainMutation: (command) => ({
         merchantId: command.merchantId,
         mutations: []
@@ -258,7 +303,7 @@ describe('shared capability deterministic contract', () => {
   it('creates distinct outbox work for delimiter-colliding identity components', async () => {
     const wakeups: QueueWakeup[] = []
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]]),
+      authorities: [ownerAuthority('ses_owner')],
       publishWakeup: (wakeup) => wakeups.push(wakeup)
     })
     await Effect.runPromise(
@@ -297,7 +342,7 @@ describe('shared capability deterministic contract', () => {
 
   it('keeps delimiter-shaped command and aggregate identities independent', async () => {
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]])
+      authorities: [ownerAuthority('ses_owner')]
     })
     const results = await Effect.runPromise(
       Effect.provide(
@@ -336,19 +381,19 @@ describe('shared capability deterministic contract', () => {
       outboxId: 'b'
     } as const
     const secondReference = {
-      kind: 'claimed-work',
+      outboxId: 'a:b',
       workerId: 'worker',
-      outboxId: 'a:b'
+      kind: 'claimed-work'
     } as const
     const systemAuthority = {
       ...authority,
       actorKind: 'system' as const
     }
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([
-        [authorityKey(firstReference), systemAuthority],
-        [authorityKey(secondReference), systemAuthority]
-      ])
+      authorities: [
+        { reference: firstReference, authority: systemAuthority },
+        { reference: secondReference, authority: systemAuthority }
+      ]
     })
     const results = await Effect.runPromise(
       Effect.provide(

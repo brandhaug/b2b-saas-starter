@@ -34,6 +34,13 @@ the canonical structural command plus decoded domain input, keeping payload mate
 out of persistence. Seed and real-D1 tests reject structural or domain-payload changes
 under a reused key and prove adversarial delimiter-shaped identities cannot collide.
 
+Authorization remains ahead of replay-state disclosure: exact and changed cross-
+Merchant replays both return the same `CapabilityNotFound`, while authorized
+same-Merchant structural changes return the idempotency conflict. Seed authority
+fixtures now accept typed reference/authority entries and canonicalize decoded
+references internally, including references whose object properties arrive in a
+different order.
+
 ### Final review remediation — 2026-08-03
 
 Closed the last review findings: subscription lifecycle interpretation now remains in
