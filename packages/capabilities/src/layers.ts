@@ -214,7 +214,7 @@ import {
 import { classifyRestrictedMutation } from './authorization-policy.ts'
 import {
   CustomerDirectory,
-  LiveCustomerDirectory,
+  makeLiveCustomerDirectory,
   SeedCustomerDirectory,
   emptySeedCustomerDirectoryStore
 } from './customer-directory/index.ts'
@@ -562,7 +562,7 @@ export const makeLiveCapabilitiesLayer = (
         ? { handleOutbox: options.capabilityOutboxHandler }
         : {})
     }),
-    LiveCustomerDirectory,
+    makeLiveCustomerDirectory(cursorSecret),
     liveBookingPartiesLayer,
     livePricingQuotesLayer,
     LivePaymentLedger,

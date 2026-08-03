@@ -155,14 +155,16 @@ const groupByRecord = <T extends { readonly customerRecordId: string }>(
   return grouped
 }
 
-export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Database> =
+export const makeLiveCustomerDirectory = (
+  fingerprintKey: string
+): Layer.Layer<CustomerDirectory, never, Database> =>
   Layer.effect(
     CustomerDirectory,
     Effect.gen(function* () {
       const db = yield* Database
       const store = emptyCustomerDirectoryState()
       const observedRevisions = new Map<string, number>()
-      const directory = makeCustomerDirectoryService(store)
+      const directory = makeCustomerDirectoryService(store, fingerprintKey)
       const ensure = (merchantId: string, recordIds?: readonly string[]) =>
         Effect.gen(function* () {
           const recordWhere = recordIds?.length
@@ -593,3 +595,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
       } satisfies CustomerDirectoryShape
     })
   )
+
+export const LiveCustomerDirectory = makeLiveCustomerDirectory(
+  'customer-directory-local-live-fingerprint-key'
+)

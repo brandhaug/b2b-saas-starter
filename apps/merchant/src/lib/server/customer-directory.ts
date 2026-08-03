@@ -55,7 +55,13 @@ const Merge = Schema.Struct({
   idempotencyKey: Schema.String,
   preferredDetailsSourceId: Schema.optional(Schema.String),
   reason: AuditReason
-})
+}).check(
+  Schema.makeFilter((input) =>
+    input.survivorId === input.absorbedId
+      ? { path: ['absorbedId'], issue: 'merge records must be distinct' }
+      : undefined
+  )
+)
 const Split = Schema.Struct({
   sourceId: Schema.String,
   observationIds: Schema.Array(Schema.String),
@@ -94,7 +100,12 @@ const ImportRows = Schema.Struct({
 })
 
 const run: CustomerDirectoryRunner = (userId, effect) =>
-  runCustomerDirectoryRequest({ db: env.DB, userId, effect })
+  runCustomerDirectoryRequest({
+    db: env.DB,
+    userId,
+    fingerprintKey: createMerchantServerContext().merchantSecret(),
+    effect
+  })
 
 const requestsFor = (userId: string) =>
   makeCustomerDirectoryRequestHandler({

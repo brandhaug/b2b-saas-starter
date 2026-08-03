@@ -3898,7 +3898,16 @@ export const customerRecords = sqliteTable(
       'customer_records_status_valid',
       sql`${table.status} IN ('active','quarantined','erased')`
     ),
-    check('customer_records_locale_valid', sql`${table.preferredLocale} IN ('en','ro')`)
+    check('customer_records_locale_valid', sql`${table.preferredLocale} IN ('en','ro')`),
+    check(
+      'customer_records_merge_not_self',
+      sql`${table.mergedInto} IS NULL OR ${table.mergedInto} <> ${table.id}`
+    ),
+    foreignKey({
+      name: 'customer_records_merge_target_merchant_fk',
+      columns: [table.mergedInto, table.merchantId],
+      foreignColumns: [table.id, table.merchantId]
+    }).onDelete('restrict')
   ]
 )
 

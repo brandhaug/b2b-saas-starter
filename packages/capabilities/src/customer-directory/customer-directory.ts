@@ -5,7 +5,6 @@ import {
   CapabilityUnavailable
 } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import { hashSha256 } from '../internal/crypto.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import {
   normalizeCustomerDetails,
@@ -163,6 +162,7 @@ export class CustomerDirectoryInvalid extends Schema.TaggedErrorClass<CustomerDi
       'invalid_phone',
       'reason_required',
       'invalid_record_status',
+      'merge_records_must_be_distinct',
       'empty_split',
       'invalid_split_assignment',
       'invalid_import'
@@ -255,7 +255,13 @@ export const MergeCustomerInputSchema = Schema.Struct({
   preferredDetailsSourceId: Schema.optional(Schema.String),
   reason: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1)),
   now: Schema.String
-})
+}).check(
+  Schema.makeFilter((input) =>
+    input.survivorId === input.absorbedId
+      ? { path: ['absorbedId'], issue: 'merge records must be distinct' }
+      : undefined
+  )
+)
 type MergeInput = typeof MergeCustomerInputSchema.Type
 
 export const CustomerContactKeySchema = Schema.Struct({
@@ -428,11 +434,13 @@ export type CustomerDirectoryState = {
   readonly records: Map<string, CustomerRecord>
   readonly commands: Map<string, StoredCustomerDirectoryCommand>
   readonly imports: Set<string>
+  fingerprintKey: string
 }
 export const emptyCustomerDirectoryState = (): CustomerDirectoryState => ({
   records: new Map(),
   commands: new Map(),
-  imports: new Set()
+  imports: new Set(),
+  fingerprintKey: 'customer-directory-seed-fingerprint-key'
 })
 export type SeedCustomerDirectoryStore = CustomerDirectoryState
 export const emptySeedCustomerDirectoryStore = emptyCustomerDirectoryState
@@ -527,26 +535,44 @@ const contactsFrom = (details: DirectoryCustomerDetails): CustomerContact[] => {
     })
   return result
 }
-const fingerprintShape = (input: unknown): unknown => {
-  if (typeof input === 'string') return '<string>'
-  if (Array.isArray(input)) return input.map(fingerprintShape)
+const canonicalValue = (input: unknown): unknown => {
+  if (Array.isArray(input)) return input.map(canonicalValue)
   if (input && typeof input === 'object')
     return Object.fromEntries(
       Object.entries(input)
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, value]) => [key, fingerprintShape(value)])
+        .map(([key, value]) => [key, canonicalValue(value)])
     )
   return input
 }
-const fingerprint = (input: unknown) =>
-  Effect.promise(() => hashSha256(JSON.stringify(fingerprintShape(input))))
+const hmacFingerprint = async (key: string, input: unknown) => {
+  const imported = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(key),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const digest = await crypto.subtle.sign(
+    'HMAC',
+    imported,
+    new TextEncoder().encode(JSON.stringify(canonicalValue(input)))
+  )
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('')
+}
+const fingerprint = (store: CustomerDirectoryState, input: unknown) =>
+  Effect.promise(() => hmacFingerprint(store.fingerprintKey, input))
 const hasReason = (reason: string) => reason.trim().length > 0
 const mutableRecord = (record: CustomerRecord) =>
   record.status === 'active' || record.status === 'archived'
 
 export const makeCustomerDirectoryService = (
-  store: CustomerDirectoryState
+  store: CustomerDirectoryState,
+  fingerprintKey = 'customer-directory-seed-fingerprint-key'
 ): CustomerDirectoryShape => {
+  store.fingerprintKey = fingerprintKey
   const self: CustomerDirectoryShape = {
     matchOrCreate: (input) =>
       Effect.gen(function* () {
@@ -876,7 +902,7 @@ export const makeCustomerDirectoryService = (
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         const importKey = `${merchant.id}:import-file:${input.fileId}`
-        const commandFingerprint = yield* fingerprint({
+        const commandFingerprint = yield* fingerprint(store, {
           fileId: input.fileId,
           rows: input.rows,
           actorId: input.actorId
@@ -904,22 +930,27 @@ export const makeCustomerDirectoryService = (
           const row = input.rows[index]!
           const normalized = normalizeCustomerDetails(row)
           const rowKey = row.externalReference
-            ? `${merchant.id}:import-row:${row.externalReference}`
+            ? `${merchant.id}:import-row:${yield* fingerprint(store, {
+                externalReference: row.externalReference
+              })}`
             : null
+          const rowFingerprint = yield* fingerprint(store, {
+            name: normalized.name,
+            email: normalized.email,
+            phone: normalized.phone
+          })
           const rowMappingPrefix = rowKey ? `${rowKey}=>` : null
           const existingRowMapping = rowMappingPrefix
             ? [...store.imports].find((entry) => entry.startsWith(rowMappingPrefix))
             : undefined
           if (existingRowMapping && rowMappingPrefix) {
-            const existingRecord = store.records.get(
-              existingRowMapping.slice(rowMappingPrefix.length)
-            )
-            if (
-              !existingRecord ||
-              existingRecord.displayName !== normalized.name ||
-              existingRecord.preferredEmail !== normalized.email ||
-              existingRecord.preferredPhone !== normalized.phone
-            )
+            const [storedFingerprint, existingRecordId] = existingRowMapping
+              .slice(rowMappingPrefix.length)
+              .split('=>')
+            const existingRecord = existingRecordId
+              ? store.records.get(existingRecordId)
+              : undefined
+            if (!existingRecord || storedFingerprint !== rowFingerprint)
               return yield* Effect.fail(
                 new CapabilityConflict({ reason: 'idempotency_key_reused' })
               )
@@ -954,7 +985,9 @@ export const makeCustomerDirectoryService = (
             if (result.success.matched) matched += 1
             else created += 1
             if (rowMappingPrefix)
-              store.imports.add(`${rowMappingPrefix}${result.success.record.id}`)
+              store.imports.add(
+                `${rowMappingPrefix}${rowFingerprint}=>${result.success.record.id}`
+              )
           }
         }
         store.imports.add(importKey)
@@ -996,7 +1029,7 @@ export const makeCustomerDirectoryService = (
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         const commandKey = `${merchant.id}:${idempotencyKey}`
-        const commandFingerprint = yield* fingerprint({
+        const commandFingerprint = yield* fingerprint(store, {
           now,
           inactiveBefore,
           actorId,
@@ -1086,7 +1119,7 @@ const mutate = <I extends Mutation>(
     if (!record || record.merchantId !== merchant.id)
       return yield* Effect.fail(new CapabilityNotFound({ resource: 'customer-record' }))
     const key = `${merchant.id}:${input.idempotencyKey}`,
-      fp = yield* fingerprint(input),
+      fp = yield* fingerprint(store, input),
       replay = store.commands.get(key)
     if (replay) {
       if (replay.fingerprint !== fp)
@@ -1148,8 +1181,12 @@ const mergeRecords = (
 ): Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext> =>
   Effect.gen(function* () {
     const merchant = yield* MerchantContext
+    if (input.survivorId === input.absorbedId)
+      return yield* Effect.fail(
+        new CustomerDirectoryInvalid({ reason: 'merge_records_must_be_distinct' })
+      )
     const commandKey = `${merchant.id}:${input.idempotencyKey}`
-    const commandFingerprint = yield* fingerprint(input)
+    const commandFingerprint = yield* fingerprint(store, input)
     const replay = store.commands.get(commandKey)
     if (replay) {
       if (replay.fingerprint !== commandFingerprint)
@@ -1275,7 +1312,7 @@ const splitRecord = (
   Effect.gen(function* () {
     const merchant = yield* MerchantContext
     const commandKey = `${merchant.id}:${input.idempotencyKey}`
-    const commandFingerprint = yield* fingerprint(input)
+    const commandFingerprint = yield* fingerprint(store, input)
     const replay = store.commands.get(commandKey)
     if (replay) {
       if (replay.fingerprint !== commandFingerprint)

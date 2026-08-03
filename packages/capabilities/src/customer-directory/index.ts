@@ -1,5 +1,5 @@
 export * from './customer-directory.ts'
-export { LiveCustomerDirectory } from './adapters.ts'
+export { LiveCustomerDirectory, makeLiveCustomerDirectory } from './adapters.ts'
 export {
   AppointmentCustomerAssociationInputSchema,
   prepareAppointmentCustomerAssociation,

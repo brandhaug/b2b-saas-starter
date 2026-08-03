@@ -673,6 +673,91 @@ describe('Customer Directory contract', () => {
     })
   })
 
+  it('binds idempotency to immutable payloads and rejects self-merge', async () => {
+    const result = await run(
+      'mer_idempotency_payloads',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_payload_binding',
+          details: observation({ name: 'Current Preferred', phone: null }),
+          now: '2026-08-01T10:00:00.000Z'
+        })
+        const noted = yield* service.addNote(created.record.id, {
+          expectedRevision: created.record.revision,
+          idempotencyKey: 'same-note-command',
+          actorId: 'usr_owner',
+          text: 'First note',
+          now: '2026-08-01T11:00:00.000Z'
+        })
+        const changedPayload = yield* Effect.result(
+          service.addNote(created.record.id, {
+            expectedRevision: created.record.revision,
+            idempotencyKey: 'same-note-command',
+            actorId: 'usr_owner',
+            text: 'Different note',
+            now: '2026-08-01T11:00:00.000Z'
+          })
+        )
+        const row = {
+          name: 'Old CRM Name',
+          email: 'ana@example.com',
+          phone: null,
+          externalReference: 'crm-customer-42'
+        }
+        yield* service.importRows({
+          fileId: 'crm-file-original',
+          idempotencyKey: 'crm-import-original',
+          expectedRevisions: { [created.record.id]: noted.revision },
+          rows: [row],
+          actorId: 'usr_owner',
+          now: '2026-08-01T12:00:00.000Z'
+        })
+        const imported = yield* service.get(created.record.id)
+        const edited = yield* service.editPreferred(created.record.id, {
+          expectedRevision: imported.revision,
+          idempotencyKey: 'edit-after-import',
+          actorId: 'usr_owner',
+          name: 'Owner Corrected Name',
+          email: 'ana@example.com',
+          phone: null,
+          now: '2026-08-01T13:00:00.000Z'
+        })
+        const identicalRowReplay = yield* service.importRows({
+          fileId: 'crm-file-reupload',
+          idempotencyKey: 'crm-import-reupload',
+          expectedRevisions: { [created.record.id]: edited.revision },
+          rows: [row],
+          actorId: 'usr_owner',
+          now: '2026-08-01T14:00:00.000Z'
+        })
+        const selfMerge = yield* Effect.result(
+          service.merge({
+            survivorId: created.record.id,
+            absorbedId: created.record.id,
+            expectedSurvivorRevision: edited.revision,
+            expectedAbsorbedRevision: edited.revision,
+            idempotencyKey: 'self-merge',
+            actorId: 'usr_owner',
+            reason: 'Invalid duplicate selection',
+            now: '2026-08-01T15:00:00.000Z'
+          })
+        )
+        return { changedPayload, identicalRowReplay, selfMerge }
+      })
+    )
+
+    expect(result.changedPayload).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'idempotency_key_reused' })
+    })
+    expect(result.identicalRowReplay).toEqual({ created: 0, matched: 1, rejected: 0 })
+    expect(result.selfMerge).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'merge_records_must_be_distinct' })
+    })
+  })
+
   it('keeps erased and merged records terminal and removes directory PII', async () => {
     const result = await run(
       'mer_terminal_records',

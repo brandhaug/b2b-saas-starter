@@ -25,9 +25,12 @@ UPDATE `customer_contacts`
 SET `id` = 'cuc_' || lower(hex(randomblob(16)));--> statement-breakpoint
 
 -- Early idempotency results and fingerprints contained full command payloads. They
--- cannot be safely upgraded, so discard replay metadata while preserving imports and
--- record supplements. New commands persist only hashes and opaque references.
+-- cannot be safely upgraded, so discard replay metadata. Legacy import metadata also
+-- retained raw external references and must be retired; new rows use keyed digests.
 UPDATE `customer_directory_states`
-SET `state_json` = json_set(`state_json`, '$.commands', json('[]')),
+SET `state_json` = json_set(
+      json_set(`state_json`, '$.commands', json('[]')),
+      '$.imports', json('[]')
+    ),
     `revision` = `revision` + 1,
     `updated_at` = CURRENT_TIMESTAMP;--> statement-breakpoint

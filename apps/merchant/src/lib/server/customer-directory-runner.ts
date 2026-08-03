@@ -16,6 +16,7 @@ type CustomerDirectoryDatabase = Parameters<typeof layerFromD1>[0]
 export const runCustomerDirectoryRequest = <A>(input: {
   readonly db: CustomerDirectoryDatabase | undefined
   readonly userId: string
+  readonly fingerprintKey?: string
   readonly effect: Effect.Effect<
     A,
     CustomerDirectoryError,
@@ -38,7 +39,13 @@ export const runCustomerDirectoryRequest = <A>(input: {
   return Effect.runPromise(
     Effect.provide(
       input.effect,
-      Layer.merge(selectCapabilitiesLayer({ DB: input.db }), context)
+      Layer.merge(
+        selectCapabilitiesLayer({
+          DB: input.db,
+          PLATFORM_API_CURSOR_SECRET: input.fingerprintKey
+        }),
+        context
+      )
     )
   )
 }

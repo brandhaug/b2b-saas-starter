@@ -528,6 +528,30 @@ describe('Live Customer Directory contract', () => {
     await expect(
       test.d1
         .prepare(
+          `UPDATE customer_records SET merged_into = id
+           WHERE id = 'cur_customer_other'`
+        )
+        .run()
+    ).rejects.toThrow()
+    const liveMerchantRecord = await test.d1
+      .prepare(
+        `SELECT id FROM customer_records
+         WHERE merchant_id = 'mer_customer_live' LIMIT 1`
+      )
+      .first<{ id: string }>()
+    await expect(
+      test.d1
+        .prepare(
+          `UPDATE customer_records SET merged_into = ?
+           WHERE id = 'cur_customer_other'`
+        )
+        .bind(liveMerchantRecord!.id)
+        .run()
+    ).rejects.toThrow()
+
+    await expect(
+      test.d1
+        .prepare(
           `INSERT INTO customer_contacts
            (id, customer_record_id, merchant_id, kind, normalized_value, status,
             is_preferred, created_at, updated_at)
