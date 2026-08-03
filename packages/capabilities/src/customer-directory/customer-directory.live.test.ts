@@ -116,7 +116,7 @@ describe('Live Customer Directory contract', () => {
       )
       .bind(links.results[0]!.customer_record_id)
       .all<{ revision: number }>()
-    expect(createdHistory.results).toEqual([{ revision: 1 }])
+    expect(createdHistory.results).toEqual([{ revision: 1 }, { revision: 2 }])
   })
 
   it('persists matching, revisions, attributed history, and idempotent recovery', async () => {

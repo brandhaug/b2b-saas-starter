@@ -646,7 +646,19 @@ export const makeCustomerDirectoryService = (
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         const importKey = `${merchant.id}:${input.idempotencyKey}`
-        if (store.imports.has(importKey)) return { created: 0, matched: 0, rejected: 0 }
+        const commandFingerprint = fingerprint(input)
+        const replay = store.commands.get(importKey)
+        if (replay) {
+          if (replay.fingerprint !== commandFingerprint)
+            return yield* Effect.fail(
+              new CapabilityConflict({ reason: 'idempotency_key_reused' })
+            )
+          return replay.result as {
+            readonly created: number
+            readonly matched: number
+            readonly rejected: number
+          }
+        }
         let created = 0,
           matched = 0,
           rejected = 0
@@ -685,7 +697,9 @@ export const makeCustomerDirectoryService = (
           else created += 1
         }
         store.imports.add(importKey)
-        return { created, matched, rejected }
+        const result = { created, matched, rejected }
+        store.commands.set(importKey, { fingerprint: commandFingerprint, result })
+        return result
       }),
     exportMinimized: () =>
       Effect.gen(function* () {
@@ -718,8 +732,21 @@ export const makeCustomerDirectoryService = (
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         const commandKey = `${merchant.id}:${idempotencyKey}`
+        const commandFingerprint = fingerprint({
+          now,
+          inactiveBefore,
+          actorId,
+          protectedRecordIds,
+          expectedRevisions
+        })
         const replay = store.commands.get(commandKey)
-        if (replay) return replay.result as number
+        if (replay) {
+          if (replay.fingerprint !== commandFingerprint)
+            return yield* Effect.fail(
+              new CapabilityConflict({ reason: 'idempotency_key_reused' })
+            )
+          return replay.result as number
+        }
         const protectedIds = new Set(protectedRecordIds)
         let count = 0
         for (const record of store.records.values())
@@ -757,7 +784,7 @@ export const makeCustomerDirectoryService = (
             count += 1
           }
         store.commands.set(commandKey, {
-          fingerprint: fingerprint(expectedRevisions),
+          fingerprint: commandFingerprint,
           result: count
         })
         return count

@@ -282,7 +282,7 @@ describe('Customer Directory contract', () => {
 
     expect(result.preview.map((row) => row.outcome)).toEqual(['create', 'invalid'])
     expect(result.committed).toEqual({ created: 1, matched: 0, rejected: 1 })
-    expect(result.replay).toEqual({ created: 0, matched: 0, rejected: 0 })
+    expect(result.replay).toEqual(result.committed)
     expect(result.stale._tag).toBe('Failure')
     expect(result.changed.ban).toBeNull()
     expect(result.exported[0]).not.toHaveProperty('notes')

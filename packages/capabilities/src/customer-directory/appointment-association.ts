@@ -76,8 +76,7 @@ export const prepareAppointmentCustomerAssociation = (
               .select({
                 customerRecordId: customerContacts.customerRecordId,
                 kind: customerContacts.kind,
-                value: customerContacts.normalizedValue,
-                revision: customerRecords.revision
+                value: customerContacts.normalizedValue
               })
               .from(customerContacts)
               .innerJoin(
@@ -102,10 +101,6 @@ export const prepareAppointmentCustomerAssociation = (
           )
     const candidateIds = [...new Set(matches.map((match) => match.customerRecordId))]
     const matchedId = candidateIds.length === 1 ? candidateIds[0] : undefined
-    const resultingRevision = matchedId
-      ? (matches.find((match) => match.customerRecordId === matchedId)?.revision ?? 0) +
-        1
-      : 1
     if (matchedId) {
       const bans = yield* orUnavailable('customer-directory')(
         db
@@ -145,7 +140,14 @@ export const prepareAppointmentCustomerAssociation = (
             createdAt: input.now,
             updatedAt: input.now
           })
-          .onConflictDoNothing()
+          .onConflictDoUpdate({
+            target: customerRecords.id,
+            set: {
+              revision: sql`${customerRecords.revision} + 1`,
+              lastActivityAt: input.now,
+              updatedAt: input.now
+            }
+          })
       )
     } else {
       statements.push(
@@ -183,7 +185,7 @@ export const prepareAppointmentCustomerAssociation = (
             createdAt: input.now,
             updatedAt: input.now
           })
-          .onConflictDoNothing()
+          .onConflictDoNothing({ target: customerContacts.id })
       )
     }
     if (!matchedId) {
@@ -222,26 +224,32 @@ export const prepareAppointmentCustomerAssociation = (
       db
         .insert(customerDirectoryHistory)
         .values({
-          id: matchedId ? `cuh_${appointment.id}` : `cuh_${recordId}_created`,
+          id: `cuh_${appointment.id}`,
           merchantId: input.merchantId,
           customerRecordId: recordId,
           kind: matchedId ? 'appointment_observed' : 'created',
           actorId:
             input.origin === 'public_booking' ? 'public-customer' : 'merchant-owner',
           reason: input.origin,
-          revision: matchedId
-            ? sql<number>`(SELECT ${customerRecords.revision} FROM ${customerRecords} WHERE ${customerRecords.id} = ${recordId})`
-            : resultingRevision,
+          revision: sql<number>`(SELECT ${customerRecords.revision} FROM ${customerRecords} WHERE ${customerRecords.id} = ${recordId})`,
           occurredAt: input.now
         })
         .onConflictDoNothing(),
       db
-        .update(customerDirectoryStates)
-        .set({
-          revision: sql`${customerDirectoryStates.revision} + 1`,
+        .insert(customerDirectoryStates)
+        .values({
+          merchantId: input.merchantId,
+          stateJson: { records: [], commands: [], imports: [] },
+          revision: 1,
           updatedAt: input.now
         })
-        .where(eq(customerDirectoryStates.merchantId, input.merchantId))
+        .onConflictDoUpdate({
+          target: customerDirectoryStates.merchantId,
+          set: {
+            revision: sql`${customerDirectoryStates.revision} + 1`,
+            updatedAt: input.now
+          }
+        })
     )
     return statements
   })
