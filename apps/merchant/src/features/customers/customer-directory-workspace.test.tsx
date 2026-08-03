@@ -95,6 +95,7 @@ describe('CustomerDirectoryWorkspace', () => {
     expect(html).toContain('Attributed history')
     expect(html).toContain('edited · usr_owner')
     expect(html).toContain('Import Customer Records')
+    expect(html).toContain('Export customer data')
     expect(html).not.toContain('One captured Customer Details entry per Appointment')
   })
 })

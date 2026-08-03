@@ -6,86 +6,104 @@ import {
 } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
+import {
+  normalizeCustomerDetails,
+  normalizeCustomerEmail,
+  normalizeCustomerPhone,
+  CustomerDetailsSchema,
+  type NormalizedCustomerDetails
+} from './customer-contact-normalization.ts'
 
-export type DirectoryCustomerDetails = {
-  readonly name: string
-  readonly email: string | null
-  readonly phone: string | null
-}
-export type CustomerObservation = {
-  readonly id: string
-  readonly appointmentId: string | null
-  readonly details: DirectoryCustomerDetails
-  readonly observedAt: string
-  readonly source: 'appointment' | 'import'
-}
-export type CustomerContact = {
-  readonly kind: 'email' | 'phone'
-  readonly value: string
-  readonly status: 'active' | 'disputed' | 'superseded'
-  readonly preferred: boolean
-}
-export type MerchantNote = {
-  readonly id: string
-  readonly text: string
-  readonly actorId: string
-  readonly createdAt: string
-  readonly editedAt: string | null
-}
-export type CustomerBan = {
-  readonly reason: string
-  readonly actorId: string
-  readonly createdAt: string
-  readonly expiresAt: string | null
-}
-export type ConsentEvidence = {
-  readonly id: string
-  readonly purpose: 'operational_mobile' | 'marketing'
-  readonly destination: string
-  readonly wordingVersion: string
-  readonly source: string
-  readonly grantedAt: string
-  readonly withdrawnAt: string | null
-}
-export type CustomerHistory = {
-  readonly id: string
-  readonly kind:
-    | 'created'
-    | 'edited'
-    | 'note_added'
-    | 'banned'
-    | 'ban_lifted'
-    | 'merged'
-    | 'split'
-    | 'archived'
-    | 'restored'
-    | 'erased'
-    | 'imported'
-    | 'appointment_observed'
-  readonly actorId: string
-  readonly impersonatedBy?: string | null
-  readonly reason: string | null
-  readonly at: string
-  readonly revision: number
-}
-export type CustomerRecord = {
-  readonly id: string
-  readonly merchantId: string
-  readonly status: 'active' | 'archived' | 'merged' | 'erased'
-  readonly displayName: string
-  readonly preferredEmail: string | null
-  readonly preferredPhone: string | null
-  readonly contacts: readonly CustomerContact[]
-  readonly observations: readonly CustomerObservation[]
-  readonly notes: readonly MerchantNote[]
-  readonly consent: readonly ConsentEvidence[]
-  readonly ban: CustomerBan | null
-  readonly possibleDuplicateOf: readonly string[]
-  readonly mergedInto: string | null
-  readonly revision: number
-  readonly lastActivityAt: string
-  readonly history: readonly CustomerHistory[]
-}
+export const DirectoryCustomerDetailsSchema = CustomerDetailsSchema
+export type DirectoryCustomerDetails = NormalizedCustomerDetails
+export const CustomerObservationSchema = Schema.Struct({
+  id: Schema.String,
+  appointmentId: Schema.NullOr(Schema.String),
+  details: DirectoryCustomerDetailsSchema,
+  observedAt: Schema.String,
+  source: Schema.Literals(['appointment', 'import'])
+})
+export type CustomerObservation = typeof CustomerObservationSchema.Type
+
+export const CustomerContactSchema = Schema.Struct({
+  kind: Schema.Literals(['email', 'phone']),
+  value: Schema.String,
+  status: Schema.Literals(['active', 'disputed', 'superseded']),
+  preferred: Schema.Boolean
+})
+export type CustomerContact = typeof CustomerContactSchema.Type
+
+export const MerchantNoteSchema = Schema.Struct({
+  id: Schema.String,
+  text: Schema.String,
+  actorId: Schema.String,
+  createdAt: Schema.String,
+  editedAt: Schema.NullOr(Schema.String)
+})
+export type MerchantNote = typeof MerchantNoteSchema.Type
+
+export const CustomerBanSchema = Schema.Struct({
+  reason: Schema.String,
+  actorId: Schema.String,
+  createdAt: Schema.String,
+  expiresAt: Schema.NullOr(Schema.String)
+})
+export type CustomerBan = typeof CustomerBanSchema.Type
+
+export const ConsentEvidenceSchema = Schema.Struct({
+  id: Schema.String,
+  purpose: Schema.Literals(['operational_mobile', 'marketing']),
+  destination: Schema.String,
+  wordingVersion: Schema.String,
+  source: Schema.String,
+  grantedAt: Schema.String,
+  withdrawnAt: Schema.NullOr(Schema.String)
+})
+export type ConsentEvidence = typeof ConsentEvidenceSchema.Type
+
+export const CustomerHistorySchema = Schema.Struct({
+  id: Schema.String,
+  kind: Schema.Literals([
+    'created',
+    'edited',
+    'note_added',
+    'banned',
+    'ban_lifted',
+    'merged',
+    'split',
+    'archived',
+    'restored',
+    'erased',
+    'imported',
+    'appointment_observed'
+  ]),
+  actorId: Schema.String,
+  impersonatedBy: Schema.optional(Schema.NullOr(Schema.String)),
+  reason: Schema.NullOr(Schema.String),
+  at: Schema.String,
+  revision: Schema.Number
+})
+export type CustomerHistory = typeof CustomerHistorySchema.Type
+
+export const CustomerRecordSchema = Schema.Struct({
+  id: Schema.String,
+  merchantId: Schema.String,
+  status: Schema.Literals(['active', 'archived', 'merged', 'erased']),
+  displayName: Schema.String,
+  preferredEmail: Schema.NullOr(Schema.String),
+  preferredPhone: Schema.NullOr(Schema.String),
+  contacts: Schema.Array(CustomerContactSchema),
+  observations: Schema.Array(CustomerObservationSchema),
+  notes: Schema.Array(MerchantNoteSchema),
+  consent: Schema.Array(ConsentEvidenceSchema),
+  ban: Schema.NullOr(CustomerBanSchema),
+  possibleDuplicateOf: Schema.Array(Schema.String),
+  mergedInto: Schema.NullOr(Schema.String),
+  revision: Schema.Number,
+  lastActivityAt: Schema.String,
+  history: Schema.Array(CustomerHistorySchema)
+})
+export type CustomerRecord = typeof CustomerRecordSchema.Type
 
 type CustomerSearchEvidence = {
   readonly value: string | null
@@ -151,46 +169,136 @@ export type CustomerDirectoryError =
   | CapabilityConflict
   | CapabilityNotFound
   | CapabilityUnavailable
-type Mutation = {
-  readonly expectedRevision: number
-  readonly idempotencyKey: string
-  readonly actorId: string
-  readonly now: string
-}
-type MatchInput = {
-  readonly appointmentId: string | null
-  readonly details: DirectoryCustomerDetails
-  readonly now: string
-  readonly source?: 'appointment' | 'import'
-  readonly actorId?: string
-}
-type MergeInput = {
-  readonly survivorId: string
-  readonly absorbedId: string
-  readonly expectedSurvivorRevision: number
-  readonly expectedAbsorbedRevision: number
-  readonly idempotencyKey: string
-  readonly actorId: string
-  readonly preferredDetailsSourceId?: string
-  readonly reason: string
-  readonly now: string
-}
-type SplitInput = {
-  readonly sourceId: string
-  readonly observationIds: readonly string[]
-  readonly expectedRevision: number
-  readonly idempotencyKey: string
-  readonly actorId: string
-  readonly createdDetails?: DirectoryCustomerDetails
-  readonly contactKeys?: readonly {
-    readonly kind: 'email' | 'phone'
-    readonly value: string
-  }[]
-  readonly noteIds?: readonly string[]
-  readonly consentIds?: readonly string[]
-  readonly reason: string
-  readonly now: string
-}
+const MutationFields = {
+  expectedRevision: Schema.Number,
+  idempotencyKey: Schema.String,
+  actorId: Schema.String,
+  now: Schema.String
+} as const
+export const CustomerMutationSchema = Schema.Struct(MutationFields)
+type Mutation = typeof CustomerMutationSchema.Type
+
+export const MatchCustomerInputSchema = Schema.Struct({
+  appointmentId: Schema.NullOr(Schema.String),
+  details: DirectoryCustomerDetailsSchema,
+  now: Schema.String,
+  source: Schema.optional(Schema.Literals(['appointment', 'import'])),
+  actorId: Schema.optional(Schema.String)
+})
+type MatchInput = typeof MatchCustomerInputSchema.Type
+
+export const EditCustomerPreferredInputSchema = Schema.Struct({
+  ...MutationFields,
+  name: Schema.String,
+  email: Schema.NullOr(Schema.String),
+  phone: Schema.NullOr(Schema.String)
+})
+type EditPreferredInput = typeof EditCustomerPreferredInputSchema.Type
+
+export const AddCustomerNoteInputSchema = Schema.Struct({
+  ...MutationFields,
+  text: Schema.String
+})
+type AddNoteInput = typeof AddCustomerNoteInputSchema.Type
+
+export const SetCustomerContactStatusInputSchema = Schema.Struct({
+  ...MutationFields,
+  kind: Schema.Literals(['email', 'phone']),
+  value: Schema.String,
+  status: Schema.Literals(['active', 'disputed', 'superseded']),
+  preferred: Schema.Boolean
+})
+type SetContactStatusInput = typeof SetCustomerContactStatusInputSchema.Type
+
+export const RecordCustomerConsentInputSchema = Schema.Struct({
+  ...MutationFields,
+  purpose: Schema.Literals(['operational_mobile', 'marketing']),
+  destination: Schema.String,
+  wordingVersion: Schema.String,
+  source: Schema.String,
+  withdrawn: Schema.Boolean
+})
+type RecordConsentInput = typeof RecordCustomerConsentInputSchema.Type
+
+export const SetCustomerBanInputSchema = Schema.Struct({
+  ...MutationFields,
+  reason: Schema.String,
+  expiresAt: Schema.NullOr(Schema.String)
+})
+type SetBanInput = typeof SetCustomerBanInputSchema.Type
+
+export const LiftCustomerBanInputSchema = Schema.Struct({
+  ...MutationFields,
+  reason: Schema.String
+})
+type LiftBanInput = typeof LiftCustomerBanInputSchema.Type
+
+export const ArchiveCustomerInputSchema = Schema.Struct({
+  ...MutationFields,
+  archived: Schema.Boolean
+})
+type ArchiveInput = typeof ArchiveCustomerInputSchema.Type
+
+export const MergeCustomerInputSchema = Schema.Struct({
+  survivorId: Schema.String,
+  absorbedId: Schema.String,
+  expectedSurvivorRevision: Schema.Number,
+  expectedAbsorbedRevision: Schema.Number,
+  idempotencyKey: Schema.String,
+  actorId: Schema.String,
+  preferredDetailsSourceId: Schema.optional(Schema.String),
+  reason: Schema.String,
+  now: Schema.String
+})
+type MergeInput = typeof MergeCustomerInputSchema.Type
+
+export const CustomerContactKeySchema = Schema.Struct({
+  kind: Schema.Literals(['email', 'phone']),
+  value: Schema.String
+})
+export const SplitCustomerInputSchema = Schema.Struct({
+  sourceId: Schema.String,
+  observationIds: Schema.Array(Schema.String),
+  expectedRevision: Schema.Number,
+  idempotencyKey: Schema.String,
+  actorId: Schema.String,
+  createdDetails: Schema.optional(DirectoryCustomerDetailsSchema),
+  contactKeys: Schema.optional(Schema.Array(CustomerContactKeySchema)),
+  noteIds: Schema.optional(Schema.Array(Schema.String)),
+  consentIds: Schema.optional(Schema.Array(Schema.String)),
+  reason: Schema.String,
+  now: Schema.String
+})
+type SplitInput = typeof SplitCustomerInputSchema.Type
+
+export const CustomerSearchOptionsSchema = Schema.Struct({
+  includeArchived: Schema.optional(Schema.Boolean)
+})
+type CustomerSearchOptions = typeof CustomerSearchOptionsSchema.Type
+
+export const CustomerImportRowSchema = Schema.Struct({
+  ...DirectoryCustomerDetailsSchema.fields,
+  externalReference: Schema.optional(Schema.String)
+})
+export const ImportCustomerRowsInputSchema = Schema.Struct({
+  fileId: Schema.String,
+  idempotencyKey: Schema.String,
+  expectedRevisions: Schema.Record(Schema.String, Schema.Number),
+  rows: Schema.Array(CustomerImportRowSchema),
+  actorId: Schema.String,
+  now: Schema.String
+})
+type ImportRowsInput = typeof ImportCustomerRowsInputSchema.Type
+
+export const EraseExpiredCustomersInputSchema = Schema.Struct({
+  idempotencyKey: Schema.String,
+  expectedRevisions: Schema.Record(Schema.String, Schema.Number),
+  now: Schema.String,
+  inactiveBefore: Schema.String,
+  actorId: Schema.String,
+  protectedRecordIds: Schema.optional(Schema.Array(Schema.String))
+})
+type EraseExpiredInput = typeof EraseExpiredCustomersInputSchema.Type
 
 export type CustomerDirectoryShape = {
   readonly matchOrCreate: (
@@ -209,49 +317,35 @@ export type CustomerDirectoryShape = {
     MerchantContext
   >
   readonly search: (
-    query: string
+    query: string,
+    options?: CustomerSearchOptions
   ) => Effect.Effect<readonly CustomerRecord[], CustomerDirectoryError, MerchantContext>
   readonly get: (
     recordId: string
   ) => Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext>
   readonly editPreferred: (
     recordId: string,
-    input: Mutation & {
-      readonly name: string
-      readonly email: string | null
-      readonly phone: string | null
-    }
+    input: EditPreferredInput
   ) => Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext>
   readonly addNote: (
     recordId: string,
-    input: Mutation & { readonly text: string }
+    input: AddNoteInput
   ) => Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext>
   readonly setContactStatus: (
     recordId: string,
-    input: Mutation & {
-      readonly kind: 'email' | 'phone'
-      readonly value: string
-      readonly status: 'active' | 'disputed' | 'superseded'
-      readonly preferred: boolean
-    }
+    input: SetContactStatusInput
   ) => Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext>
   readonly recordConsent: (
     recordId: string,
-    input: Mutation & {
-      readonly purpose: ConsentEvidence['purpose']
-      readonly destination: string
-      readonly wordingVersion: string
-      readonly source: string
-      readonly withdrawn: boolean
-    }
+    input: RecordConsentInput
   ) => Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext>
   readonly setBan: (
     recordId: string,
-    input: Mutation & { readonly reason: string; readonly expiresAt: string | null }
+    input: SetBanInput
   ) => Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext>
   readonly liftBan: (
     recordId: string,
-    input: Mutation & { readonly reason: string }
+    input: LiftBanInput
   ) => Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext>
   readonly merge: (
     input: MergeInput
@@ -265,7 +359,7 @@ export type CustomerDirectoryShape = {
   >
   readonly archive: (
     recordId: string,
-    input: Mutation & { readonly archived: boolean }
+    input: ArchiveInput
   ) => Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext>
   readonly previewImport: (rows: readonly DirectoryCustomerDetails[]) => Effect.Effect<
     readonly {
@@ -276,16 +370,9 @@ export type CustomerDirectoryShape = {
     CustomerDirectoryError,
     MerchantContext
   >
-  readonly importRows: (input: {
-    readonly fileId: string
-    readonly idempotencyKey: string
-    readonly expectedRevisions: Readonly<Record<string, number>>
-    readonly rows: readonly (DirectoryCustomerDetails & {
-      readonly externalReference?: string
-    })[]
-    readonly actorId: string
-    readonly now: string
-  }) => Effect.Effect<
+  readonly importRows: (
+    input: ImportRowsInput
+  ) => Effect.Effect<
     { readonly created: number; readonly matched: number; readonly rejected: number },
     CustomerDirectoryError,
     MerchantContext
@@ -302,14 +389,9 @@ export type CustomerDirectoryShape = {
     CustomerDirectoryError,
     MerchantContext
   >
-  readonly eraseExpired: (input: {
-    readonly idempotencyKey: string
-    readonly expectedRevisions: Readonly<Record<string, number>>
-    readonly now: string
-    readonly inactiveBefore: string
-    readonly actorId: string
-    readonly protectedRecordIds?: readonly string[]
-  }) => Effect.Effect<number, CustomerDirectoryError, MerchantContext>
+  readonly eraseExpired: (
+    input: EraseExpiredInput
+  ) => Effect.Effect<number, CustomerDirectoryError, MerchantContext>
 }
 
 export class CustomerDirectory extends Context.Service<
@@ -318,26 +400,18 @@ export class CustomerDirectory extends Context.Service<
 >()('@b2b-saas-starter/capabilities/CustomerDirectory') {}
 
 type StoredCommand = { readonly fingerprint: string; readonly result: unknown }
-export type SeedCustomerDirectoryStore = {
+export type CustomerDirectoryState = {
   readonly records: Map<string, CustomerRecord>
   readonly commands: Map<string, StoredCommand>
   readonly imports: Set<string>
 }
-export const emptySeedCustomerDirectoryStore = (): SeedCustomerDirectoryStore => ({
+export const emptyCustomerDirectoryState = (): CustomerDirectoryState => ({
   records: new Map(),
   commands: new Map(),
   imports: new Set()
 })
-
-const email = (value: string | null): string | null =>
-  value === null || value.trim() === '' ? null : value.trim().toLowerCase()
-const phone = (value: string | null): string | null =>
-  value === null || value.trim() === '' ? null : `+${value.replace(/\D/g, '')}`
-const normalize = (details: DirectoryCustomerDetails): DirectoryCustomerDetails => ({
-  name: details.name.trim(),
-  email: email(details.email),
-  phone: phone(details.phone)
-})
+export type SeedCustomerDirectoryStore = CustomerDirectoryState
+export const emptySeedCustomerDirectoryStore = emptyCustomerDirectoryState
 const validateDetails = (
   details: DirectoryCustomerDetails
 ): CustomerDirectoryError | null => {
@@ -378,6 +452,25 @@ const recordValues = (record: CustomerRecord) =>
       .filter((item) => item.status === 'active')
       .map((item) => `${item.kind}:${item.value}`)
   )
+const matchableMerchantRecords = (store: CustomerDirectoryState, merchantId: string) =>
+  [...store.records.values()].filter(
+    (record) =>
+      record.merchantId === merchantId &&
+      record.status !== 'merged' &&
+      record.status !== 'erased'
+  )
+const recordsMatchingDetails = (
+  records: readonly CustomerRecord[],
+  details: DirectoryCustomerDetails
+) => {
+  const supplied = values(details)
+  return {
+    supplied,
+    matching: records.filter((record) =>
+      supplied.some((value) => recordValues(record).has(value))
+    )
+  }
+}
 const history = (
   kind: CustomerHistory['kind'],
   actorId: string,
@@ -413,13 +506,13 @@ const contactsFrom = (details: DirectoryCustomerDetails): CustomerContact[] => {
 const fingerprint = (input: unknown) => JSON.stringify(input)
 
 export const makeCustomerDirectoryService = (
-  store: SeedCustomerDirectoryStore
+  store: CustomerDirectoryState
 ): CustomerDirectoryShape => {
   const self: CustomerDirectoryShape = {
     matchOrCreate: (input) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
-        const details = normalize(input.details)
+        const details = normalizeCustomerDetails(input.details)
         const invalid = validateDetails(details)
         if (invalid) return yield* Effect.fail(invalid)
         const replay = input.appointmentId
@@ -432,16 +525,8 @@ export const makeCustomerDirectoryService = (
             )
           : undefined
         if (replay) return { record: replay, matched: true }
-        const candidates = [...store.records.values()].filter(
-          (record) =>
-            record.merchantId === merchant.id &&
-            record.status !== 'merged' &&
-            record.status !== 'erased'
-        )
-        const supplied = values(details)
-        const matching = candidates.filter((record) =>
-          supplied.some((value) => recordValues(record).has(value))
-        )
+        const candidates = matchableMerchantRecords(store, merchant.id)
+        const { supplied, matching } = recordsMatchingDetails(candidates, details)
         const match =
           supplied.length > 0 && matching.length === 1 ? matching[0] : undefined
         if (match) {
@@ -523,26 +608,24 @@ export const makeCustomerDirectoryService = (
     checkPublicEligibility: (raw, now) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
-        const details = normalize(raw)
-        const supplied = values(details)
-        const matches = [...store.records.values()].filter(
-          (record) =>
-            record.merchantId === merchant.id &&
-            record.status !== 'merged' &&
-            supplied.some((value) => recordValues(record).has(value))
+        const details = normalizeCustomerDetails(raw)
+        const { matching: matches } = recordsMatchingDetails(
+          matchableMerchantRecords(store, merchant.id),
+          details
         )
         return matches.length === 1 && activeBan(matches[0]!, now)
           ? { kind: 'unavailable' as const }
           : { kind: 'eligible' as const }
       }),
-    search: (query) =>
+    search: (query, options) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         return [...store.records.values()]
           .filter(
             (record) =>
               record.merchantId === merchant.id &&
-              record.status === 'active' &&
+              (record.status === 'active' ||
+                (options?.includeArchived === true && record.status === 'archived')) &&
               customerRecordMatchesQuery(record, query)
           )
           .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
@@ -559,7 +642,7 @@ export const makeCustomerDirectoryService = (
       }),
     editPreferred: (recordId, input) =>
       Effect.gen(function* () {
-        const details = normalize({
+        const details = normalizeCustomerDetails({
           name: input.name,
           email: input.email,
           phone: input.phone
@@ -612,7 +695,9 @@ export const makeCustomerDirectoryService = (
       })),
     setContactStatus: (recordId, input) => {
       const normalizedValue =
-        input.kind === 'email' ? email(input.value) : phone(input.value)
+        input.kind === 'email'
+          ? normalizeCustomerEmail(input.value)
+          : normalizeCustomerPhone(input.value)
       const becomesPreferred = input.preferred && input.status === 'active'
       return mutate(
         store,
@@ -704,20 +789,12 @@ export const makeCustomerDirectoryService = (
     previewImport: (rows) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
-        const candidates = [...store.records.values()].filter(
-          (record) =>
-            record.merchantId === merchant.id &&
-            record.status !== 'merged' &&
-            record.status !== 'erased'
-        )
+        const candidates = matchableMerchantRecords(store, merchant.id)
         return rows.map((row, index) => {
-          const normalized = normalize(row)
+          const normalized = normalizeCustomerDetails(row)
           if (validateDetails(normalized))
             return { row: index + 1, normalized, outcome: 'invalid' as const }
-          const supplied = values(normalized),
-            matching = candidates.filter((record) =>
-              supplied.some((value) => recordValues(record).has(value))
-            )
+          const { supplied, matching } = recordsMatchingDetails(candidates, normalized)
           const exact = matching.length === 1 && supplied.length > 0
           return {
             row: index + 1,
@@ -752,14 +829,10 @@ export const makeCustomerDirectoryService = (
           rejected = 0
         for (let index = 0; index < input.rows.length; index++) {
           const row = input.rows[index]!
-          const normalized = normalize(row)
-          const supplied = values(normalized)
-          const matching = [...store.records.values()].filter(
-            (record) =>
-              record.merchantId === merchant.id &&
-              record.status !== 'merged' &&
-              record.status !== 'erased' &&
-              supplied.some((value) => recordValues(record).has(value))
+          const normalized = normalizeCustomerDetails(row)
+          const { matching } = recordsMatchingDetails(
+            matchableMerchantRecords(store, merchant.id),
+            normalized
           )
           if (
             matching.length === 1 &&
@@ -888,7 +961,7 @@ export const SeedCustomerDirectory = (
 
 type Patch = Record<string, unknown | ((record: CustomerRecord) => unknown)>
 const mutate = <I extends Mutation>(
-  store: SeedCustomerDirectoryStore,
+  store: CustomerDirectoryState,
   recordId: string,
   input: I,
   kind: CustomerHistory['kind'],
@@ -943,7 +1016,7 @@ const mutate = <I extends Mutation>(
   })
 
 const mergeRecords = (
-  store: SeedCustomerDirectoryStore,
+  store: CustomerDirectoryState,
   input: MergeInput
 ): Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext> =>
   Effect.gen(function* () {
@@ -1052,7 +1125,7 @@ const mergeRecords = (
   })
 
 const splitRecord = (
-  store: SeedCustomerDirectoryStore,
+  store: CustomerDirectoryState,
   input: SplitInput
 ): Effect.Effect<
   { source: CustomerRecord; created: CustomerRecord },
@@ -1090,7 +1163,7 @@ const splitRecord = (
       return yield* Effect.fail(new CustomerDirectoryInvalid({ reason: 'empty_split' }))
     const first = moved[0]!,
       id = newCapabilityId('cur')
-    const details = normalize(input.createdDetails ?? first.details)
+    const details = normalizeCustomerDetails(input.createdDetails ?? first.details)
     const invalid = validateDetails(details)
     if (invalid) return yield* Effect.fail(invalid)
     const explicitlyAssigned = input.createdDetails !== undefined

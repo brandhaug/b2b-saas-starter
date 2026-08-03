@@ -51,7 +51,10 @@ import type {
 } from '../notifications/index.ts'
 import { merchantReminderAvailableAt } from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
-import { prepareAppointmentCustomerAssociation } from '../customer-directory/appointment-association.ts'
+import {
+  prepareAppointmentCustomerAssociation,
+  prepareAppointmentCustomerAssociationBatch
+} from '../customer-directory/appointment-association.ts'
 
 export type ConfirmationSigningKeyring = {
   readonly currentKeyId: string
@@ -1370,9 +1373,10 @@ export const LiveBookingConfirmation = (
                       ]
                     >([null, null])
               )
-              const customerAssociationStatements = (yield* Effect.all(
-                generated.map((item) =>
-                  prepareAppointmentCustomerAssociation(db, {
+              const customerAssociationStatements =
+                yield* prepareAppointmentCustomerAssociationBatch(
+                  db,
+                  generated.map((item) => ({
                     merchantId: item.row.hold.merchantId,
                     appointment: {
                       id: item.appointmentId,
@@ -1380,17 +1384,16 @@ export const LiveBookingConfirmation = (
                     },
                     origin: 'public_booking',
                     now: input.now
-                  }).pipe(
-                    Effect.mapError(
-                      (error) =>
-                        new CapabilityUnavailable({
-                          capability: 'booking-confirmation',
-                          reason: error.reason
-                        })
-                    )
+                  }))
+                ).pipe(
+                  Effect.mapError(
+                    (error) =>
+                      new CapabilityUnavailable({
+                        capability: 'booking-confirmation',
+                        reason: error.reason
+                      })
                   )
                 )
-              )).flat()
               const statements: BatchStatement[] = generated.flatMap((item) => [
                 db.insert(appointments).select(
                   db
@@ -1840,8 +1843,7 @@ export const LiveBookingConfirmation = (
                       providerId: row.hold.providerId,
                       occupiedStartsAt:
                         row.hold.quote.occupiedStartsAt ?? row.hold.startsAt,
-                      occupiedEndsAt:
-                        row.hold.quote.occupiedEndsAt ?? row.hold.endsAt
+                      occupiedEndsAt: row.hold.quote.occupiedEndsAt ?? row.hold.endsAt
                     })
                   )
                   .limit(1)

@@ -5,7 +5,7 @@ import {
   customerInitials,
   filterCustomerEntries,
   type CustomerDirectoryView
-} from './mobile-customer-contact-model.ts'
+} from './customer-contact-model.ts'
 import { useMobileEdgeScrollSpring } from './use-mobile-edge-scroll-spring.ts'
 
 type CustomerEntry = CustomerRecord

@@ -89,6 +89,40 @@ const formWithButton = (container: HTMLElement, label: string) =>
   )
 
 describe('CustomerDirectoryWorkspace conflict recovery', () => {
+  it('downloads the privacy-minimal Customer Directory export', async () => {
+    server.exportCustomers.mockResolvedValueOnce([
+      {
+        id: 'cur_one',
+        name: 'Ana Popescu',
+        email: 'ana@example.com',
+        phone: null,
+        status: 'active',
+        appointmentIds: ['cur_one_apt_one']
+      }
+    ])
+    const createObjectURL = vi.fn(() => 'blob:customer-export')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: createObjectURL },
+      revokeObjectURL: { configurable: true, value: revokeObjectURL }
+    })
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    const container = await renderWorkspace()
+    const button = [...container.querySelectorAll('button')].find((candidate) =>
+      candidate.textContent?.includes('Export customer data')
+    )!
+
+    await act(async () => button.click())
+
+    expect(server.exportCustomers).toHaveBeenCalledOnce()
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    expect(click).toHaveBeenCalledOnce()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:customer-export')
+    expect(container.textContent).toContain('Exported 1 customer records.')
+  })
+
   it('reloads both merge records after an unconfirmed merge', async () => {
     server.mergeCustomers.mockRejectedValueOnce(new Error('stale'))
     server.searchCustomerRecords.mockResolvedValueOnce(records)
@@ -102,7 +136,9 @@ describe('CustomerDirectoryWorkspace conflict recovery', () => {
 
     await act(async () => form.requestSubmit())
 
-    expect(server.searchCustomerRecords).toHaveBeenCalledWith({ data: { query: '' } })
+    expect(server.searchCustomerRecords).toHaveBeenCalledWith({
+      data: { query: '', includeArchived: true }
+    })
     expect(container.textContent).toContain('Both records were reloaded')
   })
 
@@ -116,7 +152,9 @@ describe('CustomerDirectoryWorkspace conflict recovery', () => {
 
     await act(async () => form.requestSubmit())
 
-    expect(server.searchCustomerRecords).toHaveBeenCalledWith({ data: { query: '' } })
+    expect(server.searchCustomerRecords).toHaveBeenCalledWith({
+      data: { query: '', includeArchived: true }
+    })
     expect(container.textContent).toContain('directory was reloaded')
   })
 })

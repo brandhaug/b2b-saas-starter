@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import {
   appointmentFoundations,
@@ -16,42 +16,51 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { hashSha256 } from '../internal/crypto.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { CapabilityUnavailable } from '../errors.ts'
+import {
+  normalizeCustomerEmail,
+  normalizeCustomerPhone
+} from './customer-contact-normalization.ts'
 
-type AppointmentCustomerAssociationBase = {
-  readonly merchantId: string
-  readonly appointment: {
-    readonly id: string
-    readonly details: {
-      readonly name: string
-      readonly email: string | null
-      readonly phone: string | null
-      readonly note?: string
-    }
-  }
-  readonly merchantPolicy?: {
-    readonly restoreArchived: boolean
-    readonly allowBanned: boolean
-  }
-  readonly now: string
-}
+const AppointmentAssociationBaseFields = {
+  merchantId: Schema.String,
+  appointment: Schema.Struct({
+    id: Schema.String,
+    details: Schema.Struct({
+      name: Schema.String,
+      email: Schema.NullOr(Schema.String),
+      phone: Schema.NullOr(Schema.String),
+      note: Schema.optional(Schema.String)
+    })
+  }),
+  merchantPolicy: Schema.optional(
+    Schema.Struct({
+      restoreArchived: Schema.Boolean,
+      allowBanned: Schema.Boolean
+    })
+  ),
+  now: Schema.String
+} as const
 
-export type AppointmentCustomerAssociationInput = AppointmentCustomerAssociationBase &
-  (
-    | { readonly origin: 'public_booking' }
-    | {
-        readonly origin: 'merchant_created' | 'record_completed'
-        readonly actor: {
-          readonly merchantMemberId: string
-          readonly impersonatedBy?: string | null
-        }
-      }
-  )
+export const AppointmentCustomerAssociationInputSchema = Schema.Union([
+  Schema.Struct({
+    ...AppointmentAssociationBaseFields,
+    origin: Schema.Literal('public_booking')
+  }),
+  Schema.Struct({
+    ...AppointmentAssociationBaseFields,
+    origin: Schema.Literals(['merchant_created', 'record_completed']),
+    actor: Schema.Struct({
+      merchantMemberId: Schema.String,
+      impersonatedBy: Schema.optional(Schema.NullOr(Schema.String))
+    })
+  })
+])
 
-const normalizeEmail = (value: string | null) => value?.trim().toLowerCase() || null
-const normalizePhone = (value: string | null) => {
-  const digits = value?.replace(/\D/g, '') ?? ''
-  return digits ? `+${digits}` : null
-}
+export type AppointmentCustomerAssociationInput =
+  typeof AppointmentCustomerAssociationInputSchema.Type
+
+type AppointmentCustomerAssociationPlan = Map<string, string>
+
 const stableRecordId = (
   merchantId: string,
   identifier: { kind: string; value: string }
@@ -59,15 +68,20 @@ const stableRecordId = (
   hashSha256(`${merchantId}:${identifier.kind}:${identifier.value}`).then(
     (hash) => `cur_contact_${hash.slice(0, 32)}`
   )
+const plannedContactKey = (
+  merchantId: string,
+  identifier: { readonly kind: string; readonly value: string }
+) => `${merchantId}:${identifier.kind}:${identifier.value}`
 
 /**
  * Prepares directory writes for the caller's Appointment-creation batch. No write is
  * executed here: Appointment, association, observation, and any new Customer Record
  * therefore commit or roll back together.
  */
-export const prepareAppointmentCustomerAssociation = (
+const prepareAppointmentCustomerAssociationWithPlan = (
   db: EffectDatabase,
-  input: AppointmentCustomerAssociationInput
+  input: AppointmentCustomerAssociationInput,
+  plan?: AppointmentCustomerAssociationPlan
 ): Effect.Effect<readonly BatchStatement[], CapabilityUnavailable> =>
   Effect.gen(function* () {
     const existingAssociation = yield* orUnavailable('customer-directory')(
@@ -93,8 +107,8 @@ export const prepareAppointmentCustomerAssociation = (
     const first = input.appointment
     const details = {
       name: first.details.name.trim(),
-      email: normalizeEmail(first.details.email),
-      phone: normalizePhone(first.details.phone)
+      email: normalizeCustomerEmail(first.details.email),
+      phone: normalizeCustomerPhone(first.details.phone)
     }
     const identifiers = [
       details.email ? { kind: 'email' as const, value: details.email } : null,
@@ -133,7 +147,18 @@ export const prepareAppointmentCustomerAssociation = (
                 )
               )
           )
-    const candidateIds = [...new Set(matches.map((match) => match.customerRecordId))]
+    const persistedCandidateIds = [
+      ...new Set(matches.map((match) => match.customerRecordId))
+    ]
+    const plannedCandidateIds = plan
+      ? identifiers.flatMap((identifier) => {
+          const plannedId = plan.get(plannedContactKey(input.merchantId, identifier))
+          return plannedId ? [plannedId] : []
+        })
+      : []
+    const candidateIds = [
+      ...new Set([...persistedCandidateIds, ...plannedCandidateIds])
+    ]
     const matchedId = candidateIds.length === 1 ? candidateIds[0] : undefined
     const matchedStatus = matches.find(
       ({ customerRecordId }) => customerRecordId === matchedId
@@ -183,6 +208,9 @@ export const prepareAppointmentCustomerAssociation = (
             )
           )
         : newCapabilityId('cur')
+    if (plan && candidateIds.length <= 1)
+      for (const identifier of identifiers)
+        plan.set(plannedContactKey(input.merchantId, identifier), recordId)
     const statements: BatchStatement[] = []
     if (!matchedId) {
       statements.push(
@@ -297,8 +325,8 @@ export const prepareAppointmentCustomerAssociation = (
         customerRecordId: recordId,
         appointmentId: appointment.id,
         name: appointment.details.name.trim(),
-        normalizedEmail: normalizeEmail(appointment.details.email),
-        normalizedPhone: normalizePhone(appointment.details.phone),
+        normalizedEmail: normalizeCustomerEmail(appointment.details.email),
+        normalizedPhone: normalizeCustomerPhone(appointment.details.phone),
         source: input.origin,
         observedAt: input.now
       }),
@@ -332,5 +360,25 @@ export const prepareAppointmentCustomerAssociation = (
           }
         })
     )
+    return statements
+  })
+
+export const prepareAppointmentCustomerAssociation = (
+  db: EffectDatabase,
+  input: AppointmentCustomerAssociationInput
+): Effect.Effect<readonly BatchStatement[], CapabilityUnavailable> =>
+  prepareAppointmentCustomerAssociationWithPlan(db, input)
+
+export const prepareAppointmentCustomerAssociationBatch = (
+  db: EffectDatabase,
+  inputs: readonly AppointmentCustomerAssociationInput[]
+): Effect.Effect<readonly BatchStatement[], CapabilityUnavailable> =>
+  Effect.gen(function* () {
+    const plan: AppointmentCustomerAssociationPlan = new Map()
+    const statements: BatchStatement[] = []
+    for (const input of inputs)
+      statements.push(
+        ...(yield* prepareAppointmentCustomerAssociationWithPlan(db, input, plan))
+      )
     return statements
   })

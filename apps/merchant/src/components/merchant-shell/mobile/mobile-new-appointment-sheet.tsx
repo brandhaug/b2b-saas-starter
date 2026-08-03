@@ -32,7 +32,7 @@ import type {
   ServiceRecord
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import type { Availability } from '@b2b-saas-starter/capabilities/scheduling'
-import { customerInitials } from '@/features/customers/mobile-customer-contact-model.ts'
+import { customerInitials } from '@/features/customers/customer-contact-model.ts'
 import { decodeCalendarDate } from '@/lib/appointment-calendar-date.ts'
 import { searchCustomerRecords } from '@/lib/server/customer-directory.ts'
 import { getMerchantCatalog } from '@/lib/server/merchant-catalog.ts'

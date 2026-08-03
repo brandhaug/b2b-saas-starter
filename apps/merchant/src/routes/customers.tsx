@@ -7,7 +7,9 @@ import { requireMerchantSession } from '@/lib/server/merchant-session.ts'
 export const Route = createFileRoute('/customers')({
   beforeLoad: async ({ location }) => requireMerchantSession(location.href),
   loader: async () => ({
-    entries: await searchCustomerRecords({ data: { query: '' } })
+    entries: await searchCustomerRecords({
+      data: { query: '', includeArchived: true }
+    })
   }),
   component: CustomersPage
 })

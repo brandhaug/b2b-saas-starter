@@ -18,16 +18,50 @@ import { CapabilityConflict } from '../errors.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import {
   CustomerDirectory,
-  emptySeedCustomerDirectoryStore,
+  emptyCustomerDirectoryState,
   makeCustomerDirectoryService,
+  type CustomerDirectoryState,
   type CustomerDirectoryShape,
-  type CustomerRecord,
-  type SeedCustomerDirectoryStore
+  type CustomerRecord
 } from './customer-directory.ts'
 
 type State = (typeof customerDirectoryStates.$inferSelect)['stateJson']
 
-const stateFor = (store: SeedCustomerDirectoryStore, merchantId: string): State => ({
+type RecordSupplement = Pick<
+  CustomerRecord,
+  'id' | 'merchantId' | 'notes' | 'consent' | 'observations'
+>
+
+type MemoryState = {
+  readonly records: readonly CustomerRecord[]
+  readonly commands: State['commands']
+  readonly imports: State['imports']
+}
+
+const stateFor = (store: CustomerDirectoryState, merchantId: string): State => ({
+  records: [...store.records.values()]
+    .filter((record) => record.merchantId === merchantId)
+    .map(
+      (record): RecordSupplement => ({
+        id: record.id,
+        merchantId: record.merchantId,
+        notes: record.notes,
+        consent: record.consent,
+        observations: record.observations.filter(
+          (observation) => observation.appointmentId === null
+        )
+      })
+    ),
+  commands: [...store.commands.entries()].filter(([key]) =>
+    key.startsWith(`${merchantId}:`)
+  ),
+  imports: [...store.imports].filter((key) => key.startsWith(`${merchantId}:`))
+})
+
+const memoryStateFor = (
+  store: CustomerDirectoryState,
+  merchantId: string
+): MemoryState => ({
   records: [...store.records.values()].filter(
     (record) => record.merchantId === merchantId
   ),
@@ -37,19 +71,22 @@ const stateFor = (store: SeedCustomerDirectoryStore, merchantId: string): State 
   imports: [...store.imports].filter((key) => key.startsWith(`${merchantId}:`))
 })
 
-const restore = (
-  store: SeedCustomerDirectoryStore,
-  merchantId: string,
-  state: State
-) => {
+const clearMerchantState = (store: CustomerDirectoryState, merchantId: string) => {
   for (const [id, record] of store.records)
     if (record.merchantId === merchantId) store.records.delete(id)
   for (const key of store.commands.keys())
     if (key.startsWith(`${merchantId}:`)) store.commands.delete(key)
   for (const key of store.imports)
     if (key.startsWith(`${merchantId}:`)) store.imports.delete(key)
-  for (const record of state.records as CustomerRecord[])
-    store.records.set(record.id, record)
+}
+
+const restoreMemory = (
+  store: CustomerDirectoryState,
+  merchantId: string,
+  state: MemoryState
+) => {
+  clearMerchantState(store, merchantId)
+  for (const record of state.records) store.records.set(record.id, record)
   for (const command of state.commands) store.commands.set(...command)
   for (const file of state.imports) store.imports.add(file)
 }
@@ -59,7 +96,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
     CustomerDirectory,
     Effect.gen(function* () {
       const db = yield* Database
-      const store = emptySeedCustomerDirectoryStore()
+      const store = emptyCustomerDirectoryState()
       const observedRevisions = new Map<string, number>()
       const directory = makeCustomerDirectoryService(store)
       const ensure = (merchantId: string) =>
@@ -111,13 +148,17 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
             ])
           const state = states[0]?.stateJson
           observedRevisions.set(merchantId, states[0]?.revision ?? 0)
-          restore(
-            store,
-            merchantId,
-            state ?? { records: [], commands: [], imports: [] }
+          clearMerchantState(store, merchantId)
+          for (const command of state?.commands ?? []) store.commands.set(...command)
+          for (const file of state?.imports ?? []) store.imports.add(file)
+          const supplements = new Map(
+            (state?.records as RecordSupplement[] | undefined)?.map((record) => [
+              record.id,
+              record
+            ]) ?? []
           )
           for (const row of records) {
-            const persisted = store.records.get(row.id)
+            const supplement = supplements.get(row.id)
             const recordContacts = contacts
               .filter((contact) => contact.customerRecordId === row.id)
               .map((contact) => ({
@@ -143,14 +184,10 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 source: 'appointment' as const
               }))
             const observationIds = new Set(
-              persisted?.observations.map((observation) => observation.id) ?? []
-            )
-            const persistedHistoryIds = new Set(
-              persisted?.history.map((entry) => entry.id) ?? []
+              supplement?.observations.map((observation) => observation.id) ?? []
             )
             const relationalHistory = histories
               .filter((entry) => entry.customerRecordId === row.id)
-              .filter((entry) => !persistedHistoryIds.has(entry.id))
               .map((entry) => ({
                 id: entry.id,
                 kind: entry.kind as CustomerRecord['history'][number]['kind'],
@@ -161,7 +198,6 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 revision: entry.revision
               }))
             store.records.set(row.id, {
-              ...persisted,
               id: row.id,
               merchantId,
               status: row.mergedInto
@@ -182,26 +218,21 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 )?.value ?? null,
               contacts: recordContacts,
               observations: [
-                ...(persisted?.observations ?? []),
+                ...(supplement?.observations ?? []),
                 ...recordObservations.filter(
                   (observation) => !observationIds.has(observation.id)
                 )
               ],
-              notes: persisted?.notes ?? [],
-              consent: persisted?.consent ?? [],
+              notes: supplement?.notes ?? [],
+              consent: supplement?.consent ?? [],
               ban: bans.find((ban) => ban.customerRecordId === row.id) ?? null,
-              possibleDuplicateOf: [
-                ...new Set([
-                  ...(persisted?.possibleDuplicateOf ?? []),
-                  ...duplicates
-                    .filter((item) => item.customerRecordId === row.id)
-                    .map((item) => item.possibleDuplicateId)
-                ])
-              ],
+              possibleDuplicateOf: duplicates
+                .filter((item) => item.customerRecordId === row.id)
+                .map((item) => item.possibleDuplicateId),
               mergedInto: row.mergedInto,
               revision: row.revision,
               lastActivityAt: row.lastActivityAt,
-              history: [...(persisted?.history ?? []), ...relationalHistory].sort(
+              history: relationalHistory.sort(
                 (left, right) => left.revision - right.revision
               )
             })
@@ -332,21 +363,25 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   })
                   .onConflictDoNothing()
               )
-            for (const observation of record.observations) {
-              if (!observation.appointmentId) continue
-              statements.push(
-                db
-                  .update(customerObservations)
-                  .set({ customerRecordId: record.id })
-                  .where(eq(customerObservations.id, observation.id)),
-                db
-                  .update(appointmentFoundations)
-                  .set({ customerRecordId: record.id })
-                  .where(
-                    eq(appointmentFoundations.appointmentId, observation.appointmentId)
-                  )
-              )
-            }
+            if (record.status !== 'merged')
+              for (const observation of record.observations) {
+                if (!observation.appointmentId) continue
+                statements.push(
+                  db
+                    .update(customerObservations)
+                    .set({ customerRecordId: record.id })
+                    .where(eq(customerObservations.id, observation.id)),
+                  db
+                    .update(appointmentFoundations)
+                    .set({ customerRecordId: record.id })
+                    .where(
+                      eq(
+                        appointmentFoundations.appointmentId,
+                        observation.appointmentId
+                      )
+                    )
+                )
+              }
           }
           yield* orUnavailable('customer-directory')(batch(db, statements))
         })
@@ -360,14 +395,14 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
           yield* ensure(merchant.id)
-          const before = stateFor(store, merchant.id)
+          const before = memoryStateFor(store, merchant.id)
           const expectedRevision = observedRevisions.get(merchant.id) ?? 0
           const result = yield* effect
           const persisted = yield* Effect.result(
             persist(merchant.id, now, expectedRevision)
           )
           if (persisted._tag === 'Failure') {
-            restore(store, merchant.id, before)
+            restoreMemory(store, merchant.id, before)
             if (persisted.failure.reason.includes('customer_directory_stale_revision'))
               return yield* Effect.fail(
                 new CapabilityConflict({ reason: 'stale_revision' })
@@ -380,7 +415,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
         matchOrCreate: (input) => write(directory.matchOrCreate(input), input.now),
         checkPublicEligibility: (details, now) =>
           read(directory.checkPublicEligibility(details, now)),
-        search: (query) => read(directory.search(query)),
+        search: (query, options) => read(directory.search(query, options)),
         get: (id) => read(directory.get(id)),
         editPreferred: (id, input) =>
           write(directory.editPreferred(id, input), input.now),

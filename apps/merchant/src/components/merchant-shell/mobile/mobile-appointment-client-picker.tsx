@@ -17,7 +17,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode
 } from 'react'
-import { customerInitials } from '@/features/customers/mobile-customer-contact-model.ts'
+import { customerInitials } from '@/features/customers/customer-contact-model.ts'
 import type { CustomerDirectoryView } from '@/features/customers/customer-contact-model.ts'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
 import { MobileSheetCloseButton, MobileSheetHeader } from './mobile-sheet-header.tsx'
@@ -168,7 +168,11 @@ export function MobileAppointmentClientPicker({
                           data-mobile-client-option={entry.id}
                           aria-pressed={selected}
                           onClick={() =>
-                            setPendingClient(appointmentClientFromDirectory(entry))
+                            setPendingClient((current) =>
+                              current?.id === entry.id
+                                ? null
+                                : appointmentClientFromDirectory(entry)
+                            )
                           }
                           className="flex min-h-14 w-full items-center gap-3 text-left active:opacity-70"
                         >
@@ -223,13 +227,16 @@ export function MobileAppointmentClientPicker({
       </MobileSheetScrollport>
 
       {pendingClient ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-30 flex justify-center">
+        <div
+          data-mobile-client-confirm-dock="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex h-[9.5rem] items-end justify-center bg-linear-to-t from-muted from-10% via-muted/85 via-20% to-transparent pb-[max(4.25rem,env(safe-area-inset-bottom))]"
+        >
           <button
             type="button"
             aria-label={`Choose ${pendingClient.name}`}
             data-mobile-client-confirm="true"
             onClick={() => onConfirm(pendingClient)}
-            className="pointer-events-auto grid size-[4.75rem] place-items-center rounded-[1.65rem] bg-info text-info-foreground shadow-xl shadow-black/20 transition-transform active:scale-95"
+            className="pointer-events-auto grid size-20 place-items-center rounded-[1rem] bg-info text-info-foreground shadow-xl shadow-black/20 transition-transform active:scale-95"
           >
             <Check aria-hidden className="size-9" strokeWidth={2.15} />
           </button>
@@ -515,10 +522,13 @@ function ClientInput({
 function ClientPhoneInput() {
   const id = useId()
   return (
-    <label htmlFor={id} className="block">
-      <span className="mb-1.5 block text-[0.6875rem] font-semibold tracking-[0.04em] text-muted-foreground uppercase">
+    <div className="block">
+      <label
+        htmlFor={id}
+        className="mb-1.5 block text-[0.6875rem] font-semibold tracking-[0.04em] text-muted-foreground uppercase"
+      >
         Phone
-      </span>
+      </label>
       <span className="flex h-13 items-center rounded-lg bg-muted px-3">
         <select
           name="countryCode"
@@ -540,7 +550,7 @@ function ClientPhoneInput() {
           className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground/70"
         />
       </span>
-    </label>
+    </div>
   )
 }
 

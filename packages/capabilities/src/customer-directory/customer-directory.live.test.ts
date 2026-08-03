@@ -14,7 +14,10 @@ import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import { LiveCustomerDirectory } from './adapters.ts'
 import { CustomerDirectory } from './customer-directory.ts'
-import { prepareAppointmentCustomerAssociation } from './appointment-association.ts'
+import {
+  prepareAppointmentCustomerAssociation,
+  prepareAppointmentCustomerAssociationBatch
+} from './appointment-association.ts'
 
 let test: TestD1
 const merchant = Layer.succeed(MerchantContext)({
@@ -97,25 +100,27 @@ describe('Live Customer Directory contract', () => {
               updatedAt: '2026-07-03T10:00:00.000Z'
             }))
           )
-          const prepared = yield* Effect.all(
-            ['apt_converge_1', 'apt_converge_2'].map((id, index) =>
-              prepareAppointmentCustomerAssociation(db, {
-                merchantId: 'mer_customer_live',
-                appointment: {
-                  id,
-                  details: {
-                    name: 'Same Customer',
-                    email: 'same@example.com',
-                    phone: index === 0 ? null : '+40 700 000 001'
-                  }
-                },
-                origin: 'merchant_created',
-                actor: { merchantMemberId: 'usr_owner' },
-                now: '2026-07-03T12:00:00.000Z'
-              })
+          const prepared = yield* prepareAppointmentCustomerAssociationBatch(
+            db,
+            ['apt_converge_1', 'apt_converge_2'].map(
+              (id, index) =>
+                ({
+                  merchantId: 'mer_customer_live',
+                  appointment: {
+                    id,
+                    details: {
+                      name: 'Same Customer',
+                      email: index === 0 ? 'same@example.com' : null,
+                      phone: '+40 700 000 001'
+                    }
+                  },
+                  origin: 'merchant_created',
+                  actor: { merchantMemberId: 'usr_owner' },
+                  now: '2026-07-03T12:00:00.000Z'
+                }) as const
             )
           )
-          yield* batch(db, prepared.flat())
+          yield* batch(db, prepared)
         }),
         layerFromD1(test.d1)
       )
@@ -181,6 +186,23 @@ describe('Live Customer Directory contract', () => {
     )
     expect(restored[0]?.id).toBe(created.record.id)
     expect(restored[0]?.notes[0]?.text).toBe('Prefers quiet appointments')
+
+    const persistedState = await test.d1
+      .prepare(`SELECT state_json FROM customer_directory_states WHERE merchant_id = ?`)
+      .bind('mer_customer_live')
+      .first<{ state_json: string }>()
+    const supplementalRecords = JSON.parse(persistedState!.state_json).records
+    expect(
+      supplementalRecords.find(
+        (record: { readonly id: string }) => record.id === created.record.id
+      )
+    ).toMatchObject({
+      id: created.record.id,
+      notes: [expect.objectContaining({ text: 'Prefers quiet appointments' })]
+    })
+    expect(supplementalRecords[0]).not.toHaveProperty('displayName')
+    expect(supplementalRecords[0]).not.toHaveProperty('contacts')
+    expect(supplementalRecords[0]).not.toHaveProperty('history')
   })
 
   it('moves relational Appointment associations through merge and split', async () => {

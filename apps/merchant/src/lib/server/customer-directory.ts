@@ -101,11 +101,20 @@ const requestsFor = (userId: string) =>
   })
 
 export const searchCustomerRecords = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(Schema.Struct({ query: Schema.String })))
+  .validator(
+    Schema.decodeUnknownSync(
+      Schema.Struct({
+        query: Schema.String,
+        includeArchived: Schema.optional(Schema.Boolean)
+      })
+    )
+  )
   .handler(
     ({ data }): Promise<readonly CustomerRecord[]> =>
       runMerchantRequest('customer.read', (session) =>
-        requestsFor(session.user.id).search(data.query)
+        requestsFor(session.user.id).search(data.query, {
+          includeArchived: data.includeArchived === true
+        })
       )
   )
 

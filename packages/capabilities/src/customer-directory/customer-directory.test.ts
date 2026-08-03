@@ -173,6 +173,37 @@ describe('Customer Directory contract', () => {
     expect(result.search[0]?.ban?.reason).toBe('Repeated abuse')
   })
 
+  it('keeps archived records discoverable only for Owner restore workflows', async () => {
+    const result = await run(
+      'mer_archived_restore',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_archived_restore',
+          details: observation(),
+          now: '2026-08-02T10:00:00.000Z'
+        })
+        const archived = yield* service.archive(created.record.id, {
+          expectedRevision: created.record.revision,
+          idempotencyKey: 'archive-for-restore',
+          actorId: 'usr_owner',
+          archived: true,
+          now: '2026-08-02T11:00:00.000Z'
+        })
+        return {
+          archived,
+          activeSearch: yield* service.search('ana@example.com'),
+          ownerSearch: yield* service.search('ana@example.com', {
+            includeArchived: true
+          })
+        }
+      })
+    )
+
+    expect(result.activeSearch).toEqual([])
+    expect(result.ownerSearch).toEqual([result.archived])
+  })
+
   it('searches prior observations and superseded contacts without restoring them', async () => {
     const result = await run(
       'mer_historical_search',

@@ -1,295 +1,37 @@
-import { useMemo, useState, type FormEvent } from 'react'
 import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
-import {
-  addCustomerNote,
-  archiveCustomer,
-  banCustomer,
-  editCustomerPreferred,
-  importCustomers,
-  liftCustomerBan,
-  mergeCustomers,
-  previewCustomerImport,
-  recordCustomerConsent,
-  searchCustomerRecords,
-  setCustomerContactStatus,
-  splitCustomer
-} from '@/lib/server/customer-directory.ts'
-import { customerInitials, filterCustomerEntries } from './customer-contact-model.ts'
-import { parseCustomerImportCsv } from './customer-directory-csv.ts'
-
-const value = (data: FormData, key: string) => {
-  const found = data.get(key)
-  return typeof found === 'string' ? found.trim() : ''
-}
-
-const key = () => crypto.randomUUID()
+import { customerInitials } from './customer-contact-model.ts'
+import { useCustomerDirectoryWorkspace } from './use-customer-directory-workspace.ts'
 
 export function CustomerDirectoryWorkspace({
   initialRecords
 }: {
   readonly initialRecords: readonly CustomerRecord[]
 }) {
-  const [records, setRecords] = useState(initialRecords)
-  const [query, setQuery] = useState('')
-  const [selectedId, setSelectedId] = useState(initialRecords[0]?.id ?? null)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [importPreview, setImportPreview] = useState<{
-    readonly rows: readonly {
-      readonly name: string
-      readonly email: string | null
-      readonly phone: string | null
-    }[]
-    readonly outcomes: readonly { readonly row: number; readonly outcome: string }[]
-  } | null>(null)
-  const visible = useMemo(() => filterCustomerEntries(records, query), [query, records])
-  const selected = records.find((record) => record.id === selectedId) ?? null
-  const possibleDuplicates = selected
-    ? records.filter(
-        (record) =>
-          record.status === 'active' &&
-          record.id !== selected.id &&
-          (selected.possibleDuplicateOf.includes(record.id) ||
-            record.possibleDuplicateOf.includes(selected.id))
-      )
-    : []
+  const {
+    visible,
+    query,
+    setQuery,
+    selectedId,
+    setSelectedId,
+    selected,
+    possibleDuplicates,
+    busy,
+    message,
+    importPreview,
+    setImportPreview,
+    edit,
+    note,
+    ban,
+    merge,
+    split,
+    importRows,
+    exportDirectory,
+    setContactStatus,
+    recordConsent,
+    liftBan,
+    toggleArchive
+  } = useCustomerDirectoryWorkspace(initialRecords)
 
-  const replace = (record: CustomerRecord) => {
-    setRecords((current) =>
-      current.map((candidate) => (candidate.id === record.id ? record : candidate))
-    )
-    setSelectedId(record.id)
-  }
-  const reloadDirectory = async () => {
-    const authoritative = await searchCustomerRecords({ data: { query: '' } })
-    setRecords(authoritative)
-    setSelectedId((current) =>
-      current && authoritative.some((record) => record.id === current)
-        ? current
-        : (authoritative[0]?.id ?? null)
-    )
-  }
-  const run = async (operation: () => Promise<CustomerRecord>) => {
-    setBusy(true)
-    setMessage(null)
-    try {
-      replace(await operation())
-      setMessage('Saved')
-      return true
-    } catch {
-      try {
-        await reloadDirectory()
-        setMessage(
-          'The save was not confirmed. The authoritative directory was reloaded; review the retained input before retrying.'
-        )
-      } catch {
-        setMessage('The record changed or could not be saved. Refresh and try again.')
-      }
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const edit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!selected) return
-    const data = new FormData(event.currentTarget)
-    void run(() =>
-      editCustomerPreferred({
-        data: {
-          recordId: selected.id,
-          expectedRevision: selected.revision,
-          idempotencyKey: key(),
-          name: value(data, 'name'),
-          email: value(data, 'email') || null,
-          phone: value(data, 'phone') || null
-        }
-      })
-    )
-  }
-  const note = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!selected) return
-    const form = event.currentTarget
-    const text = value(new FormData(form), 'note')
-    if (!text) return
-    void run(() =>
-      addCustomerNote({
-        data: {
-          recordId: selected.id,
-          expectedRevision: selected.revision,
-          idempotencyKey: key(),
-          text
-        }
-      })
-    ).then((saved) => {
-      if (saved) form.reset()
-    })
-  }
-  const ban = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!selected) return
-    const data = new FormData(event.currentTarget)
-    void run(() =>
-      banCustomer({
-        data: {
-          recordId: selected.id,
-          expectedRevision: selected.revision,
-          idempotencyKey: key(),
-          reason: value(data, 'reason'),
-          expiresAt: value(data, 'expiresAt') || null
-        }
-      })
-    )
-  }
-  const merge = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!selected) return
-    const data = new FormData(event.currentTarget)
-    const absorbed = records.find((record) => record.id === value(data, 'absorbedId'))
-    if (!absorbed) return
-    setBusy(true)
-    setMessage(null)
-    void mergeCustomers({
-      data: {
-        survivorId: selected.id,
-        absorbedId: absorbed.id,
-        expectedSurvivorRevision: selected.revision,
-        expectedAbsorbedRevision: absorbed.revision,
-        idempotencyKey: key(),
-        preferredDetailsSourceId:
-          value(data, 'preferredDetailsSourceId') || selected.id,
-        reason: value(data, 'reason')
-      }
-    })
-      .then((saved) => {
-        replace(saved)
-        setRecords((current) => current.filter((record) => record.id !== absorbed.id))
-        setMessage('Saved')
-      })
-      .catch(async () => {
-        try {
-          await reloadDirectory()
-          setMessage(
-            'The merge was not confirmed. Both records were reloaded; review them before retrying.'
-          )
-        } catch {
-          setMessage(
-            'The records changed or could not be merged. Refresh and try again.'
-          )
-        }
-      })
-      .finally(() => setBusy(false))
-  }
-  const split = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!selected) return
-    const data = new FormData(event.currentTarget)
-    const observationIds = data
-      .getAll('observationId')
-      .filter((entry): entry is string => typeof entry === 'string')
-    const noteIds = data
-      .getAll('noteId')
-      .filter((entry): entry is string => typeof entry === 'string')
-    const consentIds = data
-      .getAll('consentId')
-      .filter((entry): entry is string => typeof entry === 'string')
-    const selectedContactKeys = new Set(
-      data
-        .getAll('contactKey')
-        .filter((entry): entry is string => typeof entry === 'string')
-    )
-    const contactKeys = selected.contacts
-      .filter((contact) => selectedContactKeys.has(`${contact.kind}:${contact.value}`))
-      .map(({ kind, value: contactValue }) => ({ kind, value: contactValue }))
-    if (observationIds.length === 0) return
-    setBusy(true)
-    setMessage(null)
-    void splitCustomer({
-      data: {
-        sourceId: selected.id,
-        observationIds,
-        expectedRevision: selected.revision,
-        idempotencyKey: key(),
-        createdDetails: {
-          name: value(data, 'createdName'),
-          email: value(data, 'createdEmail') || null,
-          phone: value(data, 'createdPhone') || null
-        },
-        contactKeys,
-        noteIds,
-        consentIds,
-        reason: value(data, 'reason')
-      }
-    })
-      .then(({ source, created }) => {
-        setRecords((current) => [
-          ...current.map((record) => (record.id === source.id ? source : record)),
-          created
-        ])
-        setSelectedId(created.id)
-        setMessage('Split saved')
-      })
-      .catch(async () => {
-        try {
-          await reloadDirectory()
-          setMessage(
-            'The split was not confirmed. The directory was reloaded; review the retained assignments before retrying.'
-          )
-        } catch {
-          setMessage('The record changed or could not be split. Refresh and try again.')
-        }
-      })
-      .finally(() => setBusy(false))
-  }
-  const importRows = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const form = event.currentTarget
-    const rows =
-      importPreview?.rows ?? parseCustomerImportCsv(value(new FormData(form), 'rows'))
-    if (rows.length === 0) return
-    setBusy(true)
-    if (!importPreview) {
-      void previewCustomerImport({ data: { rows } })
-        .then((preview) => {
-          setImportPreview({ rows, outcomes: preview })
-          setMessage('Review the import outcomes, then confirm import.')
-        })
-        .catch(() => setMessage('Import preview could not be generated.'))
-        .finally(() => setBusy(false))
-      return
-    }
-    void importCustomers({
-      data: {
-        fileId: key(),
-        idempotencyKey: key(),
-        expectedRevisions: Object.fromEntries(
-          records.map((record) => [record.id, record.revision])
-        ),
-        rows
-      }
-    })
-      .then(async (result) => {
-        await reloadDirectory()
-        setMessage(
-          `Import complete: ${result.created} created, ${result.matched} matched, ${result.rejected} rejected.`
-        )
-        setImportPreview(null)
-        form.reset()
-      })
-      .catch(async () => {
-        try {
-          await reloadDirectory()
-          setMessage(
-            'The import was not confirmed. Directory revisions were reloaded; review the frozen preview before retrying.'
-          )
-        } catch {
-          setMessage('Import could not be completed. Review the rows and retry.')
-        }
-      })
-      .finally(() => setBusy(false))
-  }
   return (
     <div className="grid min-h-0 gap-5 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(24rem,1.2fr)]">
       <section aria-label="Customer Records" className="min-h-0 space-y-3">
@@ -302,6 +44,14 @@ export function CustomerDirectoryWorkspace({
             className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm"
           />
         </div>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void exportDirectory()}
+          className="rounded-xl border px-3 py-2 text-sm"
+        >
+          Export customer data
+        </button>
         <ul className="divide-y divide-border rounded-2xl border border-border">
           {visible.map((record) => (
             <li key={record.id}>
@@ -441,21 +191,7 @@ export function CustomerDirectoryWorkspace({
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() =>
-                          void run(() =>
-                            setCustomerContactStatus({
-                              data: {
-                                recordId: selected.id,
-                                expectedRevision: selected.revision,
-                                idempotencyKey: key(),
-                                kind: contact.kind,
-                                value: contact.value,
-                                status: 'disputed',
-                                preferred: false
-                              }
-                            })
-                          )
-                        }
+                        onClick={() => setContactStatus(contact, 'disputed', false)}
                         className="rounded-lg border px-2 py-1"
                       >
                         Mark disputed
@@ -464,21 +200,7 @@ export function CustomerDirectoryWorkspace({
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() =>
-                          void run(() =>
-                            setCustomerContactStatus({
-                              data: {
-                                recordId: selected.id,
-                                expectedRevision: selected.revision,
-                                idempotencyKey: key(),
-                                kind: contact.kind,
-                                value: contact.value,
-                                status: 'active',
-                                preferred: true
-                              }
-                            })
-                          )
-                        }
+                        onClick={() => setContactStatus(contact, 'active', true)}
                         className="rounded-lg border px-2 py-1"
                       >
                         Reactivate and prefer
@@ -501,22 +223,7 @@ export function CustomerDirectoryWorkspace({
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() =>
-                      void run(() =>
-                        recordCustomerConsent({
-                          data: {
-                            recordId: selected.id,
-                            expectedRevision: selected.revision,
-                            idempotencyKey: key(),
-                            purpose: 'operational_mobile',
-                            destination: selected.preferredPhone!,
-                            wordingVersion: 'merchant-recorded-v1',
-                            source: 'merchant_directory',
-                            withdrawn: false
-                          }
-                        })
-                      )
-                    }
+                    onClick={() => recordConsent(false)}
                     className="rounded-lg border px-2 py-1"
                   >
                     Record permission
@@ -524,22 +231,7 @@ export function CustomerDirectoryWorkspace({
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() =>
-                      void run(() =>
-                        recordCustomerConsent({
-                          data: {
-                            recordId: selected.id,
-                            expectedRevision: selected.revision,
-                            idempotencyKey: key(),
-                            purpose: 'operational_mobile',
-                            destination: selected.preferredPhone!,
-                            wordingVersion: 'merchant-recorded-v1',
-                            source: 'merchant_directory',
-                            withdrawn: true
-                          }
-                        })
-                      )
-                    }
+                    onClick={() => recordConsent(true)}
                     className="rounded-lg border px-2 py-1"
                   >
                     Record withdrawal
@@ -567,18 +259,7 @@ export function CustomerDirectoryWorkspace({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() =>
-                    void run(() =>
-                      liftCustomerBan({
-                        data: {
-                          recordId: selected.id,
-                          expectedRevision: selected.revision,
-                          idempotencyKey: key(),
-                          reason: 'Owner lifted ban'
-                        }
-                      })
-                    )
-                  }
+                  onClick={liftBan}
                   className="mt-2 rounded-xl border px-3 py-2"
                 >
                   Lift ban
@@ -760,18 +441,7 @@ export function CustomerDirectoryWorkspace({
             <button
               type="button"
               disabled={busy}
-              onClick={() =>
-                void run(() =>
-                  archiveCustomer({
-                    data: {
-                      recordId: selected.id,
-                      expectedRevision: selected.revision,
-                      idempotencyKey: key(),
-                      archived: selected.status !== 'archived'
-                    }
-                  })
-                )
-              }
+              onClick={toggleArchive}
               className="rounded-xl border px-3 py-2 text-sm"
             >
               {selected.status === 'archived' ? 'Restore record' : 'Archive record'}

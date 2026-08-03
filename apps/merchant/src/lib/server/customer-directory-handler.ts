@@ -36,7 +36,8 @@ export const makeCustomerDirectoryRequestHandler = (dependencies: {
     )
 
   return {
-    search: (query: string) => execute((directory) => directory.search(query)),
+    search: (query: string, options?: { readonly includeArchived?: boolean }) =>
+      execute((directory) => directory.search(query, options)),
     get: (recordId: string) => execute((directory) => directory.get(recordId)),
     editPreferred: (
       recordId: string,

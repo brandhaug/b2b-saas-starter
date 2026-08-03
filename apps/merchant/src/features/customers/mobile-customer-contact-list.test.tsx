@@ -2,10 +2,7 @@ import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
-import {
-  customerInitials,
-  filterCustomerEntries
-} from './mobile-customer-contact-model.ts'
+import { customerInitials, filterCustomerEntries } from './customer-contact-model.ts'
 import { MobileCustomerContactList } from './mobile-customer-contact-list.tsx'
 import type { CustomerDirectoryView } from './customer-contact-model.ts'
 
