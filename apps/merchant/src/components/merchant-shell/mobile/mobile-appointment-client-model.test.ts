@@ -1,31 +1,48 @@
 import { describe, expect, it } from 'vitest'
-import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
+import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
 import {
   groupAppointmentClients,
   makeDraftAppointmentClient
 } from './mobile-appointment-client-model.ts'
 
-const entries: CustomerDirectory['entries'] = [
-  {
-    appointmentId: 'apt_b',
-    appointmentStatus: 'scheduled',
-    scheduledAt: '2026-07-25T10:00:00.000Z',
-    name: 'Bianca Trifan',
-    email: 'bianca@example.test',
-    phone: null
-  },
-  {
-    appointmentId: 'apt_a',
-    appointmentStatus: 'completed',
-    scheduledAt: '2026-07-20T10:00:00.000Z',
-    name: 'Alex Raucescu',
-    email: 'alex@example.test',
-    phone: '+40711111111'
-  }
+const customerRecord = (
+  input: Pick<
+    CustomerRecord,
+    'id' | 'displayName' | 'preferredEmail' | 'preferredPhone'
+  >
+): CustomerRecord => ({
+  merchantId: 'mer_test',
+  status: 'active',
+  contacts: [],
+  observations: [],
+  notes: [],
+  consent: [],
+  ban: null,
+  possibleDuplicateOf: [],
+  mergedInto: null,
+  revision: 1,
+  lastActivityAt: '2026-07-25T10:00:00.000Z',
+  history: [],
+  ...input
+})
+
+const entries: readonly CustomerRecord[] = [
+  customerRecord({
+    id: 'cur_b',
+    displayName: 'Bianca Trifan',
+    preferredEmail: 'bianca@example.test',
+    preferredPhone: null
+  }),
+  customerRecord({
+    id: 'cur_a',
+    displayName: 'Alex Raucescu',
+    preferredEmail: 'alex@example.test',
+    preferredPhone: '+40711111111'
+  })
 ]
 
 describe('appointment client model', () => {
-  it('filters and alphabetizes directory entries without merging snapshots', () => {
+  it('filters and alphabetizes durable Customer Records', () => {
     expect(groupAppointmentClients(entries, 'example.test')).toEqual([
       { letter: 'A', entries: [entries[1]] },
       { letter: 'B', entries: [entries[0]] }

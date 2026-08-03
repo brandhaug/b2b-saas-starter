@@ -1,4 +1,3 @@
-import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
 import {
   Ban,
   Check,
@@ -6,8 +5,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   Info,
-  Plus,
-  X
+  Plus
 } from 'lucide-react'
 import {
   useEffect,
@@ -20,6 +18,7 @@ import {
   type ReactNode
 } from 'react'
 import { customerInitials } from '@/features/customers/mobile-customer-contact-model.ts'
+import type { CustomerDirectoryView } from '@/features/customers/customer-contact-model.ts'
 import { MobileSheetScrollport } from './mobile-sheet-scrollport.tsx'
 import { MobileSheetCloseButton, MobileSheetHeader } from './mobile-sheet-header.tsx'
 import { MobileSearchField } from './mobile-search-field.tsx'
@@ -75,7 +74,7 @@ export function MobileAppointmentClientPicker({
   onConfirm,
   desktop = false
 }: {
-  readonly directory: CustomerDirectory | null
+  readonly directory: CustomerDirectoryView | null
   readonly loading: boolean
   readonly error: boolean
   readonly selectedClient: AppointmentClient | null
@@ -161,12 +160,12 @@ export function MobileAppointmentClientPicker({
                   </h2>
                   <div className="divide-y divide-border/70">
                     {group.entries.map((entry) => {
-                      const selected = pendingClient?.id === entry.appointmentId
+                      const selected = pendingClient?.id === entry.id
                       return (
                         <button
-                          key={entry.appointmentId}
+                          key={entry.id}
                           type="button"
-                          data-mobile-client-option={entry.appointmentId}
+                          data-mobile-client-option={entry.id}
                           aria-pressed={selected}
                           onClick={() =>
                             setPendingClient(appointmentClientFromDirectory(entry))
@@ -174,7 +173,7 @@ export function MobileAppointmentClientPicker({
                           className="flex min-h-14 w-full items-center gap-3 text-left active:opacity-70"
                         >
                           <span className="min-w-0 flex-1 truncate text-[1.0625rem] font-medium">
-                            {entry.name}
+                            {entry.displayName}
                           </span>
                           <span
                             aria-hidden
@@ -187,7 +186,7 @@ export function MobileAppointmentClientPicker({
                             {selected ? (
                               <Check className="size-6" strokeWidth={2.2} />
                             ) : (
-                              customerInitials(entry.name).slice(0, 1)
+                              customerInitials(entry.displayName).slice(0, 1)
                             )}
                           </span>
                         </button>

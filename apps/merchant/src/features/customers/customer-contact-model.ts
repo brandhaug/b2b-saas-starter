@@ -1,6 +1,10 @@
-import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
+import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
 
-type CustomerEntry = CustomerDirectory['entries'][number]
+export type CustomerDirectoryView = {
+  readonly entries: readonly CustomerRecord[]
+}
+
+type CustomerEntry = CustomerRecord
 
 export const filterCustomerEntries = (
   entries: readonly CustomerEntry[],
@@ -10,7 +14,7 @@ export const filterCustomerEntries = (
   if (!normalizedQuery) return entries
 
   return entries.filter((entry) =>
-    [entry.name, entry.email, entry.phone]
+    [entry.displayName, entry.preferredEmail, entry.preferredPhone]
       .filter((value): value is string => Boolean(value))
       .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
   )

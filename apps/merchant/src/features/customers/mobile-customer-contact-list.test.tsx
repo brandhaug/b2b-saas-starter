@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
+import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
 import {
   customerInitials,
   filterCustomerEntries
 } from './mobile-customer-contact-model.ts'
 import { MobileCustomerContactList } from './mobile-customer-contact-list.tsx'
+import type { CustomerDirectoryView } from './customer-contact-model.ts'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -31,25 +32,41 @@ vi.mock('@tanstack/react-router', () => ({
   )
 }))
 
-const directory: CustomerDirectory = {
-  timezone: 'UTC',
+const record = (
+  id: string,
+  displayName: string,
+  preferredEmail: string,
+  preferredPhone: string | null,
+  lastActivityAt: string
+): CustomerRecord => ({
+  id,
+  merchantId: 'mer_test',
+  status: 'active',
+  displayName,
+  preferredEmail,
+  preferredPhone,
+  contacts: [],
+  observations: [],
+  notes: [],
+  consent: [],
+  ban: null,
+  possibleDuplicateOf: [],
+  mergedInto: null,
+  revision: 1,
+  lastActivityAt,
+  history: []
+})
+
+const directory: CustomerDirectoryView = {
   entries: [
-    {
-      appointmentId: 'apt_mara',
-      appointmentStatus: 'scheduled',
-      scheduledAt: '2026-07-24T09:00:00.000Z',
-      name: 'Mara Ionescu',
-      email: 'mara@example.com',
-      phone: '+40 700 000 001'
-    },
-    {
-      appointmentId: 'apt_vlad',
-      appointmentStatus: 'completed',
-      scheduledAt: '2026-07-23T14:00:00.000Z',
-      name: 'Vlad Pop',
-      email: 'vlad@example.com',
-      phone: null
-    }
+    record(
+      'cur_mara',
+      'Mara Ionescu',
+      'mara@example.com',
+      '+40 700 000 001',
+      '2026-07-24T09:00:00.000Z'
+    ),
+    record('cur_vlad', 'Vlad Pop', 'vlad@example.com', null, '2026-07-23T14:00:00.000Z')
   ]
 }
 

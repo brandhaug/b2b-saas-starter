@@ -15,28 +15,45 @@ vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ history: { back: vi.fn() }, navigate: vi.fn() })
 }))
 
-vi.mock('@/lib/server/appointment-operations.ts', () => ({
-  getCustomerDirectory: vi.fn(async () => ({
-    timezone: 'Europe/Bucharest',
-    entries: [
-      {
-        appointmentId: 'apt_alex',
-        appointmentStatus: 'scheduled',
-        scheduledAt: '2026-07-25T10:00:00.000Z',
-        name: 'Alex Raucescu',
-        email: 'alex@example.test',
-        phone: '+40711111111'
-      },
-      {
-        appointmentId: 'apt_bianca',
-        appointmentStatus: 'completed',
-        scheduledAt: '2026-07-20T10:00:00.000Z',
-        name: 'Bianca Trifan',
-        email: 'bianca@example.test',
-        phone: '+40722222222'
-      }
-    ]
-  }))
+vi.mock('@/lib/server/customer-directory.ts', () => ({
+  searchCustomerRecords: vi.fn(async () => [
+    {
+      id: 'cur_alex',
+      merchantId: 'mer_test',
+      status: 'active',
+      displayName: 'Alex Raucescu',
+      preferredEmail: 'alex@example.test',
+      preferredPhone: '+40711111111',
+      contacts: [],
+      observations: [],
+      notes: [],
+      consent: [],
+      ban: null,
+      possibleDuplicateOf: [],
+      mergedInto: null,
+      revision: 1,
+      lastActivityAt: '2026-07-25T10:00:00.000Z',
+      history: []
+    },
+    {
+      id: 'cur_bianca',
+      merchantId: 'mer_test',
+      status: 'active',
+      displayName: 'Bianca Trifan',
+      preferredEmail: 'bianca@example.test',
+      preferredPhone: '+40722222222',
+      contacts: [],
+      observations: [],
+      notes: [],
+      consent: [],
+      ban: null,
+      possibleDuplicateOf: [],
+      mergedInto: null,
+      revision: 1,
+      lastActivityAt: '2026-07-20T10:00:00.000Z',
+      history: []
+    }
+  ])
 }))
 
 vi.mock('@/lib/server/merchant-catalog.ts', () => ({
@@ -512,7 +529,7 @@ describe('MobileNewAppointmentSheet interaction', () => {
 
     await act(async () =>
       container
-        .querySelector<HTMLButtonElement>('[data-mobile-client-option="apt_alex"]')
+        .querySelector<HTMLButtonElement>('[data-mobile-client-option="cur_alex"]')
         ?.click()
     )
     await act(async () =>
@@ -555,7 +572,7 @@ describe('MobileNewAppointmentSheet interaction', () => {
     await act(async () => Promise.resolve())
     await act(async () =>
       container
-        .querySelector<HTMLButtonElement>('[data-mobile-client-option="apt_alex"]')
+        .querySelector<HTMLButtonElement>('[data-mobile-client-option="cur_alex"]')
         ?.click()
     )
     await act(async () =>
@@ -617,7 +634,7 @@ describe('MobileNewAppointmentSheet interaction', () => {
       .querySelector<HTMLElement>('[aria-label="Close select a client"]')
       ?.closest<HTMLElement>('header')
     const customer = container.querySelector<HTMLButtonElement>(
-      '[data-mobile-client-option="apt_alex"]'
+      '[data-mobile-client-option="cur_alex"]'
     )
     const search = container.querySelector<HTMLInputElement>(
       '[data-mobile-client-search="true"]'
@@ -804,7 +821,7 @@ describe('MobileNewAppointmentSheet interaction', () => {
     await act(async () => Promise.resolve())
     await act(async () =>
       container
-        .querySelector<HTMLButtonElement>('[data-mobile-client-option="apt_alex"]')
+        .querySelector<HTMLButtonElement>('[data-mobile-client-option="cur_alex"]')
         ?.click()
     )
     await act(async () =>

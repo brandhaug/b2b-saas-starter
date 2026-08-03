@@ -1,1 +1,5 @@
-export { customerInitials, filterCustomerEntries } from './customer-contact-model.ts'
+export {
+  customerInitials,
+  filterCustomerEntries,
+  type CustomerDirectoryView
+} from './customer-contact-model.ts'

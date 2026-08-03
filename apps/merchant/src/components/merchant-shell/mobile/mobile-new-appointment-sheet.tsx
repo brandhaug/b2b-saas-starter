@@ -26,7 +26,7 @@ import {
   type ReactNode
 } from 'react'
 import { createPortal } from 'react-dom'
-import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
+import type { CustomerDirectoryView } from '@/features/customers/customer-contact-model.ts'
 import type {
   MerchantCatalogSnapshot,
   ServiceRecord
@@ -34,7 +34,7 @@ import type {
 import type { Availability } from '@b2b-saas-starter/capabilities/scheduling'
 import { customerInitials } from '@/features/customers/mobile-customer-contact-model.ts'
 import { decodeCalendarDate } from '@/lib/appointment-calendar-date.ts'
-import { getCustomerDirectory } from '@/lib/server/appointment-operations.ts'
+import { searchCustomerRecords } from '@/lib/server/customer-directory.ts'
 import { getMerchantCatalog } from '@/lib/server/merchant-catalog.ts'
 import { getAppointmentAvailability } from '@/lib/server/scheduling.ts'
 import {
@@ -195,9 +195,8 @@ function NewAppointmentSheetSurface({
   const [recurrencePickerOpen, setRecurrencePickerOpen] = useState(false)
   const [appointmentNote, setAppointmentNote] = useState('')
   const [clientNote, setClientNote] = useState('')
-  const [customerDirectory, setCustomerDirectory] = useState<CustomerDirectory | null>(
-    null
-  )
+  const [customerDirectory, setCustomerDirectory] =
+    useState<CustomerDirectoryView | null>(null)
   const [customerDirectoryState, setCustomerDirectoryState] = useState<
     'idle' | 'loading' | 'ready' | 'error'
   >('idle')
@@ -352,10 +351,10 @@ function NewAppointmentSheetSurface({
       return
     customerDirectoryRequestStarted.current = true
     setCustomerDirectoryState('loading')
-    void getCustomerDirectory()
-      .then((directory) => {
+    void searchCustomerRecords({ data: { query: '' } })
+      .then((records) => {
         if (!componentMounted.current) return
-        setCustomerDirectory(directory)
+        setCustomerDirectory({ entries: records })
         setCustomerDirectoryState('ready')
       })
       .catch(() => {

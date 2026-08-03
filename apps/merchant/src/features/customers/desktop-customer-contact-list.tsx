@@ -1,33 +1,18 @@
-import { Link } from '@tanstack/react-router'
 import { ChevronRight, Search, X } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
-import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
-import { mobileSheetNavigationState } from '@/components/merchant-shell/mobile/mobile-sheet-gesture.ts'
-import { formatAppointmentDateTime } from '@/lib/appointment-format.ts'
-import { customerInitials, filterCustomerEntries } from './customer-contact-model.ts'
+import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
+import {
+  customerInitials,
+  filterCustomerEntries,
+  type CustomerDirectoryView
+} from './customer-contact-model.ts'
 
-type CustomerEntry = CustomerDirectory['entries'][number]
-
-const appointmentStampFormatters = new Map<string, Intl.DateTimeFormat>()
-
-const appointmentStampFormatter = (timezone: string) => {
-  const existing = appointmentStampFormatters.get(timezone)
-  if (existing) return existing
-  const formatter = new Intl.DateTimeFormat(undefined, {
-    timeZone: timezone,
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  })
-  appointmentStampFormatters.set(timezone, formatter)
-  return formatter
-}
+type CustomerEntry = CustomerRecord
 
 export function DesktopCustomerContactList({
   directory
 }: {
-  readonly directory: CustomerDirectory
+  readonly directory: CustomerDirectoryView
 }) {
   const [query, setQuery] = useState('')
   const searchId = useId()
@@ -77,8 +62,8 @@ export function DesktopCustomerContactList({
       {entries.length > 0 ? (
         <ul aria-label="Customers" className="-mx-2 divide-y divide-border/70">
           {entries.map((entry) => (
-            <li key={entry.appointmentId}>
-              <DesktopCustomerContactRow entry={entry} timezone={directory.timezone} />
+            <li key={entry.id}>
+              <DesktopCustomerContactRow entry={entry} />
             </li>
           ))}
         </ul>
@@ -102,26 +87,18 @@ export function DesktopCustomerContactList({
   )
 }
 
-function DesktopCustomerContactRow({
-  entry,
-  timezone
-}: {
-  readonly entry: CustomerEntry
-  readonly timezone: string
-}) {
-  const appointmentLabel = formatAppointmentDateTime(entry.scheduledAt, timezone)
-  const appointmentStamp = appointmentStampFormatter(timezone).format(
-    new Date(entry.scheduledAt)
-  )
+function DesktopCustomerContactRow({ entry }: { readonly entry: CustomerEntry }) {
+  const activityStamp = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(new Date(entry.lastActivityAt))
 
   return (
-    <Link
-      to="/appointments/$appointmentId"
-      viewTransition={false}
-      state={mobileSheetNavigationState}
-      params={{ appointmentId: entry.appointmentId }}
-      search={{ date: entry.scheduledAt.slice(0, 10) }}
-      aria-label={`${entry.name}, ${entry.email}, appointment ${appointmentLabel}`}
+    <a
+      href={`#${entry.id}`}
+      aria-label={`${entry.displayName}, ${entry.preferredEmail ?? entry.preferredPhone ?? 'no preferred contact'}`}
       data-desktop-customer-row="true"
       className="grid min-h-16 grid-cols-[2.25rem_minmax(0,1fr)_auto_1rem] items-center gap-3 rounded-xl px-2 py-2.5 transition-transform active:scale-[0.99] active:bg-muted/70"
     >
@@ -129,21 +106,21 @@ function DesktopCustomerContactRow({
         aria-hidden
         className="grid size-9 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
       >
-        {customerInitials(entry.name)}
+        {customerInitials(entry.displayName)}
       </span>
       <span className="min-w-0">
         <span className="block truncate text-sm leading-5 font-medium">
-          {entry.name}
+          {entry.displayName}
         </span>
         <span className="block truncate text-xs leading-5 text-muted-foreground">
-          {entry.email}
-          {entry.phone ? ` · ${entry.phone}` : ''}
+          {entry.preferredEmail ?? 'No email'}
+          {entry.preferredPhone ? ` · ${entry.preferredPhone}` : ''}
         </span>
       </span>
       <span className="w-28 whitespace-nowrap text-right text-xs leading-4 text-muted-foreground tabular-nums">
-        {appointmentStamp}
+        {activityStamp}
       </span>
       <ChevronRight aria-hidden className="size-4 text-muted-foreground/70" />
-    </Link>
+    </a>
   )
 }

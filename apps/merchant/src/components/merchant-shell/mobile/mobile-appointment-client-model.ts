@@ -1,4 +1,4 @@
-import type { CustomerDirectory } from '@b2b-saas-starter/capabilities/booking'
+import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
 
 export type AppointmentClient = {
   readonly id: string
@@ -14,7 +14,7 @@ export type AppointmentClient = {
   }
 }
 
-type CustomerEntry = CustomerDirectory['entries'][number]
+type CustomerEntry = CustomerRecord
 
 export type AppointmentClientGroup = {
   readonly letter: string
@@ -35,18 +35,20 @@ export const groupAppointmentClients = (
   const normalizedQuery = normalizedSearchValue(query)
   const filtered = normalizedQuery
     ? entries.filter((entry) =>
-        [entry.name, entry.email, entry.phone]
+        [entry.displayName, entry.preferredEmail, entry.preferredPhone]
           .filter((value): value is string => Boolean(value))
           .some((value) => normalizedSearchValue(value).includes(normalizedQuery))
       )
     : entries
 
   const sorted = [...filtered].sort((left, right) =>
-    left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+    left.displayName.localeCompare(right.displayName, undefined, {
+      sensitivity: 'base'
+    })
   )
   const groups = new Map<string, CustomerEntry[]>()
   for (const entry of sorted) {
-    const letter = clientLetter(entry.name)
+    const letter = clientLetter(entry.displayName)
     const group = groups.get(letter)
     if (group) group.push(entry)
     else groups.set(letter, [entry])
@@ -64,10 +66,10 @@ export const groupAppointmentClients = (
 export const appointmentClientFromDirectory = (
   entry: CustomerEntry
 ): AppointmentClient => ({
-  id: entry.appointmentId,
-  name: entry.name,
-  email: entry.email,
-  phone: entry.phone,
+  id: entry.id,
+  name: entry.displayName,
+  email: entry.preferredEmail ?? '',
+  phone: entry.preferredPhone,
   source: 'directory'
 })
 

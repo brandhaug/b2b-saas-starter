@@ -36,9 +36,3 @@ export const readAppointmentDetail = (userId: string, appointmentId: string) =>
       operations.detail(appointmentId)
     )
   )
-
-export const readCustomerDirectory = (userId: string) =>
-  run(
-    userId,
-    Effect.flatMap(AppointmentOperations, (operations) => operations.customers())
-  )
