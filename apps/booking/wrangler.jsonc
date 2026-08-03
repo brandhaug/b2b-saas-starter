@@ -13,6 +13,7 @@
     "PUBLIC_SITE_ORIGIN": "http://localhost:3071",
     "CONFIRMATION_CURRENT_KEY_ID": "local-v1",
     "CONFIRMATION_SIGNING_KEYS": "{\"local-v1\":\"replace-before-production-confirmation-key\"}",
+    "CUSTOMER_DIRECTORY_FINGERPRINT_KEY": "replace-before-production-directory-fingerprint-key",
     "OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY": "replace-before-production-destination-encryption-key",
     "OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY": "replace-before-production-destination-fingerprint-key",
     "OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION": "1",

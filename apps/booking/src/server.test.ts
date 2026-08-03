@@ -11,6 +11,7 @@ vi.mock('cloudflare:workers', () => ({
     DB: {} as D1Database,
     PUBLIC_SITE_ORIGIN: 'http://localhost:3071',
     CONFIRMATION_CURRENT_KEY_ID: 'test',
+    CUSTOMER_DIRECTORY_FINGERPRINT_KEY: 'booking-server-test-directory-key',
     CONFIRMATION_SIGNING_KEYS: '{"test":"test-key"}',
     OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY: 'test-encryption-key',
     OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY: 'test-fingerprint-key',
@@ -58,7 +59,8 @@ describe('Booking Worker entry', () => {
         missingBindings: [
           'DB',
           'CONFIRMATION_SIGNING_KEYS',
-          'CONFIRMATION_CURRENT_KEY_ID'
+          'CONFIRMATION_CURRENT_KEY_ID',
+          'CUSTOMER_DIRECTORY_FINGERPRINT_KEY'
         ]
       }
     })

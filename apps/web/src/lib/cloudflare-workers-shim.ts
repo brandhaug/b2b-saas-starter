@@ -13,5 +13,8 @@ export const env = {
   CLOUDFLARE_EMAIL_FROM: process.env.CLOUDFLARE_EMAIL_FROM,
   TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
   TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+  CUSTOMER_DIRECTORY_FINGERPRINT_KEY:
+    process.env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY ??
+    'local-customer-directory-fingerprint-key-change-me',
   DB: undefined
 }

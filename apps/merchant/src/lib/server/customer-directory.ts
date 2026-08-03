@@ -40,9 +40,9 @@ const SetContactStatus = Schema.Struct({
 const RecordConsent = Schema.Struct({
   ...Mutation,
   purpose: Schema.Literals(['operational_mobile', 'marketing']),
-  destination: Schema.String,
-  wordingVersion: Schema.String,
-  source: Schema.String,
+  destination: AuditReason,
+  wordingVersion: AuditReason,
+  source: AuditReason,
   withdrawn: Schema.Boolean
 })
 const SetBan = Schema.Struct({

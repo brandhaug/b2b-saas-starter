@@ -18,5 +18,8 @@ export const env = {
   CONFIRMATION_SIGNING_KEYS:
     process.env.CONFIRMATION_SIGNING_KEYS ??
     '{"local-v1":"replace-before-production-confirmation-key"}',
+  CUSTOMER_DIRECTORY_FINGERPRINT_KEY:
+    process.env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY ??
+    'local-customer-directory-fingerprint-key-change-me',
   ...(localD1 ? { DB: localD1 } : {})
 }

@@ -934,6 +934,89 @@ describe('Customer Directory contract', () => {
     })
   })
 
+  it('validates destination-specific consent and permits historical withdrawal', async () => {
+    const result = await run(
+      'mer_consent_evidence',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_consent_evidence',
+          details: observation({ email: null, phone: '+40722111222' }),
+          now: '2026-08-03T10:00:00.000Z'
+        })
+        const invalid = yield* Effect.result(
+          service.recordConsent(created.record.id, {
+            expectedRevision: created.record.revision,
+            idempotencyKey: 'invalid-consent-destination',
+            actorId: 'usr_owner',
+            purpose: 'operational_mobile',
+            destination: 'unowned@example.com',
+            wordingVersion: 'merchant-recorded-v1',
+            source: 'merchant_directory',
+            withdrawn: false,
+            now: '2026-08-03T11:00:00.000Z'
+          })
+        )
+        const granted = yield* service.recordConsent(created.record.id, {
+          expectedRevision: created.record.revision,
+          idempotencyKey: 'valid-consent-destination',
+          actorId: 'usr_owner',
+          purpose: 'operational_mobile',
+          destination: '+40 722 111 222',
+          wordingVersion: 'merchant-recorded-v1',
+          source: 'merchant_directory',
+          withdrawn: false,
+          now: '2026-08-03T12:00:00.000Z'
+        })
+        const disputed = yield* service.setContactStatus(created.record.id, {
+          expectedRevision: granted.revision,
+          idempotencyKey: 'dispute-consented-phone',
+          actorId: 'usr_owner',
+          kind: 'phone',
+          value: '+40722111222',
+          status: 'disputed',
+          preferred: false,
+          now: '2026-08-03T13:00:00.000Z'
+        })
+        const withdrawn = yield* service.recordConsent(created.record.id, {
+          expectedRevision: disputed.revision,
+          idempotencyKey: 'withdraw-historical-consent',
+          actorId: 'usr_owner',
+          purpose: 'operational_mobile',
+          destination: '+40722111222',
+          wordingVersion: 'merchant-recorded-v1',
+          source: 'merchant_directory',
+          withdrawn: true,
+          now: '2026-08-03T14:00:00.000Z'
+        })
+        const repeatedWithdrawal = yield* Effect.result(
+          service.recordConsent(created.record.id, {
+            expectedRevision: withdrawn.revision,
+            idempotencyKey: 'withdraw-historical-consent-again',
+            actorId: 'usr_owner',
+            purpose: 'operational_mobile',
+            destination: '+40722111222',
+            wordingVersion: 'merchant-recorded-v1',
+            source: 'merchant_directory',
+            withdrawn: true,
+            now: '2026-08-03T15:00:00.000Z'
+          })
+        )
+        return { invalid, withdrawn, repeatedWithdrawal }
+      })
+    )
+
+    expect(result.invalid).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'invalid_consent' })
+    })
+    expect(result.withdrawn.consent[0]?.withdrawnAt).toBe('2026-08-03T14:00:00.000Z')
+    expect(result.repeatedWithdrawal).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'invalid_consent' })
+    })
+  })
+
   it('rejects blank audit reasons at the capability boundary', async () => {
     const result = await run(
       'mer_reason_required',

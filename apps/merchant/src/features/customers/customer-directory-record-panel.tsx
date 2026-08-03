@@ -123,7 +123,8 @@ export function CustomerDirectoryRecordPanel({
               ))}
             </section>
           ) : null}
-          {selected.preferredPhone ? (
+          {selected.contacts.some((contact) => contact.kind === 'phone') ||
+          selected.consent.length ? (
             <section
               aria-label="Operational mobile consent"
               className="rounded-xl border p-3 text-sm"
@@ -132,35 +133,50 @@ export function CustomerDirectoryRecordPanel({
               <p className="text-xs text-muted-foreground">
                 Record only evidence obtained through the approved permission wording.
               </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => recordConsent(false)}
-                  className="rounded-lg border px-2 py-1"
+              {selected.contacts
+                .filter(
+                  (contact) => contact.kind === 'phone' && contact.status === 'active'
+                )
+                .map((contact) => (
+                  <div key={contact.value} className="mt-2 flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs">
+                      {contact.value}
+                      {contact.preferred ? ' · preferred' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => recordConsent(contact.value, false)}
+                      className="rounded-lg border px-2 py-1"
+                    >
+                      Record permission
+                    </button>
+                  </div>
+                ))}
+              {selected.consent.map((evidence) => (
+                <div
+                  key={evidence.id}
+                  className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"
                 >
-                  Record permission
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => recordConsent(true)}
-                  className="rounded-lg border px-2 py-1"
-                >
-                  Record withdrawal
-                </button>
-              </div>
-              {selected.consent
-                .filter((evidence) => evidence.destination === selected.preferredPhone)
-                .map((evidence) => (
-                  <p key={evidence.id} className="mt-2 text-xs text-muted-foreground">
-                    {evidence.purpose.replaceAll('_', ' ')} · {evidence.source} ·{' '}
-                    wording {evidence.wordingVersion} ·{' '}
+                  <p className="min-w-0 flex-1">
+                    {evidence.destination} · {evidence.purpose.replaceAll('_', ' ')} ·{' '}
+                    {evidence.source} · wording {evidence.wordingVersion} ·{' '}
                     {evidence.withdrawnAt
                       ? `withdrawn ${evidence.withdrawnAt}`
                       : `granted ${evidence.grantedAt}`}
                   </p>
-                ))}
+                  {!evidence.withdrawnAt ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => recordConsent(evidence.destination, true)}
+                      className="rounded-lg border px-2 py-1"
+                    >
+                      Record withdrawal
+                    </button>
+                  ) : null}
+                </div>
+              ))}
             </section>
           ) : null}
           {selected.ban ? (

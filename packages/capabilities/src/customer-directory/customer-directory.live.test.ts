@@ -384,6 +384,65 @@ describe('Live Customer Directory contract', () => {
     expect(recreated?.customer_record_id).not.toBe(created.record.id)
   })
 
+  it('persists only valid destination-specific consent evidence', async () => {
+    const created = await run(
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        return yield* service.matchOrCreate({
+          appointmentId: 'apt_live_consent',
+          details: {
+            name: 'Consent Customer',
+            email: null,
+            phone: '+40 722 333 444'
+          },
+          now: '2026-08-02T10:00:00.000Z'
+        })
+      })
+    )
+    const invalid = await run(
+      Effect.flatMap(CustomerDirectory, (service) =>
+        Effect.result(
+          service.recordConsent(created.record.id, {
+            expectedRevision: created.record.revision,
+            idempotencyKey: 'live-invalid-consent',
+            actorId: 'usr_owner',
+            purpose: 'operational_mobile',
+            destination: 'other@example.com',
+            wordingVersion: 'merchant-recorded-v1',
+            source: 'merchant_directory',
+            withdrawn: false,
+            now: '2026-08-02T11:00:00.000Z'
+          })
+        )
+      )
+    )
+    expect(invalid).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'invalid_consent' })
+    })
+
+    const granted = await run(
+      Effect.flatMap(CustomerDirectory, (service) =>
+        service.recordConsent(created.record.id, {
+          expectedRevision: created.record.revision,
+          idempotencyKey: 'live-valid-consent',
+          actorId: 'usr_owner',
+          purpose: 'operational_mobile',
+          destination: '+40 722 333 444',
+          wordingVersion: 'merchant-recorded-v1',
+          source: 'merchant_directory',
+          withdrawn: false,
+          now: '2026-08-02T12:00:00.000Z'
+        })
+      )
+    )
+    expect(granted.consent[0]).toMatchObject({
+      destination: '+40722333444',
+      wordingVersion: 'merchant-recorded-v1',
+      source: 'merchant_directory'
+    })
+  })
+
   it('moves relational Appointment associations through merge and split', async () => {
     await Effect.runPromise(
       Effect.provide(

@@ -15,6 +15,8 @@ it('provides the required local Booking Worker environment to Vite', async () =>
     DB: database,
     PUBLIC_SITE_ORIGIN: 'http://localhost:3071',
     CONFIRMATION_CURRENT_KEY_ID: 'local-v1',
+    CUSTOMER_DIRECTORY_FINGERPRINT_KEY:
+      'local-customer-directory-fingerprint-key-change-me',
     CONFIRMATION_SIGNING_KEYS:
       '{"local-v1":"replace-before-production-confirmation-key"}'
   })

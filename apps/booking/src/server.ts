@@ -184,7 +184,10 @@ export default {
       ...(!env.DB ? ['DB'] : []),
       ...(!env.PUBLIC_SITE_ORIGIN ? ['PUBLIC_SITE_ORIGIN'] : []),
       ...(!env.CONFIRMATION_SIGNING_KEYS ? ['CONFIRMATION_SIGNING_KEYS'] : []),
-      ...(!env.CONFIRMATION_CURRENT_KEY_ID ? ['CONFIRMATION_CURRENT_KEY_ID'] : [])
+      ...(!env.CONFIRMATION_CURRENT_KEY_ID ? ['CONFIRMATION_CURRENT_KEY_ID'] : []),
+      ...(!env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY
+        ? ['CUSTOMER_DIRECTORY_FINGERPRINT_KEY']
+        : [])
     ]
     if (missingBindings.length > 0) {
       await reportOperationalError({

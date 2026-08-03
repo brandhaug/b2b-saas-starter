@@ -33,6 +33,12 @@ const record: CustomerRecord = {
       value: 'ana@example.com',
       status: 'active',
       preferred: true
+    },
+    {
+      kind: 'phone',
+      value: '+40700000000',
+      status: 'disputed',
+      preferred: false
     }
   ],
   observations: [
@@ -60,7 +66,17 @@ const record: CustomerRecord = {
     }
   ],
   notes: [],
-  consent: [],
+  consent: [
+    {
+      id: 'cue_historical_phone',
+      purpose: 'operational_mobile',
+      destination: '+40700000000',
+      wordingVersion: 'merchant-recorded-v1',
+      source: 'merchant_directory',
+      grantedAt: '2026-08-03T09:20:00.000Z',
+      withdrawnAt: null
+    }
+  ],
   ban: null,
   possibleDuplicateOf: ['cur_duplicate'],
   mergedInto: null,
@@ -94,6 +110,8 @@ describe('CustomerDirectoryWorkspace', () => {
     expect(html).toContain('Move contact destinations')
     expect(html).toContain('Attributed history')
     expect(html).toContain('edited · usr_owner')
+    expect(html).toContain('+40700000000 · operational mobile')
+    expect(html).toContain('Record withdrawal')
     expect(html).toContain('Import Customer Records')
     expect(html).toContain('Export customer data')
     expect(html).toContain('Show archived records')

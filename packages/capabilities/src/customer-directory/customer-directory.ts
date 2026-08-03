@@ -162,6 +162,7 @@ export class CustomerDirectoryInvalid extends Schema.TaggedErrorClass<CustomerDi
       'invalid_phone',
       'reason_required',
       'invalid_record_status',
+      'invalid_consent',
       'merge_records_must_be_distinct',
       'empty_split',
       'invalid_split_assignment',
@@ -219,9 +220,9 @@ type SetContactStatusInput = typeof SetCustomerContactStatusInputSchema.Type
 export const RecordCustomerConsentInputSchema = Schema.Struct({
   ...MutationFields,
   purpose: Schema.Literals(['operational_mobile', 'marketing']),
-  destination: Schema.String,
-  wordingVersion: Schema.String,
-  source: Schema.String,
+  destination: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1)),
+  wordingVersion: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1)),
+  source: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1)),
   withdrawn: Schema.Boolean
 })
 type RecordConsentInput = typeof RecordCustomerConsentInputSchema.Type
@@ -826,30 +827,66 @@ export const makeCustomerDirectoryService = (
             : new CapabilityNotFound({ resource: 'customer-contact' })
       )
     },
-    recordConsent: (recordId, input) =>
-      mutate(store, recordId, input, 'edited', (input) => ({
-        consent: (record: CustomerRecord) =>
-          input.withdrawn
-            ? record.consent.map((item) =>
-                item.purpose === input.purpose &&
-                item.destination === input.destination &&
-                !item.withdrawnAt
-                  ? { ...item, withdrawnAt: input.now }
-                  : item
-              )
-            : [
-                ...record.consent,
-                {
-                  id: newCapabilityId('cue'),
-                  purpose: input.purpose,
-                  destination: input.destination,
-                  wordingVersion: input.wordingVersion,
-                  source: input.source,
-                  grantedAt: input.now,
-                  withdrawnAt: null
-                }
-              ]
-      })),
+    recordConsent: (recordId, input) => {
+      const destination =
+        input.purpose === 'operational_mobile'
+          ? normalizeCustomerPhone(input.destination)
+          : (normalizeCustomerEmail(input.destination) ??
+            normalizeCustomerPhone(input.destination))
+      const normalizedInput = { ...input, destination: destination ?? '' }
+      return mutate(
+        store,
+        recordId,
+        normalizedInput,
+        'edited',
+        (command) => ({
+          consent: (record: CustomerRecord) =>
+            command.withdrawn
+              ? record.consent.map((item) =>
+                  item.purpose === command.purpose &&
+                  item.destination === command.destination &&
+                  !item.withdrawnAt
+                    ? { ...item, withdrawnAt: command.now }
+                    : item
+                )
+              : [
+                  ...record.consent,
+                  {
+                    id: newCapabilityId('cue'),
+                    purpose: command.purpose,
+                    destination: command.destination,
+                    wordingVersion: command.wordingVersion,
+                    source: command.source,
+                    grantedAt: command.now,
+                    withdrawnAt: null
+                  }
+                ]
+        }),
+        null,
+        (record, command) => {
+          if (!destination || !command.wordingVersion.trim() || !command.source.trim())
+            return new CustomerDirectoryInvalid({ reason: 'invalid_consent' })
+          if (command.withdrawn)
+            return record.consent.some(
+              (evidence) =>
+                evidence.purpose === command.purpose &&
+                evidence.destination === destination &&
+                !evidence.withdrawnAt
+            )
+              ? null
+              : new CustomerDirectoryInvalid({ reason: 'invalid_consent' })
+          const eligibleContact = record.contacts.some(
+            (contact) =>
+              contact.value === destination &&
+              contact.status === 'active' &&
+              (command.purpose !== 'operational_mobile' || contact.kind === 'phone')
+          )
+          return eligibleContact
+            ? null
+            : new CustomerDirectoryInvalid({ reason: 'invalid_consent' })
+        }
+      )
+    },
     setBan: (recordId, input) =>
       hasReason(input.reason)
         ? mutate(store, recordId, input, 'banned', (input) => ({

@@ -180,8 +180,8 @@ export const useCustomerDirectoryWorkspace = (
       })
     )
   }
-  const recordConsent = (withdrawn: boolean) => {
-    if (!selected?.preferredPhone) return
+  const recordConsent = (destination: string, withdrawn: boolean) => {
+    if (!selected) return
     void run(() =>
       recordCustomerConsent({
         data: {
@@ -189,7 +189,7 @@ export const useCustomerDirectoryWorkspace = (
           expectedRevision: selected.revision,
           idempotencyKey: commandKey(),
           purpose: 'operational_mobile',
-          destination: selected.preferredPhone!,
+          destination,
           wordingVersion: 'merchant-recorded-v1',
           source: 'merchant_directory',
           withdrawn
