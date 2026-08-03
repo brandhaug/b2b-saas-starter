@@ -14,3 +14,4 @@ export {
   type EffectDatabase
 } from './service.ts'
 export * from './schema.ts'
+export * from './beesolo-expand.ts'

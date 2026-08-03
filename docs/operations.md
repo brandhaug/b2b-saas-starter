@@ -1,4 +1,4 @@
-# Booking Product Operations
+# BeeSolo Operations
 
 ## Production cutover order
 

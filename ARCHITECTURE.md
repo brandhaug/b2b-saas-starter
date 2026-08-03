@@ -1,4 +1,4 @@
-# Booking Product Architecture
+# beesolo Booking Product Architecture
 
 ```text
 Customer browser ──> Public Site ──BOOKING binding──> Booking App
@@ -14,6 +14,9 @@ Server client ─────> Platform API                         │
                               Background Worker
                                 ├─ Email
                                 └─ signed Webhooks
+
+Operations App ─────────────────────> restore-external Privacy Action Ledger D1
+Background Worker ──────────────────> restore-external Privacy Action Ledger D1
 ```
 
 ## Six Workers
@@ -47,13 +50,15 @@ and derive from the same clock-anchored Seed Booking Scenario used by local D1.
 ## Data and transaction boundary
 
 D1 stores Better Auth records, optional platform Customer identities and sessions,
-merchant-scoped booking associations, plus Merchant-owned catalog, schedule rules,
-Booking Sessions/Holds, immutable Appointment snapshots, Confirmation access,
-notification outbox work, Platform API tokens/Webhooks, delivery history, and
-audit events. Availability and the Customer Directory are derived, not persisted.
+merchant-scoped Customer Records and directory privacy state, booking associations,
+plus Merchant-owned catalog, schedule rules, Booking Sessions/Holds, immutable
+Appointment snapshots, Confirmation access, notification outbox work, Platform
+API tokens/Webhooks, delivery history, and audit events. Availability is derived;
+the Customer Directory is persisted without becoming a Customer Account registry.
 
 Confirmation is one transaction: validate the active hold and idempotency key,
-create one Appointment snapshot, consume the hold, create hashed Confirmation
+conservatively match or create the Merchant-scoped Customer Record, create and
+link one Appointment snapshot, consume the hold, create hashed Confirmation
 access metadata, persist the replay result, and append outbox work. Queue
 publication happens after commit and is only a wake-up. Queue, email, or Webhook
 failure therefore cannot roll back or hide the Appointment; cron recovery later
@@ -66,6 +71,7 @@ reclaims durable work.
 | Merchant session cookie    | host-only Merchant App cookie; never bound to Public Site                                          |
 | Booking Session capability | HTTP-only cookies scoped to the public landing and its Merchant session path; only a hash persists |
 | Confirmation token         | exchanged once for an exact-path cookie; only hashes/access metadata persist                       |
+| Privacy request proof      | one-time, exact-destination proof for one Merchant; ambiguous identity requires operator review    |
 | Customer session cookie    | customer-only Better Auth namespace; never grants Merchant membership                              |
 | Provider access proof      | short-lived Booking Session/Provider-bound proof; only its hash persists                           |
 | Platform API token         | one Merchant and explicit scopes; plaintext disclosed once, hash persists                          |
@@ -77,8 +83,11 @@ use stable identifiers and event facts, not Customer Details or credentials.
 
 ## Deployment
 
-`alchemy.run.ts` provisions one D1 database, the booking-events Queue and its
-dead-letter Queue, optional
+`alchemy.run.ts` provisions the primary Merchant-data D1 database and a separate,
+value-free Privacy Action Ledger D1 used only by Operations and Background recovery.
+The ledger is excluded from primary Merchant-data point-in-time restores so action
+keys remain replay-safe across recovery. Alchemy also provisions the booking-events
+Queue and its dead-letter Queue, optional
 Cloudflare Email binding, rate-limit bindings, and all six Workers. The Queue is
 consumed by the Background Worker; its scheduled handler runs every five minutes.
 `infra/topology.ts` is the canonical Worker-name/port map and
@@ -96,6 +105,8 @@ transactional email, and Platform Webhooks remain available. The non-secret
 See [.env.example](./.env.example) and [docs/operations.md](./docs/operations.md).
 
 ## Vertical-slice boundary and accepted target
+
+beesolo's launch profile has exactly one Merchant Owner operating one Shop as its sole active Provider. Team membership, Manager and Employee roles, additional Providers, Team billing, and Team-facing navigation are deferred; existing lower-level seams that can represent them do not make them launch behavior.
 
 Pay Now/payment-provider state, refunds, rescheduling, reminders, analytics,
 Merchant roles beyond Owner, persisted Availability, realtime transport, and

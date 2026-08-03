@@ -169,6 +169,10 @@ export const Stack = Alchemy.Stack(
       name: 'b2b-saas-starter',
       migrationsDir: './packages/db/migrations'
     })
+    const privacyLedger = yield* Cloudflare.D1Database('beesolo-privacy-ledger-db', {
+      name: 'beesolo-privacy-ledger',
+      migrationsDir: './packages/db/privacy-ledger-migrations'
+    })
 
     const bookingEventsQueue = yield* Cloudflare.Queue('booking-events-queue', {
       name: bookingEventsQueueName
@@ -259,6 +263,7 @@ export const Stack = Alchemy.Stack(
       main: './apps/operations/src/index.ts',
       bindings: {
         DB: db,
+        PRIVACY_LEDGER: privacyLedger,
         CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
         EMAIL: transactionalEmail
       },
@@ -330,8 +335,9 @@ export const Stack = Alchemy.Stack(
       main: './apps/background/src/index.ts',
       bindings: {
         DB: db,
-        BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        PRIVACY_LEDGER: privacyLedger,
         CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+        BOOKING_EVENTS_QUEUE: bookingEventsQueue,
         CONFIRMATION_SIGNING_KEYS,
         CONFIRMATION_CURRENT_KEY_ID,
         ...(OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY &&
@@ -415,6 +421,7 @@ export const Stack = Alchemy.Stack(
       bookingEventsQueue,
       bookingEventsDeadLetterQueue,
       db,
+      privacyLedger,
       merchant,
       operations,
       transactionalEmail,

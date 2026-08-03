@@ -200,6 +200,7 @@ describe('reduced impersonation authority', () => {
   })
 
   it.each<ImpersonatedMerchantAction>([
+    'customer.update',
     'identity-security.update',
     'mfa.update',
     'identity.delete',

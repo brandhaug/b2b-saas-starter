@@ -124,6 +124,15 @@ export type StoredBookingQuote = {
   readonly afterBufferMinutes: number
   readonly occupiedStartsAt: string
   readonly occupiedEndsAt: string
+  readonly merchantTimezone?: string | undefined
+  readonly localDate?: string | undefined
+  readonly localWeekday?: number | undefined
+  readonly occupiedLocalStartTime?: string | undefined
+  readonly occupiedLocalEndTime?: string | undefined
+  readonly localStartTime?: string | undefined
+  readonly workingIntervalStartTime?: string | undefined
+  readonly workingIntervalEndTime?: string | undefined
+  readonly configRevision?: number | undefined
   readonly currency: string
   readonly totalMinor: number
 }
@@ -778,6 +787,7 @@ export const appointments = sqliteTable(
     updatedAt: isoUpdatedAt()
   },
   (table) => [
+    uniqueIndex('appointments_id_merchant_unique').on(table.id, table.merchantId),
     index('appointments_merchant_starts_at_idx').on(table.merchantId, table.startsAt),
     index('appointments_booking_session_id_idx').on(table.bookingSessionId),
     index('appointments_booking_party_id_idx').on(table.bookingPartyId),
@@ -1153,18 +1163,22 @@ export const operationsAuditEvents = sqliteTable(
   ]
 )
 
-export const brands = sqliteTable('brands', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  bookingConfigJson: text('booking_config_json', { mode: 'json' }).$type<
-    Record<string, unknown>
-  >(),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
-})
+export const brands = sqliteTable(
+  'brands',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    bookingConfigJson: text('booking_config_json', { mode: 'json' }).$type<
+      Record<string, unknown>
+    >(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [uniqueIndex('brands_id_merchant_unique').on(table.id, table.merchantId)]
+)
 
 export const shops = sqliteTable(
   'shops',
@@ -3621,32 +3635,72 @@ export const providerAccessProofs = sqliteTable(
   ]
 )
 
-// BeeSolo expand-phase companion facts. Existing tables remain readable and
+// beesolo expand-phase companion facts. Existing tables remain readable and
 // writable throughout the candidate/previous-Worker compatibility window.
-export const beesoloMigrationJobs = sqliteTable('beesolo_migration_jobs', {
-  id: id(),
-  migrationName: text('migration_name').notNull(),
-  factKind: text('fact_kind').notNull(),
-  cursor: text('cursor'),
-  status: text('status').notNull(),
-  processedCount: integer('processed_count').notNull(),
-  sourceCount: integer('source_count').notNull(),
-  failureCode: text('failure_code'),
-  startedAt: text('started_at'),
-  completedAt: text('completed_at'),
-  updatedAt: isoUpdatedAt()
-})
+export const beesoloMigrationJobs = sqliteTable(
+  'beesolo_migration_jobs',
+  {
+    id: id(),
+    migrationName: text('migration_name').notNull(),
+    factKind: text('fact_kind').notNull(),
+    cursor: text('cursor'),
+    status: text('status', {
+      enum: ['pending', 'running', 'complete', 'failed']
+    })
+      .default('pending')
+      .notNull(),
+    processedCount: integer('processed_count').default(0).notNull(),
+    sourceCount: integer('source_count').notNull(),
+    failureCode: text('failure_code'),
+    startedAt: text('started_at'),
+    completedAt: text('completed_at'),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('beesolo_migration_jobs_migration_fact_unique').on(
+      table.migrationName,
+      table.factKind
+    ),
+    index('beesolo_migration_jobs_status_idx').on(table.status, table.updatedAt),
+    check(
+      'beesolo_migration_jobs_processed_nonnegative',
+      sql`${table.processedCount} >= 0`
+    ),
+    check('beesolo_migration_jobs_source_nonnegative', sql`${table.sourceCount} >= 0`),
+    check(
+      'beesolo_migration_jobs_status_valid',
+      sql`${table.status} IN ('pending','running','complete','failed')`
+    )
+  ]
+)
 
-export const beesoloMigrationEvidence = sqliteTable('beesolo_migration_evidence', {
-  id: id(),
-  migrationName: text('migration_name').notNull(),
-  phase: text('phase').notNull(),
-  factKind: text('fact_kind').notNull(),
-  rowCount: integer('row_count').notNull(),
-  invariantVersion: text('invariant_version').notNull(),
-  detailsJson: text('details_json').notNull(),
-  recordedAt: text('recorded_at').notNull()
-})
+export const beesoloMigrationEvidence = sqliteTable(
+  'beesolo_migration_evidence',
+  {
+    id: id(),
+    migrationName: text('migration_name').notNull(),
+    phase: text('phase', {
+      enum: ['preflight', 'before', 'batch', 'after', 'repair']
+    }).notNull(),
+    factKind: text('fact_kind').notNull(),
+    rowCount: integer('row_count').notNull(),
+    invariantVersion: text('invariant_version').notNull(),
+    detailsJson: text('details_json').notNull(),
+    recordedAt: text('recorded_at').notNull()
+  },
+  (table) => [
+    index('beesolo_migration_evidence_lookup_idx').on(
+      table.migrationName,
+      table.phase,
+      table.factKind
+    ),
+    check('beesolo_migration_evidence_count_nonnegative', sql`${table.rowCount} >= 0`),
+    check(
+      'beesolo_migration_evidence_phase_valid',
+      sql`${table.phase} IN ('preflight','before','batch','after','repair')`
+    )
+  ]
+)
 
 export const merchantSubscriptions = sqliteTable(
   'merchant_subscriptions',
@@ -3799,31 +3853,98 @@ export const merchantSubscriptionNotices = sqliteTable(
   ]
 )
 
-export const scheduleExceptions = sqliteTable('schedule_exceptions', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'cascade' }),
-  localDate: text('local_date').notNull(),
-  kind: text('kind', { enum: ['closed', 'replacement_hours'] }).notNull(),
-  intervalsJson: text('intervals_json').notNull(),
-  revision: integer('revision').default(1).notNull(),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
-})
+export const scheduleExceptions = sqliteTable(
+  'schedule_exceptions',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    localDate: text('local_date').notNull(),
+    kind: text('kind', { enum: ['closed', 'replacement_hours'] }).notNull(),
+    intervalsJson: text('intervals_json').notNull(),
+    revision: integer('revision').default(1).notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('schedule_exceptions_merchant_date_unique').on(
+      table.merchantId,
+      table.localDate
+    ),
+    check('schedule_exceptions_revision_positive', sql`${table.revision} > 0`),
+    check(
+      'schedule_exceptions_kind_valid',
+      sql`${table.kind} IN ('closed','replacement_hours')`
+    )
+  ]
+)
 
-export const blockedTimes = sqliteTable('blocked_times', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'cascade' }),
-  startsAt: text('starts_at').notNull(),
-  endsAt: text('ends_at').notNull(),
-  reason: text('reason'),
-  revision: integer('revision').default(1).notNull(),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
-})
+export const blockedTimes = sqliteTable(
+  'blocked_times',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    startsAt: text('starts_at').notNull(),
+    endsAt: text('ends_at').notNull(),
+    reason: text('reason'),
+    revision: integer('revision').default(1).notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('blocked_times_merchant_interval_idx').on(
+      table.merchantId,
+      table.startsAt,
+      table.endsAt
+    ),
+    check('blocked_times_valid_interval', sql`${table.startsAt} < ${table.endsAt}`),
+    check('blocked_times_revision_positive', sql`${table.revision} > 0`)
+  ]
+)
+
+export const merchantActivationConfigRevisions = sqliteTable(
+  'merchant_activation_config_revisions',
+  {
+    merchantId: text('merchant_id')
+      .primaryKey()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    revision: integer('revision').default(1).notNull(),
+    updatedAt: isoUpdatedAt()
+  }
+)
+
+export const scheduleChanges = sqliteTable(
+  'schedule_changes',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    kind: text('kind', {
+      enum: [
+        'weekly_hours',
+        'date_override',
+        'blocked_time',
+        'timezone',
+        'booking_window',
+        'service_buffers',
+        'service_configuration',
+        'service_eligibility'
+      ]
+    }).notNull(),
+    actorId: text('actor_id').notNull(),
+    reason: text('reason'),
+    beforeJson: text('before_json').notNull(),
+    afterJson: text('after_json').notNull(),
+    occurredAt: text('occurred_at').notNull()
+  },
+  (table) => [
+    index('schedule_changes_merchant_time_idx').on(table.merchantId, table.occurredAt)
+  ]
+)
 
 export const merchantActivationStates = sqliteTable('merchant_activation_states', {
   merchantId: text('merchant_id')
@@ -3898,7 +4019,10 @@ export const customerRecords = sqliteTable(
       'customer_records_status_valid',
       sql`${table.status} IN ('active','quarantined','erased')`
     ),
-    check('customer_records_locale_valid', sql`${table.preferredLocale} IN ('en','ro')`),
+    check(
+      'customer_records_locale_valid',
+      sql`${table.preferredLocale} IN ('en','ro')`
+    ),
     check(
       'customer_records_merge_not_self',
       sql`${table.mergedInto} IS NULL OR ${table.mergedInto} <> ${table.id}`
@@ -4065,23 +4189,51 @@ export const customerDirectoryStates = sqliteTable('customer_directory_states', 
   updatedAt: isoUpdatedAt()
 })
 
-export const appointmentSeries = sqliteTable('appointment_series', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  idempotencyKey: text('idempotency_key').notNull(),
-  serviceSnapshotJson: text('service_snapshot_json').notNull(),
-  customerSnapshotJson: text('customer_snapshot_json').notNull(),
-  weekday: integer('weekday').notNull(),
-  localStartTime: text('local_start_time').notNull(),
-  occurrenceCount: integer('occurrence_count').notNull(),
-  status: text('status', { enum: ['active', 'cancelled_remaining'] })
-    .default('active')
-    .notNull(),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
-})
+export const appointmentSeries = sqliteTable(
+  'appointment_series',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    idempotencyKey: text('idempotency_key').notNull(),
+    serviceSnapshotJson: text('service_snapshot_json').notNull(),
+    customerSnapshotJson: text('customer_snapshot_json').notNull(),
+    weekday: integer('weekday').notNull(),
+    localStartTime: text('local_start_time').notNull(),
+    intervalWeeks: integer('interval_weeks').notNull(),
+    occurrenceCount: integer('occurrence_count').notNull(),
+    status: text('status', { enum: ['active', 'cancelled_remaining'] })
+      .default('active')
+      .notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('appointment_series_merchant_idempotency_unique').on(
+      table.merchantId,
+      table.idempotencyKey
+    ),
+    uniqueIndex('appointment_series_id_merchant_unique').on(table.id, table.merchantId),
+    check('appointment_series_weekday_range', sql`${table.weekday} BETWEEN 0 AND 6`),
+    check(
+      'appointment_series_local_start_time_valid',
+      sql`${table.localStartTime} GLOB '[0-2][0-9]:[0-5][0-9]' AND substr(${table.localStartTime}, 1, 2) BETWEEN '00' AND '23'`
+    ),
+    check(
+      'appointment_series_interval_weeks_range',
+      sql`${table.intervalWeeks} BETWEEN 1 AND 8`
+    ),
+    check(
+      'appointment_series_occurrence_count_range',
+      sql`${table.occurrenceCount} BETWEEN 2 AND 52`
+    ),
+    check(
+      'appointment_series_status_valid',
+      sql`${table.status} IN ('active','cancelled_remaining')`
+    )
+  ]
+)
 
 export const appointmentFoundations = sqliteTable(
   'appointment_foundations',
@@ -4107,94 +4259,224 @@ export const appointmentFoundations = sqliteTable(
     createdAt: isoCreatedAt()
   },
   (table) => [
+    uniqueIndex('appointment_foundations_series_position_unique').on(
+      table.seriesId,
+      table.seriesPosition
+    ),
     index('appointment_foundations_merchant_origin_idx').on(
       table.merchantId,
       table.origin
+    ),
+    foreignKey({
+      name: 'appointment_foundations_appointment_merchant_fk',
+      columns: [table.appointmentId, table.merchantId],
+      foreignColumns: [appointments.id, appointments.merchantId]
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'appointment_foundations_customer_merchant_fk',
+      columns: [table.customerRecordId, table.merchantId],
+      foreignColumns: [customerRecords.id, customerRecords.merchantId]
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'appointment_foundations_series_merchant_fk',
+      columns: [table.seriesId, table.merchantId],
+      foreignColumns: [appointmentSeries.id, appointmentSeries.merchantId]
+    }).onDelete('restrict'),
+    check(
+      'appointment_foundations_origin_valid',
+      sql`${table.origin} IN ('public_booking','merchant_created','walk_in','waiting_list')`
+    ),
+    check('appointment_foundations_version_one', sql`${table.foundationVersion} = 1`),
+    check(
+      'appointment_foundations_series_position_shape',
+      sql`(${table.seriesId} IS NULL AND ${table.seriesPosition} IS NULL) OR
+          (${table.seriesId} IS NOT NULL AND ${table.seriesPosition} >= 0)`
     )
   ]
 )
 
-export const externalCollections = sqliteTable('external_collections', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  appointmentId: text('appointment_id')
-    .notNull()
-    .references(() => appointments.id, { onDelete: 'restrict' }),
-  idempotencyKey: text('idempotency_key').notNull(),
-  kind: text('kind', { enum: ['collection', 'return'] }).notNull(),
-  method: text('method', {
-    enum: ['cash', 'card_terminal', 'bank_transfer', 'other']
-  }).notNull(),
-  amountMinor: integer('amount_minor').notNull(),
-  currency: text('currency').notNull(),
-  recordedAt: text('recorded_at').notNull(),
-  createdAt: isoCreatedAt()
-})
+export const externalCollections = sqliteTable(
+  'external_collections',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'restrict' }),
+    idempotencyKey: text('idempotency_key').notNull(),
+    kind: text('kind', { enum: ['collection', 'return'] }).notNull(),
+    method: text('method', {
+      enum: ['cash', 'card_terminal', 'bank_transfer', 'other']
+    }).notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text('currency').notNull(),
+    actorId: text('actor_id').notNull(),
+    noteOrReference: text('note_or_reference'),
+    offsetsEntryId: text('offsets_entry_id'),
+    correctionReason: text('correction_reason'),
+    recordedAt: text('recorded_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('external_collections_merchant_idempotency_unique').on(
+      table.merchantId,
+      table.idempotencyKey
+    ),
+    uniqueIndex('external_collections_id_merchant_appointment_unique').on(
+      table.id,
+      table.merchantId,
+      table.appointmentId
+    ),
+    uniqueIndex('external_collections_offset_once_unique')
+      .on(table.offsetsEntryId)
+      .where(sql`${table.offsetsEntryId} IS NOT NULL`),
+    index('external_collections_appointment_idx').on(
+      table.appointmentId,
+      table.recordedAt
+    ),
+    foreignKey({
+      name: 'external_collections_appointment_merchant_fk',
+      columns: [table.appointmentId, table.merchantId],
+      foreignColumns: [appointments.id, appointments.merchantId]
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'external_collections_offset_merchant_appointment_fk',
+      columns: [table.offsetsEntryId, table.merchantId, table.appointmentId],
+      foreignColumns: [table.id, table.merchantId, table.appointmentId]
+    }).onDelete('restrict'),
+    check('external_collections_positive_amount', sql`${table.amountMinor} > 0`),
+    check(
+      'external_collections_kind_valid',
+      sql`${table.kind} IN ('collection','return')`
+    ),
+    check(
+      'external_collections_method_valid',
+      sql`${table.method} IN ('cash','card_terminal','bank_transfer','other')`
+    ),
+    check(
+      'external_collections_currency_format',
+      sql`length(${table.currency}) = 3 AND ${table.currency} = upper(${table.currency})`
+    ),
+    check(
+      'external_collections_correction_shape',
+      sql`(${table.offsetsEntryId} IS NULL AND ${table.correctionReason} IS NULL) OR
+          (${table.offsetsEntryId} IS NOT NULL AND ${table.correctionReason} IS NOT NULL
+           AND length(trim(${table.correctionReason})) > 0)`
+    ),
+    check(
+      'external_collections_not_self_offset',
+      sql`${table.offsetsEntryId} IS NULL OR ${table.offsetsEntryId} <> ${table.id}`
+    )
+  ]
+)
 
-export const privacyRequests = sqliteTable('privacy_requests', {
-  id: id(),
-  merchantId: text('merchant_id').references(() => merchants.id, {
-    onDelete: 'restrict'
-  }),
-  requestType: text('request_type', {
-    enum: ['access', 'correction', 'erasure']
-  }).notNull(),
-  status: text('status').notNull(),
-  destinationFingerprint: text('destination_fingerprint').notNull(),
-  locale: text('locale', { enum: ['en', 'ro'] }).notNull(),
-  revision: integer('revision').default(1).notNull(),
-  receivedAt: text('received_at').notNull(),
-  verificationExpiresAt: text('verification_expires_at').notNull(),
-  governingDeadlineAt: text('governing_deadline_at').notNull(),
-  terminalAt: text('terminal_at'),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
-})
+export const privacyRequests = sqliteTable(
+  'privacy_requests',
+  {
+    id: id(),
+    merchantId: text('merchant_id').references(() => merchants.id, {
+      onDelete: 'restrict'
+    }),
+    requestType: text('request_type', {
+      enum: ['access', 'correction', 'erasure']
+    }).notNull(),
+    status: text('status', {
+      enum: [
+        'submitted',
+        'awaiting_verification',
+        'queued_for_review',
+        'awaiting_additional_evidence',
+        'approved',
+        'executing',
+        'completed',
+        'rejected',
+        'withdrawn',
+        'expired'
+      ]
+    }).notNull(),
+    destinationFingerprint: text('destination_fingerprint').notNull(),
+    locale: text('locale', { enum: ['en', 'ro'] }).notNull(),
+    revision: integer('revision').default(1).notNull(),
+    receivedAt: text('received_at').notNull(),
+    verificationExpiresAt: text('verification_expires_at').notNull(),
+    governingDeadlineAt: text('governing_deadline_at').notNull(),
+    terminalAt: text('terminal_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('privacy_requests_queue_idx').on(table.status, table.governingDeadlineAt),
+    check('privacy_requests_revision_positive', sql`${table.revision} > 0`),
+    check(
+      'privacy_requests_type_valid',
+      sql`${table.requestType} IN ('access','correction','erasure')`
+    ),
+    check(
+      'privacy_requests_status_valid',
+      sql`${table.status} IN ('submitted','awaiting_verification','queued_for_review','awaiting_additional_evidence','approved','executing','completed','rejected','withdrawn','expired')`
+    ),
+    check('privacy_requests_locale_valid', sql`${table.locale} IN ('en','ro')`)
+  ]
+)
 
-export const privacyRequestPreflights = sqliteTable('privacy_request_preflights', {
-  id: id(),
-  privacyRequestId: text('privacy_request_id')
-    .notNull()
-    .references(() => privacyRequests.id, { onDelete: 'restrict' }),
-  requestRevision: integer('request_revision').notNull(),
-  sourceRevision: text('source_revision').notNull(),
-  policyVersion: text('policy_version').notNull(),
-  manifestJson: text('manifest_json').notNull(),
-  approvedAt: text('approved_at'),
-  invalidatedAt: text('invalidated_at'),
-  createdAt: isoCreatedAt()
-})
+export const privacyRequestPreflights = sqliteTable(
+  'privacy_request_preflights',
+  {
+    id: id(),
+    privacyRequestId: text('privacy_request_id')
+      .notNull()
+      .references(() => privacyRequests.id, { onDelete: 'restrict' }),
+    requestRevision: integer('request_revision').notNull(),
+    sourceRevision: text('source_revision').notNull(),
+    policyVersion: text('policy_version').notNull(),
+    manifestJson: text('manifest_json').notNull(),
+    approvedAt: text('approved_at'),
+    invalidatedAt: text('invalidated_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('privacy_request_preflights_request_revision_unique').on(
+      table.privacyRequestId,
+      table.requestRevision
+    ),
+    check(
+      'privacy_request_preflights_revision_positive',
+      sql`${table.requestRevision} > 0`
+    ),
+    check(
+      'privacy_request_preflights_invalidation_shape',
+      sql`${table.approvedAt} IS NOT NULL OR ${table.invalidatedAt} IS NULL`
+    )
+  ]
+)
 
-export const privacyActionLedger = sqliteTable('privacy_action_ledger', {
-  id: id(),
-  privacyRequestId: text('privacy_request_id').notNull(),
-  actionKey: text('action_key').notNull().unique(),
-  actionKind: text('action_kind').notNull(),
-  resourceType: text('resource_type').notNull(),
-  resourceRef: text('resource_ref').notNull(),
-  outcome: text('outcome', {
-    enum: ['pending', 'applied', 'held', 'failed']
-  }).notNull(),
-  policyVersion: text('policy_version').notNull(),
-  appliedAt: text('applied_at'),
-  createdAt: isoCreatedAt()
-})
-
-export const reportExports = sqliteTable('report_exports', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  reportKind: text('report_kind').notNull(),
-  filtersJson: text('filters_json').notNull(),
-  status: text('status', { enum: ['pending', 'ready', 'failed', 'expired'] }).notNull(),
-  artifactRef: text('artifact_ref'),
-  generatedAt: text('generated_at'),
-  expiresAt: text('expires_at').notNull(),
-  createdAt: isoCreatedAt()
-})
+export const reportExports = sqliteTable(
+  'report_exports',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    reportKind: text('report_kind').notNull(),
+    filtersJson: text('filters_json').notNull(),
+    status: text('status', {
+      enum: ['pending', 'ready', 'failed', 'expired']
+    }).notNull(),
+    artifactRef: text('artifact_ref'),
+    generatedAt: text('generated_at'),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('report_exports_expiry_idx').on(table.status, table.expiresAt),
+    check(
+      'report_exports_status_valid',
+      sql`${table.status} IN ('pending','ready','failed','expired')`
+    )
+  ]
+)
 
 export const capabilityAggregateRevisions = sqliteTable(
   'capability_aggregate_revisions',

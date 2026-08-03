@@ -31,6 +31,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0064 — Dedicated Operations Auth](./0064-dedicated-operations-auth-configuration.md)
 - [0065 — Persisted impersonation lifecycle](./0065-persist-impersonation-lifecycle-state.md)
 - [0070 — Retire Public Site admin auth](./0070-retire-public-site-admin-auth.md)
+- [0073 — Privacy Requests under standing Merchant instructions](./0073-process-privacy-requests-under-standing-instructions.md)
 
 ## Product surfaces
 

@@ -49,6 +49,7 @@ import { redirect } from './http-response.ts'
 
 export type OperationsWorkerEnv = OperationsEnvironment & {
   readonly DB: D1Database
+  readonly PRIVACY_LEDGER?: D1Database
   readonly BOOKING_EVENTS_QUEUE?: Queue
   readonly EMAIL?: OperationsEmailBinding
   readonly CUSTOMER_DIRECTORY_FINGERPRINT_KEY?: string

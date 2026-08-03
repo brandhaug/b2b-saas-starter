@@ -195,6 +195,13 @@ CREATE TABLE `appointment_foundations` (
       OR (`series_id` IS NOT NULL AND `series_position` >= 0))
 );--> statement-breakpoint
 CREATE INDEX `appointment_foundations_merchant_origin_idx` ON `appointment_foundations` (`merchant_id`,`origin`);--> statement-breakpoint
+CREATE TRIGGER `appointment_foundations_identity_update_guard`
+BEFORE UPDATE OF `appointment_id`,`merchant_id` ON `appointment_foundations`
+BEGIN SELECT RAISE(ABORT, 'Appointment Foundation identity is immutable'); END;--> statement-breakpoint
+CREATE TRIGGER `appointment_foundations_delete_guard`
+BEFORE DELETE ON `appointment_foundations`
+WHEN EXISTS (SELECT 1 FROM `appointments` WHERE `id` = OLD.`appointment_id`)
+BEGIN SELECT RAISE(ABORT, 'Appointment requires its foundation'); END;--> statement-breakpoint
 CREATE TRIGGER `appointment_foundations_customer_unlink_before_delete`
 BEFORE DELETE ON `customer_records`
 BEGIN
@@ -286,6 +293,33 @@ BEGIN
     NEW.`created_at`
   );
 END;--> statement-breakpoint
+CREATE TRIGGER `appointment_foundations_previous_worker_delete`
+AFTER DELETE ON `appointments`
+BEGIN
+  UPDATE `beesolo_migration_jobs`
+  SET `status` = CASE
+        WHEN (SELECT count(*) FROM `appointment_foundations`) =
+             (SELECT count(*) FROM `appointments`)
+        THEN 'complete' ELSE 'running' END,
+      `processed_count` = (SELECT count(*) FROM `appointment_foundations`),
+      `source_count` = (SELECT count(*) FROM `appointments`),
+      `completed_at` = CASE
+        WHEN (SELECT count(*) FROM `appointment_foundations`) =
+             (SELECT count(*) FROM `appointments`)
+        THEN CURRENT_TIMESTAMP ELSE NULL END,
+      `updated_at` = CURRENT_TIMESTAMP
+  WHERE `migration_name` = '20260802120000_beesolo_expand'
+    AND `fact_kind` = 'appointment_foundations';
+  INSERT OR REPLACE INTO `beesolo_migration_evidence`
+    (`id`,`migration_name`,`phase`,`fact_kind`,`row_count`,`invariant_version`,`details_json`,`recorded_at`)
+  VALUES (
+    '20260802120000_beesolo_expand:appointment-delete:' || OLD.`id`,
+    '20260802120000_beesolo_expand', 'repair', 'appointment_foundations',
+    (SELECT count(*) FROM `appointment_foundations`), 'beesolo-expand-v2',
+    json_object('appointmentId', OLD.`id`, 'source', 'appointment-delete-trigger'),
+    CURRENT_TIMESTAMP
+  );
+END;--> statement-breakpoint
 
 CREATE TABLE `external_collections` (
   `id` text PRIMARY KEY NOT NULL,
@@ -334,7 +368,7 @@ WHEN NOT EXISTS (
   WHERE a.`id` = NEW.`appointment_id`
     AND a.`merchant_id` = NEW.`merchant_id`
     AND json_valid(a.`snapshot`)
-    AND json_type(a.`snapshot`, '$.totalMinor') IN ('integer','real')
+    AND json_type(a.`snapshot`, '$.totalMinor') = 'integer'
     AND (
       COALESCE((
         SELECT sum(CASE e.`kind`
@@ -359,10 +393,45 @@ WHEN NEW.`offsets_entry_id` IS NOT NULL AND NOT EXISTS (
     AND original.`currency` = NEW.`currency`
 )
 BEGIN SELECT RAISE(ABORT, 'External Collection correction must exactly offset its referenced entry'); END;--> statement-breakpoint
-CREATE TRIGGER `appointments_snapshot_immutable_guard`
+CREATE TRIGGER `appointments_snapshot_external_collection_currency_guard`
 BEFORE UPDATE OF `snapshot` ON `appointments`
-WHEN OLD.`snapshot` IS NOT NULL AND NEW.`snapshot` IS NOT OLD.`snapshot`
-BEGIN SELECT RAISE(ABORT, 'accepted Appointment snapshots are immutable'); END;--> statement-breakpoint
+WHEN EXISTS (
+  SELECT 1 FROM `external_collections` e
+  WHERE e.`appointment_id` = OLD.`id` AND e.`merchant_id` = OLD.`merchant_id`
+)
+AND (
+  NEW.`snapshot` IS NULL
+  OR NOT json_valid(NEW.`snapshot`)
+  OR json_type(NEW.`snapshot`, '$.currency') IS NOT 'text'
+  OR EXISTS (
+    SELECT 1 FROM `external_collections` e
+    WHERE e.`appointment_id` = OLD.`id`
+      AND e.`merchant_id` = OLD.`merchant_id`
+      AND e.`currency` <> json_extract(NEW.`snapshot`, '$.currency')
+  )
+)
+BEGIN SELECT RAISE(ABORT, 'Appointment Price Snapshot currency must match External Collections'); END;--> statement-breakpoint
+CREATE TRIGGER `appointments_snapshot_external_collection_net_guard`
+BEFORE UPDATE OF `snapshot` ON `appointments`
+WHEN EXISTS (
+  SELECT 1 FROM `external_collections` e
+  WHERE e.`appointment_id` = OLD.`id` AND e.`merchant_id` = OLD.`merchant_id`
+)
+AND (
+  NEW.`snapshot` IS NULL
+  OR NOT json_valid(NEW.`snapshot`)
+  OR json_type(NEW.`snapshot`, '$.totalMinor') IS NOT 'integer'
+  OR NOT (
+    COALESCE((
+      SELECT sum(CASE e.`kind`
+        WHEN 'collection' THEN e.`amount_minor` ELSE -e.`amount_minor` END)
+      FROM `external_collections` e
+      WHERE e.`appointment_id` = OLD.`id`
+        AND e.`merchant_id` = OLD.`merchant_id`
+    ), 0) BETWEEN 0 AND CAST(json_extract(NEW.`snapshot`, '$.totalMinor') AS integer)
+  )
+)
+BEGIN SELECT RAISE(ABORT, 'External Collection net must remain within the Appointment Price Snapshot total'); END;--> statement-breakpoint
 CREATE TRIGGER `external_collections_append_only_update_guard`
 BEFORE UPDATE ON `external_collections`
 BEGIN SELECT RAISE(ABORT, 'External Collections are append-only'); END;--> statement-breakpoint
@@ -396,8 +465,47 @@ CREATE TABLE `privacy_request_preflights` (
   `approved_at` text,
   `invalidated_at` text,
   `created_at` text NOT NULL,
-  UNIQUE(`privacy_request_id`,`request_revision`)
+  UNIQUE(`privacy_request_id`,`request_revision`),
+  CHECK (`request_revision` > 0),
+  CHECK (`approved_at` IS NOT NULL OR `invalidated_at` IS NULL)
 );--> statement-breakpoint
+CREATE TRIGGER `privacy_request_preflights_revision_insert_guard`
+BEFORE INSERT ON `privacy_request_preflights`
+WHEN NEW.`request_revision` <> (
+  SELECT pr.`revision` FROM `privacy_requests` pr WHERE pr.`id` = NEW.`privacy_request_id`
+)
+BEGIN SELECT RAISE(ABORT, 'Preflight must bind the current Privacy Request revision'); END;--> statement-breakpoint
+CREATE TRIGGER `privacy_request_preflights_shape_update_guard`
+BEFORE UPDATE OF `id`,`privacy_request_id`,`request_revision`,`source_revision`,
+  `policy_version`,`manifest_json`,`created_at` ON `privacy_request_preflights`
+BEGIN SELECT RAISE(ABORT, 'Privacy Request Preflight facts are immutable'); END;--> statement-breakpoint
+CREATE TRIGGER `privacy_request_preflights_approval_update_guard`
+BEFORE UPDATE OF `approved_at` ON `privacy_request_preflights`
+WHEN OLD.`approved_at` IS NOT NULL
+  OR NEW.`approved_at` IS NULL
+  OR NEW.`invalidated_at` IS NOT NULL
+  OR NEW.`request_revision` <> (
+    SELECT pr.`revision` FROM `privacy_requests` pr WHERE pr.`id` = NEW.`privacy_request_id`
+  )
+BEGIN SELECT RAISE(ABORT, 'Preflight approval requires the current Privacy Request revision'); END;--> statement-breakpoint
+CREATE TRIGGER `privacy_request_preflights_invalidation_update_guard`
+BEFORE UPDATE OF `invalidated_at` ON `privacy_request_preflights`
+WHEN OLD.`invalidated_at` IS NOT NULL OR NEW.`invalidated_at` IS NULL
+BEGIN SELECT RAISE(ABORT, 'Privacy Request Preflight invalidation is immutable'); END;--> statement-breakpoint
+CREATE TRIGGER `privacy_request_preflights_delete_guard`
+BEFORE DELETE ON `privacy_request_preflights`
+BEGIN SELECT RAISE(ABORT, 'Privacy Request Preflight facts are immutable'); END;--> statement-breakpoint
+CREATE TRIGGER `privacy_requests_revision_invalidate_preflights`
+AFTER UPDATE OF `revision` ON `privacy_requests`
+WHEN NEW.`revision` <> OLD.`revision`
+BEGIN
+  UPDATE `privacy_request_preflights`
+  SET `invalidated_at` = CURRENT_TIMESTAMP
+  WHERE `privacy_request_id` = NEW.`id`
+    AND `request_revision` <> NEW.`revision`
+    AND `approved_at` IS NOT NULL
+    AND `invalidated_at` IS NULL;
+END;--> statement-breakpoint
 CREATE TABLE `report_exports` (
   `id` text PRIMARY KEY NOT NULL,
   `merchant_id` text NOT NULL REFERENCES `merchants`(`id`) ON DELETE RESTRICT,

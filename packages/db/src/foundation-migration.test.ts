@@ -16,6 +16,12 @@ describe('capability foundation migration', () => {
     const now = '2026-07-11T12:00:00.000Z'
     await test.d1
       .prepare(
+        `INSERT INTO user (id, email, name, createdAt, updatedAt)
+         VALUES ('usr_legacy', 'owner@legacy.example', 'Legacy Owner', 1, 1)`
+      )
+      .run()
+    await test.d1
+      .prepare(
         `INSERT INTO merchants (id, public_name, slug, timezone, currency, plan, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 'solo', ?, ?)`
       )
@@ -23,8 +29,15 @@ describe('capability foundation migration', () => {
       .run()
     await test.d1
       .prepare(
-        `INSERT INTO providers (id, merchant_id, display_name, status, is_default, created_at, updated_at)
-         VALUES ('prv_legacy', 'mrc_legacy', 'Legacy Provider', 'active', 1, ?, ?)`
+        `INSERT INTO merchant_memberships (merchant_id, user_id, role, created_at)
+         VALUES ('mrc_legacy', 'usr_legacy', 'owner', ?)`
+      )
+      .bind(now)
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO providers (id, merchant_id, linked_user_id, display_name, status, is_default, created_at, updated_at)
+         VALUES ('prv_legacy', 'mrc_legacy', 'usr_legacy', 'Legacy Provider', 'active', 1, ?, ?)`
       )
       .bind(now, now)
       .run()
@@ -35,6 +48,15 @@ describe('capability foundation migration', () => {
                 ('svc_extra', 'mrc_legacy', 'Extra', 1000, 'EUR', 15, 'active', ?, ?)`
       )
       .bind(now, now, now, now)
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO provider_service_eligibility
+         (merchant_id, provider_id, service_id, created_at)
+         VALUES ('mrc_legacy', 'prv_legacy', 'svc_primary', ?),
+                ('mrc_legacy', 'prv_legacy', 'svc_extra', ?)`
+      )
+      .bind(now, now)
       .run()
     await test.d1
       .prepare(
