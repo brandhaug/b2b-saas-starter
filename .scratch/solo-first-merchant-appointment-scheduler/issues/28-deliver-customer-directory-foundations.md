@@ -146,3 +146,18 @@ Focused request-runner and Live D1 association tests pass, and Merchant, capabil
 and database package typechecks pass. A repeated standards/spec review found no remaining
 issue-28 blocker. The workspace-wide check remains stopped by unrelated concurrent
 Merchant Catalog type errors.
+
+### Final zero-findings review — 2026-08-03
+
+Closed the last consent and deployment-readiness findings. Consent evidence now accepts
+only an active owned destination, normalizes both operational and marketing phone
+destinations, requires nonblank wording and source attribution, preserves the evidence
+purpose during withdrawal, and permits withdrawal of historical evidence after a contact
+is disputed. The Merchant workspace displays every destination-specific evidence item and
+offers withdrawal against that exact purpose and destination. Booking and Web local/runtime
+environments now provide and validate the dedicated Customer Directory fingerprint key.
+
+Focused Customer Directory contracts pass (23/23), Merchant Customer Directory UI tests
+pass (6/6), Booking readiness tests pass (7/7), and capabilities, Merchant, Booking, and Web
+typechecks pass. Fresh independent Standards and Spec reviews of the completed issue diff
+both explicitly reported zero findings. The issue remains resolved.
