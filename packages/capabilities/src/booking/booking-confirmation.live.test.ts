@@ -16,6 +16,7 @@ import {
   layerFromD1,
   merchants,
   merchantMemberships,
+  merchantSubscriptions,
   merchantMessagingControls,
   notificationIntents,
   notificationIntentControlledFacts,
@@ -173,6 +174,15 @@ beforeAll(async () => {
           role: 'owner',
           createdAt: now
         })
+        yield* db.insert(merchantSubscriptions).values({
+          id: 'sub_confirm',
+          merchantId: 'mer_confirm',
+          plan: 'solo',
+          interval: 'monthly',
+          status: 'active',
+          createdAt: now,
+          updatedAt: now
+        })
         yield* db.insert(brands).values({
           id: 'brd_confirm',
           merchantId: 'mer_confirm',
@@ -277,6 +287,35 @@ describe('Live Booking Confirmation', () => {
       )
     )
 
+  it('does not create an appointment if access becomes restricted after the hold', async () => {
+    await Effect.runPromise(
+      Effect.provide(seedSession('bsn_restricted_race'), layerFromD1(test.d1))
+    )
+    await test.d1
+      .prepare(
+        "UPDATE merchant_subscriptions SET status = 'restricted' WHERE merchant_id = 'mer_confirm'"
+      )
+      .run()
+    await expect(confirm('bsn_restricted_race')).rejects.toMatchObject({
+      _tag: 'CapabilityUnavailable'
+    })
+    const [appointment, sessionRow] = await test.d1.batch([
+      test.d1
+        .prepare('SELECT id FROM appointments WHERE booking_session_id = ?')
+        .bind('bsn_restricted_race'),
+      test.d1
+        .prepare('SELECT lifecycle FROM booking_sessions WHERE id = ?')
+        .bind('bsn_restricted_race')
+    ])
+    if (!appointment || !sessionRow) throw new Error('expected D1 batch results')
+    expect(appointment.results).toHaveLength(0)
+    expect(sessionRow.results[0]).toMatchObject({ lifecycle: 'active' })
+    await test.d1
+      .prepare(
+        "UPDATE merchant_subscriptions SET status = 'active' WHERE merchant_id = 'mer_confirm'"
+      )
+      .run()
+  })
   it('atomically snapshots, reduces, persists access/outbox, and replays exactly once', async () => {
     const first = await confirm('bsn_confirm')
     const replay = await confirm('bsn_confirm', 'consumed')

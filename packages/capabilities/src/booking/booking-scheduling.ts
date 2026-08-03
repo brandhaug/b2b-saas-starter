@@ -11,6 +11,7 @@ import {
   bookingSessions,
   blockedTimes,
   Database,
+  merchantActivationConfigRevisions,
   merchantActivationStates,
   merchantSubscriptions,
   merchants,
@@ -40,6 +41,7 @@ import type {
   SeedBookingSelectionStore
 } from './booking-selection.ts'
 import type { BookingSession } from './booking-sessions.ts'
+import { decodePersistedServiceBuffers } from '../merchant-catalog/service-buffers.ts'
 import {
   NEW_DEMAND_SUBSCRIPTION_SQL_VALUES,
   subscriptionAllowsNewDemand
@@ -72,8 +74,19 @@ export const BookingQuote = Schema.Struct({
     })
   ),
   durationMinutes: Schema.Number,
+  beforeBufferMinutes: Schema.optional(Schema.Number),
+  afterBufferMinutes: Schema.optional(Schema.Number),
   occupiedStartsAt: Schema.optional(Schema.String),
   occupiedEndsAt: Schema.optional(Schema.String),
+  merchantTimezone: Schema.optional(Schema.String),
+  localDate: Schema.optional(Schema.String),
+  localWeekday: Schema.optional(Schema.Number),
+  occupiedLocalStartTime: Schema.optional(Schema.String),
+  occupiedLocalEndTime: Schema.optional(Schema.String),
+  localStartTime: Schema.optional(Schema.String),
+  workingIntervalStartTime: Schema.optional(Schema.String),
+  workingIntervalEndTime: Schema.optional(Schema.String),
+  configRevision: Schema.optional(Schema.Number),
   currency: Schema.String,
   totalMinor: Schema.Number
 })
@@ -200,6 +213,7 @@ type SchedulingInputs = {
   readonly holds: readonly Conflict[]
   readonly controls: AvailabilityControls
   readonly subscriptionAccess: boolean
+  readonly configRevision: number
 }
 
 type StoredHold = TimeSlotHold & {
@@ -509,6 +523,50 @@ const quoteFor = (
     0,
     ...selected.map((service) => service.afterBufferMinutes)
   )
+  const occupiedStartsAt = new Date(
+    Date.parse(slot.startsAt) - beforeBufferMinutes * 60_000
+  ).toISOString()
+  const occupiedEndsAt = new Date(
+    Date.parse(slot.endsAt) + afterBufferMinutes * 60_000
+  ).toISOString()
+  const local = (instant: string) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: input.timezone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      weekday: 'short'
+    }).formatToParts(new Date(instant))
+    const read = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value ?? ''
+    return {
+      date: `${read('year')}-${read('month')}-${read('day')}`,
+      time: `${read('hour')}:${read('minute')}`,
+      weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+        read('weekday')
+      )
+    }
+  }
+  const occupiedLocalStart = local(occupiedStartsAt)
+  const occupiedLocalEnd = local(occupiedEndsAt)
+  const customerLocalStart = local(slot.startsAt)
+  const exception = input.controls.exceptions?.find(
+    (item) => item.localDate === customerLocalStart.date
+  )
+  const workingIntervals = exception
+    ? exception.intervals
+    : input.rules.filter(
+        (rule) =>
+          rule.providerId === provider.id && rule.weekday === customerLocalStart.weekday
+      )
+  const workingInterval = workingIntervals.find(
+    (interval) =>
+      interval.startTime <= occupiedLocalStart.time &&
+      interval.endTime >= occupiedLocalEnd.time
+  )
   return {
     ...slot,
     providerPreference: input.preference,
@@ -518,12 +576,22 @@ const quoteFor = (
       (sum, service) => sum + service.durationMinutes,
       0
     ),
-    occupiedStartsAt: new Date(
-      Date.parse(slot.startsAt) - beforeBufferMinutes * 60_000
-    ).toISOString(),
-    occupiedEndsAt: new Date(
-      Date.parse(slot.endsAt) + afterBufferMinutes * 60_000
-    ).toISOString(),
+    beforeBufferMinutes,
+    afterBufferMinutes,
+    occupiedStartsAt,
+    occupiedEndsAt,
+    merchantTimezone: input.timezone,
+    localDate: occupiedLocalStart.date,
+    localWeekday: occupiedLocalStart.weekday,
+    occupiedLocalStartTime: occupiedLocalStart.time,
+    occupiedLocalEndTime:
+      occupiedLocalEnd.date === occupiedLocalStart.date
+        ? occupiedLocalEnd.time
+        : '24:00',
+    localStartTime: customerLocalStart.time,
+    workingIntervalStartTime: workingInterval?.startTime,
+    workingIntervalEndTime: workingInterval?.endTime,
+    configRevision: input.configRevision,
     currency: snapshots[0]!.currency,
     totalMinor: snapshots.reduce((sum, service) => sum + service.priceMinor, 0)
   }
@@ -660,7 +728,8 @@ const seedInputs = (
       minimumNoticeMinutes: 0,
       bookingHorizonDays: BOOKING_AVAILABILITY_HORIZON_DAYS
     },
-    subscriptionAccess: true
+    subscriptionAccess: true,
+    configRevision: 1
   })
 }
 
@@ -864,7 +933,8 @@ const liveInputs = (
       activationRows,
       exceptionRows,
       blockedRows,
-      subscriptionRows
+      subscriptionRows,
+      configRevisionRows
     ] = yield* Effect.all([
       orUnavailable('booking-scheduling')(
         db
@@ -968,6 +1038,13 @@ const liveInputs = (
           .from(merchantSubscriptions)
           .where(eq(merchantSubscriptions.merchantId, row.merchantId))
           .limit(1)
+      ),
+      orUnavailable('booking-scheduling')(
+        db
+          .select({ revision: merchantActivationConfigRevisions.revision })
+          .from(merchantActivationConfigRevisions)
+          .where(eq(merchantActivationConfigRevisions.merchantId, row.merchantId))
+          .limit(1)
       )
     ])
     const policies = activationRows[0]?.bookingPoliciesJson as
@@ -978,6 +1055,12 @@ const liveInputs = (
         }
       | null
       | undefined
+    const decodedServices: SchedulingService[] = []
+    for (const { bookingConfigJson, ...service } of serviceRows) {
+      const buffers = decodePersistedServiceBuffers(bookingConfigJson)
+      if (!buffers) return yield* failure('not_ready')
+      decodedServices.push({ ...service, ...buffers })
+    }
     return {
       merchantId: row.merchantId,
       shopId: row.shopId,
@@ -989,17 +1072,7 @@ const liveInputs = (
       primaryServiceId: row.primaryServiceId,
       additionalServiceIds: additionalRows.map((item) => item.serviceId),
       providers: providerRows,
-      services: serviceRows.map(({ bookingConfigJson, ...service }) => ({
-        ...service,
-        beforeBufferMinutes:
-          typeof bookingConfigJson?.beforeBufferMinutes === 'number'
-            ? bookingConfigJson.beforeBufferMinutes
-            : 0,
-        afterBufferMinutes:
-          typeof bookingConfigJson?.afterBufferMinutes === 'number'
-            ? bookingConfigJson.afterBufferMinutes
-            : 0
-      })),
+      services: decodedServices,
       eligibility: new Set(
         eligibilityRows.map((pair) => eligibilityKey(pair.providerId, pair.serviceId))
       ),
@@ -1036,7 +1109,8 @@ const liveInputs = (
       },
       subscriptionAccess: subscriptionAllowsNewDemand(
         subscriptionRows[0]?.status ?? null
-      )
+      ),
+      configRevision: configRevisionRows[0]?.revision ?? 0
     }
   })
 
@@ -1163,8 +1237,9 @@ const liveHoldParty = (
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN appointments a ON a.provider_id = c2.provider_id AND a.status = 'scheduled' AND COALESCE(json_extract(a.snapshot,'$.occupiedStartsAt'),a.starts_at) < c2.occupied_ends_at AND COALESCE(json_extract(a.snapshot,'$.occupiedEndsAt'),a.ends_at) > c2.occupied_starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN blocked_times b ON b.merchant_id = c2.merchant_id AND b.starts_at < c2.occupied_ends_at AND b.ends_at > c2.occupied_starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 WHERE NOT EXISTS (SELECT 1 FROM merchant_subscriptions s WHERE s.merchant_id = c2.merchant_id AND s.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES})))
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 WHERE COALESCE((SELECT revision FROM merchant_activation_config_revisions r WHERE r.merchant_id=c2.merchant_id),0) <> ?)
           AND EXISTS (SELECT 1 FROM booking_requests r JOIN booking_parties p ON p.id = r.booking_party_id WHERE r.id = c.booking_request_id AND p.booking_session_id = c.booking_session_id AND p.lifecycle = 'active')`,
-      params: [...params, candidateRows.length, command.now]
+      params: [...params, candidateRows.length, command.now, base.configRevision]
     }
     const requestPlaceholders = candidateRows.map(() => '?').join(', ')
     const requestIds = candidateRows.map((item) => item.bookingRequestId)
@@ -1462,7 +1537,9 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                            SELECT 1 FROM blocked_times
                            WHERE merchant_id = ?
                              AND starts_at < ? AND ends_at > ?
-                         )`,
+                         ) AND COALESCE((SELECT revision FROM merchant_activation_config_revisions
+                           WHERE merchant_id=?),0) = ?
+                         `,
                 params: [
                   id,
                   input.merchantId,
@@ -1485,7 +1562,9 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                   quote.occupiedStartsAt ?? slot.startsAt,
                   input.merchantId,
                   quote.occupiedEndsAt ?? slot.endsAt,
-                  quote.occupiedStartsAt ?? slot.startsAt
+                  quote.occupiedStartsAt ?? slot.startsAt,
+                  input.merchantId,
+                  input.configRevision
                 ]
               } satisfies CompiledBatchQuery
               const removePreviousQuery = {

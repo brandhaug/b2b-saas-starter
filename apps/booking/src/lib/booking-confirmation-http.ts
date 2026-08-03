@@ -55,16 +55,15 @@ const handlers = (dependencies: BookingConfirmationHttpDependencies) =>
       const clientKey =
         request.headers['cf-connecting-ip'] ??
         `path:${new URL(request.url, 'https://booking.invalid').pathname}`
-      const credential = readCookieValue(
-        request.headers.cookie,
-        confirmationCookieName(params.routeId)
-      )
-      if (!credential || !CONFIRMATION_TOKEN.test(credential))
-        return Effect.succeed(text('Not found', 404))
-
       return dependencies.takeRead(`calendar:${clientKey}`).pipe(
         Effect.flatMap((allowed) => {
           if (!allowed) return Effect.succeed(text('Too many requests', 429))
+          const credential = readCookieValue(
+            request.headers.cookie,
+            confirmationCookieName(params.routeId)
+          )
+          if (!credential || !CONFIRMATION_TOKEN.test(credential))
+            return Effect.succeed(text('Not found', 404))
           const now = dependencies.now()
           return dependencies
             .read({

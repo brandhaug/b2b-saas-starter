@@ -1298,7 +1298,6 @@ export function ServerBackedBookingFlow({
         locale={locale}
         messages={{
           chooseLocation: message('selection.choose_location'),
-          chooseProvider: message('selection.choose_provider'),
           chooseService: message('selection.choose_service'),
           allCategories: message('selection.all_categories'),
           uncategorized: message('selection.uncategorized'),
@@ -1313,34 +1312,8 @@ export function ServerBackedBookingFlow({
           nearbyUnavailable: message('selection.nearby_unavailable'),
           noLocationMatches: message('selection.no_location_matches'),
           sourceLanguage: message('feedback.source_language'),
-          anyProvider: message('selection.any_provider'),
-          providerAvailable: message('selection.provider_available'),
-          providerNotAvailable: message('selection.provider_not_available'),
-          providerRestricted: message('selection.provider_restricted'),
           appointmentAt: message('label.appointment_at'),
           durationMinutesShort: message('label.duration_minutes_short'),
-          providerCards: {
-            anyProvider: {
-              titleLines: [
-                message('selection.choose_service_first_line_1'),
-                message('selection.choose_service_first_line_2')
-              ],
-              subtitleLines: [
-                message('selection.any_provider_line_1'),
-                message('selection.any_provider_line_2')
-              ]
-            },
-            giftCard: {
-              titleLines: [
-                message('selection.gift_card_title_line_1'),
-                message('selection.gift_card_title_line_2')
-              ],
-              subtitleLines: [
-                message('selection.gift_card_subtitle_line_1'),
-                message('selection.gift_card_subtitle_line_2')
-              ]
-            }
-          },
           noServicesTitle: message('selection.no_services_title'),
           noServicesCopy: message('selection.no_services_copy'),
           inactiveEntitiesCopy: message('selection.inactive_entities_copy'),

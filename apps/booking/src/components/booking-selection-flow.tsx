@@ -852,14 +852,8 @@ function ServiceCategorySelect({
   )
 }
 
-type LegacyCardCopy = {
-  readonly titleLines: readonly [string, string]
-  readonly subtitleLines: readonly [string, string]
-}
-
 export type BookingSelectionMessages = {
   readonly chooseLocation: string
-  readonly chooseProvider: string
   readonly chooseService: string
   readonly allCategories: string
   readonly uncategorized: string
@@ -874,16 +868,8 @@ export type BookingSelectionMessages = {
   readonly nearbyUnavailable: string
   readonly noLocationMatches: string
   readonly sourceLanguage: string
-  readonly anyProvider: string
-  readonly providerAvailable: string
-  readonly providerNotAvailable: string
-  readonly providerRestricted: string
   readonly appointmentAt: string
   readonly durationMinutesShort: string
-  readonly providerCards: {
-    readonly anyProvider: LegacyCardCopy
-    readonly giftCard: LegacyCardCopy
-  }
   readonly noServicesTitle: string
   readonly noServicesCopy: string
   readonly inactiveEntitiesCopy: string
@@ -892,7 +878,6 @@ export type BookingSelectionMessages = {
 
 const defaultMessages: BookingSelectionMessages = {
   chooseLocation: 'Choose a location',
-  chooseProvider: 'Choose a professional',
   chooseService: 'Choose a service',
   allCategories: 'All categories',
   uncategorized: 'Uncategorized',
@@ -907,22 +892,8 @@ const defaultMessages: BookingSelectionMessages = {
   nearbyUnavailable: 'Nearby locations are unavailable.',
   noLocationMatches: 'No locations match your search.',
   sourceLanguage: 'Shown in the merchant’s original language',
-  anyProvider: 'Book with any professional',
-  providerAvailable: 'Available',
-  providerNotAvailable: 'Not available',
-  providerRestricted: 'This professional requires private access',
   appointmentAt: 'at',
   durationMinutesShort: 'min',
-  providerCards: {
-    anyProvider: {
-      titleLines: ['Choose a', 'service first'],
-      subtitleLines: ['Book with any', 'professional']
-    },
-    giftCard: {
-      titleLines: ['Buy a gift', 'card instead'],
-      subtitleLines: ['Give the gift', 'of grooming']
-    }
-  },
   noServicesTitle: 'No services are bookable',
   noServicesCopy:
     'There are no active services available for your professional choice.',
