@@ -296,17 +296,20 @@ describe('Live Merchant Appointment commands', () => {
       idempotencyKey: 'series-once',
       seriesId: 'aps_operations',
       intervalWeeks: 1,
+      localStartDate: '2026-08-17',
       localStartTime: '12:00',
       occurrences: [
         {
           appointmentId: 'apt_series_one',
+          cadencePosition: 0,
           startsAt: '2026-08-17T09:00:00.000Z',
           endsAt: '2026-08-17T09:45:00.000Z'
         },
         {
           appointmentId: 'apt_series_two',
-          startsAt: '2026-08-24T09:00:00.000Z',
-          endsAt: '2026-08-24T09:45:00.000Z'
+          cadencePosition: 2,
+          startsAt: '2026-08-31T09:00:00.000Z',
+          endsAt: '2026-08-31T09:45:00.000Z'
         }
       ],
       serviceIds: ['svc_operations_cut'],
@@ -342,19 +345,47 @@ describe('Live Merchant Appointment commands', () => {
 
   it('rolls back an entire Series when one member overlaps a current commitment', async () => {
     await expect(
+      run(
+        Effect.flatMap(MerchantAppointmentCommands, (service) =>
+          service.previewSeries({
+            serviceIds: ['svc_operations_cut'],
+            occurrences: [
+              {
+                cadencePosition: 0,
+                startsAt: '2026-08-10T09:00:00.000Z',
+                endsAt: '2026-08-10T09:45:00.000Z'
+              },
+              {
+                cadencePosition: 1,
+                startsAt: '2026-08-17T09:00:00.000Z',
+                endsAt: '2026-08-17T09:45:00.000Z'
+              }
+            ]
+          })
+        )
+      )
+    ).resolves.toEqual([
+      { cadencePosition: 0, status: 'conflict' },
+      { cadencePosition: 1, status: 'available' }
+    ])
+
+    await expect(
       execute({
         kind: 'create_series',
         idempotencyKey: 'series-conflict',
         intervalWeeks: 1,
+        localStartDate: '2026-08-10',
         localStartTime: '12:00',
         occurrences: [
           {
             appointmentId: 'apt_series_conflict',
+            cadencePosition: 0,
             startsAt: '2026-08-10T09:00:00.000Z',
             endsAt: '2026-08-10T09:45:00.000Z'
           },
           {
             appointmentId: 'apt_series_rolled_back',
+            cadencePosition: 1,
             startsAt: '2026-08-17T09:00:00.000Z',
             endsAt: '2026-08-17T09:45:00.000Z'
           }

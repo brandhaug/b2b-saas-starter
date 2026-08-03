@@ -90,10 +90,15 @@ export const MerchantAppointmentCommandSchema = Schema.Union([
     kind: Schema.Literal('create_series'),
     seriesId: Schema.optional(NonEmpty),
     intervalWeeks: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 8 })),
+    localStartDate: Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/)),
     localStartTime: Schema.String.check(Schema.isPattern(/^([01]\d|2[0-3]):[0-5]\d$/)),
     occurrences: Schema.Array(
       Schema.Struct({
         appointmentId: Schema.optional(NonEmpty),
+        cadencePosition: Schema.Int.check(
+          Schema.isBetween({ minimum: 0, maximum: 51 })
+        ),
+        adjusted: Schema.optional(Schema.Boolean),
         startsAt: IsoInstant,
         endsAt: IsoInstant
       })
@@ -177,6 +182,24 @@ export const MerchantAppointmentCommandSchema = Schema.Union([
   })
 ])
 
+export const MerchantAppointmentSeriesPreviewSchema = Schema.Struct({
+  serviceIds: Schema.Array(NonEmpty).check(Schema.isMinLength(1)),
+  occurrences: Schema.Array(
+    Schema.Struct({
+      cadencePosition: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 51 })),
+      startsAt: IsoInstant,
+      endsAt: IsoInstant
+    })
+  ).check(Schema.isMinLength(2), Schema.isMaxLength(52))
+})
+
+export type MerchantAppointmentSeriesPreviewInput =
+  typeof MerchantAppointmentSeriesPreviewSchema.Type
+export type MerchantAppointmentSeriesPreviewResult = readonly {
+  readonly cadencePosition: number
+  readonly status: 'available' | 'warning' | 'conflict'
+}[]
+
 export type AppointmentNotificationChoice =
   | { readonly kind: 'notify' }
   | { readonly kind: 'suppress'; readonly reason: string }
@@ -221,9 +244,12 @@ export type CreateMerchantAppointmentSeries = CommandBase & {
   readonly kind: 'create_series'
   readonly seriesId?: string | undefined
   readonly intervalWeeks: number
+  readonly localStartDate: string
   readonly localStartTime: string
   readonly occurrences: readonly {
     readonly appointmentId?: string | undefined
+    readonly cadencePosition: number
+    readonly adjusted?: boolean | undefined
     readonly startsAt: string
     readonly endsAt: string
   }[]
@@ -361,6 +387,13 @@ type MerchantAppointmentCommandsShape = {
     CapabilityUnavailable,
     MerchantContext
   >
+  readonly previewSeries: (
+    input: MerchantAppointmentSeriesPreviewInput
+  ) => Effect.Effect<
+    MerchantAppointmentSeriesPreviewResult,
+    CapabilityConflict | CapabilityDenied | CapabilityNotFound | CapabilityUnavailable,
+    MerchantContext
+  >
 }
 
 export class MerchantAppointmentCommands extends Context.Service<
@@ -377,7 +410,14 @@ export const SeedMerchantAppointmentCommands: Layer.Layer<MerchantAppointmentCom
           reason: 'seed_mutations_disabled'
         })
       ),
-    history: () => Effect.succeed([])
+    history: () => Effect.succeed([]),
+    previewSeries: () =>
+      Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'merchant-appointment-series-preview',
+          reason: 'seed_mutations_disabled'
+        })
+      )
   })
 
 type ServiceRow = {
@@ -613,22 +653,28 @@ const validateSeriesCadence = (
   command: CreateMerchantAppointmentSeries,
   timezone: string
 ) => {
-  const local = command.occurrences.map((item) =>
-    localOccurrence(item.startsAt, timezone)
-  )
-  const first = local[0]!
-  if (
-    local.some(
-      (item) => item.time !== command.localStartTime || item.weekday !== first.weekday
-    )
-  )
-    throw reject('series_cadence_invalid')
-  for (let index = 1; index < local.length; index += 1) {
-    const prior = Date.parse(`${local[index - 1]!.date}T12:00:00.000Z`)
-    const current = Date.parse(`${local[index]!.date}T12:00:00.000Z`)
-    if ((current - prior) / 86_400_000 !== command.intervalWeeks * 7)
+  let priorPosition = -1
+  for (const occurrence of command.occurrences) {
+    if (occurrence.cadencePosition <= priorPosition)
       throw reject('series_cadence_invalid')
+    priorPosition = occurrence.cadencePosition
+    const expectedDate = addSeriesCalendarDays(
+      command.localStartDate,
+      occurrence.cadencePosition * command.intervalWeeks * 7
+    )
+    const actual = localOccurrence(occurrence.startsAt, timezone)
+    if (
+      (actual.date !== expectedDate || actual.time !== command.localStartTime) &&
+      !occurrence.adjusted
+    )
+      throw reject('series_adjustment_not_declared')
   }
+}
+
+const addSeriesCalendarDays = (date: string, days: number) => {
+  const value = new Date(`${date}T12:00:00.000Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
 }
 
 const requiresScheduleWarning = async (
@@ -1520,6 +1566,59 @@ export const liveMerchantAppointmentCommands = (options?: {
         )
       return {
         execute,
+        previewSeries: (input) =>
+          Effect.flatMap(MerchantContext, (merchant) =>
+            Effect.tryPromise({
+              try: async () => {
+                const actorId = merchant.actorUserId
+                if (!actorId)
+                  throw new CapabilityDenied({ reason: 'owner_session_required' })
+                await assertAccess(raw, merchant.id, actorId, false)
+                const catalog = await loadCatalog(raw, merchant.id, input.serviceIds)
+                return Promise.all(
+                  input.occurrences.map(async (occurrence) => {
+                    const snapshot = makeSnapshot(
+                      merchant.timezone,
+                      { name: 'Preview', email: null, phone: null },
+                      occurrence.startsAt,
+                      occurrence.endsAt,
+                      catalog
+                    )
+                    const conflict = await raw
+                      .prepare(`SELECT 1 conflictFound FROM appointments a
+                        WHERE a.merchant_id = ? AND a.provider_id = ? AND a.status = 'scheduled'
+                        AND COALESCE(json_extract(a.snapshot, '$.occupiedStartsAt'), a.starts_at) < ?
+                        AND COALESCE(json_extract(a.snapshot, '$.occupiedEndsAt'), a.ends_at) > ? LIMIT 1`)
+                      .bind(
+                        merchant.id,
+                        catalog.provider.id,
+                        snapshot.occupiedEndsAt,
+                        snapshot.occupiedStartsAt
+                      )
+                      .first<{ conflictFound: number }>()
+                    const warning = conflict
+                      ? false
+                      : await requiresScheduleWarning(
+                          raw,
+                          merchant.id,
+                          merchant.timezone,
+                          catalog.provider.id,
+                          snapshot
+                        )
+                    return {
+                      cadencePosition: occurrence.cadencePosition,
+                      status: conflict
+                        ? ('conflict' as const)
+                        : warning
+                          ? ('warning' as const)
+                          : ('available' as const)
+                    }
+                  })
+                )
+              },
+              catch: mapFailure
+            })
+          ),
         history: (appointmentId) =>
           Effect.flatMap(MerchantContext, (merchant) =>
             Effect.tryPromise({

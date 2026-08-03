@@ -63,6 +63,7 @@ export const OperationalAppointment = Schema.Struct({
       Schema.Struct({
         id: Schema.String,
         revision: Schema.Int,
+        externalCollectionNetMinor: Schema.Int,
         status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show'])
       })
     )
@@ -72,6 +73,7 @@ export const OperationalAppointment = Schema.Struct({
       Schema.Struct({
         id: Schema.String,
         revision: Schema.Int,
+        externalCollectionNetMinor: Schema.Int,
         status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show'])
       })
     )
@@ -372,6 +374,7 @@ export const LiveAppointmentOperations: Layer.Layer<
                     .select({
                       id: appointments.id,
                       revision: appointments.version,
+                      externalCollectionNetMinor: sql<number>`COALESCE((SELECT SUM(CASE ec.kind WHEN 'collection' THEN ec.amount_minor ELSE -ec.amount_minor END) FROM external_collections ec WHERE ec.merchant_id = ${appointments.merchantId} AND ec.appointment_id = ${appointments.id}), 0)`,
                       status: appointments.status
                     })
                     .from(appointments)
@@ -393,6 +396,7 @@ export const LiveAppointmentOperations: Layer.Layer<
                     .select({
                       id: appointments.id,
                       revision: appointments.version,
+                      externalCollectionNetMinor: sql<number>`COALESCE((SELECT SUM(CASE ec.kind WHEN 'collection' THEN ec.amount_minor ELSE -ec.amount_minor END) FROM external_collections ec WHERE ec.merchant_id = ${appointments.merchantId} AND ec.appointment_id = ${appointments.id}), 0)`,
                       status: appointments.status
                     })
                     .from(appointments)

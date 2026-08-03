@@ -40,7 +40,10 @@ import { decodeCalendarDate } from '@/lib/appointment-calendar-date.ts'
 import { searchCustomerRecords } from '@/lib/server/customer-directory.ts'
 import { getMerchantCatalog } from '@/lib/server/merchant-catalog.ts'
 import { getAppointmentAvailability } from '@/lib/server/scheduling.ts'
-import { runAppointmentCommand } from '@/lib/server/appointment-operations.ts'
+import {
+  previewAppointmentSeries,
+  runAppointmentCommand
+} from '@/lib/server/appointment-operations.ts'
 import {
   MobileAppointmentAddClient,
   MobileAppointmentClientPicker
@@ -235,8 +238,14 @@ function NewAppointmentSheetSurface({
   const [seriesFoldChoices, setSeriesFoldChoices] = useState<
     Readonly<Record<number, 0 | 1>>
   >({})
+  const excludedSeriesIndexSet = new Set(excludedSeriesIndices)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'failed'>('idle')
   const [saveError, setSaveError] = useState('')
+  const [seriesPreview, setSeriesPreview] = useState<
+    Readonly<Record<number, 'available' | 'warning' | 'conflict'>>
+  >({})
+  const [seriesWarningsAcknowledged, setSeriesWarningsAcknowledged] = useState(false)
+  const [seriesOverrideReason, setSeriesOverrideReason] = useState('')
   const [recurrencePickerOpen, setRecurrencePickerOpen] = useState(false)
   const [appointmentNote, setAppointmentNote] = useState('')
   const [clientNote, setClientNote] = useState('')
@@ -264,6 +273,47 @@ function NewAppointmentSheetSurface({
   const desktopSubstepFrameRef = useRef<number | null>(null)
   const desktopSubstepTimerRef = useRef<number | null>(null)
 
+  const checkSeriesPreview = async () => {
+    if (!selectedService || !availability || !effectiveSelectedTime) return
+    setSaveError('')
+    try {
+      const localTime = appointmentTimes(availability, selectedDate).find(
+        (time) => time.instant === effectiveSelectedTime
+      )?.value
+      if (!localTime) return
+      const occurrences = Array.from(
+        { length: repeatCount },
+        (_, index) => index
+      ).flatMap((index) => {
+        if (excludedSeriesIndexSet.has(index)) return []
+        const date =
+          seriesDateOverrides[index] ??
+          addDraftCalendarDays(selectedDate, index * (repeatEveryWeeks ?? 1) * 7)
+        const candidates = civilTimeInstants(date, localTime, availability.timezone)
+        const startsAt = candidates[seriesFoldChoices[index] ?? 0]?.toISOString()
+        if (!startsAt)
+          throw new Error(`Resolve the local time for occurrence ${index + 1}.`)
+        return {
+          cadencePosition: index,
+          startsAt,
+          endsAt: new Date(
+            Date.parse(startsAt) + durationMinutes * 60_000
+          ).toISOString()
+        }
+      })
+      const result = await previewAppointmentSeries({
+        data: { serviceIds: [selectedService.id], occurrences }
+      })
+      setSeriesPreview(
+        Object.fromEntries(result.map((entry) => [entry.cadencePosition, entry.status]))
+      )
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : 'Series preview could not be checked.'
+      )
+    }
+  }
+
   const saveAppointment = async () => {
     if (!selectedClient || !selectedService || !effectiveSelectedTime || !availability)
       return
@@ -274,29 +324,33 @@ function NewAppointmentSheetSurface({
     )?.value
     try {
       if (repeatEveryWeeks && localTime) {
-        const occurrences = Array.from({ length: repeatCount }, (_, index) => index)
-          .filter((index) => !excludedSeriesIndices.includes(index))
-          .map((index) => {
-            const date =
-              seriesDateOverrides[index] ??
-              addDraftCalendarDays(selectedDate, index * repeatEveryWeeks * 7)
-            const candidates = civilTimeInstants(date, localTime, availability.timezone)
-            if (candidates.length === 0)
-              throw new Error(
-                `${date} ${localTime} does not exist because of a timezone change. Adjust or exclude that occurrence.`
-              )
-            if (candidates.length > 1 && seriesFoldChoices[index] === undefined)
-              throw new Error(
-                `${date} ${localTime} is ambiguous. Choose the earlier or later instant in the preview.`
-              )
-            const startsAt = candidates[seriesFoldChoices[index] ?? 0]!.toISOString()
-            return {
-              startsAt,
-              endsAt: new Date(
-                Date.parse(startsAt) + durationMinutes * 60_000
-              ).toISOString()
-            }
-          })
+        const occurrences = Array.from(
+          { length: repeatCount },
+          (_, index) => index
+        ).flatMap((index) => {
+          if (excludedSeriesIndexSet.has(index)) return []
+          const date =
+            seriesDateOverrides[index] ??
+            addDraftCalendarDays(selectedDate, index * repeatEveryWeeks * 7)
+          const candidates = civilTimeInstants(date, localTime, availability.timezone)
+          if (candidates.length === 0)
+            throw new Error(
+              `${date} ${localTime} does not exist because of a timezone change. Adjust or exclude that occurrence.`
+            )
+          if (candidates.length > 1 && seriesFoldChoices[index] === undefined)
+            throw new Error(
+              `${date} ${localTime} is ambiguous. Choose the earlier or later instant in the preview.`
+            )
+          const startsAt = candidates[seriesFoldChoices[index] ?? 0]!.toISOString()
+          return {
+            cadencePosition: index,
+            ...(seriesDateOverrides[index] ? { adjusted: true } : {}),
+            startsAt,
+            endsAt: new Date(
+              Date.parse(startsAt) + durationMinutes * 60_000
+            ).toISOString()
+          }
+        })
         if (occurrences.length < 2)
           throw new Error('A series requires at least two included Appointments.')
         await runAppointmentCommand({
@@ -304,6 +358,7 @@ function NewAppointmentSheetSurface({
             kind: 'create_series',
             idempotencyKey: crypto.randomUUID(),
             intervalWeeks: repeatEveryWeeks,
+            localStartDate: selectedDate,
             localStartTime: localTime,
             occurrences,
             serviceIds: [selectedService.id],
@@ -316,6 +371,14 @@ function NewAppointmentSheetSurface({
               phone: selectedClient.phone,
               ...(clientNote ? { note: clientNote } : {})
             },
+            ...(seriesWarningsAcknowledged
+              ? {
+                  warningAcknowledged: true,
+                  ...(seriesOverrideReason.trim()
+                    ? { overrideReason: seriesOverrideReason }
+                    : {})
+                }
+              : {}),
             ...(mode === 'record-completed'
               ? {}
               : {
@@ -620,6 +683,9 @@ function NewAppointmentSheetSurface({
       excludedSeriesIndices={excludedSeriesIndices}
       seriesDateOverrides={seriesDateOverrides}
       seriesFoldChoices={seriesFoldChoices}
+      seriesPreview={seriesPreview}
+      seriesWarningsAcknowledged={seriesWarningsAcknowledged}
+      seriesOverrideReason={seriesOverrideReason}
       appointmentNote={appointmentNote}
       clientNote={clientNote}
       availability={availability}
@@ -678,6 +744,11 @@ function NewAppointmentSheetSurface({
       onChooseSeriesFold={(index, choice) =>
         setSeriesFoldChoices((current) => ({ ...current, [index]: choice }))
       }
+      onCheckSeriesPreview={() => void checkSeriesPreview()}
+      onToggleSeriesWarningsAcknowledgement={() =>
+        setSeriesWarningsAcknowledged((current) => !current)
+      }
+      onChangeSeriesOverrideReason={setSeriesOverrideReason}
       onEditAppointmentNote={() => openStep('appointment-notes', 'appointment-notes')}
       onEditClientNote={() => openStep('client-notes', 'client-notes')}
       onToggleNotify={() => setNotifyCustomer((current) => !current)}
@@ -1009,6 +1080,9 @@ function AppointmentDraft({
   excludedSeriesIndices,
   seriesDateOverrides,
   seriesFoldChoices,
+  seriesPreview,
+  seriesWarningsAcknowledged,
+  seriesOverrideReason,
   appointmentNote,
   clientNote,
   availability,
@@ -1039,6 +1113,9 @@ function AppointmentDraft({
   onToggleSeriesOccurrence,
   onChangeSeriesOccurrenceDate,
   onChooseSeriesFold,
+  onCheckSeriesPreview,
+  onToggleSeriesWarningsAcknowledgement,
+  onChangeSeriesOverrideReason,
   onEditAppointmentNote,
   onEditClientNote,
   onToggleNotify,
@@ -1056,6 +1133,9 @@ function AppointmentDraft({
   readonly excludedSeriesIndices: readonly number[]
   readonly seriesDateOverrides: Readonly<Record<number, string>>
   readonly seriesFoldChoices: Readonly<Record<number, 0 | 1>>
+  readonly seriesPreview: Readonly<Record<number, 'available' | 'warning' | 'conflict'>>
+  readonly seriesWarningsAcknowledged: boolean
+  readonly seriesOverrideReason: string
   readonly appointmentNote: string
   readonly clientNote: string
   readonly availability: Availability | null
@@ -1090,6 +1170,9 @@ function AppointmentDraft({
   readonly onToggleSeriesOccurrence: (index: number) => void
   readonly onChangeSeriesOccurrenceDate: (index: number, date: string) => void
   readonly onChooseSeriesFold: (index: number, choice: 0 | 1) => void
+  readonly onCheckSeriesPreview: () => void
+  readonly onToggleSeriesWarningsAcknowledgement: () => void
+  readonly onChangeSeriesOverrideReason: (reason: string) => void
   readonly onEditAppointmentNote: () => void
   readonly onEditClientNote: () => void
   readonly onToggleNotify: () => void
@@ -1108,8 +1191,13 @@ function AppointmentDraft({
       (completionReason.trim() &&
         historicalOverlapAcknowledged &&
         (completionCollectionKind !== 'collected' || Number(completionAmount) > 0))) &&
-    (!repeatEveryWeeks || repeatCount - excludedSeriesIndices.length >= 2)
+    (!repeatEveryWeeks ||
+      (repeatCount - excludedSeriesIndices.length >= 2 &&
+        !Object.values(seriesPreview).includes('conflict') &&
+        (!Object.values(seriesPreview).includes('warning') ||
+          seriesWarningsAcknowledged)))
   )
+  const excludedSeriesIndexSet = new Set(excludedSeriesIndices)
   const desktop = presentation === 'desktop'
 
   return (
@@ -1315,7 +1403,8 @@ function AppointmentDraft({
                       availability && localTime
                         ? civilTimeInstants(date, localTime, availability.timezone)
                         : []
-                    const excluded = excludedSeriesIndices.includes(index)
+                    const excluded = excludedSeriesIndexSet.has(index)
+                    const previewStatus = seriesPreview[index]
                     return (
                       <li
                         key={index}
@@ -1323,6 +1412,7 @@ function AppointmentDraft({
                       >
                         <span className={excluded ? 'line-through opacity-60' : ''}>
                           {index + 1}. {formatDraftDate(date)}
+                          {previewStatus ? ` · ${previewStatus}` : ''}
                         </span>
                         <button
                           type="button"
@@ -1369,6 +1459,36 @@ function AppointmentDraft({
                     )
                   })}
                 </ol>
+                <button
+                  type="button"
+                  className="mt-3 ml-9 rounded-lg border px-3 py-2 text-sm font-semibold"
+                  onClick={onCheckSeriesPreview}
+                >
+                  Check warnings and conflicts
+                </button>
+                {Object.values(seriesPreview).includes('warning') ? (
+                  <div className="mt-3 ml-9 grid gap-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={seriesWarningsAcknowledged}
+                        onChange={onToggleSeriesWarningsAcknowledgement}
+                      />
+                      Acknowledge all warned occurrences
+                    </label>
+                    {seriesWarningsAcknowledged ? (
+                      <input
+                        aria-label="Series override reason"
+                        value={seriesOverrideReason}
+                        onChange={(event) =>
+                          onChangeSeriesOverrideReason(event.target.value)
+                        }
+                        placeholder="Optional shared private reason"
+                        className="h-9 rounded-lg border bg-background px-2"
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>

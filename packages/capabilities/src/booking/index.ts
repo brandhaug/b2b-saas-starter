@@ -149,6 +149,7 @@ export {
   LiveMerchantAppointmentCommands,
   MerchantAppointmentCommands,
   MerchantAppointmentCommandSchema,
+  MerchantAppointmentSeriesPreviewSchema,
   SeedMerchantAppointmentCommands
 } from './merchant-appointment-commands.ts'
 export type {
@@ -162,6 +163,8 @@ export type {
   ExternalCollectionMethod,
   MerchantAppointmentCommand,
   MerchantAppointmentCommandResult,
+  MerchantAppointmentSeriesPreviewInput,
+  MerchantAppointmentSeriesPreviewResult,
   MerchantAppointmentCustomer,
   RescheduleMerchantAppointment,
   SetMerchantAppointmentOutcome

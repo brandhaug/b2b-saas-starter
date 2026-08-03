@@ -19,14 +19,18 @@ export function AppointmentOperationsPanel({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [customerName, setCustomerName] = useState(
-    appointment.snapshot.customerDetails.name
+    () => appointment.snapshot.customerDetails.name
   )
   const [customerEmail, setCustomerEmail] = useState(
-    appointment.snapshot.customerDetails.email
+    () => appointment.snapshot.customerDetails.email
   )
   const [customerPhone, setCustomerPhone] = useState(
-    appointment.snapshot.customerDetails.phone ?? ''
+    () => appointment.snapshot.customerDetails.phone ?? ''
   )
+  const [destinationNotification, setDestinationNotification] = useState<
+    'notify' | 'suppress'
+  >('notify')
+  const [outcomeCorrectionReason, setOutcomeCorrectionReason] = useState('')
   const [rescheduleLocal, setRescheduleLocal] = useState(() =>
     localDateTimeValue(appointment.startsAt, appointment.snapshot.merchantTimezone)
   )
@@ -46,7 +50,7 @@ export function AppointmentOperationsPanel({
   const [cancellationNote, setCancellationNote] = useState('')
   const [cancellationMessage, setCancellationMessage] = useState('')
   const [cancellationNotify, setCancellationNotify] = useState(true)
-  const [returnOnCancellation, setReturnOnCancellation] = useState(false)
+  const [returnedAppointmentIds, setReturnedAppointmentIds] = useState<string[]>([])
   const [collectionAmount, setCollectionAmount] = useState('')
   const [collectionKind, setCollectionKind] = useState<'collection' | 'return'>(
     'collection'
@@ -90,6 +94,19 @@ export function AppointmentOperationsPanel({
     }
   }, [appointment.status])
   const revision = appointment.revision ?? 1
+  const cancellationMembers = [
+    {
+      id: appointment.id,
+      externalCollectionNetMinor: appointment.externalCollectionNetMinor ?? 0
+    },
+    ...(appointment.seriesMembers ?? []),
+    ...(appointment.partyMembers ?? [])
+  ].filter(
+    (member, index, members) =>
+      member.externalCollectionNetMinor > 0 &&
+      members.findIndex((candidate) => candidate.id === member.id) === index
+  )
+  const returnedAppointmentIdSet = new Set(returnedAppointmentIds)
 
   const execute = async (command: MerchantAppointmentCommand) => {
     setPending(true)
@@ -160,11 +177,15 @@ export function AppointmentOperationsPanel({
     category: cancellationCategory,
     ...(cancellationNote.trim() ? { privateNote: cancellationNote } : {}),
     ...(cancellationMessage.trim() ? { customerMessage: cancellationMessage } : {}),
-    ...(returnOnCancellation && (appointment.externalCollectionNetMinor ?? 0) > 0
+    ...(returnedAppointmentIds.length > 0
       ? {
-          returnedAmounts: {
-            [appointment.id]: appointment.externalCollectionNetMinor ?? 0
-          }
+          returnedAmounts: Object.fromEntries(
+            cancellationMembers.flatMap((member) =>
+              returnedAppointmentIdSet.has(member.id)
+                ? [[member.id, member.externalCollectionNetMinor] as const]
+                : []
+            )
+          )
         }
       : {}),
     notification: cancellationNotify
@@ -198,6 +219,17 @@ export function AppointmentOperationsPanel({
             onChange={(event) => setCustomerName(event.target.value)}
             className="h-10 rounded-lg border bg-background px-3"
           />
+          <select
+            aria-label="Changed destination notification choice"
+            value={destinationNotification}
+            onChange={(event) =>
+              setDestinationNotification(event.target.value as 'notify' | 'suppress')
+            }
+            className="h-10 rounded-lg border bg-background px-3"
+          >
+            <option value="notify">Offer fresh Confirmation link</option>
+            <option value="suppress">Don't notify — customer already knows</option>
+          </select>
           <input
             aria-label="Customer email"
             type="email"
@@ -223,7 +255,13 @@ export function AppointmentOperationsPanel({
                   email: customerEmail || null,
                   phone: customerPhone || null
                 },
-                notification: { kind: 'notify' }
+                notification:
+                  destinationNotification === 'notify'
+                    ? { kind: 'notify' }
+                    : {
+                        kind: 'suppress',
+                        reason: 'Customer already knows.'
+                      }
               })
             }
           >
@@ -254,18 +292,21 @@ export function AppointmentOperationsPanel({
                   {appointment.snapshot.currency}
                 </option>
               ) : null}
-              {catalogServices
-                .filter((service) => service.id !== currentPrimaryService?.id)
-                .map((service) => (
+              {catalogServices.map((service) =>
+                service.id === currentPrimaryService?.id ? null : (
                   <option key={service.id} value={service.id}>
                     {service.name} — {(service.priceMinor / 100).toFixed(2)}{' '}
                     {service.currency}
                   </option>
-                ))}
+                )
+              )}
             </select>
             <p className="text-xs text-muted-foreground">
-              Current: {new Date(appointment.startsAt).toLocaleString()} ·{' '}
-              {(appointment.snapshot.totalMinor / 100).toFixed(2)}{' '}
+              Current:{' '}
+              {new Date(appointment.startsAt).toLocaleString('en-GB', {
+                timeZone: appointment.snapshot.merchantTimezone
+              })}{' '}
+              · {(appointment.snapshot.totalMinor / 100).toFixed(2)}{' '}
               {appointment.snapshot.currency}. Proposed time and any selected current
               Service will be revalidated atomically.
             </p>
@@ -422,35 +463,56 @@ export function AppointmentOperationsPanel({
               />
               Notify customer
             </label>
-            {(appointment.externalCollectionNetMinor ?? 0) > 0 ? (
-              <label className="flex items-center gap-2 text-sm">
+            {cancellationMembers.map((member) => (
+              <label key={member.id} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={returnOnCancellation}
-                  onChange={(event) => setReturnOnCancellation(event.target.checked)}
+                  checked={returnedAppointmentIdSet.has(member.id)}
+                  onChange={() =>
+                    setReturnedAppointmentIds((current) => {
+                      const next = new Set(current)
+                      if (next.has(member.id)) next.delete(member.id)
+                      else next.add(member.id)
+                      return [...next]
+                    })
+                  }
                 />
-                Value was actually returned; append a matching Returned fact
+                {member.id}: value actually returned (
+                {(member.externalCollectionNetMinor / 100).toFixed(2)}{' '}
+                {appointment.snapshot.currency})
               </label>
-            ) : null}
+            ))}
           </fieldset>
         ) : null}
 
         {appointment.status === 'completed' || appointment.status === 'no_show' ? (
-          <CommandButton
-            onClick={() =>
-              void execute({
-                kind: 'correct_outcome',
-                idempotencyKey: crypto.randomUUID(),
-                appointmentId: appointment.id,
-                expectedRevision: revision,
-                outcome: appointment.status === 'completed' ? 'no_show' : 'completed',
-                reason: 'Owner corrected the recorded service outcome.'
-              })
-            }
-          >
-            Correct outcome to{' '}
-            {appointment.status === 'completed' ? 'No Show' : 'Completed'}
-          </CommandButton>
+          <fieldset disabled={pending} className="grid gap-2 rounded-xl border p-3">
+            <legend className="px-1 text-sm font-medium">Outcome correction</legend>
+            <textarea
+              aria-label="Outcome correction reason"
+              value={outcomeCorrectionReason}
+              onChange={(event) => setOutcomeCorrectionReason(event.target.value)}
+              placeholder="Required true correction reason"
+              className="min-h-20 rounded-lg border bg-background p-3"
+            />
+            <CommandButton
+              onClick={() => {
+                if (!outcomeCorrectionReason.trim())
+                  return setError('Enter the outcome correction reason.')
+                void execute({
+                  kind: 'correct_outcome',
+                  idempotencyKey: crypto.randomUUID(),
+                  appointmentId: appointment.id,
+                  expectedRevision: revision,
+                  outcome: appointment.status === 'completed' ? 'no_show' : 'completed',
+                  reason: outcomeCorrectionReason
+                })
+              }}
+            >
+              Correct outcome to{' '}
+              {appointment.status === 'completed' ? 'No Show' : 'Completed'}
+            </CommandButton>
+          </fieldset>
         ) : null}
 
         {appointment.seriesId &&
@@ -462,11 +524,7 @@ export function AppointmentOperationsPanel({
                 kind: 'cancel_remaining_series',
                 idempotencyKey: crypto.randomUUID(),
                 seriesId: appointment.seriesId!,
-                expectedRevisions: Object.fromEntries(
-                  appointment
-                    .seriesMembers!.filter((member) => member.status === 'scheduled')
-                    .map((member) => [member.id, member.revision])
-                ),
+                expectedRevisions: scheduledRevisions(appointment.seriesMembers!),
                 ...cancellationFacts()
               })
             }
@@ -484,11 +542,7 @@ export function AppointmentOperationsPanel({
                 kind: 'cancel_party',
                 idempotencyKey: crypto.randomUUID(),
                 bookingPartyId: appointment.bookingPartyId!,
-                expectedRevisions: Object.fromEntries(
-                  appointment
-                    .partyMembers!.filter((member) => member.status === 'scheduled')
-                    .map((member) => [member.id, member.revision])
-                ),
+                expectedRevisions: scheduledRevisions(appointment.partyMembers!),
                 ...cancellationFacts()
               })
             }
@@ -603,7 +657,10 @@ export function AppointmentOperationsPanel({
               className="border-l-2 pl-3"
             >
               {entry.command} · revision {entry.priorRevision} →{' '}
-              {entry.resultingRevision} · {new Date(entry.occurredAt).toLocaleString()}
+              {entry.resultingRevision} ·{' '}
+              {new Date(entry.occurredAt).toLocaleString('en-GB', {
+                timeZone: appointment.snapshot.merchantTimezone
+              })}
             </li>
           ))}
         </ol>
@@ -645,4 +702,13 @@ function localDateTimeValue(instant: string, timezone: string) {
   const read = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? ''
   return `${read('year')}-${read('month')}-${read('day')}T${read('hour')}:${read('minute')}`
+}
+
+function scheduledRevisions(
+  members: readonly { id: string; revision: number; status: string }[]
+) {
+  const revisions: Record<string, number> = {}
+  for (const member of members)
+    if (member.status === 'scheduled') revisions[member.id] = member.revision
+  return revisions
 }

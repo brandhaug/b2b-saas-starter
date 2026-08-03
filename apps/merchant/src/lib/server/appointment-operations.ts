@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 import {
   MerchantAppointmentCommandSchema,
+  MerchantAppointmentSeriesPreviewSchema,
   type AppointmentDetailResult,
   type AppointmentOperationHistoryEntry,
   type MerchantAppointmentCommandResult
@@ -9,6 +10,7 @@ import {
 import { runMerchantRequest } from './merchant-session.ts'
 import {
   executeAppointmentCommand,
+  previewAppointmentSeries as previewAppointmentSeriesOnServer,
   readAppointmentDetail,
   readAppointmentHistory
 } from './appointment-operations.server.ts'
@@ -44,4 +46,12 @@ export const getAppointmentHistory = createServerFn({ method: 'GET' })
       runMerchantRequest('appointment.read', (session) =>
         readAppointmentHistory(session.user.id, data.appointmentId)
       )
+  )
+
+export const previewAppointmentSeries = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(MerchantAppointmentSeriesPreviewSchema))
+  .handler(({ data }) =>
+    runMerchantRequest('appointment.update', (session) =>
+      previewAppointmentSeriesOnServer(session.user.id, data)
+    )
   )

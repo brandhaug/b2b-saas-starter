@@ -4,7 +4,8 @@ import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
   AppointmentOperations,
   MerchantAppointmentCommands,
-  type MerchantAppointmentCommand
+  type MerchantAppointmentCommand,
+  type MerchantAppointmentSeriesPreviewInput
 } from '@b2b-saas-starter/capabilities/booking'
 import {
   liveMerchantContext,
@@ -70,5 +71,16 @@ export const readAppointmentHistory = (userId: string, appointmentId: string) =>
     userId,
     Effect.flatMap(MerchantAppointmentCommands, (operations) =>
       operations.history(appointmentId)
+    )
+  )
+
+export const previewAppointmentSeries = (
+  userId: string,
+  input: MerchantAppointmentSeriesPreviewInput
+) =>
+  run(
+    userId,
+    Effect.flatMap(MerchantAppointmentCommands, (operations) =>
+      operations.previewSeries(input)
     )
   )
