@@ -1,51 +1,13 @@
-import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
+import {
+  customerRecordMatchesQuery,
+  type CustomerRecord
+} from '@b2b-saas-starter/capabilities/customer-directory'
 
 export type CustomerDirectoryView = {
   readonly entries: readonly CustomerRecord[]
 }
 
 type CustomerEntry = CustomerRecord
-
-type SearchEvidence = {
-  readonly value: string | null
-  readonly kind: 'text' | 'phone'
-}
-
-const searchEvidence = (entry: CustomerEntry): readonly SearchEvidence[] => [
-  { value: entry.displayName, kind: 'text' },
-  { value: entry.preferredEmail, kind: 'text' },
-  { value: entry.preferredPhone, kind: 'phone' },
-  ...entry.contacts.map((contact) => ({
-    value: contact.value,
-    kind: contact.kind === 'phone' ? ('phone' as const) : ('text' as const)
-  })),
-  ...entry.observations.flatMap((observation) => [
-    { value: observation.details.name, kind: 'text' as const },
-    { value: observation.details.email, kind: 'text' as const },
-    { value: observation.details.phone, kind: 'phone' as const }
-  ])
-]
-
-export const customerRecordMatchesQuery = (
-  entry: CustomerEntry,
-  query: string
-): boolean => {
-  const normalizedQuery = query.trim().toLocaleLowerCase()
-  if (!normalizedQuery) return true
-  const queryDigits = normalizedQuery.replace(/\D/g, '')
-  const isPhoneQuery = /^[\d\s()+.-]+$/.test(normalizedQuery) && queryDigits.length >= 3
-  return searchEvidence(entry)
-    .filter((evidence): evidence is SearchEvidence & { readonly value: string } =>
-      Boolean(evidence.value)
-    )
-    .some(
-      (evidence) =>
-        evidence.value.toLocaleLowerCase().includes(normalizedQuery) ||
-        (evidence.kind === 'phone' &&
-          isPhoneQuery &&
-          evidence.value.replace(/\D/g, '').includes(queryDigits))
-    )
-}
 
 export const filterCustomerEntries = (
   entries: readonly CustomerEntry[],

@@ -1,5 +1,7 @@
-import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
-import { customerRecordMatchesQuery } from '@/features/customers/customer-contact-model.ts'
+import {
+  customerRecordMatchesQuery,
+  type CustomerRecord
+} from '@b2b-saas-starter/capabilities/customer-directory'
 
 export type AppointmentClient = {
   readonly id: string

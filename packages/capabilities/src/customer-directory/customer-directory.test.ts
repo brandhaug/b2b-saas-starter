@@ -101,6 +101,10 @@ describe('Customer Directory contract', () => {
         })
       )
     )
+    const formattedPhoneSearch = await execute(
+      'mer_one',
+      Effect.flatMap(CustomerDirectory, (service) => service.search('+40.721.234.567'))
+    )
 
     expect(matched.record.id).toBe(first.record.id)
     expect(conflict.record.id).not.toBe(first.record.id)
@@ -109,6 +113,7 @@ describe('Customer Directory contract', () => {
       phoneOwner.record.id
     ])
     expect(otherMerchant.record.id).not.toBe(first.record.id)
+    expect(formattedPhoneSearch.map(({ id }) => id)).toContain(first.record.id)
     expect(first.record.observations[0]?.details).toEqual({
       name: 'Ana Popescu',
       email: 'ana@example.com',
@@ -284,6 +289,60 @@ describe('Customer Directory contract', () => {
       revision: 1,
       preferredEmail: 'known@example.com'
     })
+  })
+
+  it('replays a contact-status command after the contact moves in a split', async () => {
+    const result = await run(
+      'mer_contact_status_replay_after_split',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_contact_status_source',
+          details: observation({ email: 'ana@example.com', phone: null }),
+          now: '2026-08-01T10:00:00.000Z'
+        })
+        const matched = yield* service.matchOrCreate({
+          appointmentId: 'apt_contact_status_moved',
+          details: observation({ email: 'ana@example.com', phone: '+40722000000' }),
+          now: '2026-08-02T10:00:00.000Z'
+        })
+        const command = {
+          expectedRevision: matched.record.revision,
+          idempotencyKey: 'prefer-phone-before-split',
+          actorId: 'usr_owner',
+          kind: 'phone' as const,
+          value: '+40722000000',
+          status: 'active' as const,
+          preferred: true,
+          now: '2026-08-02T11:00:00.000Z'
+        }
+        const first = yield* service.setContactStatus(created.record.id, command)
+        const split = yield* service.split({
+          sourceId: created.record.id,
+          observationIds: [matched.record.observations.at(-1)!.id],
+          expectedRevision: first.revision,
+          idempotencyKey: 'move-phone-contact',
+          actorId: 'usr_owner',
+          createdDetails: {
+            ...matched.record.observations.at(-1)!.details,
+            email: null
+          },
+          contactKeys: [{ kind: 'phone', value: '+40722000000' }],
+          reason: 'Observation belongs to another customer',
+          now: '2026-08-03T10:00:00.000Z'
+        })
+        return {
+          first,
+          replay: yield* service.setContactStatus(created.record.id, command),
+          source: split.source
+        }
+      })
+    )
+
+    expect(result.replay).toEqual(result.first)
+    expect(result.source.contacts).not.toContainEqual(
+      expect.objectContaining({ kind: 'phone', value: '+40722000000' })
+    )
   })
 
   it('reconciles same-destination contact statuses before merge persistence', async () => {

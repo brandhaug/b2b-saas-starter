@@ -87,6 +87,51 @@ export type CustomerRecord = {
   readonly history: readonly CustomerHistory[]
 }
 
+type CustomerSearchEvidence = {
+  readonly value: string | null
+  readonly kind: 'text' | 'phone'
+}
+
+const customerSearchEvidence = (
+  record: CustomerRecord
+): readonly CustomerSearchEvidence[] => [
+  { value: record.displayName, kind: 'text' },
+  { value: record.preferredEmail, kind: 'text' },
+  { value: record.preferredPhone, kind: 'phone' },
+  ...record.contacts.map((contact) => ({
+    value: contact.value,
+    kind: contact.kind === 'phone' ? ('phone' as const) : ('text' as const)
+  })),
+  ...record.observations.flatMap((observation) => [
+    { value: observation.details.name, kind: 'text' as const },
+    { value: observation.details.email, kind: 'text' as const },
+    { value: observation.details.phone, kind: 'phone' as const }
+  ])
+]
+
+export const customerRecordMatchesQuery = (
+  record: CustomerRecord,
+  query: string
+): boolean => {
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  if (!normalizedQuery) return true
+  const queryDigits = normalizedQuery.replace(/\D/g, '')
+  const isPhoneQuery = /^[\d\s()+.-]+$/.test(normalizedQuery) && queryDigits.length >= 3
+
+  return customerSearchEvidence(record)
+    .filter(
+      (evidence): evidence is CustomerSearchEvidence & { readonly value: string } =>
+        Boolean(evidence.value)
+    )
+    .some(
+      (evidence) =>
+        evidence.value.toLocaleLowerCase().includes(normalizedQuery) ||
+        (evidence.kind === 'phone' &&
+          isPhoneQuery &&
+          evidence.value.replace(/\D/g, '').includes(queryDigits))
+    )
+}
+
 export class CustomerDirectoryInvalid extends Schema.TaggedErrorClass<CustomerDirectoryInvalid>()(
   'CustomerDirectoryInvalid',
   {
@@ -493,25 +538,12 @@ export const makeCustomerDirectoryService = (
     search: (query) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
-        const normalizedQuery = query.trim().toLowerCase()
-        const needle = normalizedQuery.replace(/[\s()-]/g, '')
-        const matchesDetails = (details: DirectoryCustomerDetails) =>
-          details.name.toLowerCase().includes(normalizedQuery) ||
-          [details.email, details.phone].some((value) =>
-            value?.replace(/[\s()-]/g, '').includes(needle)
-          )
         return [...store.records.values()]
           .filter(
             (record) =>
               record.merchantId === merchant.id &&
               record.status === 'active' &&
-              (record.displayName.toLowerCase().includes(normalizedQuery) ||
-                record.contacts.some((contact) =>
-                  contact.value.replace(/[\s()-]/g, '').includes(needle)
-                ) ||
-                record.observations.some((observation) =>
-                  matchesDetails(observation.details)
-                ))
+              customerRecordMatchesQuery(record, query)
           )
           .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
       }),
@@ -578,29 +610,16 @@ export const makeCustomerDirectoryService = (
           }
         ]
       })),
-    setContactStatus: (recordId, input) =>
-      Effect.gen(function* () {
-        const merchant = yield* MerchantContext
-        const record = store.records.get(recordId)
-        if (!record || record.merchantId !== merchant.id)
-          return yield* Effect.fail(
-            new CapabilityNotFound({ resource: 'customer-record' })
-          )
-
-        const normalizedValue =
-          input.kind === 'email' ? email(input.value) : phone(input.value)
-        if (
-          !record.contacts.some(
-            (contact) =>
-              contact.kind === input.kind && contact.value === normalizedValue
-          )
-        )
-          return yield* Effect.fail(
-            new CapabilityNotFound({ resource: 'customer-contact' })
-          )
-
-        const becomesPreferred = input.preferred && input.status === 'active'
-        return yield* mutate(store, recordId, input, 'edited', () => ({
+    setContactStatus: (recordId, input) => {
+      const normalizedValue =
+        input.kind === 'email' ? email(input.value) : phone(input.value)
+      const becomesPreferred = input.preferred && input.status === 'active'
+      return mutate(
+        store,
+        recordId,
+        input,
+        'edited',
+        () => ({
           contacts: (record: CustomerRecord) =>
             record.contacts.map((contact) =>
               contact.kind === input.kind && contact.value === normalizedValue
@@ -630,8 +649,17 @@ export const makeCustomerDirectoryService = (
                       ? null
                       : record.preferredPhone
               })
-        }))
-      }),
+        }),
+        null,
+        (record) =>
+          record.contacts.some(
+            (contact) =>
+              contact.kind === input.kind && contact.value === normalizedValue
+          )
+            ? null
+            : new CapabilityNotFound({ resource: 'customer-contact' })
+      )
+    },
     recordConsent: (recordId, input) =>
       mutate(store, recordId, input, 'edited', (input) => ({
         consent: (record: CustomerRecord) =>
@@ -865,7 +893,8 @@ const mutate = <I extends Mutation>(
   input: I,
   kind: CustomerHistory['kind'],
   change: (input: I) => Patch,
-  reason: string | null = null
+  reason: string | null = null,
+  precondition?: (record: CustomerRecord, input: I) => CustomerDirectoryError | null
 ): Effect.Effect<CustomerRecord, CustomerDirectoryError, MerchantContext> =>
   Effect.gen(function* () {
     const merchant = yield* MerchantContext
@@ -889,6 +918,8 @@ const mutate = <I extends Mutation>(
           currentRevision: record.revision
         })
       )
+    const preconditionError = precondition?.(record, input)
+    if (preconditionError) return yield* Effect.fail(preconditionError)
     const revision = record.revision + 1
     const raw = change(input)
     const resolved = Object.fromEntries(
