@@ -33,6 +33,14 @@ type TestMutation = {
   readonly id: string
   readonly values: Readonly<Record<string, string | number | boolean | null>>
 }
+const committedMutation: readonly TestMutation[] = [
+  {
+    operation: 'insert',
+    table: 'foundation_domain_probe',
+    id: 'probe_one',
+    values: { notification_count: 1, financial_minor: 5000 }
+  }
+]
 
 beforeAll(async () => {
   test = await provisionTestD1()
@@ -279,12 +287,12 @@ describe('Live D1 shared capability foundations', () => {
       {
         version: 1,
         kind: 'capability-outbox',
-        outboxId: 'cob_mer_one_appointment_apt_shared_outbox_1'
+        outboxId: 'cob:["mer_one","appointment","apt_shared_outbox",1]'
       },
       {
         version: 1,
         kind: 'capability-outbox',
-        outboxId: 'cob_mer_four_appointment_apt_shared_outbox_1'
+        outboxId: 'cob:["mer_four","appointment","apt_shared_outbox",1]'
       }
     ])
   })
@@ -316,6 +324,47 @@ describe('Live D1 shared capability foundations', () => {
     expect(unknown).toEqual(foreign)
   })
 
+  it('creates distinct outbox work for delimiter-colliding identity components', async () => {
+    const wakeups: QueueWakeup[] = []
+    const publish = async (wakeup: QueueWakeup) => {
+      wakeups.push(wakeup)
+    }
+    await expect(
+      execute(
+        {
+          ...command,
+          capability: 'appointment',
+          aggregateId: 'y_appointment_z',
+          idempotencyKey: 'delimiter_collision_one'
+        },
+        publish
+      )
+    ).resolves.toMatchObject({ revision: 1 })
+    await expect(
+      execute(
+        {
+          ...command,
+          capability: 'appointment_y',
+          aggregateId: 'appointment_z',
+          idempotencyKey: 'delimiter_collision_two'
+        },
+        publish
+      )
+    ).resolves.toMatchObject({ revision: 1 })
+    expect(wakeups).toEqual([
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob:["mer_one","appointment","y_appointment_z",1]'
+      },
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob:["mer_one","appointment_y","appointment_z",1]'
+      }
+    ])
+  })
+
   it('resolves a persisted Owner session and commits the domain mutation with consequences', async () => {
     const wakeups: QueueWakeup[] = []
     const before = {
@@ -329,14 +378,7 @@ describe('Live D1 shared capability foundations', () => {
       async (wakeup) => {
         wakeups.push(wakeup)
       },
-      [
-        {
-          operation: 'insert',
-          table: 'foundation_domain_probe',
-          id: 'probe_one',
-          values: { notification_count: 1, financial_minor: 5000 }
-        }
-      ]
+      committedMutation
     )
     expect(result).toMatchObject({ revision: 1, replayed: false })
     expect(await count('foundation_domain_probe')).toBe(before.domain + 1)
@@ -347,7 +389,7 @@ describe('Live D1 shared capability foundations', () => {
       {
         version: 1,
         kind: 'capability-outbox',
-        outboxId: 'cob_mer_one_appointment_apt_one_1'
+        outboxId: 'cob:["mer_one","appointment","apt_one",1]'
       }
     ])
   })
@@ -355,17 +397,22 @@ describe('Live D1 shared capability foundations', () => {
   it('keeps the commit durable when enqueue fails and republishes on replay', async () => {
     const replayed: QueueWakeup[] = []
     const input = { ...command, aggregateId: 'apt_enqueue', idempotencyKey: 'enqueue' }
+    const mutations: readonly TestMutation[] = [
+      {
+        operation: 'insert',
+        table: 'foundation_domain_probe',
+        id: 'probe_enqueue',
+        values: { notification_count: 1, financial_minor: 0 }
+      }
+    ]
     await expect(
-      execute(input, async () => {
-        throw new Error('queue unavailable')
-      }, [
-        {
-          operation: 'insert',
-          table: 'foundation_domain_probe',
-          id: 'probe_enqueue',
-          values: { notification_count: 1, financial_minor: 0 }
-        }
-      ])
+      execute(
+        input,
+        async () => {
+          throw new Error('queue unavailable')
+        },
+        mutations
+      )
     ).rejects.toMatchObject({ _tag: 'CapabilityUnavailable' })
     expect(
       await test.d1
@@ -373,9 +420,13 @@ describe('Live D1 shared capability foundations', () => {
         .first()
     ).not.toBeNull()
     expect(
-      await execute(input, async (wakeup) => {
-        replayed.push(wakeup)
-      })
+      await execute(
+        input,
+        async (wakeup) => {
+          replayed.push(wakeup)
+        },
+        mutations
+      )
     ).toMatchObject({ replayed: true })
     expect(replayed).toHaveLength(1)
   })
@@ -507,9 +558,36 @@ describe('Live D1 shared capability foundations', () => {
   })
 
   it('enforces idempotency, stale revisions, and first-commit-wins', async () => {
-    expect(await execute(command)).toMatchObject({ replayed: true })
+    expect(await execute(command, async () => {}, committedMutation)).toMatchObject({
+      replayed: true
+    })
     await expect(
       execute({ ...command, payloadFingerprint: 'sha256:changed' })
+    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+    const structural = {
+      ...command,
+      aggregateId: 'apt_structural_replay',
+      idempotencyKey: 'structural_replay',
+      outboxKind: undefined
+    }
+    const structuralDomainInput = { kind: 'test-mutations', payloadJson: '[]' }
+    await expect(
+      execute(structural, async () => {}, [], structuralDomainInput)
+    ).resolves.toMatchObject({ revision: 1 })
+    await expect(
+      execute(
+        { ...structural, aggregateId: 'apt_structural_changed' },
+        async () => {},
+        [],
+        structuralDomainInput
+      )
+    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+    await expect(
+      execute(structural, async () => {}, [], {
+        kind: 'test-mutations',
+        payloadJson:
+          '[{"operation":"delete","table":"foundation_domain_probe","id":"missing"}]'
+      })
     ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
     const base = {
       ...command,
@@ -594,7 +672,7 @@ describe('Live D1 shared capability foundations', () => {
         Effect.provide(
           Effect.flatMap(SharedCapabilityFoundations, (service) =>
             service.process({
-              outboxId: 'cob_mer_one_appointment_apt_process_1',
+              outboxId: 'cob:["mer_one","appointment","apt_process",1]',
               workerId: 'worker-process',
               now: '2026-08-03T09:01:00.000Z',
               staleBefore: '2026-08-03T08:56:00.000Z'
@@ -605,11 +683,11 @@ describe('Live D1 shared capability foundations', () => {
       )
     await process()
     await process()
-    expect(handled).toEqual(['cob_mer_one_appointment_apt_process_1'])
+    expect(handled).toEqual(['cob:["mer_one","appointment","apt_process",1]'])
     expect(
       await test.d1
         .prepare(
-          "SELECT status FROM capability_outbox WHERE id = 'cob_mer_one_appointment_apt_process_1'"
+          `SELECT status FROM capability_outbox WHERE id = 'cob:["mer_one","appointment","apt_process",1]'`
         )
         .first<{ status: string }>()
     ).toEqual({ status: 'processed' })

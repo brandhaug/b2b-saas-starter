@@ -141,12 +141,12 @@ describe('shared capability deterministic contract', () => {
       {
         version: 1,
         kind: 'capability-outbox',
-        outboxId: 'cob_mer_one_test_agg_one_1'
+        outboxId: 'cob:["mer_one","test","agg_one",1]'
       },
       {
         version: 1,
         kind: 'capability-outbox',
-        outboxId: 'cob_mer_two_test_agg_one_1'
+        outboxId: 'cob:["mer_two","test","agg_one",1]'
       }
     ])
   })
@@ -198,6 +198,83 @@ describe('shared capability deterministic contract', () => {
       reason: { _tag: 'CapabilityNotFound', resource: 'merchant-resource' }
     })
     expect(unknown).toEqual(foreign)
+  })
+
+  it('rejects same-key replay when structural command or domain input changes', async () => {
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: new Map([['owner:ses_owner', authority]]),
+      buildDomainMutation: (command) => ({
+        merchantId: command.merchantId,
+        mutations: []
+      })
+    })
+    const run = (
+      command: SharedCommandInput,
+      domainInput: { readonly kind: string; readonly payloadJson: string }
+    ) =>
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(SharedCapabilityFoundations, (service) =>
+            service.execute(command, domainInput)
+          ),
+          layer
+        )
+      )
+    const originalDomainInput = { kind: 'test', payloadJson: '{"value":1}' }
+
+    await run({ ...input, outboxKind: undefined }, originalDomainInput)
+    await expect(
+      run(
+        { ...input, aggregateId: 'agg_changed', outboxKind: undefined },
+        originalDomainInput
+      )
+    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+    await expect(
+      run(
+        { ...input, outboxKind: undefined },
+        { kind: 'test', payloadJson: '{"value":2}' }
+      )
+    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+  })
+
+  it('creates distinct outbox work for delimiter-colliding identity components', async () => {
+    const wakeups: QueueWakeup[] = []
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: new Map([['owner:ses_owner', authority]]),
+      publishWakeup: (wakeup) => wakeups.push(wakeup)
+    })
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const service = yield* SharedCapabilityFoundations
+          yield* service.execute({
+            ...input,
+            capability: 'appointment',
+            aggregateId: 'y_appointment_z',
+            idempotencyKey: 'collision-one'
+          })
+          yield* service.execute({
+            ...input,
+            capability: 'appointment_y',
+            aggregateId: 'appointment_z',
+            idempotencyKey: 'collision-two'
+          })
+        }),
+        layer
+      )
+    )
+    expect(wakeups).toEqual([
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob:["mer_one","appointment","y_appointment_z",1]'
+      },
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob:["mer_one","appointment_y","appointment_z",1]'
+      }
+    ])
   })
 
   it('renders the checked-in matrix from the executable policy inventory', () => {

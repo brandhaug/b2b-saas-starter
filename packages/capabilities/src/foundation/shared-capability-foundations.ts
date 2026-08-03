@@ -188,7 +188,32 @@ const aggregateKey = (input: SharedCommandInput) =>
   `${input.merchantId}:${input.capability}:${input.aggregateId}`
 const nextRevision = (input: SharedCommandInput) => input.expectedRevision + 1
 const outboxId = (input: SharedCommandInput, revision: number) =>
-  `cob_${input.merchantId}_${input.capability}_${input.aggregateId}_${revision}`
+  `cob:${JSON.stringify([
+    input.merchantId,
+    input.capability,
+    input.aggregateId,
+    revision
+  ])}`
+const replayFingerprint = (
+  input: SharedCommandInput,
+  domainInput: DomainMutationRequest | undefined
+) =>
+  JSON.stringify([
+    1,
+    input.merchantId,
+    input.capability,
+    input.aggregateId,
+    input.operation,
+    input.payloadFingerprint,
+    input.expectedRevision,
+    input.resultJson,
+    input.historyKind,
+    input.outboxKind ?? null,
+    input.availableAt ?? null,
+    input.now,
+    domainInput?.kind ?? null,
+    domainInput?.payloadJson ?? null
+  ])
 
 const validateDomainScope = (
   mutation: DomainMutationPlan,
@@ -352,9 +377,10 @@ export const SeedSharedCapabilityFoundations = (
           const domainDenial = validateDomainScope(mutation, authority)
           if (domainDenial) throw domainDenial
           const key = commandKey(decoded)
+          const fingerprint = replayFingerprint(decoded, mutationRequest)
           const existing = commands.get(key)
           if (existing) {
-            if (existing.fingerprint !== decoded.payloadFingerprint)
+            if (existing.fingerprint !== fingerprint)
               throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
             if (decoded.outboxKind)
               options.publishWakeup?.({
@@ -382,7 +408,7 @@ export const SeedSharedCapabilityFoundations = (
           const committedOwners = resourceOwners.get(resourceKey) ?? new Set<string>()
           committedOwners.add(decoded.merchantId)
           resourceOwners.set(resourceKey, committedOwners)
-          commands.set(key, { fingerprint: decoded.payloadFingerprint, result })
+          commands.set(key, { fingerprint, result })
           if (decoded.outboxKind) {
             const id = outboxId(decoded, revision)
             outbox.set(id, {
@@ -693,6 +719,7 @@ export const makeLiveSharedCapabilityFoundations = (
             const domainDenial = validateDomainScope(mutation, authority)
             if (domainDenial) throw domainDenial
             const key = commandKey(decoded)
+            const fingerprint = replayFingerprint(decoded, mutationRequest)
             const old = await raw
               .prepare(
                 'SELECT result_json resultJson, aggregate_id aggregateId, revision, payload_fingerprint fingerprint FROM capability_commands WHERE command_key = ?'
@@ -705,10 +732,15 @@ export const makeLiveSharedCapabilityFoundations = (
                 fingerprint: string
               }>()
             if (old) {
-              if (old.fingerprint !== decoded.payloadFingerprint)
+              if (old.fingerprint !== fingerprint)
                 throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
               if (decoded.outboxKind) await publish(outboxId(decoded, old.revision))
-              return { ...old, replayed: true }
+              return {
+                aggregateId: old.aggregateId,
+                revision: old.revision,
+                replayed: true,
+                resultJson: old.resultJson
+              }
             }
             const current = await raw
               .prepare(
@@ -769,7 +801,7 @@ export const makeLiveSharedCapabilityFoundations = (
                   decoded.merchantId,
                   decoded.capability,
                   decoded.aggregateId,
-                  decoded.payloadFingerprint,
+                  fingerprint,
                   decoded.resultJson,
                   revision,
                   decoded.now
@@ -847,11 +879,16 @@ export const makeLiveSharedCapabilityFoundations = (
                   fingerprint: string
                 }>()
               if (winner) {
-                if (winner.fingerprint !== decoded.payloadFingerprint)
+                if (winner.fingerprint !== fingerprint)
                   throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
                 if (decoded.outboxKind)
                   await publish(outboxId(decoded, winner.revision))
-                return { ...winner, replayed: true }
+                return {
+                  aggregateId: winner.aggregateId,
+                  revision: winner.revision,
+                  replayed: true,
+                  resultJson: winner.resultJson
+                }
               }
               const latest = await raw
                 .prepare(

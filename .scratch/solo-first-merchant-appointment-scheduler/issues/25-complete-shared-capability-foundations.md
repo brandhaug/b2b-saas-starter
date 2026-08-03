@@ -26,6 +26,13 @@ include Merchant identity, so two Merchants can create the same capability aggre
 and atomically emit independent work without a primary-key collision. Seed and real-D1
 contract tests cover both behaviors with outbox delivery enabled.
 
+The follow-up review also hardened the identity formats themselves. Outbox IDs now
+encode the full Merchant/capability/aggregate/revision tuple as canonical JSON rather
+than delimiter-based concatenation, and idempotency records bind a canonical replay
+fingerprint covering the structural command plus decoded domain input. Seed and
+real-D1 tests reject structural or domain-payload changes under a reused key and prove
+adversarial delimiter-shaped identities cannot collide.
+
 ### Final review remediation — 2026-08-03
 
 Closed the last review findings: subscription lifecycle interpretation now remains in
