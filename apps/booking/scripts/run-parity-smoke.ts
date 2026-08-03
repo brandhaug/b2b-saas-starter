@@ -373,41 +373,42 @@ const capture = async (
               )
             return (await response.json()).location as string
           })
-    if (scenario.journey === 'cancellation-refund') {
-      const exchange = await fixtureRequest(
-        new Request(new URL(confirmationLocation, origin))
-      )
-      const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
-      const cleanLocation = exchange.headers.get('location')
-      if (exchange.status !== 303 || !cookie || !cleanLocation)
-        throw new Error('Confirmation token exchange failed')
-      const [cookieName, cookieValue] = cookie.split('=', 2)
-      await context.addCookies([
-        {
-          name: cookieName!,
-          value: cookieValue!,
-          domain: 'localhost',
-          path: new URL(cleanLocation, origin).pathname,
-          httpOnly: true,
-          sameSite: 'Lax'
-        }
-      ])
-      const display = await fixtureRequest(
-        new Request(new URL(cleanLocation, origin), { headers: { cookie } })
-      )
-      const html = await display.text()
-      if (!display.ok)
-        throw new Error(`Protected confirmation failed: ${display.status} ${html}`)
-      const protectedConfirmation = {
-        html,
-        url: new URL(cleanLocation, origin).pathname
+    const exchange = await fixtureRequest(
+      new Request(new URL(confirmationLocation, origin))
+    )
+    const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
+    const cleanLocation = exchange.headers.get('location')
+    if (exchange.status !== 303 || !cookie || !cleanLocation)
+      throw new Error('Confirmation token exchange failed')
+    const [cookieName, cookieValue] = cookie.split('=', 2)
+    await context.addCookies([
+      {
+        name: cookieName!,
+        value: cookieValue!,
+        domain: 'localhost',
+        path: new URL(cleanLocation, origin).pathname,
+        httpOnly: true,
+        sameSite: 'Lax'
       }
-      await page.evaluate(({ html, url }) => {
-        history.replaceState(null, '', url)
-        document.open()
-        document.write(html)
-        document.close()
-      }, protectedConfirmation)
+    ])
+    const display = await fixtureRequest(
+      new Request(new URL(cleanLocation, origin), { headers: { cookie } })
+    )
+    const html = await display.text()
+    if (!display.ok)
+      throw new Error(`Protected confirmation failed: ${display.status} ${html}`)
+    const protectedConfirmation = {
+      html,
+      url: new URL(cleanLocation, origin).pathname
+    }
+    await page.evaluate(({ html, url }) => {
+      history.replaceState(null, '', url)
+      document.open()
+      document.write(html)
+      document.close()
+    }, protectedConfirmation)
+
+    if (scenario.journey === 'cancellation-refund') {
       const cancel = page.getByRole('button', {
         name: new RegExp(
           translateBookingMessage(scenario.locale, 'confirmation.cancel_appointment'),
@@ -477,6 +478,41 @@ const capture = async (
       assertionResults.set(
         'no undeclared network request is made',
         requests.every(({ url }) => url.startsWith(canonicalOrigin))
+      )
+    } else {
+      const scheduledCopy = translateBookingMessage(
+        scenario.locale,
+        'status.appointment_scheduled'
+      )
+      const headingCopy = translateBookingMessage(
+        scenario.locale,
+        'reservation.heading'
+      ).replace('{name}', 'Parity')
+      await page.getByText(scheduledCopy, { exact: true }).waitFor()
+      await page.getByText(headingCopy, { exact: true }).waitFor()
+      assertionResults.set(
+        'provider-free Pay In Person confirms without optional providers',
+        await page.getByText(scheduledCopy, { exact: true }).isVisible()
+      )
+      assertionResults.set(
+        'confirmation token exchanges into protected token-free access',
+        exchange.status === 303 &&
+          new URL(cleanLocation, origin).search.length === 0 &&
+          page.url() === new URL(cleanLocation, origin).toString()
+      )
+      assertionResults.set(
+        'confirmation and recovery copy use the selected locale',
+        (await page.getByText(headingCopy, { exact: true }).isVisible()) &&
+          (await page
+            .getByRole('button', {
+              name: translateBookingMessage(scenario.locale, 'reservation.reschedule')
+            })
+            .isVisible()) &&
+          (await page
+            .getByRole('button', {
+              name: translateBookingMessage(scenario.locale, 'reservation.cancel')
+            })
+            .isVisible())
       )
     }
   } else if (scenario.journey.startsWith('scheduling-')) {
