@@ -1358,6 +1358,7 @@ export const LiveBookingConfirmation = (
                       and(
                         eq(timeSlotHolds.id, item.row.hold.id),
                         gt(timeSlotHolds.expiresAt, input.now),
+                        sql`NOT EXISTS (SELECT 1 FROM appointments conflicting WHERE conflicting.merchant_id = ${timeSlotHolds.merchantId} AND conflicting.provider_id = ${timeSlotHolds.providerId} AND conflicting.status = 'scheduled' AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedStartsAt'), conflicting.starts_at) < COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedEndsAt'), ${timeSlotHolds.endsAt}) AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedEndsAt'), conflicting.ends_at) > COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedStartsAt'), ${timeSlotHolds.startsAt}))`,
                         settlementGuard
                       )
                     )
@@ -1508,6 +1509,27 @@ export const LiveBookingConfirmation = (
                   return yield* Effect.promise(() =>
                     resultsFrom(replayAfterFailure.success, keyring, true)
                   )
+                const finalSlotConflicts = yield* Effect.all(
+                  generated.map((item) =>
+                    orUnavailable('booking-confirmation')(
+                      db
+                        .select({ id: appointments.id })
+                        .from(appointments)
+                        .where(
+                          and(
+                            eq(appointments.merchantId, item.row.hold.merchantId),
+                            eq(appointments.providerId, item.row.hold.providerId),
+                            eq(appointments.status, 'scheduled'),
+                            sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedStartsAt'), ${appointments.startsAt}) < ${item.row.hold.quote.occupiedEndsAt ?? item.row.hold.endsAt}`,
+                            sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedEndsAt'), ${appointments.endsAt}) > ${item.row.hold.quote.occupiedStartsAt ?? item.row.hold.startsAt}`
+                          )
+                        )
+                        .limit(1)
+                    )
+                  )
+                )
+                if (finalSlotConflicts.some((rows) => rows.length > 0))
+                  return yield* rejected('conflict')
                 return yield* new CapabilityUnavailable({
                   capability: 'booking-confirmation',
                   reason: committed.failure.reason
@@ -1668,7 +1690,8 @@ export const LiveBookingConfirmation = (
                   .where(
                     and(
                       eq(timeSlotHolds.id, row.hold.id),
-                      gt(timeSlotHolds.expiresAt, input.now)
+                      gt(timeSlotHolds.expiresAt, input.now),
+                      sql`NOT EXISTS (SELECT 1 FROM appointments conflicting WHERE conflicting.merchant_id = ${timeSlotHolds.merchantId} AND conflicting.provider_id = ${timeSlotHolds.providerId} AND conflicting.status = 'scheduled' AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedStartsAt'), conflicting.starts_at) < COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedEndsAt'), ${timeSlotHolds.endsAt}) AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedEndsAt'), conflicting.ends_at) > COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedStartsAt'), ${timeSlotHolds.startsAt}))`
                     )
                   )
               ),
@@ -1728,6 +1751,22 @@ export const LiveBookingConfirmation = (
               const raced = replayAfterFailure.success[0]
               if (raced)
                 return yield* Effect.promise(() => resultFrom(raced, keyring, true))
+              const finalSlotConflict = yield* orUnavailable('booking-confirmation')(
+                db
+                  .select({ id: appointments.id })
+                  .from(appointments)
+                  .where(
+                    and(
+                      eq(appointments.merchantId, row.hold.merchantId),
+                      eq(appointments.providerId, row.hold.providerId),
+                      eq(appointments.status, 'scheduled'),
+                      sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedStartsAt'), ${appointments.startsAt}) < ${row.hold.quote.occupiedEndsAt ?? row.hold.endsAt}`,
+                      sql`COALESCE(json_extract(${appointments.snapshot}, '$.occupiedEndsAt'), ${appointments.endsAt}) > ${row.hold.quote.occupiedStartsAt ?? row.hold.startsAt}`
+                    )
+                  )
+                  .limit(1)
+              )
+              if (finalSlotConflict.length > 0) return yield* rejected('conflict')
               return yield* new CapabilityUnavailable({
                 capability: 'booking-confirmation',
                 reason: committed.failure.reason

@@ -147,6 +147,7 @@ describe('Booking checkout', () => {
     fireEvent.click(screen.getByRole('button', { name: /Romania/ }))
     expect(countryButton.getAttribute('aria-label')).toContain('Romania +40')
     expect(screen.getByTestId('input:email')).toBeTruthy()
+    expect(screen.getByTestId('input:customerNote')).toBeTruthy()
     expect(screen.getByText('Summary')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Book' }))
     expect(submit).not.toHaveBeenCalled()
@@ -170,11 +171,15 @@ describe('Booking checkout', () => {
     fireEvent.change(screen.getByTestId('input:email'), {
       target: { value: 'mara@example.com' }
     })
+    fireEvent.change(screen.getByTestId('input:customerNote'), {
+      target: { value: 'Please avoid scented products.' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Book' }))
     expect(submit).toHaveBeenCalledWith({
       name: 'Mara Ionescu',
       email: 'mara@example.com',
-      phone: '+40753849882'
+      phone: '+40753849882',
+      note: 'Please avoid scented products.'
     })
   })
 
@@ -203,11 +208,15 @@ describe('Booking checkout', () => {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'mia@example.com' }
     })
+    fireEvent.change(screen.getByLabelText('Note (optional)'), {
+      target: { value: '  First visit.  ' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Review booking' }))
     expect(submit).toHaveBeenCalledWith({
       name: 'Mia',
       email: 'mia@example.com',
-      phone: null
+      phone: null,
+      note: 'First visit.'
     })
     expect(screen.queryByRole('checkbox')).toBeNull()
   })

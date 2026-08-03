@@ -257,6 +257,7 @@ const en = {
   'validation.name_required': 'Enter your name.',
   'validation.name_too_long': 'Enter a name with 120 characters or fewer.',
   'validation.phone_invalid': 'Enter a valid phone number.',
+  'validation.note_too_long': 'Keep the note under 1,000 characters.',
   'title.appointment_confirmation': 'Appointment Confirmation',
   'confirmation.processing_title': 'Booking processing',
   'confirmation.processing_copy':
@@ -360,6 +361,7 @@ const en = {
   'checkout.phone_invalid': 'Enter a valid phone number',
   'checkout.email': 'Email',
   'checkout.phone_optional': 'Phone (optional)',
+  'checkout.note_optional': 'Note (optional)',
   'checkout.review_booking': 'Review booking',
   'checkout.total': 'Total',
   'checkout.gift_card': 'Gift card',
@@ -553,6 +555,7 @@ const es = {
   'validation.name_required': 'Introduce tu nombre.',
   'validation.name_too_long': 'Introduce un nombre de 120 caracteres o menos.',
   'validation.phone_invalid': 'Introduce un número de teléfono válido.',
+  'validation.note_too_long': 'Limita la nota a 1.000 caracteres.',
   'title.appointment_confirmation': 'Confirmación de la cita',
   'confirmation.processing_title': 'Reserva en proceso',
   'confirmation.processing_copy':
@@ -656,6 +659,7 @@ const es = {
   'checkout.phone_invalid': 'Introduce un número de teléfono válido',
   'checkout.email': 'Correo electrónico',
   'checkout.phone_optional': 'Teléfono (opcional)',
+  'checkout.note_optional': 'Nota (opcional)',
   'checkout.review_booking': 'Revisar reserva',
   'checkout.total': 'Total',
   'checkout.gift_card': 'Tarjeta regalo',
@@ -851,6 +855,7 @@ const fr = {
   'validation.name_required': 'Saisissez votre nom.',
   'validation.name_too_long': 'Saisissez un nom de 120 caractères maximum.',
   'validation.phone_invalid': 'Saisissez un numéro de téléphone valide.',
+  'validation.note_too_long': 'Limitez la note à 1 000 caractères.',
   'title.appointment_confirmation': 'Confirmation du rendez-vous',
   'confirmation.processing_title': 'Réservation en cours',
   'confirmation.processing_copy':
@@ -954,6 +959,7 @@ const fr = {
   'checkout.phone_invalid': 'Saisissez un numéro de téléphone valide',
   'checkout.email': 'E-mail',
   'checkout.phone_optional': 'Téléphone (facultatif)',
+  'checkout.note_optional': 'Note (facultative)',
   'checkout.review_booking': 'Vérifier la réservation',
   'checkout.total': 'Total',
   'checkout.gift_card': 'Carte-cadeau',
@@ -1147,6 +1153,7 @@ const ro = {
   'validation.name_required': 'Introdu numele.',
   'validation.name_too_long': 'Introdu un nume de cel mult 120 de caractere.',
   'validation.phone_invalid': 'Introdu un număr de telefon valid.',
+  'validation.note_too_long': 'Păstrează nota sub 1.000 de caractere.',
   'title.appointment_confirmation': 'Confirmarea programării',
   'confirmation.processing_title': 'Rezervare în curs',
   'confirmation.processing_copy':
@@ -1250,6 +1257,7 @@ const ro = {
   'checkout.phone_invalid': 'Introdu un număr de telefon valid',
   'checkout.email': 'E-mail',
   'checkout.phone_optional': 'Telefon (opțional)',
+  'checkout.note_optional': 'Notă (opțional)',
   'checkout.review_booking': 'Verifică rezervarea',
   'checkout.total': 'Total',
   'checkout.gift_card': 'Card cadou',

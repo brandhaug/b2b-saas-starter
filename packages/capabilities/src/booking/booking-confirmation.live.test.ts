@@ -15,6 +15,7 @@ import {
   Database,
   layerFromD1,
   merchants,
+  merchantMemberships,
   merchantMessagingControls,
   notificationIntents,
   notificationIntentControlledFacts,
@@ -28,7 +29,8 @@ import {
   services,
   settlementAllocations,
   shops,
-  timeSlotHolds
+  timeSlotHolds,
+  user
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
@@ -103,13 +105,19 @@ const session = (
   absoluteExpiresAt: '2026-07-10T11:30:00.000Z'
 })
 
-const seedSession = (id: string, sessionQuote = quote) =>
+const seedSession = (
+  id: string,
+  sessionQuote: typeof quote & {
+    readonly occupiedStartsAt?: string
+    readonly occupiedEndsAt?: string
+  } = quote
+) =>
   Effect.gen(function* () {
     const db = yield* Database
     yield* db.insert(bookingSessions).values({
       id,
       merchantId: 'mer_confirm',
-      capabilityHash: id.padEnd(64, '0'),
+      capabilityHash: id.padEnd(64, '_').slice(0, 64),
       lifecycle: 'active',
       customerName: 'Mia',
       customerEmail: 'mia@example.com',
@@ -140,6 +148,15 @@ beforeAll(async () => {
     Effect.provide(
       Effect.gen(function* () {
         const db = yield* Database
+        yield* db.insert(user).values({
+          id: 'usr_confirm_owner',
+          name: 'Confirm Owner',
+          email: 'owner@confirm.test',
+          emailVerified: true,
+          identityClass: 'merchant_member',
+          createdAt: new Date(now),
+          updatedAt: new Date(now)
+        })
         yield* db.insert(merchants).values({
           id: 'mer_confirm',
           publicName: 'Confirm Live',
@@ -149,6 +166,12 @@ beforeAll(async () => {
           plan: 'solo',
           createdAt: now,
           updatedAt: now
+        })
+        yield* db.insert(merchantMemberships).values({
+          merchantId: 'mer_confirm',
+          userId: 'usr_confirm_owner',
+          role: 'owner',
+          createdAt: now
         })
         yield* db.insert(brands).values({
           id: 'brd_confirm',
@@ -171,6 +194,7 @@ beforeAll(async () => {
         yield* db.insert(providers).values({
           id: 'prv_confirm',
           merchantId: 'mer_confirm',
+          linkedUserId: 'usr_confirm_owner',
           displayName: 'Ava',
           status: 'active',
           isDefault: true,
@@ -209,8 +233,21 @@ beforeAll(async () => {
           }
         ])
         yield* seedSession('bsn_confirm')
-        yield* seedSession('bsn_rollback')
-        yield* seedSession('bsn_competing')
+        yield* seedSession('bsn_rollback', {
+          ...quote,
+          startsAt: '2026-07-15T09:00:00.000Z',
+          endsAt: '2026-07-15T10:30:00.000Z'
+        })
+        for (let index = 0; index < 25; index += 1)
+          yield* seedSession(`bsn_contender_${index}`, {
+            ...quote,
+            startsAt:
+              index % 2 === 0 ? '2026-07-14T09:00:00.000Z' : '2026-07-14T10:30:00.000Z',
+            endsAt:
+              index % 2 === 0 ? '2026-07-14T10:30:00.000Z' : '2026-07-14T12:00:00.000Z',
+            occupiedStartsAt: '2026-07-14T08:45:00.000Z',
+            occupiedEndsAt: '2026-07-14T12:15:00.000Z'
+          })
         yield* seedSession('bsn_banned', {
           ...quote,
           startsAt: '2026-07-11T13:00:00.000Z',
@@ -438,45 +475,94 @@ describe('Live Booking Confirmation', () => {
     expect(counts).toEqual({ appointments: 0, outbox: 1, holds: 1 })
   })
 
-  it('converges competing confirmations on one Appointment and outbox item', async () => {
-    const results = await Promise.all([
-      confirm('bsn_competing'),
-      confirm('bsn_competing')
-    ])
-    expect(results[0]!.appointment.id).toBe(results[1]!.appointment.id)
+  it('lets one of 25 final-slot contenders confirm without duplicate effects', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 25 }, (_, index) =>
+        Effect.runPromise(
+          Effect.result(
+            Effect.provide(
+              Effect.flatMap(BookingConfirmation, (service) =>
+                service.confirm(session(`bsn_contender_${index}`), {
+                  now,
+                  traceId: `trace_contender_${index}`
+                })
+              ),
+              layer()
+            )
+          )
+        )
+      )
+    )
+    const winners = results.filter((result) => result._tag === 'Success')
+    const losers = results.filter((result) => result._tag === 'Failure')
+    expect(winners).toHaveLength(1)
+    expect(losers).toHaveLength(24)
+    expect(
+      losers.every(
+        (result) =>
+          result.failure._tag === 'BookingConfirmationRejected' &&
+          result.failure.reason === 'conflict'
+      )
+    ).toBe(true)
     const rows = await test.d1
       .prepare(
-        "SELECT count(*) count FROM appointments WHERE booking_session_id = 'bsn_competing'"
+        `WITH target AS (
+           SELECT id FROM appointments WHERE booking_session_id LIKE 'bsn_contender_%'
+         ), intents AS (
+           SELECT id FROM notification_intents
+           WHERE source_type = 'appointment' AND source_id IN (SELECT id FROM target)
+         )
+         SELECT
+           (SELECT count(*) FROM target) appointments,
+           (SELECT count(*) FROM booking_outbox WHERE appointment_id IN (SELECT id FROM target)) outbox,
+           (SELECT count(*) FROM confirmation_access WHERE appointment_id IN (SELECT id FROM target)) access,
+           (SELECT count(*) FROM customer_observations WHERE appointment_id IN (SELECT id FROM target)) observations,
+           (SELECT count(*) FROM appointment_foundations WHERE appointment_id IN (SELECT id FROM target)) foundations,
+           (SELECT count(*) FROM intents) notificationIntents,
+           (SELECT count(*) FROM notification_intent_controlled_facts WHERE intent_id IN (SELECT id FROM intents)) controlledFacts,
+           (SELECT count(*) FROM protected_messaging_destinations WHERE intent_id IN (SELECT id FROM intents)) protectedDestinations,
+           (SELECT count(*) FROM delivery_routes WHERE intent_id IN (SELECT id FROM intents)) deliveryRoutes,
+           (SELECT count(*) FROM booking_sessions WHERE id LIKE 'bsn_contender_%' AND lifecycle = 'consumed') consumedSessions,
+           (SELECT count(*) FROM time_slot_holds WHERE booking_session_id LIKE 'bsn_contender_%') remainingHolds,
+           (SELECT count(*) FROM customer_records WHERE merchant_id = 'mer_confirm') customerRecords`
       )
-      .first<{ count: number }>()
-    expect(rows?.count).toBe(1)
-  })
+      .first<{
+        appointments: number
+        outbox: number
+        access: number
+        observations: number
+        foundations: number
+        notificationIntents: number
+        controlledFacts: number
+        protectedDestinations: number
+        deliveryRoutes: number
+        consumedSessions: number
+        remainingHolds: number
+        customerRecords: number
+      }>()
+    expect(rows).toEqual({
+      appointments: 1,
+      outbox: 1,
+      access: 1,
+      observations: 1,
+      foundations: 1,
+      notificationIntents: 1,
+      controlledFacts: 1,
+      protectedDestinations: 1,
+      deliveryRoutes: 2,
+      consumedSessions: 1,
+      remainingHolds: 24,
+      customerRecords: 1
+    })
+  }, 60_000)
 
   it('atomically confirms and replays every request in a live Booking Party', async () => {
     await Effect.runPromise(
       Effect.provide(
         Effect.gen(function* () {
           const db = yield* Database
-          yield* db.insert(brands).values({
-            id: 'brd_group',
-            merchantId: 'mer_confirm',
-            name: 'Group Brand',
-            createdAt: now,
-            updatedAt: now
-          })
-          yield* db.insert(shops).values({
-            id: 'shp_group',
-            brandId: 'brd_group',
-            merchantId: 'mer_confirm',
-            slug: 'group',
-            publicName: 'Group Shop',
-            timezone: 'America/New_York',
-            currency: 'USD',
-            createdAt: now,
-            updatedAt: now
-          })
           yield* db.insert(merchantMessagingControls).values({
-            shopId: 'shp_group',
+            shopId: 'shp_confirm',
             enabled: true,
             confirmationEnabled: true,
             rescheduleEnabled: true,
@@ -500,7 +586,7 @@ describe('Live Booking Confirmation', () => {
           yield* db.insert(bookingParties).values({
             id: 'bpt_group',
             bookingSessionId: 'bsn_group',
-            shopId: 'shp_group',
+            shopId: 'shp_confirm',
             activeRequestId: 'brq_group_one',
             lifecycle: 'active',
             currency: 'USD',
@@ -517,7 +603,8 @@ describe('Live Booking Confirmation', () => {
               customerDetailsJson: JSON.stringify({
                 name: 'Mia',
                 email: 'mia@example.com',
-                phone: '+40722123456'
+                phone: '+40722123456',
+                note: 'Please use fragrance-free products.'
               }),
               operationalMessagingPermissionGranted: true,
               operationalMessagingPermissionPolicyVersion: 'operational-text:v1',
@@ -564,11 +651,15 @@ describe('Live Booking Confirmation', () => {
               bookingSessionId: 'bsn_group',
               bookingRequestId: 'brq_group_one',
               providerId: 'prv_confirm',
-              startsAt: quote.startsAt,
-              endsAt: quote.endsAt,
+              startsAt: '2026-07-16T09:00:00.000Z',
+              endsAt: '2026-07-16T10:30:00.000Z',
               createdAt: now,
               expiresAt: '2026-07-10T09:40:00.000Z',
-              quote
+              quote: {
+                ...quote,
+                startsAt: '2026-07-16T09:00:00.000Z',
+                endsAt: '2026-07-16T10:30:00.000Z'
+              }
             },
             {
               id: 'hld_group_two',
@@ -576,14 +667,14 @@ describe('Live Booking Confirmation', () => {
               bookingSessionId: 'bsn_group',
               bookingRequestId: 'brq_group_two',
               providerId: 'prv_confirm',
-              startsAt: '2026-07-13T11:00:00.000Z',
-              endsAt: '2026-07-13T12:30:00.000Z',
+              startsAt: '2026-07-16T11:00:00.000Z',
+              endsAt: '2026-07-16T12:30:00.000Z',
               createdAt: now,
               expiresAt: '2026-07-10T09:40:00.000Z',
               quote: {
                 ...quote,
-                startsAt: '2026-07-13T11:00:00.000Z',
-                endsAt: '2026-07-13T12:30:00.000Z'
+                startsAt: '2026-07-16T11:00:00.000Z',
+                endsAt: '2026-07-16T12:30:00.000Z'
               }
             }
           ])
@@ -699,7 +790,8 @@ describe('Live Booking Confirmation', () => {
             intents: yield* db
               .select()
               .from(notificationIntents)
-              .where(eq(notificationIntents.sourceType, 'appointment'))
+              .where(eq(notificationIntents.sourceType, 'appointment')),
+            foundations: yield* db.select().from(appointmentFoundations)
           }
         }),
         layerFromD1(test.d1)
@@ -724,6 +816,14 @@ describe('Live Booking Confirmation', () => {
       .first<{ status: string; balance: number }>()
     expect(giftCardCommit).toEqual({ status: 'committed', balance: 0 })
     expect(stored.appointments[0]?.snapshot?.checkoutPath).toBe('online_payment')
+    expect(stored.appointments[0]?.snapshot?.customerDetails.note).toBe(
+      'Please use fragrance-free products.'
+    )
+    expect(
+      stored.foundations.find(
+        (foundation) => foundation.appointmentId === stored.appointments[0]?.id
+      )?.customerNote
+    ).toBe('Please use fragrance-free products.')
     const permittedIntent = stored.intents.find(
       (intent) =>
         intent.sourceId === stored.appointments[0]?.id &&
@@ -738,7 +838,7 @@ describe('Live Booking Confirmation', () => {
       )
     ).toMatchObject({
       phase: 'scheduled',
-      availableAt: '2026-07-11T09:00:00.000Z'
+      availableAt: '2026-07-14T09:00:00.000Z'
     })
     expect(stored.access.map((access) => access.purpose).sort()).toEqual([
       'appointment_confirmation',
@@ -954,8 +1054,8 @@ describe('Live Booking Confirmation', () => {
     )
 
     await expect(confirm('bsn_banned')).rejects.toMatchObject({
-      _tag: 'BookingConfirmationRejected',
-      reason: 'conflict'
+      _tag: 'CapabilityUnavailable',
+      reason: 'booking unavailable'
     })
   })
 })

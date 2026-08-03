@@ -433,6 +433,11 @@ export const styles = stylex.create({
   legacyCheckoutInputError: {
     borderColor: '#ff3b30'
   },
+  legacyCheckoutNote: {
+    height: 76,
+    paddingBlock: 12,
+    resize: 'vertical'
+  },
   legacyCheckoutFieldError: {
     display: 'block',
     marginTop: 4,
@@ -1859,6 +1864,11 @@ export const styles = stylex.create({
     backgroundColor: '#ffffff',
     color: '#292929',
     fontSize: 14
+  },
+  checkoutNote: {
+    height: 84,
+    paddingBlock: 10,
+    resize: 'vertical'
   },
   privacy: {
     display: 'flex',

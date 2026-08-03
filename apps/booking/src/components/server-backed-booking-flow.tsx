@@ -1,7 +1,14 @@
 import * as stylex from '@stylexjs/stylex'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Schema } from 'effect'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 import {
   BOOKING_AVAILABILITY_HORIZON_DAYS,
   BookingAvailability as BookingAvailabilitySchema,
@@ -68,6 +75,18 @@ type SettlementPaymentEligibility = PaymentMethodEligibility & {
 }
 
 type SelectionPage = 'locations' | 'providers' | 'services' | 'additional-services'
+
+export const isFinalSlotConflictResponse = async (
+  response: Response
+): Promise<boolean> => {
+  if (response.status !== 409) return false
+  try {
+    const body = (await response.json()) as { readonly kind?: unknown }
+    return body.kind === 'conflict'
+  } catch {
+    return false
+  }
+}
 
 const selectionPath = (
   merchantSlug: string,
@@ -198,6 +217,35 @@ export function ServerBackedBookingFlow({
     merchantSlug,
     sessionId
   ] as const
+  const recoverFinalSlotConflict = useCallback(async () => {
+    await fetch(`${base}/hold`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' }
+    }).catch((error) => void telemetry.report(error))
+    setCheckout(false)
+    setLegacyCheckoutPhase('policies')
+    setNotificationPoliciesOpen(false)
+    setPreparation(null)
+    setReview(null)
+    setHoldExpired(false)
+    setSlotLost(true)
+    queryClient.setQueryData<BookingAvailability>(
+      ['booking-availability', merchantSlug, sessionId],
+      (current) => (current ? { ...current, hold: null } : current)
+    )
+    queryClient.removeQueries({
+      queryKey: ['booking-checkout-preparation', merchantSlug, sessionId]
+    })
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ['booking-availability', merchantSlug, sessionId]
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ['booking-party', merchantSlug, sessionId]
+      })
+    ])
+  }, [base, merchantSlug, queryClient, sessionId, telemetry])
   const initialPreparation = useQuery({
     queryKey: checkoutPreparationKey,
     enabled: checkout,
@@ -269,12 +317,24 @@ export function ServerBackedBookingFlow({
       body: '{}'
     })
       .then(async (response) => {
+        if (await isFinalSlotConflictResponse(response)) {
+          await recoverFinalSlotConflict()
+          return null
+        }
         if (!response.ok) throw new Error('confirmation unavailable')
         return (await response.json()) as { readonly location: string }
       })
-      .then((result) => window.location.assign(result.location))
+      .then((result) => {
+        if (result) window.location.assign(result.location)
+      })
       .catch((error) => void telemetry.report(error))
-  }, [base, paymentCancelled, returnedPayment.data, telemetry])
+  }, [
+    base,
+    paymentCancelled,
+    recoverFinalSlotConflict,
+    returnedPayment.data,
+    telemetry
+  ])
   const partyMutation = useMutation({
     mutationFn: async ({
       endpoint,
@@ -676,6 +736,10 @@ export function ServerBackedBookingFlow({
         setConfirmationProcessing(true)
         return
       }
+      if (await isFinalSlotConflictResponse(response)) {
+        await recoverFinalSlotConflict()
+        return
+      }
       if (!response.ok) throw new Error('confirmation unavailable')
       const result = (await response.json()) as { readonly location: string }
       const canonicalLocation = await exchangeBookingConfirmationAccess(result.location)
@@ -857,7 +921,8 @@ export function ServerBackedBookingFlow({
             name_required: message('validation.name_required'),
             name_too_long: message('validation.name_too_long'),
             email_invalid: message('validation.email_invalid'),
-            phone_invalid: message('validation.phone_invalid')
+            phone_invalid: message('validation.phone_invalid'),
+            note_too_long: message('validation.note_too_long')
           }}
           copy={{
             processing: message('feedback.loading'),
@@ -897,6 +962,7 @@ export function ServerBackedBookingFlow({
             phoneInvalid: message('checkout.phone_invalid'),
             email: message('checkout.email'),
             phoneOptional: message('checkout.phone_optional'),
+            noteOptional: message('checkout.note_optional'),
             reviewBooking: message('checkout.review_booking'),
             total: message('checkout.total'),
             giftCard: message('checkout.gift_card'),

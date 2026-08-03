@@ -13,7 +13,10 @@ import type {
   BookingAvailability,
   BookingJourney
 } from '@b2b-saas-starter/capabilities/booking'
-import { ServerBackedBookingFlow } from './server-backed-booking-flow.tsx'
+import {
+  isFinalSlotConflictResponse,
+  ServerBackedBookingFlow
+} from './server-backed-booking-flow.tsx'
 import { BookingLocalizationProvider } from '../localization/booking-localization-provider.tsx'
 
 const checkoutPreparation = (
@@ -67,6 +70,25 @@ afterEach(() => {
 })
 
 describe('server-backed Booking scheduling', () => {
+  it('recognizes only the typed final-slot conflict as recoverable slot loss', async () => {
+    await expect(
+      isFinalSlotConflictResponse(
+        Response.json(
+          { kind: 'conflict', message: 'Choose another time' },
+          { status: 409 }
+        )
+      )
+    ).resolves.toBe(true)
+    await expect(
+      isFinalSlotConflictResponse(
+        Response.json({ kind: 'details_missing' }, { status: 409 })
+      )
+    ).resolves.toBe(false)
+    await expect(
+      isFinalSlotConflictResponse(Response.json({}, { status: 503 }))
+    ).resolves.toBe(false)
+  })
+
   it('slides between Services and Schedule inside the same canonical shell', async () => {
     window.history.replaceState(
       null,

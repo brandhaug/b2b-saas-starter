@@ -54,16 +54,20 @@ export const CustomerDetails = Schema.Struct({
   ),
   phone: Schema.NullOr(
     Schema.String.check(Schema.isMaxLength(16), Schema.isPattern(/^\+[1-9]\d{7,14}$/))
+  ),
+  note: Schema.optional(
+    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000))
   )
 })
 export type CustomerDetails = typeof CustomerDetails.Type
 
-export const CustomerDetailsField = Schema.Literals(['name', 'email', 'phone'])
+export const CustomerDetailsField = Schema.Literals(['name', 'email', 'phone', 'note'])
 export const CustomerDetailsErrorCode = Schema.Literals([
   'name_required',
   'name_too_long',
   'email_invalid',
-  'phone_invalid'
+  'phone_invalid',
+  'note_too_long'
 ])
 export const CustomerDetailsIssue = Schema.Struct({
   field: CustomerDetailsField,
@@ -83,6 +87,7 @@ export const validateCustomerDetailsField = ({
   readonly defaultCountry?: CountryCode
 }): CustomerDetailsIssue['code'] | null => {
   const normalized = value.trim()
+  if (field === 'note') return normalized.length > 1000 ? 'note_too_long' : null
   if (field === 'name') {
     if (!normalized) return required ? 'name_required' : null
     return normalized.length > 120 ? 'name_too_long' : null
@@ -108,6 +113,7 @@ export const normalizeCustomerDetails = (
     readonly name: string
     readonly email: string
     readonly phone: string | null
+    readonly note?: string | null
   },
   defaultCountry?: CountryCode
 ): Effect.Effect<CustomerDetails, CustomerDetailsInvalid> => {
@@ -118,6 +124,7 @@ export const normalizeCustomerDetails = (
     ? parsePhoneNumberFromString(rawPhone, defaultCountry)
     : undefined
   const phone = parsedPhone?.isValid() ? parsedPhone.number : null
+  const note = input.note?.trim().replace(/\r\n?/g, '\n') || null
   const issues: CustomerDetailsIssue[] = []
   const nameIssue = validateCustomerDetailsField({ field: 'name', value: name })
   const emailIssue = validateCustomerDetailsField({ field: 'email', value: email })
@@ -127,12 +134,18 @@ export const normalizeCustomerDetails = (
     required: false,
     ...(defaultCountry ? { defaultCountry } : {})
   })
+  const noteIssue = validateCustomerDetailsField({
+    field: 'note',
+    value: note ?? '',
+    required: false
+  })
   if (nameIssue) issues.push({ field: 'name', code: nameIssue })
   if (emailIssue) issues.push({ field: 'email', code: emailIssue })
   if (phoneIssue) issues.push({ field: 'phone', code: phoneIssue })
+  if (noteIssue) issues.push({ field: 'note', code: noteIssue })
   return issues.length > 0
     ? Effect.fail(new CustomerDetailsInvalid({ issues }))
-    : Effect.succeed({ name, email, phone })
+    : Effect.succeed({ name, email, phone, ...(note ? { note } : {}) })
 }
 
 export const CheckoutPolicy = Schema.Struct({

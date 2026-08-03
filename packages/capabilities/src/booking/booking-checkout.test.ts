@@ -294,7 +294,8 @@ describe('Booking Checkout', () => {
           {
             name: '  Mia   Popescu ',
             email: ' MIA@Example.COM ',
-            phone: '0722 123 456'
+            phone: '0722 123 456',
+            note: '  Please use fragrance-free products.  '
           },
           'RO'
         )
@@ -302,7 +303,8 @@ describe('Booking Checkout', () => {
     ).resolves.toEqual({
       name: 'Mia Popescu',
       email: 'mia@example.com',
-      phone: '+40722123456'
+      phone: '+40722123456',
+      note: 'Please use fragrance-free products.'
     })
 
     await expect(
@@ -319,6 +321,20 @@ describe('Booking Checkout', () => {
         ]
       })
     )
+
+    await expect(
+      Effect.runPromise(
+        normalizeCustomerDetails({
+          name: 'Mia',
+          email: 'mia@example.com',
+          phone: null,
+          note: 'x'.repeat(1001)
+        })
+      )
+    ).rejects.toMatchObject({
+      _tag: 'CustomerDetailsInvalid',
+      issues: [{ field: 'note', code: 'note_too_long' }]
+    })
   })
 
   it('resolves the most specific active Checkout Policy and snapshots it once', () => {

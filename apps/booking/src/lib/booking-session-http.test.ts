@@ -1633,6 +1633,108 @@ describe('Booking Session HTTP boundary', () => {
     }
   })
 
+  it('exports a privacy-minimal calendar snapshot only for a currently authorized Appointment', async () => {
+    const cookieCredential = 'c'.repeat(64)
+    const snapshot = {
+      startsAt: '2026-07-14T09:00:00.000Z',
+      endsAt: '2026-07-14T10:00:00.000Z',
+      providerPreference: { kind: 'any' as const },
+      assignedProvider: { id: 'prv_private', displayName: 'Private Provider' },
+      services: [
+        {
+          id: 'svc_cut',
+          role: 'primary' as const,
+          name: 'Signature Cut',
+          durationMinutes: 60,
+          priceMinor: 5000,
+          currency: 'USD'
+        }
+      ],
+      durationMinutes: 60,
+      currency: 'USD',
+      totalMinor: 5000,
+      merchantTimezone: 'UTC',
+      customerDetails: {
+        name: 'Private Customer',
+        email: 'private@example.test',
+        phone: '+15550100100'
+      },
+      checkoutPath: 'pay_in_person' as const
+    }
+    const dependencies = {
+      publicSiteOrigin: 'https://www.example.test',
+      enter: () => Effect.die(new Error('not called')),
+      authorize: () => Effect.die(new Error('not called')),
+      confirmation: {
+        confirm: () => Effect.die(new Error('not called')),
+        read: () =>
+          Effect.succeed({
+            kind: 'found' as const,
+            confirmation: {
+              routeId: 'cnf_calendar',
+              status: 'scheduled' as const,
+              startsAt: snapshot.startsAt,
+              endsAt: snapshot.endsAt,
+              locale: 'en' as const,
+              snapshot,
+              appointments: [
+                {
+                  id: 'apt_calendar',
+                  status: 'scheduled' as const,
+                  startsAt: snapshot.startsAt,
+                  endsAt: snapshot.endsAt,
+                  snapshot,
+                  adjustments: []
+                }
+              ],
+              shop: {
+                publicName: 'Mara Studio',
+                addressLines: ['21 Mercer Street', 'New York, NY']
+              }
+            },
+            cookieCredential
+          })
+      },
+      takeRead: () => Effect.succeed(true),
+      takeWrite: () => Effect.succeed(true),
+      fallback: () => Effect.die(new Error('not called')),
+      now: () => '2026-07-13T10:00:00.000Z'
+    }
+    const request = (appointmentId: string, credential = cookieCredential) =>
+      new Request(
+        `https://www.example.test/mara-studio/booking/confirmations/cnf_calendar/appointments/${appointmentId}/calendar.ics`,
+        credential
+          ? { headers: { cookie: `confirmation_cnf_calendar=${credential}` } }
+          : undefined
+      )
+
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(request('apt_calendar'), dependencies)
+    )
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('text/calendar; charset=utf-8')
+    expect(response.headers.get('content-disposition')).toBe(
+      'attachment; filename="appointment-apt_calendar.ics"'
+    )
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    const calendar = await response.text()
+    expect(calendar).toContain('SUMMARY:Signature Cut — Mara Studio')
+    expect(calendar).not.toContain('Private Customer')
+    expect(calendar).not.toContain('private@example.test')
+    expect(calendar).not.toContain('Private Provider')
+
+    expect(
+      await Effect.runPromise(
+        handleBookingSessionRequest(request('apt_other'), dependencies)
+      )
+    ).toMatchObject({ status: 404 })
+    expect(
+      await Effect.runPromise(
+        handleBookingSessionRequest(request('apt_calendar', ''), dependencies)
+      )
+    ).toMatchObject({ status: 404 })
+  })
+
   it('cancels only an appointment authorized by the protected confirmation', async () => {
     const cookieCredential = 'd'.repeat(64)
     const snapshot = {

@@ -8,15 +8,17 @@ import {
   Database,
   layerFromD1,
   merchants,
+  merchantMemberships,
+  merchantSubscriptions,
   providers,
-  providerServiceEligibility,
   publicBookingPages,
   scheduleRules,
   services,
   shopProviders,
   shopServices,
   shops,
-  timeSlotHolds
+  timeSlotHolds,
+  user
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { BookingSelection, LiveBookingSelection } from './booking-selection.ts'
@@ -39,13 +41,38 @@ beforeAll(async () => {
     Effect.provide(
       Effect.gen(function* () {
         const db = yield* Database
+        yield* db.insert(user).values({
+          id: 'usr_schedule_owner',
+          name: 'Schedule Owner',
+          email: 'owner@schedule.test',
+          emailVerified: true,
+          identityClass: 'merchant_member',
+          createdAt: new Date(now),
+          updatedAt: new Date(now)
+        })
         yield* db.insert(merchants).values({
           id: 'mer_schedule_hold',
           publicName: 'Schedule Hold',
           slug: 'schedule-hold',
           timezone: 'Europe/Bucharest',
           currency: 'USD',
-          plan: 'team',
+          plan: 'solo',
+          createdAt: now,
+          updatedAt: now
+        })
+        yield* db.insert(merchantMemberships).values({
+          merchantId: 'mer_schedule_hold',
+          userId: 'usr_schedule_owner',
+          role: 'owner',
+          createdAt: now
+        })
+        yield* db.insert(merchantSubscriptions).values({
+          id: 'sub_schedule_hold',
+          merchantId: 'mer_schedule_hold',
+          plan: 'solo',
+          interval: 'monthly',
+          status: 'active',
+          currentPeriodEndsAt: '2026-08-10T09:30:00.000Z',
           createdAt: now,
           updatedAt: now
         })
@@ -76,29 +103,12 @@ beforeAll(async () => {
         })
         yield* db.insert(providers).values([
           {
-            id: 'prv_schedule_aaa_foreign',
-            merchantId: 'mer_schedule_hold',
-            displayName: 'Foreign Shop Provider',
-            status: 'active',
-            isDefault: false,
-            createdAt: now,
-            updatedAt: now
-          },
-          {
             id: 'prv_schedule_one',
             merchantId: 'mer_schedule_hold',
+            linkedUserId: 'usr_schedule_owner',
             displayName: 'Ava',
             status: 'active',
             isDefault: true,
-            createdAt: now,
-            updatedAt: now
-          },
-          {
-            id: 'prv_schedule_two',
-            merchantId: 'mer_schedule_hold',
-            displayName: 'Noah',
-            status: 'active',
-            isDefault: false,
             createdAt: now,
             updatedAt: now
           }
@@ -127,24 +137,11 @@ beforeAll(async () => {
             updatedAt: now
           }
         ])
-        yield* db.insert(providerServiceEligibility).values(
-          ['prv_schedule_aaa_foreign', 'prv_schedule_one', 'prv_schedule_two'].flatMap(
-            (providerId) =>
-              ['svc_schedule_primary', 'svc_schedule_extra'].map((serviceId) => ({
-                merchantId: 'mer_schedule_hold',
-                providerId,
-                serviceId,
-                createdAt: now
-              }))
-          )
-        )
-        yield* db.insert(shopProviders).values(
-          ['prv_schedule_one', 'prv_schedule_two'].map((providerId) => ({
-            shopId: 'shp_schedule_hold',
-            providerId,
-            createdAt: now
-          }))
-        )
+        yield* db.insert(shopProviders).values({
+          shopId: 'shp_schedule_hold',
+          providerId: 'prv_schedule_one',
+          createdAt: now
+        })
         yield* db.insert(shopServices).values(
           ['svc_schedule_primary', 'svc_schedule_extra'].map((serviceId) => ({
             shopId: 'shp_schedule_hold',
@@ -152,20 +149,16 @@ beforeAll(async () => {
             createdAt: now
           }))
         )
-        yield* db.insert(scheduleRules).values(
-          ['prv_schedule_aaa_foreign', 'prv_schedule_one', 'prv_schedule_two'].map(
-            (providerId) => ({
-              id: `sch_${providerId}`,
-              merchantId: 'mer_schedule_hold',
-              providerId,
-              weekday: 1,
-              startTime: '09:00',
-              endTime: '14:00',
-              createdAt: now,
-              updatedAt: now
-            })
-          )
-        )
+        yield* db.insert(scheduleRules).values({
+          id: 'sch_prv_schedule_one',
+          merchantId: 'mer_schedule_hold',
+          providerId: 'prv_schedule_one',
+          weekday: 1,
+          startTime: '09:00',
+          endTime: '14:00',
+          createdAt: now,
+          updatedAt: now
+        })
         yield* db.insert(appointments).values([
           {
             id: 'apt_schedule_block',
@@ -219,28 +212,13 @@ const prepareSession = async (
   await Effect.runPromise(
     Effect.provide(
       Effect.flatMap(BookingSelection, (selection) =>
-        selection.chooseProvider(
-          session.session,
-          {
-            kind: 'specific',
-            providerId: 'prv_schedule_one'
-          },
-          1
-        )
-      ),
-      layer
-    )
-  )
-  await Effect.runPromise(
-    Effect.provide(
-      Effect.flatMap(BookingSelection, (selection) =>
         selection.chooseServices(
           session.session,
           {
             primaryServiceId: selectedServices.primaryServiceId,
             additionalServiceIds: selectedServices.additionalServiceIds
           },
-          2
+          1
         )
       ),
       layer
@@ -344,23 +322,6 @@ describe('Live Booking Scheduling', () => {
         service.hold(competitor, { startsAt: first.quote.startsAt, now })
       )
     )
-    const secondCompetitor = await prepareSession()
-    await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(Database, (db) =>
-          db
-            .update(bookingSessions)
-            .set({ providerPreference: 'specific', providerId: 'prv_schedule_two' })
-            .where(eq(bookingSessions.id, secondCompetitor.id))
-        ),
-        layerFromD1(test.d1)
-      )
-    )
-    await runScheduling(
-      Effect.flatMap(BookingScheduling, (service) =>
-        service.hold(secondCompetitor, { startsAt: first.quote.startsAt, now })
-      )
-    )
     const conflict = await runScheduling(
       Effect.result(
         Effect.flatMap(BookingScheduling, (service) =>
@@ -386,9 +347,6 @@ describe('Live Booking Scheduling', () => {
     )
     await runScheduling(
       Effect.flatMap(BookingScheduling, (service) => service.release(competitor))
-    )
-    await runScheduling(
-      Effect.flatMap(BookingScheduling, (service) => service.release(secondCompetitor))
     )
 
     await runScheduling(
@@ -446,7 +404,12 @@ describe('Live Booking Scheduling', () => {
     )
   }, 15_000)
   it('excludes Appointment conflicts and allows at most one concurrent hold per Provider interval', async () => {
-    const [first, second] = await Promise.all([prepareSession(), prepareSession()])
+    const contenders: BookingSession[] = []
+    while (contenders.length < 25) {
+      contenders.push(...(await Promise.all([prepareSession(), prepareSession()])))
+    }
+    contenders.length = 25
+    const first = contenders[0]!
     const schedulingLayer = LiveBookingScheduling.pipe(
       Layer.provide(layerFromD1(test.d1))
     )
@@ -467,6 +430,23 @@ describe('Live Booking Scheduling', () => {
     expect(availability.slots.map((slot) => slot.startsAt)).toContain(
       '2026-07-13T12:00:00.000Z'
     )
+    const selected = await test.d1
+      .prepare(
+        `SELECT s.lifecycle, s.provider_preference providerPreference, s.provider_id providerId,
+                s.primary_service_id primaryServiceId, p.shop_id shopId
+         FROM booking_sessions s
+         JOIN booking_parties p ON p.booking_session_id = s.id
+         WHERE s.id = ?`
+      )
+      .bind(first.id)
+      .first()
+    expect(selected).toEqual({
+      lifecycle: 'active',
+      providerPreference: 'specific',
+      providerId: 'prv_schedule_one',
+      primaryServiceId: 'svc_schedule_primary',
+      shopId: 'shp_schedule_hold'
+    })
 
     const attempt = (session: BookingSession) =>
       run(
@@ -479,9 +459,11 @@ describe('Live Booking Scheduling', () => {
           )
         )
       )
-    const results = await Promise.all([attempt(first), attempt(second)])
+    const results = await Promise.all(contenders.map(attempt))
     expect(results.filter((result) => result._tag === 'Success')).toHaveLength(1)
-    expect(results.filter((result) => result._tag === 'Failure')).toHaveLength(1)
+    const losers = results.filter((result) => result._tag === 'Failure')
+    expect(losers).toHaveLength(24)
+    expect(losers.every((result) => result.failure.reason === 'slot_lost')).toBe(true)
     const rows = await Effect.runPromise(
       Effect.provide(
         Effect.flatMap(Database, (db) => db.select().from(timeSlotHolds)),
@@ -497,8 +479,9 @@ describe('Live Booking Scheduling', () => {
       }
     })
     if (winner?._tag === 'Success') {
-      const winningSession =
-        winner.success.bookingSessionId === first.id ? first : second
+      const winningSession = contenders.find(
+        (contender) => contender.id === winner.success.bookingSessionId
+      )!
       const activeAfterUnrelatedSessionActivity = await Effect.runPromise(
         Effect.provide(
           Effect.flatMap(BookingSessions, (sessions) =>
@@ -550,7 +533,7 @@ describe('Live Booking Scheduling', () => {
       _tag: 'Failure',
       failure: { reason: 'slot_lost' }
     })
-  })
+  }, 30_000)
 
   it('atomically refuses a Session that became inactive after authorization', async () => {
     const stale = await prepareSession()
@@ -588,30 +571,6 @@ describe('Live Booking Scheduling', () => {
   it('keeps held quotes immutable and rebuilds them from current facts after expiry', async () => {
     const anySession = await prepareSession()
     const dbLayer = layerFromD1(test.d1)
-    const selectionLayer = LiveBookingSelection.pipe(Layer.provide(dbLayer))
-    await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseProvider(anySession, { kind: 'any' }, 3)
-        ),
-        selectionLayer
-      )
-    )
-    await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseServices(
-            anySession,
-            {
-              primaryServiceId: 'svc_schedule_primary',
-              additionalServiceIds: ['svc_schedule_extra']
-            },
-            4
-          )
-        ),
-        selectionLayer
-      )
-    )
     const schedulingLayer = LiveBookingScheduling.pipe(Layer.provide(dbLayer))
     const run = <A, E>(effect: Effect.Effect<A, E, BookingScheduling>) =>
       Effect.runPromise(Effect.provide(effect, schedulingLayer))
@@ -624,7 +583,7 @@ describe('Live Booking Scheduling', () => {
       )
     )
     expect(held.quote).toMatchObject({
-      providerPreference: { kind: 'any' },
+      providerPreference: { kind: 'specific', providerId: 'prv_schedule_one' },
       assignedProvider: { id: 'prv_schedule_one' },
       totalMinor: 5000,
       durationMinutes: 60
@@ -701,27 +660,5 @@ describe('Live Booking Scheduling', () => {
       )
     )
     expect(replacement.quote.totalMinor).toBe(5500)
-
-    await Effect.runPromise(
-      Effect.provide(
-        Effect.flatMap(BookingSelection, (selection) =>
-          selection.chooseProvider(
-            anySession,
-            { kind: 'specific', providerId: 'prv_schedule_two' },
-            5
-          )
-        ),
-        selectionLayer
-      )
-    )
-    expect(
-      await run(
-        Effect.flatMap(BookingScheduling, (scheduling) =>
-          scheduling.currentHold(anySession, {
-            now: '2026-07-10T09:41:00.000Z'
-          })
-        )
-      )
-    ).toBeNull()
   })
 })

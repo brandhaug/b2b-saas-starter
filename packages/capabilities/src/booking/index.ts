@@ -130,6 +130,7 @@ export type {
   ConfirmationSigningKeyring,
   SeedBookingConfirmationStore
 } from './booking-confirmation.ts'
+export { appointmentCalendarExport } from './appointment-calendar-export.ts'
 export {
   AppointmentDetailResult,
   AppointmentOperations,

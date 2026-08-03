@@ -69,6 +69,7 @@ type CheckoutCopy = {
   readonly phoneInvalid: string
   readonly email: string
   readonly phoneOptional: string
+  readonly noteOptional: string
   readonly reviewBooking: string
   readonly total: string
   readonly giftCard: string
@@ -116,6 +117,7 @@ const defaultCopy: CheckoutCopy = {
   phoneInvalid: 'Enter a valid phone number',
   email: 'Email',
   phoneOptional: 'Phone (optional)',
+  noteOptional: 'Note (optional)',
   reviewBooking: 'Review booking',
   total: 'Total',
   giftCard: 'Gift card',
@@ -171,6 +173,7 @@ export function BookingCheckoutFlow({
     readonly name: string
     readonly email: string
     readonly phone: string | null
+    readonly note?: string
   }) => void
   readonly onFinalize: (input: {
     readonly acceptQuote: boolean
@@ -236,6 +239,7 @@ export function BookingCheckoutFlow({
       return typeof entry === 'string' ? entry : ''
     }
     const phone = value('phone').trim()
+    const note = value('note').trim()
     const phoneCountryCode = value('phoneCountryCode')
     const legacyName = [value('firstName'), value('lastName')]
       .map((part) => part.trim())
@@ -272,7 +276,8 @@ export function BookingCheckoutFlow({
       email: value('email'),
       phone: phone
         ? `${phoneCountryCode}${phone}`.replace(/(?!^)\+/g, '').replace(/[^+\d]/g, '')
-        : null
+        : null,
+      ...(note ? { note } : {})
     })
   }
   const withinBookingShell = presentation === 'withinBookingShell'
@@ -454,6 +459,18 @@ export function BookingCheckoutFlow({
                   issues={validationIssues}
                   messages={validationMessages}
                 />
+                <textarea
+                  data-testid="input:customerNote"
+                  name="note"
+                  aria-label={copy.noteOptional}
+                  placeholder={copy.noteOptional}
+                  maxLength={1000}
+                  rows={3}
+                  {...stylex.props(
+                    styles.legacyCheckoutInput,
+                    styles.legacyCheckoutNote
+                  )}
+                />
               </div>
             </div>
           </div>
@@ -548,6 +565,16 @@ export function BookingCheckoutFlow({
                 issues={validationIssues}
                 messages={validationMessages}
               />
+              <label {...stylex.props(styles.label)}>
+                <span {...stylex.props(styles.labelText)}>{copy.noteOptional}</span>
+                <textarea
+                  name="note"
+                  aria-label={copy.noteOptional}
+                  maxLength={1000}
+                  rows={3}
+                  {...stylex.props(styles.input, styles.checkoutNote)}
+                />
+              </label>
               <Field
                 label={copy.email}
                 name="email"

@@ -1103,7 +1103,7 @@ const liveHoldParty = (
           AND NOT EXISTS (SELECT 1 FROM candidates a JOIN candidates b ON a.id < b.id AND a.provider_id = b.provider_id AND a.starts_at < b.ends_at AND a.ends_at > b.starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN time_slot_holds h ON h.provider_id = c2.provider_id AND h.expires_at > ? AND h.booking_session_id <> c2.booking_session_id AND h.starts_at < c2.ends_at AND h.ends_at > c2.starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN appointments a ON a.provider_id = c2.provider_id AND a.status = 'scheduled' AND a.starts_at < c2.ends_at AND a.ends_at > c2.starts_at)
-          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN blocked_times b ON b.merchant_id = c2.merchant_id AND b.provider_id = c2.provider_id AND b.starts_at < c2.ends_at AND b.ends_at > c2.starts_at)
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN blocked_times b ON b.merchant_id = c2.merchant_id AND b.starts_at < c2.ends_at AND b.ends_at > c2.starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 WHERE NOT EXISTS (SELECT 1 FROM merchant_subscriptions s WHERE s.merchant_id = c2.merchant_id AND s.status IN ('trialing', 'active', 'grace')))
           AND EXISTS (SELECT 1 FROM booking_requests r JOIN booking_parties p ON p.id = r.booking_party_id WHERE r.id = c.booking_request_id AND p.booking_session_id = c.booking_session_id AND p.lifecycle = 'active')`,
       params: [...params, candidateRows.length, command.now]
@@ -1400,7 +1400,7 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                              AND starts_at < ? AND ends_at > ?
                          ) AND NOT EXISTS (
                            SELECT 1 FROM blocked_times
-                           WHERE merchant_id = ? AND provider_id = ?
+                           WHERE merchant_id = ?
                              AND starts_at < ? AND ends_at > ?
                          )`,
                 params: [
@@ -1424,7 +1424,6 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                   slot.endsAt,
                   slot.startsAt,
                   input.merchantId,
-                  provider.id,
                   new Date(
                     Date.parse(slot.endsAt) +
                       Math.max(

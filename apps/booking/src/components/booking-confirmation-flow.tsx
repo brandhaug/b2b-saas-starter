@@ -107,14 +107,17 @@ const calendarUrl = (
   kind: 'apple' | 'google' | 'yahoo',
   title: string,
   startsAt: string,
-  endsAt: string
+  endsAt: string,
+  merchantSlug: string,
+  routeId: string,
+  appointmentId: string
 ) => {
   const compact = (value: string) => value.replace(/[-:]/g, '').replace('.000', '')
   if (kind === 'google')
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${compact(startsAt)}/${compact(endsAt)}`
   if (kind === 'yahoo')
     return `https://calendar.yahoo.com/?v=60&title=${encodeURIComponent(title)}&st=${compact(startsAt)}&et=${compact(endsAt)}`
-  return `data:text/calendar;charset=utf-8,${encodeURIComponent(`BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:${compact(startsAt)}\nDTEND:${compact(endsAt)}\nSUMMARY:${title}\nEND:VEVENT\nEND:VCALENDAR`)}`
+  return `/${encodeURIComponent(merchantSlug)}/booking/confirmations/${encodeURIComponent(routeId)}/appointments/${encodeURIComponent(appointmentId)}/calendar.ics`
 }
 
 export function BookingConfirmationRouteFlow({
@@ -313,6 +316,7 @@ function BookingConfirmationView({
               key={appointment.id}
               appointment={appointment}
               confirmation={confirmation}
+              merchantSlug={merchantSlug}
               cancelled={isCancelled}
               group={isGroup}
               onReschedule={() => setRescheduleOpen(true)}
@@ -488,12 +492,14 @@ function BookingConfirmationView({
 function AppointmentCard({
   appointment,
   confirmation,
+  merchantSlug,
   cancelled,
   group,
   onReschedule
 }: {
   readonly appointment: BookingConfirmationPresentationData['appointments'][number]
   readonly confirmation: BookingConfirmationPresentationData
+  readonly merchantSlug: string
   readonly cancelled: boolean
   readonly group: boolean
   readonly onReschedule: () => void
@@ -656,7 +662,10 @@ function AppointmentCard({
                       kind,
                       confirmation.shop.publicName,
                       appointment.startsAt,
-                      appointment.endsAt
+                      appointment.endsAt,
+                      merchantSlug,
+                      confirmation.routeId,
+                      appointment.id
                     ),
                     '_blank',
                     'noopener,noreferrer'

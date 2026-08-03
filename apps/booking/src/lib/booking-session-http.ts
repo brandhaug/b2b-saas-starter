@@ -40,6 +40,7 @@ import {
   type CustomerDetails,
   type CustomerDetailsIssue,
   normalizeCustomerDetails,
+  appointmentCalendarExport,
   type BookingConfirmationResult,
   type ConfirmationReadResult,
   type CancellationResult
@@ -56,6 +57,7 @@ import type {
 } from '@b2b-saas-starter/capabilities/payments'
 import type { GiftCardReservation } from '@b2b-saas-starter/capabilities/gift-cards'
 import { BookingAvailabilityQuery } from './booking-scheduling-http-api.ts'
+import { AppointmentCalendarExportPath } from './booking-confirmation-http-api.ts'
 import {
   canonicalizeBookingRequest,
   matchCanonicalBookingRoute,
@@ -795,6 +797,7 @@ const customerDetailsFrom = (
         readonly name: string
         readonly email: string
         readonly phone: string | null
+        readonly note?: string | null
       }
       readonly issues: null
     }
@@ -807,7 +810,8 @@ const customerDetailsFrom = (
     typeof input.email !== 'string' ||
     (input.phone !== null &&
       input.phone !== undefined &&
-      typeof input.phone !== 'string')
+      typeof input.phone !== 'string') ||
+    (input.note !== null && input.note !== undefined && typeof input.note !== 'string')
   ) {
     const issues: CustomerDetailsIssue[] = []
     if (typeof input.name !== 'string')
@@ -820,13 +824,20 @@ const customerDetailsFrom = (
       typeof input.phone !== 'string'
     )
       issues.push({ field: 'phone', code: 'phone_invalid' })
+    if (
+      input.note !== null &&
+      input.note !== undefined &&
+      typeof input.note !== 'string'
+    )
+      issues.push({ field: 'note', code: 'note_too_long' })
     return { details: null, issues }
   }
   return {
     details: {
       name: input.name,
       email: input.email,
-      phone: typeof input.phone === 'string' ? input.phone : null
+      phone: typeof input.phone === 'string' ? input.phone : null,
+      ...(typeof input.note === 'string' ? { note: input.note } : {})
     },
     issues: null
   }
@@ -868,6 +879,83 @@ export const handleBookingSessionRequest = (
     if (!merchantSlug) return hiddenNotFound()
     const now = dependencies.now?.() ?? new Date().toISOString()
     const clientKey = request.headers.get('cf-connecting-ip') ?? `path:${url.pathname}`
+
+    const calendarExportMatch =
+      segments.length === 7 &&
+      segments[2] === 'confirmations' &&
+      segments[4] === 'appointments' &&
+      segments[6] === 'calendar.ics'
+        ? { routeId: segments[3]!, appointmentId: segments[5]! }
+        : null
+    if (calendarExportMatch) {
+      if (
+        request.method !== 'GET' ||
+        !CONFIRMATION_ID.test(calendarExportMatch.routeId) ||
+        !SESSION_ID.test(calendarExportMatch.appointmentId) ||
+        !dependencies.confirmation
+      )
+        return withPrivateHeaders(hiddenNotFound())
+      const calendarPath = yield* Effect.result(
+        Schema.decodeUnknownEffect(AppointmentCalendarExportPath)({
+          merchantSlug,
+          routeId: calendarExportMatch.routeId,
+          appointmentId: calendarExportMatch.appointmentId
+        })
+      )
+      if (calendarPath._tag === 'Failure') return withPrivateHeaders(hiddenNotFound())
+      if (!(yield* dependencies.takeRead(`calendar:${clientKey}`)))
+        return withPrivateHeaders(tooManyRequests())
+      const cookieName = `confirmation_${calendarPath.success.routeId}`
+      const credential = request.headers
+        .get('cookie')
+        ?.split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${cookieName}=`))
+        ?.slice(cookieName.length + 1)
+      if (!credential || !CONFIRMATION_TOKEN.test(credential))
+        return withPrivateHeaders(hiddenNotFound())
+      const access = yield* Effect.result(
+        dependencies.confirmation.read({
+          routeId: calendarPath.success.routeId,
+          merchantSlug: calendarPath.success.merchantSlug,
+          credential,
+          credentialKind: 'cookie',
+          now
+        })
+      )
+      if (access._tag === 'Failure') return withPrivateHeaders(unavailable())
+      if (access.success.kind !== 'found') return withPrivateHeaders(hiddenNotFound())
+      const calendar = yield* Effect.result(
+        appointmentCalendarExport({
+          generatedAt: now,
+          appointmentId: calendarPath.success.appointmentId,
+          appointments: access.success.confirmation.appointments.map(
+            ({ id, status, startsAt, endsAt, snapshot }) => ({
+              id,
+              status,
+              startsAt,
+              endsAt,
+              snapshot: {
+                services: snapshot.services.map(({ name }) => ({ name }))
+              }
+            })
+          ),
+          shop: access.success.confirmation.shop
+        })
+      )
+      if (calendar._tag === 'Failure')
+        return calendar.failure.reason === 'appointment_not_found'
+          ? withPrivateHeaders(hiddenNotFound())
+          : withPrivateHeaders(unavailable())
+      return withPrivateHeaders(
+        new Response(calendar.success, {
+          headers: {
+            'content-type': 'text/calendar; charset=utf-8',
+            'content-disposition': `attachment; filename="appointment-${calendarPath.success.appointmentId}.ics"`
+          }
+        })
+      )
+    }
 
     const rescheduleMatch =
       segments.length === 7 &&

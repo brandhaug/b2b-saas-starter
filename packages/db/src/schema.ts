@@ -118,6 +118,8 @@ export type StoredBookingQuote = {
     readonly currency: string
   }>
   readonly durationMinutes: number
+  readonly occupiedStartsAt?: string | undefined
+  readonly occupiedEndsAt?: string | undefined
   readonly currency: string
   readonly totalMinor: number
 }

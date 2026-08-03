@@ -189,6 +189,13 @@ describe('Booking confirmation route flow', () => {
           .querySelector('svg')
           ?.getAttribute('height')
       ).toBe('16px')
+    const openCalendar = vi.spyOn(window, 'open').mockImplementation(() => null)
+    fireEvent.click(screen.getByTestId('btn:calendar:apple'))
+    expect(openCalendar).toHaveBeenCalledWith(
+      '/mara-booking-studio/booking/confirmations/cnf_demo/appointments/apt_DEMO123/calendar.ics',
+      '_blank',
+      'noopener,noreferrer'
+    )
     expect(screen.getByTestId('text:shopName').tagName).toBe('P')
     expect(screen.getByTestId('text:shopAddress').tagName).toBe('P')
     expect(screen.getByTestId('btn:getDirections').firstElementChild?.tagName).toBe('P')
