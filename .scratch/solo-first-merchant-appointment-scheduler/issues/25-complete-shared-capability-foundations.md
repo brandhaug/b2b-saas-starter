@@ -17,6 +17,15 @@ Complete the shared Effect v4 and Live D1 application seams needed by every late
 
 ## Comments
 
+### Final isolation follow-up — 2026-08-03
+
+Closed the final cross-Merchant isolation gaps. Existing-resource commands now return
+the same `CapabilityNotFound` result whether the aggregate is unknown or belongs to a
+different Merchant, using only the requesting Merchant's scoped lookup. Outbox IDs
+include Merchant identity, so two Merchants can create the same capability aggregate
+and atomically emit independent work without a primary-key collision. Seed and real-D1
+contract tests cover both behaviors with outbox delivery enabled.
+
 ### Final review remediation — 2026-08-03
 
 Closed the last review findings: subscription lifecycle interpretation now remains in

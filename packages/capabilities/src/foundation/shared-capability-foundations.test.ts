@@ -107,6 +107,51 @@ describe('shared capability deterministic contract', () => {
   })
 
   it('lets two Merchants independently create the same aggregate id', async () => {
+    const wakeups: QueueWakeup[] = []
+    const secondAuthority = {
+      ...authority,
+      merchantId: 'mer_two',
+      actorId: 'usr_two'
+    }
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: new Map([
+        ['owner:ses_owner', authority],
+        ['owner:ses_two', secondAuthority]
+      ]),
+      publishWakeup: (wakeup) => wakeups.push(wakeup)
+    })
+    const results = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const service = yield* SharedCapabilityFoundations
+          const first = yield* service.execute(input)
+          const second = yield* service.execute({
+            ...input,
+            authority: { kind: 'owner-session', sessionId: 'ses_two' },
+            merchantId: 'mer_two',
+            idempotencyKey: 'two'
+          })
+          return [first, second]
+        }),
+        layer
+      )
+    )
+    expect(results.map((result) => result.revision)).toEqual([1, 1])
+    expect(wakeups).toEqual([
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob_mer_one_test_agg_one_1'
+      },
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob_mer_two_test_agg_one_1'
+      }
+    ])
+  })
+
+  it('returns the same not-found result for unknown and cross-Merchant aggregates', async () => {
     const secondAuthority = {
       ...authority,
       merchantId: 'mer_two',
@@ -118,24 +163,41 @@ describe('shared capability deterministic contract', () => {
         ['owner:ses_two', secondAuthority]
       ])
     })
-    const results = await Effect.runPromise(
-      Effect.provide(
-        Effect.gen(function* () {
-          const service = yield* SharedCapabilityFoundations
-          const first = yield* service.execute({ ...input, outboxKind: undefined })
-          const second = yield* service.execute({
-            ...input,
-            authority: { kind: 'owner-session', sessionId: 'ses_two' },
-            merchantId: 'mer_two',
-            idempotencyKey: 'two',
-            outboxKind: undefined
-          })
-          return [first, second]
-        }),
-        layer
+    const run = (command: SharedCommandInput) =>
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(SharedCapabilityFoundations, (service) =>
+            service.execute(command)
+          ),
+          layer
+        )
       )
-    )
-    expect(results.map((result) => result.revision)).toEqual([1, 1])
+
+    await run({ ...input, outboxKind: undefined })
+    const [foreign, unknown] = await Promise.allSettled([
+      run({
+        ...input,
+        authority: { kind: 'owner-session', sessionId: 'ses_two' },
+        merchantId: 'mer_two',
+        idempotencyKey: 'foreign',
+        expectedRevision: 1,
+        outboxKind: undefined
+      }),
+      run({
+        ...input,
+        authority: { kind: 'owner-session', sessionId: 'ses_two' },
+        merchantId: 'mer_two',
+        aggregateId: 'agg_missing',
+        idempotencyKey: 'unknown',
+        expectedRevision: 1,
+        outboxKind: undefined
+      })
+    ])
+    expect(foreign).toMatchObject({
+      status: 'rejected',
+      reason: { _tag: 'CapabilityNotFound', resource: 'merchant-resource' }
+    })
+    expect(unknown).toEqual(foreign)
   })
 
   it('renders the checked-in matrix from the executable policy inventory', () => {

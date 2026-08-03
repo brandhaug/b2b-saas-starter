@@ -188,7 +188,7 @@ const aggregateKey = (input: SharedCommandInput) =>
   `${input.merchantId}:${input.capability}:${input.aggregateId}`
 const nextRevision = (input: SharedCommandInput) => input.expectedRevision + 1
 const outboxId = (input: SharedCommandInput, revision: number) =>
-  `cob_${input.capability}_${input.aggregateId}_${revision}`
+  `cob_${input.merchantId}_${input.capability}_${input.aggregateId}_${revision}`
 
 const validateDomainScope = (
   mutation: DomainMutationPlan,
@@ -337,17 +337,15 @@ export const SeedSharedCapabilityFoundations = (
           const authority = resolve(decoded)
           const resourceKey = `${decoded.capability}:${decoded.aggregateId}`
           const owners = resourceOwners.get(resourceKey)
-          const resourceMerchantId = owners?.has(decoded.merchantId)
-            ? decoded.merchantId
-            : decoded.expectedRevision > 0
-              ? owners?.values().next().value
-              : undefined
+          const ownsResource = owners?.has(decoded.merchantId) ?? false
+          if (decoded.expectedRevision > 0 && !ownsResource)
+            throw new CapabilityNotFound({ resource: 'merchant-resource' })
           const denial = authorizeResolved(
             decoded,
             authority,
-            resourceMerchantId,
+            ownsResource ? decoded.merchantId : undefined,
             options.classifyRestrictedMutation?.(decoded, mutationRequest, {
-              resourceExists: owners?.has(decoded.merchantId) ?? false
+              resourceExists: ownsResource
             }) ?? false
           )
           if (denial) throw denial
@@ -681,21 +679,12 @@ export const makeLiveSharedCapabilityFoundations = (
               )
               .bind(decoded.merchantId, decoded.capability, decoded.aggregateId)
               .first<{ merchantId: string }>()
-            const foreignResource =
-              !ownResource && decoded.expectedRevision > 0
-                ? await raw
-                    .prepare(
-                      `SELECT merchant_id merchantId FROM capability_aggregate_revisions
-                       WHERE merchant_id <> ? AND capability = ? AND aggregate_id = ? LIMIT 1`
-                    )
-                    .bind(decoded.merchantId, decoded.capability, decoded.aggregateId)
-                    .first<{ merchantId: string }>()
-                : null
-            const resource = ownResource ?? foreignResource
+            if (decoded.expectedRevision > 0 && !ownResource)
+              throw new CapabilityNotFound({ resource: 'merchant-resource' })
             const denial = authorizeResolved(
               decoded,
               authority,
-              resource?.merchantId,
+              ownResource?.merchantId,
               options.classifyRestrictedMutation?.(decoded, mutationRequest, {
                 resourceExists: ownResource?.merchantId === authority.merchantId
               }) ?? false

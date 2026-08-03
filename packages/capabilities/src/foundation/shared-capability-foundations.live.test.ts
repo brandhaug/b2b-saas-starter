@@ -139,9 +139,9 @@ beforeAll(async () => {
       .bind(now, now),
     test.d1
       .prepare(
-        "INSERT INTO capability_aggregate_revisions (merchant_id,capability,aggregate_id,revision,updated_at) VALUES ('mer_one','appointment','apt_shared_create',1,?)"
+        "INSERT INTO capability_aggregate_revisions (merchant_id,capability,aggregate_id,revision,updated_at) VALUES ('mer_one','appointment','apt_shared_create',1,?), ('mer_one','appointment','apt_foreign_only',1,?)"
       )
-      .bind(now)
+      .bind(now, now)
   ])
   await test.d1
     .prepare(
@@ -250,6 +250,72 @@ describe('Live D1 shared capability foundations', () => {
     ).resolves.toMatchObject({ revision: 1 })
   })
 
+  it('isolates outbox work when two Merchants create the same aggregate id', async () => {
+    const wakeups: QueueWakeup[] = []
+    const publish = async (wakeup: QueueWakeup) => {
+      wakeups.push(wakeup)
+    }
+    const shared = {
+      ...command,
+      aggregateId: 'apt_shared_outbox',
+      outboxKind: 'appointment-confirmation'
+    }
+
+    await expect(
+      execute({ ...shared, idempotencyKey: 'shared_outbox_one' }, publish)
+    ).resolves.toMatchObject({ revision: 1 })
+    await expect(
+      execute(
+        {
+          ...shared,
+          authority: { kind: 'owner-session', sessionId: 'ses_owner_four' },
+          merchantId: 'mer_four',
+          idempotencyKey: 'shared_outbox_four'
+        },
+        publish
+      )
+    ).resolves.toMatchObject({ revision: 1 })
+    expect(wakeups).toEqual([
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob_mer_one_appointment_apt_shared_outbox_1'
+      },
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob_mer_four_appointment_apt_shared_outbox_1'
+      }
+    ])
+  })
+
+  it('returns the same not-found result for unknown and cross-Merchant aggregates', async () => {
+    const candidate = {
+      ...command,
+      authority: { kind: 'owner-session', sessionId: 'ses_owner_four' } as const,
+      merchantId: 'mer_four',
+      expectedRevision: 1,
+      outboxKind: undefined
+    }
+    const [foreign, unknown] = await Promise.allSettled([
+      execute({
+        ...candidate,
+        aggregateId: 'apt_foreign_only',
+        idempotencyKey: 'foreign_not_found'
+      }),
+      execute({
+        ...candidate,
+        aggregateId: 'apt_missing',
+        idempotencyKey: 'unknown_not_found'
+      })
+    ])
+    expect(foreign).toMatchObject({
+      status: 'rejected',
+      reason: { _tag: 'CapabilityNotFound', resource: 'merchant-resource' }
+    })
+    expect(unknown).toEqual(foreign)
+  })
+
   it('resolves a persisted Owner session and commits the domain mutation with consequences', async () => {
     const wakeups: QueueWakeup[] = []
     const before = {
@@ -278,7 +344,11 @@ describe('Live D1 shared capability foundations', () => {
     expect(await count('capability_audit')).toBe(before.audit + 1)
     expect(await count('capability_outbox')).toBe(before.outbox + 1)
     expect(wakeups).toEqual([
-      { version: 1, kind: 'capability-outbox', outboxId: 'cob_appointment_apt_one_1' }
+      {
+        version: 1,
+        kind: 'capability-outbox',
+        outboxId: 'cob_mer_one_appointment_apt_one_1'
+      }
     ])
   })
 
@@ -524,7 +594,7 @@ describe('Live D1 shared capability foundations', () => {
         Effect.provide(
           Effect.flatMap(SharedCapabilityFoundations, (service) =>
             service.process({
-              outboxId: 'cob_appointment_apt_process_1',
+              outboxId: 'cob_mer_one_appointment_apt_process_1',
               workerId: 'worker-process',
               now: '2026-08-03T09:01:00.000Z',
               staleBefore: '2026-08-03T08:56:00.000Z'
@@ -535,11 +605,11 @@ describe('Live D1 shared capability foundations', () => {
       )
     await process()
     await process()
-    expect(handled).toEqual(['cob_appointment_apt_process_1'])
+    expect(handled).toEqual(['cob_mer_one_appointment_apt_process_1'])
     expect(
       await test.d1
         .prepare(
-          "SELECT status FROM capability_outbox WHERE id = 'cob_appointment_apt_process_1'"
+          "SELECT status FROM capability_outbox WHERE id = 'cob_mer_one_appointment_apt_process_1'"
         )
         .first<{ status: string }>()
     ).toEqual({ status: 'processed' })
