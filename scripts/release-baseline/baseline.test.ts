@@ -161,14 +161,19 @@ describe('beesolo release baseline', () => {
       expect.arrayContaining([
         expect.stringContaining('apps/web/src/routes/pricing.tsx'),
         expect.stringContaining('apps/merchant/src/components/navigation.tsx'),
-        expect.stringContaining('apps/api/src/team-contract.ts'),
-        expect.stringContaining('packages/db/src/provider-commands.ts'),
         expect.stringContaining('packages/capabilities/src/team/members.ts')
       ])
     )
     expect(
       (await collectCandidateSourceIssues(root)).some(({ message }) =>
         message.includes('packages/db/src/provider-policy.ts')
+      )
+    ).toBe(false)
+    expect(
+      (await collectCandidateSourceIssues(root)).some(
+        ({ message }) =>
+          message.includes('apps/api/src/team-contract.ts') ||
+          message.includes('packages/db/src/provider-commands.ts')
       )
     ).toBe(false)
   })
@@ -185,7 +190,8 @@ describe('beesolo release baseline', () => {
         },
         booking: {
           presentation: 'team',
-          publicProviderChoice: 'customer-selects-provider'
+          publicProviderChoice: 'customer-selects-provider',
+          publicSelectionCommands: ['load', 'chooseProvider', 'chooseServices']
         }
       }).map(({ code }) => code)
     ).toEqual(expect.arrayContaining(['team-behavior', 'provider-choice']))

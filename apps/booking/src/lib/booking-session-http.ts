@@ -23,11 +23,11 @@ import {
   type BookingRequestMaterial,
   type BookingSessionEntry,
   type BookingJourney,
+  type BookingSelectionShape,
   type BookingAvailability,
   type TimeSlotHold,
   type HoldTimeSlotInput,
   type CoordinatedHoldInput,
-  type ProviderPreference,
   type PresentedBookingSessionCapability,
   type ServiceSelection,
   type CheckoutReview,
@@ -42,7 +42,8 @@ import {
   normalizeCustomerDetails,
   type BookingConfirmationResult,
   type ConfirmationReadResult,
-  type CancellationResult
+  type CancellationResult,
+  bookingSoloLaunchPolicy
 } from '@b2b-saas-starter/capabilities/booking'
 import {
   InvalidQuoteMaterial,
@@ -262,6 +263,13 @@ export const validatePrivateMutationRequest = (
   return null
 }
 
+type PublicBookingSelectionCommand =
+  (typeof bookingSoloLaunchPolicy.publicSelectionCommands)[number]
+type PublicBookingSelectionDependencies = Pick<
+  BookingSelectionShape,
+  PublicBookingSelectionCommand
+>
+
 export type BookingSessionHttpDependencies = {
   readonly publicSiteOrigin: string
   readonly enter: (input: {
@@ -351,50 +359,7 @@ export type BookingSessionHttpDependencies = {
       BookingPartyNotFound | BookingPartyConflict | CapabilityUnavailable
     >
   }
-  readonly selection?: {
-    readonly load: (
-      session: BookingSession,
-      now?: string
-    ) => BookingSessionEffect<
-      BookingJourney,
-      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
-    >
-    readonly chooseProvider: (
-      session: BookingSession,
-      preference: ProviderPreference,
-      expectedVersion: number,
-      providerProof?: string,
-      now?: string
-    ) => BookingSessionEffect<
-      BookingJourney,
-      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
-    >
-    readonly verifyProviderAccess?: (
-      session: BookingSession,
-      providerId: string,
-      passcode: string,
-      now: string
-    ) => BookingSessionEffect<
-      { readonly proof: string; readonly expiresAt: string },
-      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
-    >
-    readonly chooseShop?: (
-      session: BookingSession,
-      shopId: string,
-      expectedVersion: number
-    ) => BookingSessionEffect<
-      BookingJourney,
-      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
-    >
-    readonly chooseServices: (
-      session: BookingSession,
-      input: ServiceSelection,
-      expectedVersion: number
-    ) => BookingSessionEffect<
-      BookingJourney,
-      BookingSelectionRejected | BookingPartyConflict | CapabilityUnavailable
-    >
-  }
+  readonly selection?: PublicBookingSelectionDependencies
   readonly scheduling?: {
     readonly availability: (
       session: BookingSession,
@@ -1434,35 +1399,7 @@ export const handleBookingSessionRequest = (
       return hiddenNotFound()
     }
     if (endpoint === 'shop' && request.method === 'POST') {
-      if (!dependencies.selection?.chooseShop) return unavailable()
-      const body = yield* readJson(request)
-      const shopId =
-        typeof body === 'object' &&
-        body !== null &&
-        typeof (body as Record<string, unknown>).shopId === 'string'
-          ? (body as Record<string, string>).shopId
-          : null
-      const version = versionFrom(body)
-      if (!shopId || !version) return hiddenNotFound()
-      const result = yield* Effect.result(
-        dependencies.selection.chooseShop(authorization.success, shopId, version)
-      )
-      if (result._tag === 'Failure' && result.failure instanceof BookingPartyConflict) {
-        const latest = yield* Effect.result(
-          dependencies.selection.load(authorization.success, now)
-        )
-        if (latest._tag === 'Success') {
-          return withPrivateHeaders(
-            Response.json(
-              { kind: 'version_conflict', journey: latest.success },
-              { status: 409 }
-            )
-          )
-        }
-      }
-      return result._tag === 'Success'
-        ? jsonJourney(result.success)
-        : mapSessionFailure(result.failure, merchantSlug)
+      return hiddenNotFound()
     }
     if (endpoint === 'services' && request.method === 'POST') {
       if (!dependencies.selection) return unavailable()

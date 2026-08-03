@@ -46,6 +46,7 @@ export {
   emptySeedBookingSelectionStore,
   seedBookingSelectionEligibilityKey
 } from './booking-selection.ts'
+export { bookingSoloLaunchPolicy } from './solo-launch-policy.ts'
 export type {
   BookingSelectionShape,
   SeedBookingSelectionEligibilityKey,

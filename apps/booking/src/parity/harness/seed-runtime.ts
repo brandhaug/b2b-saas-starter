@@ -302,49 +302,6 @@ export const createSeedHarnessRuntime = (scenario: ScenarioManifest) => {
               selectionLayer
             )
           },
-          chooseProvider: (session, preference, expectedVersion) =>
-            Effect.gen(function* () {
-              const journey = yield* Effect.provide(
-                Effect.flatMap(BookingSelection, (service) =>
-                  service.chooseProvider(session, preference, expectedVersion)
-                ),
-                selectionLayer
-              )
-              const party = yield* Effect.orDie(
-                Effect.provide(
-                  Effect.flatMap(BookingParties, (service) =>
-                    service.findForSession(session.id)
-                  ),
-                  partiesLayer
-                )
-              )
-              yield* Effect.orDie(
-                Effect.provide(
-                  Effect.flatMap(BookingParties, (service) =>
-                    service.updateRequest(
-                      party.id,
-                      party.activeRequestId!,
-                      {
-                        providerPreference: preference.kind,
-                        providerId:
-                          preference.kind === 'specific' ? preference.providerId : null
-                      },
-                      party.version,
-                      scenario.clock.instant
-                    )
-                  ),
-                  partiesLayer
-                )
-              )
-              return journey
-            }),
-          chooseShop: (session, shopId, expectedVersion) =>
-            Effect.provide(
-              Effect.flatMap(BookingSelection, (service) =>
-                service.chooseShop(session, shopId, expectedVersion)
-              ),
-              selectionLayer
-            ),
           chooseServices: (session, input, expectedVersion) =>
             Effect.gen(function* () {
               const journey = yield* Effect.provide(

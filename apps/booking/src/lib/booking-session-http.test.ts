@@ -713,10 +713,6 @@ describe('Booking Session HTTP boundary', () => {
         },
         selection: {
           load: () => Effect.succeed(journey),
-          chooseProvider: (_session, preference) => {
-            calls.push(`provider:${preference.kind}`)
-            return Effect.succeed({ ...journey, providerPreference: preference })
-          },
           chooseServices: () =>
             Effect.fail(
               new BookingSelectionRejected({
@@ -728,6 +724,61 @@ describe('Booking Session HTTP boundary', () => {
         takeWrite: () => Effect.succeed(true),
         fallback: () => Effect.die(new Error('not called'))
       })
+    )
+
+    expect(response.status).toBe(404)
+    expect(calls).toEqual(['authorize:bsn_private'])
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+  })
+
+  it('rejects the removed Shop-selection route after Session authorization', async () => {
+    const capability = '7'.repeat(64)
+    const calls: string[] = []
+    const response = await Effect.runPromise(
+      handleBookingSessionRequest(
+        new Request(
+          'https://www.example.test/mara-studio/booking/session/bsn_private/shop',
+          {
+            method: 'POST',
+            headers: {
+              cookie: `booking_session_bsn_private=${capability}`,
+              origin: 'https://www.example.test',
+              'sec-fetch-site': 'same-origin',
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify({ version: 1, shopId: 'shp_other' })
+          }
+        ),
+        {
+          publicSiteOrigin: 'https://www.example.test',
+          enter: () => Effect.die(new Error('not called')),
+          authorize: (input) => {
+            calls.push(`authorize:${input.sessionId}`)
+            return Effect.succeed({
+              id: input.sessionId,
+              merchantSlug: input.merchantSlug,
+              checkoutPath: 'pay_in_person',
+              lifecycle: 'active',
+              createdAt: input.now,
+              lastActivityAt: input.now,
+              idleExpiresAt: input.now,
+              absoluteExpiresAt: input.now
+            })
+          },
+          selection: {
+            load: () => Effect.succeed(journey),
+            chooseServices: () =>
+              Effect.fail(
+                new BookingSelectionRejected({
+                  message: 'Selection could not be accepted'
+                })
+              )
+          },
+          takeRead: () => Effect.succeed(true),
+          takeWrite: () => Effect.succeed(true),
+          fallback: () => Effect.die(new Error('not called'))
+        }
+      )
     )
 
     expect(response.status).toBe(404)
@@ -773,13 +824,6 @@ describe('Booking Session HTTP boundary', () => {
             }),
           selection: {
             load: () => Effect.succeed(latest),
-            chooseProvider: () =>
-              Effect.fail(
-                new BookingPartyConflict({
-                  bookingPartyId: 'bpt_private',
-                  expectedVersion: 1
-                })
-              ),
             chooseServices: () => Effect.succeed(latest)
           },
           takeRead: () => Effect.succeed(true),
@@ -870,10 +914,6 @@ describe('Booking Session HTTP boundary', () => {
         }),
       selection: {
         load: () => Effect.succeed(journey),
-        chooseProvider: () =>
-          Effect.fail(
-            new BookingSelectionRejected({ message: 'Selection could not be accepted' })
-          ),
         chooseServices: () =>
           Effect.fail(
             new BookingSelectionRejected({ message: 'Selection could not be accepted' })

@@ -635,33 +635,6 @@ export default {
               ),
               capabilitiesLayer
             ),
-          chooseProvider: (session, preference, expectedVersion, providerProof, now) =>
-            Effect.provide(
-              Effect.flatMap(BookingSelection, (selection) =>
-                selection.chooseProvider(
-                  session,
-                  preference,
-                  expectedVersion,
-                  providerProof,
-                  now
-                )
-              ),
-              capabilitiesLayer
-            ),
-          verifyProviderAccess: (session, providerId, passcode, now) =>
-            Effect.provide(
-              Effect.flatMap(BookingSelection, (selection) =>
-                selection.verifyProviderAccess(session, providerId, passcode, now)
-              ),
-              capabilitiesLayer
-            ),
-          chooseShop: (session, shopId, expectedVersion) =>
-            Effect.provide(
-              Effect.flatMap(BookingSelection, (selection) =>
-                selection.chooseShop(session, shopId, expectedVersion)
-              ),
-              capabilitiesLayer
-            ),
           chooseServices: (session, input, expectedVersion) =>
             Effect.provide(
               Effect.flatMap(BookingSelection, (selection) =>

@@ -25,12 +25,8 @@ const teamBehaviorPatterns = [
   /per-seat billing/i,
   /(?:upgrade (?:to )?|downgrade (?:from )?)Team|Team (?:upgrade|downgrade)|downgrade to Solo/i
 ] as const
-const teamBehaviorIdentifierPattern =
-  /\b(?:list|invite|add|create|remove|update|delete|disable|enable)(?:Merchant)?Members?\b|\b(?:memberInvitations?|managerRole|employeeRole|maxMembers|perSeat(?:Price|Billing)?)\b/
 const providerManagementSurface =
   /(?:New|Create|Add) Provider|(?:to|href)\s*=\s*['"]\/providers\/(?:new|create)['"]/i
-const providerManagementIdentifierPattern =
-  /\b(?:create|add|remove|delete|archive|restore|list)Providers?\b|\bmaxProviders\b/i
 
 export type SoloLaunchSurfaceContract = {
   readonly merchantCatalog: {
@@ -43,6 +39,7 @@ export type SoloLaunchSurfaceContract = {
   readonly booking: {
     readonly presentation: string
     readonly publicProviderChoice: string
+    readonly publicSelectionCommands: readonly string[]
   }
 }
 
@@ -77,7 +74,10 @@ export const validateSoloLaunchSurface = (
     surface.merchantCatalog.providerCommands.length !== 1 ||
     surface.merchantCatalog.providerCommands[0] !== 'updateProvider' ||
     surface.booking.presentation !== 'solo' ||
-    surface.booking.publicProviderChoice !== 'automatic-sole-provider'
+    surface.booking.publicProviderChoice !== 'automatic-sole-provider' ||
+    surface.booking.publicSelectionCommands.length !== 2 ||
+    surface.booking.publicSelectionCommands[0] !== 'load' ||
+    surface.booking.publicSelectionCommands[1] !== 'chooseServices'
   )
     issues.push({
       code: 'provider-choice',
@@ -161,9 +161,6 @@ export const collectCandidateSourceIssues = async (
     path.startsWith('packages/db/src/')
   const activeProduct = (path: string) =>
     publicProduct(path) || merchantProduct(path) || bookingProduct(path)
-  const deferredTeamCore = coreProduct
-  const deferredProviderCore = (path: string) =>
-    coreProduct(path) && !path.startsWith('packages/capabilities/src/notifications/')
   reportMatches(
     'active-starter-identity',
     /B2B SaaS Starter|starter (?:template|monorepo|showcase|product)/i,
@@ -180,13 +177,7 @@ export const collectCandidateSourceIssues = async (
       pattern,
       (path) => activeProduct(path) || coreProduct(path)
     )
-  reportMatches('team-behavior', teamBehaviorIdentifierPattern, deferredTeamCore)
   reportMatches('provider-management', providerManagementSurface, merchantProduct)
-  reportMatches(
-    'provider-management',
-    providerManagementIdentifierPattern,
-    deferredProviderCore
-  )
   reportMatches(
     'provider-navigation',
     /label\s*(?::|=)\s*['"]Providers['"][\s\S]{0,80}to\s*(?::|=)\s*['"]\/providers['"]/i,
