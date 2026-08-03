@@ -14,13 +14,14 @@ The first implementation target is the Booking Vertical Slice: shop or brand dis
 - Settled during charting: `apps/web` is the Public Site and public ingress, `apps/merchant` is the Merchant App, `apps/booking` is the Booking App, `apps/api` is the Platform API, and `apps/background` remains for async jobs. The Platform API is not a customer booking channel.
 - Settled during charting: the first Booking Vertical Slice excludes gift cards, waiting list, walk-ins, refunds, reschedules, memberships, loyalty, and deep payment edge cases unless one is required to keep the core appointment path coherent.
 - Target implementation should stay Bun-only and prefer this repo's existing React 19, TanStack, Effect, D1, Better Auth, Alchemy, Wrangler, oxfmt, and oxlint patterns.
+- Current product direction after this historical first-slice map is [BeeSolo](../solo-first-merchant-appointment-scheduler/map.md): a Solo-only launch with one Merchant Owner as the sole Provider. Team presentation seams recorded here remain historical or future-compatible context, not current launch implementation requirements.
 - The map is planning by default. Do not implement product code from these tickets until the route is clear or the destination is explicitly redrawn.
 
 ## Decisions so far
 
 - [Inventory Core Booking Source](./issues/01-inventory-core-booking-source.md) — located the Legacy Source routes, contracts, state, fixtures, payment touchpoints, and gaps that define the behavior to preserve.
 - [Decide Booking Domain Model](./issues/02-decide-booking-domain-model.md) — fixed Merchant Catalog, Scheduling, and Booking as the implemented first-slice contexts and translated legacy booking language into the canonical glossary.
-- [Decide App Topology and Runtime](./issues/03-decide-app-topology-and-runtime.md) — fixed the five-Worker topology, canonical origins and ports, Public Site ingress, binding ownership, public-page lifecycle, and Solo/Team information architecture.
+- [Decide App Topology and Runtime](./issues/03-decide-app-topology-and-runtime.md) — fixed the five-Worker topology, canonical origins and ports, Public Site ingress, binding ownership, public-page lifecycle, and a Solo surface with future-compatible Team seams now deferred beyond BeeSolo launch.
 - [Decide First-Slice Storage](./issues/04-decide-first-slice-storage.md) — made D1 authoritative for mutable state, kept Availability and readiness derived, fixed the Booking Session/Hold/Quote/Appointment snapshot boundary, and defined one deterministic Seed Booking Scenario.
 - [Decide Platform API Contract](./issues/05-decide-platform-api-contract.md) — fixed the Merchant-scoped read-and-notify `/v1` surface, exact resource contracts and scopes, typed errors and rate limits, and thin PII-free Appointment webhooks.
 - [Prototype Minimum Merchant Surface](./issues/06-prototype-minimum-merchant-surface.md) — selected the source-reduced operations rail as the Merchant App migration baseline and kept prototype screens disposable as production slices replace them.

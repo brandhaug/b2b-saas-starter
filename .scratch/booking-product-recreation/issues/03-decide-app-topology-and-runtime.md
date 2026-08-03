@@ -80,3 +80,7 @@ The names are settled, but this ticket should decide whether Merchant App and Bo
 - Staging mirrors production host roles at `www.staging.<domain>` for the Public Site and booking flow, `app.staging.<domain>` for the Merchant App, and `api.staging.<domain>` for the Platform API. `staging.<domain>` permanently redirects to `www.staging.<domain>` with path and query preserved. Staging origin, cookie, and trusted-origin settings use only these staging hosts.
 - The Platform API starts under `/v1`, superseding ADR 0048's decision to defer versioning for the retired generic Starter API. The new product-facing integration contract should not require a later breaking migration from unversioned URLs.
 - ADR [0051 — Booking product application topology](../../../docs/adr/0051-booking-product-application-topology.md) records the final topology and supersedes the generic Starter decisions that no longer apply.
+
+### Scope amendment — 2026-07-29
+
+The topology remains valid, but BeeSolo launches as Solo-only. The Merchant App must hide Team plan selection, staff/team setup, multi-Provider administration, and Team-specific Provider choice. Team-aware seams described in this historical decision are future compatibility, not launch implementation work.

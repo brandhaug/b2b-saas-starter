@@ -1,7 +1,9 @@
-# Booking Product
+# BeeSolo
 
-Cloudflare-first booking product built with six Workers, Effect v4, Drizzle on
+Cloudflare-first Solo appointment scheduler built with six Workers, Effect v4, Drizzle on
 D1, Better Auth, Alchemy, Vitest, Playwright, oxlint, oxfmt, Turbo, and Bun.
+
+BeeSolo's launch target is one Merchant Owner operating one Shop as its sole active Provider. Team plans, staff accounts and roles, additional Providers, and Team-oriented interfaces are deferred.
 
 The first shipped vertical slice lets a verified Merchant Owner configure and
 publish a catalog and schedule; customers can book a specific or any eligible

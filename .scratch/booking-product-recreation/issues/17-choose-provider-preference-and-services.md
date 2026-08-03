@@ -79,3 +79,7 @@ Customers should choose a Specific Provider or Any Provider when Team behavior a
 - Availability calculation, concrete Any Provider assignment, Time Slot Holds, and Booking Quotes.
 - Customer Details, checkout, Appointment confirmation, customer accounts, and Platform API booking mutations.
 - Gift cards, group appointments, passcodes, waiting lists, walk-ins, and other Legacy Source extensions outside the first Booking Vertical Slice.
+
+### Scope amendment — 2026-07-29
+
+BeeSolo launch has one eligible Owner-Provider and therefore hides Provider Preference. Specific Provider, Any Provider, and Team fixture coverage remain valid historical engine evidence, but no Team chooser, additional-Provider setup, or Team-facing selection UI belongs to the launch surface.

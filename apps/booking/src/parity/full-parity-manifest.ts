@@ -107,14 +107,6 @@ accept(
     'brand-partial-language': 'Partially translated merchant content.',
     'brand-empty': 'Empty Brand recovery.',
     'brand-failure': 'Failed Brand recovery.',
-    'shop-loading-cards': 'Seven Provider loading cards.',
-    'shop-any-provider': 'Any Provider selection.',
-    'shop-specific-provider': 'Specific Provider selection.',
-    'shop-about-overlay': 'Provider about overlay.',
-    'shop-passcode-accepted': 'Provider passcode accepted.',
-    'shop-passcode-rejected': 'Provider passcode rejected.',
-    'shop-passcode-cached': 'Provider passcode proof reused.',
-    'shop-group-restriction': 'Group flow Provider restriction.',
     'shop-gift-card-entry': 'Conditional Gift Card entry.',
     'services-skeleton': 'Minimum-duration Service skeleton.',
     'services-list': 'Initial Service list.',
@@ -341,14 +333,6 @@ accept(
 const deliveredSchedulingEntries: Readonly<
   Record<string, { readonly status: ParityStatus; readonly scenario: string }>
 > = {
-  'state:shop-any-provider': {
-    status: 'verified',
-    scenario: 'booking/scheduling-available'
-  },
-  'state:shop-specific-provider': {
-    status: 'implemented',
-    scenario: 'parity/state/shop-specific-provider'
-  },
   'state:schedule-loading': {
     status: 'verified',
     scenario: 'booking/scheduling-loading'

@@ -29,6 +29,10 @@ capabilities, worker bindings/operations, seed data, and D1 tables. Verification
 `bun run build`, `bun run typecheck`, `bun run lint`, `bun run format:check`,
 `bun run test`, real-workerd D1 tests, and React Doctor (100/100).
 
+### Scope amendment — 2026-07-29
+
+The runtime contraction remains complete, but its explicit editorial-redesign exclusion left residual Starter and Workspace MDX on the Public Site. Their BeeSolo disposition is now owned by [Decide the BeeSolo Public Site and Documentation Boundary](../../solo-first-merchant-appointment-scheduler/issues/19-decide-beesolo-public-site-and-documentation-boundary.md); no residual page may be treated as approved BeeSolo launch content merely because it survived this contraction.
+
 ## Agent Brief
 
 **Category:** enhancement

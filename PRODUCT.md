@@ -1,37 +1,39 @@
-# Product
+# BeeSolo Product
 
 ## Register
 
 product
 
-> Default register. The public Showcase Site (`/`, docs, blog, pricing) is a **brand** surface and is treated as such per task.
+> Default register. The Public Site, Merchant App, and Booking App are BeeSolo product surfaces.
 
 ## Users
 
-Senior TypeScript engineers and small teams evaluating a foundation for their next B2B SaaS. They arrive skeptical — usually at night, mid-evaluation, comparing starters — and they distrust marketing pages. They want to inspect the actual architecture, run it locally in minutes, and judge the code, not the copy. Secondary: developers already using the starter, returning for docs, changelog, and decision rationale.
+BeeSolo serves a solopreneur barber or salon professional who operates one physical Shop and performs every bookable Service themselves. They need to publish a trustworthy booking page, control availability, manage appointments and customers, handle walk-ins and waiting-list demand, send operational notifications, and understand the business without adopting team-management software. Their customers book as guests from a clear mobile-first flow.
 
 ## Product Purpose
 
-The B2B SaaS Starter is a repository product: a Cloudflare-first foundation (TanStack Start, Effect v4, Drizzle D1, Better Auth, REST + MCP, Queues, Email) proven by a working Reference Application. The Showcase Site explains why the starter is a strong foundation; the Reference Application proves those claims with real, seeded, working features. Success = a visitor forks the repo and has it running locally without configuring a single external provider.
+BeeSolo is a paid, Cloudflare-first Solo appointment scheduler. Launch supports one Merchant, one Shop, one Merchant Owner, and one active Owner-Provider. Success means that Owner can move from verified account and trial through explicit setup and publication, then operate the complete appointment lifecycle without workarounds while customers can book and manage supported appointment actions safely.
+
+The Team Plan is not a launch profile. Additional Merchant Members or Providers, invitations, Manager and Employee roles, per-seat billing, ownership transfer, Team upgrades or downgrades, and Team-oriented interfaces remain deferred future work.
 
 ## Brand Personality
 
-Calm, inspectable, opinionated. The voice of a senior engineer walking you through a system they're proud of — precise, honest, allergic to hype. Emotional goal: trust through proof. Everything shown on the public site should be real: real module states from the Seed Workspace, real commands, real file paths. Never sell a fictional SaaS.
+Calm, capable, focused, and honest. BeeSolo should feel like a reliable operating tool made for one busy professional: direct language, clear consequences, humane recovery, and no enterprise ceremony. The emotional goal is quiet control over the working day.
 
 ## Anti-references
 
-- Generic AI-generated SaaS landing pages: gradient heroes, glassmorphism, glowing accents, identical icon-card grids, fake metrics, testimonial walls.
-- Fictional-product marketing — the showcase describes the Starter itself, never an invented company.
-- Consumer-product warmth (illustration-heavy, playful mascots). This is a tool for serious operators.
-- Editorial-magazine affectation (display serifs, drop caps) — the brand is an engineering document, not a magazine.
+- Generic appointment marketplaces that make the professional feel secondary to the platform.
+- Workforce-management software, employee dashboards, seat counters, or Team upsells in the Solo launch.
+- Generic AI-generated SaaS visuals: glassmorphism, glowing accents, fake metrics, and interchangeable icon-card grids.
+- Claims of online payments, external-calendar sync, realtime collaboration, or delivery guarantees that BeeSolo does not yet provide.
 
 ## Design Principles
 
-1. **Show, don't sell.** Every claim on the public site is backed by something real on screen: live seed data, runnable commands, actual topology.
-2. **Practice what you preach.** The showcase is rendered by the same stack it advertises; the page itself is the demo.
-3. **One system end-to-end.** shadcn/ui primitives, Geist + Geist Mono, semantic tokens. The marketing surface may commit harder to the brand color than the workspace, but it is the same design system.
-4. **Provider-light honesty.** Optional modules are presented as env-gated and inactive-by-default — never faked as "live".
-5. **Restraint with one bold move per surface.** Quiet chrome, then a single committed moment (a drenched band, a schematic) that carries the identity.
+1. **Solo is the product, not a reduced Team mode.** Hide concepts that one Owner-Provider does not need.
+2. **Close the operating loop.** Every customer-facing promise must have a complete Merchant action, recovery path, and truthful state.
+3. **Keep the day legible.** The responsive day ledger, seven-day strip, and focused date picker are the scheduling spine.
+4. **Provider-light honesty.** Optional integrations show disabled or needs-configuration states instead of pretending to work.
+5. **One system end to end.** Public, booking, merchant, operations, API, and background surfaces use the same domain language and security boundaries.
 
 ## Accessibility & Inclusion
 

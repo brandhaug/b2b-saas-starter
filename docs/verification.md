@@ -1,7 +1,9 @@
-# Booking Product Verification
+# BeeSolo Verification
 
 The verification contract follows the five production boundaries and uses only
 Bun commands.
+
+BeeSolo launch verification assumes exactly one Merchant Owner and one active Owner-Provider. Public booking binds that Provider automatically; Team UI, fixtures, membership, authorization, billing, and multi-Provider behavior are absent from launch evidence.
 
 ## Canonical scenario
 
@@ -42,7 +44,7 @@ replace a developer's active Operator Session.
 | ---------------------------------------------------- | ------------------------------------------------------------- |
 | verified Owner auth, host-only cookie, origin checks | `apps/merchant/src/lib/merchant-auth.integration.test.ts`     |
 | catalog, eligibility, schedule, publication          | Merchant handlers and capability Live tests                   |
-| Specific/Any Provider, Hold, fixed Quote             | Booking selection/scheduling Live tests                       |
+| Owner-Provider selection, Hold, fixed Quote          | Booking selection/scheduling Live tests                       |
 | Pay In Person, idempotent atomic confirmation        | checkout and confirmation Live tests                          |
 | Merchant Appointment/Customer views                  | appointment operations tests                                  |
 | Merchant PWA install, viewport, and network policy   | `apps/merchant/src/lib/merchant-pwa*.test.ts` and shell tests |

@@ -1,5 +1,7 @@
 # Cal.com Canonical Booking Terms: Focused First Pass
 
+> **BeeSolo scope update — 2026-07-29:** BeeSolo launches with one Owner-Provider. Cal.com Team, Membership, routing, and multi-Host evidence below is retained as comparative research only and must not create launch implementation work.
+
 Research date: 2026-07-09
 Source repo: `/Users/hassan/Desktop/cal.shit/cal.diy`
 
@@ -32,7 +34,7 @@ Recommendation for Beesolo: use **Provider** as our product/domain term if we wa
 
 - **Merchant public slug**: Cal.com's public route model supports `/:user` and `/:user/:type`, where `user` is a username/profile identity and `type` is an event type slug. Our `www.<domain>/:merchantSlug` and `www.<domain>/:merchantSlug/booking` shape can borrow the public identity idea but should call it `merchantSlug`, not `username`, because our first-class public identity is a business/merchant, not necessarily an account user.
 - **Solo plan**: In Cal.com, a solo booking page can be a User/Profile with Event Types and Schedules. For us, Solo should be Merchant -> default Provider -> Services -> Schedule/Availability -> Bookings. The default Provider can be hidden in UI until the merchant needs team features.
-- **Team plan**: Cal.com adds Team, Membership, Host, team event types, and scheduling modes such as ROUND_ROBIN/COLLECTIVE/MANAGED. For us, Team plan should add Providers and Membership/Roles; team scheduling can come later as explicit routing/assignment behavior.
+- **Deferred Team plan**: Cal.com adds Team, Membership, Host, team event types, and scheduling modes such as ROUND_ROBIN/COLLECTIVE/MANAGED. This remains future reference; BeeSolo launch implements none of these Team or routing concepts.
 - **Provider vs Host**: Cal.com makes `Host` the canonical event-assigned bookable person. Beesolo should still use **Provider** because the product is service-business/solopreneur-first, not meeting-host-first. Internally, Provider should play the same role Cal.com's Host plays: a bookable person attached to services, availability, bookings, and optional team membership.
 - **Avoid Staff Member**: Cal.com's durable schema does not need "Staff Member" as the core booking term. It uses User/Membership/Host/TeamMember. For Beesolo, "Staff" should be UI copy only if a merchant operates as an employer; it should not be the canonical model.
 - **Attendee/Customer**: Cal.com uses Attendee for the person attending a booking. Beesolo can use **Customer** externally and possibly **Attendee** only in lower-level scheduling internals if needed. Since the product is appointment/service oriented, Customer is probably clearer.

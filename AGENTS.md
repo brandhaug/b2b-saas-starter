@@ -1,6 +1,8 @@
-# B2B SaaS Starter
+# BeeSolo
 
-Cloudflare-first B2B SaaS starter. The public site showcases the repository itself; the authenticated app is a reference implementation for workspaces, starter modules, readiness, integrations, API/MCP, email, reports, webhooks, audit, and admin.
+BeeSolo is a Cloudflare-first, Solo-only appointment scheduler for a solopreneur barber or salon professional operating one Shop as its sole Merchant Owner and active Provider. The Public Site, Merchant App, Booking App, Platform API, Background Worker, and Operations App are product surfaces—not a generic starter showcase.
+
+The launch must not add Team Plan behavior: additional Merchant Members or Providers, invitations, Manager or Employee roles, per-seat billing, ownership transfer, Team upgrade/downgrade paths, or Team-oriented navigation and schedule layouts are deferred.
 
 See [CONTEXT.md](./CONTEXT.md) for canonical domain language and [ARCHITECTURE.md](./ARCHITECTURE.md) for the system map and security model. Decisions live in [docs/adr](./docs/adr).
 
@@ -39,7 +41,7 @@ bun run test
 3. Keep local development provider-light. Optional modules must show disabled or needs-config states instead of failing the app.
 4. Use Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, and Alchemy.
 5. Keep Contributor's visual patterns but do not import Contributor's developer-productivity domain language.
-6. Keep Hexwardens' architecture discipline but do not copy game, PWA, realtime, or Durable Object requirements without a starter use case.
+6. Keep Hexwardens' architecture discipline but do not copy game, realtime, or Durable Object requirements without a BeeSolo use case.
 
 ## Agent skills
 

@@ -64,6 +64,10 @@ Selecting a candidate must atomically revalidate it and create one exclusive ten
 
 The winning hold must carry an immutable Booking Quote containing the scheduled interval, assigned Provider facts, original Provider Preference, and ordered Primary and Additional Service snapshots with roles, durations, positive prices, one currency, and an exact summed total. Later Merchant edits, Service or Provider lifecycle changes, Schedule Rule changes, or Public Booking Page unpublishing must not rewrite a valid hold or quote. Reads and Booking Session activity must not extend the fixed hold deadline. After expiry, the interval is available again and the Session must acquire a new hold and quote from current catalog facts.
 
+### BeeSolo scheduling amendment — 2026-07-30
+
+The immutable-quote rule does not let a provisional Time Slot Hold prevent the Owner from responding to a scheduling change. Except for a Shop-timezone change, which waits until no hold is active, a BeeSolo mutation to Schedule Rules, Booking Window controls, Service duration, or Service Buffers takes effect immediately and atomically invalidates only the active holds it makes unavailable. The invalidated hold and quote end rather than being rewritten; unaffected holds remain valid and immutable, and the affected Booking Party retains its other selections for slot-lost recovery. Confirmed Appointment snapshots remain immutable. This targeted amendment supersedes only the earlier requirement that these later scheduling changes could not affect a valid hold.
+
 Lost, expired, invalid, and concurrently claimed Time Slots should return non-disclosing recovery states without corrupting the still-valid Provider Preference and Service selections. The Booking App should preserve its established calendar strip, time density, three-column grid, selected-time feedback, and explicit slot-lost message while replacing fixture selection with server-authoritative Availability and holds.
 
 **Key interfaces:**
@@ -83,7 +87,7 @@ Lost, expired, invalid, and concurrently claimed Time Slots should return non-di
 - [x] Specific Provider holds use the selected eligible Provider; Any Provider holds atomically assign one concrete eligible Provider for conflict detection while preserving Any Provider as the original preference.
 - [x] Concurrent or overlapping attempts against the same Provider interval produce at most one winning hold, and confirmed Appointment intervals are never offered or held.
 - [x] A hold's Booking Quote snapshots the scheduled interval, assigned Provider, original Provider Preference, and ordered Primary and Additional Service facts, roles, durations, positive prices, single currency, and exact summed total.
-- [x] Merchant catalog edits, lifecycle changes, scheduling changes, or unpublishing do not alter a valid held quote; expiry releases the interval and requires a new hold using current facts.
+- [x] Merchant catalog edits, lifecycle changes, or unpublishing do not rewrite a valid held quote. Under the BeeSolo scheduling amendment, an affected scheduling change may end the hold and quote without mutating them; unaffected holds remain immutable, and expiry requires a new hold using current facts.
 - [x] Availability reads, hold reads, and unrelated Booking Session activity never extend the hold deadline; expired, invalid, or lost-slot responses preserve valid upstream selections and disclose no private catalog or schedule facts.
 - [x] The Booking App renders server-derived Availability with the established calendar strip, time density, three-column grid, selected-time feedback, no-times state, and `That time was just booked` recovery state.
 - [x] The canonical seed graph uses one explicit anchor time and contains one past Appointment plus one future Appointment that deterministically removes its interval from Availability.
