@@ -22,6 +22,9 @@ const OwnerActivationTestInput = Schema.Struct({
 })
 const decodeInput = Schema.decodeUnknownSync(OwnerActivationTestInput)
 
+const ownerActivationTestPrefix = (merchantId: string) =>
+  `owner-activation-test:${merchantId}:`
+
 const emailEnv = (): BookingProductEnv & { readonly ENVIRONMENT?: string } => ({
   DB: env.DB,
   ...(env.EMAIL
@@ -77,7 +80,7 @@ export const sendOwnerActivationTestEmail = createServerFn({ method: 'POST' })
               ownerUserId: session.user.id,
               verifiedOwnerEmail: null,
               locale: data.locale,
-              idempotencyKey: `owner-activation-test:${merchant.id}:${data.commandId}`,
+              idempotencyKey: `${ownerActivationTestPrefix(merchant.id)}${data.commandId}`,
               now: new Date().toISOString()
             })
           }).pipe(
@@ -91,3 +94,32 @@ export const sendOwnerActivationTestEmail = createServerFn({ method: 'POST' })
         )
       })
   )
+
+export const getRecoverableOwnerActivationTestEmail = createServerFn({
+  method: 'GET'
+}).handler(async () =>
+  runMerchantRequest('publication.update', (session) => {
+    const merchantContext = liveMerchantContext(session.user.id).pipe(
+      Layer.provide(layerFromD1(env.DB))
+    )
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const merchant = yield* MerchantContext
+        const email = yield* TransactionalEmail
+        const attempt = yield* email.recoverableOwnerActivationTest(merchant.id)
+        if (!attempt) return null
+        const prefix = ownerActivationTestPrefix(merchant.id)
+        if (!attempt.idempotencyKey.startsWith(prefix)) return null
+        const commandId = attempt.idempotencyKey.slice(prefix.length)
+        return commandId ? { commandId, evidence: attempt.evidence } : null
+      }).pipe(
+        Effect.provide(
+          Layer.merge(
+            merchantContext,
+            makeTransactionalEmailCapabilityLayer(emailEnv())
+          )
+        )
+      )
+    )
+  })
+)

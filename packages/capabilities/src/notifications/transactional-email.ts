@@ -42,6 +42,19 @@ export const TransactionalEmailEvidence = Schema.Struct({
 })
 export type TransactionalEmailEvidence = typeof TransactionalEmailEvidence.Type
 
+export type RecoverableOwnerActivationTest = {
+  readonly idempotencyKey: string
+  readonly evidence: TransactionalEmailEvidence
+}
+
+const recoverableOwnerActivationTest = (
+  idempotencyKey: string,
+  evidence: TransactionalEmailEvidence
+): RecoverableOwnerActivationTest | null =>
+  evidence.retryable || evidence.status === 'submitting'
+    ? { idempotencyKey, evidence }
+    : null
+
 export const NotificationReadiness = Schema.Struct({
   merchantId: Schema.String,
   state: Schema.Literals([
@@ -357,6 +370,9 @@ export type TransactionalEmailShape = {
   readonly readiness: (
     merchantId: string
   ) => Effect.Effect<NotificationReadiness, CapabilityUnavailable>
+  readonly recoverableOwnerActivationTest: (
+    merchantId: string
+  ) => Effect.Effect<RecoverableOwnerActivationTest | null, CapabilityUnavailable>
   readonly receiveCallback: (input: {
     readonly rawBody: string
     readonly signature: string
@@ -550,6 +566,21 @@ export const makeSeedTransactionalEmailLayer = (input: {
         }
         return evidenceByIdempotency.get(command.idempotencyKey) ?? evidence
       }),
+    recoverableOwnerActivationTest: (merchantId) => {
+      let latest: readonly [string, TransactionalEmailEvidence] | undefined
+      for (const entry of evidenceByIdempotency) {
+        const evidence = entry[1]
+        if (
+          evidence.merchantId === merchantId &&
+          evidence.templateKey.startsWith('owner_activation_test_') &&
+          (!latest || evidence.attemptedAt >= latest[1].attemptedAt)
+        )
+          latest = entry
+      }
+      return Effect.succeed(
+        latest ? recoverableOwnerActivationTest(latest[0], latest[1]) : null
+      )
+    },
     readiness: (merchantId) =>
       Effect.succeed(readiness.get(merchantId) ?? configurationReadiness(merchantId)),
     receiveCallback: (callbackInput) =>
@@ -874,6 +905,32 @@ export const makeLiveTransactionalEmailLayer = (
               yield* reconcilePendingCallbacks(providerFingerprint)
             const row = (yield* readEvidence(command.idempotencyKey))[0]!
             return evidenceProjection(row)
+          }),
+        recoverableOwnerActivationTest: (merchantId) =>
+          Effect.gen(function* () {
+            const [latest] = yield* orUnavailable('transactional-email')(
+              db
+                .select()
+                .from(emailEvidenceTable)
+                .where(
+                  and(
+                    eq(emailEvidenceTable.merchantId, merchantId),
+                    eq(emailEvidenceTable.purpose, 'owner_activation_test'),
+                    eq(emailEvidenceTable.senderIdentity, provider.sender ?? '')
+                  )
+                )
+                .orderBy(
+                  desc(emailEvidenceTable.attemptedAt),
+                  desc(emailEvidenceTable.updatedAt)
+                )
+                .limit(1)
+            )
+            return latest
+              ? recoverableOwnerActivationTest(
+                  latest.idempotencyKey,
+                  evidenceProjection(latest)
+                )
+              : null
           }),
         readiness: (merchantId) =>
           Effect.gen(function* () {

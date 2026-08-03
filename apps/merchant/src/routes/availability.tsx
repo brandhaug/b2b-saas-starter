@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { MerchantShell } from '@/components/merchant-shell/index.ts'
 import type { ScheduleRule } from '@b2b-saas-starter/capabilities/scheduling'
@@ -18,7 +18,10 @@ import {
   saveScheduleRules,
   setPublicPagePublished
 } from '@/lib/server/scheduling.ts'
-import { sendOwnerActivationTestEmail } from '@/lib/server/transactional-email.ts'
+import {
+  getRecoverableOwnerActivationTestEmail,
+  sendOwnerActivationTestEmail
+} from '@/lib/server/transactional-email.ts'
 import {
   completeOwnerActivationEmailAttempt,
   startOwnerActivationEmailAttempt,
@@ -163,6 +166,7 @@ function ActivationJourney({
   const [emailAttempt, setEmailAttempt] = useState<OwnerActivationEmailAttempt | null>(
     null
   )
+  const [emailAttemptLoaded, setEmailAttemptLoaded] = useState(false)
   const [business, setBusiness] = useState({
     publicName: activation.businessDetails.publicName,
     slug: activation.businessDetails.slug,
@@ -173,6 +177,31 @@ function ActivationJourney({
     publicPhone: activation.businessDetails.publicPhone
   })
   const [policies, setPolicies] = useState(activation.policies)
+  useEffect(() => {
+    let active = true
+    void getRecoverableOwnerActivationTestEmail()
+      .then((recovered) => {
+        if (!active) return
+        setEmailAttempt(
+          recovered
+            ? completeOwnerActivationEmailAttempt(
+                { commandId: recovered.commandId, reuseCommand: false },
+                recovered.evidence
+              )
+            : null
+        )
+        setEmailAttemptLoaded(true)
+      })
+      .catch(() => {
+        if (active)
+          onMessage(
+            'The previous activation email attempt could not be loaded. Retry is disabled to prevent a duplicate send.'
+          )
+      })
+    return () => {
+      active = false
+    }
+  }, [onMessage])
   const save = <A,>(
     operation: Promise<A>,
     success: string | ((value: A) => string)
@@ -298,7 +327,7 @@ function ActivationJourney({
         </button>
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || !emailAttemptLoaded}
           onClick={() => {
             const attempt = startOwnerActivationEmailAttempt(emailAttempt, () =>
               crypto.randomUUID()

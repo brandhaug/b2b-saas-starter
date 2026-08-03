@@ -219,6 +219,17 @@ describe('Transactional Email readiness', () => {
       retryable: true,
       attemptCount: 1
     })
+    expect(
+      await run(
+        Effect.flatMap(TransactionalEmail, (email) =>
+          email.recoverableOwnerActivationTest(command.merchantId)
+        ),
+        layer
+      )
+    ).toMatchObject({
+      idempotencyKey: command.idempotencyKey,
+      evidence: { status: 'failed', retryable: true }
+    })
     expect(await send()).toMatchObject({
       status: 'accepted',
       retryable: false,

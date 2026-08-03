@@ -297,7 +297,7 @@ describe('Live Transactional Email', () => {
       verifiedOwnerEmail: null,
       locale: 'en' as const,
       idempotencyKey: 'live-activation-concurrent-retry',
-      now
+      now: '2026-08-02T11:00:00.000Z'
     }
     const invoke = () =>
       Effect.runPromise(
@@ -305,9 +305,23 @@ describe('Live Transactional Email', () => {
           email.sendOwnerActivationTest(command)
         ).pipe(Effect.provide(layer))
       )
+    const recover = () =>
+      Effect.runPromise(
+        Effect.flatMap(TransactionalEmail, (email) =>
+          email.recoverableOwnerActivationTest(command.merchantId)
+        ).pipe(Effect.provide(layer))
+      )
     expect(await invoke()).toMatchObject({ status: 'failed', retryable: true })
+    expect(await recover()).toMatchObject({
+      idempotencyKey: command.idempotencyKey,
+      evidence: { status: 'failed', retryable: true }
+    })
     const firstRetry = invoke()
     await started
+    expect(await recover()).toMatchObject({
+      idempotencyKey: command.idempotencyKey,
+      evidence: { status: 'submitting', retryable: false }
+    })
     const secondRetry = invoke()
     release()
     const evidence = await Promise.all([firstRetry, secondRetry])
