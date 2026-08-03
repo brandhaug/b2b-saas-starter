@@ -81,3 +81,18 @@ lifecycle, Stripe, webhook, background, authorization-policy, retention, and mig
 tests pass serially; capabilities and Operations typechecks pass. The repository still
 contains unrelated concurrent fixture work for the stricter Solo D1 triggers, which is
 outside this issue and was not modified as part of the resolution.
+
+### Final review fixes — 2026-08-03
+
+The last review found and closed two additional commit-boundary gaps. Reconciliation
+now treats an empty Stripe discovery result as the expected state for an untouched
+no-card trial while preserving typed failures for provider outages and ambiguous
+multiple matches. Catalog, Waiting List, and Walk-in writes now repeat the canonical
+Trialing, Active, or Grace predicate inside every committing aggregate and dependent
+side-effect statement, so a concurrent transition to Restricted cannot create demand,
+access grants, lifecycle history, notifications, hold invalidations, or schedule-change
+evidence.
+
+Focused Stripe and Live D1 tests pass (26 tests), including assertions that Restricted
+requests leave no protected grants or demand rows behind, and the capabilities package
+typecheck and focused type-aware lint pass.

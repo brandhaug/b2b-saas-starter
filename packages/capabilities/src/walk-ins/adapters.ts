@@ -1,10 +1,8 @@
 import { Effect, Layer, Schema } from 'effect'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import {
-  batch,
   Database,
   lifecycleHistory,
-  notificationIntents,
   protectedAccessGrants,
   providers,
   services,
@@ -13,11 +11,14 @@ import {
   shops,
   walkInEntries
 } from '@b2b-saas-starter/db'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityDenied, CapabilityUnavailable } from '../errors.ts'
 import { hashSha256, randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
-import { authorizeSubscriptionAccess } from '../subscriptions/subscription-access.ts'
+import {
+  authorizeSubscriptionAccess,
+  NEW_DEMAND_SUBSCRIPTION_SQL_VALUES
+} from '../subscriptions/subscription-access.ts'
 import {
   WalkInDuplicate,
   WalkInEntryNotFound,
@@ -610,55 +611,108 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
             locale: enrollment.locale,
             contactKey: key
           }
+          const capabilityHash = yield* Effect.promise(() => hashSha256(capability))
+          const raw = db.$client.config.db
           const committed = yield* Effect.result(
-            batch(db, [
-              db.insert(walkInEntries).values({
-                id,
-                shopId: enrollment.shopId,
-                status: 'waiting',
-                position: current.length + 1,
-                contactKey: key,
-                requestJson: JSON.stringify(request),
-                customerSnapshotJson: JSON.stringify(enrollment.customerDetails),
-                expiresAt: entryExpiresAt,
-                createdAt: now,
-                updatedAt: now
-              }),
-              db.insert(lifecycleHistory).values({
-                id: historyId,
-                aggregateType: 'walk-in-entry',
-                aggregateId: id,
-                fromState: null,
-                toState: 'waiting',
-                factsJson: '{}',
-                occurredAt: now,
-                createdAt: now
-              }),
-              db.insert(protectedAccessGrants).values({
-                id: grantId,
-                shopId: enrollment.shopId,
-                purpose: 'walk-in-acknowledgment',
-                resourceType: 'walk-in-entry',
-                resourceId: id,
-                capabilityHash: yield* Effect.promise(() => hashSha256(capability)),
-                expiresAt,
-                createdAt: now
-              }),
-              db.insert(notificationIntents).values({
-                id: intentId,
-                shopId: enrollment.shopId,
-                topic: 'walk-in.enrolled',
-                recipientJson: JSON.stringify(enrollment.customerDetails),
-                payloadJson: JSON.stringify({ entryId: id, locale: enrollment.locale }),
-                sourceType: 'walk-in-entry',
-                sourceId: id,
-                deduplicationKey: `walk-in.enrolled:${id}`,
-                status: 'pending',
-                availableAt: now,
-                createdAt: now,
-                updatedAt: now
-              })
-            ])
+            Effect.tryPromise({
+              try: () =>
+                raw.batch([
+                  raw
+                    .prepare(
+                      `INSERT INTO walk_in_entries
+                       (id,shop_id,status,position,contact_key,request_json,customer_snapshot_json,expires_at,created_at,updated_at)
+                       SELECT ?,?,'waiting',?,?,?,?,?,?,? WHERE EXISTS (
+                         SELECT 1 FROM shops shop
+                         INNER JOIN merchant_subscriptions subscription
+                           ON subscription.merchant_id=shop.merchant_id
+                         WHERE shop.id=? AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                    )
+                    .bind(
+                      id,
+                      enrollment.shopId,
+                      current.length + 1,
+                      key,
+                      JSON.stringify(request),
+                      JSON.stringify(enrollment.customerDetails),
+                      entryExpiresAt,
+                      now,
+                      now,
+                      enrollment.shopId
+                    ),
+                  raw
+                    .prepare(
+                      `INSERT INTO lifecycle_history
+                       (id,aggregate_type,aggregate_id,from_state,to_state,reason_code,facts_json,occurred_at,created_at)
+                       SELECT ?,'walk-in-entry',?,NULL,'waiting',NULL,'{}',?,?
+                       WHERE EXISTS (SELECT 1 FROM walk_in_entries WHERE id=? AND shop_id=?)
+                       AND EXISTS (SELECT 1 FROM shops shop
+                         INNER JOIN merchant_subscriptions subscription
+                           ON subscription.merchant_id=shop.merchant_id
+                         WHERE shop.id=? AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                    )
+                    .bind(
+                      historyId,
+                      id,
+                      now,
+                      now,
+                      id,
+                      enrollment.shopId,
+                      enrollment.shopId
+                    ),
+                  raw
+                    .prepare(
+                      `INSERT INTO protected_access_grants
+                       (id,shop_id,purpose,resource_type,resource_id,capability_hash,expires_at,created_at)
+                       SELECT ?,?,'walk-in-acknowledgment','walk-in-entry',?,?,?,?
+                       WHERE EXISTS (SELECT 1 FROM walk_in_entries WHERE id=? AND shop_id=?)
+                       AND EXISTS (SELECT 1 FROM shops shop
+                         INNER JOIN merchant_subscriptions subscription
+                           ON subscription.merchant_id=shop.merchant_id
+                         WHERE shop.id=? AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                    )
+                    .bind(
+                      grantId,
+                      enrollment.shopId,
+                      id,
+                      capabilityHash,
+                      expiresAt,
+                      now,
+                      id,
+                      enrollment.shopId,
+                      enrollment.shopId
+                    ),
+                  raw
+                    .prepare(
+                      `INSERT INTO notification_intents
+                       (id,shop_id,topic,recipient_json,payload_json,source_type,source_id,deduplication_key,status,available_at,created_at,updated_at)
+                       SELECT ?,?,'walk-in.enrolled',?,?,'walk-in-entry',?,?,'pending',?,?,?
+                       WHERE EXISTS (SELECT 1 FROM walk_in_entries WHERE id=? AND shop_id=?)
+                       AND EXISTS (SELECT 1 FROM shops shop
+                         INNER JOIN merchant_subscriptions subscription
+                           ON subscription.merchant_id=shop.merchant_id
+                         WHERE shop.id=? AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                    )
+                    .bind(
+                      intentId,
+                      enrollment.shopId,
+                      JSON.stringify(enrollment.customerDetails),
+                      JSON.stringify({ entryId: id, locale: enrollment.locale }),
+                      id,
+                      `walk-in.enrolled:${id}`,
+                      now,
+                      now,
+                      now,
+                      id,
+                      enrollment.shopId,
+                      enrollment.shopId
+                    )
+                ]),
+              catch: (cause) =>
+                new CapabilityUnavailable({
+                  capability: 'walk-ins',
+                  reason: String(cause)
+                })
+            })
           )
           if (committed._tag === 'Failure') {
             const [racingDuplicate] = yield* orUnavailable('walk-ins')(
@@ -688,6 +742,10 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
               })
             )
           }
+          if ((committed.success[0]?.meta.changes ?? 0) < 1)
+            return yield* Effect.fail(
+              new CapabilityDenied({ reason: 'restricted_access' })
+            )
           return {
             entry: yield* findQueueEntry(enrollment.shopId, id),
             acknowledgment: { capability, expiresAt },

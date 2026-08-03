@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Effect } from 'effect'
-import { makeStripeBilling, reconciliationEvidence } from './stripe-billing.ts'
+import {
+  makeStripeBilling,
+  reconcileAllStripeSubscriptions,
+  reconciliationEvidence
+} from './stripe-billing.ts'
+import {
+  MerchantSubscriptions,
+  SeedMerchantSubscriptions,
+  emptySeedMerchantSubscriptionStore
+} from './merchant-subscriptions.ts'
 
 describe('StripeBilling', () => {
   it('creates a fixed-quantity Solo Checkout that collects billing identity and VAT ID', async () => {
@@ -154,7 +163,9 @@ describe('StripeBilling', () => {
 
   it('discovers the first Stripe subscription when both creation webhooks were missed', async () => {
     const fetch = vi.fn(async (url: string | URL | Request) => {
-      expect(String(url)).toContain('/subscriptions/search?query=')
+      expect(url instanceof Request ? url.url : String(url)).toContain(
+        '/subscriptions/search?query='
+      )
       return Response.json({
         data: [
           {
@@ -183,6 +194,8 @@ describe('StripeBilling', () => {
       fetch
     })
     const snapshot = await Effect.runPromise(billing.discover({ merchantId: 'mer_1' }))
+    expect(snapshot).toBeDefined()
+    if (!snapshot) throw new Error('expected discovered Stripe subscription')
     const evidence = reconciliationEvidence({
       now: '2026-08-03T12:00:00.000Z',
       subscription: {
@@ -206,6 +219,41 @@ describe('StripeBilling', () => {
       priceId: 'price_solo_annual',
       amountMinor: 19000
     })
+  })
+
+  it('keeps an untouched no-card trial when Stripe discovery finds no subscription', async () => {
+    const billing = makeStripeBilling({
+      secretKey: 'sk_test',
+      monthlyPriceId: 'price_monthly',
+      annualPriceId: 'price_annual',
+      fetch: vi.fn(async () => Response.json({ data: [] }))
+    })
+    const store = emptySeedMerchantSubscriptionStore()
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const subscriptions = yield* MerchantSubscriptions
+        yield* subscriptions.startTrial({
+          merchantId: 'mer_no_checkout',
+          ownerUserId: 'usr_no_checkout',
+          interval: 'monthly',
+          idempotencyKey: 'trial_no_checkout',
+          now: '2026-08-03T00:00:00.000Z'
+        })
+        yield* reconcileAllStripeSubscriptions({
+          subscriptions,
+          billing,
+          now: '2026-08-03T01:00:00.000Z'
+        })
+        return yield* subscriptions.get('mer_no_checkout')
+      }).pipe(Effect.provide(SeedMerchantSubscriptions(store)))
+    )
+
+    expect(result).toMatchObject({
+      merchantId: 'mer_no_checkout',
+      access: 'trialing'
+    })
+    expect(result).not.toHaveProperty('providerSubscriptionRef')
   })
 
   it('orders reconciled recovery by the invoice paid transition, not invoice creation', async () => {

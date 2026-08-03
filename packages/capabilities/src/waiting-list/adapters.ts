@@ -17,12 +17,15 @@ import {
   timeSlotHolds,
   waitingListApplications
 } from '@b2b-saas-starter/db'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityDenied, CapabilityUnavailable } from '../errors.ts'
 import { hashSha256, randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { deriveSlots } from '../scheduling/scheduling.ts'
-import { authorizeSubscriptionAccess } from '../subscriptions/subscription-access.ts'
+import {
+  authorizeSubscriptionAccess,
+  NEW_DEMAND_SUBSCRIPTION_SQL_VALUES
+} from '../subscriptions/subscription-access.ts'
 import {
   AvailabilityOfferUnavailable,
   PendingOfferExists,
@@ -436,30 +439,65 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
           const capabilityHash = yield* Effect.promise(() =>
             hashSha256(input.capability)
           )
-          yield* orUnavailable('waiting-list')(
-            batch(db, [
-              db.insert(waitingListApplications).values({
-                id: input.id,
-                shopId: input.shopId,
-                status: 'active',
-                requestJson: JSON.stringify(input.request),
-                customerSnapshotJson: JSON.stringify(input.customer),
-                createdAt: input.now,
-                updatedAt: input.now,
-                expiresAt: input.expiresAt
-              }),
-              db.insert(protectedAccessGrants).values({
-                id: newCapabilityId('pag'),
-                shopId: input.shopId,
-                purpose: 'waiting-list-application',
-                resourceType: 'waiting-list-application',
-                resourceId: input.id,
-                capabilityHash,
-                expiresAt: addMinutes(input.expiresAt, 30 * 24 * 60),
-                createdAt: input.now
+          const raw = db.$client.config.db
+          const committed = yield* Effect.tryPromise({
+            try: () =>
+              raw.batch([
+                raw
+                  .prepare(
+                    `INSERT INTO waiting_list_applications
+                     (id,shop_id,status,request_json,customer_snapshot_json,created_at,updated_at,expires_at)
+                     SELECT ?,?,'active',?,?,?,?,? WHERE EXISTS (
+                       SELECT 1 FROM shops shop
+                       INNER JOIN merchant_subscriptions subscription
+                         ON subscription.merchant_id=shop.merchant_id
+                       WHERE shop.id=? AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                  )
+                  .bind(
+                    input.id,
+                    input.shopId,
+                    JSON.stringify(input.request),
+                    JSON.stringify(input.customer),
+                    input.now,
+                    input.now,
+                    input.expiresAt,
+                    input.shopId
+                  ),
+                raw
+                  .prepare(
+                    `INSERT INTO protected_access_grants
+                     (id,shop_id,purpose,resource_type,resource_id,capability_hash,expires_at,created_at)
+                     SELECT ?,?,'waiting-list-application','waiting-list-application',?,?,?,?
+                     WHERE EXISTS (SELECT 1 FROM waiting_list_applications
+                       WHERE id=? AND shop_id=?)
+                     AND EXISTS (
+                       SELECT 1 FROM shops shop
+                       INNER JOIN merchant_subscriptions subscription
+                         ON subscription.merchant_id=shop.merchant_id
+                       WHERE shop.id=? AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                  )
+                  .bind(
+                    newCapabilityId('pag'),
+                    input.shopId,
+                    input.id,
+                    capabilityHash,
+                    addMinutes(input.expiresAt, 30 * 24 * 60),
+                    input.now,
+                    input.id,
+                    input.shopId,
+                    input.shopId
+                  )
+              ]),
+            catch: (cause) =>
+              new CapabilityUnavailable({
+                capability: 'waiting-list',
+                reason: String(cause)
               })
-            ])
-          )
+          })
+          if ((committed[0]?.meta.changes ?? 0) < 1)
+            return yield* Effect.fail(
+              new CapabilityDenied({ reason: 'restricted_access' })
+            )
           return {
             id: input.id,
             shopId: input.shopId,

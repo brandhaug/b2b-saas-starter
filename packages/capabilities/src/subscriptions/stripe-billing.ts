@@ -56,7 +56,7 @@ export type StripeBilling = {
   }) => Effect.Effect<StripeSubscriptionSnapshot, SubscriptionDenied>
   readonly discover: (input: {
     readonly merchantId: string
-  }) => Effect.Effect<StripeSubscriptionSnapshot, SubscriptionDenied>
+  }) => Effect.Effect<StripeSubscriptionSnapshot | undefined, SubscriptionDenied>
 }
 
 export type StripeSubscriptionSnapshot = {
@@ -241,6 +241,7 @@ export const reconcileStripeSubscription = (input: {
           subscription: input.subscription
         })
       : yield* input.billing.discover({ merchantId: input.subscription.merchantId })
+    if (!snapshot) return input.subscription
     const evidence = reconciliationEvidence({
       now: input.now,
       subscription: input.subscription,
@@ -586,9 +587,11 @@ export const makeStripeBilling = (
       ).pipe(
         Effect.map(decodeSubscriptionSearch),
         Effect.flatMap((result) =>
-          result.data.length === 1
-            ? Effect.succeed(toSnapshot(result.data[0]!))
-            : Effect.fail(new SubscriptionDenied({ reason: 'not_found' }))
+          result.data.length === 0
+            ? Effect.succeed(undefined)
+            : result.data.length === 1
+              ? Effect.succeed(toSnapshot(result.data[0]!))
+              : Effect.fail(new SubscriptionDenied({ reason: 'invalid_state' }))
         )
       )
     }

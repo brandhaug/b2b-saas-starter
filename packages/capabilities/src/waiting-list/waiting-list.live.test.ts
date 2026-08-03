@@ -14,12 +14,15 @@ const run = <A>(effect: Effect.Effect<A, unknown, WaitingList>) =>
 beforeAll(async () => {
   test = await provisionTestD1()
   for (const statement of [
+    `INSERT INTO user (id, email, name, emailVerified) VALUES ('usr_wait', 'wait@example.test', 'Jordan', 1)`,
     `INSERT INTO merchants (id, public_name, slug, timezone, currency, plan, created_at, updated_at) VALUES ('mrc_wait', 'Wait Shop', 'wait-shop', 'UTC', 'USD', 'solo', '${now}', '${now}')`,
+    `INSERT INTO merchant_memberships (merchant_id, user_id, role, created_at) VALUES ('mrc_wait', 'usr_wait', 'owner', '${now}')`,
+    `INSERT INTO merchant_subscriptions (id, merchant_id, plan, interval, status, created_at, updated_at) VALUES ('sub_wait', 'mrc_wait', 'solo', 'monthly', 'active', '${now}', '${now}')`,
     `INSERT INTO brands (id, merchant_id, name, created_at, updated_at) VALUES ('brd_wait', 'mrc_wait', 'Wait Shop', '${now}', '${now}')`,
     `INSERT INTO shops (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at) VALUES ('shp_wait', 'brd_wait', 'mrc_wait', 'downtown', 'Wait Shop', 'UTC', 'USD', '${now}', '${now}')`,
-    `INSERT INTO providers (id, merchant_id, display_name, status, booking_access, is_default, created_at, updated_at) VALUES ('prv_wait', 'mrc_wait', 'Jordan', 'active', 'public', 1, '${now}', '${now}')`,
+    `INSERT INTO providers (id, merchant_id, linked_user_id, display_name, status, booking_access, is_default, created_at, updated_at) VALUES ('prv_wait', 'mrc_wait', 'usr_wait', 'Jordan', 'active', 'public', 1, '${now}', '${now}')`,
     `INSERT INTO services (id, merchant_id, name, price_minor, currency, duration_minutes, status, created_at, updated_at) VALUES ('svc_wait', 'mrc_wait', 'Cut', 5000, 'USD', 30, 'active', '${now}', '${now}')`,
-    `INSERT INTO provider_service_eligibility (merchant_id, provider_id, service_id, created_at) VALUES ('mrc_wait', 'prv_wait', 'svc_wait', '${now}')`
+    `INSERT OR IGNORE INTO provider_service_eligibility (merchant_id, provider_id, service_id, created_at) VALUES ('mrc_wait', 'prv_wait', 'svc_wait', '${now}')`
   ])
     await test.d1.prepare(statement).run()
 }, 60_000)
@@ -27,6 +30,136 @@ beforeAll(async () => {
 afterAll(async () => test.dispose())
 
 describe('Live Waiting List', () => {
+  it('blocks new applications during Restricted Access', async () => {
+    await test.d1
+      .prepare(
+        "UPDATE merchant_subscriptions SET status = 'restricted' WHERE merchant_id = 'mrc_wait'"
+      )
+      .run()
+    await expect(
+      run(
+        Effect.flatMap(WaitingList, (waitingList) =>
+          waitingList.apply({
+            id: 'wla_restricted',
+            merchantSlug: 'wait-shop',
+            shopId: 'shp_wait',
+            capability: 'restricted-secret',
+            request: {
+              serviceIds: ['svc_wait'],
+              providerPreference: { kind: 'specific', providerId: 'prv_wait' },
+              from: '2026-07-13T00:00:00.000Z',
+              until: '2026-07-14T00:00:00.000Z'
+            },
+            customer: { name: 'Blocked', email: 'blocked@example.com' },
+            now,
+            expiresAt: '2026-07-15T00:00:00.000Z'
+          })
+        )
+      )
+    ).rejects.toMatchObject({ _tag: 'CapabilityDenied', reason: 'restricted_access' })
+    const blockedRows = await test.d1.batch([
+      test.d1
+        .prepare('SELECT count(*) AS count FROM waiting_list_applications WHERE id=?')
+        .bind('wla_restricted'),
+      test.d1
+        .prepare(
+          'SELECT count(*) AS count FROM protected_access_grants WHERE resource_id=?'
+        )
+        .bind('wla_restricted')
+    ])
+    expect(blockedRows.map((result) => result.results[0])).toEqual([
+      { count: 0 },
+      { count: 0 }
+    ])
+    await test.d1
+      .prepare(
+        "UPDATE merchant_subscriptions SET status = 'active' WHERE merchant_id = 'mrc_wait'"
+      )
+      .run()
+  })
+
+  it('pauses offers and supersedes a pending offer during Restricted Access', async () => {
+    await run(
+      Effect.gen(function* () {
+        const waitingList = yield* WaitingList
+        yield* waitingList.apply({
+          id: 'wla_restricted_offer',
+          merchantSlug: 'wait-shop',
+          shopId: 'shp_wait',
+          capability: 'restricted-offer-application-secret',
+          request: {
+            serviceIds: ['svc_wait'],
+            providerPreference: { kind: 'specific', providerId: 'prv_wait' },
+            from: '2026-07-13T00:00:00.000Z',
+            until: '2026-07-14T00:00:00.000Z'
+          },
+          customer: { name: 'Existing', email: 'existing@example.com' },
+          now,
+          expiresAt: '2026-07-15T00:00:00.000Z'
+        })
+        yield* waitingList.offer({
+          id: 'avo_before_restriction',
+          applicationId: 'wla_restricted_offer',
+          slot: {
+            shopId: 'shp_wait',
+            serviceIds: ['svc_wait'],
+            providerId: 'prv_wait',
+            startsAt: '2026-07-13T09:00:00.000Z',
+            endsAt: '2026-07-13T09:30:00.000Z'
+          },
+          capability: 'restricted-offer-secret',
+          now,
+          expiresAt: '2026-07-12T13:00:00.000Z'
+        })
+      })
+    )
+    await test.d1
+      .prepare(
+        "UPDATE merchant_subscriptions SET status = 'restricted' WHERE merchant_id = 'mrc_wait'"
+      )
+      .run()
+    await expect(
+      run(
+        Effect.flatMap(WaitingList, (waitingList) =>
+          waitingList.offer({
+            id: 'avo_during_restriction',
+            applicationId: 'wla_restricted_offer',
+            slot: {
+              shopId: 'shp_wait',
+              serviceIds: ['svc_wait'],
+              providerId: 'prv_wait',
+              startsAt: '2026-07-13T09:30:00.000Z',
+              endsAt: '2026-07-13T10:00:00.000Z'
+            },
+            capability: 'blocked-secret',
+            now: '2026-07-12T12:05:00.000Z',
+            expiresAt: '2026-07-12T13:05:00.000Z'
+          })
+        )
+      )
+    ).rejects.toMatchObject({ _tag: 'CapabilityDenied', reason: 'restricted_access' })
+    const pending = await test.d1
+      .prepare(
+        "SELECT status FROM availability_offers WHERE id = 'avo_before_restriction'"
+      )
+      .first<{ status: string }>()
+    expect(pending?.status).toBe('superseded')
+    await test.d1
+      .prepare(
+        "UPDATE merchant_subscriptions SET status = 'active' WHERE merchant_id = 'mrc_wait'"
+      )
+      .run()
+    await run(
+      Effect.flatMap(WaitingList, (waitingList) =>
+        waitingList.withdraw(
+          'wla_restricted_offer',
+          'restricted-offer-application-secret',
+          '2026-07-12T12:06:00.000Z'
+        )
+      )
+    )
+  })
+
   it('derives and delivers one deterministic offer per eligible application', async () => {
     await test.d1
       .prepare(
