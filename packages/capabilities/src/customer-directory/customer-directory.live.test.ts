@@ -253,4 +253,43 @@ describe('Live Customer Directory contract', () => {
       }
     ])
   })
+
+  it('rejects a contact whose Merchant does not own its Customer Record', async () => {
+    await test.d1
+      .prepare(
+        `INSERT INTO merchants
+         (id, public_name, slug, timezone, currency, plan, created_at, updated_at)
+         VALUES ('mer_customer_other', 'Other Studio', 'other-studio',
+                 'Europe/Bucharest', 'RON', 'solo', ?, ?)`
+      )
+      .bind('2026-08-03T10:00:00.000Z', '2026-08-03T10:00:00.000Z')
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_records
+         (id, merchant_id, display_name, status, preferred_locale, revision,
+          last_activity_at, created_at, updated_at)
+         VALUES ('cur_customer_other', 'mer_customer_other', 'Other Customer',
+                 'active', 'en', 1, ?, ?, ?)`
+      )
+      .bind(
+        '2026-08-03T10:00:00.000Z',
+        '2026-08-03T10:00:00.000Z',
+        '2026-08-03T10:00:00.000Z'
+      )
+      .run()
+
+    await expect(
+      test.d1
+        .prepare(
+          `INSERT INTO customer_contacts
+           (id, customer_record_id, merchant_id, kind, normalized_value, status,
+            is_preferred, created_at, updated_at)
+           VALUES ('cuc_cross_merchant', 'cur_customer_other', 'mer_customer_live',
+                   'email', 'cross@example.com', 'active', 1, ?, ?)`
+        )
+        .bind('2026-08-03T10:00:00.000Z', '2026-08-03T10:00:00.000Z')
+        .run()
+    ).rejects.toThrow()
+  })
 })

@@ -13,6 +13,7 @@ import {
   type EffectDatabase
 } from '@b2b-saas-starter/db'
 import { newCapabilityId } from '../internal/ids.ts'
+import { hashSha256 } from '../internal/crypto.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { CapabilityUnavailable } from '../errors.ts'
 
@@ -24,6 +25,7 @@ export type AppointmentCustomerAssociationInput = {
       readonly name: string
       readonly email: string | null
       readonly phone: string | null
+      readonly note?: string
     }
   }
   readonly origin: 'public_booking' | 'merchant_created' | 'record_completed'
@@ -38,15 +40,10 @@ const normalizePhone = (value: string | null) => {
 const stableRecordId = (
   merchantId: string,
   identifier: { kind: string; value: string }
-) => {
-  const value = `${merchantId}:${identifier.kind}:${identifier.value}`
-  let hash = 2166136261
-  for (let index = 0; index < value.length; index++) {
-    hash ^= value.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return `cur_contact_${(hash >>> 0).toString(36)}`
-}
+) =>
+  hashSha256(`${merchantId}:${identifier.kind}:${identifier.value}`).then(
+    (hash) => `cur_contact_${hash.slice(0, 32)}`
+  )
 
 /**
  * Prepares directory writes for the caller's Appointment-creation batch. No write is
@@ -86,6 +83,7 @@ export const prepareAppointmentCustomerAssociation = (
               .where(
                 and(
                   eq(customerContacts.merchantId, input.merchantId),
+                  eq(customerRecords.merchantId, input.merchantId),
                   eq(customerContacts.status, 'active'),
                   isNull(customerRecords.mergedInto),
                   or(
@@ -106,7 +104,12 @@ export const prepareAppointmentCustomerAssociation = (
         db
           .select({ expiresAt: customerBans.expiresAt })
           .from(customerBans)
-          .where(eq(customerBans.customerRecordId, matchedId))
+          .where(
+            and(
+              eq(customerBans.customerRecordId, matchedId),
+              eq(customerBans.merchantId, input.merchantId)
+            )
+          )
       )
       if (bans.some((ban) => !ban.expiresAt || ban.expiresAt > input.now))
         return yield* Effect.fail(
@@ -116,14 +119,16 @@ export const prepareAppointmentCustomerAssociation = (
           })
         )
     }
-    const recordId =
-      matchedId ??
-      (candidateIds.length === 0 && identifiers.length > 0
-        ? stableRecordId(
-            input.merchantId,
-            identifiers.find(({ kind }) => kind === 'email') ?? identifiers[0]!
+    const recordId = matchedId
+      ? matchedId
+      : candidateIds.length === 0 && identifiers.length > 0
+        ? yield* Effect.promise(() =>
+            stableRecordId(
+              input.merchantId,
+              identifiers.find(({ kind }) => kind === 'email') ?? identifiers[0]!
+            )
           )
-        : newCapabilityId('cur'))
+        : newCapabilityId('cur')
     const statements: BatchStatement[] = []
     if (!matchedId) {
       statements.push(
@@ -171,11 +176,12 @@ export const prepareAppointmentCustomerAssociation = (
     for (const identifier of identifiers) {
       if (matchedId && matchedKeys.has(`${identifier.kind}:${identifier.value}`))
         continue
+      const contactId = yield* Effect.promise(() => stableRecordId('', identifier))
       statements.push(
         db
           .insert(customerContacts)
           .values({
-            id: `cuc_${recordId}_${identifier.kind}_${stableRecordId('', identifier).slice(12)}`,
+            id: `cuc_${recordId}_${identifier.kind}_${contactId.slice(12)}`,
             customerRecordId: recordId,
             merchantId: input.merchantId,
             kind: identifier.kind,
@@ -208,6 +214,7 @@ export const prepareAppointmentCustomerAssociation = (
         merchantId: input.merchantId,
         customerRecordId: recordId,
         origin: foundationOrigin,
+        customerNote: appointment.details.note?.trim() || null,
         createdAt: input.now
       }),
       db.insert(customerObservations).values({

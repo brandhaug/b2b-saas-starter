@@ -61,6 +61,7 @@ export type CustomerHistory = {
     | 'restored'
     | 'erased'
     | 'imported'
+    | 'appointment_observed'
   readonly actorId: string
   readonly reason: string | null
   readonly at: string

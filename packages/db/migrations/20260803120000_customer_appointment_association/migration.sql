@@ -60,3 +60,78 @@ CREATE TABLE `customer_directory_history` (
 --> statement-breakpoint
 CREATE INDEX `customer_directory_history_record_revision_idx`
 ON `customer_directory_history` (`customer_record_id`,`revision`);
+--> statement-breakpoint
+CREATE TRIGGER `customer_contacts_merchant_guard`
+BEFORE INSERT ON `customer_contacts`
+WHEN NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'customer_contact_merchant_mismatch'); END;
+--> statement-breakpoint
+CREATE TRIGGER `customer_observations_merchant_guard`
+BEFORE INSERT ON `customer_observations`
+WHEN NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'customer_observation_merchant_mismatch'); END;
+--> statement-breakpoint
+CREATE TRIGGER `customer_bans_merchant_guard`
+BEFORE INSERT ON `customer_bans`
+WHEN NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'customer_ban_merchant_mismatch'); END;
+--> statement-breakpoint
+CREATE TRIGGER `customer_history_merchant_guard`
+BEFORE INSERT ON `customer_directory_history`
+WHEN NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'customer_history_merchant_mismatch'); END;
+--> statement-breakpoint
+CREATE TRIGGER `customer_duplicates_merchant_guard`
+BEFORE INSERT ON `customer_duplicate_suggestions`
+WHEN NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+) OR NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`possible_duplicate_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'customer_duplicate_merchant_mismatch'); END;
+--> statement-breakpoint
+CREATE TRIGGER `appointment_foundations_customer_merchant_guard`
+BEFORE INSERT ON `appointment_foundations`
+WHEN NEW.`customer_record_id` IS NOT NULL AND NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'appointment_customer_merchant_mismatch'); END;
+--> statement-breakpoint
+CREATE TRIGGER `customer_contacts_merchant_update_guard`
+BEFORE UPDATE OF `customer_record_id`, `merchant_id` ON `customer_contacts`
+WHEN NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'customer_contact_merchant_mismatch'); END;
+--> statement-breakpoint
+CREATE TRIGGER `customer_observations_merchant_update_guard`
+BEFORE UPDATE OF `customer_record_id`, `merchant_id` ON `customer_observations`
+WHEN NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'customer_observation_merchant_mismatch'); END;
+--> statement-breakpoint
+CREATE TRIGGER `appointment_foundations_customer_merchant_update_guard`
+BEFORE UPDATE OF `customer_record_id`, `merchant_id` ON `appointment_foundations`
+WHEN NEW.`customer_record_id` IS NOT NULL AND NOT EXISTS (
+  SELECT 1 FROM `customer_records`
+  WHERE `id` = NEW.`customer_record_id` AND `merchant_id` = NEW.`merchant_id`
+)
+BEGIN SELECT RAISE(ABORT, 'appointment_customer_merchant_mismatch'); END;

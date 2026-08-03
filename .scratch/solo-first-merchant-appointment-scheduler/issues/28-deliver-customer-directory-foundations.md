@@ -1,7 +1,7 @@
 # Deliver Customer Directory Foundations
 
 Type: task
-Status: resolved
+Status: claimed
 Blocked by: 25
 
 ## Question
@@ -11,7 +11,7 @@ Deliver the Merchant-scoped Customer Directory vertical slice used by booking an
 ## Acceptance criteria
 
 - [x] Public confirmation and Merchant Appointment creation can atomically match or create one Merchant-scoped Customer Record without name-only or cross-Merchant merging.
-- [x] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
+- [ ] Owner search, edit, notes, bans, merge, split, import, and export operate through revisioned capabilities with attributed history and safe conflict recovery.
 - [x] Bans and matching failures have generic public responses and create no cross-Merchant or private-reason disclosure.
 - [x] Existing Appointment snapshots remain immutable through directory edits, merges, splits, corrections, and retention actions.
 
@@ -80,3 +80,22 @@ batch, and deterministic contact-derived identities make concurrent and
 multi-Appointment preparation converge on one Merchant-scoped Customer Record.
 Import history carries the requesting actor. Live regression coverage proves
 same-pre-batch convergence and merge/split association movement.
+
+### Reopened — 2026-08-03
+
+Review found that the authenticated Merchant `/customers` route and Appointment
+composer still consume the legacy Appointment-derived `booking.CustomerDirectory`
+projection. That surface describes one entry per Appointment, keys rows by Appointment,
+and does not expose the durable Customer Record operations claimed above. Reopened to
+replace those consumers with the Merchant-scoped Customer Directory capability and to
+prove the route and composer behavior through their public server/UI seams.
+
+### Fresh review — 2026-08-03
+
+Reopened implementation work after a new standards/spec review found missing
+database-enforced Merchant parity, collision-prone contact-derived record IDs,
+untyped `appointment_observed` history, migration/schema index drift, and incomplete
+Owner controls around merge/split, historical search, Merchant-created ban/archive
+policy, and export attribution. Capability and atomic-association integrity are the
+first repair slice; the legacy Merchant `/customers` and Appointment composer
+consumers remain part of this claimed ticket.
