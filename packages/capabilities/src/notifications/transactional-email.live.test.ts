@@ -245,12 +245,13 @@ describe('Live Transactional Email', () => {
       )
     const first = invoke()
     await started
-    const second = invoke()
+    const second = await invoke()
     release()
-    const evidence = await Promise.all([first, second])
+    const evidence = [await first, second]
 
     expect(send).toHaveBeenCalledOnce()
     expect(new Set(evidence.map((item) => item.evidenceId)).size).toBe(1)
+    expect(evidence.map((item) => item.status)).toEqual(['accepted', 'submitting'])
   })
 
   it('claims one provider submission when concurrent callers retry a safe failure', async () => {
@@ -472,7 +473,7 @@ describe('Live Transactional Email', () => {
       ).pipe(Effect.provide(layer))
     )
 
-    expect(before).toBe('ignored')
+    expect(before).toBe('pending')
     expect(evidence).toMatchObject({
       status: 'delivered',
       deliveredAt: '2026-08-02T10:01:00.000Z'

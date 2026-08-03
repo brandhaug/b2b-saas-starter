@@ -326,7 +326,7 @@ describe('Transactional Email readiness', () => {
         ),
         layer
       )
-    ).toBe('ignored')
+    ).toBe('pending')
     const evidence = await run(
       Effect.flatMap(TransactionalEmail, (email) =>
         email.sendOwnerActivationTest({

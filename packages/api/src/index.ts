@@ -169,7 +169,13 @@ export const TransactionalEmailCallbackApi = HttpApiGroup.make(
       HttpApiSchema.asText({ contentType: 'application/json' })
     ),
     success: Schema.Struct({
-      outcome: Schema.Literals(['applied', 'duplicate', 'ignored', 'out_of_order'])
+      outcome: Schema.Literals([
+        'applied',
+        'duplicate',
+        'ignored',
+        'out_of_order',
+        'pending'
+      ])
     }).pipe(HttpApiSchema.status(202)),
     error: [TransactionalEmailCallbackInvalid, TransactionalEmailCallbackUnavailable]
   })

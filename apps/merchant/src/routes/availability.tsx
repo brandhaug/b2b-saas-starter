@@ -19,6 +19,11 @@ import {
   setPublicPagePublished
 } from '@/lib/server/scheduling.ts'
 import { sendOwnerActivationTestEmail } from '@/lib/server/transactional-email.ts'
+import {
+  completeOwnerActivationEmailAttempt,
+  startOwnerActivationEmailAttempt,
+  type OwnerActivationEmailAttempt
+} from '@/lib/owner-activation-email-attempt.ts'
 import { saveServiceBuffers } from '@/lib/server/merchant-catalog.ts'
 import { requireMerchantSession } from '@/lib/server/merchant-session.ts'
 
@@ -155,6 +160,9 @@ function ActivationJourney({
   const [timezone, setTimezone] = useState(data.merchant.timezone)
   const [beforeBuffer, setBeforeBuffer] = useState(0)
   const [afterBuffer, setAfterBuffer] = useState(0)
+  const [emailAttempt, setEmailAttempt] = useState<OwnerActivationEmailAttempt | null>(
+    null
+  )
   const [business, setBusiness] = useState({
     publicName: activation.businessDetails.publicName,
     slug: activation.businessDetails.slug,
@@ -291,19 +299,26 @@ function ActivationJourney({
         <button
           type="button"
           disabled={pending}
-          onClick={() =>
+          onClick={() => {
+            const attempt = startOwnerActivationEmailAttempt(emailAttempt, () =>
+              crypto.randomUUID()
+            )
             save(
               sendOwnerActivationTestEmail({
-                data: { locale: 'en', commandId: crypto.randomUUID() }
+                data: { locale: 'en', commandId: attempt.commandId }
               }),
-              (evidence) =>
-                evidence.status === 'accepted' || evidence.status === 'delivered'
+              (evidence) => {
+                setEmailAttempt(completeOwnerActivationEmailAttempt(attempt, evidence))
+                return evidence.status === 'accepted' || evidence.status === 'delivered'
                   ? 'Activation email accepted.'
                   : evidence.status === 'captured'
                     ? 'Activation email captured locally; no message was delivered.'
-                    : `Activation email ${evidence.status.replaceAll('_', ' ')}: ${evidence.failureCode ?? 'provider outcome unavailable'}.`
+                    : evidence.status === 'submitting'
+                      ? 'Activation email submission is still in progress.'
+                      : `Activation email ${evidence.status.replaceAll('_', ' ')}: ${evidence.failureCode ?? 'provider outcome unavailable'}.`
+              }
             )
-          }
+          }}
           className="h-9 rounded-md border px-3 text-sm"
         >
           Send test email

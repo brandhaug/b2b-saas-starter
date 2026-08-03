@@ -23,6 +23,7 @@ export const TransactionalEmailEvidence = Schema.Struct({
   evidenceId: Schema.String,
   merchantId: Schema.String,
   status: Schema.Literals([
+    'submitting',
     'captured',
     'accepted',
     'delivered',
@@ -362,7 +363,7 @@ export type TransactionalEmailShape = {
     readonly timestamp: string
     readonly now: string
   }) => Effect.Effect<
-    'applied' | 'duplicate' | 'ignored' | 'out_of_order',
+    'applied' | 'duplicate' | 'ignored' | 'out_of_order' | 'pending',
     CapabilityUnavailable | TransactionalEmailCallbackRejected
   >
 }
@@ -562,11 +563,13 @@ export const makeSeedTransactionalEmailLayer = (input: {
         if (callbackEvents.has(callback.eventFingerprint)) return 'duplicate' as const
         callbackEvents.add(callback.eventFingerprint)
         const outcome = applySeedCallback(callback)
-        if (outcome === 'ignored')
+        if (outcome === 'ignored') {
           pendingCallbacks.set(callback.providerReferenceFingerprint, [
             ...(pendingCallbacks.get(callback.providerReferenceFingerprint) ?? []),
             callback
           ])
+          return 'pending' as const
+        }
         return outcome
       })
   })
@@ -575,7 +578,7 @@ export const makeSeedTransactionalEmailLayer = (input: {
 const evidenceProjection = (row: typeof emailEvidenceTable.$inferSelect) => ({
   evidenceId: row.id,
   merchantId: row.merchantId,
-  status: row.status === 'submitting' ? ('submission_unknown' as const) : row.status,
+  status: row.status,
   locale: row.locale,
   templateKey: row.templateKey,
   maskedDestination: row.maskedDestination,
@@ -619,7 +622,7 @@ export const makeLiveTransactionalEmailLayer = (
               )
               .bind(callback.providerReferenceFingerprint)
               .first<{ id: string }>()
-            if (!evidence) return 'ignored' as const
+            if (!evidence) return 'pending' as const
             const status = callback.status
             await rawD1.batch([
               rawD1
