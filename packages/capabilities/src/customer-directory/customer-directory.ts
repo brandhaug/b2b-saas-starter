@@ -483,20 +483,24 @@ export const makeCustomerDirectoryService = (
     search: (query) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
-        const needle = query
-          .trim()
-          .toLowerCase()
-          .replace(/[\s()-]/g, '')
+        const normalizedQuery = query.trim().toLowerCase()
+        const needle = normalizedQuery.replace(/[\s()-]/g, '')
+        const matchesDetails = (details: DirectoryCustomerDetails) =>
+          details.name.toLowerCase().includes(normalizedQuery) ||
+          [details.email, details.phone].some((value) =>
+            value?.replace(/[\s()-]/g, '').includes(needle)
+          )
         return [...store.records.values()]
           .filter(
             (record) =>
               record.merchantId === merchant.id &&
               record.status === 'active' &&
-              (record.displayName.toLowerCase().includes(query.trim().toLowerCase()) ||
-                record.contacts.some(
-                  (contact) =>
-                    contact.status === 'active' &&
-                    contact.value.replace(/[\s()-]/g, '').includes(needle)
+              (record.displayName.toLowerCase().includes(normalizedQuery) ||
+                record.contacts.some((contact) =>
+                  contact.value.replace(/[\s()-]/g, '').includes(needle)
+                ) ||
+                record.observations.some((observation) =>
+                  matchesDetails(observation.details)
                 ))
           )
           .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))

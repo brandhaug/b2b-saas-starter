@@ -168,6 +168,44 @@ describe('Customer Directory contract', () => {
     expect(result.search[0]?.ban?.reason).toBe('Repeated abuse')
   })
 
+  it('searches prior observations and superseded contacts without restoring them', async () => {
+    const result = await run(
+      'mer_historical_search',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_historical_search',
+          details: observation({
+            name: 'Previous Name',
+            email: 'previous@example.com',
+            phone: null
+          }),
+          now: '2026-08-02T10:00:00.000Z'
+        })
+        const edited = yield* service.editPreferred(created.record.id, {
+          expectedRevision: created.record.revision,
+          idempotencyKey: 'edit-historical-search',
+          actorId: 'usr_owner',
+          name: 'Current Name',
+          email: 'current@example.com',
+          phone: null,
+          now: '2026-08-03T10:00:00.000Z'
+        })
+        return {
+          edited,
+          byPriorName: yield* service.search('previous name'),
+          byPriorEmail: yield* service.search('previous@example.com')
+        }
+      })
+    )
+
+    expect(result.byPriorName.map(({ id }) => id)).toEqual([result.edited.id])
+    expect(result.byPriorEmail.map(({ id }) => id)).toEqual([result.edited.id])
+    expect(
+      result.edited.contacts.find(({ value }) => value === 'previous@example.com')
+    ).toMatchObject({ status: 'superseded', preferred: false })
+  })
+
   it('merges and splits with provenance without changing observations', async () => {
     const result = await run(
       'mer_merge',
