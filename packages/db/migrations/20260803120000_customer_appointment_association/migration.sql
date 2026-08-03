@@ -1,5 +1,3 @@
-DROP INDEX IF EXISTS `customer_contacts_active_value_unique`;--> statement-breakpoint
-
 CREATE INDEX `customer_contacts_active_value_lookup`
 ON `customer_contacts` (`merchant_id`,`kind`,`normalized_value`)
 WHERE `status` = 'active';--> statement-breakpoint

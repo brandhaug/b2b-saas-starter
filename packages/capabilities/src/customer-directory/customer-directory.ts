@@ -438,7 +438,11 @@ export const makeCustomerDirectoryService = (
           displayName: details.name,
           preferredEmail: details.email,
           preferredPhone: details.phone,
-          contacts: contactsFrom(details),
+          contacts: contactsFrom(details).map((contact) =>
+            matching.length > 1
+              ? { ...contact, status: 'disputed' as const, preferred: false }
+              : contact
+          ),
           observations: [observation],
           notes: [],
           consent: [],
@@ -980,9 +984,13 @@ const splitRecord = (
       ...source,
       id,
       displayName: first.details.name,
-      preferredEmail: first.details.email,
-      preferredPhone: first.details.phone,
-      contacts: contactsFrom(first.details),
+      preferredEmail: null,
+      preferredPhone: null,
+      contacts: contactsFrom(first.details).map((contact) => ({
+        ...contact,
+        status: 'disputed' as const,
+        preferred: false
+      })),
       observations: moved,
       notes: [],
       consent: source.consent.filter((item) =>

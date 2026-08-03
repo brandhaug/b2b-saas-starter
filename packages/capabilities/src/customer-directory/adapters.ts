@@ -145,11 +145,6 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
             const observationIds = new Set(
               persisted?.observations.map((observation) => observation.id) ?? []
             )
-            const persistedContactKeys = new Set(
-              persisted?.contacts.map(
-                (contact) => `${contact.kind}:${contact.value}:${contact.status}`
-              ) ?? []
-            )
             const persistedHistoryIds = new Set(
               persisted?.history.map((entry) => entry.id) ?? []
             )
@@ -184,15 +179,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 recordContacts.find(
                   (contact) => contact.kind === 'phone' && contact.preferred
                 )?.value ?? null,
-              contacts: [
-                ...(persisted?.contacts ?? []),
-                ...recordContacts.filter(
-                  (contact) =>
-                    !persistedContactKeys.has(
-                      `${contact.kind}:${contact.value}:${contact.status}`
-                    )
-                )
-              ],
+              contacts: recordContacts,
               observations: [
                 ...(persisted?.observations ?? []),
                 ...recordObservations.filter(
@@ -240,7 +227,17 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
           const records = [...store.records.values()].filter(
             (record) => record.merchantId === merchantId
           )
-          const statements: BatchStatement[] = [stateWrite]
+          const statements: BatchStatement[] = [
+            stateWrite,
+            ...records.flatMap((record) => [
+              db
+                .delete(customerContacts)
+                .where(eq(customerContacts.customerRecordId, record.id)),
+              db
+                .delete(customerBans)
+                .where(eq(customerBans.customerRecordId, record.id))
+            ])
+          ]
           for (const record of records) {
             statements.push(
               db
@@ -277,13 +274,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                     lastActivityAt: record.lastActivityAt,
                     updatedAt: now
                   }
-                }),
-              db
-                .delete(customerContacts)
-                .where(eq(customerContacts.customerRecordId, record.id)),
-              db
-                .delete(customerBans)
-                .where(eq(customerBans.customerRecordId, record.id))
+                })
             )
             for (const contact of record.contacts)
               statements.push(
@@ -293,8 +284,8 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   merchantId,
                   kind: contact.kind,
                   normalizedValue: contact.value,
-                  status: contact.status,
-                  isPreferred: contact.preferred,
+                  status: record.status === 'merged' ? 'superseded' : contact.status,
+                  isPreferred: record.status === 'merged' ? false : contact.preferred,
                   createdAt: now,
                   updatedAt: now
                 })

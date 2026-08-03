@@ -3832,24 +3832,35 @@ export const customerRecords = sqliteTable('customer_records', {
   updatedAt: isoUpdatedAt()
 })
 
-export const customerContacts = sqliteTable('customer_contacts', {
-  id: id(),
-  customerRecordId: text('customer_record_id')
-    .notNull()
-    .references(() => customerRecords.id, { onDelete: 'cascade' }),
-  merchantId: text('merchant_id')
-    .notNull()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  kind: text('kind', { enum: ['email', 'phone'] }).notNull(),
-  normalizedValue: text('normalized_value').notNull(),
-  status: text('status', { enum: ['active', 'disputed', 'superseded', 'erased'] })
-    .default('active')
-    .notNull(),
-  isPreferred: integer('is_preferred', { mode: 'boolean' }).default(false).notNull(),
-  verifiedAt: text('verified_at'),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
-})
+export const customerContacts = sqliteTable(
+  'customer_contacts',
+  {
+    id: id(),
+    customerRecordId: text('customer_record_id')
+      .notNull()
+      .references(() => customerRecords.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    kind: text('kind', { enum: ['email', 'phone'] }).notNull(),
+    normalizedValue: text('normalized_value').notNull(),
+    status: text('status', { enum: ['active', 'disputed', 'superseded', 'erased'] })
+      .default('active')
+      .notNull(),
+    isPreferred: integer('is_preferred', { mode: 'boolean' }).default(false).notNull(),
+    verifiedAt: text('verified_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    uniqueIndex('customer_contacts_active_value_unique')
+      .on(table.merchantId, table.kind, table.normalizedValue)
+      .where(sql`${table.status} = 'active'`),
+    uniqueIndex('customer_contacts_preferred_kind_unique')
+      .on(table.customerRecordId, table.kind)
+      .where(sql`${table.isPreferred} = 1 AND ${table.status} = 'active'`)
+  ]
+)
 
 export const customerObservations = sqliteTable(
   'customer_observations',

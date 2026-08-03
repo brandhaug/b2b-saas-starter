@@ -180,8 +180,8 @@ export const prepareAppointmentCustomerAssociation = (
             merchantId: input.merchantId,
             kind: identifier.kind,
             normalizedValue: identifier.value,
-            status: 'active',
-            isPreferred: !matchedId,
+            status: candidateIds.length > 1 ? 'disputed' : 'active',
+            isPreferred: !matchedId && candidateIds.length === 0,
             createdAt: input.now,
             updatedAt: input.now
           })
