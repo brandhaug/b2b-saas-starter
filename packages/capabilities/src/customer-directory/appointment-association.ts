@@ -29,6 +29,10 @@ export type AppointmentCustomerAssociationInput = {
     }
   }
   readonly origin: 'public_booking' | 'merchant_created' | 'record_completed'
+  readonly merchantPolicy?: {
+    readonly restoreArchived: boolean
+    readonly allowBanned: boolean
+  }
   readonly now: string
 }
 
@@ -73,7 +77,8 @@ export const prepareAppointmentCustomerAssociation = (
               .select({
                 customerRecordId: customerContacts.customerRecordId,
                 kind: customerContacts.kind,
-                value: customerContacts.normalizedValue
+                value: customerContacts.normalizedValue,
+                recordStatus: customerRecords.status
               })
               .from(customerContacts)
               .innerJoin(
@@ -99,7 +104,21 @@ export const prepareAppointmentCustomerAssociation = (
           )
     const candidateIds = [...new Set(matches.map((match) => match.customerRecordId))]
     const matchedId = candidateIds.length === 1 ? candidateIds[0] : undefined
+    const matchedStatus = matches.find(
+      ({ customerRecordId }) => customerRecordId === matchedId
+    )?.recordStatus
     if (matchedId) {
+      if (
+        input.origin === 'merchant_created' &&
+        matchedStatus === 'quarantined' &&
+        input.merchantPolicy?.restoreArchived !== true
+      )
+        return yield* Effect.fail(
+          new CapabilityUnavailable({
+            capability: 'customer-directory',
+            reason: 'archived customer requires explicit restore'
+          })
+        )
       const bans = yield* orUnavailable('customer-directory')(
         db
           .select({ expiresAt: customerBans.expiresAt })
@@ -111,7 +130,11 @@ export const prepareAppointmentCustomerAssociation = (
             )
           )
       )
-      if (bans.some((ban) => !ban.expiresAt || ban.expiresAt > input.now))
+      const banApplies =
+        input.origin === 'public_booking' ||
+        (input.origin === 'merchant_created' &&
+          input.merchantPolicy?.allowBanned !== true)
+      if (banApplies && bans.some((ban) => !ban.expiresAt || ban.expiresAt > input.now))
         return yield* Effect.fail(
           new CapabilityUnavailable({
             capability: 'customer-directory',
@@ -155,11 +178,15 @@ export const prepareAppointmentCustomerAssociation = (
           })
       )
     } else {
+      const restoreMatchedRecord =
+        input.origin === 'public_booking' ||
+        (input.origin === 'merchant_created' &&
+          input.merchantPolicy?.restoreArchived === true)
       statements.push(
         db
           .update(customerRecords)
           .set({
-            status: 'active',
+            ...(restoreMatchedRecord ? { status: 'active' as const } : {}),
             lastActivityAt: input.now,
             revision: sql`${customerRecords.revision} + 1`,
             updatedAt: input.now

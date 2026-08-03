@@ -292,4 +292,97 @@ describe('Live Customer Directory contract', () => {
         .run()
     ).rejects.toThrow()
   })
+
+  it('requires explicit Merchant policy to restore and use a banned archived record', async () => {
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_records
+         (id, merchant_id, display_name, status, preferred_locale, revision,
+          last_activity_at, created_at, updated_at)
+         VALUES ('cur_archived_banned', 'mer_customer_live', 'Archived Customer',
+                 'quarantined', 'en', 1, ?, ?, ?)`
+      )
+      .bind(
+        '2026-08-03T10:00:00.000Z',
+        '2026-08-03T10:00:00.000Z',
+        '2026-08-03T10:00:00.000Z'
+      )
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_contacts
+         (id, customer_record_id, merchant_id, kind, normalized_value, status,
+          is_preferred, created_at, updated_at)
+         VALUES ('cuc_archived_banned', 'cur_archived_banned', 'mer_customer_live',
+                 'email', 'archived@example.com', 'active', 1, ?, ?)`
+      )
+      .bind('2026-08-03T10:00:00.000Z', '2026-08-03T10:00:00.000Z')
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_bans
+         (customer_record_id, merchant_id, reason, actor_id, created_at, expires_at)
+         VALUES ('cur_archived_banned', 'mer_customer_live', 'Private reason',
+                 'usr_owner', ?, NULL)`
+      )
+      .bind('2026-08-03T10:00:00.000Z')
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO appointments
+         (id, merchant_id, provider_id, status, starts_at, ends_at, created_at, updated_at)
+         VALUES ('apt_archived_override', 'mer_customer_live', 'prv_customer_live',
+                 'scheduled', ?, ?, ?, ?)`
+      )
+      .bind(
+        '2026-08-04T10:00:00.000Z',
+        '2026-08-04T11:00:00.000Z',
+        '2026-08-03T10:00:00.000Z',
+        '2026-08-03T10:00:00.000Z'
+      )
+      .run()
+
+    const input = {
+      merchantId: 'mer_customer_live',
+      appointment: {
+        id: 'apt_archived_override',
+        details: {
+          name: 'Archived Customer',
+          email: 'archived@example.com',
+          phone: null
+        }
+      },
+      origin: 'merchant_created' as const,
+      now: '2026-08-03T11:00:00.000Z'
+    }
+    await expect(
+      Effect.runPromise(
+        Effect.provide(
+          Effect.gen(function* () {
+            const db = yield* Database
+            return yield* prepareAppointmentCustomerAssociation(db, input)
+          }),
+          layerFromD1(test.d1)
+        )
+      )
+    ).rejects.toMatchObject({ _tag: 'CapabilityUnavailable' })
+
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          const statements = yield* prepareAppointmentCustomerAssociation(db, {
+            ...input,
+            merchantPolicy: { restoreArchived: true, allowBanned: true }
+          })
+          yield* batch(db, statements)
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+    const restored = await test.d1
+      .prepare(`SELECT status FROM customer_records WHERE id = 'cur_archived_banned'`)
+      .first<{ status: string }>()
+    expect(restored?.status).toBe('active')
+  })
 })

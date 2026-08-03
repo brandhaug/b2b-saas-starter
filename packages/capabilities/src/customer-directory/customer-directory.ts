@@ -124,6 +124,7 @@ type MergeInput = {
   readonly expectedAbsorbedRevision: number
   readonly idempotencyKey: string
   readonly actorId: string
+  readonly preferredDetailsSourceId?: string
   readonly reason: string
   readonly now: string
 }
@@ -133,6 +134,9 @@ type SplitInput = {
   readonly expectedRevision: number
   readonly idempotencyKey: string
   readonly actorId: string
+  readonly createdDetails?: DirectoryCustomerDetails
+  readonly noteIds?: readonly string[]
+  readonly consentIds?: readonly string[]
   readonly reason: string
   readonly now: string
 }
@@ -896,19 +900,37 @@ const mergeRecords = (
         })
       )
     const revision = survivor.revision + 1
+    if (
+      input.preferredDetailsSourceId &&
+      input.preferredDetailsSourceId !== survivor.id &&
+      input.preferredDetailsSourceId !== absorbed.id
+    )
+      return yield* Effect.fail(
+        new CapabilityConflict({ reason: 'invalid_preferred_details_source' })
+      )
+    const preferred =
+      input.preferredDetailsSourceId === absorbed.id ? absorbed : survivor
     const contactKeys = new Set(
       survivor.contacts.map((item) => `${item.kind}:${item.value}:${item.status}`)
     )
+    const combinedContacts = [
+      ...survivor.contacts,
+      ...absorbed.contacts.filter(
+        (item) => !contactKeys.has(`${item.kind}:${item.value}:${item.status}`)
+      )
+    ]
     const merged: CustomerRecord = {
       ...survivor,
-      contacts: [
-        ...survivor.contacts,
-        ...absorbed.contacts
-          .filter(
-            (item) => !contactKeys.has(`${item.kind}:${item.value}:${item.status}`)
-          )
-          .map((item) => ({ ...item, preferred: false }))
-      ],
+      displayName: preferred.displayName,
+      preferredEmail: preferred.preferredEmail,
+      preferredPhone: preferred.preferredPhone,
+      contacts: combinedContacts.map((contact) => ({
+        ...contact,
+        preferred:
+          contact.status === 'active' &&
+          (contact.value === preferred.preferredEmail ||
+            contact.value === preferred.preferredPhone)
+      })),
       observations: [...survivor.observations, ...absorbed.observations].sort((a, b) =>
         a.observedAt.localeCompare(b.observedAt)
       ),
@@ -985,22 +1007,26 @@ const splitRecord = (
       return yield* Effect.fail(new CustomerDirectoryInvalid({ reason: 'empty_split' }))
     const first = moved[0]!,
       id = newCapabilityId('cur')
+    const details = normalize(input.createdDetails ?? first.details)
+    const invalid = validateDetails(details)
+    if (invalid) return yield* Effect.fail(invalid)
+    const explicitlyAssigned = input.createdDetails !== undefined
+    const movedNoteIds = new Set(input.noteIds ?? [])
+    const movedConsentIds = new Set(input.consentIds ?? [])
     const created: CustomerRecord = {
       ...source,
       id,
-      displayName: first.details.name,
-      preferredEmail: null,
-      preferredPhone: null,
-      contacts: contactsFrom(first.details).map((contact) => ({
-        ...contact,
-        status: 'disputed' as const,
-        preferred: false
-      })),
-      observations: moved,
-      notes: [],
-      consent: source.consent.filter((item) =>
-        values(first.details).some((value) => value.endsWith(item.destination))
+      displayName: details.name,
+      preferredEmail: explicitlyAssigned ? details.email : null,
+      preferredPhone: explicitlyAssigned ? details.phone : null,
+      contacts: contactsFrom(details).map((contact) =>
+        explicitlyAssigned
+          ? contact
+          : { ...contact, status: 'disputed' as const, preferred: false }
       ),
+      observations: moved,
+      notes: source.notes.filter((item) => movedNoteIds.has(item.id)),
+      consent: source.consent.filter((item) => movedConsentIds.has(item.id)),
       possibleDuplicateOf: [],
       mergedInto: null,
       revision: 1,
@@ -1010,6 +1036,8 @@ const splitRecord = (
     const remaining = {
       ...source,
       observations: source.observations.filter((item) => !selected.has(item.id)),
+      notes: source.notes.filter((item) => !movedNoteIds.has(item.id)),
+      consent: source.consent.filter((item) => !movedConsentIds.has(item.id)),
       revision,
       history: [
         ...source.history,

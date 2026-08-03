@@ -221,13 +221,32 @@ describe('Customer Directory contract', () => {
           details: observation({ email: null, phone: '+40722000000' }),
           now: '2026-08-02T10:00:00.000Z'
         })
+        const noted = yield* service.addNote(right.record.id, {
+          expectedRevision: right.record.revision,
+          idempotencyKey: 'note-right',
+          actorId: 'usr_owner',
+          text: 'Belongs with the phone observation',
+          now: '2026-08-02T11:00:00.000Z'
+        })
+        const consented = yield* service.recordConsent(right.record.id, {
+          expectedRevision: noted.revision,
+          idempotencyKey: 'consent-right',
+          actorId: 'usr_owner',
+          purpose: 'operational_mobile',
+          destination: '+40722000000',
+          wordingVersion: 'v1',
+          source: 'merchant_directory',
+          withdrawn: false,
+          now: '2026-08-02T12:00:00.000Z'
+        })
         const merged = yield* service.merge({
           survivorId: left.record.id,
           absorbedId: right.record.id,
           expectedSurvivorRevision: 1,
-          expectedAbsorbedRevision: 1,
+          expectedAbsorbedRevision: consented.revision,
           idempotencyKey: 'merge-1',
           actorId: 'usr_owner',
+          preferredDetailsSourceId: right.record.id,
           reason: 'Same customer confirmed',
           now: '2026-08-03T10:00:00.000Z'
         })
@@ -237,6 +256,9 @@ describe('Customer Directory contract', () => {
           expectedRevision: merged.revision,
           idempotencyKey: 'split-1',
           actorId: 'usr_owner',
+          createdDetails: right.record.observations[0]!.details,
+          noteIds: [consented.notes[0]!.id],
+          consentIds: [consented.consent[0]!.id],
           reason: 'Merge was mistaken',
           now: '2026-08-04T10:00:00.000Z'
         })
@@ -246,6 +268,9 @@ describe('Customer Directory contract', () => {
           expectedRevision: merged.revision,
           idempotencyKey: 'split-1',
           actorId: 'usr_owner',
+          createdDetails: right.record.observations[0]!.details,
+          noteIds: [consented.notes[0]!.id],
+          consentIds: [consented.consent[0]!.id],
           reason: 'Merge was mistaken',
           now: '2026-08-04T10:00:00.000Z'
         })
@@ -253,6 +278,11 @@ describe('Customer Directory contract', () => {
       })
     )
     expect(result.merged.observations).toHaveLength(2)
+    expect(result.merged).toMatchObject({
+      displayName: 'Ana Popescu',
+      preferredEmail: null,
+      preferredPhone: '+40722000000'
+    })
     expect(result.split.source.observations.map((item) => item.appointmentId)).toEqual([
       'apt_left'
     ])
@@ -260,6 +290,14 @@ describe('Customer Directory contract', () => {
       ['apt_right']
     )
     expect(result.split.created.history[0]?.kind).toBe('split')
+    expect(result.split.created).toMatchObject({
+      preferredEmail: null,
+      preferredPhone: '+40722000000'
+    })
+    expect(result.split.created.notes).toHaveLength(1)
+    expect(result.split.created.consent).toHaveLength(1)
+    expect(result.split.source.notes).toHaveLength(0)
+    expect(result.split.source.consent).toHaveLength(0)
     expect(result.replayedSplit).toEqual(result.split)
   })
 
