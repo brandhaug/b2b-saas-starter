@@ -1,9 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import {
-  batch,
   Database,
-  merchantSubscriptions,
   providerServiceEligibility,
   providers,
   services,
@@ -12,9 +10,18 @@ import {
 import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
-import { authorizeSubscriptionAccess } from '../subscriptions/subscription-access.ts'
+import {
+  authorizeSubscriptionAccess,
+  NEW_DEMAND_SUBSCRIPTION_SQL_VALUES
+} from '../subscriptions/subscription-access.ts'
 import { MerchantContext } from './merchant-context.ts'
 import { isSupportedCurrency } from './currency.ts'
+import {
+  decodePersistedServiceBuffers,
+  type ServiceBuffersInput as ServiceBuffersInputType
+} from './service-buffers.ts'
+
+export * from './service-buffers.ts'
 
 export const CatalogStatus = Schema.Literals(['active', 'inactive'])
 export type CatalogStatus = typeof CatalogStatus.Type
@@ -48,12 +55,6 @@ export const ProviderProfileInput = Schema.Struct({
 })
 export type ProviderProfileInput = typeof ProviderProfileInput.Type
 
-export const ServiceBuffersInput = Schema.Struct({
-  beforeBufferMinutes: Schema.Number,
-  afterBufferMinutes: Schema.Number
-})
-export type ServiceBuffersInput = typeof ServiceBuffersInput.Type
-
 export const ProviderRecord = Schema.Struct({
   id: Schema.String,
   displayName: Schema.String,
@@ -80,6 +81,7 @@ export class MerchantCatalogInvalid extends Schema.TaggedErrorClass<MerchantCata
       'invalid_currency',
       'invalid_duration',
       'invalid_buffer',
+      'active_service_requires_owner_eligibility',
       'item_not_found',
       'restricted_access'
     ])
@@ -106,7 +108,7 @@ export type MerchantCatalogShape = {
   ) => CatalogEffect<void>
   readonly setServiceBuffers: (
     serviceId: string,
-    input: ServiceBuffersInput
+    input: ServiceBuffersInputType
   ) => CatalogEffect<void>
   readonly updateProvider: (
     providerId: string,
@@ -308,11 +310,32 @@ export const SeedMerchantCatalog = (
           )
         }
         const value = yield* validateService(input)
+        const ownerProvider =
+          value.status === 'active'
+            ? [...store.providers.values()].find(
+                (provider) =>
+                  provider.merchantId === merchant.id &&
+                  provider.isDefault &&
+                  provider.status === 'active'
+              )
+            : undefined
+        if (value.status === 'active' && !ownerProvider)
+          return yield* Effect.fail(
+            new MerchantCatalogInvalid({ reason: 'item_not_found' })
+          )
         store.services.set(serviceId, {
           id: serviceId,
           merchantId: merchant.id,
           ...value
         })
+        if (ownerProvider)
+          store.eligibility.add(
+            seedEligibilityKey({
+              merchantId: merchant.id,
+              providerId: ownerProvider.id,
+              serviceId
+            })
+          )
         return seedSnapshot(store, merchant.id).services.find(
           (service) => service.id === serviceId
         )!
@@ -336,6 +359,21 @@ export const SeedMerchantCatalog = (
             new MerchantCatalogInvalid({ reason: 'item_not_found' })
           )
         }
+        const currentProviderIds = [...store.eligibility]
+          .filter(
+            (key) =>
+              key.startsWith(`${merchant.id}\0`) && key.endsWith(`\0${serviceId}`)
+          )
+          .map((key) => key.split('\0')[1]!)
+          .sort()
+        const nextProviderIds = [...uniqueProviderIds].sort()
+        if (
+          store.services.get(serviceId)?.status === 'active' &&
+          currentProviderIds.join('\u0000') !== nextProviderIds.join('\u0000')
+        )
+          return yield* Effect.fail(
+            new MerchantCatalogInvalid({ reason: 'item_not_found' })
+          )
         for (const key of store.eligibility) {
           if (key.startsWith(`${merchant.id}\0`) && key.endsWith(`\0${serviceId}`)) {
             store.eligibility.delete(key)
@@ -483,15 +521,38 @@ export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> 
                 new MerchantCatalogInvalid({ reason: 'item_not_found' })
               )
             }
-            yield* orUnavailable('merchant-catalog')(
-              db.insert(services).values({
-                id,
-                merchantId: merchant.id,
-                ...value,
-                createdAt: now,
-                updatedAt: now
-              })
-            )
+            const created = yield* Effect.tryPromise({
+              try: () =>
+                db.$client.config.db
+                  .prepare(
+                    `INSERT INTO services
+                     (id,merchant_id,name,description,category,price_minor,currency,duration_minutes,status,created_at,updated_at)
+                     SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (
+                       SELECT 1 FROM merchant_subscriptions subscription
+                       WHERE subscription.merchant_id=?
+                         AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                  )
+                  .bind(
+                    id,
+                    merchant.id,
+                    value.name,
+                    value.description,
+                    value.category,
+                    value.priceMinor,
+                    value.currency,
+                    value.durationMinutes,
+                    value.status,
+                    now,
+                    now,
+                    merchant.id
+                  )
+                  .run(),
+              catch: (cause) => unavailable(String(cause))
+            })
+            if ((created.meta.changes ?? 0) < 1)
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'restricted_access' })
+              )
             return { id, ...value, eligibleProviderIds: [ownerProvider.id] }
           }),
         updateService: (serviceId, input) =>
@@ -500,27 +561,159 @@ export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> 
             yield* ensureSubscriptionMutation(db, merchant.id)
             const existing = yield* orUnavailable('merchant-catalog')(
               db
-                .select({ id: services.id })
+                .select({
+                  id: services.id,
+                  bookingConfigJson: services.bookingConfigJson,
+                  durationMinutes: services.durationMinutes,
+                  status: services.status
+                })
                 .from(services)
                 .where(
                   and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
                 )
                 .limit(1)
             )
-            if (!existing[0]) {
+            const existingService = existing[0]
+            if (!existingService) {
               return yield* Effect.fail(
                 new MerchantCatalogInvalid({ reason: 'item_not_found' })
               )
             }
             const value = yield* validateService(input)
-            yield* orUnavailable('merchant-catalog')(
-              db
-                .update(services)
-                .set({ ...value, updatedAt: new Date().toISOString() })
-                .where(
-                  and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
-                )
-            )
+            const now = new Date().toISOString()
+            const invalidatesHolds =
+              existingService.durationMinutes !== value.durationMinutes ||
+              existingService.status !== value.status
+            const updateResults = yield* Effect.tryPromise({
+              try: () =>
+                db.$client.config.db.batch([
+                  db.$client.config.db
+                    .prepare(
+                      `UPDATE services SET name=?,description=?,category=?,price_minor=?,currency=?,duration_minutes=?,status=?,updated_at=?
+                       WHERE id=? AND merchant_id=? AND EXISTS (
+                         SELECT 1 FROM merchant_subscriptions subscription
+                         WHERE subscription.merchant_id=?
+                           AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                    )
+                    .bind(
+                      value.name,
+                      value.description,
+                      value.category,
+                      value.priceMinor,
+                      value.currency,
+                      value.durationMinutes,
+                      value.status,
+                      now,
+                      serviceId,
+                      merchant.id,
+                      merchant.id
+                    ),
+                  db.$client.config.db
+                    .prepare(
+                      `WITH changed(service_id,duration_minutes,status) AS (VALUES (?,?,?)),
+                       candidates AS (
+                         SELECT h.id,h.provider_id,h.starts_at,h.quote,
+                           (SELECT sum(CASE
+                             WHEN json_extract(item.value,'$.id')=changed.service_id
+                               THEN changed.duration_minutes
+                             ELSE json_extract(item.value,'$.durationMinutes') END)
+                            FROM json_each(h.quote,'$.services') item) new_duration
+                         FROM time_slot_holds h CROSS JOIN changed
+                         WHERE h.merchant_id=? AND h.expires_at>? AND ?=1
+                           AND EXISTS (SELECT 1 FROM json_each(h.quote,'$.services') item
+                             WHERE json_extract(item.value,'$.id')=changed.service_id)
+                           AND EXISTS (SELECT 1 FROM services s
+                             WHERE s.id=changed.service_id AND s.merchant_id=? AND s.updated_at=?)
+                           AND EXISTS (SELECT 1 FROM merchant_subscriptions subscription
+                             WHERE subscription.merchant_id=?
+                               AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES})))
+                       DELETE FROM time_slot_holds WHERE id IN (
+                         SELECT c.id FROM candidates c WHERE
+                           ?='inactive'
+                           OR c.new_duration IS NULL
+                           OR json_extract(c.quote,'$.localStartTime') IS NULL
+                           OR json_extract(c.quote,'$.workingIntervalStartTime') IS NULL
+                           OR json_extract(c.quote,'$.workingIntervalEndTime') IS NULL
+                           OR json_extract(c.quote,'$.occupiedStartsAt') IS NULL
+                           OR ((CAST(substr(json_extract(c.quote,'$.localStartTime'),1,2) AS INTEGER)*60
+                             + CAST(substr(json_extract(c.quote,'$.localStartTime'),4,2) AS INTEGER))
+                             + c.new_duration + COALESCE(json_extract(c.quote,'$.afterBufferMinutes'),0))
+                             > (CAST(substr(json_extract(c.quote,'$.workingIntervalEndTime'),1,2) AS INTEGER)*60
+                               + CAST(substr(json_extract(c.quote,'$.workingIntervalEndTime'),4,2) AS INTEGER))
+                           OR EXISTS (SELECT 1 FROM blocked_times b WHERE b.merchant_id=?
+                             AND b.starts_at < strftime('%Y-%m-%dT%H:%M:%fZ',c.starts_at,
+                               '+'||c.new_duration||' minutes',
+                               '+'||COALESCE(json_extract(c.quote,'$.afterBufferMinutes'),0)||' minutes')
+                             AND b.ends_at > json_extract(c.quote,'$.occupiedStartsAt'))
+                           OR EXISTS (SELECT 1 FROM appointments a
+                             WHERE a.provider_id=c.provider_id AND a.status='scheduled'
+                               AND COALESCE(json_extract(a.snapshot,'$.occupiedStartsAt'),a.starts_at)
+                                 < strftime('%Y-%m-%dT%H:%M:%fZ',c.starts_at,
+                                   '+'||c.new_duration||' minutes',
+                                   '+'||COALESCE(json_extract(c.quote,'$.afterBufferMinutes'),0)||' minutes')
+                               AND COALESCE(json_extract(a.snapshot,'$.occupiedEndsAt'),a.ends_at)
+                                 > json_extract(c.quote,'$.occupiedStartsAt'))
+                           OR EXISTS (SELECT 1 FROM time_slot_holds other
+                             WHERE other.id<>c.id AND other.provider_id=c.provider_id
+                               AND other.expires_at>?
+                               AND COALESCE(json_extract(other.quote,'$.occupiedStartsAt'),other.starts_at)
+                                 < strftime('%Y-%m-%dT%H:%M:%fZ',c.starts_at,
+                                   '+'||c.new_duration||' minutes',
+                                   '+'||COALESCE(json_extract(c.quote,'$.afterBufferMinutes'),0)||' minutes')
+                               AND COALESCE(json_extract(other.quote,'$.occupiedEndsAt'),other.ends_at)
+                                 > json_extract(c.quote,'$.occupiedStartsAt')))`
+                    )
+                    .bind(
+                      serviceId,
+                      value.durationMinutes,
+                      value.status,
+                      merchant.id,
+                      now,
+                      invalidatesHolds ? 1 : 0,
+                      merchant.id,
+                      now,
+                      merchant.id,
+                      value.status,
+                      merchant.id,
+                      now
+                    ),
+                  db.$client.config.db
+                    .prepare(
+                      `INSERT INTO schedule_changes
+                       (id,merchant_id,kind,actor_id,reason,before_json,after_json,occurred_at)
+                       SELECT ?,?,'service_configuration',?,NULL,?,?,?
+                       WHERE ?=1 AND EXISTS (SELECT 1 FROM services
+                         WHERE id=? AND merchant_id=? AND updated_at=?)
+                       AND EXISTS (SELECT 1 FROM merchant_subscriptions subscription
+                         WHERE subscription.merchant_id=?
+                           AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                    )
+                    .bind(
+                      newCapabilityId('scg'),
+                      merchant.id,
+                      merchant.actorUserId ?? merchant.id,
+                      JSON.stringify({
+                        durationMinutes: existingService.durationMinutes,
+                        status: existingService.status
+                      }),
+                      JSON.stringify({
+                        durationMinutes: value.durationMinutes,
+                        status: value.status
+                      }),
+                      now,
+                      invalidatesHolds ? 1 : 0,
+                      serviceId,
+                      merchant.id,
+                      now,
+                      merchant.id
+                    )
+                ]),
+              catch: (cause) => unavailable(String(cause))
+            })
+            if ((updateResults[0]?.meta.changes ?? 0) < 1)
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'restricted_access' })
+              )
             const snapshot = yield* liveSnapshot(db, merchant.id)
             return snapshot.services.find((service) => service.id === serviceId)!
           }),
@@ -530,7 +723,11 @@ export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> 
             yield* ensureSubscriptionMutation(db, merchant.id)
             const serviceRows = yield* orUnavailable('merchant-catalog')(
               db
-                .select({ id: services.id })
+                .select({
+                  id: services.id,
+                  bookingConfigJson: services.bookingConfigJson,
+                  status: services.status
+                })
                 .from(services)
                 .where(
                   and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
@@ -542,6 +739,17 @@ export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> 
                 new MerchantCatalogInvalid({ reason: 'item_not_found' })
               )
             }
+            const currentEligibility = yield* orUnavailable('merchant-catalog')(
+              db
+                .select({ providerId: providerServiceEligibility.providerId })
+                .from(providerServiceEligibility)
+                .where(
+                  and(
+                    eq(providerServiceEligibility.merchantId, merchant.id),
+                    eq(providerServiceEligibility.serviceId, serviceId)
+                  )
+                )
+            )
             const uniqueProviderIds = [...new Set(providerIds)]
             const providerRows = uniqueProviderIds.length
               ? yield* orUnavailable('merchant-catalog')(
@@ -563,69 +771,231 @@ export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> 
                 new MerchantCatalogInvalid({ reason: 'item_not_found' })
               )
             }
-            const now = new Date().toISOString()
-            yield* batch(db, [
-              db
-                .delete(providerServiceEligibility)
-                .where(
-                  and(
-                    eq(providerServiceEligibility.merchantId, merchant.id),
-                    eq(providerServiceEligibility.serviceId, serviceId)
-                  )
-                ),
-              ...uniqueProviderIds.map((providerId) =>
-                db
-                  .insert(providerServiceEligibility)
-                  .values({
-                    merchantId: merchant.id,
-                    providerId,
-                    serviceId,
-                    createdAt: now
-                  })
-                  .onConflictDoNothing()
+            const beforeProviderIds = currentEligibility
+              .map((pair) => pair.providerId)
+              .sort()
+            const afterProviderIds = [...uniqueProviderIds].sort()
+            if (beforeProviderIds.join('\u0000') === afterProviderIds.join('\u0000'))
+              return
+            if (serviceRows[0].status === 'active')
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({
+                  reason: 'active_service_requires_owner_eligibility'
+                })
               )
-            ]).pipe(Effect.mapError((error) => unavailable(error.reason)))
+            const now = new Date().toISOString()
+            const changeId = newCapabilityId('scg')
+            const eligibilityResults = yield* Effect.tryPromise({
+              try: () =>
+                db.$client.config.db.batch([
+                  db.$client.config.db
+                    .prepare(
+                      `INSERT INTO schedule_changes
+                       (id,merchant_id,kind,actor_id,reason,before_json,after_json,occurred_at)
+                       SELECT ?,?,'service_eligibility',?,NULL,?,?,? WHERE EXISTS (
+                         SELECT 1 FROM services WHERE id=? AND merchant_id=?
+                           AND status='inactive')
+                       AND EXISTS (SELECT 1 FROM merchant_subscriptions subscription
+                         WHERE subscription.merchant_id=?
+                           AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))
+                       AND NOT EXISTS (SELECT 1 FROM provider_service_eligibility current
+                         WHERE current.merchant_id=? AND current.service_id=?
+                           AND NOT EXISTS (SELECT 1 FROM json_each(?) expected
+                             WHERE expected.value=current.provider_id))
+                       AND NOT EXISTS (SELECT 1 FROM json_each(?) expected
+                         WHERE NOT EXISTS (SELECT 1 FROM provider_service_eligibility current
+                           WHERE current.merchant_id=? AND current.service_id=?
+                             AND current.provider_id=expected.value))`
+                    )
+                    .bind(
+                      changeId,
+                      merchant.id,
+                      merchant.actorUserId ?? merchant.id,
+                      JSON.stringify({ providerIds: beforeProviderIds }),
+                      JSON.stringify({ providerIds: afterProviderIds }),
+                      now,
+                      serviceId,
+                      merchant.id,
+                      merchant.id,
+                      merchant.id,
+                      serviceId,
+                      JSON.stringify(beforeProviderIds),
+                      JSON.stringify(beforeProviderIds),
+                      merchant.id,
+                      serviceId
+                    ),
+                  db.$client.config.db
+                    .prepare(
+                      `DELETE FROM provider_service_eligibility
+                       WHERE merchant_id=? AND service_id=? AND EXISTS (
+                         SELECT 1 FROM schedule_changes WHERE id=?)`
+                    )
+                    .bind(merchant.id, serviceId, changeId),
+                  ...afterProviderIds.map((providerId) =>
+                    db.$client.config.db
+                      .prepare(
+                        `INSERT INTO provider_service_eligibility
+                         (merchant_id,provider_id,service_id,created_at)
+                         SELECT ?,?,?,? WHERE EXISTS (
+                           SELECT 1 FROM schedule_changes WHERE id=?)`
+                      )
+                      .bind(merchant.id, providerId, serviceId, now, changeId)
+                  ),
+                  db.$client.config.db
+                    .prepare(
+                      `DELETE FROM time_slot_holds AS h WHERE h.merchant_id=?
+                       AND h.expires_at>? AND EXISTS (
+                         SELECT 1 FROM json_each(h.quote,'$.services') item
+                         WHERE json_extract(item.value,'$.id')=?)
+                       AND NOT EXISTS (SELECT 1 FROM json_each(?) requested
+                         WHERE requested.value=h.provider_id)
+                       AND EXISTS (SELECT 1 FROM schedule_changes WHERE id=?)`
+                    )
+                    .bind(
+                      merchant.id,
+                      now,
+                      serviceId,
+                      JSON.stringify(afterProviderIds),
+                      changeId
+                    )
+                ]),
+              catch: (cause) => unavailable(String(cause))
+            })
+            if ((eligibilityResults[0]?.meta.changes ?? 0) !== 1) {
+              yield* ensureSubscriptionMutation(db, merchant.id)
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'item_not_found' })
+              )
+            }
           }),
         setServiceBuffers: (serviceId, input) =>
           Effect.gen(function* () {
             const merchant = yield* MerchantContext
             yield* ensureSubscriptionMutation(db, merchant.id)
-            if (
-              ![input.beforeBufferMinutes, input.afterBufferMinutes].every(
-                (value) =>
-                  Number.isInteger(value) &&
-                  value >= 0 &&
-                  value <= 120 &&
-                  value % 5 === 0
-              )
-            )
+            if (!decodePersistedServiceBuffers(input))
               return yield* Effect.fail(
                 new MerchantCatalogInvalid({ reason: 'invalid_buffer' })
               )
             const existing = yield* orUnavailable('merchant-catalog')(
               db
-                .select({ id: services.id })
+                .select({
+                  id: services.id,
+                  bookingConfigJson: services.bookingConfigJson
+                })
                 .from(services)
                 .where(
                   and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
                 )
                 .limit(1)
             )
-            if (!existing[0])
+            const existingService = existing[0]
+            if (!existingService)
               return yield* Effect.fail(
                 new MerchantCatalogInvalid({ reason: 'item_not_found' })
               )
-            yield* orUnavailable('merchant-catalog')(
-              db
-                .update(services)
-                .set({
-                  bookingConfigJson: input,
-                  updatedAt: new Date().toISOString()
-                })
-                .where(
-                  and(eq(services.id, serviceId), eq(services.merchantId, merchant.id))
-                )
-            )
+            const now = new Date().toISOString()
+            const bufferResults = yield* Effect.tryPromise({
+              try: () =>
+                db.$client.config.db.batch([
+                  db.$client.config.db
+                    .prepare(
+                      `UPDATE services SET booking_config_json=?,updated_at=?
+                       WHERE id=? AND merchant_id=? AND EXISTS (
+                         SELECT 1 FROM merchant_subscriptions subscription
+                         WHERE subscription.merchant_id=?
+                           AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                    )
+                    .bind(
+                      JSON.stringify(input),
+                      now,
+                      serviceId,
+                      merchant.id,
+                      merchant.id
+                    ),
+                  db.$client.config.db
+                    .prepare(
+                      `WITH changed(service_id,before_minutes,after_minutes) AS (VALUES (?,?,?)),
+                       candidates AS (
+                         SELECT h.id,h.provider_id,h.starts_at,h.ends_at,h.quote,
+                           (SELECT max(CASE WHEN json_extract(item.value,'$.id')=changed.service_id
+                             THEN changed.before_minutes ELSE COALESCE(json_extract(item.value,'$.beforeBufferMinutes'),0) END)
+                             FROM json_each(h.quote,'$.services') item) new_before,
+                           (SELECT max(CASE WHEN json_extract(item.value,'$.id')=changed.service_id
+                             THEN changed.after_minutes ELSE COALESCE(json_extract(item.value,'$.afterBufferMinutes'),0) END)
+                             FROM json_each(h.quote,'$.services') item) new_after
+                         FROM time_slot_holds h CROSS JOIN changed
+                         WHERE h.merchant_id=? AND h.expires_at>?
+                           AND EXISTS (SELECT 1 FROM json_each(h.quote,'$.services') item
+                             WHERE json_extract(item.value,'$.id')=changed.service_id)
+                           AND EXISTS (SELECT 1 FROM services s WHERE s.id=changed.service_id
+                             AND s.merchant_id=? AND s.updated_at=?)
+                           AND EXISTS (SELECT 1 FROM merchant_subscriptions subscription
+                             WHERE subscription.merchant_id=?
+                               AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES})))
+                       DELETE FROM time_slot_holds WHERE id IN (
+                         SELECT c.id FROM candidates c WHERE
+                           json_extract(c.quote,'$.workingIntervalStartTime') IS NULL
+                           OR ((CAST(substr(json_extract(c.quote,'$.localStartTime'),1,2) AS INTEGER)*60
+                             + CAST(substr(json_extract(c.quote,'$.localStartTime'),4,2) AS INTEGER)) - c.new_before)
+                             < (CAST(substr(json_extract(c.quote,'$.workingIntervalStartTime'),1,2) AS INTEGER)*60
+                               + CAST(substr(json_extract(c.quote,'$.workingIntervalStartTime'),4,2) AS INTEGER))
+                           OR ((CAST(substr(json_extract(c.quote,'$.localStartTime'),1,2) AS INTEGER)*60
+                             + CAST(substr(json_extract(c.quote,'$.localStartTime'),4,2) AS INTEGER))
+                             + COALESCE(json_extract(c.quote,'$.durationMinutes'),0) + c.new_after)
+                             > (CAST(substr(json_extract(c.quote,'$.workingIntervalEndTime'),1,2) AS INTEGER)*60
+                               + CAST(substr(json_extract(c.quote,'$.workingIntervalEndTime'),4,2) AS INTEGER))
+                           OR EXISTS (SELECT 1 FROM blocked_times b WHERE b.merchant_id=?
+                             AND b.starts_at < strftime('%Y-%m-%dT%H:%M:%fZ',c.ends_at,'+'||c.new_after||' minutes')
+                             AND b.ends_at > strftime('%Y-%m-%dT%H:%M:%fZ',c.starts_at,'-'||c.new_before||' minutes'))
+                           OR EXISTS (SELECT 1 FROM appointments a WHERE a.provider_id=c.provider_id AND a.status='scheduled'
+                             AND COALESCE(json_extract(a.snapshot,'$.occupiedStartsAt'),a.starts_at) < strftime('%Y-%m-%dT%H:%M:%fZ',c.ends_at,'+'||c.new_after||' minutes')
+                             AND COALESCE(json_extract(a.snapshot,'$.occupiedEndsAt'),a.ends_at) > strftime('%Y-%m-%dT%H:%M:%fZ',c.starts_at,'-'||c.new_before||' minutes'))
+                           OR EXISTS (SELECT 1 FROM time_slot_holds other WHERE other.id<>c.id
+                             AND other.provider_id=c.provider_id AND other.expires_at>?
+                             AND COALESCE(json_extract(other.quote,'$.occupiedStartsAt'),other.starts_at) < strftime('%Y-%m-%dT%H:%M:%fZ',c.ends_at,'+'||c.new_after||' minutes')
+                             AND COALESCE(json_extract(other.quote,'$.occupiedEndsAt'),other.ends_at) > strftime('%Y-%m-%dT%H:%M:%fZ',c.starts_at,'-'||c.new_before||' minutes')))`
+                    )
+                    .bind(
+                      serviceId,
+                      input.beforeBufferMinutes,
+                      input.afterBufferMinutes,
+                      merchant.id,
+                      now,
+                      merchant.id,
+                      now,
+                      merchant.id,
+                      merchant.id,
+                      now
+                    ),
+                  db.$client.config.db
+                    .prepare(
+                      `INSERT INTO schedule_changes
+                       (id,merchant_id,kind,actor_id,reason,before_json,after_json,occurred_at)
+                       SELECT ?,?,'service_buffers',?,NULL,?,?,? WHERE EXISTS (
+                         SELECT 1 FROM services WHERE id=? AND merchant_id=? AND updated_at=?)
+                       AND EXISTS (SELECT 1 FROM merchant_subscriptions subscription
+                         WHERE subscription.merchant_id=?
+                           AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
+                    )
+                    .bind(
+                      newCapabilityId('scg'),
+                      merchant.id,
+                      merchant.actorUserId ?? merchant.id,
+                      JSON.stringify(existingService.bookingConfigJson ?? null),
+                      JSON.stringify(input),
+                      now,
+                      serviceId,
+                      merchant.id,
+                      now,
+                      merchant.id
+                    )
+                ]),
+              catch: (cause) => unavailable(String(cause))
+            })
+            if ((bufferResults[0]?.meta.changes ?? 0) < 1)
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'restricted_access' })
+              )
           }),
         updateProvider: (providerId, input) =>
           Effect.gen(function* () {
@@ -651,20 +1021,24 @@ export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> 
             }
             const value = yield* validateProviderProfile(input)
             const now = new Date().toISOString()
-            yield* orUnavailable('merchant-catalog')(
-              db
-                .update(providers)
-                .set({
-                  displayName: value.displayName,
-                  updatedAt: now
-                })
-                .where(
-                  and(
-                    eq(providers.id, providerId),
-                    eq(providers.merchantId, merchant.id)
+            const updated = yield* Effect.tryPromise({
+              try: () =>
+                db.$client.config.db
+                  .prepare(
+                    `UPDATE providers SET display_name=?,updated_at=?
+                     WHERE id=? AND merchant_id=? AND EXISTS (
+                       SELECT 1 FROM merchant_subscriptions subscription
+                       WHERE subscription.merchant_id=?
+                         AND subscription.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
                   )
-                )
-            )
+                  .bind(value.displayName, now, providerId, merchant.id, merchant.id)
+                  .run(),
+              catch: (cause) => unavailable(String(cause))
+            })
+            if ((updated.meta.changes ?? 0) < 1)
+              return yield* Effect.fail(
+                new MerchantCatalogInvalid({ reason: 'restricted_access' })
+              )
             const snapshot = yield* liveSnapshot(db, merchant.id)
             return snapshot.providers.find((provider) => provider.id === providerId)!
           })

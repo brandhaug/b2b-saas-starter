@@ -14,6 +14,7 @@ import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { LiveMerchantOnboarding, MerchantOnboarding } from './merchant-onboarding.ts'
 import { LiveMerchantCatalog, MerchantCatalog } from './merchant-catalog.ts'
 import { liveMerchantContext, MerchantContext } from './merchant-context.ts'
+import { LiveScheduling, Scheduling } from '../scheduling/scheduling.ts'
 
 let test: TestD1
 
@@ -30,6 +31,21 @@ const runCatalog = <A, E>(
       Layer.merge(LiveMerchantCatalog, liveMerchantContext(userId)).pipe(
         Layer.provide(layerFromD1(test.d1))
       )
+    )
+  )
+
+const runCatalogScheduling = <A, E>(
+  userId: string,
+  effect: Effect.Effect<A, E, MerchantCatalog | MerchantContext | Scheduling>
+) =>
+  Effect.runPromise(
+    Effect.provide(
+      effect,
+      Layer.mergeAll(
+        LiveMerchantCatalog,
+        LiveScheduling,
+        liveMerchantContext(userId)
+      ).pipe(Layer.provide(layerFromD1(test.d1)))
     )
   )
 
@@ -75,15 +91,6 @@ beforeAll(async () => {
       onboarding
     )
   )
-  await runDb(
-    Effect.gen(function* () {
-      const db = yield* Database
-      yield* db
-        .update(merchants)
-        .set({ plan: 'team' })
-        .where(eq(merchants.slug, 'catalog-studio'))
-    })
-  )
 }, 60_000)
 
 afterAll(async () => {
@@ -91,7 +98,7 @@ afterAll(async () => {
 })
 
 describe('Live Merchant Catalog', () => {
-  it('persists Services, Team Providers, and explicit eligibility with Seed parity', async () => {
+  it('persists Services with automatic Owner-Provider eligibility', async () => {
     const snapshot = await runCatalog(
       'usr_catalog_owner',
       Effect.gen(function* () {
@@ -105,31 +112,55 @@ describe('Live Merchant Catalog', () => {
           durationMinutes: 45,
           status: 'active'
         })
-        const provider = yield* catalog.createProvider({
-          displayName: 'Live Provider',
-          isDefault: false,
-          status: 'active'
-        })
         const current = yield* catalog.read()
         const defaultProvider = current.providers.find((item) => item.isDefault)!
-        yield* catalog.setServiceEligibility(service.id, [
-          defaultProvider.id,
-          provider.id
-        ])
+        yield* catalog.setServiceEligibility(service.id, [defaultProvider.id])
+        yield* catalog.setServiceBuffers(service.id, {
+          beforeBufferMinutes: 10,
+          afterBufferMinutes: 15
+        })
         return yield* catalog.read()
       })
     )
 
-    expect(snapshot.presentation).toBe('team')
-    expect(snapshot.services[0]?.eligibleProviderIds).toHaveLength(2)
-    expect(snapshot.providers).toHaveLength(2)
+    expect(snapshot.services[0]?.eligibleProviderIds).toHaveLength(1)
+    expect(snapshot.providers).toHaveLength(1)
     const persistedPairs = await runDb(
       Effect.gen(function* () {
         const db = yield* Database
         return yield* db.select().from(providerServiceEligibility)
       })
     )
-    expect(persistedPairs).toHaveLength(2)
+    expect(persistedPairs).toHaveLength(1)
+    expect(
+      await test.d1
+        .prepare(
+          `SELECT kind,before_json,after_json FROM schedule_changes
+           WHERE kind='service_buffers' LIMIT 1`
+        )
+        .first()
+    ).toEqual({
+      kind: 'service_buffers',
+      before_json: 'null',
+      after_json: JSON.stringify({
+        beforeBufferMinutes: 10,
+        afterBufferMinutes: 15
+      })
+    })
+
+    const activeReplacementRejected = await runCatalog(
+      'usr_catalog_owner',
+      Effect.gen(function* () {
+        const catalog = yield* MerchantCatalog
+        return yield* Effect.flip(
+          catalog.setServiceEligibility(snapshot.services[0]!.id, [])
+        )
+      })
+    )
+    expect(activeReplacementRejected).toMatchObject({
+      _tag: 'MerchantCatalogInvalid',
+      reason: 'active_service_requires_owner_eligibility'
+    })
 
     const lifecycle = await runCatalog(
       'usr_catalog_owner',
@@ -137,6 +168,7 @@ describe('Live Merchant Catalog', () => {
         const catalog = yield* MerchantCatalog
         const service = snapshot.services[0]!
         yield* catalog.updateService(service.id, { ...service, status: 'inactive' })
+        yield* catalog.setServiceEligibility(service.id, [])
         return {
           all: yield* catalog.read(),
           bookable: yield* catalog.readBookable()
@@ -144,7 +176,56 @@ describe('Live Merchant Catalog', () => {
       })
     )
     expect(lifecycle.all.services[0]?.status).toBe('inactive')
+    expect(lifecycle.all.services[0]?.eligibleProviderIds).toEqual([])
     expect(lifecycle.bookable.services).toEqual([])
+
+    const controls = await runCatalogScheduling(
+      'usr_catalog_owner',
+      Effect.flatMap(Scheduling, (scheduling) => scheduling.listControls())
+    )
+    expect(controls.recentChanges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'service_configuration',
+          actorId: 'usr_catalog_owner'
+        }),
+        expect.objectContaining({
+          kind: 'service_eligibility',
+          actorId: 'usr_catalog_owner'
+        })
+      ])
+    )
+    const configurationChange = controls.recentChanges.find(
+      (change) => change.kind === 'service_configuration'
+    )!
+    expect(JSON.parse(configurationChange.beforeJson)).toEqual({
+      durationMinutes: 45,
+      status: 'active'
+    })
+    expect(JSON.parse(configurationChange.afterJson)).toEqual({
+      durationMinutes: 45,
+      status: 'inactive'
+    })
+    const eligibilityChange = controls.recentChanges.find(
+      (change) => change.kind === 'service_eligibility'
+    )!
+    expect(JSON.parse(eligibilityChange.beforeJson)).toEqual({
+      providerIds: [snapshot.providers[0]!.id]
+    })
+    expect(JSON.parse(eligibilityChange.afterJson)).toEqual({ providerIds: [] })
+
+    const reactivated = await runCatalog(
+      'usr_catalog_owner',
+      Effect.gen(function* () {
+        const catalog = yield* MerchantCatalog
+        const service = (yield* catalog.read()).services[0]!
+        yield* catalog.updateService(service.id, { ...service, status: 'active' })
+        return yield* catalog.read()
+      })
+    )
+    expect(reactivated.services[0]?.eligibleProviderIds).toEqual([
+      snapshot.providers[0]!.id
+    ])
   })
 
   it('does not disclose or mutate another Merchant catalog item', async () => {
@@ -213,6 +294,6 @@ describe('Live Merchant Catalog', () => {
           new Date().toISOString()
         )
         .run()
-    ).rejects.toThrow(/within one merchant/)
+    ).rejects.toThrow(/within one merchant|Merchant-scoped/)
   })
 })

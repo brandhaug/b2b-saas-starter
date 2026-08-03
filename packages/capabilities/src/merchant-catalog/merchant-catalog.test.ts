@@ -8,12 +8,12 @@ import {
 import { MerchantContext, testMerchantContext } from './merchant-context.ts'
 
 const merchant = {
-  id: 'mer_team',
-  publicName: 'Team Studio',
-  slug: 'team-studio',
+  id: 'mer_solo',
+  publicName: 'Solo Studio',
+  slug: 'solo-studio',
   timezone: 'Europe/Bucharest',
   currency: 'RON',
-  plan: 'team'
+  plan: 'solo'
 } as const
 
 const otherMerchant = { ...merchant, id: 'mer_other', slug: 'other-studio' } as const
@@ -165,7 +165,7 @@ describe('Merchant Catalog seed adapter', () => {
     expect(result.denied.reason).toBe('item_not_found')
   })
 
-  it('preserves inactive records while excluding them from bookable options', async () => {
+  it('restores Owner-Provider eligibility when an inactive Service is reactivated', async () => {
     const store = makeStore()
     const result = await run(
       store,
@@ -180,74 +180,64 @@ describe('Merchant Catalog seed adapter', () => {
         })
         yield* catalog.setServiceEligibility(service.id, ['prv_default'])
         yield* catalog.updateService(service.id, { ...service, status: 'inactive' })
+        yield* catalog.setServiceEligibility(service.id, [])
+        const inactive = yield* catalog.read()
+        yield* catalog.updateService(service.id, { ...service, status: 'active' })
         return {
           snapshot: yield* catalog.read(),
+          inactive,
           bookable: yield* catalog.readBookable()
         }
       })
     )
 
-    expect(result.snapshot.services[0]?.status).toBe('inactive')
-    expect(result.bookable.services).toEqual([])
+    expect(result.inactive.services[0]?.eligibleProviderIds).toEqual([])
+    expect(result.snapshot.services[0]?.status).toBe('active')
+    expect(result.snapshot.services[0]?.eligibleProviderIds).toEqual(['prv_default'])
+    expect(result.bookable.services).toHaveLength(1)
     expect(store.services.has(result.snapshot.services[0]!.id)).toBe(true)
   })
 
-  it('allows Team Provider management and requires one persisted default', async () => {
+  it('updates only the active Owner-Provider profile', async () => {
     const store = makeStore()
     const result = await run(
       store,
       Effect.gen(function* () {
         const catalog = yield* MerchantCatalog
-        const provider = yield* catalog.createProvider({
-          displayName: 'Radu Pop',
-          isDefault: false,
-          status: 'active'
+        const updated = yield* catalog.updateProvider('prv_default', {
+          displayName: 'Mara Pop'
         })
-        const promoted = yield* catalog.updateProvider(provider.id, {
-          ...provider,
-          isDefault: true
-        })
-        return { promoted, snapshot: yield* catalog.read() }
+        return { updated, snapshot: yield* catalog.read() }
       })
     )
 
-    expect(result.promoted.isDefault).toBe(true)
-    expect(result.snapshot.providers.filter((provider) => provider.isDefault)).toEqual([
-      result.promoted
-    ])
+    expect(result.updated).toMatchObject({
+      displayName: 'Mara Pop',
+      isDefault: true,
+      status: 'active'
+    })
+    expect(result.snapshot.providers).toEqual([result.updated])
   })
 
-  it('hides Provider administration for Solo while retaining its default Provider', async () => {
+  it('rejects cross-Merchant Provider mutation without disclosing it', async () => {
     const store = makeStore()
-    const solo = { ...merchant, plan: 'solo' as const }
     const result = await Effect.runPromise(
       Effect.provide(
         Effect.gen(function* () {
           const catalog = yield* MerchantCatalog
           const snapshot = yield* catalog.read()
           const denied = yield* Effect.flip(
-            catalog.createProvider({
-              displayName: 'Should Not Exist',
-              isDefault: false,
-              status: 'active'
+            catalog.updateProvider('prv_other', {
+              displayName: 'Hidden update'
             })
           )
-          const updateDenied = yield* Effect.flip(
-            catalog.updateProvider('prv_default', {
-              displayName: 'Hidden update',
-              isDefault: true,
-              status: 'active'
-            })
-          )
-          return { snapshot, denied, updateDenied }
+          return { snapshot, denied }
         }),
-        Layer.merge(SeedMerchantCatalog(store), testMerchantContext(solo))
+        Layer.merge(SeedMerchantCatalog(store), testMerchantContext(merchant))
       )
     )
 
-    expect(result.snapshot.presentation).toBe('solo')
     expect(result.snapshot.providers).toHaveLength(1)
-    expect(result.denied.reason).toBe('team_required')
-    expect(result.updateDenied.reason).toBe('team_required')
+    expect(result.denied.reason).toBe('item_not_found')
   })
 })

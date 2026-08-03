@@ -6,11 +6,12 @@ import { orUnavailable } from '../internal/unavailable.ts'
 
 export const MerchantIdentity = Schema.Struct({
   id: Schema.String,
+  actorUserId: Schema.optional(Schema.String),
   publicName: Schema.String,
   slug: Schema.String,
   timezone: Schema.String,
   currency: Schema.String,
-  plan: Schema.Literals(['solo', 'team'])
+  plan: Schema.Literal('solo')
 })
 export type MerchantIdentity = typeof MerchantIdentity.Type
 
@@ -57,6 +58,7 @@ export const liveMerchantContext = (
       if (!row) return yield* Effect.fail(new MerchantContextNotFound())
       return {
         id: row.id,
+        actorUserId: userId,
         publicName: row.publicName,
         slug: row.slug,
         timezone: row.timezone,
