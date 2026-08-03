@@ -24,6 +24,9 @@ const AppointmentAssociationBaseFields = {
   merchantId: Schema.String,
   appointment: Schema.Struct({
     id: Schema.String,
+    selectedCustomerRecordId: Schema.optional(Schema.String),
+    customerNote: Schema.optional(Schema.String),
+    series: Schema.optional(Schema.Struct({ id: Schema.String, position: Schema.Int })),
     details: Schema.Struct({
       name: Schema.String,
       email: Schema.NullOr(Schema.String),
@@ -120,6 +123,28 @@ const prepareAppointmentCustomerAssociationWithPlan = (
           reason: 'ban override reason is required'
         })
       )
+    const selectedRecord = first.selectedCustomerRecordId
+      ? yield* orUnavailable('customer-directory')(
+          db
+            .select({ id: customerRecords.id, status: customerRecords.status })
+            .from(customerRecords)
+            .where(
+              and(
+                eq(customerRecords.id, first.selectedCustomerRecordId),
+                eq(customerRecords.merchantId, input.merchantId),
+                isNull(customerRecords.mergedInto)
+              )
+            )
+            .limit(1)
+        )
+      : []
+    if (first.selectedCustomerRecordId && !selectedRecord[0])
+      return yield* Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'customer-directory',
+          reason: 'selected customer unavailable'
+        })
+      )
     const matches =
       identifiers.length === 0
         ? []
@@ -162,11 +187,15 @@ const prepareAppointmentCustomerAssociationWithPlan = (
           return plannedId ? [plannedId] : []
         })
       : []
-    const candidateIds = [
-      ...new Set([...persistedCandidateIds, ...plannedCandidateIds])
-    ]
+    const candidateIds = first.selectedCustomerRecordId
+      ? [first.selectedCustomerRecordId]
+      : [...new Set([...persistedCandidateIds, ...plannedCandidateIds])]
     const matchedId = candidateIds.length === 1 ? candidateIds[0] : undefined
-    const persistedMatch = matchedId ? persistedCandidateIds.includes(matchedId) : false
+    const persistedMatch = first.selectedCustomerRecordId
+      ? true
+      : matchedId
+        ? persistedCandidateIds.includes(matchedId)
+        : false
     const plannedMatchKeys = new Set(
       plan && matchedId
         ? identifiers
@@ -177,9 +206,10 @@ const prepareAppointmentCustomerAssociationWithPlan = (
             .map((identifier) => `${identifier.kind}:${identifier.value}`)
         : []
     )
-    const matchedStatus = matches.find(
-      ({ customerRecordId }) => customerRecordId === matchedId
-    )?.recordStatus
+    const matchedStatus =
+      selectedRecord[0]?.status ??
+      matches.find(({ customerRecordId }) => customerRecordId === matchedId)
+        ?.recordStatus
     if (matchedId) {
       if (
         input.origin === 'merchant_created' &&
@@ -268,7 +298,7 @@ const prepareAppointmentCustomerAssociationWithPlan = (
     }
     const matchedKeys = new Set(matches.map((match) => `${match.kind}:${match.value}`))
     for (const key of plannedMatchKeys) matchedKeys.add(key)
-    for (const identifier of identifiers) {
+    for (const identifier of first.selectedCustomerRecordId ? [] : identifiers) {
       if (matchedId && matchedKeys.has(`${identifier.kind}:${identifier.value}`))
         continue
       statements.push(
@@ -317,7 +347,9 @@ const prepareAppointmentCustomerAssociationWithPlan = (
           merchantId: input.merchantId,
           customerRecordId: recordId,
           origin: foundationOrigin,
-          customerNote: appointment.details.note?.trim() || null,
+          customerNote: appointment.customerNote?.trim() || null,
+          seriesId: appointment.series?.id ?? null,
+          seriesPosition: appointment.series?.position ?? null,
           createdAt: input.now
         })
         .onConflictDoUpdate({

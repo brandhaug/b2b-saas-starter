@@ -3,6 +3,7 @@ import { CalendarPlus, Mail, Phone } from 'lucide-react'
 import type { ComponentType, SVGProps } from 'react'
 import { appointmentDetailValues } from '../shared/appointment-detail-values.ts'
 import { mobileAppointmentPaymentLabel } from './mobile-appointment-detail-model.ts'
+import { AppointmentOperationsPanel } from '../shared/appointment-operations-panel.tsx'
 
 export function MobileAppointmentDetailScreen({
   appointment,
@@ -132,6 +133,10 @@ export function MobileAppointmentDetailScreen({
           )}
         </div>
       </section>
+
+      {contactActionsEnabled ? (
+        <AppointmentOperationsPanel appointment={appointment} />
+      ) : null}
 
       <nav
         aria-label="Appointment actions"

@@ -1,5 +1,6 @@
 import type { OperationalAppointment } from '@b2b-saas-starter/capabilities/booking'
 import { appointmentDetailValues } from '../shared/appointment-detail-values.ts'
+import { AppointmentOperationsPanel } from '../shared/appointment-operations-panel.tsx'
 
 export function DesktopAppointmentDetailScreen({
   appointment
@@ -46,6 +47,7 @@ export function DesktopAppointmentDetailScreen({
           ))}
         </ul>
       </section>
+      <AppointmentOperationsPanel appointment={appointment} />
     </>
   )
 }

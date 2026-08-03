@@ -4372,6 +4372,75 @@ export const externalCollections = sqliteTable(
   ]
 )
 
+/**
+ * Immutable, Merchant-private facts for every Owner Appointment command. The
+ * customer Confirmation surface deliberately never reads this table.
+ */
+export const appointmentOperationHistory = sqliteTable(
+  'appointment_operation_history',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    appointmentId: text('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'restrict' }),
+    operationId: text('operation_id').notNull(),
+    command: text('command').notNull(),
+    actorId: text('actor_id').notNull(),
+    impersonatedBy: text('impersonated_by'),
+    priorRevision: integer('prior_revision').notNull(),
+    resultingRevision: integer('resulting_revision').notNull(),
+    factsJson: text('facts_json').notNull(),
+    reason: text('reason'),
+    notificationChoiceJson: text('notification_choice_json'),
+    occurredAt: text('occurred_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('appointment_operation_history_operation_appointment_unique').on(
+      table.operationId,
+      table.appointmentId
+    ),
+    index('appointment_operation_history_appointment_revision_idx').on(
+      table.appointmentId,
+      table.resultingRevision
+    ),
+    foreignKey({
+      name: 'appointment_operation_history_appointment_merchant_fk',
+      columns: [table.appointmentId, table.merchantId],
+      foreignColumns: [appointments.id, appointments.merchantId]
+    }).onDelete('restrict'),
+    check(
+      'appointment_operation_history_revision_step',
+      sql`${table.resultingRevision} = ${table.priorRevision} + 1`
+    )
+  ]
+)
+
+/** One replay record per Merchant command; payload mismatches are conflicts. */
+export const appointmentOperationCommands = sqliteTable(
+  'appointment_operation_commands',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    idempotencyKey: text('idempotency_key').notNull(),
+    payloadFingerprint: text('payload_fingerprint').notNull(),
+    operationId: text('operation_id').notNull(),
+    resultJson: text('result_json').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('appointment_operation_commands_merchant_key_unique').on(
+      table.merchantId,
+      table.idempotencyKey
+    )
+  ]
+)
+
 export const privacyRequests = sqliteTable(
   'privacy_requests',
   {

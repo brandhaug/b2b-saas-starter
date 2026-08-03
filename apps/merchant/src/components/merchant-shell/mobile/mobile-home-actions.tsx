@@ -18,6 +18,9 @@ export function MobileHomeActions({
   const [createOpen, setCreateOpen] = useState(false)
   const [createGeneration, setCreateGeneration] = useState(0)
   const [newAppointmentOpen, setNewAppointmentOpen] = useState(false)
+  const [appointmentMode, setAppointmentMode] = useState<
+    'appointment' | 'series' | 'record-completed'
+  >('appointment')
   const calendarAction = mobileCalendarDockAction(appointmentDate, currentDate)
   const sideActionClass =
     'merchant-home-action-surface grid size-14 shrink-0 place-items-center rounded-full border text-foreground transition-transform active:scale-[0.94]'
@@ -99,10 +102,13 @@ export function MobileHomeActions({
         open={createOpen}
         onRequestClose={() => setCreateOpen(false)}
         onSelect={(intent) => {
-          if (intent === 'appointment') setNewAppointmentOpen(true)
+          if (intent === 'block-time') return
+          setAppointmentMode(intent)
+          setNewAppointmentOpen(true)
         }}
       />
       <MobileNewAppointmentSheet
+        mode={appointmentMode}
         open={newAppointmentOpen}
         appointmentDate={appointmentDate}
         onRequestClose={() => setNewAppointmentOpen(false)}

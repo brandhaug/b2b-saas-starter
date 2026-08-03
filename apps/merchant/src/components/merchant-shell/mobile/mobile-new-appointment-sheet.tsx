@@ -31,12 +31,16 @@ import type {
   MerchantCatalogSnapshot,
   ServiceRecord
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
-import type { Availability } from '@b2b-saas-starter/capabilities/scheduling'
+import {
+  civilTimeInstants,
+  type Availability
+} from '@b2b-saas-starter/capabilities/scheduling'
 import { customerInitials } from '@/features/customers/customer-contact-model.ts'
 import { decodeCalendarDate } from '@/lib/appointment-calendar-date.ts'
 import { searchCustomerRecords } from '@/lib/server/customer-directory.ts'
 import { getMerchantCatalog } from '@/lib/server/merchant-catalog.ts'
 import { getAppointmentAvailability } from '@/lib/server/scheduling.ts'
+import { runAppointmentCommand } from '@/lib/server/appointment-operations.ts'
 import {
   MobileAppointmentAddClient,
   MobileAppointmentClientPicker
@@ -66,6 +70,7 @@ export type NewAppointmentPresentation = 'desktop' | 'mobile'
 type NewAppointmentDialogProps = {
   readonly open: boolean
   readonly appointmentDate?: string | undefined
+  readonly mode?: 'appointment' | 'series' | 'record-completed'
   readonly onRequestClose: () => void
 }
 
@@ -76,12 +81,14 @@ const desktopMotionReduced = () =>
 export function MobileNewAppointmentSheet({
   open,
   appointmentDate = new Date().toISOString().slice(0, 10),
+  mode = 'appointment',
   onRequestClose
 }: NewAppointmentDialogProps) {
   const sheet = (
     <NewAppointmentDialog
       open={open}
       appointmentDate={appointmentDate}
+      mode={mode}
       presentation="mobile"
       onRequestClose={onRequestClose}
     />
@@ -96,6 +103,7 @@ export function MobileNewAppointmentSheet({
 export function NewAppointmentDialog({
   open,
   appointmentDate = new Date().toISOString().slice(0, 10),
+  mode = 'appointment',
   presentation,
   onRequestClose
 }: NewAppointmentDialogProps & {
@@ -106,12 +114,14 @@ export function NewAppointmentDialog({
     return (
       <DesktopNewAppointmentSheetDialog
         appointmentDate={appointmentDate}
+        mode={mode}
         onRequestClose={onRequestClose}
       />
     )
   return (
     <MobileNewAppointmentSheetDialog
       appointmentDate={appointmentDate}
+      mode={mode}
       onRequestClose={onRequestClose}
     />
   )
@@ -119,15 +129,18 @@ export function NewAppointmentDialog({
 
 function MobileNewAppointmentSheetDialog({
   appointmentDate,
+  mode,
   onRequestClose
 }: {
   readonly appointmentDate: string
+  readonly mode: 'appointment' | 'series' | 'record-completed'
   readonly onRequestClose: () => void
 }) {
   const sheet = useMobileRouteSheet({ layout: 'sheet', onRequestClose })
   return (
     <NewAppointmentSheetSurface
       appointmentDate={appointmentDate}
+      mode={mode}
       presentation="mobile"
       sheet={sheet}
     />
@@ -136,15 +149,18 @@ function MobileNewAppointmentSheetDialog({
 
 function DesktopNewAppointmentSheetDialog({
   appointmentDate,
+  mode,
   onRequestClose
 }: {
   readonly appointmentDate: string
+  readonly mode: 'appointment' | 'series' | 'record-completed'
   readonly onRequestClose: () => void
 }) {
   const sheet = useDesktopAppointmentDialogSurface(onRequestClose)
   return (
     <NewAppointmentSheetSurface
       appointmentDate={appointmentDate}
+      mode={mode}
       presentation="desktop"
       sheet={sheet}
     />
@@ -170,15 +186,17 @@ type NewAppointmentSheetController = Pick<
 
 function NewAppointmentSheetSurface({
   appointmentDate,
+  mode,
   presentation,
   sheet
 }: {
   readonly appointmentDate: string
+  readonly mode: 'appointment' | 'series' | 'record-completed'
   readonly presentation: NewAppointmentPresentation
   readonly sheet: NewAppointmentSheetController
 }) {
   const sheetRef = sheet.sheetRef
-  const [notifyCustomer, setNotifyCustomer] = useState(true)
+  const [notifyCustomer, setNotifyCustomer] = useState(mode !== 'record-completed')
   const [step, setStep] = useState<NewAppointmentStep>('appointment')
   const [desktopSubstepState, setDesktopSubstepState] = useState<
     'preparing' | 'entering' | 'open' | 'closing'
@@ -187,11 +205,20 @@ function NewAppointmentSheetSurface({
   const [selectedClient, setSelectedClient] = useState<AppointmentClient | null>(null)
   const [selectedService, setSelectedService] = useState<ServiceRecord | null>(null)
   const [durationMinutes, setDurationMinutes] = useState(0)
-  const [selectedDate, setSelectedDate] = useState(() =>
-    latestCalendarDate(decodeCalendarDate(appointmentDate), browserCalendarToday())
-  )
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const requestedDate = decodeCalendarDate(appointmentDate)
+    return mode === 'record-completed'
+      ? requestedDate
+      : latestCalendarDate(requestedDate, browserCalendarToday())
+  })
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
-  const [repeatEveryWeeks, setRepeatEveryWeeks] = useState<number | null>(null)
+  const [repeatEveryWeeks, setRepeatEveryWeeks] = useState<number | null>(
+    mode === 'series' ? 1 : null
+  )
+  const [recordedLocalTime, setRecordedLocalTime] = useState('12:00')
+  const [repeatCount, setRepeatCount] = useState(4)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'failed'>('idle')
+  const [saveError, setSaveError] = useState('')
   const [recurrencePickerOpen, setRecurrencePickerOpen] = useState(false)
   const [appointmentNote, setAppointmentNote] = useState('')
   const [clientNote, setClientNote] = useState('')
@@ -218,6 +245,99 @@ function NewAppointmentSheetSurface({
   const stepOriginFieldRef = useRef<string | null>(null)
   const desktopSubstepFrameRef = useRef<number | null>(null)
   const desktopSubstepTimerRef = useRef<number | null>(null)
+
+  const saveAppointment = async () => {
+    if (!selectedClient || !selectedService || !effectiveSelectedTime || !availability)
+      return
+    setSaveState('saving')
+    setSaveError('')
+    const localTime = appointmentTimes(availability, selectedDate).find(
+      (time) => time.instant === effectiveSelectedTime
+    )?.value
+    try {
+      if (repeatEveryWeeks && localTime) {
+        const occurrences = Array.from({ length: repeatCount }, (_, index) => {
+          const date = addDraftCalendarDays(selectedDate, index * repeatEveryWeeks * 7)
+          const candidates = civilTimeInstants(date, localTime, availability.timezone)
+          if (candidates.length !== 1)
+            throw new Error(
+              candidates.length === 0
+                ? `${date} ${localTime} does not exist because of a timezone change.`
+                : `${date} ${localTime} is ambiguous because of a timezone change.`
+            )
+          const startsAt = candidates[0]!.toISOString()
+          return {
+            startsAt,
+            endsAt: new Date(
+              Date.parse(startsAt) + durationMinutes * 60_000
+            ).toISOString()
+          }
+        })
+        await runAppointmentCommand({
+          data: {
+            kind: 'create_series',
+            idempotencyKey: crypto.randomUUID(),
+            intervalWeeks: repeatEveryWeeks,
+            localStartTime: localTime,
+            occurrences,
+            serviceIds: [selectedService.id],
+            ...(selectedClient.source === 'directory'
+              ? { customerRecordId: selectedClient.id }
+              : {}),
+            customer: {
+              name: selectedClient.name,
+              email: selectedClient.email || null,
+              phone: selectedClient.phone,
+              ...(clientNote ? { note: clientNote } : {})
+            },
+            notification: notifyCustomer
+              ? { kind: 'notify' }
+              : { kind: 'suppress', reason: 'Customer already knows.' }
+          }
+        })
+      } else {
+        await runAppointmentCommand({
+          data: {
+            kind: mode === 'record-completed' ? 'record_completed' : 'create',
+            idempotencyKey: crypto.randomUUID(),
+            startsAt: effectiveSelectedTime,
+            endsAt: new Date(
+              Date.parse(effectiveSelectedTime) + durationMinutes * 60_000
+            ).toISOString(),
+            serviceIds: [selectedService.id],
+            ...(selectedClient.source === 'directory'
+              ? { customerRecordId: selectedClient.id }
+              : {}),
+            customer: {
+              name: selectedClient.name,
+              email: selectedClient.email || null,
+              phone: selectedClient.phone,
+              ...(clientNote ? { note: clientNote } : {})
+            },
+            ...(appointmentNote ? { appointmentNote } : {}),
+            ...(mode === 'record-completed'
+              ? {
+                  completionReason: 'Recorded after the visit was completed.',
+                  completionCollection: { kind: 'collect_later' as const }
+                }
+              : {}),
+            notification: notifyCustomer
+              ? { kind: 'notify' }
+              : { kind: 'suppress', reason: 'Customer already knows.' }
+          }
+        })
+      }
+      sheet.closeSheet()
+      window.location.reload()
+    } catch (error) {
+      setSaveState('failed')
+      setSaveError(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Appointment could not be saved. Review the latest schedule and retry.'
+      )
+    }
+  }
 
   const clearDesktopSubstepLifecycle = useCallback(() => {
     if (desktopSubstepFrameRef.current) {
@@ -408,6 +528,14 @@ function NewAppointmentSheetSurface({
         if (!active) return
         setAvailability(result)
         setAvailabilityState('ready')
+        const merchantToday = calendarDateAtTimezone(
+          new Date(Date.now()).toISOString(),
+          result.timezone
+        )
+        if (mode !== 'record-completed' && selectedDate < merchantToday) {
+          setSelectedDate(merchantToday)
+          setSelectedTime(null)
+        }
       })
       .catch(() => {
         if (!active) return
@@ -417,18 +545,17 @@ function NewAppointmentSheetSurface({
     return () => {
       active = false
     }
-  }, [catalog, durationMinutes, selectedDate, selectedService])
+  }, [catalog, durationMinutes, mode, selectedDate, selectedService])
 
-  useEffect(() => {
-    if (!availability) return
-    const merchantToday = calendarDateAtTimezone(
-      new Date(Date.now()).toISOString(),
+  const effectiveSelectedTime = (() => {
+    if (mode !== 'record-completed' || !availability) return selectedTime
+    const candidates = civilTimeInstants(
+      selectedDate,
+      recordedLocalTime,
       availability.timezone
     )
-    if (selectedDate >= merchantToday) return
-    setSelectedDate(merchantToday)
-    setSelectedTime(null)
-  }, [availability, selectedDate])
+    return candidates.length === 1 ? candidates[0]!.toISOString() : null
+  })()
 
   const activateDialog = useNewAppointmentDialogActivation(sheetRef, presentation)
   const activateDesktopSubstepDialog = useNewAppointmentDialogActivation(
@@ -445,12 +572,17 @@ function NewAppointmentSheetSurface({
       selectedService={selectedService}
       durationMinutes={durationMinutes}
       selectedDate={selectedDate}
-      selectedTime={selectedTime}
+      selectedTime={effectiveSelectedTime}
       repeatEveryWeeks={repeatEveryWeeks}
+      repeatCount={repeatCount}
       appointmentNote={appointmentNote}
       clientNote={clientNote}
       availability={availability}
       availabilityState={availabilityState}
+      mode={mode}
+      recordedLocalTime={recordedLocalTime}
+      saveState={saveState}
+      saveError={saveError}
       onClose={() => sheet.closeSheet()}
       onChooseClient={() => openStep('clients', 'client')}
       onChooseService={() => openStep('services', 'service')}
@@ -459,18 +591,24 @@ function NewAppointmentSheetSurface({
         setSelectedTime(null)
       }}
       onSelectDate={(date) => {
-        if (date < minimumBookableDate(availability)) return
+        if (mode !== 'record-completed' && date < minimumBookableDate(availability))
+          return
         setSelectedDate(date)
         setSelectedTime(null)
       }}
       onSelectTime={setSelectedTime}
+      onChangeRecordedLocalTime={(time) => {
+        setRecordedLocalTime(time)
+      }}
       onChooseRepeat={() => {
         if (presentation === 'desktop') openStep('recurrence', 'repeat')
         else setRecurrencePickerOpen(true)
       }}
+      onChangeRepeatCount={setRepeatCount}
       onEditAppointmentNote={() => openStep('appointment-notes', 'appointment-notes')}
       onEditClientNote={() => openStep('client-notes', 'client-notes')}
       onToggleNotify={() => setNotifyCustomer((current) => !current)}
+      onSave={() => void saveAppointment()}
     />
   )
 
@@ -794,20 +932,28 @@ function AppointmentDraft({
   selectedDate,
   selectedTime,
   repeatEveryWeeks,
+  repeatCount,
   appointmentNote,
   clientNote,
   availability,
   availabilityState,
+  mode,
+  recordedLocalTime,
+  saveState,
+  saveError,
   onClose,
   onChooseClient,
   onChooseService,
   onChangeDuration,
   onSelectDate,
   onSelectTime,
+  onChangeRecordedLocalTime,
   onChooseRepeat,
+  onChangeRepeatCount,
   onEditAppointmentNote,
   onEditClientNote,
-  onToggleNotify
+  onToggleNotify,
+  onSave
 }: {
   readonly presentation: NewAppointmentPresentation
   readonly notifyCustomer: boolean
@@ -817,20 +963,28 @@ function AppointmentDraft({
   readonly selectedDate: string
   readonly selectedTime: string | null
   readonly repeatEveryWeeks: number | null
+  readonly repeatCount: number
   readonly appointmentNote: string
   readonly clientNote: string
   readonly availability: Availability | null
   readonly availabilityState: 'idle' | 'loading' | 'ready' | 'error'
+  readonly mode: 'appointment' | 'series' | 'record-completed'
+  readonly recordedLocalTime: string
+  readonly saveState: 'idle' | 'saving' | 'failed'
+  readonly saveError: string
   readonly onClose: () => void
   readonly onChooseClient: () => void
   readonly onChooseService: () => void
   readonly onChangeDuration: (change: number) => void
   readonly onSelectDate: (date: string) => void
   readonly onSelectTime: (time: string) => void
+  readonly onChangeRecordedLocalTime: (time: string) => void
   readonly onChooseRepeat: () => void
+  readonly onChangeRepeatCount: (count: number) => void
   readonly onEditAppointmentNote: () => void
   readonly onEditClientNote: () => void
   readonly onToggleNotify: () => void
+  readonly onSave: () => void
 }) {
   const {
     collapsed: compactHeader,
@@ -852,7 +1006,7 @@ function AppointmentDraft({
         >
           <span aria-hidden />
           <h1 className="truncate text-center text-sm leading-5 font-medium">
-            Book an appointment
+            {appointmentComposerTitle(mode)}
           </h1>
           <button
             type="button"
@@ -865,7 +1019,7 @@ function AppointmentDraft({
         </header>
       ) : (
         <MobileSheetHeader
-          title="Book an appointment"
+          title={appointmentComposerTitle(mode)}
           titleAs="p"
           titleVisible={compactHeader}
           divider={compactHeader}
@@ -899,7 +1053,7 @@ function AppointmentDraft({
               }`}
             >
               <h1 className="mt-1 max-w-64 text-[2.35rem] leading-[1.05] font-bold tracking-[-0.035em]">
-                Book an appointment
+                {appointmentComposerTitle(mode)}
               </h1>
             </header>
           )}
@@ -948,14 +1102,24 @@ function AppointmentDraft({
           </div>
 
           {selectedService ? (
-            <AppointmentSchedulingSection
-              availability={availability}
-              availabilityState={availabilityState}
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              onSelectDate={onSelectDate}
-              onSelectTime={onSelectTime}
-            />
+            mode === 'record-completed' ? (
+              <RecordCompletedSchedulingSection
+                selectedDate={selectedDate}
+                selectedTime={recordedLocalTime}
+                timezone={availability?.timezone}
+                onSelectDate={onSelectDate}
+                onSelectTime={onChangeRecordedLocalTime}
+              />
+            ) : (
+              <AppointmentSchedulingSection
+                availability={availability}
+                availabilityState={availabilityState}
+                selectedDate={selectedDate}
+                selectedTime={selectedTime}
+                onSelectDate={onSelectDate}
+                onSelectTime={onSelectTime}
+              />
+            )
           ) : null}
 
           <div className="divide-y divide-border/70 border-b border-border/70">
@@ -973,13 +1137,57 @@ function AppointmentDraft({
               tone={selectedClient ? (clientNote ? 'selected' : 'action') : 'disabled'}
               onClick={onEditClientNote}
             />
-            <AppointmentFieldRow
-              icon={<Repeat2 />}
-              label={appointmentRepeatLabel(repeatEveryWeeks)}
-              field="repeat"
-              tone="action"
-              onClick={onChooseRepeat}
-            />
+            {mode === 'record-completed' ? null : (
+              <AppointmentFieldRow
+                icon={<Repeat2 />}
+                label={appointmentRepeatLabel(repeatEveryWeeks)}
+                field="repeat"
+                tone="action"
+                onClick={onChooseRepeat}
+              />
+            )}
+            {repeatEveryWeeks ? (
+              <div className="py-3">
+                <label className="flex min-h-12 items-center gap-4">
+                  <CalendarDays
+                    aria-hidden
+                    className="size-5 shrink-0 text-muted-foreground"
+                  />
+                  <span className="min-w-0 flex-1 text-[1.0625rem] font-medium">
+                    Appointments in series
+                  </span>
+                  <input
+                    type="number"
+                    aria-label="Appointments in series"
+                    min={2}
+                    max={52}
+                    value={repeatCount}
+                    onChange={(event) =>
+                      onChangeRepeatCount(
+                        Math.max(2, Math.min(52, Number(event.target.value) || 2))
+                      )
+                    }
+                    className="h-10 w-20 rounded-lg border bg-background px-3 text-right font-semibold tabular-nums"
+                  />
+                </label>
+                <ol
+                  aria-label="Series occurrence preview"
+                  className="mt-2 ml-9 grid max-h-40 gap-1 overflow-auto text-sm text-muted-foreground"
+                >
+                  {Array.from({ length: repeatCount }, (_, index) => {
+                    const date = addDraftCalendarDays(
+                      selectedDate,
+                      index * repeatEveryWeeks * 7
+                    )
+                    return (
+                      <li key={date}>
+                        {index + 1}. {formatDraftDate(date)}
+                      </li>
+                    )
+                  })}
+                </ol>
+              </div>
+            ) : null}
           </div>
 
           <button
@@ -1011,6 +1219,15 @@ function AppointmentDraft({
         </div>
       </MobileSheetScrollport>
 
+      {saveError ? (
+        <p
+          role="alert"
+          className="absolute inset-x-4 bottom-24 z-30 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          {saveError}
+        </p>
+      ) : null}
+
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-background from-55% via-background/95 to-transparent pt-10 ${
           desktop ? 'px-8 pb-6' : 'px-4 pb-[max(1rem,env(safe-area-inset-bottom))]'
@@ -1018,13 +1235,22 @@ function AppointmentDraft({
       >
         <button
           type="button"
-          disabled={!canSave}
-          aria-disabled={!canSave}
-          data-mobile-new-appointment-save-state={canSave ? 'ready' : 'incomplete'}
+          disabled={!canSave || saveState === 'saving'}
+          aria-disabled={!canSave || saveState === 'saving'}
+          data-mobile-new-appointment-save-state={
+            saveState === 'saving' ? 'saving' : canSave ? 'ready' : 'incomplete'
+          }
           data-mobile-new-appointment-save="true"
+          onClick={onSave}
           className="pointer-events-auto flex h-14 w-full items-center justify-center rounded-xl bg-info text-[1.0625rem] font-semibold text-info-foreground transition-[opacity,transform] active:scale-[0.99] disabled:bg-muted disabled:text-muted-foreground disabled:opacity-65"
         >
-          Save appointment
+          {saveState === 'saving'
+            ? 'Saving…'
+            : repeatEveryWeeks
+              ? `Save ${repeatCount} appointments`
+              : mode === 'record-completed'
+                ? 'Record completed visit'
+                : 'Save appointment'}
         </button>
       </div>
     </div>
@@ -1347,6 +1573,59 @@ function appointmentRepeatLabel(weeks: number | null) {
   return `Every ${weeks} weeks`
 }
 
+function appointmentComposerTitle(mode: 'appointment' | 'series' | 'record-completed') {
+  if (mode === 'series') return 'Book an appointment series'
+  if (mode === 'record-completed') return 'Record a completed visit'
+  return 'Book an appointment'
+}
+
+function RecordCompletedSchedulingSection({
+  selectedDate,
+  selectedTime,
+  timezone,
+  onSelectDate,
+  onSelectTime
+}: {
+  readonly selectedDate: string
+  readonly selectedTime: string
+  readonly timezone: string | undefined
+  readonly onSelectDate: (date: string) => void
+  readonly onSelectTime: (time: string) => void
+}) {
+  return (
+    <section className="grid gap-4 border-b border-border/70 py-5">
+      <p className="text-sm text-muted-foreground">
+        Record the actual past visit time. This creates a completed operational fact; it
+        does not create a verified payment.
+      </p>
+      <label className="grid gap-1.5 text-sm font-medium">
+        Visit date
+        <input
+          type="date"
+          aria-label="Completed visit date"
+          max={browserCalendarToday()}
+          value={selectedDate}
+          onChange={(event) => onSelectDate(event.target.value)}
+          className="h-11 rounded-xl border bg-background px-3 text-base"
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-medium">
+        Start time {timezone ? `(${timezone})` : ''}
+        <input
+          type="time"
+          aria-label="Completed visit start time"
+          value={selectedTime}
+          onChange={(event) => onSelectTime(event.target.value)}
+          className="h-11 rounded-xl border bg-background px-3 text-base"
+        />
+      </label>
+      {!timezone ? (
+        <p className="text-sm text-muted-foreground">Loading Shop timezone…</p>
+      ) : null}
+    </section>
+  )
+}
+
 function AppointmentSchedulingSection({
   availability,
   availabilityState,
@@ -1583,6 +1862,12 @@ function minimumBookableDate(availability: Availability | null) {
     new Date(Date.now()).toISOString(),
     availability.timezone
   )
+}
+
+function addDraftCalendarDays(date: string, days: number) {
+  const value = new Date(`${date}T12:00:00.000Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
 }
 
 function availabilityRangeStart(selectedDate: string) {

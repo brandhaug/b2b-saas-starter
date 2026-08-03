@@ -6,7 +6,11 @@ import {
 import { useMobileSurfaceChrome } from './use-mobile-surface-chrome.ts'
 import './mobile-create-action-sheet.css'
 
-export type MobileCreateIntent = 'appointment' | 'block-time'
+export type MobileCreateIntent =
+  | 'appointment'
+  | 'series'
+  | 'record-completed'
+  | 'block-time'
 
 type CreateActionSheetState = 'entering' | 'open' | 'closing'
 
@@ -165,6 +169,22 @@ function MobileCreateActionSheetDialog({
             onClick={() => choose('appointment')}
           >
             Appointment
+          </button>
+          <button
+            type="button"
+            style={IOS_ACTION_BUTTON_RESET}
+            className="flex h-14 w-full appearance-none items-center justify-center border-t bg-transparent text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted dark:border-white/10"
+            onClick={() => choose('series')}
+          >
+            Appointment series
+          </button>
+          <button
+            type="button"
+            style={IOS_ACTION_BUTTON_RESET}
+            className="flex h-14 w-full appearance-none items-center justify-center border-t bg-transparent text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted dark:border-white/10"
+            onClick={() => choose('record-completed')}
+          >
+            Record completed visit
           </button>
           <button
             type="button"

@@ -1,7 +1,12 @@
 import { env } from 'cloudflare:workers'
 import { Effect, Layer } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
-import { AppointmentOperations } from '@b2b-saas-starter/capabilities/booking'
+import {
+  AppointmentOperations,
+  LiveMerchantAppointmentCommands,
+  MerchantAppointmentCommands,
+  type MerchantAppointmentCommand
+} from '@b2b-saas-starter/capabilities/booking'
 import {
   liveMerchantContext,
   MerchantContext
@@ -10,7 +15,11 @@ import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 
 const run = async <A>(
   userId: string,
-  effect: Effect.Effect<A, unknown, AppointmentOperations | MerchantContext>
+  effect: Effect.Effect<
+    A,
+    unknown,
+    AppointmentOperations | MerchantAppointmentCommands | MerchantContext
+  >
 ) => {
   if (!env.DB)
     throw new Error('Appointment Operations requires the Merchant App D1 binding.')
@@ -18,7 +27,11 @@ const run = async <A>(
   return Effect.runPromise(
     Effect.provide(
       effect,
-      Layer.merge(selectCapabilitiesLayer({ DB: env.DB }), context)
+      Layer.mergeAll(
+        selectCapabilitiesLayer({ DB: env.DB }),
+        LiveMerchantAppointmentCommands.pipe(Layer.provide(layerFromD1(env.DB))),
+        context
+      )
     )
   )
 }
@@ -34,5 +47,24 @@ export const readAppointmentDetail = (userId: string, appointmentId: string) =>
     userId,
     Effect.flatMap(AppointmentOperations, (operations) =>
       operations.detail(appointmentId)
+    )
+  )
+
+export const executeAppointmentCommand = (
+  userId: string,
+  command: MerchantAppointmentCommand
+) =>
+  run(
+    userId,
+    Effect.flatMap(MerchantAppointmentCommands, (operations) =>
+      operations.execute(command)
+    )
+  )
+
+export const readAppointmentHistory = (userId: string, appointmentId: string) =>
+  run(
+    userId,
+    Effect.flatMap(MerchantAppointmentCommands, (operations) =>
+      operations.history(appointmentId)
     )
   )
