@@ -1,6 +1,9 @@
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { emptySeedBookingSelectionStore } from './booking-selection.ts'
+import {
+  emptySeedBookingSelectionStore,
+  seedBookingSelectionEligibilityKey
+} from './booking-selection.ts'
 import { emptySeedBookingSchedulingStore } from './booking-scheduling.ts'
 import { emptySeedBookingCheckoutStore } from './booking-checkout.ts'
 import {
@@ -16,23 +19,10 @@ import {
   emptySeedBookingSessionStore,
   type BookingSession
 } from './booking-sessions.ts'
-import type { SeedBookingScenario } from '../merchant-catalog/merchant-onboarding.ts'
+import { buildSeedBookingScenario } from '../merchant-catalog/merchant-onboarding.ts'
 
 const now = '2026-07-12T09:00:00.000Z'
-const scenario = {
-  merchant: {
-    id: 'mer_party',
-    slug: 'party',
-    publicName: 'Party Studio',
-    timezone: 'Europe/Bucharest',
-    currency: 'RON'
-  },
-  providers: [],
-  services: [],
-  eligibility: [],
-  scheduleRules: [],
-  existingAppointments: []
-} as unknown as SeedBookingScenario
+const scenario = buildSeedBookingScenario('2026-07-10T09:30:00.000Z')
 
 const quote = (requestId: string, providerId: string, startsAt: string) => ({
   startsAt,
@@ -41,12 +31,12 @@ const quote = (requestId: string, providerId: string, startsAt: string) => ({
   assignedProvider: { id: providerId, displayName: providerId },
   services: [
     {
-      id: `svc_${requestId}`,
+      id: scenario.services[0]!.id,
       role: 'primary' as const,
-      name: 'Service',
-      durationMinutes: 60,
-      priceMinor: 10000,
-      currency: 'RON'
+      name: scenario.services[0]!.name,
+      durationMinutes: scenario.services[0]!.durationMinutes,
+      priceMinor: scenario.services[0]!.priceMinor,
+      currency: scenario.services[0]!.currency
     }
   ],
   durationMinutes: 60,
@@ -59,7 +49,7 @@ describe('Booking Confirmation', () => {
     const sessions = emptySeedBookingSessionStore()
     const session: BookingSession = {
       id: 'bsn_party',
-      merchantSlug: 'party',
+      merchantSlug: scenario.merchant.slug,
       checkoutPath: 'pay_in_person',
       lifecycle: 'active',
       createdAt: now,
@@ -69,22 +59,32 @@ describe('Booking Confirmation', () => {
     }
     sessions.sessions.set(session.id, {
       ...session,
-      merchantId: 'mer_party',
+      merchantId: scenario.merchant.id,
       capabilityHash: 'hash'
     })
-    const selections = emptySeedBookingSelectionStore(
-      scenario as unknown as Parameters<typeof emptySeedBookingSelectionStore>[0]
-    )
+    const selections = emptySeedBookingSelectionStore({
+      merchants: [
+        {
+          id: scenario.merchant.id,
+          slug: scenario.merchant.slug,
+          presentation: scenario.merchant.plan,
+          publicName: scenario.merchant.publicName
+        }
+      ],
+      providers: scenario.providers,
+      services: scenario.services,
+      eligibility: scenario.eligibility.map(seedBookingSelectionEligibilityKey)
+    })
     const scheduling = emptySeedBookingSchedulingStore(scenario, selections)
     scheduling.partyRequests.set(session.id, new Set(['brq_one', 'brq_two']))
     for (const [requestId, providerId, startsAt] of [
-      ['brq_one', 'prv_one', '2026-07-13T09:00:00.000Z'],
-      ['brq_two', 'prv_two', '2026-07-13T10:00:00.000Z']
+      ['brq_one', scenario.provider.id, '2026-07-13T09:00:00.000Z'],
+      ['brq_two', scenario.provider.id, '2026-07-13T10:00:00.000Z']
     ] as const) {
       const requestQuote = quote(requestId, providerId, startsAt)
       scheduling.holds.set(`hld_${requestId}`, {
         id: `hld_${requestId}`,
-        merchantId: 'mer_party',
+        merchantId: scenario.merchant.id,
         bookingSessionId: session.id,
         bookingRequestId: requestId,
         providerId,
@@ -125,9 +125,14 @@ describe('Booking Confirmation', () => {
     const replay = await confirm({ ...session, lifecycle: 'consumed' })
 
     expect(first.appointments.map((appointment) => appointment.providerId)).toEqual([
-      'prv_one',
-      'prv_two'
+      scenario.provider.id,
+      scenario.provider.id
     ])
+    expect(first.appointment.snapshot).toMatchObject({
+      merchantTimezone: scenario.merchant.timezone,
+      assignedProvider: { id: scenario.provider.id },
+      services: [{ id: scenario.services[0]!.id }]
+    })
     expect(first.accesses).toHaveLength(2)
     expect(first.outboxIds).toHaveLength(2)
     expect(replay).toEqual({ ...first, replayed: true })
@@ -139,7 +144,7 @@ describe('Booking Confirmation', () => {
         Effect.flatMap(BookingConfirmation, (service) =>
           service.read({
             routeId: first.access.routeId,
-            merchantSlug: 'party',
+            merchantSlug: scenario.merchant.slug,
             credential: first.access.token,
             credentialKind: 'bearer',
             now
@@ -152,7 +157,7 @@ describe('Booking Confirmation', () => {
       kind: 'found',
       confirmation: {
         appointments: [{}, {}],
-        shop: { publicName: 'Party Studio' }
+        shop: { publicName: scenario.merchant.publicName }
       }
     })
   })

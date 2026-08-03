@@ -20,6 +20,7 @@ export {
   MerchantOnboardingStatus,
   MerchantRecord,
   RESERVED_MERCHANT_SLUGS,
+  SeedMerchantCatalogFixtureInvalid,
   SeedMerchantOnboarding,
   assertSeedBookingScenarioReleaseBaseline,
   buildSeedBookingScenario,

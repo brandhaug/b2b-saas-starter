@@ -30,10 +30,9 @@ The following names are retained until a separately verified forward-only cutove
 
 These suites are executed by `bun run release:baseline`.
 
-| Invariant                                                           | Verification seam                                                      |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Merchant isolation and sole Owner-Provider binding                  | packages/capabilities/src/merchant-catalog/merchant-onboarding.test.ts |
-| Conflict-safe holds and immutable Appointment snapshots             | packages/capabilities/src/booking/booking-confirmation.live.test.ts    |
-| Transactional outbox atomicity and replay convergence               | packages/capabilities/src/booking/booking-confirmation.live.test.ts    |
-| Network-fresh private reads and no-store responses                  | apps/booking/src/lib/booking-session-http.test.ts                      |
-| Production Public Site dispatch through the Booking service binding | apps/web/src/lib/booking-dispatch.test.ts                              |
+| Invariant                                                                                                        | Verification seam                                                      |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Merchant isolation and sole Owner-Provider binding                                                               | packages/capabilities/src/merchant-catalog/merchant-onboarding.test.ts |
+| Conflict-safe holds derived from the canonical fixture                                                           | packages/capabilities/src/booking/booking-scheduling.test.ts           |
+| Immutable Appointment snapshots, transactional outbox, and replay convergence derived from the canonical fixture | packages/capabilities/src/booking/booking-confirmation.test.ts         |
+| Canonical-fixture network-fresh no-store reads and Public Site dispatch                                          | scripts/release-baseline/fixture-contract.test.ts                      |

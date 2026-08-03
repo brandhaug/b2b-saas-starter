@@ -13,6 +13,7 @@ import {
   createCandidateManifest,
   candidateConfigurationFiles
 } from './candidate-manifest.ts'
+import { releaseBaselineVerificationSuites } from './fixture-evidence.ts'
 
 const ledger = (status: 'planned' | 'implemented' | 'verified'): ParityLedger => ({
   version: 1,
@@ -82,6 +83,9 @@ describe('beesolo release baseline', () => {
         'apps/web/src/routes',
         'apps/merchant/src/components',
         'apps/booking/src/components',
+        'apps/api/src',
+        'packages/capabilities/src/team',
+        'packages/db/src',
         'docs/adr'
       ].map((path) => mkdir(join(root, path), { recursive: true }))
     )
@@ -111,6 +115,22 @@ describe('beesolo release baseline', () => {
       writeFile(
         join(root, 'apps/booking/src/components/selection.tsx'),
         `const showProviders = true; messages.providerCards.anyProvider`
+      ),
+      writeFile(
+        join(root, 'apps/api/src/team-contract.ts'),
+        `export const listMembers = () => []`
+      ),
+      writeFile(
+        join(root, 'packages/capabilities/src/team/members.ts'),
+        `export const role = 'employee'`
+      ),
+      writeFile(
+        join(root, 'packages/capabilities/src/team/team.AGENTS.md'),
+        '# Historical constraint: additional Provider behavior is prohibited\n'
+      ),
+      writeFile(
+        join(root, 'packages/db/src/provider-policy.ts'),
+        `export const selectProvider = () => undefined`
       )
     ])
 
@@ -124,10 +144,20 @@ describe('beesolo release baseline', () => {
       ])
     )
     expect(
-      (await collectCandidateSourceIssues(root)).some(({ message }) =>
-        message.includes('docs/adr/0001-history.md')
+      (await collectCandidateSourceIssues(root)).some(
+        ({ message }) =>
+          message.includes('docs/adr/0001-history.md') || message.includes('AGENTS.md')
       )
     ).toBe(false)
+    expect(
+      (await collectCandidateSourceIssues(root)).map(({ message }) => message)
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('apps/api/src/team-contract.ts'),
+        expect.stringContaining('packages/capabilities/src/team/members.ts'),
+        expect.stringContaining('packages/db/src/provider-policy.ts')
+      ])
+    )
   })
 
   it('binds API configuration and migration contents into candidate identity', async () => {
@@ -155,5 +185,16 @@ describe('beesolo release baseline', () => {
       name: '20260803000000_baseline',
       digest: expect.stringMatching(/^[a-f0-9]{64}$/)
     })
+  })
+
+  it('executes the typed Transactional Email callback and canonical fixture seams', () => {
+    expect(releaseBaselineVerificationSuites).toEqual(
+      expect.arrayContaining([
+        'apps/api/src/index.test.ts',
+        'apps/api/src/transactional-email-callback.test.ts',
+        'packages/capabilities/src/booking/booking-confirmation.test.ts',
+        'scripts/release-baseline/fixture-contract.test.ts'
+      ])
+    )
   })
 })

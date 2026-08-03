@@ -10,8 +10,22 @@ import { productionIngress } from './ingress.ts'
 export type CandidateIssue = { readonly code: string; readonly message: string }
 
 const candidateSourceExtensions = /\.(?:md|mdx|ts|tsx)$/
-const ignoredCandidateSource = /(?:\.test|\.browser\.test|\.stories|routeTree\.gen)\./
+const ignoredCandidateSource =
+  /(?:\.test|\.browser\.test|\.stories|routeTree\.gen)\.|AGENTS\.md$/
 const historicalDocumentation = /^docs\/(?:adr|agents|generated|research)\//
+const teamBehaviorPatterns = [
+  /Team Plan|name:\s*['"]Team['"]|plans? for teams/i,
+  /additional Merchant Members?|member invitations?|invite staff/i,
+  /Manager (?:or|and) Employee roles?|ownership transfer/i,
+  /(?:list|add|create|invite|remove)Members?/i,
+  /role\s*(?::|=)\s*['"](?:manager|employee)['"]/i,
+  /label\s*(?::|=)\s*['"]Members['"][\s\S]{0,80}to\s*(?::|=)\s*['"]\/members['"]/i,
+  /per-seat billing/i,
+  /(?:upgrade (?:to )?|downgrade (?:from )?)Team|Team (?:upgrade|downgrade)|downgrade to Solo/i
+] as const
+const additionalProviderBehavior =
+  /additional Provider|createProvider|addProvider|providerLimit|maxProviders/i
+const providerChoiceBehavior = /selectProvider|chooseProvider|setProviderPreference/i
 
 export const collectCandidateSourceIssues = async (
   root: string
@@ -33,7 +47,11 @@ export const collectCandidateSourceIssues = async (
     ...(await listFiles(resolve(root, 'docs'))),
     ...(await listFiles(resolve(root, 'apps/web/src'))),
     ...(await listFiles(resolve(root, 'apps/merchant/src'))),
-    ...(await listFiles(resolve(root, 'apps/booking/src')))
+    ...(await listFiles(resolve(root, 'apps/booking/src'))),
+    ...(await listFiles(resolve(root, 'apps/api/src'))),
+    ...(await listFiles(resolve(root, 'apps/background/src'))),
+    ...(await listFiles(resolve(root, 'packages/capabilities/src'))),
+    ...(await listFiles(resolve(root, 'packages/db/src')))
   ].filter(
     (path) =>
       candidateSourceExtensions.test(path) &&
@@ -77,6 +95,11 @@ export const collectCandidateSourceIssues = async (
     path.startsWith('apps/web/src/')
   const merchantProduct = (path: string) => path.startsWith('apps/merchant/src/')
   const bookingProduct = (path: string) => path.startsWith('apps/booking/src/')
+  const coreProduct = (path: string) =>
+    path.startsWith('apps/api/src/') ||
+    path.startsWith('apps/background/src/') ||
+    path.startsWith('packages/capabilities/src/') ||
+    path.startsWith('packages/db/src/')
   const activeProduct = (path: string) =>
     publicProduct(path) || merchantProduct(path) || bookingProduct(path)
   reportMatches(
@@ -89,11 +112,13 @@ export const collectCandidateSourceIssues = async (
     /Platform API/i,
     (path) => publicProduct(path) || merchantProduct(path)
   )
-  reportMatches(
-    'team-behavior',
-    /Team Plan|name:\s*['"]Team['"]|plans? for teams|additional Merchant Members?|member invitations?|Manager (?:or|and) Employee roles?|label\s*(?::|=)\s*['"]Members['"][\s\S]{0,80}to\s*(?::|=)\s*['"]\/members['"]|invite staff|per-seat billing|ownership transfer|(?:upgrade (?:to )?|downgrade (?:from )?)Team|Team (?:upgrade|downgrade)|downgrade to Solo/i,
-    (path) => publicProduct(path) || merchantProduct(path)
-  )
+  for (const pattern of teamBehaviorPatterns)
+    reportMatches(
+      'team-behavior',
+      pattern,
+      (path) => publicProduct(path) || merchantProduct(path) || coreProduct(path)
+    )
+  reportMatches('team-behavior', additionalProviderBehavior, coreProduct)
   reportMatches(
     'provider-navigation',
     /label\s*(?::|=)\s*['"]Providers['"][\s\S]{0,80}to\s*(?::|=)\s*['"]\/providers['"]/i,
@@ -104,6 +129,7 @@ export const collectCandidateSourceIssues = async (
     /['"](?:Choose|Select) (?:a )?Provider['"]|['"]Any Provider['"]|providerCards\.anyProvider|showProviders\s*=|kind:\s*['"]specific['"][\s\S]{0,80}providerId/i,
     (path) => bookingProduct(path) || publicProduct(path)
   )
+  reportMatches('provider-choice', providerChoiceBehavior, coreProduct)
   return issues
 }
 

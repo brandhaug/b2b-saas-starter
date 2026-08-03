@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import {
+  appointmentFoundations,
   appointments,
   batch,
   bookingOutbox,
@@ -1365,6 +1366,18 @@ export const LiveBookingConfirmation = (
                       )
                     )
                 ),
+                db
+                  .update(appointmentFoundations)
+                  .set({
+                    origin: 'public_booking',
+                    customerNote: item.snapshot.customerDetails.note?.trim() || null
+                  })
+                  .where(
+                    and(
+                      eq(appointmentFoundations.appointmentId, item.appointmentId),
+                      eq(appointmentFoundations.merchantId, item.row.hold.merchantId)
+                    )
+                  ),
                 db.insert(confirmationAccess).values({
                   routeId: item.routeId,
                   appointmentId: item.appointmentId,
@@ -1698,6 +1711,18 @@ export const LiveBookingConfirmation = (
                     )
                   )
               ),
+              db
+                .update(appointmentFoundations)
+                .set({
+                  origin: 'public_booking',
+                  customerNote: snapshot.customerDetails.note?.trim() || null
+                })
+                .where(
+                  and(
+                    eq(appointmentFoundations.appointmentId, appointmentId),
+                    eq(appointmentFoundations.merchantId, row.session.merchantId)
+                  )
+                ),
               db.insert(confirmationAccess).values(accessMetadata),
               db.insert(bookingOutbox).values({
                 id: outboxId,

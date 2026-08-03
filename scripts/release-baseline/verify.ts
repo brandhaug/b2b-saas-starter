@@ -1,8 +1,8 @@
 import { resolve } from 'node:path'
-import { productionFixtureInvariantEvidence } from './fixture-evidence.ts'
+import { releaseBaselineVerificationSuites } from './fixture-evidence.ts'
 
 const root = resolve(import.meta.dirname, '../..')
-const suites = [...new Set(productionFixtureInvariantEvidence.map(({ seam }) => seam))]
+const suites = [...new Set(releaseBaselineVerificationSuites)]
 const tests = Bun.spawn(['bunx', 'vitest', 'run', ...suites], {
   cwd: root,
   stdout: 'inherit',
