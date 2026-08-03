@@ -51,7 +51,7 @@ describe('Public Booking Page resolution', () => {
     expect(screen.queryByRole('form')).toBeNull()
     expect(screen.getByText('Currently working')).toBeTruthy()
     expect(screen.getByText('Until')).toBeTruthy()
-    expect(screen.getByText('6 PM')).toBeTruthy()
+    expect(screen.getByText('5 PM')).toBeTruthy()
     expect(screen.queryByText('Studio team')).toBeNull()
     expect(screen.queryByRole('banner')).toBeNull()
     expect(screen.getAllByText(scenario.merchant.publicName)).toHaveLength(1)

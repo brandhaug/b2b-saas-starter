@@ -109,8 +109,8 @@ describe('Live Solo Merchant Activation', () => {
         scheduling.availability({
           providerId: 'prv_activation',
           serviceId: 'svc_activation',
-          from: now,
-          days: 2
+          from: new Date().toISOString(),
+          days: 3
         })
       )
     )
@@ -129,6 +129,7 @@ describe('Live Solo Merchant Activation', () => {
       Effect.flatMap(MerchantActivation, (service) =>
         service.runLaunchTest({
           providerId: 'prv_activation',
+          providerPreference: { kind: 'specific', providerId: 'prv_activation' },
           serviceId: 'svc_activation',
           startsAt,
           customer: { name: 'Preview Customer', email: 'preview@example.test' }
@@ -173,7 +174,47 @@ describe('Live Solo Merchant Activation', () => {
         scheduling.availability({
           providerId: 'prv_activation',
           serviceId: 'svc_activation',
-          from: now,
+          from: new Date().toISOString(),
+          days: 3
+        })
+      )
+    )
+    await run(
+      Effect.flatMap(MerchantActivation, (service) =>
+        service.runLaunchTest({
+          providerId: 'prv_activation',
+          providerPreference: { kind: 'specific', providerId: 'prv_activation' },
+          serviceId: 'svc_activation',
+          startsAt: refreshedAvailability.slots[0]!.startsAt,
+          customer: { name: 'Preview Customer', email: 'preview@example.test' }
+        })
+      )
+    )
+
+    await test.d1
+      .prepare(
+        `INSERT INTO schedule_rules
+         (id,merchant_id,provider_id,weekday,start_time,end_time,created_at,updated_at)
+         VALUES ('sch_activation_temporary',?,?,1,'17:00','18:00',?,?)`
+      )
+      .bind(merchant.id, 'prv_activation', now, '2099-01-01T00:00:00.000Z')
+      .run()
+    await test.d1
+      .prepare(`DELETE FROM schedule_rules WHERE id='sch_activation_temporary'`)
+      .run()
+    const afterDeletedConfiguration = await run(
+      Effect.flatMap(MerchantActivation, (service) => service.read())
+    )
+    expect(afterDeletedConfiguration.facts.launchTestSourceRevision).not.toBe(
+      afterDeletedConfiguration.sourceRevision
+    )
+
+    const retryAvailability = await run(
+      Effect.flatMap(Scheduling, (scheduling) =>
+        scheduling.availability({
+          providerId: 'prv_activation',
+          serviceId: 'svc_activation',
+          from: new Date().toISOString(),
           days: 2
         })
       )
@@ -182,8 +223,9 @@ describe('Live Solo Merchant Activation', () => {
       Effect.flatMap(MerchantActivation, (service) =>
         service.runLaunchTest({
           providerId: 'prv_activation',
+          providerPreference: { kind: 'specific', providerId: 'prv_activation' },
           serviceId: 'svc_activation',
-          startsAt: refreshedAvailability.slots[0]!.startsAt,
+          startsAt: retryAvailability.slots[0]!.startsAt,
           customer: { name: 'Preview Customer', email: 'preview@example.test' }
         })
       )

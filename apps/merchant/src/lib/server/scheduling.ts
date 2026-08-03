@@ -20,7 +20,8 @@ import { runMerchantRequest } from './merchant-session.ts'
 
 const SaveRules = Schema.Struct({
   providerId: Schema.String,
-  rules: Schema.Array(ScheduleRuleInput)
+  rules: Schema.Array(ScheduleRuleInput),
+  confirmedConflictingAppointmentIds: Schema.optional(Schema.Array(Schema.String))
 })
 const SetPublished = Schema.Struct({ published: Schema.Boolean })
 const SaveActivation = Schema.Struct({
@@ -34,6 +35,13 @@ const SaveActivation = Schema.Struct({
 const LaunchTest = Schema.Struct({
   serviceId: Schema.String,
   providerId: Schema.String,
+  providerPreference: Schema.Union([
+    Schema.Struct({ kind: Schema.Literal('any') }),
+    Schema.Struct({
+      kind: Schema.Literal('specific'),
+      providerId: Schema.String
+    })
+  ]),
   startsAt: Schema.String,
   customer: Schema.Struct({ name: Schema.String, email: Schema.String })
 })

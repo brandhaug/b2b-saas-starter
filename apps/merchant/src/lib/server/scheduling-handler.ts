@@ -83,12 +83,17 @@ export const makeSchedulingRequestHandler = (dependencies: {
   saveRules: async (input: {
     readonly providerId: string
     readonly rules: readonly ScheduleRuleInput[]
+    readonly confirmedConflictingAppointmentIds?: readonly string[] | undefined
   }) => {
     const userId = await dependencies.currentUserId()
     return dependencies.run(
       userId,
       Effect.flatMap(Scheduling, (scheduling) =>
-        scheduling.saveProviderRules(input.providerId, input.rules)
+        scheduling.saveProviderRules(
+          input.providerId,
+          input.rules,
+          input.confirmedConflictingAppointmentIds
+        )
       )
     )
   },

@@ -7,6 +7,7 @@ import {
   addBlockedTime,
   changeShopTimezone,
   getSchedulingConfiguration,
+  getAppointmentAvailability,
   previewBlockedTimeImpact,
   previewDateOverrideImpact,
   previewScheduleRulesImpact,
@@ -50,13 +51,14 @@ function AvailabilityPage() {
   const data = Route.useLoaderData()
   const router = useRouter()
   const [message, setMessage] = useState<string | null>(null)
+  const [publicationBlockers, setPublicationBlockers] = useState<readonly string[]>([])
   const [pending, setPending] = useState(false)
   const providerId = data.snapshot.providers[0]?.id ?? ''
   const rules = data.rules[providerId] ?? []
 
   return (
     <MerchantShell
-      section={{ kind: 'catalog', presentation: data.snapshot.presentation }}
+      section={{ kind: 'catalog' }}
       title="Availability"
       description={`Recurring weekly Provider hours use ${data.merchant.timezone}. Availability is derived live; generated Time Slots are never stored.`}
     >
@@ -88,6 +90,23 @@ function AvailabilityPage() {
               </li>
             ))}
           </ul>
+          {data.controls.scheduleConflicts.length ? (
+            <div className="mt-5 rounded-xl border border-destructive/40 p-3">
+              <p className="text-sm font-medium">Schedule conflicts</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                These existing Appointments no longer fit the current hours, blocks,
+                Booking Window, duration, or buffers. Review them without moving the
+                customer automatically.
+              </p>
+              <ul className="mt-2 space-y-1 text-xs">
+                {data.controls.scheduleConflicts.map((conflict) => (
+                  <li key={conflict.appointmentId}>
+                    Appointment {conflict.appointmentId}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
         <section className="rounded-2xl border bg-muted/25 p-4 md:rounded-none md:bg-card md:p-5">
           <p className="text-sm font-semibold">Booking Readiness</p>
@@ -108,19 +127,71 @@ function AvailabilityPage() {
             }
             onClick={() => {
               setPending(true)
+              const publishing = data.publication.status === 'unpublished'
               void setPublicPagePublished({
                 data: { published: data.publication.status === 'unpublished' }
               })
-                .then(() => router.invalidate())
-                .catch(() =>
-                  setMessage('Complete Booking Readiness before publishing.')
-                )
+                .then(() => {
+                  setPublicationBlockers([])
+                  if (publishing) {
+                    const publicUrl = `${window.location.origin}/${data.activation.businessDetails.slug}`
+                    window.sessionStorage.setItem(
+                      'beesolo:last-published-public-url',
+                      publicUrl
+                    )
+                    setMessage(`Published: ${publicUrl}`)
+                    window.location.assign('/appointments')
+                    return
+                  }
+                  return router.invalidate()
+                })
+                .catch((error: unknown) => {
+                  const incomplete =
+                    error &&
+                    typeof error === 'object' &&
+                    'incomplete' in error &&
+                    Array.isArray(error.incomplete)
+                      ? error.incomplete.filter(
+                          (item): item is string => typeof item === 'string'
+                        )
+                      : data.activation.progress.incomplete.filter(
+                          (item) => item !== 'publication'
+                        )
+                  setPublicationBlockers(incomplete)
+                  setMessage('Publication failed. Review every incomplete step below.')
+                })
                 .finally(() => setPending(false))
             }}
             className="mt-3 h-10 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground md:h-9 md:rounded-md md:px-3"
           >
             {data.publication.status === 'published' ? 'Unpublish' : 'Publish'}
           </button>
+          {data.publication.status === 'published' ? (
+            <a
+              href={`/${data.activation.businessDetails.slug}`}
+              className="ml-3 text-sm underline"
+            >
+              View public page
+            </a>
+          ) : null}
+          {publicationBlockers.length ? (
+            <ul className="mt-3 space-y-1 text-sm text-destructive">
+              {publicationBlockers.map((step) => (
+                <li key={step}>
+                  <a
+                    href={`#activation-step-${
+                      step === 'configuration-changed' ? 'launch-test' : step
+                    }`}
+                    className="underline"
+                  >
+                    {step === 'configuration-changed'
+                      ? 'Configuration changed during publication; rerun Launch Test and retry'
+                      : `Complete ${step.replaceAll('-', ' ')}`}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <p className="mt-6 text-sm font-semibold">Future Availability</p>
           <ul className="mt-2 max-h-64 space-y-1 overflow-auto text-xs text-muted-foreground">
             {data.availability?.slots.slice(0, 20).map((slot) => (
@@ -235,7 +306,10 @@ function ActivationJourney({
       conflictingAppointmentIds: readonly string[]
       activeHold?: boolean
     }>,
-    operation: () => Promise<unknown>,
+    operation: (impact: {
+      conflictingAppointmentIds: readonly string[]
+      activeHold?: boolean
+    }) => Promise<unknown>,
     success: string
   ) => {
     onPending(true)
@@ -253,7 +327,7 @@ function ActivationJourney({
         onMessage('Change cancelled; browser input is preserved.')
         return
       }
-      await operation()
+      await operation(impact)
       onMessage(success)
       await onSaved()
     } catch (error: unknown) {
@@ -281,7 +355,39 @@ function ActivationJourney({
     )
   const provider = data.snapshot.providers[0]
   const service = data.snapshot.services.find((item) => item.status === 'active')
-  const slot = data.availability?.slots[0]
+  const activeServices = data.snapshot.services.filter(
+    (item) => item.status === 'active'
+  )
+  const [previewServiceId, setPreviewServiceId] = useState(service?.id ?? '')
+  const [previewPreference, setPreviewPreference] = useState<'any' | 'specific'>(
+    'specific'
+  )
+  const [previewStartsAt, setPreviewStartsAt] = useState(
+    data.availability?.slots[0]?.startsAt ?? ''
+  )
+  const [previewSlots, setPreviewSlots] = useState(data.availability?.slots ?? [])
+  const [previewCustomer, setPreviewCustomer] = useState({ name: '', email: '' })
+  const [previewReviewed, setPreviewReviewed] = useState(false)
+
+  useEffect(() => {
+    if (!provider || !previewServiceId) return
+    let active = true
+    void getAppointmentAvailability({
+      data: {
+        providerId: provider.id,
+        serviceId: previewServiceId,
+        from: new Date().toISOString(),
+        days: Math.min(activation.policies.bookingHorizonDays, 14)
+      }
+    }).then((availability) => {
+      if (!active) return
+      setPreviewSlots(availability.slots)
+      setPreviewStartsAt(availability.slots[0]?.startsAt ?? '')
+    })
+    return () => {
+      active = false
+    }
+  }, [activation.policies.bookingHorizonDays, previewServiceId, provider])
 
   return (
     <section className="mt-2 rounded-2xl border bg-card p-4 md:mt-8 md:p-5">
@@ -302,7 +408,11 @@ function ActivationJourney({
           .concat(activation.progress.incomplete)
           .filter((step, index, all) => all.indexOf(step) === index)
           .map((step) => (
-            <li key={step} className="rounded-lg border px-3 py-2">
+            <li
+              id={`activation-step-${step}`}
+              key={step}
+              className="rounded-lg border px-3 py-2"
+            >
               {activation.progress.complete.includes(step) ? '✓' : '○'}{' '}
               {step.replaceAll('-', ' ')}
             </li>
@@ -363,35 +473,136 @@ function ActivationJourney({
         >
           Send test email
         </button>
-        <button
-          type="button"
-          disabled={pending || !provider || !service || !slot}
-          onClick={() =>
-            provider && service && slot
-              ? save(
-                  runActivationLaunchTest({
-                    data: {
-                      providerId: provider.id,
-                      serviceId: service.id,
-                      startsAt: slot.startsAt,
-                      customer: {
-                        name: 'Launch Test',
-                        email: 'launch-test@example.invalid'
-                      }
-                    }
-                  }),
-                  'Launch Test passed without creating customer data or an Appointment.'
-                )
-              : undefined
-          }
-          className="h-9 rounded-md border px-3 text-sm"
-        >
-          Run Launch Test
-        </button>
       </div>
       <form
         onSubmit={(event) => {
           event.preventDefault()
+          if (!provider || !previewReviewed) return
+          save(
+            runActivationLaunchTest({
+              data: {
+                providerId: provider.id,
+                providerPreference:
+                  previewPreference === 'any'
+                    ? { kind: 'any' }
+                    : { kind: 'specific', providerId: provider.id },
+                serviceId: previewServiceId,
+                startsAt: previewStartsAt,
+                customer: previewCustomer
+              }
+            }),
+            'Launch Test passed through simulated confirmation without operational side effects.'
+          )
+        }}
+        className="mt-5 grid gap-3 rounded-xl border p-3 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        <p className="text-sm font-semibold sm:col-span-2 lg:col-span-3">
+          Preview Mode · customer journey rehearsal
+        </p>
+        <label className="grid gap-1 text-xs font-medium">
+          Service
+          <select
+            required
+            value={previewServiceId}
+            onChange={(event) => setPreviewServiceId(event.target.value)}
+            className="h-9 rounded-md border px-2 text-sm"
+          >
+            {activeServices.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium">
+          Provider preference
+          <select
+            value={previewPreference}
+            onChange={(event) =>
+              setPreviewPreference(event.target.value as 'any' | 'specific')
+            }
+            className="h-9 rounded-md border px-2 text-sm"
+          >
+            <option value="specific">Owner-Provider · {provider?.displayName}</option>
+            <option value="any">Any available Provider</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium">
+          Actual available Time Slot
+          <select
+            required
+            value={previewStartsAt}
+            onChange={(event) => setPreviewStartsAt(event.target.value)}
+            className="h-9 rounded-md border px-2 text-sm"
+          >
+            {previewSlots.map((item) => (
+              <option key={item.startsAt} value={item.startsAt}>
+                {new Date(item.startsAt).toLocaleString('en', {
+                  timeZone: data.merchant.timezone
+                })}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium">
+          Customer name
+          <input
+            required
+            value={previewCustomer.name}
+            onChange={(event) =>
+              setPreviewCustomer((current) => ({
+                ...current,
+                name: event.target.value
+              }))
+            }
+            className="h-9 rounded-md border px-2 text-sm"
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-medium">
+          Customer email
+          <input
+            required
+            type="email"
+            value={previewCustomer.email}
+            onChange={(event) =>
+              setPreviewCustomer((current) => ({
+                ...current,
+                email: event.target.value
+              }))
+            }
+            className="h-9 rounded-md border px-2 text-sm"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs sm:col-span-2 lg:col-span-3">
+          <input
+            type="checkbox"
+            checked={previewReviewed}
+            onChange={(event) => setPreviewReviewed(event.target.checked)}
+          />
+          I reviewed the Service, Provider preference, Time Slot, and customer details.
+        </label>
+        <button
+          disabled={
+            pending ||
+            !provider ||
+            !previewServiceId ||
+            !previewStartsAt ||
+            !previewReviewed
+          }
+          className="h-9 rounded-md border text-sm"
+        >
+          Simulate confirmation
+        </button>
+      </form>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (
+            !window.confirm(
+              'Preview: Booking Window changes apply to new Availability and may invalidate affected provisional holds. Existing Appointments remain unchanged. Continue?'
+            )
+          )
+            return
           confirm({ policies, policiesConfirmed: true })
         }}
         className="mt-5 grid gap-2 rounded-xl border p-3 sm:grid-cols-2 lg:grid-cols-5"
@@ -504,7 +715,12 @@ function ActivationJourney({
         <form
           onSubmit={(event) => {
             event.preventDefault()
-            if (service)
+            if (
+              service &&
+              window.confirm(
+                'Preview: buffer changes re-check affected provisional holds against working time and conflicts. Existing Appointment snapshots remain unchanged. Continue?'
+              )
+            )
               save(
                 saveServiceBuffers({
                   data: {
@@ -563,7 +779,13 @@ function ActivationJourney({
             }
             void previewThenSave(
               previewDateOverrideImpact({ data: input }),
-              () => saveDateOverride({ data: input }),
+              (impact) =>
+                saveDateOverride({
+                  data: {
+                    ...input,
+                    confirmedConflictingAppointmentIds: impact.conflictingAppointmentIds
+                  }
+                }),
               'Date Override saved; existing Appointments were preserved.'
             )
           }}
@@ -784,7 +1006,14 @@ function ProviderRulesForm({
                   ? `These hours conflict with ${impact.conflictingAppointmentIds.length} future Appointment(s). Existing commitments will be preserved. Continue?`
                   : 'No future Appointment conflicts were found. Save these hours?'
               )
-                ? saveScheduleRules({ data: { providerId, rules: nextRules } })
+                ? saveScheduleRules({
+                    data: {
+                      providerId,
+                      rules: nextRules,
+                      confirmedConflictingAppointmentIds:
+                        impact.conflictingAppointmentIds
+                    }
+                  })
                 : Promise.reject(new Error('cancelled'))
             )
             .then(() => {

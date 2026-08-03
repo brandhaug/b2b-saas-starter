@@ -1,7 +1,6 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import {
-  batch,
   Database,
   merchantSubscriptions,
   merchants,
@@ -13,6 +12,7 @@ import {
   services,
   shopAddresses,
   shops,
+  transactionalEmailEvidence,
   type EffectDatabase,
   type PromiseDrizzleDatabase
 } from '@b2b-saas-starter/db'
@@ -25,6 +25,7 @@ import {
   subscriptionAllowsNewDemand
 } from '../subscriptions/subscription-access.ts'
 import type { SeedBookingScenario } from '../merchant-catalog/merchant-onboarding.ts'
+import { decodePersistedServiceBuffers } from '../merchant-catalog/service-buffers.ts'
 
 export const ScheduleRuleInput = Schema.Struct({
   weekday: Schema.Number.check(
@@ -121,7 +122,8 @@ export const DateOverrideInput = Schema.Struct({
   intervals: Schema.Array(
     Schema.Struct({ startTime: Schema.String, endTime: Schema.String })
   ),
-  expectedRevision: Schema.Number
+  expectedRevision: Schema.Number,
+  confirmedConflictingAppointmentIds: Schema.optional(Schema.Array(Schema.String))
 })
 export type DateOverrideInput = typeof DateOverrideInput.Type
 
@@ -150,6 +152,27 @@ export type ScheduleControls = {
     readonly reason: string | null
     readonly revision: number
   }[]
+  readonly scheduleConflicts: readonly {
+    readonly appointmentId: string
+    readonly reason: 'outside_current_schedule'
+  }[]
+  readonly recentChanges: readonly {
+    readonly id: string
+    readonly kind:
+      | 'weekly_hours'
+      | 'date_override'
+      | 'blocked_time'
+      | 'timezone'
+      | 'booking_window'
+      | 'service_buffers'
+      | 'service_configuration'
+      | 'service_eligibility'
+    readonly actorId: string
+    readonly reason: string | null
+    readonly beforeJson: string
+    readonly afterJson: string
+    readonly occurredAt: string
+  }[]
 }
 
 export class PublicationNotReady extends Schema.TaggedErrorClass<PublicationNotReady>()(
@@ -167,15 +190,16 @@ type SchedulingShape = {
     providerId: string
   ) => Effect.Effect<
     readonly ScheduleRule[],
-    SchedulingValidationError | CapabilityUnavailable,
+    SchedulingValidationError | CapabilityDenied | CapabilityUnavailable,
     MerchantContext
   >
   readonly saveProviderRules: (
     providerId: string,
-    rules: readonly ScheduleRuleInput[]
+    rules: readonly ScheduleRuleInput[],
+    confirmedConflictingAppointmentIds?: readonly string[]
   ) => Effect.Effect<
     readonly ScheduleRule[],
-    SchedulingValidationError | CapabilityUnavailable,
+    SchedulingValidationError | CapabilityDenied | CapabilityUnavailable,
     MerchantContext
   >
   readonly previewProviderRulesImpact: (
@@ -183,7 +207,7 @@ type SchedulingShape = {
     rules: readonly ScheduleRuleInput[]
   ) => Effect.Effect<
     { readonly conflictingAppointmentIds: readonly string[] },
-    SchedulingValidationError | CapabilityUnavailable,
+    SchedulingValidationError | CapabilityDenied | CapabilityUnavailable,
     MerchantContext
   >
   readonly availability: (input: {
@@ -214,14 +238,17 @@ type SchedulingShape = {
     input: DateOverrideInput
   ) => Effect.Effect<
     ScheduleControls['dateOverrides'][number],
-    SchedulingValidationError | ScheduleRevisionConflict | CapabilityUnavailable,
+    | SchedulingValidationError
+    | ScheduleRevisionConflict
+    | CapabilityDenied
+    | CapabilityUnavailable,
     MerchantContext
   >
   readonly previewDateOverrideImpact: (
     input: DateOverrideInput
   ) => Effect.Effect<
     { readonly conflictingAppointmentIds: readonly string[] },
-    SchedulingValidationError | CapabilityUnavailable,
+    SchedulingValidationError | CapabilityDenied | CapabilityUnavailable,
     MerchantContext
   >
   readonly addBlockedTime: (input: BlockedTimeInput) => Effect.Effect<
@@ -229,7 +256,7 @@ type SchedulingShape = {
       readonly blockedTime: ScheduleControls['blockedTimes'][number]
       readonly conflictingAppointmentIds: readonly string[]
     },
-    SchedulingValidationError | CapabilityUnavailable,
+    SchedulingValidationError | CapabilityDenied | CapabilityUnavailable,
     MerchantContext
   >
   readonly previewBlockedTimeImpact: (
@@ -255,7 +282,7 @@ type SchedulingShape = {
       readonly timezone: string
       readonly conflictingAppointmentIds: readonly string[]
     },
-    SchedulingValidationError | CapabilityUnavailable,
+    SchedulingValidationError | CapabilityDenied | CapabilityUnavailable,
     MerchantContext
   >
 }
@@ -263,6 +290,26 @@ type SchedulingShape = {
 export class Scheduling extends Context.Service<Scheduling, SchedulingShape>()(
   '@b2b-saas-starter/capabilities/Scheduling'
 ) {}
+
+const appointmentFingerprint = (
+  rows: readonly {
+    readonly id: string
+    readonly starts_at: string
+    readonly ends_at: string
+    readonly updated_at: string
+  }[]
+): string => JSON.stringify(rows)
+
+const providerAppointmentFingerprintSql = `(SELECT COALESCE(json_group_array(
+  json_object('id',id,'starts_at',starts_at,'ends_at',ends_at,'updated_at',updated_at)),'[]')
+  FROM (SELECT id,starts_at,ends_at,updated_at FROM appointments
+    WHERE merchant_id=? AND provider_id=? AND status='scheduled' AND starts_at>?
+    ORDER BY starts_at,id))`
+
+const merchantAppointmentFingerprintSql = `(SELECT COALESCE(json_group_array(
+  json_object('id',id,'starts_at',starts_at,'ends_at',ends_at,'updated_at',updated_at)),'[]')
+  FROM (SELECT id,starts_at,ends_at,updated_at FROM appointments
+    WHERE merchant_id=? AND status='scheduled' AND starts_at>? ORDER BY starts_at,id))`
 
 type BookingPublicationShape = {
   readonly readiness: () => Effect.Effect<
@@ -280,12 +327,12 @@ type BookingPublicationShape = {
   >
   readonly publish: () => Effect.Effect<
     { readonly status: 'published' },
-    PublicationNotReady | CapabilityUnavailable,
+    PublicationNotReady | CapabilityDenied | CapabilityUnavailable,
     MerchantContext
   >
   readonly unpublish: () => Effect.Effect<
     { readonly status: 'unpublished' },
-    CapabilityUnavailable,
+    CapabilityDenied | CapabilityUnavailable,
     MerchantContext
   >
   readonly resolvePublished: (
@@ -704,7 +751,12 @@ export const SeedScheduling = (store: SeedSchedulingStore): Layer.Layer<Scheduli
         )
       }),
     listControls: () =>
-      Effect.map(MerchantContext, () => ({ dateOverrides: [], blockedTimes: [] })),
+      Effect.map(MerchantContext, () => ({
+        dateOverrides: [],
+        blockedTimes: [],
+        scheduleConflicts: [],
+        recentChanges: []
+      })),
     saveDateOverride: (input) =>
       Effect.map(MerchantContext, () => ({
         id: `sce_seed_${input.localDate}`,
@@ -930,7 +982,9 @@ const liveControlledAvailability = (
             string,
             unknown
           >)
-        : {}
+        : null
+      const serviceBuffers = decodePersistedServiceBuffers(serviceConfiguration)
+      if (!serviceBuffers) return { timezone: input.timezone, slots: [] }
       const exceptionRows = await raw
         .prepare(
           `SELECT local_date,kind,intervals_json FROM schedule_exceptions
@@ -974,14 +1028,8 @@ const liveControlledAvailability = (
           startTimeIntervalMinutes: decodedPolicies?.startTimeIntervalMinutes ?? 15,
           minimumNoticeMinutes: decodedPolicies?.minimumNoticeMinutes ?? 120,
           bookingHorizonDays: horizon,
-          beforeBufferMinutes:
-            typeof serviceConfiguration.beforeBufferMinutes === 'number'
-              ? serviceConfiguration.beforeBufferMinutes
-              : 0,
-          afterBufferMinutes:
-            typeof serviceConfiguration.afterBufferMinutes === 'number'
-              ? serviceConfiguration.afterBufferMinutes
-              : 0,
+          beforeBufferMinutes: serviceBuffers.beforeBufferMinutes,
+          afterBufferMinutes: serviceBuffers.afterBufferMinutes,
           exceptions: exceptionRows.results.map((row) => ({
             localDate: row.local_date,
             kind: row.kind,
@@ -1060,43 +1108,158 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
               .map((row) => row.id)
           }
         }),
-      saveProviderRules: (providerId, rules) =>
+      saveProviderRules: (providerId, rules, confirmedConflictingAppointmentIds = []) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
+          yield* authorizeSubscriptionAccess(
+            db,
+            { merchantId: merchant.id },
+            'configuration'
+          )
           if (!validRules(rules))
             return yield* Effect.fail(
               new SchedulingValidationError({ reason: 'invalid_rule' })
             )
           yield* requireLiveProvider(db, merchant.id, providerId)
           const now = new Date().toISOString()
-          yield* batch(db, [
-            db
-              .delete(scheduleRules)
-              .where(
-                and(
-                  eq(scheduleRules.merchantId, merchant.id),
-                  eq(scheduleRules.providerId, providerId)
+          const appointments = yield* Effect.tryPromise({
+            try: () =>
+              db.$client.config.db
+                .prepare(
+                  `SELECT id,starts_at,ends_at,updated_at FROM appointments WHERE merchant_id=?
+                   AND provider_id=? AND status='scheduled' AND starts_at>? ORDER BY starts_at,id`
                 )
-              ),
-            ...rules.map((rule) =>
-              db.insert(scheduleRules).values({
-                id: newCapabilityId('sch'),
-                merchantId: merchant.id,
-                providerId,
-                ...rule,
-                createdAt: now,
-                updatedAt: now
+                .bind(merchant.id, providerId, now)
+                .all<{
+                  id: string
+                  starts_at: string
+                  ends_at: string
+                  updated_at: string
+                }>(),
+            catch: (cause) =>
+              new CapabilityUnavailable({
+                capability: 'scheduling',
+                reason: String(cause)
               })
-            )
-          ]).pipe(
-            Effect.mapError(
-              (error) =>
-                new CapabilityUnavailable({
-                  capability: 'scheduling',
-                  reason: error.reason
-                })
-            )
+          })
+          const conflicts = appointments.results
+            .filter((row) => {
+              const start = localParts(new Date(row.starts_at), merchant.timezone)
+              const end = localParts(new Date(row.ends_at), merchant.timezone)
+              const weekday = new Date(`${start.date}T12:00:00.000Z`).getUTCDay()
+              return (
+                start.date !== end.date ||
+                !rules.some(
+                  (rule) =>
+                    rule.weekday === weekday &&
+                    rule.startTime <= start.time &&
+                    rule.endTime >= end.time
+                )
+              )
+            })
+            .map((row) => row.id)
+            .sort()
+          if (
+            conflicts.join('\u0000') !==
+            [...confirmedConflictingAppointmentIds].sort().join('\u0000')
           )
+            return yield* Effect.fail(
+              new SchedulingValidationError({ reason: 'confirmation_required' })
+            )
+          const before = (yield* liveRules(db, merchant.id, providerId)).map(toRule)
+          const frozenAppointments = appointmentFingerprint(appointments.results)
+          const results = yield* Effect.tryPromise({
+            try: () =>
+              db.$client.config.db.batch([
+                db.$client.config.db
+                  .prepare(
+                    `DELETE FROM schedule_rules WHERE merchant_id=? AND provider_id=?
+                     AND ?=${providerAppointmentFingerprintSql}`
+                  )
+                  .bind(
+                    merchant.id,
+                    providerId,
+                    frozenAppointments,
+                    merchant.id,
+                    providerId,
+                    now
+                  ),
+                ...rules.map((rule) =>
+                  db.$client.config.db
+                    .prepare(
+                      `INSERT INTO schedule_rules
+                       (id,merchant_id,provider_id,weekday,start_time,end_time,created_at,updated_at)
+                       SELECT ?,?,?,?,?,?,?,? WHERE ?=${providerAppointmentFingerprintSql}`
+                    )
+                    .bind(
+                      newCapabilityId('sch'),
+                      merchant.id,
+                      providerId,
+                      rule.weekday,
+                      rule.startTime,
+                      rule.endTime,
+                      now,
+                      now,
+                      frozenAppointments,
+                      merchant.id,
+                      providerId,
+                      now
+                    )
+                ),
+                db.$client.config.db
+                  .prepare(
+                    `DELETE FROM time_slot_holds AS h
+                     WHERE h.merchant_id=? AND h.provider_id=? AND h.expires_at>?
+                       AND ?=${providerAppointmentFingerprintSql}
+                       AND (json_extract(h.quote,'$.localDate') IS NULL OR (
+                         NOT EXISTS (SELECT 1 FROM schedule_exceptions e
+                           WHERE e.merchant_id=h.merchant_id
+                             AND e.local_date=json_extract(h.quote,'$.localDate'))
+                         AND NOT EXISTS (SELECT 1 FROM schedule_rules r
+                           WHERE r.merchant_id=h.merchant_id AND r.provider_id=h.provider_id
+                             AND r.weekday=json_extract(h.quote,'$.localWeekday')
+                             AND r.start_time<=json_extract(h.quote,'$.occupiedLocalStartTime')
+                             AND r.end_time>=json_extract(h.quote,'$.occupiedLocalEndTime'))))`
+                  )
+                  .bind(
+                    merchant.id,
+                    providerId,
+                    now,
+                    frozenAppointments,
+                    merchant.id,
+                    providerId,
+                    now
+                  ),
+                db.$client.config.db
+                  .prepare(
+                    `INSERT INTO schedule_changes
+                     (id,merchant_id,kind,actor_id,reason,before_json,after_json,occurred_at)
+                     SELECT ?,?,'weekly_hours',?,NULL,?,?,?
+                     WHERE ?=${providerAppointmentFingerprintSql}`
+                  )
+                  .bind(
+                    newCapabilityId('scg'),
+                    merchant.id,
+                    merchant.actorUserId ?? merchant.id,
+                    JSON.stringify(before),
+                    JSON.stringify(rules),
+                    now,
+                    frozenAppointments,
+                    merchant.id,
+                    providerId,
+                    now
+                  )
+              ]),
+            catch: (cause) =>
+              new CapabilityUnavailable({
+                capability: 'scheduling',
+                reason: cause instanceof Error ? cause.message : String(cause)
+              })
+          })
+          if ((results.at(-1)?.meta.changes ?? 0) !== 1)
+            return yield* Effect.fail(
+              new SchedulingValidationError({ reason: 'confirmation_required' })
+            )
           return (yield* liveRules(db, merchant.id, providerId)).map(toRule)
         }),
       availability: (input) =>
@@ -1214,51 +1377,156 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
           return yield* Effect.tryPromise({
             try: async () => {
               const raw = db.$client.config.db
-              const [overrides, blocked] = await Promise.all([
-                raw
-                  .prepare(
-                    `SELECT id,local_date,kind,intervals_json,revision FROM schedule_exceptions
+              const [overrides, blocked, appointmentRows, ruleRows, shop, changes] =
+                await Promise.all([
+                  raw
+                    .prepare(
+                      `SELECT id,local_date,kind,intervals_json,revision FROM schedule_exceptions
                      WHERE merchant_id=? ORDER BY local_date`
-                  )
-                  .bind(merchant.id)
-                  .all<{
-                    id: string
-                    local_date: string
-                    kind: 'closed' | 'replacement_hours'
-                    intervals_json: string
-                    revision: number
-                  }>(),
-                raw
-                  .prepare(
-                    `SELECT id,starts_at,ends_at,reason,revision FROM blocked_times
+                    )
+                    .bind(merchant.id)
+                    .all<{
+                      id: string
+                      local_date: string
+                      kind: 'closed' | 'replacement_hours'
+                      intervals_json: string
+                      revision: number
+                    }>(),
+                  raw
+                    .prepare(
+                      `SELECT id,starts_at,ends_at,reason,revision FROM blocked_times
                      WHERE merchant_id=? ORDER BY starts_at`
+                    )
+                    .bind(merchant.id)
+                    .all<{
+                      id: string
+                      starts_at: string
+                      ends_at: string
+                      reason: string | null
+                      revision: number
+                    }>(),
+                  raw
+                    .prepare(
+                      `SELECT id,provider_id,starts_at,ends_at,snapshot FROM appointments
+                     WHERE merchant_id=? AND status='scheduled' AND ends_at>? ORDER BY starts_at`
+                    )
+                    .bind(merchant.id, new Date().toISOString())
+                    .all<{
+                      id: string
+                      provider_id: string
+                      starts_at: string
+                      ends_at: string
+                      snapshot: string | null
+                    }>(),
+                  raw
+                    .prepare(
+                      `SELECT provider_id,weekday,start_time,end_time FROM schedule_rules
+                     WHERE merchant_id=?`
+                    )
+                    .bind(merchant.id)
+                    .all<{
+                      provider_id: string
+                      weekday: number
+                      start_time: string
+                      end_time: string
+                    }>(),
+                  raw
+                    .prepare(`SELECT timezone FROM shops WHERE merchant_id=? LIMIT 1`)
+                    .bind(merchant.id)
+                    .first<{ timezone: string }>(),
+                  raw
+                    .prepare(
+                      `SELECT id,kind,actor_id,reason,before_json,after_json,occurred_at
+                     FROM schedule_changes WHERE merchant_id=?
+                     ORDER BY occurred_at DESC,id DESC LIMIT 50`
+                    )
+                    .bind(merchant.id)
+                    .all<{
+                      id: string
+                      kind: ScheduleControls['recentChanges'][number]['kind']
+                      actor_id: string
+                      reason: string | null
+                      before_json: string
+                      after_json: string
+                      occurred_at: string
+                    }>()
+                ])
+              const parsedOverrides = overrides.results.map((row) => ({
+                id: row.id,
+                localDate: row.local_date,
+                kind: row.kind,
+                intervals: JSON.parse(row.intervals_json) as Array<{
+                  startTime: string
+                  endTime: string
+                }>,
+                revision: row.revision
+              }))
+              const parsedBlocked = blocked.results.map((row) => ({
+                id: row.id,
+                startsAt: row.starts_at,
+                endsAt: row.ends_at,
+                reason: row.reason,
+                revision: row.revision
+              }))
+              const timezone = shop?.timezone ?? merchant.timezone
+              const scheduleConflicts = appointmentRows.results
+                .filter((appointment) => {
+                  const snapshot = appointment.snapshot
+                    ? (JSON.parse(appointment.snapshot) as {
+                        occupiedStartsAt?: string
+                        occupiedEndsAt?: string
+                      })
+                    : null
+                  const occupiedStartsAt =
+                    snapshot?.occupiedStartsAt ?? appointment.starts_at
+                  const occupiedEndsAt = snapshot?.occupiedEndsAt ?? appointment.ends_at
+                  if (
+                    parsedBlocked.some(
+                      (item) =>
+                        item.startsAt < occupiedEndsAt && item.endsAt > occupiedStartsAt
+                    )
                   )
-                  .bind(merchant.id)
-                  .all<{
-                    id: string
-                    starts_at: string
-                    ends_at: string
-                    reason: string | null
-                    revision: number
-                  }>()
-              ])
+                    return true
+                  const start = localParts(new Date(occupiedStartsAt), timezone)
+                  const end = localParts(new Date(occupiedEndsAt), timezone)
+                  if (start.date !== end.date) return true
+                  const override = parsedOverrides.find(
+                    (item) => item.localDate === start.date
+                  )
+                  if (override)
+                    return (
+                      override.kind === 'closed' ||
+                      !override.intervals.some(
+                        (interval) =>
+                          interval.startTime <= start.time &&
+                          interval.endTime >= end.time
+                      )
+                    )
+                  const weekday = new Date(`${start.date}T12:00:00.000Z`).getUTCDay()
+                  return !ruleRows.results.some(
+                    (rule) =>
+                      rule.provider_id === appointment.provider_id &&
+                      rule.weekday === weekday &&
+                      rule.start_time <= start.time &&
+                      rule.end_time >= end.time
+                  )
+                })
+                .map((appointment) => ({
+                  appointmentId: appointment.id,
+                  reason: 'outside_current_schedule' as const
+                }))
               return {
-                dateOverrides: overrides.results.map((row) => ({
+                dateOverrides: parsedOverrides,
+                blockedTimes: parsedBlocked,
+                scheduleConflicts,
+                recentChanges: changes.results.map((row) => ({
                   id: row.id,
-                  localDate: row.local_date,
                   kind: row.kind,
-                  intervals: JSON.parse(row.intervals_json) as Array<{
-                    startTime: string
-                    endTime: string
-                  }>,
-                  revision: row.revision
-                })),
-                blockedTimes: blocked.results.map((row) => ({
-                  id: row.id,
-                  startsAt: row.starts_at,
-                  endsAt: row.ends_at,
+                  actorId: row.actor_id,
                   reason: row.reason,
-                  revision: row.revision
+                  beforeJson: row.before_json,
+                  afterJson: row.after_json,
+                  occurredAt: row.occurred_at
                 }))
               }
             },
@@ -1287,48 +1555,180 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
             return yield* Effect.fail(
               new SchedulingValidationError({ reason: 'invalid_override' })
             )
-          const now = new Date().toISOString()
-          const id = newCapabilityId('sce')
-          const result = yield* Effect.tryPromise({
+          const appointmentRows = yield* Effect.tryPromise({
             try: () =>
-              input.expectedRevision === 0
-                ? db.$client.config.db
-                    .prepare(
-                      `INSERT INTO schedule_exceptions
+              db.$client.config.db
+                .prepare(
+                  `SELECT id,starts_at,ends_at,updated_at FROM appointments WHERE merchant_id=?
+                   AND status='scheduled' AND starts_at>? ORDER BY starts_at,id`
+                )
+                .bind(merchant.id, new Date().toISOString())
+                .all<{
+                  id: string
+                  starts_at: string
+                  ends_at: string
+                  updated_at: string
+                }>(),
+            catch: (cause) =>
+              new CapabilityUnavailable({
+                capability: 'scheduling',
+                reason: String(cause)
+              })
+          })
+          const conflicts = appointmentRows.results
+            .filter((row) => {
+              const start = localParts(new Date(row.starts_at), merchant.timezone)
+              if (start.date !== input.localDate) return false
+              if (input.kind === 'closed') return true
+              const end = localParts(new Date(row.ends_at), merchant.timezone)
+              return (
+                start.date !== end.date ||
+                !input.intervals.some(
+                  (interval) =>
+                    interval.startTime <= start.time && interval.endTime >= end.time
+                )
+              )
+            })
+            .map((row) => row.id)
+            .sort()
+          if (
+            conflicts.join('\u0000') !==
+            [...(input.confirmedConflictingAppointmentIds ?? [])].sort().join('\u0000')
+          )
+            return yield* Effect.fail(
+              new SchedulingValidationError({ reason: 'confirmation_required' })
+            )
+          const now = new Date().toISOString()
+          const frozenAppointments = appointmentFingerprint(appointmentRows.results)
+          const id = newCapabilityId('sce')
+          const before = yield* Effect.tryPromise({
+            try: () =>
+              db.$client.config.db
+                .prepare(
+                  `SELECT id,local_date,kind,intervals_json,revision FROM schedule_exceptions
+                   WHERE merchant_id=? AND local_date=?`
+                )
+                .bind(merchant.id, input.localDate)
+                .first<{
+                  id: string
+                  local_date: string
+                  kind: 'closed' | 'replacement_hours'
+                  intervals_json: string
+                  revision: number
+                }>(),
+            catch: (cause) =>
+              new CapabilityUnavailable({
+                capability: 'scheduling',
+                reason: String(cause)
+              })
+          })
+          const mutation =
+            input.expectedRevision === 0
+              ? db.$client.config.db
+                  .prepare(
+                    `INSERT INTO schedule_exceptions
                      (id,merchant_id,local_date,kind,intervals_json,revision,created_at,updated_at)
-                     VALUES (?,?,?,?,?,1,?,?) ON CONFLICT(merchant_id,local_date) DO NOTHING`
-                    )
-                    .bind(
-                      id,
-                      merchant.id,
-                      input.localDate,
-                      input.kind,
-                      JSON.stringify(input.intervals),
-                      now,
-                      now
-                    )
-                    .run()
-                : db.$client.config.db
-                    .prepare(
-                      `UPDATE schedule_exceptions SET kind=?,intervals_json=?,revision=revision+1,updated_at=?
-                     WHERE merchant_id=? AND local_date=? AND revision=?`
-                    )
-                    .bind(
-                      input.kind,
-                      JSON.stringify(input.intervals),
-                      now,
-                      merchant.id,
-                      input.localDate,
-                      input.expectedRevision
-                    )
-                    .run(),
+                     SELECT ?,?,?,?,?,1,?,? WHERE ?=${merchantAppointmentFingerprintSql}
+                     ON CONFLICT(merchant_id,local_date) DO NOTHING`
+                  )
+                  .bind(
+                    id,
+                    merchant.id,
+                    input.localDate,
+                    input.kind,
+                    JSON.stringify(input.intervals),
+                    now,
+                    now,
+                    frozenAppointments,
+                    merchant.id,
+                    now
+                  )
+              : db.$client.config.db
+                  .prepare(
+                    `UPDATE schedule_exceptions SET kind=?,intervals_json=?,revision=revision+1,updated_at=?
+                     WHERE merchant_id=? AND local_date=? AND revision=?
+                       AND ?=${merchantAppointmentFingerprintSql}`
+                  )
+                  .bind(
+                    input.kind,
+                    JSON.stringify(input.intervals),
+                    now,
+                    merchant.id,
+                    input.localDate,
+                    input.expectedRevision,
+                    frozenAppointments,
+                    merchant.id,
+                    now
+                  )
+          const results = yield* Effect.tryPromise({
+            try: () =>
+              db.$client.config.db.batch([
+                mutation,
+                db.$client.config.db
+                  .prepare(
+                    `DELETE FROM time_slot_holds AS h
+                     WHERE h.merchant_id=? AND h.expires_at>?
+                       AND json_extract(h.quote,'$.localDate')=?
+                       AND EXISTS (SELECT 1 FROM schedule_exceptions e
+                         WHERE e.merchant_id=? AND e.local_date=? AND e.revision=? AND e.updated_at=?)
+                       AND (json_extract(h.quote,'$.occupiedLocalStartTime') IS NULL
+                         OR ?='closed' OR NOT EXISTS (
+                           SELECT 1 FROM json_each(?) interval
+                           WHERE json_extract(interval.value,'$.startTime')<=json_extract(h.quote,'$.occupiedLocalStartTime')
+                             AND json_extract(interval.value,'$.endTime')>=json_extract(h.quote,'$.occupiedLocalEndTime')))`
+                  )
+                  .bind(
+                    merchant.id,
+                    now,
+                    input.localDate,
+                    merchant.id,
+                    input.localDate,
+                    input.expectedRevision + 1,
+                    now,
+                    input.kind,
+                    JSON.stringify(input.intervals)
+                  ),
+                db.$client.config.db
+                  .prepare(
+                    `INSERT INTO schedule_changes
+                     (id,merchant_id,kind,actor_id,reason,before_json,after_json,occurred_at)
+                     SELECT ?,?,'date_override',?,NULL,?,?,? WHERE EXISTS (
+                       SELECT 1 FROM schedule_exceptions WHERE merchant_id=? AND local_date=? AND revision=? AND updated_at=?)`
+                  )
+                  .bind(
+                    newCapabilityId('scg'),
+                    merchant.id,
+                    merchant.actorUserId ?? merchant.id,
+                    before
+                      ? JSON.stringify({
+                          id: before.id,
+                          localDate: before.local_date,
+                          kind: before.kind,
+                          intervals: JSON.parse(before.intervals_json),
+                          revision: before.revision
+                        })
+                      : 'null',
+                    JSON.stringify({
+                      id: before?.id ?? id,
+                      localDate: input.localDate,
+                      kind: input.kind,
+                      intervals: input.intervals,
+                      revision: input.expectedRevision + 1
+                    }),
+                    now,
+                    merchant.id,
+                    input.localDate,
+                    input.expectedRevision + 1,
+                    now
+                  )
+              ]),
             catch: (cause) =>
               new CapabilityUnavailable({
                 capability: 'scheduling',
                 reason: cause instanceof Error ? cause.message : String(cause)
               })
           })
-          if ((result.meta.changes ?? 0) !== 1) {
+          if ((results[0]?.meta.changes ?? 0) !== 1) {
             const current = yield* Effect.tryPromise({
               try: () =>
                 db.$client.config.db
@@ -1348,7 +1748,7 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
             )
           }
           return {
-            id,
+            id: before?.id ?? id,
             localDate: input.localDate,
             kind: input.kind,
             intervals: input.intervals,
@@ -1430,22 +1830,50 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
           const now = new Date().toISOString()
           yield* Effect.tryPromise({
             try: () =>
-              db.$client.config.db
-                .prepare(
-                  `INSERT INTO blocked_times
-               (id,merchant_id,starts_at,ends_at,reason,revision,created_at,updated_at)
-               VALUES (?,?,?,?,?,1,?,?)`
-                )
-                .bind(
-                  id,
-                  merchant.id,
-                  input.startsAt,
-                  input.endsAt,
-                  input.reason ?? null,
-                  now,
-                  now
-                )
-                .run(),
+              db.$client.config.db.batch([
+                db.$client.config.db
+                  .prepare(
+                    `INSERT INTO blocked_times
+                     (id,merchant_id,starts_at,ends_at,reason,revision,created_at,updated_at)
+                     VALUES (?,?,?,?,?,1,?,?)`
+                  )
+                  .bind(
+                    id,
+                    merchant.id,
+                    input.startsAt,
+                    input.endsAt,
+                    input.reason ?? null,
+                    now,
+                    now
+                  ),
+                db.$client.config.db
+                  .prepare(
+                    `DELETE FROM time_slot_holds WHERE merchant_id=?
+                     AND expires_at>? AND COALESCE(json_extract(quote,'$.occupiedStartsAt'),starts_at) < ?
+                     AND COALESCE(json_extract(quote,'$.occupiedEndsAt'),ends_at) > ?`
+                  )
+                  .bind(merchant.id, now, input.endsAt, input.startsAt),
+                db.$client.config.db
+                  .prepare(
+                    `INSERT INTO schedule_changes
+                     (id,merchant_id,kind,actor_id,reason,before_json,after_json,occurred_at)
+                     VALUES (?,?,'blocked_time',?,?,?, ?,?)`
+                  )
+                  .bind(
+                    newCapabilityId('scg'),
+                    merchant.id,
+                    merchant.actorUserId ?? merchant.id,
+                    input.reason ?? null,
+                    'null',
+                    JSON.stringify({
+                      id,
+                      startsAt: input.startsAt,
+                      endsAt: input.endsAt,
+                      reason: input.reason ?? null
+                    }),
+                    now
+                  )
+              ]),
             catch: (cause) =>
               new CapabilityUnavailable({
                 capability: 'scheduling',
@@ -1582,17 +2010,48 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
                 reason: String(cause)
               })
           })
-          yield* Effect.tryPromise({
+          const changed = yield* Effect.tryPromise({
             try: () =>
               db.$client.config.db.batch([
                 db.$client.config.db
-                  .prepare(`UPDATE merchants SET timezone=?,updated_at=? WHERE id=?`)
-                  .bind(input.timezone, now, merchant.id),
+                  .prepare(
+                    `UPDATE merchants SET timezone=?,updated_at=? WHERE id=?
+                     AND NOT EXISTS (SELECT 1 FROM time_slot_holds
+                       WHERE merchant_id=? AND expires_at>?)`
+                  )
+                  .bind(input.timezone, now, merchant.id, merchant.id, now),
                 db.$client.config.db
                   .prepare(
-                    `UPDATE shops SET timezone=?,updated_at=? WHERE merchant_id=?`
+                    `UPDATE shops SET timezone=?,updated_at=? WHERE merchant_id=?
+                     AND EXISTS (SELECT 1 FROM merchants
+                       WHERE id=? AND timezone=? AND updated_at=?)`
                   )
-                  .bind(input.timezone, now, merchant.id)
+                  .bind(
+                    input.timezone,
+                    now,
+                    merchant.id,
+                    merchant.id,
+                    input.timezone,
+                    now
+                  ),
+                db.$client.config.db
+                  .prepare(
+                    `INSERT INTO schedule_changes
+                     (id,merchant_id,kind,actor_id,reason,before_json,after_json,occurred_at)
+                     SELECT ?,?,'timezone',?,NULL,?,?,? WHERE EXISTS
+                       (SELECT 1 FROM merchants WHERE id=? AND timezone=? AND updated_at=?)`
+                  )
+                  .bind(
+                    newCapabilityId('scg'),
+                    merchant.id,
+                    merchant.actorUserId ?? merchant.id,
+                    JSON.stringify({ timezone: merchant.timezone }),
+                    JSON.stringify({ timezone: input.timezone }),
+                    now,
+                    merchant.id,
+                    input.timezone,
+                    now
+                  )
               ]),
             catch: (cause) =>
               new CapabilityUnavailable({
@@ -1600,6 +2059,10 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
                 reason: String(cause)
               })
           })
+          if ((changed[0]?.meta.changes ?? 0) !== 1)
+            return yield* Effect.fail(
+              new SchedulingValidationError({ reason: 'active_holds' })
+            )
           return {
             timezone: input.timezone,
             conflictingAppointmentIds: conflicts.results.map((row) => row.id)
@@ -1726,6 +2189,11 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
         publish: () =>
           Effect.gen(function* () {
             const merchant = yield* MerchantContext
+            yield* authorizeSubscriptionAccess(
+              db,
+              { merchantId: merchant.id },
+              'configuration'
+            )
             const readiness = yield* liveReadiness(db, merchant.id)
             if (!readiness.ready)
               return yield* Effect.fail(
@@ -1742,6 +2210,11 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
         unpublish: () =>
           Effect.gen(function* () {
             const merchant = yield* MerchantContext
+            yield* authorizeSubscriptionAccess(
+              db,
+              { merchantId: merchant.id },
+              'configuration'
+            )
             yield* orUnavailable('booking-publication')(
               db
                 .update(publicBookingPages)
@@ -1786,6 +2259,23 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
               )
             const readiness = yield* liveReadiness(db, row.merchant.id)
             if (!readiness.ready)
+              return yield* Effect.fail(
+                new PublicBookingPageNotFound({ reason: 'unpublished' })
+              )
+            const notificationEvidence = yield* orUnavailable('booking-publication')(
+              db
+                .select({ id: transactionalEmailEvidence.id })
+                .from(transactionalEmailEvidence)
+                .where(
+                  and(
+                    eq(transactionalEmailEvidence.merchantId, row.merchant.id),
+                    eq(transactionalEmailEvidence.purpose, 'owner_activation_test'),
+                    sql`${transactionalEmailEvidence.status} in ('captured','accepted','delivered')`
+                  )
+                )
+                .limit(1)
+            )
+            if (!notificationEvidence[0])
               return yield* Effect.fail(
                 new PublicBookingPageNotFound({ reason: 'unpublished' })
               )

@@ -203,7 +203,7 @@ describe('Booking Scheduling', () => {
     expect(conflicted.has('hld_one_next')).toBe(false)
   })
 
-  it('resolves assigned and Any Provider requests in one complete party', async () => {
+  it('resolves assigned and historical unassigned requests in one complete party', async () => {
     const { run, store } = await fixture()
     store.requestSelections.set('brq_one', {
       bookingSessionId: 'bsn_one',
@@ -361,7 +361,7 @@ describe('Booking Scheduling', () => {
     })
   })
 
-  it('atomically assigns Any Provider and freezes an exact ten-minute quote', async () => {
+  it('atomically assigns a historical unassigned request and freezes its quote', async () => {
     const { scenario, store, run } = await fixture()
     const held = await run(
       Effect.flatMap(BookingScheduling, (scheduling) =>
@@ -385,7 +385,11 @@ describe('Booking Scheduling', () => {
     expect(held.quote).toMatchObject({
       durationMinutes: 90,
       currency: 'RON',
-      totalMinor: 13_500
+      totalMinor: 13_500,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
+      occupiedStartsAt: '2026-07-13T06:00:00.000Z',
+      occupiedEndsAt: '2026-07-13T07:30:00.000Z'
     })
     expect(held.quote.services.every((service) => service.priceMinor > 0)).toBe(true)
     expect(new Set(held.quote.services.map((service) => service.currency))).toEqual(

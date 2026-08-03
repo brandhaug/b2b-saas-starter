@@ -1,6 +1,7 @@
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
+  bookingHorizonEndLocalDate,
   decideFirstPublication,
   deriveActivationProgress,
   simulateLaunchTest,
@@ -24,6 +25,11 @@ const completeFacts: ActivationFacts = {
 }
 
 describe('Solo Merchant Activation', () => {
+  it('defines Booking Horizon in Shop-local calendar days across DST', () => {
+    expect(
+      bookingHorizonEndLocalDate('2026-10-24T21:30:00.000Z', 'Europe/Bucharest', 2)
+    ).toBe('2026-10-27')
+  })
   it('resumes at the first incomplete authoritative requirement', () => {
     const progress = deriveActivationProgress({
       ...completeFacts,
@@ -51,6 +57,7 @@ describe('Solo Merchant Activation', () => {
           {
             serviceId: 'svc_1',
             providerId: 'prv_1',
+            providerPreference: { kind: 'specific', providerId: 'prv_1' },
             startsAt: '2026-10-25T00:30:00.000Z',
             customer: { name: 'Preview Customer', email: 'preview@example.com' }
           },

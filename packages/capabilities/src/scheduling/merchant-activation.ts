@@ -50,6 +50,30 @@ export const launchBookingPolicies: BookingPolicies = {
 export const validateBookingPolicies = (policies: BookingPolicies): boolean =>
   policies.minimumNoticeMinutes < policies.bookingHorizonDays * 24 * 60
 
+const shopLocalDate = (instant: Date, timezone: string): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(instant)
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)!.value
+  return `${read('year')}-${read('month')}-${read('day')}`
+}
+
+const addShopCalendarDays = (date: string, days: number): string => {
+  const value = new Date(`${date}T12:00:00.000Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+
+export const bookingHorizonEndLocalDate = (
+  now: string,
+  timezone: string,
+  days: number
+): string => addShopCalendarDays(shopLocalDate(new Date(now), timezone), days)
+
 const countriesWithoutPostalCodes = new Set([
   'AE',
   'AO',
@@ -161,7 +185,10 @@ export const deriveActivationProgress = (
     resumeAt: facts.firstActivatedAt === null ? (incomplete[0] ?? null) : null,
     readyForFirstPublication,
     currentlyPublic:
-      facts.publishedIntent && facts.subscriptionAccess && facts.bookingReadiness,
+      facts.publishedIntent &&
+      facts.subscriptionAccess &&
+      facts.bookingReadiness &&
+      facts.notificationAccepted,
     activated: facts.firstActivatedAt !== null
   }
 }
@@ -188,12 +215,23 @@ export const decideFirstPublication = (
 export type LaunchTestInput = {
   readonly serviceId: string
   readonly providerId: string
+  readonly providerPreference:
+    | { readonly kind: 'any' }
+    | { readonly kind: 'specific'; readonly providerId: string }
   readonly startsAt: string
   readonly customer: { readonly name: string; readonly email: string }
 }
 
 export type LaunchTestResult = {
   readonly kind: 'simulated-confirmation'
+  readonly rehearsedSteps: readonly [
+    'service',
+    'provider-preference',
+    'time-slot',
+    'customer-details',
+    'review',
+    'simulated-confirmation'
+  ]
   readonly sourceRevision: string
   readonly createsAppointment: false
   readonly createsCustomerRecord: false
@@ -224,10 +262,23 @@ export const simulateLaunchTest = (
 ): Effect.Effect<LaunchTestResult, LaunchTestRejected> => {
   if (!input.customer.name.trim() || !input.customer.email.includes('@'))
     return Effect.fail(new LaunchTestRejected({ reason: 'invalid_customer' }))
+  if (
+    input.providerPreference.kind === 'specific' &&
+    input.providerPreference.providerId !== input.providerId
+  )
+    return Effect.fail(new LaunchTestRejected({ reason: 'slot_unavailable' }))
   if (!availableStarts.includes(input.startsAt))
     return Effect.fail(new LaunchTestRejected({ reason: 'slot_unavailable' }))
   return Effect.succeed({
     kind: 'simulated-confirmation',
+    rehearsedSteps: [
+      'service',
+      'provider-preference',
+      'time-slot',
+      'customer-details',
+      'review',
+      'simulated-confirmation'
+    ],
     sourceRevision,
     createsAppointment: false,
     createsCustomerRecord: false,
@@ -411,13 +462,13 @@ SELECT
   CASE WHEN mas.business_details_confirmed_at IS NOT NULL
     AND length(trim(m.public_name)) > 0 AND length(trim(m.slug)) > 0
     AND sh.id IS NOT NULL AND sa.id IS NOT NULL
-    AND json_extract(sa.address_json, '$.country') IS NOT NULL
-    AND COALESCE(json_extract(sa.address_json, '$.line1'), json_extract(sa.address_json, '$.street')) IS NOT NULL
-    AND COALESCE(json_extract(sa.address_json, '$.locality'), json_extract(sa.address_json, '$.city')) IS NOT NULL
+    AND length(trim(COALESCE(json_extract(sa.address_json, '$.country'),''))) > 0
+    AND length(trim(COALESCE(json_extract(sa.address_json, '$.line1'), json_extract(sa.address_json, '$.street'),''))) > 0
+    AND length(trim(COALESCE(json_extract(sa.address_json, '$.locality'), json_extract(sa.address_json, '$.city'),''))) > 0
     AND (upper(json_extract(sa.address_json, '$.country')) IN
       ('AE','AO','BS','BZ','BJ','BW','BF','BI','CM','CF','KM','CG','CD','CI','DJ','DM','GQ','ER','FJ','GA','GM','GH','GD','GN','GY','HK','JM','KI','LY','MO','MW','ML','MR','MU','NR','QA','RW','KN','LC','SC','SL','SB','SO','SR','SY','TL','TG','TO','TT','TV','UG','VU','YE','ZW')
       OR length(trim(COALESCE(json_extract(sa.address_json, '$.postalCode'),'')))>0)
-    AND COALESCE(json_extract(sa.address_json, '$.publicPhone'), json_extract(sa.address_json, '$.phone')) IS NOT NULL
+    AND length(trim(COALESCE(json_extract(sa.address_json, '$.publicPhone'), json_extract(sa.address_json, '$.phone'),''))) > 0
     AND length(trim(sh.timezone)) > 0 THEN 1 ELSE 0 END AS business_details_complete,
   CASE WHEN mas.owner_provider_confirmed_at IS NOT NULL AND EXISTS (
     SELECT 1 FROM providers p WHERE p.merchant_id = m.id AND p.is_default = 1
@@ -442,12 +493,7 @@ SELECT
   CASE WHEN EXISTS (SELECT 1 FROM transactional_email_evidence tee
     WHERE tee.merchant_id = m.id AND tee.purpose = 'owner_activation_test'
       AND tee.status IN ('captured','accepted','delivered')) THEN 1 ELSE 0 END AS notification_accepted,
-  m.updated_at || '|' || COALESCE(sh.updated_at,'') || '|' || COALESCE(sa.updated_at,'') || '|' ||
-    COALESCE((SELECT max(updated_at) FROM providers WHERE merchant_id=m.id),'') || '|' ||
-    COALESCE((SELECT max(updated_at) FROM services WHERE merchant_id=m.id),'') || '|' ||
-    COALESCE((SELECT max(updated_at) FROM schedule_rules WHERE merchant_id=m.id),'') || '|' ||
-    COALESCE((SELECT max(updated_at) FROM schedule_exceptions WHERE merchant_id=m.id),'') || '|' ||
-    COALESCE((SELECT max(updated_at) FROM blocked_times WHERE merchant_id=m.id),'') || '|' ||
+  COALESCE((SELECT revision FROM merchant_activation_config_revisions WHERE merchant_id=m.id),0) || '|' ||
     COALESCE(mas.business_details_confirmed_at,'') || '|' ||
     COALESCE(mas.owner_provider_confirmed_at,'') || '|' ||
     COALESCE(mas.exception_review_confirmed_at,'') || '|' ||
@@ -578,7 +624,8 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
           const result = yield* Effect.tryPromise({
             try: async () => {
               await ensureActivationState(db, merchant.id, now)
-              return db.$client.config.db
+              const before = await readRawFacts(db, merchant.id)
+              const update = db.$client.config.db
                 .prepare(
                   `UPDATE merchant_activation_states SET
                  business_details_confirmed_at=CASE WHEN ? IS NULL THEN business_details_confirmed_at WHEN ?=1 THEN ? ELSE NULL END,
@@ -606,11 +653,63 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
                   merchant.id,
                   input.expectedRevision
                 )
-                .run()
+              if (!input.policies) return update.run()
+              const earliest = new Date(
+                Date.parse(now) + input.policies.minimumNoticeMinutes * 60_000
+              ).toISOString()
+              const horizonEndLocalDate = bookingHorizonEndLocalDate(
+                now,
+                merchant.timezone,
+                input.policies.bookingHorizonDays
+              )
+              const [updated] = await db.$client.config.db.batch([
+                update,
+                db.$client.config.db
+                  .prepare(
+                    `DELETE FROM time_slot_holds AS h WHERE h.merchant_id=? AND h.expires_at>?
+                     AND EXISTS (SELECT 1 FROM merchant_activation_states mas
+                       WHERE mas.merchant_id=? AND mas.revision=? AND mas.updated_at=?)
+                     AND (h.starts_at<? OR json_extract(h.quote,'$.localDate') IS NULL
+                       OR json_extract(h.quote,'$.localDate')>?
+                       OR json_extract(h.quote,'$.localStartTime') IS NULL
+                       OR ((CAST(substr(json_extract(h.quote,'$.localStartTime'),1,2) AS INTEGER)*60
+                         + CAST(substr(json_extract(h.quote,'$.localStartTime'),4,2) AS INTEGER)) % ?) <> 0)`
+                  )
+                  .bind(
+                    merchant.id,
+                    now,
+                    merchant.id,
+                    input.expectedRevision + 1,
+                    now,
+                    earliest,
+                    horizonEndLocalDate,
+                    input.policies.startTimeIntervalMinutes
+                  ),
+                db.$client.config.db
+                  .prepare(
+                    `INSERT INTO schedule_changes
+                     (id,merchant_id,kind,actor_id,reason,before_json,after_json,occurred_at)
+                     SELECT ?,?,'booking_window',?,NULL,?,?,? WHERE EXISTS (
+                       SELECT 1 FROM merchant_activation_states
+                       WHERE merchant_id=? AND revision=? AND updated_at=?)`
+                  )
+                  .bind(
+                    newCapabilityId('scg'),
+                    merchant.id,
+                    merchant.actorUserId ?? merchant.id,
+                    before?.booking_policies_json ?? 'null',
+                    JSON.stringify(input.policies),
+                    now,
+                    merchant.id,
+                    input.expectedRevision + 1,
+                    now
+                  )
+              ])
+              return updated!
             },
             catch: unavailable
           })
-          if ((result.meta.changes ?? 0) !== 1) {
+          if ((result.meta.changes ?? 0) < 1) {
             const current = yield* Effect.tryPromise({
               try: () => readRawFacts(db, merchant.id),
               catch: unavailable
@@ -797,7 +896,11 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
           })
           if (!row) return yield* Effect.fail(unavailable('Merchant not found.'))
           if (row.first_activated_at) {
-            if (!toFacts(row).bookingReadiness || row.subscription_access !== 1)
+            if (
+              !toFacts(row).bookingReadiness ||
+              !toFacts(row).notificationAccepted ||
+              row.subscription_access !== 1
+            )
               return yield* Effect.fail(
                 new ActivationNotReady({ incomplete: ['booking-readiness'] })
               )
@@ -812,9 +915,18 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
                        JOIN providers p ON p.id=sr.provider_id AND p.merchant_id=sr.merchant_id
                        JOIN provider_service_eligibility pse ON pse.provider_id=p.id AND pse.merchant_id=p.merchant_id
                        JOIN services s ON s.id=pse.service_id AND s.merchant_id=p.merchant_id
-                       WHERE sr.merchant_id=? AND p.status='active' AND s.status='active')`
+                       WHERE sr.merchant_id=? AND p.status='active' AND s.status='active')
+                     AND EXISTS (SELECT 1 FROM transactional_email_evidence tee
+                       WHERE tee.merchant_id=? AND tee.purpose='owner_activation_test'
+                         AND tee.status IN ('captured','accepted','delivered'))`
                   )
-                  .bind(new Date().toISOString(), merchant.id, merchant.id, merchant.id)
+                  .bind(
+                    new Date().toISOString(),
+                    merchant.id,
+                    merchant.id,
+                    merchant.id,
+                    merchant.id
+                  )
                   .run(),
               catch: unavailable
             })
@@ -847,12 +959,7 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
                  JOIN shop_addresses sa ON sa.shop_id=sh.id
                  WHERE mas.merchant_id=? AND mas.revision=?
                    AND mas.launch_test_source_revision=(
-                     m.updated_at || '|' || COALESCE(sh.updated_at,'') || '|' || COALESCE(sa.updated_at,'') || '|' ||
-                     COALESCE((SELECT max(updated_at) FROM providers WHERE merchant_id=m.id),'') || '|' ||
-                     COALESCE((SELECT max(updated_at) FROM services WHERE merchant_id=m.id),'') || '|' ||
-                     COALESCE((SELECT max(updated_at) FROM schedule_rules WHERE merchant_id=m.id),'') || '|' ||
-                     COALESCE((SELECT max(updated_at) FROM schedule_exceptions WHERE merchant_id=m.id),'') || '|' ||
-                     COALESCE((SELECT max(updated_at) FROM blocked_times WHERE merchant_id=m.id),'') || '|' ||
+                     COALESCE((SELECT revision FROM merchant_activation_config_revisions WHERE merchant_id=m.id),0) || '|' ||
                      COALESCE(mas.business_details_confirmed_at,'') || '|' || COALESCE(mas.owner_provider_confirmed_at,'') || '|' ||
                      COALESCE(mas.exception_review_confirmed_at,'') || '|' || COALESCE(mas.policies_confirmed_at,'') || '|' ||
                      COALESCE(mas.booking_policies_json,''))
@@ -861,18 +968,20 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
                    AND mas.exception_review_confirmed_at IS NOT NULL
                    AND mas.policies_confirmed_at IS NOT NULL
                    AND length(trim(m.public_name))>0 AND length(trim(m.slug))>0
-                   AND json_extract(sa.address_json,'$.country') IS NOT NULL
-                   AND COALESCE(json_extract(sa.address_json,'$.line1'),json_extract(sa.address_json,'$.street')) IS NOT NULL
-                   AND COALESCE(json_extract(sa.address_json,'$.locality'),json_extract(sa.address_json,'$.city')) IS NOT NULL
+                   AND length(trim(sh.timezone))>0
+                   AND length(trim(COALESCE(json_extract(sa.address_json,'$.country'),'')))>0
+                   AND length(trim(COALESCE(json_extract(sa.address_json,'$.line1'),json_extract(sa.address_json,'$.street'),'')))>0
+                   AND length(trim(COALESCE(json_extract(sa.address_json,'$.locality'),json_extract(sa.address_json,'$.city'),'')))>0
                    AND (upper(json_extract(sa.address_json,'$.country')) IN
                      ('AE','AO','BS','BZ','BJ','BW','BF','BI','CM','CF','KM','CG','CD','CI','DJ','DM','GQ','ER','FJ','GA','GM','GH','GD','GN','GY','HK','JM','KI','LY','MO','MW','ML','MR','MU','NR','QA','RW','KN','LC','SC','SL','SB','SO','SR','SY','TL','TG','TO','TT','TV','UG','VU','YE','ZW')
                      OR length(trim(COALESCE(json_extract(sa.address_json,'$.postalCode'),'')))>0)
-                   AND COALESCE(json_extract(sa.address_json,'$.publicPhone'),json_extract(sa.address_json,'$.phone')) IS NOT NULL
+                   AND length(trim(COALESCE(json_extract(sa.address_json,'$.publicPhone'),json_extract(sa.address_json,'$.phone'),'')))>0
                    AND EXISTS (SELECT 1 FROM schedule_rules sr
                      JOIN providers p ON p.id=sr.provider_id AND p.merchant_id=sr.merchant_id
                      JOIN provider_service_eligibility pse ON pse.provider_id=p.id AND pse.merchant_id=p.merchant_id
                      JOIN services s ON s.id=pse.service_id AND s.merchant_id=p.merchant_id
-                     WHERE sr.merchant_id=m.id AND p.status='active' AND p.is_default=1 AND s.status='active')
+                     WHERE sr.merchant_id=m.id AND p.status='active' AND p.is_default=1
+                       AND length(trim(p.display_name))>0 AND s.status='active')
                    AND EXISTS (SELECT 1 FROM transactional_email_evidence tee WHERE tee.merchant_id=m.id
                      AND tee.purpose='owner_activation_test' AND tee.status IN ('captured','accepted','delivered'))
                ) AND EXISTS (SELECT 1 FROM merchant_subscriptions ms WHERE ms.merchant_id=?
@@ -906,10 +1015,23 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
               ]),
             catch: unavailable
           })
-          if ((result[0]?.meta.changes ?? 0) !== 1)
+          if ((result[0]?.meta.changes ?? 0) !== 1) {
+            const current = yield* Effect.tryPromise({
+              try: () => readRawFacts(db, merchant.id),
+              catch: unavailable
+            })
+            const incomplete = current
+              ? deriveActivationProgress(toFacts(current)).incomplete.filter(
+                  (step) => step !== 'publication'
+                )
+              : ['business-details']
             return yield* Effect.fail(
-              new ActivationNotReady({ incomplete: ['configuration-changed'] })
+              new ActivationNotReady({
+                incomplete:
+                  incomplete.length > 0 ? [...incomplete] : ['configuration-changed']
+              })
             )
+          }
           return {
             status: 'published' as const,
             firstActivatedAt: row.first_activated_at ?? now
