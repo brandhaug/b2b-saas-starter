@@ -196,11 +196,17 @@ describe('server-backed Booking scheduling', () => {
             role: 'primary',
             name: 'Cut',
             durationMinutes: 60,
+            beforeBufferMinutes: 0,
+            afterBufferMinutes: 0,
             priceMinor: 5000,
             currency: 'USD'
           }
         ],
         durationMinutes: 60,
+        beforeBufferMinutes: 0,
+        afterBufferMinutes: 0,
+        occupiedStartsAt: '2026-07-15T14:00:00.000Z',
+        occupiedEndsAt: '2026-07-15T15:00:00.000Z',
         currency: 'USD',
         totalMinor: 5500
       }
@@ -211,7 +217,9 @@ describe('server-backed Booking scheduling', () => {
       quote: {
         ...hold.quote,
         startsAt: '2026-07-15T15:00:00.000Z',
-        endsAt: '2026-07-15T16:00:00.000Z'
+        endsAt: '2026-07-15T16:00:00.000Z',
+        occupiedStartsAt: '2026-07-15T15:00:00.000Z',
+        occupiedEndsAt: '2026-07-15T16:00:00.000Z'
       }
     }
     let requestedAvailabilityDays: string | null = null
@@ -554,11 +562,17 @@ describe('server-backed Booking scheduling', () => {
               role: 'primary',
               name: 'Cut',
               durationMinutes: 60,
+              beforeBufferMinutes: 0,
+              afterBufferMinutes: 0,
               priceMinor: 5000,
               currency: 'USD'
             }
           ],
           durationMinutes: 60,
+          beforeBufferMinutes: 0,
+          afterBufferMinutes: 0,
+          occupiedStartsAt: slot.startsAt,
+          occupiedEndsAt: slot.endsAt,
           currency: 'USD',
           totalMinor: 5000
         }
@@ -668,11 +682,17 @@ describe('server-backed Booking scheduling', () => {
               role: 'primary',
               name: 'Cut',
               durationMinutes: 60,
+              beforeBufferMinutes: 0,
+              afterBufferMinutes: 0,
               priceMinor: 5000,
               currency: 'USD'
             }
           ],
           durationMinutes: 60,
+          beforeBufferMinutes: 0,
+          afterBufferMinutes: 0,
+          occupiedStartsAt: slot.startsAt,
+          occupiedEndsAt: slot.endsAt,
           currency: 'USD',
           totalMinor: 5000
         }

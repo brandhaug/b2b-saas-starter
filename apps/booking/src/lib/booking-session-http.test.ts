@@ -1623,11 +1623,17 @@ describe('Booking Session HTTP boundary', () => {
           role: 'primary' as const,
           name: 'Signature Cut',
           durationMinutes: 60,
+          beforeBufferMinutes: 0,
+          afterBufferMinutes: 0,
           priceMinor: 5000,
           currency: 'USD'
         }
       ],
       durationMinutes: 60,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
+      occupiedStartsAt: '2026-07-14T09:00:00.000Z',
+      occupiedEndsAt: '2026-07-14T10:00:00.000Z',
       currency: 'USD',
       totalMinor: 5000,
       merchantTimezone: 'UTC',

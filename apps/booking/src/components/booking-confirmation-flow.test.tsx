@@ -29,11 +29,17 @@ const snapshot = {
       role: 'primary' as const,
       name: 'Signature Cut',
       durationMinutes: 60,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
       priceMinor: 9000,
       currency: 'RON'
     }
   ],
   durationMinutes: 60,
+  beforeBufferMinutes: 0,
+  afterBufferMinutes: 0,
+  occupiedStartsAt: '2026-07-20T06:00:00.000Z',
+  occupiedEndsAt: '2026-07-20T07:00:00.000Z',
   currency: 'RON',
   totalMinor: 9000,
   merchantTimezone: 'Europe/Bucharest',
@@ -392,6 +398,10 @@ describe('Booking confirmation route flow', () => {
         assignedProvider: { id: 'prv_mara', displayName: 'Mara Ionescu' },
         services: snapshot.services,
         durationMinutes: 60,
+        beforeBufferMinutes: 0,
+        afterBufferMinutes: 0,
+        occupiedStartsAt: startsAt,
+        occupiedEndsAt: endsAt,
         currency: 'RON',
         totalMinor: 9000
       }
