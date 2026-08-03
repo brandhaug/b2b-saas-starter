@@ -194,4 +194,24 @@ export const WideEventLoggerLive: Layer.Layer<never> = Layer.mergeAll(
   Logger.layer([Logger.consoleJson])
 )
 
+export type OperationalError = {
+  readonly service: string
+  readonly event: string
+  readonly traceId: string
+  readonly pathname: string
+  readonly failure: string
+  readonly error?: string | undefined
+  readonly details?: Record<string, unknown> | undefined
+}
+
+/** Emit a structured boundary failure without allowing observability to fail a request. */
+export const reportOperationalError = async (
+  input: OperationalError
+): Promise<void> => {
+  const { event, ...metadata } = input
+  await Effect.runPromise(
+    Effect.logError(event, metadata).pipe(Effect.provide(WideEventLoggerLive))
+  ).catch(() => undefined)
+}
+
 export { newTraceId }

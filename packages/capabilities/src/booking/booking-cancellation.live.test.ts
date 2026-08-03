@@ -1,0 +1,227 @@
+import { Effect, Layer } from 'effect'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { layerFromD1 } from '@b2b-saas-starter/db'
+import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
+import { makeLiveBookingCancellations } from './booking-cancellation-adapter.ts'
+import { BookingCancellations } from './booking-cancellation.ts'
+
+let test: TestD1
+const now = '2026-07-13T10:00:00.000Z'
+const snapshot = (totalMinor: number) =>
+  JSON.stringify({
+    startsAt: '2026-07-14T10:00:00.000Z',
+    endsAt: '2026-07-14T11:00:00.000Z',
+    providerPreference: { kind: 'any' },
+    assignedProvider: { id: 'prv_cancel', displayName: 'Mara' },
+    services: [],
+    durationMinutes: 60,
+    currency: 'USD',
+    totalMinor,
+    merchantTimezone: 'UTC',
+    customerDetails: {
+      name: 'Ana',
+      email: 'ana@example.test',
+      phone: '+40722123456'
+    },
+    checkoutPath: 'online_payment',
+    cancellationPolicy: {
+      id: 'pol_cancel',
+      version: 2,
+      cancellableUntilMinutesBeforeStart: 60
+    },
+    refundPolicy: {
+      id: 'pol_refund',
+      version: 3,
+      refundableUntilMinutesBeforeStart: 120,
+      refundBasisPoints: 10000
+    }
+  })
+
+beforeAll(async () => {
+  test = await provisionTestD1()
+  for (const statement of [
+    `INSERT INTO merchants (id, public_name, slug, timezone, currency, plan, created_at, updated_at) VALUES ('mrc_cancel', 'Cancel Shop', 'cancel-shop', 'UTC', 'USD', 'solo', '${now}', '${now}')`,
+    `INSERT INTO merchants (id, public_name, slug, timezone, currency, plan, created_at, updated_at) VALUES ('mrc_other', 'Other Shop', 'other-shop', 'UTC', 'USD', 'solo', '${now}', '${now}')`,
+    `INSERT INTO brands (id, merchant_id, name, created_at, updated_at) VALUES ('brd_cancel', 'mrc_cancel', 'Cancel Shop', '${now}', '${now}')`,
+    `INSERT INTO shops (id, brand_id, merchant_id, slug, public_name, timezone, currency, created_at, updated_at) VALUES ('shp_cancel', 'brd_cancel', 'mrc_cancel', 'cancel', 'Cancel Shop', 'UTC', 'USD', '${now}', '${now}')`,
+    `INSERT INTO providers (id, merchant_id, display_name, status, created_at, updated_at) VALUES ('prv_cancel', 'mrc_cancel', 'Mara', 'active', '${now}', '${now}')`,
+    `INSERT INTO providers (id, merchant_id, display_name, status, created_at, updated_at) VALUES ('prv_other', 'mrc_other', 'Other', 'active', '${now}', '${now}')`,
+    `INSERT INTO booking_sessions (id, merchant_id, capability_hash, checkout_path, lifecycle, created_at, last_activity_at, idle_expires_at, absolute_expires_at) VALUES ('bsn_cancel', 'mrc_cancel', 'hash', 'pay_in_person', 'consumed', '${now}', '${now}', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z')`,
+    `INSERT INTO booking_parties (id, booking_session_id, shop_id, lifecycle, currency, locale, version, created_at, updated_at) VALUES ('bpt_cancel', 'bsn_cancel', 'shp_cancel', 'confirmed', 'USD', 'en', 1, '${now}', '${now}')`,
+    `INSERT INTO gift_card_products (id, merchant_id, name, currency, scope, scope_id, preset_amounts_json, allows_custom_amount, active, created_at, updated_at) VALUES ('gcp_cancel', 'mrc_cancel', 'Cancel card', 'USD', 'shop', 'shp_cancel', '[10000]', 0, 1, '${now}', '${now}')`,
+    `INSERT INTO gift_card_sales (id, shop_id, gift_card_product_id, status, amount_minor, currency, recipient_json, purchaser_json, created_at, updated_at) VALUES ('gcs_cancel', 'shp_cancel', 'gcp_cancel', 'issued', 10000, 'USD', 'null', '{}', '${now}', '${now}')`,
+    `INSERT INTO gift_cards (id, gift_card_sale_id, code_hash, status, currency, scope, scope_id, initial_value_minor, created_at, updated_at) VALUES ('gcd_cancel', 'gcs_cancel', 'cancel-card-hash', 'active', 'USD', 'shop', 'shp_cancel', 10000, '${now}', '${now}')`,
+    `INSERT INTO gift_card_ledger_entries (id, gift_card_id, kind, amount_minor, idempotency_key, occurred_at, created_at) VALUES ('gcl_cancel_issue', 'gcd_cancel', 'issuance', 10000, 'issuance:gcd_cancel', '${now}', '${now}')`,
+    `INSERT INTO payments (id, booking_party_id, amount_minor, status, currency, captured_minor, created_at, updated_at) VALUES ('pay_cancel', 'bpt_cancel', 6000, 'captured', 'USD', 6000, '${now}', '${now}')`,
+    `INSERT INTO payment_transactions (id, payment_id, kind, amount_minor, currency, provider_reference, occurred_at, created_at) VALUES ('ptx_cancel_capture', 'pay_cancel', 'capture', 6000, 'USD', 'pi_cancel:capture', '${now}', '${now}')`,
+    `INSERT INTO appointments (id, merchant_id, provider_id, booking_party_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_one', 'mrc_cancel', 'prv_cancel', 'bpt_cancel', 'scheduled', '2026-07-14T10:00:00.000Z', '2026-07-14T11:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
+    `INSERT INTO appointments (id, merchant_id, provider_id, booking_party_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_two', 'mrc_cancel', 'prv_cancel', 'bpt_cancel', 'scheduled', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
+    `INSERT INTO appointments (id, merchant_id, provider_id, status, starts_at, ends_at, snapshot, created_at, updated_at) VALUES ('apt_cancel_other', 'mrc_other', 'prv_other', 'scheduled', '2026-07-14T12:00:00.000Z', '2026-07-14T13:00:00.000Z', '${snapshot(5000)}', '${now}', '${now}')`,
+    `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_gift', 'bpt_cancel', 'gift_card', 'gcd_cancel', 4000, 'USD', '${now}')`,
+    `INSERT INTO settlement_allocations (id, booking_party_id, tender, reference_id, amount_minor, currency, created_at) VALUES ('sta_pay', 'bpt_cancel', 'external_payment', 'pay_cancel', 6000, 'USD', '${now}')`,
+    `INSERT INTO notification_intents (id, shop_id, topic, recipient_json, payload_json, source_type, source_id, source_version, deduplication_key, purpose, phase, status, available_at, created_at, updated_at) VALUES ('nti_cancel_reminder', 'shp_cancel', 'appointment.reminder', '{}', '{}', 'appointment', 'apt_cancel_one', 1, 'reminder:apt_cancel_one:1', 'appointment_reminder', 'scheduled', 'pending', '2026-07-14T08:00:00.000Z', '${now}', '${now}')`
+  ])
+    await test.d1.prepare(statement).run()
+}, 60_000)
+
+afterAll(async () => test.dispose())
+
+const run = <A>(effect: Effect.Effect<A, unknown, BookingCancellations>) =>
+  Effect.runPromise(
+    effect.pipe(
+      Effect.provide(
+        makeLiveBookingCancellations({
+          encryption: 'test-notification-encryption',
+          fingerprint: 'test-notification-fingerprint',
+          keyVersion: 1
+        }).pipe(Layer.provide(layerFromD1(test.d1)))
+      )
+    )
+  )
+
+describe('Live Booking cancellation', () => {
+  it('atomically cancels one appointment and persists original tender allocations', async () => {
+    const cancel = () =>
+      run(
+        Effect.flatMap(BookingCancellations, (service) =>
+          service.cancel({
+            merchantId: 'mrc_cancel',
+            scope: { kind: 'appointment', appointmentId: 'apt_cancel_one' },
+            idempotencyKey: 'cancel-live-one',
+            reason: 'customer_requested',
+            now
+          })
+        )
+      )
+    const result = await cancel()
+    expect(result.refundObligations[0]?.allocations).toEqual([
+      { tender: 'gift_card', referenceId: 'gcd_cancel', amountMinor: 4000 },
+      { tender: 'external_payment', referenceId: 'pay_cancel', amountMinor: 1000 }
+    ])
+    expect((await cancel()).replayed).toBe(true)
+    const rows = await test.d1.batch([
+      test.d1.prepare(
+        "SELECT status, version FROM appointments WHERE id = 'apt_cancel_one'"
+      ),
+      test.d1.prepare("SELECT status FROM appointments WHERE id = 'apt_cancel_two'"),
+      test.d1.prepare(
+        "SELECT * FROM lifecycle_history WHERE aggregate_id = 'apt_cancel_one'"
+      ),
+      test.d1.prepare('SELECT * FROM refund_obligations'),
+      test.d1.prepare('SELECT * FROM refund_obligation_allocations ORDER BY position'),
+      test.d1.prepare(
+        "SELECT phase, result, result_reason, status FROM notification_intents WHERE id = 'nti_cancel_reminder'"
+      ),
+      test.d1.prepare(
+        "SELECT id, purpose, phase, source_version, trace_id FROM notification_intents WHERE source_id = 'apt_cancel_one' AND purpose = 'appointment_cancellation'"
+      )
+    ])
+    expect(rows[0]!.results[0]).toMatchObject({ status: 'cancelled', version: 2 })
+    expect(rows[1]!.results[0]).toMatchObject({ status: 'scheduled' })
+    expect(rows[2]!.results).toHaveLength(1)
+    expect(rows[3]!.results).toHaveLength(1)
+    expect(rows[4]!.results).toHaveLength(2)
+    expect(rows[5]!.results[0]).toMatchObject({
+      phase: 'terminal',
+      result: 'not_sent',
+      result_reason: 'superseded',
+      status: 'cancelled'
+    })
+    expect(rows[6]!.results[0]).toMatchObject({
+      id: result.notificationIntentIds![0],
+      purpose: 'appointment_cancellation',
+      phase: 'ready',
+      source_version: 2
+    })
+
+    const failed = await run(
+      Effect.flatMap(BookingCancellations, (service) =>
+        service.recordRefundOutcome({
+          obligationId: result.refundObligations[0]!.id,
+          providerEventId: 'refund-attempt-failed',
+          outcome: 'failed_retryable',
+          failureCode: 'provider_unavailable',
+          now
+        })
+      )
+    )
+    expect(failed).toMatchObject({
+      status: 'failed_retryable',
+      attemptCount: 1,
+      failureCode: 'provider_unavailable'
+    })
+    const refunded = await run(
+      Effect.flatMap(BookingCancellations, (service) =>
+        service.recordRefundOutcome({
+          obligationId: result.refundObligations[0]!.id,
+          providerEventId: 'refund-provider-success',
+          outcome: 'succeeded',
+          now
+        })
+      )
+    )
+    expect(refunded).toMatchObject({ status: 'succeeded', attemptCount: 2 })
+    const replayedSuccess = await run(
+      Effect.flatMap(BookingCancellations, (service) =>
+        service.recordRefundOutcome({
+          obligationId: result.refundObligations[0]!.id,
+          providerEventId: 'refund-provider-success',
+          outcome: 'succeeded',
+          now
+        })
+      )
+    )
+    expect(replayedSuccess).toMatchObject({ status: 'succeeded', attemptCount: 2 })
+    const monetary = await test.d1.batch([
+      test.d1.prepare(
+        "SELECT refunded_minor, status FROM payments WHERE id = 'pay_cancel'"
+      ),
+      test.d1.prepare("SELECT * FROM payment_transactions WHERE kind = 'refund'"),
+      test.d1.prepare("SELECT * FROM gift_card_ledger_entries WHERE kind = 'refund'"),
+      test.d1.prepare('SELECT * FROM refund_obligation_events ORDER BY occurred_at')
+    ])
+    expect(monetary[0]!.results[0]).toMatchObject({
+      refunded_minor: 1000,
+      status: 'partially_refunded'
+    })
+    expect(monetary[1]!.results).toHaveLength(1)
+    expect(monetary[2]!.results).toHaveLength(1)
+    expect(monetary[3]!.results).toHaveLength(2)
+  })
+
+  it('keeps cancellation replay neutral across merchants', async () => {
+    const outcome = await run(
+      Effect.result(
+        Effect.flatMap(BookingCancellations, (service) =>
+          service.cancel({
+            merchantId: 'mrc_other',
+            scope: { kind: 'appointment', appointmentId: 'apt_cancel_one' },
+            idempotencyKey: 'cancel-live-one',
+            reason: 'customer_requested',
+            now
+          })
+        )
+      )
+    )
+    expect(outcome).toMatchObject({
+      _tag: 'Failure',
+      failure: { code: 'appointment_not_found' }
+    })
+
+    const independent = await run(
+      Effect.flatMap(BookingCancellations, (service) =>
+        service.cancel({
+          merchantId: 'mrc_other',
+          scope: { kind: 'appointment', appointmentId: 'apt_cancel_other' },
+          idempotencyKey: 'cancel-live-one',
+          reason: 'customer_requested',
+          now
+        })
+      )
+    )
+    expect(independent).toMatchObject({
+      replayed: false,
+      appointments: [{ id: 'apt_cancel_other', status: 'cancelled' }]
+    })
+  })
+})

@@ -1,0 +1,1 @@
+ALTER TABLE `confirmation_access` ADD `exchanged_at` text;

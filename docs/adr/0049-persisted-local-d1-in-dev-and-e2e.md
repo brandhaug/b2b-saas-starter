@@ -1,5 +1,7 @@
 # Persisted local D1 in dev and e2e
 
+Persistent local D1 remains the target development path. [ADR 0052](./0052-first-slice-booking-storage.md) supersedes this record's no-D1 runtime Seed-layer fallback for the Booking Product.
+
 The web dev server attaches the persisted local D1 (`packages/db/.wrangler/state/v3`, written by `bun run db:migrate:local` and `bun run db:seed`) as the `DB` binding through wrangler's `getPlatformProxy`. The wiring lives in a dev-only variant of the `cloudflare:workers` shim (`apps/web/src/lib/cloudflare-workers-shim-dev.ts`), aliased by `vite dev` only; test and build keep the inert shim so client and worker bundles never pull in wrangler, and the dev shim guards its Node imports behind `import.meta.env.SSR` because dev serves the shim to the browser as well. When no migrated state exists, `DB` stays undefined and the app keeps its provider-light Seed-layer behavior, so the clone-and-run path still needs no database step.
 
 This closes the gap where credential sign-in failed silently under `bun run dev` (Better Auth needs real `user`/`account` tables) and where the Playwright suite could not exercise an authenticated flow. CI migrates and seeds before the e2e job, and the sign-in e2e test skips with an explanatory message when local state is missing instead of failing.

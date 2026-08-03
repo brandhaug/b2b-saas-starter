@@ -1,0 +1,45 @@
+.merchant-create-action-dialog {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  z-index: 50;
+  color: inherit;
+}
+
+.merchant-create-action-dialog::backdrop {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.merchant-create-action-dialog[data-mobile-create-action-sheet-state='closing'] {
+  display: block;
+  pointer-events: none;
+}
+
+.merchant-create-action-backdrop {
+  background: color-mix(in oklab, black 58%, transparent);
+  transition: background-color 160ms ease-out;
+}
+
+.merchant-create-action-dialog[data-mobile-create-action-sheet-state='closing']
+  .merchant-create-action-backdrop {
+  background: transparent;
+}
+
+.merchant-create-action-panel {
+  --merchant-create-sheet-y: 0px;
+  position: fixed;
+  right: max(0.5rem, env(safe-area-inset-right));
+  bottom: 0;
+  left: max(0.5rem, env(safe-area-inset-left));
+  max-height: calc(100vh - max(0.5rem, env(safe-area-inset-top)));
+  overflow-y: auto;
+  z-index: 1;
+  transform: translate3d(0, var(--merchant-create-sheet-y), 0);
+  will-change: transform;
+}

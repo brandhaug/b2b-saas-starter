@@ -7,274 +7,386 @@ import {
   OpenApi
 } from 'effect/unstable/httpapi'
 import {
-  AssistantPrompt,
-  AssistantProvider,
-  AssistantReply,
-  AssistantUnavailable
-} from '@b2b-saas-starter/ai'
-import {
-  ApiToken,
-  AuditEvent,
-  AuthorizationDenied,
-  CapabilityUnavailable,
-  CatalogRefreshRun,
-  CreatedApiTokenSchema,
-  CreateApiTokenPayload,
-  CreateWebhookEndpointPayload,
-  ImplementationReport,
-  IntegrationSurface,
-  InvalidWebhookUrl,
-  Member,
-  ModuleStatus,
-  Notification,
-  ReadinessPoint,
-  StarterModule,
-  StarterModuleWithState,
-  WebhookEndpoint,
-  Workspace,
-  WorkspaceNotFound
-} from '@b2b-saas-starter/capabilities'
+  PlatformApiToken,
+  PlatformApiTokenScope,
+  PlatformApiTokenStatus,
+  PlatformAppointment,
+  PlatformMerchant,
+  PlatformProvider,
+  PlatformService,
+  PlatformWebhookDeliveryAttempt,
+  PlatformWebhookEndpoint,
+  PlatformWebhookEndpointStatus,
+  AppointmentWebhookEvent
+} from '@b2b-saas-starter/capabilities/developer-platform'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 
-export class InternalError extends Schema.TaggedErrorClass<InternalError>()(
-  'InternalError',
-  { traceId: Schema.String },
-  { httpApiStatus: 500 }
+const ErrorBody = (code: string) =>
+  Schema.Struct({
+    error: Schema.Struct({
+      code: Schema.Literal(code),
+      message: Schema.String,
+      traceId: Schema.String,
+      details: Schema.Record(Schema.String, Schema.Unknown)
+    })
+  })
+const tagged = <Tag extends string, Code extends string>(
+  tag: Tag,
+  code: Code,
+  status: number
+) =>
+  class extends Schema.TaggedErrorClass<any>()(tag, ErrorBody(code).fields, {
+    httpApiStatus: status
+  }) {}
+export class PlatformUnauthorized extends tagged(
+  'PlatformUnauthorized',
+  'unauthorized',
+  401
 ) {}
-
-export class Unauthorized extends Schema.TaggedErrorClass<Unauthorized>()(
-  'Unauthorized',
-  { message: Schema.String },
-  { httpApiStatus: 401 }
+export class PlatformInsufficientScope extends tagged(
+  'PlatformInsufficientScope',
+  'insufficient_scope',
+  403
 ) {}
-
+export class PlatformScopeEscalationDenied extends tagged(
+  'PlatformScopeEscalationDenied',
+  'scope_escalation_denied',
+  403
+) {}
+export class PlatformInvalidRequest extends tagged(
+  'PlatformInvalidRequest',
+  'invalid_request',
+  400
+) {}
+export class PlatformInvalidCursor extends tagged(
+  'PlatformInvalidCursor',
+  'invalid_cursor',
+  400
+) {}
+export class PlatformInvalidWebhookUrl extends tagged(
+  'PlatformInvalidWebhookUrl',
+  'invalid_webhook_url',
+  400
+) {}
+export class PlatformWebhookEndpointDisabled extends tagged(
+  'PlatformWebhookEndpointDisabled',
+  'webhook_endpoint_disabled',
+  409
+) {}
+export class PlatformResourceNotFound extends tagged(
+  'PlatformResourceNotFound',
+  'resource_not_found',
+  404
+) {}
 export class RateLimited extends Schema.TaggedErrorClass<RateLimited>()(
   'RateLimited',
   { bucket: Schema.String },
   { httpApiStatus: 429 }
 ) {}
+export class TransactionalEmailCallbackInvalid extends Schema.TaggedErrorClass<TransactionalEmailCallbackInvalid>()(
+  'TransactionalEmailCallbackInvalid',
+  { code: Schema.String },
+  { httpApiStatus: 400 }
+) {}
+export class TransactionalEmailCallbackUnavailable extends Schema.TaggedErrorClass<TransactionalEmailCallbackUnavailable>()(
+  'TransactionalEmailCallbackUnavailable',
+  { code: Schema.String },
+  { httpApiStatus: 503 }
+) {}
 
-const WORKSPACE_ERRORS = [
-  WorkspaceNotFound,
-  InternalError,
-  Unauthorized,
-  AuthorizationDenied,
+const AUTH_ERRORS = [
+  PlatformUnauthorized,
+  PlatformInsufficientScope,
   RateLimited,
   CapabilityUnavailable
 ] as const
-
-const PROTECTED_ERRORS = [
-  InternalError,
-  Unauthorized,
-  AuthorizationDenied,
-  RateLimited,
-  CapabilityUnavailable
+const READ_ERRORS = [...AUTH_ERRORS, PlatformResourceNotFound] as const
+const LIST_ERRORS = [
+  ...AUTH_ERRORS,
+  PlatformInvalidCursor,
+  PlatformInvalidRequest
 ] as const
-
-export const SlugParams = Schema.Struct({ slug: Schema.String })
-
-export const WorkspaceOverviewDto = Schema.Struct({
-  workspace: Workspace,
-  readinessScore: Schema.Number,
-  modules: Schema.Array(StarterModuleWithState),
-  notifications: Schema.Array(Notification),
-  readinessTrend: Schema.Array(ReadinessPoint)
+const CollectionPage = Schema.Struct({ nextCursor: Schema.NullOr(Schema.String) })
+const TimestampQuery = Schema.String.check(
+  Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/)
+)
+const Page = <A extends Schema.Top>(item: A) =>
+  Schema.Struct({ data: Schema.Array(item), page: CollectionPage })
+const Data = <A extends Schema.Top>(item: A) => Schema.Struct({ data: item })
+const ServiceParams = Schema.Struct({ serviceId: Schema.String })
+const ProviderParams = Schema.Struct({ providerId: Schema.String })
+const AppointmentParams = Schema.Struct({ appointmentId: Schema.String })
+const TokenParams = Schema.Struct({ tokenId: Schema.String })
+const WebhookParams = Schema.Struct({ endpointId: Schema.String })
+const CatalogQuery = Schema.Struct({
+  status: Schema.optional(
+    Schema.Union([
+      Schema.Literals(['active', 'inactive']),
+      Schema.Array(Schema.Literals(['active', 'inactive']))
+    ])
+  ),
+  providerId: Schema.optional(
+    Schema.Union([Schema.String, Schema.Array(Schema.String)])
+  ),
+  serviceId: Schema.optional(
+    Schema.Union([Schema.String, Schema.Array(Schema.String)])
+  ),
+  updatedAtFrom: Schema.optional(TimestampQuery),
+  cursor: Schema.optional(Schema.String),
+  limit: Schema.optional(Schema.NumberFromString)
 })
-export type WorkspaceOverviewDto = typeof WorkspaceOverviewDto.Type
+const AppointmentQuery = Schema.Struct({
+  status: Schema.optional(
+    Schema.Union([
+      Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
+      Schema.Array(Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']))
+    ])
+  ),
+  providerId: Schema.optional(
+    Schema.Union([Schema.String, Schema.Array(Schema.String)])
+  ),
+  startsAtFrom: Schema.optional(TimestampQuery),
+  startsAtBefore: Schema.optional(TimestampQuery),
+  updatedAtFrom: Schema.optional(TimestampQuery),
+  cursor: Schema.optional(Schema.String),
+  limit: Schema.optional(Schema.NumberFromString)
+})
 
 export const HealthApi = HttpApiGroup.make('health').add(
   HttpApiEndpoint.get('check', '/health', {
     success: Schema.Struct({ status: Schema.Literal('ok') })
   })
 )
-
-export const WorkspaceApi = HttpApiGroup.make('workspace')
-  .add(
-    HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
-      params: SlugParams,
-      success: WorkspaceOverviewDto,
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('modules', '/workspaces/:slug/modules', {
-      params: SlugParams,
-      success: Schema.Array(StarterModuleWithState),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('members', '/workspaces/:slug/members', {
-      params: SlugParams,
-      success: Schema.Array(Member),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('notifications', '/workspaces/:slug/notifications', {
-      params: SlugParams,
-      success: Schema.Array(Notification),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('api-tokens', '/workspaces/:slug/api-tokens', {
-      params: SlugParams,
-      success: Schema.Array(ApiToken),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('webhooks', '/workspaces/:slug/webhooks', {
-      params: SlugParams,
-      success: Schema.Array(WebhookEndpoint),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('integrations', '/workspaces/:slug/integrations', {
-      params: SlugParams,
-      success: Schema.Array(IntegrationSurface),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('reports', '/workspaces/:slug/reports', {
-      params: SlugParams,
-      success: Schema.Array(ImplementationReport),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('audit-events', '/workspaces/:slug/audit-events', {
-      params: SlugParams,
-      success: Schema.Array(AuditEvent),
-      error: WORKSPACE_ERRORS
-    })
-  )
-
-const TokenIdParams = Schema.Struct({ slug: Schema.String, tokenId: Schema.String })
-const RevokedResponse = Schema.Struct({ status: Schema.Literal('revoked') })
-
-export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
-  .add(
-    HttpApiEndpoint.post('create', '/workspaces/:slug/api-tokens', {
-      params: SlugParams,
-      payload: CreateApiTokenPayload,
-      success: CreatedApiTokenSchema.pipe(HttpApiSchema.status(201)),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.post('revoke', '/workspaces/:slug/api-tokens/:tokenId/revoke', {
-      params: TokenIdParams,
-      success: RevokedResponse,
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.delete('delete', '/workspaces/:slug/api-tokens/:tokenId', {
-      params: TokenIdParams,
-      success: RevokedResponse,
-      error: WORKSPACE_ERRORS
-    })
-  )
-
-export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
-  HttpApiEndpoint.post('create', '/workspaces/:slug/webhooks', {
-    params: SlugParams,
-    payload: CreateWebhookEndpointPayload,
-    success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
-    error: [InvalidWebhookUrl, ...WORKSPACE_ERRORS]
-  })
-)
-
-export const SendInvitationPayload = Schema.Struct({
-  to: Schema.String.check(
-    Schema.isMinLength(3),
-    Schema.isMaxLength(320),
-    Schema.isPattern(/^[^\s@]+@[^\s@]+$/)
-  )
-})
-export type SendInvitationPayload = typeof SendInvitationPayload.Type
-
-export const InvitationApi = HttpApiGroup.make('workspace-invitations').add(
-  HttpApiEndpoint.post('send', '/workspaces/:slug/invitations', {
-    params: SlugParams,
-    payload: SendInvitationPayload,
-    success: Schema.Struct({
-      status: Schema.Literal('queued'),
-      delivery: Schema.Unknown
-    }).pipe(HttpApiSchema.status(202)),
-    error: WORKSPACE_ERRORS
-  })
-)
-
-export const CatalogApi = HttpApiGroup.make('catalog')
-  .add(
-    HttpApiEndpoint.get('modules', '/catalog/modules', {
-      success: Schema.Array(StarterModule),
-      error: PROTECTED_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('refresh-history', '/catalog/refresh-history', {
-      success: Schema.Array(CatalogRefreshRun),
-      error: PROTECTED_ERRORS
-    })
-  )
-
-export const AssistantApi = HttpApiGroup.make('assistant').add(
-  HttpApiEndpoint.post('answer', '/assistant/answer', {
-    payload: AssistantPrompt,
-    success: Schema.Struct({
-      answer: AssistantReply.fields.answer,
-      provider: AssistantProvider,
-      modelId: AssistantReply.fields.modelId,
-      usedTools: AssistantReply.fields.usedTools,
-      assistantConfigured: Schema.Boolean
+export const TransactionalEmailCallbackApi = HttpApiGroup.make(
+  'transactional-email-callback'
+).add(
+  HttpApiEndpoint.post('receive', '/callbacks/email/transactional', {
+    headers: Schema.Struct({
+      'webhook-signature': Schema.String,
+      'webhook-timestamp': Schema.String
     }),
-    error: [...PROTECTED_ERRORS, AssistantUnavailable]
+    payload: Schema.String.pipe(
+      HttpApiSchema.asText({ contentType: 'application/json' })
+    ),
+    success: Schema.Struct({
+      outcome: Schema.Literals([
+        'applied',
+        'duplicate',
+        'ignored',
+        'out_of_order',
+        'pending'
+      ])
+    }).pipe(HttpApiSchema.status(202)),
+    error: [TransactionalEmailCallbackInvalid, TransactionalEmailCallbackUnavailable]
   })
 )
-
-export const McpToolDescriptor = Schema.Struct({
-  name: Schema.String,
-  description: Schema.String,
-  inputSchema: Schema.Record(Schema.String, Schema.Unknown)
-})
-export type McpToolDescriptor = typeof McpToolDescriptor.Type
-
-export const McpDiscovery = Schema.Struct({
-  name: Schema.String,
-  resources: Schema.Array(Schema.String),
-  tools: Schema.Array(McpToolDescriptor)
-})
-export type McpDiscovery = typeof McpDiscovery.Type
-
-export const McpApi = HttpApiGroup.make('mcp').add(
-  HttpApiEndpoint.get('discover', '/mcp', {
-    success: McpDiscovery,
-    error: PROTECTED_ERRORS
+export const MerchantApi = HttpApiGroup.make('merchant').add(
+  HttpApiEndpoint.get('get', '/v1/merchant', {
+    success: Data(PlatformMerchant),
+    error: AUTH_ERRORS
   })
 )
+export const ServicesApi = HttpApiGroup.make('services')
+  .add(
+    HttpApiEndpoint.get('list', '/v1/services', {
+      query: CatalogQuery,
+      success: Page(PlatformService),
+      error: LIST_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.get('get', '/v1/services/:serviceId', {
+      params: ServiceParams,
+      success: Data(PlatformService),
+      error: READ_ERRORS
+    })
+  )
+export const ProvidersApi = HttpApiGroup.make('providers')
+  .add(
+    HttpApiEndpoint.get('list', '/v1/providers', {
+      query: CatalogQuery,
+      success: Page(PlatformProvider),
+      error: LIST_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.get('get', '/v1/providers/:providerId', {
+      params: ProviderParams,
+      success: Data(PlatformProvider),
+      error: READ_ERRORS
+    })
+  )
+export const AppointmentsApi = HttpApiGroup.make('appointments')
+  .add(
+    HttpApiEndpoint.get('list', '/v1/appointments', {
+      query: AppointmentQuery,
+      success: Page(PlatformAppointment),
+      error: LIST_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.get('get', '/v1/appointments/:appointmentId', {
+      params: AppointmentParams,
+      success: Data(PlatformAppointment),
+      error: READ_ERRORS
+    })
+  )
 
-export const ModuleStatusDto = ModuleStatus
+const TokenQuery = Schema.Struct({
+  status: Schema.optional(Schema.Array(PlatformApiTokenStatus)),
+  cursor: Schema.optional(Schema.String),
+  limit: Schema.optional(Schema.NumberFromString)
+})
+const TokenCreate = Schema.Struct({
+  name: Schema.String,
+  scopes: Schema.Array(PlatformApiTokenScope),
+  expiresAt: Schema.NullOr(Schema.String)
+})
+const CreatedToken = Schema.Struct({ ...PlatformApiToken.fields, token: Schema.String })
+const TOKEN_ERRORS = [
+  ...AUTH_ERRORS,
+  PlatformScopeEscalationDenied,
+  PlatformInvalidRequest
+] as const
+export const PlatformApiTokenApi = HttpApiGroup.make('platform-api-tokens')
+  .add(
+    HttpApiEndpoint.get('list', '/v1/api-tokens', {
+      query: TokenQuery,
+      success: Page(PlatformApiToken),
+      error: TOKEN_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.post('create', '/v1/api-tokens', {
+      payload: TokenCreate,
+      success: CreatedToken.pipe(HttpApiSchema.status(201)),
+      error: TOKEN_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.delete('revoke', '/v1/api-tokens/:tokenId', {
+      params: TokenParams,
+      success: Schema.Void.pipe(HttpApiSchema.status(204)),
+      error: TOKEN_ERRORS
+    })
+  )
 
-export const StarterApi = HttpApi.make('b2b-saas-starter')
+const WebhookQuery = Schema.Struct({
+  status: Schema.optional(
+    Schema.Union([
+      PlatformWebhookEndpointStatus,
+      Schema.Array(PlatformWebhookEndpointStatus)
+    ])
+  ),
+  cursor: Schema.optional(Schema.String),
+  limit: Schema.optional(Schema.NumberFromString)
+})
+const WebhookPayload = Schema.Struct({
+  url: Schema.String,
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  eventTypes: Schema.Array(AppointmentWebhookEvent)
+})
+const WebhookPatch = Schema.Struct({
+  url: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  eventTypes: Schema.optional(Schema.Array(AppointmentWebhookEvent))
+})
+const DeliveryQuery = Schema.Struct({
+  status: Schema.optional(
+    Schema.Union([
+      Schema.Literals([
+        'delivered',
+        'failed_retryable',
+        'failed_permanent',
+        'dead_lettered'
+      ]),
+      Schema.Array(
+        Schema.Literals([
+          'delivered',
+          'failed_retryable',
+          'failed_permanent',
+          'dead_lettered'
+        ])
+      )
+    ])
+  ),
+  eventId: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
+  attemptedAtFrom: Schema.optional(TimestampQuery),
+  cursor: Schema.optional(Schema.String),
+  limit: Schema.optional(Schema.NumberFromString)
+})
+const WEBHOOK_ERRORS = [
+  ...AUTH_ERRORS,
+  PlatformInvalidRequest,
+  PlatformInvalidCursor,
+  PlatformInvalidWebhookUrl,
+  PlatformWebhookEndpointDisabled,
+  PlatformResourceNotFound
+] as const
+export const PlatformWebhookApi = HttpApiGroup.make('platform-webhooks')
+  .add(
+    HttpApiEndpoint.get('list', '/v1/webhook-endpoints', {
+      query: WebhookQuery,
+      success: Page(PlatformWebhookEndpoint),
+      error: WEBHOOK_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.post('create', '/v1/webhook-endpoints', {
+      payload: WebhookPayload,
+      success: Schema.Struct({
+        data: PlatformWebhookEndpoint,
+        signingSecret: Schema.String
+      }).pipe(HttpApiSchema.status(201)),
+      error: WEBHOOK_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.patch('patch', '/v1/webhook-endpoints/:endpointId', {
+      params: WebhookParams,
+      payload: WebhookPatch,
+      success: Data(PlatformWebhookEndpoint),
+      error: WEBHOOK_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.delete('disable', '/v1/webhook-endpoints/:endpointId', {
+      params: WebhookParams,
+      success: Schema.Void.pipe(HttpApiSchema.status(204)),
+      error: WEBHOOK_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.post('rotate', '/v1/webhook-endpoints/:endpointId/rotate-secret', {
+      params: WebhookParams,
+      success: Schema.Struct({ signingSecret: Schema.String }),
+      error: WEBHOOK_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.get('deliveries', '/v1/webhook-endpoints/:endpointId/deliveries', {
+      params: WebhookParams,
+      query: DeliveryQuery,
+      success: Page(PlatformWebhookDeliveryAttempt),
+      error: WEBHOOK_ERRORS
+    })
+  )
+
+export const BookingProductApi = HttpApi.make('booking-product-platform-api')
   .add(HealthApi)
-  .add(WorkspaceApi)
-  .add(ApiTokenApi)
-  .add(WebhookApi)
-  .add(InvitationApi)
-  .add(CatalogApi)
-  .add(AssistantApi)
-  .add(McpApi)
+  .add(TransactionalEmailCallbackApi)
+  .add(MerchantApi)
+  .add(ServicesApi)
+  .add(ProvidersApi)
+  .add(AppointmentsApi)
+  .add(PlatformApiTokenApi)
+  .add(PlatformWebhookApi)
   .annotateMerge(
     OpenApi.annotations({
-      title: 'B2B SaaS Starter API',
-      version: '0.1.0',
+      title: 'Booking Product Platform API',
+      version: '1.0.0',
       description:
-        'Capability Interface surface for the starter. REST endpoints, MCP discovery (`GET /mcp`), and the assistant share the same capability layer. All routes except `/health` require an `Authorization: Bearer <token>` API token.',
+        'Merchant-scoped, read-only booking data and developer configuration.',
       servers: [{ url: '/', description: 'This worker' }]
     })
   )

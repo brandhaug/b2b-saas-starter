@@ -1,0 +1,43 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1920" height="1080" fill="url(#sky)" />
+  <g filter="url(#soft)">
+    <ellipse cx="105" cy="240" rx="210" ry="122" fill="white" fill-opacity="0.88" />
+    <ellipse cx="26" cy="188" rx="122" ry="102" fill="white" fill-opacity="0.92" />
+    <ellipse cx="164" cy="158" rx="140" ry="124" fill="white" fill-opacity="0.9" />
+    <ellipse cx="314" cy="224" rx="155" ry="94" fill="white" fill-opacity="0.76" />
+  </g>
+  <g filter="url(#soft)">
+    <ellipse cx="1770" cy="212" rx="212" ry="118" fill="white" fill-opacity="0.86" />
+    <ellipse cx="1628" cy="212" rx="146" ry="102" fill="white" fill-opacity="0.74" />
+    <ellipse cx="1742" cy="128" rx="144" ry="124" fill="white" fill-opacity="0.9" />
+    <ellipse cx="1905" cy="166" rx="132" ry="98" fill="white" fill-opacity="0.82" />
+  </g>
+  <g filter="url(#soft)">
+    <ellipse cx="142" cy="782" rx="190" ry="72" fill="white" fill-opacity="0.2" />
+    <ellipse cx="1788" cy="788" rx="210" ry="78" fill="white" fill-opacity="0.2" />
+  </g>
+  <g filter="url(#mist)">
+    <ellipse cx="960" cy="585" rx="482" ry="256" fill="white" fill-opacity="0.16" />
+    <ellipse cx="514" cy="653" rx="350" ry="210" fill="white" fill-opacity="0.1" />
+    <ellipse cx="1442" cy="650" rx="340" ry="205" fill="white" fill-opacity="0.11" />
+  </g>
+  <path d="M0 878C275 916 480 930 719 904C1002 873 1257 830 1517 862C1663 880 1790 920 1920 957V1080H0V878Z" fill="url(#horizon)" />
+  <defs>
+    <linearGradient id="sky" x1="960" y1="0" x2="960" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C6E8FF" />
+      <stop offset="0.48" stop-color="#E8F6FF" />
+      <stop offset="1" stop-color="#FFFFFF" />
+    </linearGradient>
+    <linearGradient id="horizon" x1="960" y1="820" x2="960" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.52" />
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.84" />
+      <stop offset="1" stop-color="#FFFFFF" />
+    </linearGradient>
+    <filter id="soft" x="-190" y="-110" width="2300" height="990" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10" />
+    </filter>
+    <filter id="mist" x="50" y="240" width="1820" height="720" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="52" />
+    </filter>
+  </defs>
+</svg>

@@ -18,4 +18,4 @@ Both are Optional Provider Modules. `SENTRY_DSN` and `POSTHOG_KEY` are recognize
 
 ## Audit Events vs. wide events
 
-Wide events are operational and ephemeral. Audit Events are persisted in the `audit_events` D1 table and exposed via `AuditEventLog.list` (with `WorkspaceContext`) and `AuditEventLog.listGlobal`. Today `/admin` lists global events; a per-workspace audit UI is planned. The two streams coexist: any request that emits a wide event may also create an Audit Event when the action is governance-sensitive (plan change, member role change, token revocation, webhook endpoint update).
+Wide events are operational and ephemeral. Merchant-scoped Audit Events remain persisted governance facts. Global Operations evidence is stored durably and reviewed only through the permission-protected Operations App `/audit` surface; internal impersonation reasons and support references never enter ordinary logs. The streams coexist because a request can need operational diagnostics and durable security evidence without making either stream serve both purposes.

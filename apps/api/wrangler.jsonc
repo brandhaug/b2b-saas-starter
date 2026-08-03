@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "b2b-saas-starter-api",
   "main": "src/index.ts",
+  "workers_dev": false,
   "compatibility_date": "2026-05-16",
   "observability": {
     "enabled": true,
@@ -17,51 +18,32 @@
       "database_id": "placeholder"
     }
   ],
-  "ai": {
-    "binding": "AI"
-  },
   "queues": {
     "producers": [
       {
-        "binding": "WEBHOOK_QUEUE",
-        "queue": "b2b-saas-starter-webhooks"
+        "binding": "BOOKING_EVENTS_QUEUE",
+        "queue": "b2b-saas-starter-booking-events"
       }
     ]
-  },
-  "vars": {
-    "WORKERS_AI_ENABLED": "false",
-    "CLOUDFLARE_EMAIL_FROM": "noreply@example.com"
   },
   "unsafe": {
     "bindings": [
       {
-        "name": "RATE_LIMITER_REST",
+        "name": "RATE_LIMITER_DATA_READ",
         "type": "ratelimit",
-        "namespace_id": "1001",
+        "namespace_id": "1006",
         "simple": { "limit": 60, "period": 60 }
       },
       {
-        "name": "RATE_LIMITER_REST_WRITE",
+        "name": "RATE_LIMITER_DEVELOPER_CONFIG",
         "type": "ratelimit",
-        "namespace_id": "1002",
+        "namespace_id": "1007",
         "simple": { "limit": 20, "period": 60 }
       },
       {
-        "name": "RATE_LIMITER_INVITATIONS",
+        "name": "RATE_LIMITER_AUTH_FAILURE",
         "type": "ratelimit",
-        "namespace_id": "1003",
-        "simple": { "limit": 10, "period": 60 }
-      },
-      {
-        "name": "RATE_LIMITER_ASSISTANT",
-        "type": "ratelimit",
-        "namespace_id": "1004",
-        "simple": { "limit": 20, "period": 60 }
-      },
-      {
-        "name": "RATE_LIMITER_MCP",
-        "type": "ratelimit",
-        "namespace_id": "1005",
+        "namespace_id": "1008",
         "simple": { "limit": 30, "period": 60 }
       }
     ]

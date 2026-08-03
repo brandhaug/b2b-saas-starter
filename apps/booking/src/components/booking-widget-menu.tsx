@@ -1,0 +1,509 @@
+import * as stylex from '@stylexjs/stylex'
+import { useEffect, useRef, useState } from 'react'
+import { BookingIcon } from '../presentation/booking-icon.tsx'
+import {
+  BOOKING_LANGUAGE_NAMES,
+  type BookingLocale
+} from '../localization/booking-localization.ts'
+import { useBookingLocalization } from '../localization/booking-localization-provider.tsx'
+import { BookingPopupSheet } from '../presentation/booking-primitives.tsx'
+import { bookingTheme } from '../presentation/booking-theme.stylex.ts'
+
+const LEGACY_BOOKING_MENU_LOCALES = ['en', 'fr', 'es'] as const
+
+const styles = stylex.create({
+  trigger: {
+    display: 'grid',
+    width: 32,
+    height: 32,
+    placeItems: 'center',
+    padding: 0,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: {
+      default: bookingTheme.colorCartAuxBorderLight,
+      '@media (hover: hover)': {
+        default: bookingTheme.colorCartAuxBorderLight,
+        ':hover': 'rgb(225 225 225)'
+      }
+    },
+    borderRadius: 16,
+    backgroundColor: {
+      default: 'transparent',
+      '@media (hover: hover)': {
+        default: 'transparent',
+        ':hover': bookingTheme.colorSurface
+      },
+      ':active': 'rgb(238 238 238)'
+    },
+    color: bookingTheme.colorText,
+    boxShadow: {
+      default: '0 4px 16px -5px rgb(0 0 0 / 0%)',
+      '@media (hover: hover)': {
+        default: '0 4px 16px -5px rgb(0 0 0 / 0%)',
+        ':hover': '0 4px 16px -5px rgb(0 0 0 / 10%)'
+      }
+    },
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color, box-shadow',
+    transitionDuration: '150ms'
+  },
+  triggerIcon: { width: 10, height: 10 },
+  header: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 24,
+    paddingRight: 16,
+    paddingBottom: 24,
+    paddingLeft: 16
+  },
+  languageControl: { position: 'relative', width: 57, height: 26 },
+  languageButton: {
+    display: 'flex',
+    height: 28,
+    alignItems: 'center',
+    gap: 4,
+    paddingRight: 12,
+    paddingLeft: 12,
+    borderWidth: {
+      default: 1,
+      '@media (hover: hover)': { default: 1, ':hover': 0.5 }
+    },
+    borderStyle: 'solid',
+    borderColor: {
+      default: bookingTheme.colorCartAuxBorderLight,
+      '@media (hover: hover)': {
+        default: bookingTheme.colorCartAuxBorderLight,
+        ':hover': 'rgb(225 225 225)'
+      }
+    },
+    borderRadius: 16,
+    backgroundColor: {
+      default: 'transparent',
+      '@media (hover: hover)': { default: 'transparent', ':hover': '#ffffff' }
+    },
+    color: bookingTheme.secondaryFontA100,
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': {
+        default: 'none',
+        ':hover': '0 8px 16px -5px rgb(0 0 0 / 10%)'
+      }
+    },
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: '16px',
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color, box-shadow',
+    transitionDuration: '300ms'
+  },
+  globe: { width: 12, height: 12, color: '#000000' },
+  languageList: {
+    position: 'absolute',
+    top: 30,
+    left: 0,
+    minWidth: 96,
+    overflow: 'hidden',
+    paddingTop: 8,
+    paddingBottom: 8,
+    borderWidth: 0.5,
+    borderStyle: 'solid',
+    borderColor: 'rgb(225 225 225)',
+    borderRadius: 16,
+    backgroundColor: bookingTheme.colorSurface,
+    boxShadow: '0 8px 16px rgb(0 0 0 / 10%)'
+  },
+  languageOption: {
+    position: 'relative',
+    top: 0,
+    zIndex: 1,
+    display: 'flex',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 20,
+    paddingTop: 8,
+    paddingRight: 16,
+    paddingBottom: 8,
+    paddingLeft: 16,
+    borderWidth: 0,
+    backgroundColor: { default: '#ffffff', ':hover': '#f7f7f7' },
+    color: bookingTheme.colorText,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: 15,
+    lineHeight: '18px',
+    letterSpacing: '-0.24px',
+    textAlign: 'left',
+    cursor: 'pointer',
+    transitionProperty: 'all',
+    transitionDuration: '150ms',
+    transitionTimingFunction: 'linear'
+  },
+  closeButton: {
+    display: 'grid',
+    width: 28,
+    height: 28,
+    placeItems: 'center',
+    padding: 0,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: {
+      default: bookingTheme.colorCartAuxBorderLight,
+      '@media (hover: hover)': {
+        default: bookingTheme.colorCartAuxBorderLight,
+        ':hover': 'rgb(225 225 225)'
+      }
+    },
+    borderRadius: 14,
+    backgroundColor: {
+      default: bookingTheme.colorSurface,
+      ':active': 'rgb(238 238 238)'
+    },
+    color: bookingTheme.colorText,
+    boxShadow: {
+      default: '0 4px 16px -5px rgb(0 0 0 / 0%)',
+      '@media (hover: hover)': {
+        default: '0 4px 16px -5px rgb(0 0 0 / 0%)',
+        ':hover': '0 4px 16px -5px rgb(0 0 0 / 10%)'
+      }
+    },
+    cursor: 'pointer',
+    transitionProperty: 'background-color, border-color, box-shadow',
+    transitionDuration: '150ms'
+  },
+  closeIcon: { width: 14, height: 14 },
+  body: {
+    paddingTop: 8,
+    paddingRight: 16,
+    paddingBottom: 32,
+    paddingLeft: 16
+  },
+  hero: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 24
+  },
+  heroCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6
+  },
+  accountIcon: {
+    display: 'grid',
+    width: 72,
+    height: 72,
+    placeItems: 'center',
+    borderRadius: 36,
+    color: bookingTheme.colorText
+  },
+  accountIconSvg: { width: 72, height: 72 },
+  title: {
+    marginTop: 0,
+    marginBottom: 0,
+    paddingRight: 24,
+    paddingLeft: 24,
+    fontFamily: bookingTheme.fontLegacyDisplay,
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: '24px',
+    letterSpacing: '0.75px',
+    textAlign: 'center'
+  },
+  subtitle: {
+    marginTop: 0,
+    marginBottom: 0,
+    paddingRight: 24,
+    paddingLeft: 24,
+    color: bookingTheme.colorTertiaryLabel,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: bookingTheme.textFootnote,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px',
+    textAlign: 'center'
+  },
+  bodySpacer: { height: 40 },
+  authControls: {
+    display: 'grid',
+    width: '100%',
+    gap: 12
+  },
+  authButton: {
+    display: 'flex',
+    width: '100%',
+    minHeight: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingRight: 16,
+    paddingLeft: 16,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: {
+      default: bookingTheme.colorCartAuxBorderLight,
+      ':active': bookingTheme.colorCartAuxBorderLight
+    },
+    borderRadius: 12,
+    backgroundColor: {
+      default: 'transparent',
+      '@media (hover: hover)': { default: 'transparent', ':hover': '#ffffff' },
+      ':active': 'rgb(238 238 238)'
+    },
+    color: bookingTheme.colorText,
+    boxShadow: {
+      default: 'none',
+      '@media (hover: hover)': {
+        default: 'none',
+        ':hover': '0 4px 16px -5px rgb(0 0 0 / 10%)'
+      },
+      ':active': 'none'
+    },
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: bookingTheme.textBody,
+    fontWeight: bookingTheme.fontWeightSemibold,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px'
+  },
+  authButtonPrimary: {
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: bookingTheme.colorPrimary,
+    color: bookingTheme.colorPrimaryFont
+  },
+  authProviderIcon: { minWidth: 14, fontSize: 14, lineHeight: '14px' },
+  googleIcon: { color: '#4285f4', fontWeight: bookingTheme.fontWeightSemibold },
+  footerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 8
+  },
+  footerRowSecondary: {
+    marginTop: 4
+  },
+  footerCopy: {
+    margin: 0,
+    color: bookingTheme.colorTertiaryLabel,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: bookingTheme.textFootnote,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
+  },
+  footerButton: {
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: bookingTheme.colorLink,
+    fontFamily: bookingTheme.fontLegacyText,
+    fontSize: bookingTheme.textFootnote,
+    lineHeight: '18px',
+    letterSpacing: '-0.078px'
+  }
+})
+
+export function BookingWidgetMenu({
+  open: controlledOpen,
+  onOpenChange
+}: {
+  readonly open?: boolean
+  readonly onOpenChange?: (open: boolean) => void
+} = {}) {
+  const { locale, setLocale, message } = useBookingLocalization()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const [languageOpen, setLanguageOpen] = useState(false)
+  const [popupTarget, setPopupTarget] = useState<HTMLElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const languagePickerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const closeLanguagePicker = (event: MouseEvent) => {
+      if (
+        languagePickerRef.current &&
+        !event.composedPath().includes(languagePickerRef.current)
+      )
+        setLanguageOpen(false)
+    }
+    document.addEventListener('click', closeLanguagePicker)
+    return () => document.removeEventListener('click', closeLanguagePicker)
+  }, [])
+  useEffect(() => {
+    if (open && !popupTarget)
+      setPopupTarget(
+        triggerRef.current?.closest<HTMLElement>('[data-booking-shell="canonical"]') ??
+          document.body
+      )
+  }, [open, popupTarget])
+  const setOpen = (nextOpen: boolean) => {
+    setInternalOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
+  const close = () => {
+    setLanguageOpen(false)
+    setOpen(false)
+  }
+
+  const header = (
+    <div {...stylex.props(styles.header)}>
+      <div ref={languagePickerRef} {...stylex.props(styles.languageControl)}>
+        <button
+          type="button"
+          aria-label={`${message('label.language')}: ${BOOKING_LANGUAGE_NAMES[locale]}`}
+          aria-expanded={languageOpen}
+          data-testid="btn:language-selector"
+          onClick={() => setLanguageOpen((value) => !value)}
+          {...stylex.props(styles.languageButton)}
+        >
+          <BookingIcon iconRole="language-selector" {...stylex.props(styles.globe)} />
+          {locale.toUpperCase()}
+        </button>
+        {languageOpen ? (
+          <div {...stylex.props(styles.languageList)}>
+            {LEGACY_BOOKING_MENU_LOCALES.map((value) => (
+              <button
+                key={value}
+                type="button"
+                data-testid={`lang:${value}`}
+                onClick={() => {
+                  setLocale(value as BookingLocale)
+                  setLanguageOpen(false)
+                }}
+                {...stylex.props(styles.languageOption)}
+              >
+                {BOOKING_LANGUAGE_NAMES[value]}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        aria-label={message('action.close_menu')}
+        data-testid="btn:closePopup"
+        onClick={close}
+        {...stylex.props(styles.closeButton)}
+      >
+        <BookingIcon iconRole="dismiss" {...stylex.props(styles.closeIcon)} />
+      </button>
+    </div>
+  )
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={message('label.booking_menu')}
+        aria-expanded={open}
+        data-testid="btn:menu"
+        onClick={() => {
+          setPopupTarget(
+            triggerRef.current?.closest<HTMLElement>(
+              '[data-booking-shell="canonical"]'
+            ) ?? document.body
+          )
+          setOpen(!open)
+        }}
+        {...stylex.props(styles.trigger)}
+      >
+        <BookingIcon iconRole="navigation-menu" {...stylex.props(styles.triggerIcon)} />
+      </button>
+      <BookingPopupSheet
+        target={popupTarget}
+        open={open}
+        label={message('label.booking_menu')}
+        onClose={close}
+        testId="popup:booking-menu"
+        header={header}
+      >
+        <div {...stylex.props(styles.body)}>
+          <div {...stylex.props(styles.hero)}>
+            <div aria-hidden="true" {...stylex.props(styles.accountIcon)}>
+              <BookingIcon
+                iconRole="sign-in-cta"
+                {...stylex.props(styles.accountIconSvg)}
+              />
+            </div>
+            <div {...stylex.props(styles.heroCopy)}>
+              <p {...stylex.props(styles.title)}>{message('menu.sign_in_title')}</p>
+              <p {...stylex.props(styles.subtitle)}>
+                {message('menu.sign_in_subtitle')}
+              </p>
+            </div>
+          </div>
+          <div aria-hidden="true" {...stylex.props(styles.bodySpacer)} />
+          <div {...stylex.props(styles.authControls)}>
+            <button
+              type="button"
+              disabled
+              data-testid="btn:useEmail"
+              {...stylex.props(styles.authButton, styles.authButtonPrimary)}
+            >
+              {message('menu.sign_in_email')}
+            </button>
+            <button
+              type="button"
+              disabled
+              data-testid="btn:useApple"
+              {...stylex.props(styles.authButton)}
+            >
+              <span aria-hidden="true">
+                <BookingIcon
+                  iconRole="identity-apple"
+                  label=""
+                  {...stylex.props(styles.authProviderIcon)}
+                />
+              </span>
+              {message('menu.sign_in_apple')}
+            </button>
+            <button
+              type="button"
+              disabled
+              data-testid="btn:useGoogle"
+              {...stylex.props(styles.authButton)}
+            >
+              <span aria-hidden="true">
+                <BookingIcon
+                  iconRole="identity-google"
+                  label="G"
+                  {...stylex.props(styles.authProviderIcon, styles.googleIcon)}
+                />
+              </span>
+              {message('menu.sign_in_google')}
+            </button>
+          </div>
+          <div {...stylex.props(styles.footerRow)}>
+            <p {...stylex.props(styles.footerCopy)}>
+              {message('menu.create_account_copy')}
+            </p>
+            <button
+              type="button"
+              disabled
+              data-testid="btn:createAccount"
+              {...stylex.props(styles.footerButton)}
+            >
+              {message('menu.create_account')}
+            </button>
+          </div>
+          <div {...stylex.props(styles.footerRow, styles.footerRowSecondary)}>
+            <p {...stylex.props(styles.footerCopy)}>
+              {message('menu.manage_choices_copy')}
+            </p>
+            <button
+              type="button"
+              disabled
+              data-testid="btn:manageChoices"
+              {...stylex.props(styles.footerButton)}
+            >
+              {message('menu.manage_choices')}
+            </button>
+          </div>
+        </div>
+      </BookingPopupSheet>
+    </>
+  )
+}

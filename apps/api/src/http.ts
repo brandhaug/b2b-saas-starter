@@ -1,21 +1,23 @@
 import { FileSystem, Layer, Path } from 'effect'
 import { Etag, HttpPlatform, HttpRouter } from 'effect/unstable/http'
 import { HttpApiBuilder, HttpApiScalar } from 'effect/unstable/httpapi'
-import { selectAssistantLayer } from '@b2b-saas-starter/ai'
-import { StarterApi } from '@b2b-saas-starter/api'
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities'
-import { selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
-import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
-import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
+import { BookingProductApi } from '@b2b-saas-starter/api'
 import {
-  apiTokenGroup,
-  assistantGroup,
-  catalogGroup,
+  SeedLayer,
+  selectCapabilitiesLayer,
+  type CapabilitiesLayer
+} from '@b2b-saas-starter/capabilities/runtime'
+import { newTraceId, TRACE_HEADER, WideEventLoggerLive } from '@b2b-saas-starter/logger'
+import { bookingProductEnv, type ApiEnv } from './env.ts'
+import {
+  appointmentsGroup,
   healthGroup,
-  invitationGroup,
-  mcpGroup,
-  webhookGroup,
-  workspaceGroup
+  merchantGroup,
+  platformApiTokenGroup,
+  platformWebhookGroup,
+  providersGroup,
+  servicesGroup,
+  transactionalEmailCallbackGroup
 } from './handlers.ts'
 import { makeRateLimiterLayer } from './rate-limit.ts'
 
@@ -31,37 +33,32 @@ const PlatformLive = Layer.mergeAll(
 )
 
 const makeApiLayer = (
-  env: ApiEnv
+  env: ApiEnv,
+  capabilityLayer?: CapabilitiesLayer
 ): Layer.Layer<never, never, HttpRouter.HttpRouter> => {
-  const fromAddress = emailFromAddress(env)
   const capabilities = Layer.mergeAll(
-    selectCapabilitiesLayer(starterEnv(env)),
-    selectAssistantLayer(providerEnv(env)),
-    selectEmailDispatcherLayer({
-      ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
-      ...(fromAddress ? { EMAIL_FROM_ADDRESS: fromAddress } : {})
-    }),
+    capabilityLayer ?? selectCapabilitiesLayer(bookingProductEnv(env)),
     makeRateLimiterLayer(env)
   )
 
   const groups = Layer.mergeAll(
     healthGroup(env),
-    workspaceGroup(env),
-    apiTokenGroup(env),
-    webhookGroup(env),
-    invitationGroup(env),
-    catalogGroup(env),
-    assistantGroup(env),
-    mcpGroup(env)
+    transactionalEmailCallbackGroup(env),
+    merchantGroup(env),
+    servicesGroup(env),
+    providersGroup(env),
+    appointmentsGroup(env),
+    platformApiTokenGroup(env),
+    platformWebhookGroup(env)
   )
 
-  const api = HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' }).pipe(
-    Layer.provide(groups)
-  )
+  const api = HttpApiBuilder.layer(BookingProductApi, {
+    openapiPath: '/openapi.json'
+  }).pipe(Layer.provide(groups))
 
   return Layer.mergeAll(
     api,
-    HttpApiScalar.layer(StarterApi, { path: '/reference' })
+    HttpApiScalar.layer(BookingProductApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),
     Layer.provide(PlatformLive),
@@ -70,11 +67,95 @@ const makeApiLayer = (
 }
 
 export const buildWebHandler = (
-  env: ApiEnv
+  env: ApiEnv,
+  options?: { readonly useSeedLayerForTests?: boolean }
 ): {
   readonly handler: (request: Request) => Promise<Response>
   readonly dispose: () => Promise<void>
-} => HttpRouter.toWebHandler(makeApiLayer(env), { disableLogger: true })
+} => {
+  const built = HttpRouter.toWebHandler(
+    makeApiLayer(env, options?.useSeedLayerForTests ? SeedLayer : undefined),
+    { disableLogger: true }
+  )
+  return {
+    dispose: built.dispose,
+    handler: async (request: Request) => {
+      const pathname = new URL(request.url).pathname
+      if (
+        pathname.startsWith('/v1/') &&
+        request.method === 'POST' &&
+        (await request.clone().arrayBuffer()).byteLength > 16 * 1024
+      ) {
+        return Response.json(
+          {
+            error: {
+              code: 'invalid_request',
+              message: 'The request is invalid.',
+              traceId: request.headers.get(TRACE_HEADER) ?? newTraceId(),
+              details: { body: 'maximum_16_kib' }
+            }
+          },
+          { status: 400 }
+        )
+      }
+      const response = await built.handler(request)
+      if (!pathname.startsWith('/v1/')) return response
+      const headers = new Headers(response.headers)
+      if (response.status === 401) headers.set('WWW-Authenticate', 'Bearer')
+      if (response.status === 429) headers.set('Retry-After', '60')
+      if (request.headers.has('authorization')) {
+        headers.set('Cache-Control', 'private, no-store')
+      }
+      headers.delete('Access-Control-Allow-Origin')
+      headers.delete('X-RateLimit-Remaining')
+      if (!response.ok) {
+        const current = await response
+          .clone()
+          .json()
+          .catch(() => null)
+        if (!current || typeof current !== 'object' || !('error' in current)) {
+          const code =
+            response.status === 429
+              ? 'rate_limited'
+              : response.status === 400
+                ? 'invalid_request'
+                : response.status >= 500
+                  ? 'capability_unavailable'
+                  : 'request_failed'
+          const currentBucket =
+            current &&
+            typeof current === 'object' &&
+            'bucket' in current &&
+            typeof current.bucket === 'string'
+              ? current.bucket
+              : undefined
+          return Response.json(
+            {
+              error: {
+                code,
+                message:
+                  response.status === 429
+                    ? 'Rate limit exceeded.'
+                    : 'The request failed.',
+                traceId: request.headers.get(TRACE_HEADER) ?? newTraceId(),
+                details:
+                  response.status === 429
+                    ? { bucket: currentBucket ?? 'data_read' }
+                    : {}
+              }
+            },
+            { status: response.status, headers }
+          )
+        }
+      }
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      })
+    }
+  }
+}
 
 let cached: ((request: Request) => Promise<Response>) | undefined
 export const getWebHandler = (

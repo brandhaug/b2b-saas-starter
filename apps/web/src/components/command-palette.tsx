@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { SearchIcon } from 'lucide-react'
 import { publicLinks } from '@/lib/content'
 import {
@@ -16,10 +16,6 @@ import { CommandPaletteContext } from '@/lib/command-palette-context'
 export function CommandPaletteProvider({ children }: { readonly children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  // Target the current workspace when inside one; outside a workspace the
-  // command falls back to the workspace list — never a hardcoded workspace.
-  const params = useParams({ strict: false })
-  const workspaceSlug = params.workspaceSlug
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -52,29 +48,6 @@ export function CommandPaletteProvider({ children }: { readonly children: ReactN
               </CommandItem>
             ))}
           </CommandGroup>
-          <CommandGroup heading="Workspace">
-            <CommandItem
-              onSelect={() => {
-                setOpen(false)
-                void (workspaceSlug
-                  ? navigate({
-                      to: '/workspaces/$workspaceSlug',
-                      params: { workspaceSlug }
-                    })
-                  : navigate({ to: '/workspaces' }))
-              }}
-            >
-              {workspaceSlug ? 'Open workspace overview' : 'Open workspaces'}
-            </CommandItem>
-            <CommandItem
-              onSelect={() => {
-                setOpen(false)
-                void navigate({ to: '/admin' })
-              }}
-            >
-              Open admin dashboard
-            </CommandItem>
-          </CommandGroup>
         </CommandList>
       </CommandDialog>
     </CommandPaletteContext>
@@ -82,12 +55,6 @@ export function CommandPaletteProvider({ children }: { readonly children: ReactN
 }
 
 export function SearchButton() {
-  const [isMac, setIsMac] = useState(true)
-
-  useEffect(() => {
-    setIsMac(navigator.platform.toUpperCase().includes('MAC'))
-  }, [])
-
   return (
     <CommandPaletteContext.Consumer>
       {(value) => (
@@ -99,9 +66,7 @@ export function SearchButton() {
         >
           <SearchIcon className="size-4" />
           <span className="flex-1 text-left">Search...</span>
-          <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-            {isMac ? '⌘K' : 'Ctrl K'}
-          </kbd>
+          <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
         </button>
       )}
     </CommandPaletteContext.Consumer>

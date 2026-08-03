@@ -23,9 +23,9 @@ function CommandPalettePreview() {
             <CommandItem>FAQ</CommandItem>
           </CommandGroup>
           <CommandSeparator />
-          <CommandGroup heading="Workspace">
-            <CommandItem>Open Starter Lab</CommandItem>
-            <CommandItem>Open admin dashboard</CommandItem>
+          <CommandGroup heading="Applications">
+            <CommandItem>Open Merchant App</CommandItem>
+            <CommandItem>Open Operations App</CommandItem>
           </CommandGroup>
         </CommandList>
       </Command>

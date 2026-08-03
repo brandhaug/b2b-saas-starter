@@ -1,0 +1,58 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "b2b-saas-starter-booking",
+  "main": "src/server.ts",
+  "workers_dev": false,
+  "compatibility_date": "2026-05-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "PUBLIC_SITE_ORIGIN": "http://localhost:3071",
+    "CONFIRMATION_CURRENT_KEY_ID": "local-v1",
+    "CONFIRMATION_SIGNING_KEYS": "{\"local-v1\":\"replace-before-production-confirmation-key\"}",
+    "CUSTOMER_DIRECTORY_FINGERPRINT_KEY": "replace-before-production-directory-fingerprint-key",
+    "OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY": "replace-before-production-destination-encryption-key",
+    "OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY": "replace-before-production-destination-fingerprint-key",
+    "OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION": "1",
+    "PAYMENT_PROVIDER_NAME": "stripe",
+    "PAYMENT_PROVIDER_METHODS": "",
+    "CUSTOMER_GOOGLE_ENABLED": "false",
+    "CUSTOMER_GOOGLE_CLIENT_ID": "",
+    "CUSTOMER_APPLE_ENABLED": "false",
+    "CUSTOMER_APPLE_CLIENT_ID": ""
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "b2b-saas-starter",
+      "database_id": "placeholder"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "BOOKING_EVENTS_QUEUE",
+        "queue": "b2b-saas-starter-booking-events"
+      }
+    ]
+  },
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER_BOOKING_READ",
+        "type": "ratelimit",
+        "namespace_id": "4001",
+        "simple": { "limit": 120, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_BOOKING_WRITE",
+        "type": "ratelimit",
+        "namespace_id": "4002",
+        "simple": { "limit": 30, "period": 60 }
+      }
+    ]
+  }
+}

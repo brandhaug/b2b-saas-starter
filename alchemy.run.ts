@@ -4,13 +4,17 @@ import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import {
   apiRateLimits,
-  webhookConsumerSettings,
-  webhookDeadLetterQueueName,
-  webhookDlqConsumerSettings,
-  webhookQueueName,
-  webRateLimits,
+  bookingEventsConsumerSettings,
+  bookingEventsDeadLetterQueueName,
+  bookingEventsQueueName,
+  bookingRateLimits,
+  merchantRateLimits,
+  merchantImpersonationRateLimits,
+  operationsRateLimitEnvironment,
+  operationsRateLimits,
   type RateLimitBindingSpec
 } from './infra/bindings.ts'
+import { bookingProductWorkers } from './infra/topology.ts'
 import {
   optionalModuleEnvPlainKeys,
   optionalModuleEnvSecretKeys
@@ -55,20 +59,82 @@ function requiredEnv(name: string): string {
   return value
 }
 
+function requiredHostname(name: string): string {
+  const value = requiredEnv(name)
+  try {
+    const hostname = new URL(value).hostname
+    if (!hostname) throw new Error('origin has no hostname')
+    return hostname
+  } catch {
+    throw new Error(`Expected ${name} to be a valid origin URL`)
+  }
+}
+
 function optionalSecret(name: string) {
   const value = process.env[name]
   return value ? Redacted.make(value) : undefined
 }
 
-const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
-const BETTER_AUTH_URL = requiredEnv('BETTER_AUTH_URL')
-const BETTER_AUTH_TRUSTED_ORIGINS =
-  process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? BETTER_AUTH_URL
-// Optional: when unset, the SendEmail binding is skipped and the email
-// module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
-// read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalModuleEnv` below —
-// there is no second email var name.
-const CLOUDFLARE_EMAIL_FROM = process.env.CLOUDFLARE_EMAIL_FROM
+const merchantAuthSecret = requiredEnv('MERCHANT_AUTH_SECRET')
+const operationsAuthSecret = requiredEnv('OPERATIONS_AUTH_SECRET')
+if (merchantAuthSecret === operationsAuthSecret) {
+  throw new Error('OPERATIONS_AUTH_SECRET must be distinct from MERCHANT_AUTH_SECRET')
+}
+const MERCHANT_AUTH_SECRET = Redacted.make(merchantAuthSecret)
+const OPERATIONS_AUTH_SECRET = Redacted.make(operationsAuthSecret)
+const CONFIRMATION_SIGNING_KEYS = Redacted.make(
+  requiredEnv('CONFIRMATION_SIGNING_KEYS')
+)
+const CONFIRMATION_CURRENT_KEY_ID = requiredEnv('CONFIRMATION_CURRENT_KEY_ID')
+const CUSTOMER_DIRECTORY_FINGERPRINT_KEY = Redacted.make(
+  requiredEnv('CUSTOMER_DIRECTORY_FINGERPRINT_KEY')
+)
+const OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY = optionalSecret(
+  'OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY'
+)
+const OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY = optionalSecret(
+  'OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY'
+)
+const OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION =
+  process.env.OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION
+const META_WHATSAPP_ACCESS_TOKEN = optionalSecret('META_WHATSAPP_ACCESS_TOKEN')
+const META_WHATSAPP_APP_SECRET = optionalSecret('META_WHATSAPP_APP_SECRET')
+const META_WHATSAPP_WEBHOOK_VERIFY_TOKEN = optionalSecret(
+  'META_WHATSAPP_WEBHOOK_VERIFY_TOKEN'
+)
+const META_WHATSAPP_REFERENCE_ENCRYPTION_KEY = optionalSecret(
+  'META_WHATSAPP_REFERENCE_ENCRYPTION_KEY'
+)
+const META_WHATSAPP_REFERENCE_FINGERPRINT_KEY = optionalSecret(
+  'META_WHATSAPP_REFERENCE_FINGERPRINT_KEY'
+)
+const SMSO_API_KEY = optionalSecret('SMSO_API_KEY')
+const SMSO_CALLBACK_URL = optionalSecret('SMSO_CALLBACK_URL')
+const SMSO_CALLBACK_PATH_SECRET = optionalSecret('SMSO_CALLBACK_PATH_SECRET')
+const SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY = optionalSecret(
+  'SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY'
+)
+const SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY = optionalSecret(
+  'SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY'
+)
+const META_WHATSAPP_PROVIDER_ACCOUNT_KEY =
+  process.env.META_WHATSAPP_PROVIDER_ACCOUNT_KEY ?? 'platform-meta'
+const STRIPE_SECRET_KEY = optionalSecret('STRIPE_SECRET_KEY')
+const STRIPE_WEBHOOK_SECRET = optionalSecret('STRIPE_WEBHOOK_SECRET')
+const CUSTOMER_AUTH_SECRET = optionalSecret('CUSTOMER_AUTH_SECRET')
+const CUSTOMER_GOOGLE_CLIENT_SECRET = optionalSecret('CUSTOMER_GOOGLE_CLIENT_SECRET')
+const CUSTOMER_APPLE_CLIENT_SECRET = optionalSecret('CUSTOMER_APPLE_CLIENT_SECRET')
+const merchantAppOrigin = requiredEnv('MERCHANT_APP_ORIGIN')
+const operationsAppOrigin = requiredEnv('OPERATIONS_APP_ORIGIN')
+const publicSiteOrigin = requiredEnv('PUBLIC_SITE_ORIGIN')
+const publicSiteDomain = requiredHostname('PUBLIC_SITE_ORIGIN')
+const merchantAppDomain = requiredHostname('MERCHANT_APP_ORIGIN')
+const operationsAppDomain = requiredHostname('OPERATIONS_APP_ORIGIN')
+const platformApiDomain = requiredHostname('PLATFORM_API_ORIGIN')
+// Impersonation notification delivery is mandatory in production, so the combined
+// deployment requires a verified sender and provisions one restricted binding.
+const CLOUDFLARE_EMAIL_FROM = requiredEnv('CLOUDFLARE_EMAIL_FROM')
+const OPERATIONS_SECURITY_CONTACT = requiredEnv('OPERATIONS_SECURITY_CONTACT')
 
 // Optional module env, forwarded to the web, API, and background workers so
 // the shared module-aware env validation (`@b2b-saas-starter/env`, ADR 0035)
@@ -103,38 +169,53 @@ export const Stack = Alchemy.Stack(
       name: 'b2b-saas-starter',
       migrationsDir: './packages/db/migrations'
     })
-
-    const webhookDeadLetterQueue = yield* Cloudflare.Queue('webhook-queue-dlq', {
-      name: webhookDeadLetterQueueName
+    const privacyLedger = yield* Cloudflare.D1Database('beesolo-privacy-ledger-db', {
+      name: 'beesolo-privacy-ledger',
+      migrationsDir: './packages/db/privacy-ledger-migrations'
     })
 
-    const webhookQueue = yield* Cloudflare.Queue('webhook-queue', {
-      name: webhookQueueName
+    const bookingEventsQueue = yield* Cloudflare.Queue('booking-events-queue', {
+      name: bookingEventsQueueName
     })
+    const bookingEventsDeadLetterQueue = yield* Cloudflare.Queue(
+      'booking-events-dead-letter-queue',
+      { name: bookingEventsDeadLetterQueueName }
+    )
 
-    // Only provision the SendEmail binding when a verified sender is
-    // configured — without it the email module stays inactive instead of
-    // failing the deploy.
-    const transactionalEmail = CLOUDFLARE_EMAIL_FROM
-      ? yield* Cloudflare.SendEmail('EMAIL', {
-          // Restrict the Worker to sending from the verified default. Add
-          // more `allowedSenderAddresses` here as you verify additional
-          // domains in Cloudflare Email Routing.
-          allowedSenderAddresses: [CLOUDFLARE_EMAIL_FROM]
-        })
-      : undefined
+    const transactionalEmail = yield* Cloudflare.SendEmail('EMAIL', {
+      // Restrict the Worker to sending from the verified default. Add
+      // more `allowedSenderAddresses` here as you verify additional
+      // domains in Cloudflare Email Routing.
+      allowedSenderAddresses: [CLOUDFLARE_EMAIL_FROM]
+    })
 
     const api = yield* Cloudflare.Worker('api', {
-      name: 'b2b-saas-starter-api',
+      name: bookingProductWorkers.api.name,
+      url: false,
+      domain: platformApiDomain,
       main: './apps/api/src/index.ts',
       bindings: {
         DB: db,
-        // Producer only — the background worker consumes; the API worker
-        // enqueues webhook events after audit-worthy mutations.
-        WEBHOOK_QUEUE: webhookQueue,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+        EMAIL: transactionalEmail,
+        BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        ...(META_WHATSAPP_APP_SECRET ? { META_WHATSAPP_APP_SECRET } : {}),
+        ...(META_WHATSAPP_WEBHOOK_VERIFY_TOKEN
+          ? { META_WHATSAPP_WEBHOOK_VERIFY_TOKEN }
+          : {}),
+        ...(META_WHATSAPP_REFERENCE_FINGERPRINT_KEY
+          ? { META_WHATSAPP_REFERENCE_FINGERPRINT_KEY }
+          : {}),
+        ...(SMSO_CALLBACK_PATH_SECRET ? { SMSO_CALLBACK_PATH_SECRET } : {}),
+        ...(SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY
+          ? { SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY }
+          : {})
       },
-      env: optionalModuleEnv,
+      env: {
+        ...optionalModuleEnv,
+        ENVIRONMENT: 'production',
+        META_WHATSAPP_PROVIDER_ACCOUNT_KEY
+      },
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
@@ -144,47 +225,27 @@ export const Stack = Alchemy.Stack(
 
     yield* attachRateLimits(api, apiRateLimits)
 
-    const background = yield* Cloudflare.Worker('background', {
-      name: 'b2b-saas-starter-background',
-      main: './apps/background/src/index.ts',
+    const merchant = yield* Cloudflare.Vite('merchant', {
+      name: bookingProductWorkers.merchant.name,
+      url: false,
+      domain: merchantAppDomain,
+      rootDir: './apps/merchant',
       bindings: {
         DB: db,
-        WEBHOOK_QUEUE: webhookQueue,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
-      },
-      env: optionalModuleEnv,
-      compatibility: { date: '2026-05-16' },
-      observability,
-      placement: smartPlacement
-    })
-
-    yield* Cloudflare.QueueConsumer('webhook-consumer', {
-      queueId: webhookQueue.queueId,
-      scriptName: background.workerName,
-      deadLetterQueue: webhookDeadLetterQueue.queueName,
-      settings: webhookConsumerSettings
-    })
-
-    // Dead-letter consumer: the background worker records terminal
-    // `dead_lettered` delivery rows for messages that exhausted maxRetries.
-    yield* Cloudflare.QueueConsumer('webhook-dlq-consumer', {
-      queueId: webhookDeadLetterQueue.queueId,
-      scriptName: background.workerName,
-      settings: webhookDlqConsumerSettings
-    })
-
-    const web = yield* Cloudflare.Vite('web', {
-      name: 'b2b-saas-starter-web',
-      rootDir: './apps/web',
-      bindings: {
-        DB: db,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        EMAIL: transactionalEmail
       },
       env: {
         ...optionalModuleEnv,
-        BETTER_AUTH_SECRET,
-        BETTER_AUTH_URL,
-        BETTER_AUTH_TRUSTED_ORIGINS
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+        MERCHANT_AUTH_SECRET,
+        MERCHANT_AUTH_URL: merchantAppOrigin,
+        MERCHANT_AUTH_TRUSTED_ORIGINS: merchantAppOrigin,
+        OPERATIONS_APP_ORIGIN: operationsAppOrigin,
+        OPERATIONS_SECURITY_CONTACT,
+        OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE:
+          operationsRateLimitEnvironment.OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE,
+        OPERATIONS_RATE_LIMIT_WINDOW_SECONDS:
+          operationsRateLimitEnvironment.OPERATIONS_RATE_LIMIT_WINDOW_SECONDS
       },
       compatibility: {
         flags: ['nodejs_compat']
@@ -192,16 +253,179 @@ export const Stack = Alchemy.Stack(
       observability
     })
 
-    yield* attachRateLimits(web, webRateLimits)
+    yield* attachRateLimits(merchant, merchantRateLimits)
+    yield* attachRateLimits(merchant, merchantImpersonationRateLimits)
+
+    const operations = yield* Cloudflare.Worker('operations', {
+      name: bookingProductWorkers.operations.name,
+      url: false,
+      domain: operationsAppDomain,
+      main: './apps/operations/src/index.ts',
+      bindings: {
+        DB: db,
+        PRIVACY_LEDGER: privacyLedger,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+        EMAIL: transactionalEmail
+      },
+      env: {
+        ...operationsRateLimitEnvironment,
+        OPERATIONS_AUTH_SECRET,
+        OPERATIONS_APP_ORIGIN: operationsAppOrigin,
+        OPERATIONS_AUTH_TRUSTED_ORIGINS: operationsAppOrigin,
+        MERCHANT_APP_ORIGIN: merchantAppOrigin,
+        CLOUDFLARE_EMAIL_FROM,
+        OPERATIONS_SECURITY_CONTACT,
+        ENVIRONMENT: 'production'
+      },
+      compatibility: { date: '2026-05-16', flags: ['nodejs_compat'] },
+      observability,
+      placement: smartPlacement
+    })
+
+    yield* attachRateLimits(operations, operationsRateLimits)
+
+    const booking = yield* Cloudflare.Vite('booking', {
+      name: bookingProductWorkers.booking.name,
+      // Customer traffic reaches this worker only through `web`'s BOOKING
+      // service binding. Its direct local Vite server is development-only.
+      url: false,
+      rootDir: './apps/booking',
+      bindings: {
+        DB: db,
+        BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+        CONFIRMATION_SIGNING_KEYS,
+        CONFIRMATION_CURRENT_KEY_ID,
+        ...(OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY &&
+        OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY
+          ? {
+              OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY,
+              OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY,
+              OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION:
+                OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION ?? '1'
+            }
+          : {}),
+        ...(STRIPE_SECRET_KEY ? { STRIPE_SECRET_KEY } : {}),
+        ...(STRIPE_WEBHOOK_SECRET ? { STRIPE_WEBHOOK_SECRET } : {}),
+        ...(CUSTOMER_AUTH_SECRET ? { CUSTOMER_AUTH_SECRET } : {}),
+        ...(CUSTOMER_GOOGLE_CLIENT_SECRET ? { CUSTOMER_GOOGLE_CLIENT_SECRET } : {}),
+        ...(CUSTOMER_APPLE_CLIENT_SECRET ? { CUSTOMER_APPLE_CLIENT_SECRET } : {})
+      },
+      env: {
+        ...optionalModuleEnv,
+        PUBLIC_SITE_ORIGIN: publicSiteOrigin,
+        PAYMENT_PROVIDER_NAME: 'stripe',
+        PAYMENT_PROVIDER_METHODS: process.env.PAYMENT_PROVIDER_METHODS ?? 'card',
+        CUSTOMER_GOOGLE_ENABLED: process.env.CUSTOMER_GOOGLE_ENABLED ?? 'false',
+        CUSTOMER_GOOGLE_CLIENT_ID: process.env.CUSTOMER_GOOGLE_CLIENT_ID ?? '',
+        CUSTOMER_APPLE_ENABLED: process.env.CUSTOMER_APPLE_ENABLED ?? 'false',
+        CUSTOMER_APPLE_CLIENT_ID: process.env.CUSTOMER_APPLE_CLIENT_ID ?? ''
+      },
+      compatibility: {
+        flags: ['nodejs_compat']
+      },
+      observability
+    })
+
+    yield* attachRateLimits(booking, bookingRateLimits)
+
+    const background = yield* Cloudflare.Worker('background', {
+      name: bookingProductWorkers.background.name,
+      url: false,
+      main: './apps/background/src/index.ts',
+      bindings: {
+        DB: db,
+        PRIVACY_LEDGER: privacyLedger,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+        BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        CONFIRMATION_SIGNING_KEYS,
+        CONFIRMATION_CURRENT_KEY_ID,
+        ...(OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY &&
+        OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY
+          ? {
+              OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY,
+              OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY,
+              OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION:
+                OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION ?? '1'
+            }
+          : {}),
+        ...(META_WHATSAPP_ACCESS_TOKEN ? { META_WHATSAPP_ACCESS_TOKEN } : {}),
+        ...(META_WHATSAPP_REFERENCE_ENCRYPTION_KEY
+          ? { META_WHATSAPP_REFERENCE_ENCRYPTION_KEY }
+          : {}),
+        ...(META_WHATSAPP_REFERENCE_FINGERPRINT_KEY
+          ? { META_WHATSAPP_REFERENCE_FINGERPRINT_KEY }
+          : {}),
+        ...(SMSO_API_KEY ? { SMSO_API_KEY } : {}),
+        ...(SMSO_CALLBACK_URL ? { SMSO_CALLBACK_URL } : {}),
+        ...(SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY
+          ? { SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY }
+          : {}),
+        ...(SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY
+          ? { SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY }
+          : {}),
+        EMAIL: transactionalEmail
+      },
+      env: {
+        ...optionalModuleEnv,
+        PUBLIC_SITE_ORIGIN: publicSiteOrigin,
+        CLOUDFLARE_EMAIL_FROM,
+        ENVIRONMENT: 'production',
+        META_WHATSAPP_PHONE_NUMBER_ID: process.env.META_WHATSAPP_PHONE_NUMBER_ID ?? '',
+        META_WHATSAPP_GRAPH_API_VERSION:
+          process.env.META_WHATSAPP_GRAPH_API_VERSION ?? '',
+        META_WHATSAPP_PROVIDER_ACCOUNT_KEY,
+        META_WHATSAPP_REFERENCE_KEY_VERSION:
+          process.env.META_WHATSAPP_REFERENCE_KEY_VERSION ?? '1',
+        SMSO_SENDER_ID: process.env.SMSO_SENDER_ID ?? '',
+        SMSO_PROVIDER_REFERENCE_KEY_VERSION:
+          process.env.SMSO_PROVIDER_REFERENCE_KEY_VERSION ?? '1'
+      },
+      crons: ['*/5 * * * *'],
+      compatibility: { date: '2026-05-16' },
+      observability,
+      placement: smartPlacement
+    })
+
+    yield* Cloudflare.QueueConsumer('booking-events-consumer', {
+      queueId: bookingEventsQueue.queueId,
+      scriptName: background.workerName,
+      deadLetterQueue: bookingEventsDeadLetterQueue.queueName,
+      settings: bookingEventsConsumerSettings
+    })
+
+    const web = yield* Cloudflare.Vite('web', {
+      name: bookingProductWorkers.web.name,
+      url: false,
+      domain: publicSiteDomain,
+      rootDir: './apps/web',
+      bindings: {
+        DB: db,
+        BOOKING: booking,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+        EMAIL: transactionalEmail
+      },
+      // Merchant credentials belong only to the Merchant App. The Public
+      // Site no longer receives a Better Auth secret or session binding.
+      env: optionalModuleEnv,
+      compatibility: {
+        flags: ['nodejs_compat']
+      },
+      observability
+    })
 
     return {
       api,
       background,
+      booking,
+      bookingEventsQueue,
+      bookingEventsDeadLetterQueue,
       db,
+      privacyLedger,
+      merchant,
+      operations,
       transactionalEmail,
-      web,
-      webhookQueue,
-      webhookDeadLetterQueue
+      web
     }
   })
 )

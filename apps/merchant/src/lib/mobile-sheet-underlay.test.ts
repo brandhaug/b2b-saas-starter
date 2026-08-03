@@ -1,0 +1,36 @@
+import { describe, expect, it } from 'vitest'
+import {
+  isMerchantOverlayPath,
+  merchantOverlayNavigationState,
+  merchantSettingsNavigationState,
+  returnsToMerchantSettings,
+  shouldRenderMerchantHome
+} from './merchant-home-route.ts'
+
+describe('shouldRenderMerchantHome', () => {
+  it('renders home for appointments and overlay routes', () => {
+    expect(shouldRenderMerchantHome('/appointments')).toBe(true)
+    expect(shouldRenderMerchantHome('/customers')).toBe(true)
+    expect(shouldRenderMerchantHome('/about')).toBe(true)
+    expect(shouldRenderMerchantHome('/appointments/appointment-1')).toBe(true)
+    expect(isMerchantOverlayPath('/customers')).toBe(true)
+    expect(isMerchantOverlayPath('/about')).toBe(true)
+    expect(isMerchantOverlayPath('/appointments')).toBe(false)
+  })
+
+  it('does not render home for auth routes', () => {
+    expect(shouldRenderMerchantHome('/sign-in')).toBe(false)
+    expect(shouldRenderMerchantHome('/forgot-password')).toBe(false)
+  })
+
+  it('retains Settings as the parent only for links opened from Settings', () => {
+    const settingsChild = merchantSettingsNavigationState({}, '2026-07-27')
+
+    expect(returnsToMerchantSettings(settingsChild)).toBe(true)
+    expect(
+      returnsToMerchantSettings(
+        merchantOverlayNavigationState(settingsChild, '2026-07-27')
+      )
+    ).toBe(false)
+  })
+})

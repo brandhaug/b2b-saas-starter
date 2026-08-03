@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "b2b-saas-starter-background",
   "main": "src/index.ts",
+  "workers_dev": false,
   "compatibility_date": "2026-05-16",
   "observability": {
     "enabled": true,
@@ -9,6 +10,12 @@
   },
   "placement": {
     "mode": "smart"
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "PUBLIC_SITE_ORIGIN": "http://localhost:3071",
+    "CONFIRMATION_CURRENT_KEY_ID": "local-v1",
+    "CONFIRMATION_SIGNING_KEYS": "{\"local-v1\":\"replace-before-production-confirmation-key\"}"
   },
   "d1_databases": [
     {
@@ -20,32 +27,23 @@
   "queues": {
     "producers": [
       {
-        "binding": "WEBHOOK_QUEUE",
-        "queue": "b2b-saas-starter-webhooks"
+        "binding": "BOOKING_EVENTS_QUEUE",
+        "queue": "b2b-saas-starter-booking-events"
       }
     ],
     "consumers": [
       {
-        "queue": "b2b-saas-starter-webhooks",
+        "queue": "b2b-saas-starter-booking-events",
         "max_batch_size": 25,
         "max_batch_timeout": 5,
         "max_retries": 6,
-        "max_concurrency": 4,
+        "max_concurrency": 1,
         "retry_delay": 30,
-        "dead_letter_queue": "b2b-saas-starter-webhooks-dlq"
-      },
-      // Dead-letter consumer: records terminal `dead_lettered` delivery rows
-      // for messages that exhausted max_retries on the primary queue.
-      {
-        "queue": "b2b-saas-starter-webhooks-dlq",
-        "max_batch_size": 25,
-        "max_batch_timeout": 5,
-        "max_retries": 1,
-        "max_concurrency": 1
+        "dead_letter_queue": "b2b-saas-starter-booking-events-dead-letter"
       }
     ]
   },
   "triggers": {
-    "crons": ["0 6 * * *"]
+    "crons": ["*/5 * * * *"]
   }
 }

@@ -15,24 +15,37 @@ Each record is a short, statement-style decision: a title plus prose describing 
 ## Application architecture
 
 - [0002 — Effect v4 application backbone](./0002-effect-v4-application-backbone.md)
-- [0003 — Split web and API workers](./0003-split-web-and-api-workers.md)
+- [0003 — Split web and API workers](./0003-split-web-and-api-workers.md) (superseded by 0051)
 - [0037 — Shared capabilities package](./0037-shared-capabilities-package.md)
 - [0038 — Effect errors over better-result](./0038-effect-errors-over-better-result.md)
 - [0039 — Effect HTTP API over Hono](./0039-effect-http-api-over-hono.md)
 - [0040 — Client server-state: loaders and server functions](./0040-effect-atom-for-server-state.md)
 - [0044 — Per-capability Effect services with Seed and Live adapters](./0044-per-capability-effect-services-with-seed-and-live-adapters.md)
-- [0048 — Defer API versioning](./0048-defer-api-versioning.md)
+- [0048 — Defer API versioning](./0048-defer-api-versioning.md) (superseded by 0051)
+- [0050 — Booking bounded contexts](./0050-booking-bounded-contexts.md)
+- [0051 — Booking product application topology](./0051-booking-product-application-topology.md)
+- [0052 — D1-backed first-slice booking storage](./0052-first-slice-booking-storage.md)
+- [0059 — Separate Operations App Worker](./0059-separate-operations-app-worker.md)
+- [0060 — Single-use impersonation handoff](./0060-single-use-impersonation-handoff.md)
+- [0063 — Effect-owned impersonation policy](./0063-wrap-better-auth-impersonation-in-an-effect-capability.md)
+- [0064 — Dedicated Operations Auth](./0064-dedicated-operations-auth-configuration.md)
+- [0065 — Persisted impersonation lifecycle](./0065-persist-impersonation-lifecycle-state.md)
+- [0070 — Retire Public Site admin auth](./0070-retire-public-site-admin-auth.md)
+- [0073 — Privacy Requests under standing Merchant instructions](./0073-process-privacy-requests-under-standing-instructions.md)
 
 ## Product surfaces
 
-- [0016 — Homepage as architecture showcase](./0016-homepage-as-architecture-showcase.md)
+- [0016 — Homepage as architecture showcase](./0016-homepage-as-architecture-showcase.md) (superseded by 0051)
 - [0023 — Public pricing with env-gated billing](./0023-public-pricing-with-env-gated-billing.md)
-- [0024 — Better Auth admin dashboard](./0024-better-auth-admin-dashboard.md)
+- [0024 — Better Auth admin dashboard](./0024-better-auth-admin-dashboard.md) (superseded by 0056, 0061, 0063, and 0064)
 - [0025 — Persisted audit events](./0025-persisted-audit-events.md)
-- [0026 — Workspace API tokens](./0026-workspace-api-tokens.md)
+- [0026 — Workspace API tokens](./0026-workspace-api-tokens.md) (superseded by 0053)
 - [0027 — Public content search first](./0027-public-content-search-first.md)
-- [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md)
+- [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md) (superseded by 0053)
 - [0043 — Starter-specific charts](./0043-starter-specific-charts.md)
+- [0053 — Read-and-notify merchant Platform API](./0053-read-and-notify-merchant-platform-api.md)
+- [0061 — Impersonation-centered Operations Vertical Slice](./0061-impersonation-centered-operations-vertical-slice.md)
+- [0062 — Controlled operator provisioning](./0062-controlled-operator-provisioning.md)
 
 ## Background work and delivery
 
@@ -45,6 +58,14 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0030 — Sensitive surface rate limiting](./0030-sensitive-surface-rate-limiting.md)
 - [0031 — Env-gated Turnstile](./0031-env-gated-turnstile.md)
 - [0035 — Shared module-aware env validation](./0035-shared-module-aware-env-validation.md)
+- [0054 — Booking auth and session boundaries](./0054-booking-auth-and-session-boundaries.md)
+- [0056 — Separate operator and Merchant auth realms](./0056-separate-operator-and-merchant-auth-realms.md)
+- [0057 — Mandatory operator two-factor authentication](./0057-mandatory-operator-two-factor-authentication.md)
+- [0058 — Audit impersonation lifecycle and sensitive activity](./0058-audit-impersonation-lifecycle-and-sensitive-activity.md)
+- [0066 — Notify targets of impersonation](./0066-notify-targets-of-impersonation.md)
+- [0067 — Retain impersonation audit for two years](./0067-retain-impersonation-audit-for-two-years.md)
+- [0068 — Require email for production Operations](./0068-require-email-for-production-operations.md)
+- [0069 — Dedicated Operations rate limits](./0069-dedicated-operations-rate-limits.md)
 
 ## Optional providers
 
@@ -58,6 +79,8 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0041 — TanStack Form for mutation forms](./0041-tanstack-form-for-mutation-forms.md)
 - [0042 — TanStack Table for dense lists](./0042-tanstack-table-for-dense-lists.md)
 - [0045 — Build-time syntax highlighting with Shiki](./0045-build-time-syntax-highlighting-with-shiki.md)
+- [0055 — Merchant-scoped, network-fresh PWA](./0055-merchant-scoped-network-fresh-pwa.md)
+- [0071 — Installable, network-fresh authenticated Merchant App](./0071-installable-network-fresh-merchant-app.md)
 
 ## Content and documentation
 
@@ -72,11 +95,11 @@ Each record is a short, statement-style decision: a title plus prose describing 
 ## Testing and local development
 
 - [0012 — Focused Playwright coverage](./0012-focused-playwright-coverage.md)
-- [0017 — Deterministic seed workspace](./0017-deterministic-seed-workspace.md)
+- [0017 — Deterministic seed workspace](./0017-deterministic-seed-workspace.md) (superseded by 0052)
 
 ## Deferred by default
 
-- [0021 — No initial PWA](./0021-no-initial-pwa.md)
+- [0021 — No initial PWA](./0021-no-initial-pwa.md) (superseded by 0055 and 0071)
 - [0028 — No initial file storage](./0028-no-initial-file-storage.md)
 - [0029 — No initial i18n](./0029-no-initial-i18n.md)
 - [0034 — No initial realtime transport](./0034-no-initial-realtime-transport.md)

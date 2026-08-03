@@ -6,7 +6,7 @@
 import { join } from 'node:path'
 import type { D1Database } from '@cloudflare/workers-types'
 import { getPlatformProxy } from 'wrangler'
-import { listMigrations } from './migrations-fs.ts'
+import { listMigrations, listPrivacyLedgerMigrations } from './migrations-fs.ts'
 
 const packageDir = join(import.meta.dirname, '..')
 
@@ -26,13 +26,33 @@ const splitStatements = (sql: string): readonly string[] =>
     .map((statement) => statement.trim())
     .filter((statement) => statement.length > 0)
 
-/** Applies every committed migration, in name order, to the given D1. */
-export const applyMigrations = async (d1: D1Database): Promise<void> => {
-  for (const { sql } of listMigrations()) {
+type Migration = { readonly name: string; readonly sql: string }
+
+const applyMigrationSet = async (
+  d1: D1Database,
+  migrations: readonly Migration[],
+  options: { readonly through?: string; readonly after?: string } = {}
+): Promise<void> => {
+  for (const { name, sql } of migrations) {
+    if (options.after && name <= options.after) continue
+    if (options.through && name > options.through) continue
     for (const statement of splitStatements(sql)) {
       await d1.prepare(statement).run()
     }
   }
+}
+
+/** Applies every committed migration, in name order, to the given D1. */
+export const applyMigrations = async (
+  d1: D1Database,
+  options: { readonly through?: string; readonly after?: string } = {}
+): Promise<void> => {
+  await applyMigrationSet(d1, listMigrations(), options)
+}
+
+/** Applies the restore-external, value-free Privacy Action Ledger migrations. */
+export const applyPrivacyLedgerMigrations = async (d1: D1Database): Promise<void> => {
+  await applyMigrationSet(d1, listPrivacyLedgerMigrations())
 }
 
 /**
@@ -46,6 +66,17 @@ export const provisionTestD1 = async (): Promise<TestD1> => {
     persist: false
   })
   await applyMigrations(proxy.env.DB)
+  return {
+    d1: proxy.env.DB,
+    dispose: () => proxy.dispose()
+  }
+}
+
+export const provisionUnmigratedTestD1 = async (): Promise<TestD1> => {
+  const proxy = await getPlatformProxy<{ DB: D1Database }>({
+    configPath: join(packageDir, 'wrangler.jsonc'),
+    persist: false
+  })
   return {
     d1: proxy.env.DB,
     dispose: () => proxy.dispose()

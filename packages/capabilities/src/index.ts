@@ -1,36 +1,32 @@
 export * from './errors.ts'
-export * from './workspace-context.ts'
-export * from './workspace-projections.ts'
-
-// catalog
-export * from './catalog/adoption-readiness.ts'
-export * from './catalog/catalog-refresh-history.ts'
-export * from './catalog/implementation-reports.ts'
-export * from './catalog/starter-module-catalog.ts'
-
-// developer-platform
-export * from './developer-platform/api-token-registry.ts'
-export * from './developer-platform/webhook-endpoints.ts'
-export * from './developer-platform/webhook-publisher.ts'
-export * from './developer-platform/webhook-url.ts'
-
-// governance
-export * from './governance/audit-event-log.ts'
-export * from './governance/workspace-membership.ts'
-
-// notifications
-export * from './notifications/integration-surfaces.ts'
-export * from './notifications/notification-feed.ts'
-
-// `makeLiveLayerFromD1` stays module-level for runtime.ts and is deliberately
-// not re-exported: consumers select layers through runtime.ts helpers.
-export {
-  makeLiveCapabilitiesLayer,
-  SeedLayer,
-  type CapabilitiesLayer,
-  type CapabilityServices,
-  type LiveCapabilitiesOptions
-} from './layers.ts'
-export * from './module-env-overlay.ts'
+export * from './booking/index.ts'
+export * from './merchant-catalog/index.ts'
+export * from './scheduling/index.ts'
+export * from './developer-platform/index.ts'
+export * from './governance/index.ts'
+export * from './operations/index.ts'
+export * from './pricing/index.ts'
+export * from './payments/index.ts'
+export * from './customer-engagement/index.ts'
+export * from './gift-cards/index.ts'
+export * from './waiting-list/index.ts'
+export * from './walk-ins/index.ts'
+export * from './customer-identity/index.ts'
+export * from './notifications/index.ts'
+export * from './scheduled-work/index.ts'
+export * from './subscriptions/index.ts'
+export * from './ids.ts'
 export * from './runtime.ts'
-export { demoUserIdentity, seedWorkspaceRecord } from './seed-fixture.ts'
+export * from './foundation/index.ts'
+export {
+  CustomerDirectory as CustomerDirectoryService,
+  CustomerDirectoryInvalid,
+  SeedCustomerDirectory,
+  emptySeedCustomerDirectoryStore
+} from './customer-directory/index.ts'
+export type {
+  CustomerDirectoryShape,
+  CustomerDirectoryError,
+  CustomerRecord,
+  DirectoryCustomerDetails
+} from './customer-directory/index.ts'

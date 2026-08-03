@@ -1,379 +1,519 @@
-import { Effect, Layer, ManagedRuntime, Result, Schema, type Scope } from 'effect'
-import { FetchHttpClient, HttpBody, HttpClient } from 'effect/unstable/http'
+import { Effect, Layer, ManagedRuntime, Result } from 'effect'
+import { FetchHttpClient } from 'effect/unstable/http'
 import {
-  runCatalogRefresh,
+  makeOperationalMessagingJobsLayer,
+  makeOperationalMessagingExecutionLayer,
   selectCapabilitiesLayer,
-  validateWebhookUrl,
-  WebhookEndpoints,
-  WebhookQueueMessage,
-  type CapabilityUnavailable,
-  type StarterEnv
-} from '@b2b-saas-starter/capabilities'
-import { makeStarterEnvModuleConfig } from '@b2b-saas-starter/env'
+  type BookingProductEnv
+} from '@b2b-saas-starter/capabilities/runtime'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
-  annotateWide,
-  newTraceId,
-  TRACE_HEADER,
-  WideEventLoggerLive,
-  withTriggerScope
-} from '@b2b-saas-starter/logger'
+  AvailabilityOfferEmail,
+  EmailDispatcher,
+  SubscriptionLifecycleEmail,
+  selectEmailDispatcherLayer,
+  type SendEmailBinding
+} from '@b2b-saas-starter/email'
+import { WideEventLoggerLive, withTriggerScope } from '@b2b-saas-starter/logger'
+import { processBookingOutbox, recoverBookingOutbox } from './booking-notifications.ts'
+import { WaitingList } from '@b2b-saas-starter/capabilities/waiting-list'
+import { WalkIns } from '@b2b-saas-starter/capabilities/walk-ins'
+import { ShopTopology } from '@b2b-saas-starter/capabilities/merchant-catalog'
+import { GiftCardRedemptions } from '@b2b-saas-starter/capabilities/gift-cards'
+import { MerchantSubscriptions } from '@b2b-saas-starter/capabilities/subscriptions'
+import {
+  makeStripeBilling,
+  reconcileAllStripeSubscriptions,
+  subscriptionNoticeContent
+} from '@b2b-saas-starter/capabilities/subscriptions'
+import { createDb } from '@b2b-saas-starter/db/client'
+import { makeOperationsNotificationOutboxLayer } from '@b2b-saas-starter/capabilities/operations'
+import {
+  processOperationsNotification,
+  recoverOperationsNotifications
+} from './operations-notifications.ts'
+import { decodeBookingEventsWakeup } from './booking-events-queue.ts'
+import {
+  NotificationIntentExecution,
+  NotificationIntentLifecycle,
+  OperationalMessagingJobs
+} from '@b2b-saas-starter/capabilities/notifications'
+import { SharedCapabilityFoundations } from '@b2b-saas-starter/capabilities/foundation'
+import {
+  pollLiveSmsoStatuses,
+  selectConfiguredSmsoAdapter
+} from '@b2b-saas-starter/capabilities/notifications/providers/smso'
 
 type Env = {
-  readonly DB?: D1Database
-  readonly WEBHOOK_QUEUE?: Queue
+  readonly DB: D1Database
+  readonly PRIVACY_LEDGER?: D1Database
+  readonly BOOKING_EVENTS_QUEUE?: Queue
+  readonly CONFIRMATION_CURRENT_KEY_ID?: string
+  readonly CONFIRMATION_SIGNING_KEYS?: string
+  readonly PUBLIC_SITE_ORIGIN?: string
+  readonly MERCHANT_APP_ORIGIN?: string
+  readonly EMAIL?: SendEmailBinding
+  readonly CLOUDFLARE_EMAIL_FROM?: string
+  readonly OPERATIONAL_EMAIL_ENABLED?: string
+  readonly ENVIRONMENT?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY?: string
+  readonly OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION?: string
+  readonly SMSO_API_KEY?: string
+  readonly SMSO_SENDER_ID?: string
+  readonly SMSO_CALLBACK_URL?: string
+  readonly SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY?: string
+  readonly SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
+  readonly SMSO_PROVIDER_REFERENCE_KEY_VERSION?: string
+  readonly META_WHATSAPP_ACCESS_TOKEN?: string
+  readonly META_WHATSAPP_PHONE_NUMBER_ID?: string
+  readonly META_WHATSAPP_GRAPH_API_VERSION?: string
+  readonly META_WHATSAPP_PROVIDER_ACCOUNT_KEY?: string
+  readonly META_WHATSAPP_REFERENCE_ENCRYPTION_KEY?: string
+  readonly META_WHATSAPP_REFERENCE_FINGERPRINT_KEY?: string
+  readonly META_WHATSAPP_REFERENCE_KEY_VERSION?: string
+  readonly CUSTOMER_DIRECTORY_FINGERPRINT_KEY?: string
+  readonly WAITING_LIST_DELIVERY_CURRENT_KEY_ID?: string
+  readonly WAITING_LIST_DELIVERY_LEGACY_KEY_ID?: string
+  readonly WAITING_LIST_DELIVERY_KEYS?: string
+  readonly STRIPE_SUBSCRIPTION_SECRET_KEY?: string
+  readonly STRIPE_SOLO_MONTHLY_PRICE_ID?: string
+  readonly STRIPE_SOLO_ANNUAL_PRICE_ID?: string
 }
 
-// Module-aware env validation (ADR 0035).
-const starterEnv = (env: Env): StarterEnv => ({
+const BOOKING_EVENTS_QUEUE = 'b2b-saas-starter-booking-events'
+const runtime = ManagedRuntime.make(
+  Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
+)
+const capabilitiesEnv = (env: Env): BookingProductEnv => ({
   DB: env.DB,
-  WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
-  moduleConfig: makeStarterEnvModuleConfig(env)
+  CUSTOMER_DIRECTORY_FINGERPRINT_KEY: env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+  REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY: env.ENVIRONMENT === 'production',
+  BOOKING_EVENTS_QUEUE: env.BOOKING_EVENTS_QUEUE,
+  OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY:
+    env.OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY,
+  OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY:
+    env.OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY,
+  OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION:
+    env.OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION,
+  SMSO_API_KEY: env.SMSO_API_KEY,
+  SMSO_SENDER_ID: env.SMSO_SENDER_ID,
+  SMSO_CALLBACK_URL: env.SMSO_CALLBACK_URL,
+  SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY: env.SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY,
+  SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY: env.SMSO_PROVIDER_REFERENCE_FINGERPRINT_KEY,
+  SMSO_PROVIDER_REFERENCE_KEY_VERSION: env.SMSO_PROVIDER_REFERENCE_KEY_VERSION,
+  META_WHATSAPP_ACCESS_TOKEN: env.META_WHATSAPP_ACCESS_TOKEN,
+  META_WHATSAPP_PHONE_NUMBER_ID: env.META_WHATSAPP_PHONE_NUMBER_ID,
+  META_WHATSAPP_GRAPH_API_VERSION: env.META_WHATSAPP_GRAPH_API_VERSION,
+  META_WHATSAPP_PROVIDER_ACCOUNT_KEY: env.META_WHATSAPP_PROVIDER_ACCOUNT_KEY,
+  META_WHATSAPP_REFERENCE_ENCRYPTION_KEY: env.META_WHATSAPP_REFERENCE_ENCRYPTION_KEY,
+  META_WHATSAPP_REFERENCE_FINGERPRINT_KEY: env.META_WHATSAPP_REFERENCE_FINGERPRINT_KEY,
+  META_WHATSAPP_REFERENCE_KEY_VERSION: env.META_WHATSAPP_REFERENCE_KEY_VERSION
 })
 
-/** Wire shape of queue messages — the schema is shared with the producer. */
-export type WebhookMessage = typeof WebhookQueueMessage.Type
-
-export type DeliveryOutcome = 'ack' | 'retry'
-
-/** Queue name of the dead-letter consumer branch (see wrangler.jsonc). */
-const DEAD_LETTER_QUEUE = 'b2b-saas-starter-webhooks-dlq'
-
-const StaticLayer = Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
-const staticRuntime = ManagedRuntime.make(StaticLayer)
-
-/**
- * Redelivery backoff. Also used to derive the persisted `nextAttemptAt` so
- * the delivery row matches when Cloudflare will actually retry.
- */
-export const backoffSeconds = (attempts: number): number => Math.min(attempts, 6) * 30
-
-export type DeliveryDecision = 'delivered' | 'retry' | 'terminal'
-
-/**
- * Ack/retry/terminal decision per response status. `0` means no HTTP response
- * (network error or timeout) and is retryable. 4xx responses are permanent
- * failures except 408 (request timeout) and 429 (rate limited).
- */
-export const classifyResponseStatus = (status: number): DeliveryDecision => {
-  if (status >= 200 && status < 300) return 'delivered'
-  if (status === 408 || status === 429) return 'retry'
-  if (status >= 400 && status < 500) return 'terminal'
-  return 'retry'
+const bookingConfig = (env: Env) => {
+  let keys: Record<string, string> = {}
+  try {
+    keys = JSON.parse(env.CONFIRMATION_SIGNING_KEYS ?? '{}') as Record<string, string>
+  } catch {
+    // An invalid keyring is recorded as a terminal channel outcome.
+  }
+  return {
+    publicOrigin: env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071',
+    emailProviderState:
+      env.OPERATIONAL_EMAIL_ENABLED === 'false'
+        ? ('disabled' as const)
+        : env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
+          ? ('configured' as const)
+          : ('needs_configuration' as const),
+    confirmationKeyring: {
+      currentKeyId: env.CONFIRMATION_CURRENT_KEY_ID ?? 'unconfigured',
+      keys
+    }
+  }
 }
 
-const bytesToHex = (bytes: ArrayBuffer): string =>
-  Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join(
-    ''
-  )
-
-/**
- * Stripe-style signature: HMAC-SHA256 over `"<timestamp>.<body>"` with the
- * endpoint's plaintext signing secret, hex-encoded. Signing the timestamp
- * makes captured deliveries non-replayable once the receiver enforces a
- * tolerance window.
- */
-export const computeWebhookSignature = async (
-  secret: string,
-  timestamp: number,
-  body: string
-): Promise<string> => {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  return bytesToHex(
-    await crypto.subtle.sign(
-      'HMAC',
-      key,
-      new TextEncoder().encode(`${timestamp}.${body}`)
-    )
-  )
-}
-
-/** Value of the `x-b2b-starter-signature` header. */
-export const signatureHeaderValue = (timestamp: number, signatureHex: string): string =>
-  `t=${timestamp},sha256=${signatureHex}`
-
-const newDeliveryId = (): string => {
-  const bytes = crypto.getRandomValues(new Uint8Array(8))
-  return `whd_${Date.now()}_${bytesToHex(bytes.buffer)}`
-}
-
-const refreshCatalog = (env: Env): Effect.Effect<void, CapabilityUnavailable> => {
-  // `runCatalogRefresh` owns the "no refresh run goes unrecorded" sequence
-  // (capture outcome, record ok/failed row with real duration, re-raise); this
-  // handler only adds the env-selected layer and the wide-event scope.
-  const program = runCatalogRefresh.pipe(
-    Effect.tap((moduleCount) => annotateWide({ moduleCount })),
-    Effect.tapError(() => annotateWide({ outcome: 'failed' })),
-    Effect.asVoid,
-    Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
-  )
-
-  return withTriggerScope(
+const processBookingNotificationOutbox = (outboxId: string, now: string, env: Env) =>
+  withTriggerScope(
     {
       service: 'background',
-      event: 'catalog_refresh',
+      event: 'booking_notification',
       env,
-      metadata: { source: env.DB ? 'live' : 'seed' }
+      metadata: { outboxId }
     },
-    program
-  )
-}
-
-/**
- * Delivers one webhook message: resolve the dispatch target, re-check the
- * SSRF guard, sign, POST, persist the attempt row, and decide ack/retry.
- * Capability and HTTP requirements stay open so tests inject stub
- * `WebhookEndpoints` / `HttpClient` layers; the queue handler wraps this with
- * the real layers and the wide-event scope (`deliverWebhook`).
- */
-export const processWebhookMessage = (
-  input: unknown,
-  attempts: number,
-  traceId: string
-): Effect.Effect<
-  DeliveryOutcome,
-  CapabilityUnavailable,
-  WebhookEndpoints | HttpClient.HttpClient | Scope.Scope
-> =>
-  Effect.gen(function* () {
-    // Queue payloads are `unknown` at runtime — decode at the boundary. A
-    // malformed message is terminal (redelivery can never fix its shape), but
-    // there is no trusted endpointId to attach a delivery row to, so it is
-    // recorded on the wide event only and acked — mirroring how permanent
-    // delivery failures ack instead of retrying forever.
-    const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(input)
-    if (Result.isFailure(decoded)) {
-      yield* annotateWide({
-        outcome: 'failed_permanent',
-        skipReason: 'malformed_message'
-      })
-      return 'ack' as const
-    }
-    const message = decoded.success
-    yield* annotateWide({
-      endpointId: message.endpointId,
-      workspaceId: message.workspaceId,
-      eventType: message.eventType
-    })
-    const webhooks = yield* WebhookEndpoints
-    // The workspace ID from the message is verified inside the capability:
-    // a cross-workspace mismatch resolves null, same as a disabled or deleted
-    // endpoint, so no signing secret leaves the workspace that enqueued it.
-    const target = yield* webhooks.getDispatchTarget(
-      message.endpointId,
-      message.workspaceId
-    )
-    if (!target) {
-      yield* annotateWide({ outcome: 'skipped', skipReason: 'not_dispatchable' })
-      return 'ack' as const
-    }
-    yield* annotateWide({ endpointUrl: target.url })
-    // Re-check the destination at dispatch time — an endpoint created before
-    // the guard existed (or edited in the DB) must not let the worker reach
-    // internal targets. DNS-rebinding protection is out of scope for the
-    // starter (see validateWebhookUrl).
-    const urlCheck = validateWebhookUrl(target.url)
-    if (!urlCheck.valid) {
-      yield* webhooks.recordDeliveryAttempt({
-        id: newDeliveryId(),
-        endpointId: target.id,
-        workspaceId: message.workspaceId,
-        eventType: message.eventType,
-        status: 'failed_permanent',
-        attempts,
-        responseStatus: null,
-        nextAttemptAt: null
-      })
-      yield* annotateWide({
-        outcome: 'failed_permanent',
-        skipReason: `invalid_url: ${urlCheck.reason}`
-      })
-      return 'ack' as const
-    }
-    const deliveryId = newDeliveryId()
-    const timestamp = Math.floor(Date.now() / 1000)
-    const body = JSON.stringify({
-      deliveryId,
-      eventType: message.eventType,
-      payload: message.payload
-    })
-    const signature = yield* Effect.promise(() =>
-      computeWebhookSignature(target.signingSecret, timestamp, body)
-    )
-    const client = yield* HttpClient.HttpClient
-    const responseResult = yield* Effect.result(
-      client
-        .post(target.url, {
-          headers: {
-            'content-type': 'application/json',
-            'user-agent': 'b2b-saas-starter-webhooks/0.1',
-            'x-b2b-starter-event': message.eventType,
-            'x-b2b-starter-timestamp': String(timestamp),
-            'x-b2b-starter-signature': signatureHeaderValue(timestamp, signature),
-            [TRACE_HEADER]: traceId
-          },
-          body: HttpBody.text(body, 'application/json')
-        })
-        // A hung receiver must not stall the batch; timeout surfaces as a
-        // failure Result (responseStatus 0) and is retried.
-        .pipe(Effect.timeout('10 seconds'))
-    )
-    const responseStatus = Result.isSuccess(responseResult)
-      ? responseResult.success.status
-      : 0
-    const decision = classifyResponseStatus(responseStatus)
-    const status =
-      decision === 'delivered'
-        ? ('delivered' as const)
-        : decision === 'terminal'
-          ? ('failed_permanent' as const)
-          : ('failed' as const)
-    yield* webhooks.recordDeliveryAttempt({
-      id: deliveryId,
-      endpointId: target.id,
-      // Terminal statuses batch an audit event with the attempt row inside
-      // the capability; the workspace id scopes it to the endpoint's owner.
-      workspaceId: message.workspaceId,
-      eventType: message.eventType,
-      status,
-      attempts,
-      responseStatus: responseStatus === 0 ? null : responseStatus,
-      nextAttemptAt:
-        decision === 'retry'
-          ? new Date(Date.now() + backoffSeconds(attempts) * 1000).toISOString()
-          : null
-    })
-    yield* annotateWide({ outcome: status, responseStatus })
-    return decision === 'retry' ? ('retry' as const) : ('ack' as const)
-  })
-
-const deliverWebhook = (
-  message: unknown,
-  attempts: number,
-  env: Env
-): Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient> => {
-  const traceId = newTraceId()
-  // endpointId/eventType land on the wide event via `annotateWide` after the
-  // boundary decode in `processWebhookMessage` — the raw body is untrusted
-  // here, so the envelope carries only the attempt count.
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'webhook_delivery',
-      traceId,
-      env,
-      metadata: { attempts }
-    },
-    processWebhookMessage(message, attempts, traceId).pipe(
-      Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
-    )
-  ).pipe(Effect.catchCause(() => Effect.succeed('retry' as const)))
-}
-
-/**
- * Core of the dead-letter consumer: the message exhausted `maxRetries` on the
- * primary queue, so record a terminal `dead_lettered` delivery row (the
- * capability batches the matching audit event with it). Exported with the
- * `WebhookEndpoints` requirement left open for tests, like
- * `processWebhookMessage`; `recordDeadLetter` wraps it with the real layers
- * and the wide-event scope.
- */
-export const processDeadLetterMessage = (
-  input: unknown,
-  attempts: number
-): Effect.Effect<void, CapabilityUnavailable, WebhookEndpoints | Scope.Scope> =>
-  Effect.gen(function* () {
-    // Same boundary decode as `processWebhookMessage`: a malformed dead letter
-    // has no trusted endpointId for a delivery row, so log-and-ack only.
-    const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(input)
-    if (Result.isFailure(decoded)) {
-      yield* annotateWide({
-        outcome: 'dead_lettered',
-        skipReason: 'malformed_message'
-      })
-      return
-    }
-    const message = decoded.success
-    yield* annotateWide({
-      endpointId: message.endpointId,
-      workspaceId: message.workspaceId,
-      eventType: message.eventType
-    })
-    const webhooks = yield* WebhookEndpoints
-    yield* webhooks.recordDeliveryAttempt({
-      id: newDeliveryId(),
-      endpointId: message.endpointId,
-      workspaceId: message.workspaceId,
-      eventType: message.eventType,
-      status: 'dead_lettered',
-      attempts,
-      responseStatus: null,
-      nextAttemptAt: null
-    })
-    yield* annotateWide({ outcome: 'dead_lettered' })
-  })
-
-/**
- * Dead-letter consumer entry: wraps `processDeadLetterMessage` with the real
- * capabilities layer and a wide event so operators can see (and replay)
- * exhausted deliveries.
- */
-const recordDeadLetter = (
-  input: unknown,
-  attempts: number,
-  env: Env
-): Effect.Effect<void> => {
-  const program = processDeadLetterMessage(input, attempts).pipe(
-    Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
-  )
-
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'webhook_dead_letter',
-      env,
-      metadata: { attempts }
-    },
-    program
-    // Always ack dead letters — failing here would loop the DLQ.
-  ).pipe(Effect.catchCause(() => Effect.void))
-}
-
-export default {
-  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
-    await staticRuntime.runPromise(refreshCatalog(env))
-  },
-
-  // Queue message bodies are untyped at runtime; `processWebhookMessage` and
-  // `recordDeadLetter` decode them at their boundary.
-  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
-    if (batch.queue === DEAD_LETTER_QUEUE) {
-      await Promise.all(
-        batch.messages.map(async (message) => {
-          await staticRuntime.runPromise(
-            recordDeadLetter(message.body, message.attempts, env)
-          )
-          message.ack()
+    processBookingOutbox({
+      outboxId,
+      now,
+      ...bookingConfig(env),
+      ...(env.BOOKING_EVENTS_QUEUE
+        ? {
+            scheduleRetry: (id: string, delaySeconds: number) =>
+              env.BOOKING_EVENTS_QUEUE!.send(
+                { version: 1, kind: 'booking-outbox', outboxId: id },
+                { delaySeconds }
+              )
+          }
+        : {})
+    }).pipe(
+      Effect.provide(selectCapabilitiesLayer(capabilitiesEnv(env))),
+      Effect.provide(
+        selectEmailDispatcherLayer({
+          ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+          ...(env.CLOUDFLARE_EMAIL_FROM
+            ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+            : {})
         })
       )
-      return
-    }
-    await Promise.all(
-      batch.messages.map(async (message) => {
-        const outcome = await staticRuntime.runPromise(
-          deliverWebhook(message.body, message.attempts, env)
-        )
-        if (outcome === 'ack') {
-          message.ack()
-        } else {
-          message.retry({ delaySeconds: backoffSeconds(message.attempts) })
+    )
+  )
+
+const capabilityOutboxHandler =
+  (now: string, env: Env) =>
+  async (claim: {
+    readonly id: string
+    readonly kind: string
+    readonly aggregateId: string
+    readonly revision: number
+  }) => {
+    if (claim.kind !== 'booking-notification')
+      throw new CapabilityUnavailable({
+        capability: 'shared-capability-outbox-handler',
+        reason: `handler_not_registered:${claim.kind}`
+      })
+    await runtime.runPromise(
+      processBookingNotificationOutbox(claim.aggregateId, now, env)
+    )
+  }
+
+const recoverBookingNotificationOutbox = (now: string, env: Env) =>
+  recoverBookingOutbox(now).pipe(
+    Effect.provide(selectCapabilitiesLayer(capabilitiesEnv(env))),
+    Effect.flatMap((ids) =>
+      Effect.forEach(
+        ids,
+        (outboxId) => processBookingNotificationOutbox(outboxId, now, env),
+        {
+          concurrency: 4
         }
+      )
+    ),
+    Effect.asVoid
+  )
+
+const notificationIntentExecutionLayer = (env: Env, now: string) =>
+  makeOperationalMessagingExecutionLayer(
+    { ...capabilitiesEnv(env), ENVIRONMENT: env.ENVIRONMENT },
+    now
+  )
+
+const pollSmsoProviderStatuses = (env: Env, now: string, intentId?: string) => {
+  const adapter = selectConfiguredSmsoAdapter(env, now)
+  if (!adapter) return Effect.void
+  return Effect.flatMap(NotificationIntentLifecycle, (lifecycle) =>
+    pollLiveSmsoStatuses({
+      db: env.DB,
+      adapter,
+      lifecycle,
+      environment: env.ENVIRONMENT ?? 'production',
+      providerAccountKey: 'platform-smso',
+      encryptionSecret: env.SMSO_PROVIDER_REFERENCE_ENCRYPTION_KEY!,
+      keyVersion: adapter.providerReferenceKeyVersion,
+      ...(intentId ? { intentId, limit: 1 } : { limit: 100 })
+    })
+  ).pipe(Effect.asVoid)
+}
+
+const operationalMessagingLayer = (env: Env, now: string) =>
+  Layer.merge(
+    notificationIntentExecutionLayer(env, now),
+    selectCapabilitiesLayer(capabilitiesEnv(env))
+  )
+
+const processNotificationIntent = (intentId: string, now: string, env: Env) =>
+  withTriggerScope(
+    {
+      service: 'background',
+      event: 'operational_messaging_intent',
+      env,
+      metadata: { intentId }
+    },
+    Effect.andThen(
+      pollSmsoProviderStatuses(env, now, intentId),
+      Effect.flatMap(NotificationIntentExecution, (execution) =>
+        execution.execute({ intentId, now })
+      )
+    ).pipe(Effect.provide(operationalMessagingLayer(env, now)))
+  )
+
+const recoverNotificationIntents = (now: string, env: Env) =>
+  Effect.andThen(
+    pollSmsoProviderStatuses(env, now),
+    Effect.flatMap(NotificationIntentExecution, (execution) =>
+      Effect.flatMap(
+        execution.discoverDue({ now, limit: 100, perShopLimit: 10 }),
+        (intentIds) =>
+          Effect.forEach(
+            intentIds,
+            (intentId) => processNotificationIntent(intentId, now, env),
+            { concurrency: 1, discard: true }
+          )
+      )
+    )
+  ).pipe(Effect.provide(operationalMessagingLayer(env, now)), Effect.asVoid)
+
+const reconcileAndRetainOperationalMessaging = (now: string, env: Env) =>
+  Effect.gen(function* () {
+    const jobs = yield* OperationalMessagingJobs
+    const ownerId = `background:${crypto.randomUUID()}`
+    yield* jobs.reconcile({ now, ownerId, limit: 100 })
+    yield* jobs.scheduleRetention({ now, limit: 100 })
+    yield* jobs.processRetention({ now, ownerId, limit: 100 })
+  }).pipe(
+    Effect.provide(makeOperationalMessagingJobsLayer(capabilitiesEnv(env))),
+    Effect.asVoid
+  )
+
+const operationsEmailProviderState = (env: Env) =>
+  env.EMAIL && env.CLOUDFLARE_EMAIL_FROM
+    ? ('configured' as const)
+    : env.ENVIRONMENT === 'development' || env.ENVIRONMENT === 'test'
+      ? ('capture' as const)
+      : ('needs_configuration' as const)
+
+const operationsNotificationLayer = (env: Env) =>
+  makeOperationsNotificationOutboxLayer(createDb(env.DB))
+
+const reconcileMerchantSubscriptions = (now: string, env: Env) => {
+  const provider = makeStripeBilling({
+    secretKey: env.STRIPE_SUBSCRIPTION_SECRET_KEY,
+    monthlyPriceId: env.STRIPE_SOLO_MONTHLY_PRICE_ID,
+    annualPriceId: env.STRIPE_SOLO_ANNUAL_PRICE_ID
+  })
+  if (provider.state !== 'configured') return Effect.void
+  return Effect.gen(function* () {
+    const subscriptions = yield* MerchantSubscriptions
+    yield* reconcileAllStripeSubscriptions({ subscriptions, billing: provider, now })
+  }).pipe(Effect.provide(selectCapabilitiesLayer(capabilitiesEnv(env))), Effect.asVoid)
+}
+
+const processSubscriptionLifecycle = (now: string, env: Env) =>
+  Effect.gen(function* () {
+    const subscriptions = yield* MerchantSubscriptions
+    const email = yield* EmailDispatcher
+    yield* subscriptions.tick(now)
+    const deliveries = yield* subscriptions.pendingNoticeDeliveries(100)
+    yield* Effect.forEach(
+      deliveries,
+      ({ notice, ownerEmail }) =>
+        Effect.gen(function* () {
+          const content = subscriptionNoticeContent(notice.kind)
+          yield* email.send({
+            idempotencyKey: `subscription:${notice.merchantId}:${notice.kind}:${notice.cycleKey}`,
+            from: env.CLOUDFLARE_EMAIL_FROM ?? '',
+            to: ownerEmail,
+            subject: content.heading,
+            element: SubscriptionLifecycleEmail({
+              heading: content.heading,
+              message: content.message,
+              billingUrl: `${env.MERCHANT_APP_ORIGIN ?? 'http://localhost:3072'}/settings/subscription`
+            })
+          })
+          yield* subscriptions.acknowledgeNotice(notice, now)
+        }),
+      { concurrency: 4, discard: true }
+    )
+  }).pipe(
+    Effect.provide(selectCapabilitiesLayer(capabilitiesEnv(env))),
+    Effect.provide(
+      selectEmailDispatcherLayer({
+        ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+        ...(env.CLOUDFLARE_EMAIL_FROM
+          ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+          : {})
+      })
+    ),
+    Effect.asVoid
+  )
+
+const processOperationsNotificationIntent = (intentId: string, now: string, env: Env) =>
+  processOperationsNotification({
+    intentId,
+    now,
+    providerState: operationsEmailProviderState(env)
+  }).pipe(
+    Effect.provide(operationsNotificationLayer(env)),
+    Effect.provide(
+      selectEmailDispatcherLayer({
+        ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+        ...(env.CLOUDFLARE_EMAIL_FROM
+          ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+          : {})
       })
     )
+  )
+
+const recoverOperationsNotificationIntents = (now: string, env: Env) =>
+  recoverOperationsNotifications(now).pipe(
+    Effect.provide(operationsNotificationLayer(env)),
+    Effect.flatMap((ids) =>
+      Effect.forEach(
+        ids,
+        (intentId) => processOperationsNotificationIntent(intentId, now, env),
+        { concurrency: 4 }
+      )
+    ),
+    Effect.asVoid
+  )
+
+export default {
+  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    const now = new Date(event.scheduledTime).toISOString()
+    const capabilityLayer = selectCapabilitiesLayer(capabilitiesEnv(env))
+    await env.DB.prepare(
+      "UPDATE notification_intents SET status = 'failed', updated_at = ? WHERE source_type = 'availability-offer' AND status = 'processing' AND updated_at < ?"
+    )
+      .bind(now, new Date(Date.parse(now) - 5 * 60_000).toISOString())
+      .run()
+    await runtime.runPromise(
+      withTriggerScope(
+        { service: 'background', event: 'booking_recovery', env },
+        Effect.flatMap(
+          Effect.flatMap(WaitingList, (waitingList) => waitingList.expire(now)).pipe(
+            Effect.provide(capabilityLayer)
+          ),
+          () =>
+            Effect.all(
+              [
+                recoverBookingNotificationOutbox(now, env),
+                recoverNotificationIntents(now, env),
+                reconcileAndRetainOperationalMessaging(now, env),
+                recoverOperationsNotificationIntents(now, env),
+                reconcileMerchantSubscriptions(now, env),
+                processSubscriptionLifecycle(now, env),
+                Effect.flatMap(GiftCardRedemptions, (giftCards) =>
+                  giftCards.releaseExpired({ now })
+                ).pipe(Effect.provide(capabilityLayer), Effect.asVoid),
+                Effect.gen(function* () {
+                  const waitingList = yield* WaitingList
+                  const email = yield* EmailDispatcher
+                  let keys: Record<string, string> = {}
+                  try {
+                    keys = JSON.parse(env.WAITING_LIST_DELIVERY_KEYS ?? '{}') as Record<
+                      string,
+                      string
+                    >
+                  } catch {
+                    // Missing/invalid keyrings fail through the capability.
+                  }
+                  const offers = yield* waitingList.deliverAvailable(now, {
+                    currentKeyId:
+                      env.WAITING_LIST_DELIVERY_CURRENT_KEY_ID ?? 'unconfigured',
+                    legacyKeyId: env.WAITING_LIST_DELIVERY_LEGACY_KEY_ID ?? 'legacy',
+                    keys
+                  })
+                  yield* Effect.forEach(offers, (delivery) =>
+                    Effect.gen(function* () {
+                      const claimed = yield* waitingList.claimOfferDelivery(
+                        delivery.offer.id,
+                        now
+                      )
+                      if (!claimed) return
+                      yield* email.send({
+                        idempotencyKey: `availability-offer:${delivery.offer.id}`,
+                        from: env.CLOUDFLARE_EMAIL_FROM ?? '',
+                        to: delivery.customer.email,
+                        subject: 'A requested time is available',
+                        element: AvailabilityOfferEmail({
+                          startsAt: delivery.offer.slot.startsAt,
+                          offerUrl: `${env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071'}/${delivery.merchantSlug}/booking/waiting-list/${delivery.offer.applicationId}/offers/${delivery.offer.id}?capability=${encodeURIComponent(delivery.capability)}`
+                        })
+                      })
+                      yield* Effect.promise(() =>
+                        env.DB.prepare(
+                          "UPDATE notification_intents SET status = 'delivered', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status = 'processing'"
+                        )
+                          .bind(now, delivery.offer.id)
+                          .run()
+                      )
+                    }).pipe(
+                      Effect.tapError(() =>
+                        Effect.promise(() =>
+                          env.DB.prepare(
+                            "UPDATE notification_intents SET status = 'failed', updated_at = ? WHERE source_type = 'availability-offer' AND source_id = ? AND status = 'processing'"
+                          )
+                            .bind(now, delivery.offer.id)
+                            .run()
+                        )
+                      )
+                    )
+                  )
+                }).pipe(
+                  Effect.provide(capabilityLayer),
+                  Effect.provide(
+                    selectEmailDispatcherLayer({
+                      ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
+                      ...(env.CLOUDFLARE_EMAIL_FROM
+                        ? { EMAIL_FROM_ADDRESS: env.CLOUDFLARE_EMAIL_FROM }
+                        : {})
+                    })
+                  )
+                ),
+                Effect.gen(function* () {
+                  const topology = yield* ShopTopology
+                  const walkIns = yield* WalkIns
+                  const shops = yield* topology.listAll()
+                  yield* Effect.forEach(
+                    shops,
+                    (shop) => walkIns.expireEntries({ shopId: shop.id, now }),
+                    { concurrency: 4 }
+                  )
+                }).pipe(Effect.provide(capabilityLayer))
+              ],
+              { concurrency: 3 }
+            )
+        ).pipe(Effect.asVoid)
+      )
+    )
+  },
+  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    if (batch.queue !== BOOKING_EVENTS_QUEUE) {
+      for (const message of batch.messages) message.ack()
+      return
+    }
+    for (let offset = 0; offset < batch.messages.length; offset += 1) {
+      const messages = batch.messages.slice(offset, offset + 1)
+      await Promise.all(
+        messages.map(async (message) => {
+          const wakeup = decodeBookingEventsWakeup(message.body)
+          if (!wakeup) {
+            message.ack()
+            return
+          }
+          const now = new Date().toISOString()
+          const execution =
+            wakeup.kind === 'capability-outbox'
+              ? Effect.flatMap(SharedCapabilityFoundations, (foundation) =>
+                  foundation.process({
+                    outboxId: wakeup.outboxId,
+                    workerId: `background:${message.id}`,
+                    now,
+                    staleBefore: new Date(Date.parse(now) - 5 * 60_000).toISOString()
+                  })
+                ).pipe(
+                  Effect.provide(
+                    selectCapabilitiesLayer(capabilitiesEnv(env), {
+                      capabilityOutboxHandler: capabilityOutboxHandler(now, env)
+                    })
+                  )
+                )
+              : wakeup.kind === 'notification-intent'
+                ? processNotificationIntent(wakeup.intentId, now, env)
+                : processBookingNotificationOutbox(wakeup.outboxId, now, env)
+          const result = await runtime.runPromise(Effect.result(execution))
+          if (Result.isSuccess(result)) message.ack()
+          else message.retry({ delaySeconds: 30 })
+        })
+      )
+    }
   }
 }

@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "b2b-saas-starter-merchant",
+  "main": "src/server.ts",
+  "workers_dev": false,
+  "compatibility_date": "2026-05-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "OPERATIONS_APP_ORIGIN": "http://operations.localhost:3076",
+    "OPERATIONS_SECURITY_CONTACT": "security@operations.local",
+    "OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE": "10",
+    "OPERATIONS_RATE_LIMIT_WINDOW_SECONDS": "60",
+    "PUBLIC_SITE_ORIGIN": "http://localhost:3071"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "b2b-saas-starter",
+      "database_id": "placeholder"
+    }
+  ],
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER_AUTH_READ",
+        "type": "ratelimit",
+        "namespace_id": "3001",
+        "simple": { "limit": 60, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_AUTH_WRITE",
+        "type": "ratelimit",
+        "namespace_id": "3002",
+        "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_OPERATIONS_HANDOFF_EXCHANGE",
+        "type": "ratelimit",
+        "namespace_id": "5007",
+        "simple": { "limit": 10, "period": 60 }
+      }
+    ]
+  }
+}

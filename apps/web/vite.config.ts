@@ -9,7 +9,7 @@ import rehypeSlug from 'rehype-slug'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
 
 function remarkMermaid() {
   return (tree: { children: Array<Record<string, unknown>> }) => {
@@ -41,6 +41,16 @@ function remarkMermaid() {
   }
 }
 
+const configureBookingProxy =
+  (publicSite: URL): NonNullable<ProxyOptions['configure']> =>
+  (proxy) => {
+    proxy.on('proxyReq', (proxyRequest, request) => {
+      if (request.method === 'GET' || request.method === 'HEAD') return
+      proxyRequest.setHeader('origin', publicSite.origin)
+      proxyRequest.setHeader('sec-fetch-site', 'same-origin')
+    })
+  }
+
 // Which `cloudflare:workers` shim to alias, or null to leave the specifier
 // alone (the deployed worker resolves it natively). `vite dev` gets the dev
 // shim, which attaches the persisted local D1 when packages/db has migrated
@@ -57,9 +67,42 @@ function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | 
 
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
+  const bookingDevOrigin = process.env.BOOKING_DEV_ORIGIN ?? 'http://localhost:3073'
+  const publicSiteOrigin = process.env.PUBLIC_SITE_ORIGIN ?? 'http://localhost:3071'
+  const publicSite = new URL(publicSiteOrigin)
+  const bookingProxy =
+    command === 'serve' && mode !== 'test'
+      ? {
+          '^/booking/[a-z0-9]+(?:-[a-z0-9]+)*(?:/|$)': {
+            target: bookingDevOrigin,
+            changeOrigin: true,
+            configure: configureBookingProxy(publicSite)
+          },
+          '^/[a-z0-9]+(?:-[a-z0-9]+)*/booking(?:/|$)': {
+            target: bookingDevOrigin,
+            changeOrigin: true,
+            configure: configureBookingProxy(publicSite)
+          },
+          '^/_booking/': { target: bookingDevOrigin, changeOrigin: true },
+          '^/virtual:stylex\\.css$': { target: bookingDevOrigin, changeOrigin: true }
+        }
+      : undefined
   return {
-    server: { port: 3071, host: 'localhost' },
-    preview: { port: 3071, host: 'localhost' },
+    server: {
+      port: 3071,
+      host: true,
+      // Keep DNS-rebinding protection while allowing the named local ingress
+      // routes used for mobile testing and Cloudflare Quick Tunnels.
+      allowedHosts: ['hassans-macbook-pro.tail8c0b7c.ts.net', '.trycloudflare.com'],
+      cors: {
+        origin: [
+          /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/,
+          /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/
+        ]
+      },
+      ...(bookingProxy ? { proxy: bookingProxy } : {})
+    },
+    preview: { port: 3071, host: true },
     resolve: {
       tsconfigPaths: true,
       alias: workersShim

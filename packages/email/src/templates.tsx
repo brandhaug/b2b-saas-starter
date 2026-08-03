@@ -19,6 +19,138 @@ interface WorkspaceInvitationEmailProps {
   readonly inviteUrl: string
 }
 
+export interface AppointmentConfirmationEmailProps {
+  readonly startsAt: string
+  readonly timeZone: string
+  readonly services: readonly { readonly name: string; readonly price: string }[]
+  readonly total: string
+  readonly settlementLabel: string
+  readonly confirmationUrl: string
+}
+
+export interface ImpersonationStartedEmailProps {
+  readonly merchant: string
+  readonly occurredAt: string
+  readonly supportReference: string | null
+  readonly securityContact: string
+}
+
+export interface ImpersonationLifecycleEmailProps extends ImpersonationStartedEmailProps {
+  readonly lifecycle: 'started' | 'stopped' | 'expired' | 'revoked'
+}
+
+export const impersonationLifecycleWording = (
+  lifecycle: ImpersonationLifecycleEmailProps['lifecycle']
+): string => (lifecycle === 'revoked' ? 'was revoked' : `has ${lifecycle}`)
+
+export function ImpersonationLifecycleEmail(props: ImpersonationLifecycleEmailProps) {
+  const wording = impersonationLifecycleWording(props.lifecycle)
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>
+        Staff access to {props.merchant} {wording}
+      </Preview>
+      <Body>
+        <Container>
+          <Heading>Staff access {wording}</Heading>
+          <Text>
+            Temporary platform staff access to {props.merchant} {wording} at{' '}
+            {props.occurredAt}.
+          </Text>
+          {props.supportReference ? (
+            <Text>Support reference: {props.supportReference}</Text>
+          ) : null}
+          <Text>
+            If you do not recognize this activity, contact{' '}
+            <Link href={`mailto:${props.securityContact}`}>
+              {props.securityContact}
+            </Link>
+            .
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
+export function ImpersonationStartedEmail(props: ImpersonationStartedEmailProps) {
+  return <ImpersonationLifecycleEmail {...props} lifecycle="started" />
+}
+
+export function AvailabilityOfferEmail(props: {
+  readonly startsAt: string
+  readonly offerUrl: string
+}) {
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>A requested time is available</Preview>
+      <Body>
+        <Container>
+          <Heading>A time is available</Heading>
+          <Text>{props.startsAt}</Text>
+          <Button href={props.offerUrl}>Review this private offer</Button>
+          <Text>
+            <Link href={props.offerUrl}>{props.offerUrl}</Link>
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
+export function SubscriptionLifecycleEmail(props: {
+  readonly heading: string
+  readonly message: string
+  readonly billingUrl: string
+}) {
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>{props.heading}</Preview>
+      <Body>
+        <Container>
+          <Heading>{props.heading}</Heading>
+          <Text>{props.message}</Text>
+          <Button href={props.billingUrl}>Review billing</Button>
+          <Text>
+            <Link href={props.billingUrl}>{props.billingUrl}</Link>
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
+export function AppointmentConfirmationEmail(props: AppointmentConfirmationEmailProps) {
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>Your appointment is confirmed</Preview>
+      <Body>
+        <Container>
+          <Heading>Your appointment is confirmed</Heading>
+          <Text>
+            {props.startsAt} ({props.timeZone})
+          </Text>
+          {props.services.map((service) => (
+            <Text key={service.name}>
+              {service.name} — {service.price}
+            </Text>
+          ))}
+          <Text>Total: {props.total}</Text>
+          <Text>{props.settlementLabel}</Text>
+          <Button href={props.confirmationUrl}>View confirmation</Button>
+          <Text>
+            <Link href={props.confirmationUrl}>{props.confirmationUrl}</Link>
+          </Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
 export function WorkspaceInvitationEmail({
   workspaceName,
   inviteUrl

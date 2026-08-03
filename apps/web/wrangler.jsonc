@@ -6,6 +6,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "b2b-saas-starter-web",
   "main": "src/server.ts",
+  "workers_dev": false,
   "compatibility_date": "2026-05-16",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
@@ -19,20 +20,10 @@
       "database_id": "placeholder"
     }
   ],
-  "unsafe": {
-    "bindings": [
-      {
-        "name": "RATE_LIMITER_AUTH_READ",
-        "type": "ratelimit",
-        "namespace_id": "2001",
-        "simple": { "limit": 60, "period": 60 }
-      },
-      {
-        "name": "RATE_LIMITER_AUTH_WRITE",
-        "type": "ratelimit",
-        "namespace_id": "2002",
-        "simple": { "limit": 20, "period": 60 }
-      }
-    ]
-  }
+  "services": [
+    {
+      "binding": "BOOKING",
+      "service": "b2b-saas-starter-booking"
+    }
+  ]
 }

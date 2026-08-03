@@ -1,0 +1,108 @@
+:root {
+  color-scheme: light;
+  font-family: ui-sans-serif, sans-serif, system-ui;
+  background: rgb(247 247 247);
+  color: #000;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+body {
+  min-width: 320px;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: rgb(247 247 247);
+  color: #000;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body {
+  overscroll-behavior-x: none;
+}
+
+[data-booking-embedding='widget'],
+[data-booking-embedding='google'] {
+  height: 100%;
+  overscroll-behavior: contain;
+}
+
+[data-booking-shell='canonical'] {
+  width: 100%;
+  max-width: 375px;
+  min-height: 100dvh;
+  margin-inline: auto;
+  overflow-x: hidden;
+}
+
+@layer priority1 {
+  button,
+  a,
+  input,
+  select {
+    font: inherit;
+    touch-action: manipulation;
+  }
+}
+
+button:not(:disabled),
+[role='button']:not(:disabled) {
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #4f7ee8;
+  outline-offset: 2px;
+}
+
+[data-popup-layout='legacyPhoneCode'] button:focus-visible,
+[data-popup-layout='legacyPhoneCode'] input:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
+::selection {
+  background: rgb(79 126 232 / 24%);
+}
+
+[data-booking-popup-scrollable]::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  summary:focus-visible {
+    outline-color: Highlight;
+  }
+}

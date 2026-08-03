@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./operations": "./src/operations.ts",
+    "./operations/client": "./src/operations-client.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -11,13 +13,15 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@b2b-saas-starter/capabilities": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
     "better-auth": "catalog:",
-    "effect": "catalog:",
-    "effectful-better-auth": "catalog:"
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
+    "@cloudflare/workers-types": "catalog:",
+    "@playwright/test": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

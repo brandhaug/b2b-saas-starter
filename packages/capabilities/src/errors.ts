@@ -1,19 +1,25 @@
 import { Schema } from 'effect'
 
-export class WorkspaceNotFound extends Schema.TaggedErrorClass<WorkspaceNotFound>()(
-  'WorkspaceNotFound',
-  { slug: Schema.String },
-  { httpApiStatus: 404 }
-) {}
-
 export class CapabilityUnavailable extends Schema.TaggedErrorClass<CapabilityUnavailable>()(
   'CapabilityUnavailable',
   { capability: Schema.String, reason: Schema.String },
   { httpApiStatus: 503 }
 ) {}
 
-export class AuthorizationDenied extends Schema.TaggedErrorClass<AuthorizationDenied>()(
-  'AuthorizationDenied',
+export class CapabilityNotFound extends Schema.TaggedErrorClass<CapabilityNotFound>()(
+  'CapabilityNotFound',
+  { resource: Schema.String },
+  { httpApiStatus: 404 }
+) {}
+
+export class CapabilityDenied extends Schema.TaggedErrorClass<CapabilityDenied>()(
+  'CapabilityDenied',
   { reason: Schema.String },
   { httpApiStatus: 403 }
+) {}
+
+export class CapabilityConflict extends Schema.TaggedErrorClass<CapabilityConflict>()(
+  'CapabilityConflict',
+  { reason: Schema.String, currentRevision: Schema.optional(Schema.Number) },
+  { httpApiStatus: 409 }
 ) {}

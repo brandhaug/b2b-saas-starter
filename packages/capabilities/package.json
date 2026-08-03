@@ -3,20 +3,57 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./booking": "./src/booking/index.ts",
+    "./merchant-catalog": "./src/merchant-catalog/index.ts",
+    "./merchant-catalog/testing": "./src/merchant-catalog/testing.ts",
+    "./scheduling": "./src/scheduling/index.ts",
+    "./developer-platform": "./src/developer-platform/index.ts",
+    "./governance": "./src/governance/index.ts",
+    "./errors": "./src/errors.ts",
+    "./pricing": "./src/pricing/index.ts",
+    "./pricing/testing": "./src/pricing/testing.ts",
+    "./payments": "./src/payments/index.ts",
+    "./customer-engagement": "./src/customer-engagement/index.ts",
+    "./customer-directory": "./src/customer-directory/index.ts",
+    "./gift-cards": "./src/gift-cards/index.ts",
+    "./gift-cards/testing": "./src/gift-cards/gift-card-sales.ts",
+    "./waiting-list": "./src/waiting-list/index.ts",
+    "./walk-ins": "./src/walk-ins/index.ts",
+    "./walk-ins/testing": "./src/walk-ins/testing.ts",
+    "./customer-identity": "./src/customer-identity/index.ts",
+    "./notifications": "./src/notifications/index.ts",
+    "./notifications/testing": "./src/notifications/provider-contract-testing.ts",
+    "./notifications/providers/smso": "./src/notifications/smso-provider.ts",
+    "./scheduled-work": "./src/scheduled-work/index.ts",
+    "./subscriptions": "./src/subscriptions/index.ts",
+    "./operations": "./src/operations/index.ts",
+    "./foundation/ids": "./src/ids.ts",
+    "./foundation": "./src/foundation/index.ts",
+    "./foundation/booking": "./src/booking/foundations.ts",
+    "./foundation/merchant-catalog": "./src/merchant-catalog/foundations.ts",
+    "./foundation/pricing": "./src/pricing/index.ts",
+    "./foundation/payments": "./src/payments/index.ts",
+    "./foundation/customer-engagement": "./src/customer-engagement/index.ts",
+    "./foundation/notifications": "./src/notifications/index.ts",
+    "./foundation/scheduled-work": "./src/scheduled-work/index.ts",
+    "./runtime": "./src/runtime.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage --maxWorkers=2"
   },
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",
+    "@b2b-saas-starter/rate-limit": "workspace:*",
     "drizzle-orm": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "libphonenumber-js": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
+    "@cloudflare/workers-types": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

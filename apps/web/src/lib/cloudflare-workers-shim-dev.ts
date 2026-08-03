@@ -13,21 +13,16 @@
 // on the client this module evaluates to the base shim with `DB` undefined.
 import type { D1Database } from '@cloudflare/workers-types'
 import { env as baseEnv } from './cloudflare-workers-shim.ts'
+import { bufferedDevProxyRequest } from './dev-proxy-request.ts'
 
 const provisionLocalD1 = async (): Promise<D1Database | undefined> => {
   if (!import.meta.env.SSR) return undefined
-  const { join } = await import('node:path')
-  const { dbPackageDir, hasLocalD1State, localD1PersistPath } =
-    await import('./local-d1-state.ts')
+  const { hasLocalD1State, provisionLocalD1 } =
+    await import('@b2b-saas-starter/db/local-development')
   if (!hasLocalD1State()) return undefined
-  const { getPlatformProxy } = await import('wrangler')
-  const proxy = await getPlatformProxy<{ DB: D1Database }>({
-    configPath: join(dbPackageDir, 'wrangler.jsonc'),
-    persist: { path: localD1PersistPath }
-  })
   // oxlint-disable-next-line no-console -- dev-server terminal is the intended surface for this one-time notice
   console.log('[dev] local D1 attached from packages/db/.wrangler (seeded state)')
-  return proxy.env.DB
+  return provisionLocalD1()
 }
 
 // Vite can re-evaluate this module across SSR module-graph invalidations;
@@ -39,4 +34,35 @@ type GlobalWithLocalD1 = typeof globalThis & {
 const globalWithLocalD1 = globalThis as GlobalWithLocalD1
 globalWithLocalD1[globalKey] ??= provisionLocalD1()
 
-export const env = { ...baseEnv, DB: await globalWithLocalD1[globalKey] }
+const bookingDevOrigin = new URL(
+  process.env.BOOKING_DEV_ORIGIN ?? 'http://localhost:3073'
+)
+
+const localBookingBinding = {
+  async fetch(request: Request): Promise<Response> {
+    const target = new URL(request.url)
+    target.protocol = bookingDevOrigin.protocol
+    target.host = bookingDevOrigin.host
+    const upstream = await fetch(await bufferedDevProxyRequest(request, target))
+    // Node's development server uses hop-by-hop transfer headers that cannot
+    // be relayed through another development server unchanged.
+    const headers = new Headers(upstream.headers)
+    headers.delete('connection')
+    headers.delete('keep-alive')
+    headers.delete('transfer-encoding')
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers
+    })
+  }
+}
+
+// A local stand-in for the production BOOKING service binding. It changes
+// only the internal upstream origin; the browser continues to use :3071 and
+// the original merchant-scoped URL reaches the Booking App unchanged.
+export const env = {
+  ...baseEnv,
+  DB: await globalWithLocalD1[globalKey],
+  ...(import.meta.env.SSR ? { BOOKING: localBookingBinding } : {})
+}

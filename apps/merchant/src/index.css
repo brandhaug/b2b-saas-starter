@@ -1,0 +1,1333 @@
+@import './onest.css';
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-alyn:
+    0 0 1px 0 var(--tw-shadow-color, #0003),
+    0 2px 4px 0 var(--tw-shadow-color, #0000000a),
+    0 16px 22px 0 var(--tw-shadow-color, #00000008);
+}
+
+:root {
+  color-scheme: light;
+  --merchant-safe-area-top: env(safe-area-inset-top, 0px);
+  --merchant-safe-area-right: env(safe-area-inset-right, 0px);
+  --merchant-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --merchant-safe-area-left: env(safe-area-inset-left, 0px);
+  --merchant-surface-foreground: oklch(0 0 0);
+  --merchant-surface-muted-foreground: oklch(0.45 0 0);
+  --merchant-surface-card: oklch(1 0 0);
+  --merchant-surface-card-foreground: oklch(0 0 0);
+  --merchant-surface-border: oklch(0.92 0 0);
+  --background: oklch(1 0 0);
+  --foreground: var(--merchant-surface-foreground);
+  --card: var(--merchant-surface-card);
+  --card-foreground: var(--merchant-surface-card-foreground);
+  --primary: oklch(0.9 0.1739 96.8561);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: var(--merchant-surface-muted-foreground);
+  --accent: oklch(0.96 0 0);
+  --accent-foreground: oklch(0 0 0);
+  --border: var(--merchant-surface-border);
+  --input: oklch(0.92 0 0);
+  --ring: oklch(0 0 0);
+  --destructive: oklch(0.5508 0.1798 26.9575);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.508 0.118 165.612);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.82 0.15 82);
+  --warning-foreground: oklch(0.2 0.035 70);
+  --info: oklch(0.62 0.14 250);
+  --info-foreground: oklch(1 0 0);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0 0 0);
+  --sidebar-primary: oklch(0.9 0.1739 96.8561);
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.9851 0 0);
+  --sidebar-accent-foreground: oklch(0 0 0);
+  --sidebar-border: oklch(0.9276 0.0058 264.5313);
+  --sidebar-ring: oklch(0.9 0.1739 96.8561);
+  --font-sans: 'Onest Variable', ui-sans-serif, sans-serif, system-ui;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius: 0.5rem;
+  --shadow-xs: 0 1px 3px rgb(26 26 26 / 5%);
+  --shadow-sm: 0 1px 3px rgb(26 26 26 / 10%), 0 1px 2px -1px rgb(26 26 26 / 10%);
+  --shadow-md: 0 1px 3px rgb(26 26 26 / 10%), 0 2px 4px -1px rgb(26 26 26 / 10%);
+  --shadow-lg: 0 1px 3px rgb(26 26 26 / 10%), 0 4px 6px -1px rgb(26 26 26 / 10%);
+  --merchant-sky-gradient: linear-gradient(
+    0deg,
+    rgb(56 189 248 / 60%) 0%,
+    rgb(186 230 253 / 60%) 50%,
+    rgb(224 242 254 / 70%) 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-afternoon-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-afternoon.jpeg');
+  --merchant-home-hero-scale: 1.45;
+  --merchant-home-surface: rgb(224 242 254);
+  --merchant-home-surface-rgb: 224 242 254;
+  --merchant-home-foreground: rgb(75 85 99);
+  --merchant-home-muted-foreground: rgb(156 163 175);
+  --merchant-home-action-surface: rgb(224 242 254 / 30%);
+}
+
+.dark {
+  color-scheme: dark;
+  --merchant-surface-foreground: oklch(0.98 0 0);
+  --merchant-surface-muted-foreground: oklch(0.65 0 0);
+  --merchant-surface-card: oklch(0.21 0 0);
+  --merchant-surface-card-foreground: oklch(0.98 0 0);
+  --merchant-surface-border: oklch(0.28 0 0);
+  --background: oklch(0.17 0 0);
+  --foreground: var(--merchant-surface-foreground);
+  --card: var(--merchant-surface-card);
+  --card-foreground: var(--merchant-surface-card-foreground);
+  --primary: oklch(0.9 0.1739 96.8561);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.25 0 0);
+  --muted-foreground: var(--merchant-surface-muted-foreground);
+  --accent: oklch(0.25 0 0);
+  --accent-foreground: oklch(0.98 0 0);
+  --border: var(--merchant-surface-border);
+  --input: oklch(0.25 0 0);
+  --ring: oklch(0.8 0 0);
+  --destructive: oklch(0.5508 0.1798 26.9575);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.62 0.13 165.612);
+  --success-foreground: oklch(0.12 0.025 165.612);
+  --warning: oklch(0.82 0.15 82);
+  --warning-foreground: oklch(0.2 0.035 70);
+  --info: oklch(0.72 0.12 250);
+  --info-foreground: oklch(0.14 0.03 250);
+  --sidebar: oklch(0.21 0 0);
+  --sidebar-foreground: oklch(1 0 0);
+  --sidebar-primary: oklch(0.9 0.1739 96.8561);
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.28 0 0);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(0.28 0 0);
+  --sidebar-ring: oklch(0.9 0.1739 96.8561);
+  --merchant-sky-gradient: linear-gradient(
+    #010203 0%,
+    #020508 25%,
+    #030a12 50%,
+    #040d1a 75%,
+    #071a2a 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-night-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-night.jpeg');
+  --merchant-home-hero-scale: 1.3;
+  --merchant-home-surface: rgb(17 23 32);
+  --merchant-home-surface-rgb: 17 23 32;
+  --merchant-home-foreground: rgb(255 255 255);
+  --merchant-home-muted-foreground: rgb(255 255 255 / 70%);
+  --merchant-home-action-surface: rgb(46 49 62 / 30%);
+}
+
+:root[data-merchant-time-theme='morning'] {
+  --merchant-sky-gradient: linear-gradient(
+    180deg,
+    #ced6eb 0%,
+    #e9e2e8 50%,
+    #ced6eb 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-morning-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-morning.jpeg');
+  --merchant-home-hero-scale: 1.4;
+  --merchant-home-surface: rgb(248 250 252);
+  --merchant-home-surface-rgb: 248 250 252;
+  --merchant-home-foreground: rgb(75 85 99);
+  --merchant-home-muted-foreground: rgb(156 163 175);
+  --merchant-home-action-surface: rgb(248 250 252 / 30%);
+}
+
+:root[data-merchant-time-theme='afternoon'] {
+  --merchant-sky-gradient: linear-gradient(
+    0deg,
+    rgb(56 189 248 / 60%) 0%,
+    rgb(186 230 253 / 60%) 50%,
+    rgb(224 242 254 / 70%) 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-afternoon-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-afternoon.jpeg');
+  --merchant-home-hero-scale: 1.45;
+  --merchant-home-surface: rgb(224 242 254);
+  --merchant-home-surface-rgb: 224 242 254;
+  --merchant-home-foreground: rgb(75 85 99);
+  --merchant-home-muted-foreground: rgb(156 163 175);
+  --merchant-home-action-surface: rgb(224 242 254 / 30%);
+}
+
+:root[data-merchant-time-theme='evening'] {
+  --merchant-sky-gradient: linear-gradient(0deg, #f7b385 0%, #f0bea9 50%, #fff3ef 100%);
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-evening-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-evening.jpeg');
+  --merchant-home-hero-scale: 1.4;
+  --merchant-home-surface: rgb(255 247 237);
+  --merchant-home-surface-rgb: 255 247 237;
+  --merchant-home-foreground: rgb(75 85 99);
+  --merchant-home-muted-foreground: rgb(156 163 175);
+  --merchant-home-action-surface: rgb(255 247 237 / 30%);
+}
+
+:root[data-merchant-time-theme='night'] {
+  --merchant-sky-gradient: linear-gradient(
+    180deg,
+    #010203 0%,
+    #020508 25%,
+    #030a12 50%,
+    #040d1a 75%,
+    #071a2a 100%
+  );
+  --merchant-sky-image: url('/brand/backgrounds/poke/poke-night-sky.jpg');
+  --merchant-home-hero-image: url('/brand/backgrounds/poke/poke-beach-night.jpeg');
+  --merchant-home-hero-scale: 1.3;
+  --merchant-home-surface: rgb(17 23 32);
+  --merchant-home-surface-rgb: 17 23 32;
+  --merchant-home-foreground: rgb(255 255 255);
+  --merchant-home-muted-foreground: rgb(255 255 255 / 70%);
+  --merchant-home-action-surface: rgb(46 49 62 / 30%);
+}
+
+.merchant-mobile {
+  min-width: 0;
+}
+
+.merchant-desktop-stage {
+  background: var(--merchant-sky-gradient);
+  isolation: isolate;
+}
+
+.merchant-desktop-stage::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: max(100%, 125rem);
+  height: max(100%, 75rem);
+  content: '';
+  pointer-events: none;
+  background-image: var(--merchant-sky-image);
+  background-position: top left;
+  background-size: 100% 100%;
+  opacity: 0.9;
+}
+
+.merchant-desktop-home-card {
+  --foreground: var(--merchant-home-foreground);
+  --muted-foreground: var(--merchant-home-muted-foreground);
+  --card: var(--merchant-home-action-surface);
+  --card-foreground: var(--merchant-home-foreground);
+  --border: color-mix(in oklab, var(--merchant-home-foreground) 14%, transparent);
+  background: var(--merchant-home-surface);
+  color: var(--foreground);
+}
+
+.merchant-mobile-home {
+  --merchant-schedule-pull-progress: 0;
+  --foreground: var(--merchant-home-foreground);
+  --muted-foreground: var(--merchant-home-muted-foreground);
+  --card: var(--merchant-home-action-surface);
+  --card-foreground: var(--merchant-home-foreground);
+  --border: color-mix(in oklab, var(--merchant-home-foreground) 14%, transparent);
+  isolation: isolate;
+  background: var(--merchant-home-surface);
+}
+
+.merchant-mobile-sheet-theme {
+  --foreground: var(--merchant-surface-foreground);
+  --muted-foreground: var(--merchant-surface-muted-foreground);
+  --card: var(--merchant-surface-card);
+  --card-foreground: var(--merchant-surface-card-foreground);
+  --border: var(--merchant-surface-border);
+}
+
+dialog[aria-labelledby='appointment-recurrence-title'] {
+  height: auto;
+  max-height: min(36rem, calc(100% - 1rem));
+}
+
+[data-mobile-recurrence-wheel='true'] {
+  --merchant-recurrence-row-height: 4.5rem;
+  position: relative;
+  cursor: grab;
+  touch-action: pan-y;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 22%,
+    black 78%,
+    transparent
+  );
+}
+
+[data-mobile-recurrence-wheel='true']:active {
+  cursor: grabbing;
+}
+
+[data-mobile-recurrence-wheel='true']::before {
+  position: sticky;
+  top: calc(50% - var(--merchant-recurrence-row-height) / 2);
+  z-index: 0;
+  display: block;
+  height: var(--merchant-recurrence-row-height);
+  margin-bottom: calc(-1 * var(--merchant-recurrence-row-height));
+  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
+  border-radius: 1.25rem;
+  background: color-mix(in oklab, var(--muted) 88%, transparent);
+  content: '';
+  pointer-events: none;
+}
+
+[data-mobile-recurrence-wheel='true'] > label {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  transition-duration: 90ms;
+}
+
+.merchant-home-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('/brand/backgrounds/poke/poke-noise.png');
+  background-repeat: repeat;
+  background-position: 0 0;
+  background-size: 100px;
+  background-blend-mode: overlay;
+  opacity: 0.6;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30px);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 30px);
+}
+
+.merchant-home-hero {
+  position: absolute;
+  top: 4rem;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  height: 24rem;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.merchant-home-hero-image {
+  position: absolute;
+  inset: 0;
+  background-image: var(--merchant-home-hero-image);
+  background-position: center;
+  background-size: cover;
+  transform: scale(var(--merchant-home-hero-scale));
+  transform-origin: center;
+}
+
+.merchant-home-hero-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(
+    ellipse 90% 65% at center,
+    rgb(var(--merchant-home-surface-rgb) / 0%) 0%,
+    rgb(var(--merchant-home-surface-rgb) / 0%) 5%,
+    rgb(var(--merchant-home-surface-rgb) / 90%) 55%,
+    rgb(var(--merchant-home-surface-rgb) / 100%) 80%
+  );
+}
+
+.merchant-home-hero-grain {
+  z-index: 2;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.merchant-desktop-action {
+  border: 1px solid var(--merchant-home-action-surface);
+  background: var(--merchant-home-action-surface);
+  color: var(--foreground);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: transform 160ms ease;
+}
+
+.merchant-desktop-action:active {
+  transform: scale(0.98);
+}
+
+.merchant-home-action-surface {
+  border-color: var(--merchant-home-action-surface);
+  background: var(--merchant-home-action-surface);
+  box-shadow:
+    0 0 1px #0003,
+    0 2px 4px #0000000a,
+    0 16px 22px #00000008;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.merchant-home-action-fade {
+  background: linear-gradient(
+    to top,
+    var(--merchant-home-surface),
+    color-mix(in oklab, var(--merchant-home-surface) 82%, transparent),
+    transparent
+  );
+}
+
+.merchant-desktop-modal,
+dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet,
+dialog.merchant-desktop-new-appointment-sidecar,
+dialog.merchant-desktop-sidecar {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  width: min(32rem, calc(100vw - 2rem));
+  height: min(47rem, calc(100dvh - 2rem));
+  max-height: calc(100dvh - 2rem);
+  flex-direction: column;
+  overflow: hidden;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 10%),
+    0 4px 6px -4px rgb(0 0 0 / 10%);
+}
+
+.merchant-desktop-modal[open] {
+  display: flex;
+}
+
+dialog.merchant-desktop-sidecar[open] {
+  display: flex;
+}
+
+.merchant-desktop-modal::backdrop,
+dialog.merchant-desktop-new-appointment-dialog::backdrop {
+  background: transparent;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.merchant-desktop-modal[data-desktop-modal-state='entering'] {
+  animation: merchant-desktop-modal-enter 200ms ease-out both;
+}
+
+.merchant-desktop-modal[data-desktop-modal-state='entering']::backdrop {
+  animation: merchant-overlay-backdrop-enter 150ms ease both;
+}
+
+.merchant-desktop-modal[data-desktop-modal-state='closing'] {
+  pointer-events: none;
+  animation: merchant-desktop-modal-exit 200ms ease-out both;
+}
+
+.merchant-desktop-modal[data-desktop-modal-state='closing']::backdrop {
+  animation: merchant-overlay-backdrop-exit 150ms ease both;
+}
+
+@keyframes merchant-desktop-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes merchant-desktop-modal-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(2%) scale(0.95);
+  }
+}
+
+@keyframes merchant-overlay-backdrop-enter {
+  from {
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0);
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+}
+
+@keyframes merchant-overlay-backdrop-exit {
+  from {
+    opacity: 1;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  to {
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0);
+    backdrop-filter: blur(0);
+  }
+}
+
+@media (display-mode: standalone) {
+  html.merchant-mobile-document,
+  html.merchant-mobile-document body {
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+  }
+}
+
+html.merchant-desktop-document:has([data-merchant-home-layer='true']),
+html.merchant-desktop-document:has([data-merchant-home-layer='true']) body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html.merchant-mobile-document {
+  --safe-area-inset-top: var(--merchant-safe-area-top);
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.merchant-mobile-document body {
+  background: var(--merchant-home-surface);
+}
+
+html.merchant-mobile-document body::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: black;
+  content: '';
+  pointer-events: none;
+  opacity: var(--merchant-mobile-sheet-outside-dim-opacity, 0);
+}
+
+html.merchant-mobile-document body[data-mobile-sheet-underlay='active']::before {
+  will-change: opacity;
+}
+
+html.merchant-mobile-document .merchant-home-layer {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  transform-origin: 50% 0;
+  transition:
+    transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, border-radius;
+}
+
+html.merchant-mobile-document
+  .merchant-home-layer[data-mobile-sheet-underlay='active'] {
+  overflow: hidden;
+  border-radius: var(--merchant-home-sheet-radius) !important;
+  transform: translate3d(0, var(--merchant-home-sheet-translate-y), 0)
+    scale(var(--merchant-home-sheet-scale)) !important;
+  transition-duration: 0ms !important;
+}
+
+html.merchant-mobile-document
+  .merchant-home-layer[data-mobile-sheet-underlay='active']::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2147483646;
+  border-radius: inherit;
+  background: black;
+  content: '';
+  pointer-events: none;
+  opacity: var(--merchant-home-sheet-dim-opacity);
+  will-change: opacity;
+}
+
+.merchant-route-sheet {
+  --merchant-sheet-translate-y: 0px;
+  width: 100%;
+  max-width: none;
+  margin-right: 0;
+  margin-left: 0;
+  padding: 0;
+  color: inherit;
+  transform: translate3d(0, var(--merchant-sheet-translate-y), 0);
+  transition: none;
+  box-shadow: 0 -18px 60px color-mix(in oklab, black 42%, transparent);
+  will-change: transform;
+}
+
+.merchant-route-sheet[data-mobile-sheet-state='entering'] {
+  --merchant-sheet-translate-y: 100dvh;
+  transform: translate3d(0, var(--merchant-sheet-translate-y), 0);
+}
+
+.merchant-route-sheet[data-mobile-sheet-state='closing'] {
+  pointer-events: none;
+}
+
+.merchant-route-sheet[data-mobile-surface='sheet'] {
+  --merchant-route-sheet-top: calc(env(safe-area-inset-top) + 1.5rem);
+  height: calc(100vh - var(--merchant-route-sheet-top));
+  max-height: calc(100vh - var(--merchant-route-sheet-top));
+  margin-top: var(--merchant-route-sheet-top);
+}
+
+:is(
+  .merchant-desktop-modal,
+  dialog.merchant-desktop-new-appointment-dialog,
+  dialog.merchant-desktop-new-appointment-sidecar,
+  dialog.merchant-desktop-sidecar
+) {
+  --merchant-desktop-primary-spring: linear(
+    0,
+    0.101 5%,
+    0.318 10%,
+    0.559 15%,
+    0.768 20%,
+    0.922 25%,
+    1.004 29%,
+    1.043 32%,
+    1.072 36%,
+    1.081 40%,
+    1.073 45%,
+    1.056 50%,
+    1.037 55%,
+    1.02 60%,
+    1.007 65%,
+    0.999 70%,
+    0.994 80%,
+    0.995 90%,
+    1 100%
+  );
+  --merchant-desktop-sidecar-spring: linear(
+    0,
+    0.2 8%,
+    0.54 20%,
+    0.78 32%,
+    0.92 44%,
+    0.985 56%,
+    1.004 66%,
+    1.003 76%,
+    1 100%
+  );
+}
+
+.merchant-desktop-modal[data-desktop-modal-state='open'] {
+  transition: transform 500ms var(--merchant-desktop-primary-spring);
+  will-change: transform;
+}
+
+.merchant-desktop-modal[data-desktop-secondary-open='true'] {
+  overflow: visible;
+  transform: translateX(-50%);
+}
+
+dialog.merchant-desktop-new-appointment-dialog.merchant-route-sheet {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  height: min(47rem, calc(100dvh + 2rem));
+  max-height: 47rem;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  transition: transform 500ms var(--merchant-desktop-primary-spring);
+  will-change: transform;
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-desktop-substep-open='true'] {
+  transform: translate(-100%, -50%);
+}
+
+.merchant-desktop-new-appointment-overlay:has(
+    dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='closing']
+  )
+  dialog.merchant-desktop-new-appointment-dialog[data-desktop-substep-open='true'] {
+  transform: translate(-50%, -50%);
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='entering'] {
+  animation: merchant-desktop-new-appointment-enter 200ms ease-out both;
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='entering']::backdrop {
+  animation: merchant-overlay-backdrop-enter 150ms ease-out both;
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='closing'] {
+  animation: merchant-desktop-new-appointment-exit 200ms ease-out both;
+}
+
+dialog.merchant-desktop-new-appointment-dialog[data-mobile-sheet-state='closing']::backdrop {
+  animation: merchant-overlay-backdrop-exit 150ms ease-out both;
+}
+
+@keyframes merchant-desktop-new-appointment-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes merchant-desktop-new-appointment-exit {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.95);
+  }
+}
+
+:is(dialog.merchant-desktop-new-appointment-sidecar, dialog.merchant-desktop-sidecar) {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  z-index: 20;
+  height: min(47rem, calc(100dvh + 2rem));
+  max-height: 47rem;
+  margin: 0;
+  transform: translate3d(0.9375rem, -50%, 0);
+  will-change: left, opacity, transform;
+}
+
+.merchant-desktop-modal > dialog.merchant-desktop-sidecar {
+  position: absolute;
+  inset: auto;
+  top: 50%;
+  left: calc(100% + 0.9375rem);
+  margin: 0;
+  transform: translate3d(0, -50%, 0);
+  will-change: opacity, transform;
+}
+
+:is(
+  dialog.merchant-desktop-new-appointment-sidecar,
+  dialog.merchant-desktop-sidecar
+)::backdrop {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='preparing'] {
+  visibility: hidden;
+  opacity: 0;
+  left: 100%;
+  transform: translate3d(0, -50%, 0);
+}
+
+.merchant-desktop-modal
+  > dialog.merchant-desktop-sidecar[data-desktop-secondary-state='preparing'] {
+  visibility: hidden;
+  opacity: 0;
+  left: calc(100% + 0.9375rem);
+  transform: translate3d(calc(50vw - 0.9375rem), -50%, 0);
+}
+
+dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='entering'] {
+  animation: merchant-desktop-sidecar-enter 500ms var(--merchant-desktop-sidecar-spring)
+    both;
+}
+
+.merchant-desktop-modal
+  > dialog.merchant-desktop-sidecar[data-desktop-secondary-state='entering'] {
+  animation: merchant-desktop-secondary-sidecar-enter 500ms
+    var(--merchant-desktop-sidecar-spring) both;
+}
+
+dialog.merchant-desktop-new-appointment-sidecar[data-desktop-substep-state='closing'] {
+  pointer-events: none;
+  animation: merchant-desktop-sidecar-exit 180ms ease-out both;
+}
+
+.merchant-desktop-modal
+  > dialog.merchant-desktop-sidecar[data-desktop-secondary-state='closing'] {
+  pointer-events: none;
+  animation: merchant-desktop-secondary-sidecar-exit 180ms ease-out both;
+}
+
+@keyframes merchant-desktop-sidecar-enter {
+  from {
+    opacity: 0;
+    left: 100%;
+    transform: translate3d(0, -50%, 0);
+  }
+  to {
+    opacity: 1;
+    left: 50%;
+    transform: translate3d(0.9375rem, -50%, 0);
+  }
+}
+
+@keyframes merchant-desktop-sidecar-exit {
+  from {
+    opacity: 1;
+    transform: translate3d(0.9375rem, -50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0.9375rem, -50%, 0);
+  }
+}
+
+@keyframes merchant-desktop-secondary-sidecar-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(calc(50vw - 0.9375rem), -50%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, -50%, 0);
+  }
+}
+
+@keyframes merchant-desktop-secondary-sidecar-exit {
+  from {
+    opacity: 1;
+    transform: translate3d(0, -50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -50%, 0);
+  }
+}
+
+dialog.merchant-desktop-new-appointment-sidecar
+  [data-desktop-substep-route-motion='true'] {
+  animation: merchant-desktop-substep-route-enter 220ms cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
+@keyframes merchant-desktop-substep-route-enter {
+  from {
+    opacity: 0.72;
+    transform: translate3d(0, 2.5rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+:is(
+    dialog.merchant-desktop-new-appointment-dialog,
+    dialog.merchant-desktop-new-appointment-sidecar
+  )
+  [data-new-appointment-step]:not([data-new-appointment-step='appointment'])
+  > *
+  > header {
+  position: relative;
+  display: grid;
+  height: 3rem;
+  min-height: 3rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+  padding: 0 1.5rem;
+  border: 0;
+}
+
+:is(
+    dialog.merchant-desktop-new-appointment-dialog,
+    dialog.merchant-desktop-new-appointment-sidecar
+  )
+  [data-new-appointment-step]:not([data-new-appointment-step='appointment'])
+  > *
+  > header
+  > button {
+  position: absolute;
+  right: auto;
+  left: 1.5rem;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+}
+
+:is(
+    dialog.merchant-desktop-new-appointment-dialog,
+    dialog.merchant-desktop-new-appointment-sidecar
+  )
+  [data-new-appointment-step]:not([data-new-appointment-step='appointment'])
+  > *
+  > header
+  > h1 {
+  grid-column: 2;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:is(
+    dialog.merchant-desktop-new-appointment-dialog,
+    dialog.merchant-desktop-new-appointment-sidecar
+  )
+  [data-new-appointment-step]
+  [data-mobile-sheet-scroll='true'],
+:is(
+    dialog.merchant-desktop-new-appointment-dialog,
+    dialog.merchant-desktop-new-appointment-sidecar
+  )
+  [data-mobile-client-search-region='true'] {
+  padding-right: 2rem;
+  padding-left: 2rem;
+}
+
+:is(
+    dialog.merchant-desktop-new-appointment-dialog,
+    dialog.merchant-desktop-new-appointment-sidecar
+  )
+  :is(
+    [data-mobile-new-appointment-field],
+    [data-mobile-new-appointment-notify='true']
+  ) {
+  min-height: 3.5rem;
+}
+
+.merchant-floating-sheet-panel.merchant-route-sheet,
+.merchant-floating-sheet-panel.merchant-calendar-panel {
+  --merchant-floating-sheet-top: max(0.5rem, env(safe-area-inset-top));
+  --merchant-floating-sheet-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  position: absolute;
+  right: 0.5rem;
+  bottom: var(--merchant-floating-sheet-bottom);
+  left: 0.5rem;
+  width: auto;
+  min-height: min(
+    29rem,
+    calc(
+      100vh - var(--merchant-floating-sheet-top) - var(--merchant-floating-sheet-bottom)
+    )
+  );
+  max-height: calc(
+    100vh - var(--merchant-floating-sheet-top) - var(--merchant-floating-sheet-bottom)
+  );
+  border-radius: 2.25rem;
+}
+
+.merchant-floating-sheet-panel.merchant-route-sheet[data-mobile-surface='task'] {
+  height: var(
+    --merchant-task-sheet-height,
+    min(
+      32.5rem,
+      calc(
+        100vh - var(--merchant-floating-sheet-top) -
+          var(--merchant-floating-sheet-bottom)
+      )
+    )
+  );
+  min-height: 0;
+}
+
+.merchant-route-sheet[data-mobile-task-detent='compact']
+  [data-mobile-task-expanded-only='true'] {
+  display: none;
+}
+
+.merchant-more-dialog {
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+}
+
+.merchant-more-dialog::backdrop {
+  background: color-mix(in oklab, black 58%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.merchant-calendar-dialog::backdrop {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.merchant-calendar-dialog[data-calendar-sheet-state='entering']::backdrop {
+  animation: none;
+}
+
+.merchant-more-panel.merchant-calendar-panel {
+  --merchant-calendar-drag-y: 0px;
+  padding-bottom: 0;
+  border-bottom: 1px solid var(--border);
+  transform: translate3d(0, var(--merchant-calendar-drag-y), 0);
+  transition: none;
+  animation: none;
+  will-change: transform;
+}
+
+.merchant-calendar-dialog[data-calendar-sheet-state='closing']::backdrop {
+  animation: none;
+}
+
+.merchant-more-dismiss {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.merchant-more-panel {
+  --merchant-more-sheet-top: max(0.75rem, env(safe-area-inset-top));
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  max-height: calc(100vh - var(--merchant-more-sheet-top));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 2rem 2rem 0 0;
+  background: var(--background);
+  animation: merchant-sheet-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 -18px 60px color-mix(in oklab, black 45%, transparent);
+}
+
+@keyframes merchant-sheet-enter {
+  from {
+    opacity: 0.72;
+    transform: translateY(2rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes merchant-route-sheet-enter {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes beesolo-logo-jump {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.5em);
+  }
+}
+
+@keyframes beesolo-logo-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+}
+
+@keyframes merchant-logo-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.merchant-logo-enter {
+  animation: merchant-logo-fade 180ms ease-out both;
+}
+
+.beesolo-logo:hover .beesolo-logo-letter {
+  animation: beesolo-logo-jump 400ms ease-out both;
+}
+
+.beesolo-logo:hover .beesolo-logo-dot {
+  animation: beesolo-logo-pop 300ms ease-out both;
+}
+
+* {
+  border-color: var(--border);
+  outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+html {
+  font-family: var(--font-sans);
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.merchant-safe-area-inline {
+  padding-right: max(1.25rem, var(--merchant-safe-area-right));
+  padding-left: max(1.25rem, var(--merchant-safe-area-left));
+}
+
+.merchant-sheet-safe-inline {
+  padding-right: max(1rem, var(--merchant-safe-area-right));
+  padding-left: max(1rem, var(--merchant-safe-area-left));
+}
+
+.merchant-safe-area-page {
+  padding-top: max(1.5rem, var(--merchant-safe-area-top));
+  padding-right: max(1.5rem, var(--merchant-safe-area-right));
+  padding-bottom: max(1.5rem, var(--merchant-safe-area-bottom));
+  padding-left: max(1.5rem, var(--merchant-safe-area-left));
+}
+
+button,
+a,
+input,
+select {
+  touch-action: manipulation;
+}
+
+.merchant-sheet-drag-zone {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.merchant-sheet-drag-zone:active {
+  cursor: grabbing;
+}
+
+.merchant-sheet-scrollport {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.merchant-sheet-scrollport::-webkit-scrollbar {
+  display: none;
+}
+
+.merchant-mobile-appointment-carousel {
+  --merchant-appointment-day-swipe-x: 0px;
+  width: calc(100% + 2 * var(--merchant-schedule-content-inline));
+  margin-inline-start: calc(-1 * var(--merchant-schedule-content-inline));
+}
+
+.merchant-mobile-appointment-scrollport {
+  scrollbar-width: none;
+  scroll-behavior: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-bottom: calc(8rem + var(--merchant-safe-area-bottom));
+}
+
+.merchant-mobile-appointment-carousel-track {
+  transform: translate3d(var(--merchant-appointment-day-swipe-x), 0, 0);
+  will-change: transform;
+}
+
+.merchant-mobile-appointment-scrollport::-webkit-scrollbar {
+  display: none;
+}
+
+.merchant-mobile-schedule-pull-region {
+  --merchant-schedule-pull-progress: 0;
+  --merchant-schedule-pull-reveal-progress: 0;
+}
+
+.merchant-mobile-home-action-group {
+  width: calc(100% - (100% - 14.5rem) * var(--merchant-schedule-pull-progress));
+  will-change: width;
+}
+
+.merchant-mobile-day-summary {
+  opacity: var(--merchant-schedule-pull-progress);
+  transform: translate3d(
+    0,
+    calc((1 - var(--merchant-schedule-pull-progress)) * 1rem),
+    0
+  );
+  will-change: opacity, transform;
+}
+
+.merchant-mobile-day-summary-hero {
+  top: -2rem;
+  right: -1.25rem;
+  left: -1.25rem;
+  height: 26rem;
+}
+
+.merchant-mobile-schedule-pull-surface {
+  --merchant-schedule-pull-y: 0px;
+  width: calc(100% + 2.5rem - 1rem * var(--merchant-schedule-pull-progress));
+  margin-inline-start: calc(-1.25rem + 0.5rem * var(--merchant-schedule-pull-progress));
+  padding-top: calc(1.25rem * var(--merchant-schedule-pull-progress));
+  border-radius: calc(2.5rem * var(--merchant-schedule-pull-reveal-progress))
+    calc(2.5rem * var(--merchant-schedule-pull-reveal-progress)) 0 0;
+  background: color-mix(
+    in oklab,
+    var(--merchant-home-surface)
+      calc(var(--merchant-schedule-pull-reveal-progress) * 82%),
+    transparent
+  );
+  box-shadow:
+    inset 0 1px 0
+      color-mix(
+        in oklab,
+        var(--border) calc(var(--merchant-schedule-pull-reveal-progress) * 80%),
+        transparent
+      ),
+    0 calc(-18px * var(--merchant-schedule-pull-reveal-progress)) 48px
+      color-mix(
+        in oklab,
+        black calc(var(--merchant-schedule-pull-reveal-progress) * 12%),
+        transparent
+      );
+  transform: translate3d(0, var(--merchant-schedule-pull-y), 0);
+  will-change: transform, border-radius, background-color, box-shadow;
+}
+
+.merchant-mobile-schedule-pull-content {
+  --merchant-schedule-content-inline: calc(
+    1.25rem - 0.5rem * var(--merchant-schedule-pull-progress)
+  );
+  padding-inline: var(--merchant-schedule-content-inline);
+  will-change: padding;
+}
+
+button:not(:disabled),
+[role='button']:not(:disabled) {
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.prototype-grid {
+  background: var(--background);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prototype-enter {
+    animation: prototype-enter 180ms ease-out both;
+  }
+
+  @keyframes prototype-enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .merchant-desktop-modal,
+  dialog.merchant-desktop-sidecar,
+  .merchant-route-sheet,
+  .merchant-more-panel,
+  .merchant-desktop-substep-route,
+  .merchant-logo-enter,
+  .beesolo-logo-letter,
+  .beesolo-logo-dot {
+    animation: none;
+  }
+
+  .merchant-route-sheet {
+    transition-duration: 1ms;
+  }
+
+  .merchant-more-panel.merchant-calendar-panel {
+    transition-duration: 1ms;
+  }
+
+  html.merchant-mobile-document .merchant-home-layer {
+    transition-duration: 1ms;
+  }
+}

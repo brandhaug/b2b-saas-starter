@@ -12,7 +12,7 @@ Audit Events and Notifications are two distinct concepts the starter does not co
 
 An Audit Event is a persisted, queryable record of a governance-sensitive action. Each row in the `audit_events` D1 table captures `actorUserId`, `targetType`, `targetId`, an `eventType` string, and a metadata JSON blob. `AuditEventLog.list` (requires `WorkspaceContext` from the route layer) and `AuditEventLog.listGlobal` expose the recent rows; no richer filtering API yet.
 
-Today the starter writes Audit Events for `api_token.created`, `api_token.revoked`, `api_token.used`, and webhook endpoint create/disable/secret-rotation via `AuditEventLog.record`. Member role changes, billing webhook delivery, and System Admin actions are intentional next steps — the schema and capability are ready, the write paths are not yet instrumented.
+Merchant capabilities write events such as API-token and Webhook lifecycle changes. System Operator authentication, provisioning, management, discovery-sensitive reads, and every impersonation lifecycle or mutation outcome produce separate global Operations evidence. Only the Impersonation Auditor permission grants `/audit`; protected details remain redacted elsewhere, and impersonation evidence retains stable attribution for two years.
 
 ## Notifications
 

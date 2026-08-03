@@ -2,8 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 /**
  * Shared `pendingComponent` for capability-backed routes: a quiet card-shaped
- * skeleton matching the workspace layout rhythm (semantic tokens only, per
- * DESIGN.md).
+ * skeleton matching the workspace layout rhythm with semantic tokens only.
  */
 export function RoutePending() {
   return (

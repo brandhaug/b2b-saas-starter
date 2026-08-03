@@ -9,39 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as MerchantManifestDotwebmanifestRouteImport } from './routes/merchant-manifest[.]webmanifest'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as ChangelogRouteImport } from './routes/changelog'
-import { Route as AdminRouteImport } from './routes/admin'
+import { Route as MerchantSlugRouteImport } from './routes/$merchantSlug'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
-import { Route as WorkspacesWorkspaceSlugRouteImport } from './routes/workspaces.$workspaceSlug'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
-import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/workspaces.$workspaceSlug.settings'
 import { Route as DocsCategorySlugRouteImport } from './routes/docs.$category.$slug'
-import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
-const WorkspacesRoute = WorkspacesRouteImport.update({
-  id: '/workspaces',
-  path: '/workspaces',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -54,6 +39,12 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MerchantManifestDotwebmanifestRoute =
+  MerchantManifestDotwebmanifestRouteImport.update({
+    id: '/merchant-manifest.webmanifest',
+    path: '/merchant-manifest.webmanifest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const FaqRoute = FaqRouteImport.update({
   id: '/faq',
   path: '/faq',
@@ -69,20 +60,15 @@ const ChangelogRoute = ChangelogRouteImport.update({
   path: '/changelog',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const MerchantSlugRoute = MerchantSlugRouteImport.update({
+  id: '/$merchantSlug',
+  path: '/$merchantSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const WorkspacesIndexRoute = WorkspacesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => WorkspacesRoute,
 } as any)
 const HelpIndexRoute = HelpIndexRouteImport.update({
   id: '/help/',
@@ -99,197 +85,137 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
   path: '/blog/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WorkspacesWorkspaceSlugRoute = WorkspacesWorkspaceSlugRouteImport.update({
-  id: '/$workspaceSlug',
-  path: '/$workspaceSlug',
-  getParentRoute: () => WorkspacesRoute,
-} as any)
 const BlogSlugRoute = BlogSlugRouteImport.update({
   id: '/blog/$slug',
   path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WorkspacesWorkspaceSlugSettingsRoute =
-  WorkspacesWorkspaceSlugSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
-  } as any)
 const DocsCategorySlugRoute = DocsCategorySlugRouteImport.update({
   id: '/$category/$slug',
   path: '/$category/$slug',
   getParentRoute: () => DocsRoute,
 } as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/$merchantSlug': typeof MerchantSlugRoute
   '/changelog': typeof ChangelogRoute
   '/docs': typeof DocsRouteWithChildren
   '/faq': typeof FaqRoute
+  '/merchant-manifest.webmanifest': typeof MerchantManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
-  '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
-  '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
-  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog/': typeof BlogIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/help/': typeof HelpIndexRoute
-  '/workspaces/': typeof WorkspacesIndexRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
-  '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/$merchantSlug': typeof MerchantSlugRoute
   '/changelog': typeof ChangelogRoute
   '/faq': typeof FaqRoute
+  '/merchant-manifest.webmanifest': typeof MerchantManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
-  '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
   '/blog/$slug': typeof BlogSlugRoute
-  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog': typeof BlogIndexRoute
   '/docs': typeof DocsIndexRoute
   '/help': typeof HelpIndexRoute
-  '/workspaces': typeof WorkspacesIndexRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
-  '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
+  '/$merchantSlug': typeof MerchantSlugRoute
   '/changelog': typeof ChangelogRoute
   '/docs': typeof DocsRouteWithChildren
   '/faq': typeof FaqRoute
+  '/merchant-manifest.webmanifest': typeof MerchantManifestDotwebmanifestRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
-  '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
-  '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
-  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog/': typeof BlogIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/help/': typeof HelpIndexRoute
-  '/workspaces/': typeof WorkspacesIndexRoute
-  '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
-  '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/admin'
+    | '/$merchantSlug'
     | '/changelog'
     | '/docs'
     | '/faq'
+    | '/merchant-manifest.webmanifest'
     | '/pricing'
     | '/privacy'
-    | '/sign-in'
     | '/terms'
-    | '/workspaces'
     | '/blog/$slug'
-    | '/workspaces/$workspaceSlug'
     | '/blog/'
     | '/docs/'
     | '/help/'
-    | '/workspaces/'
-    | '/api/auth/$'
     | '/docs/$category/$slug'
-    | '/workspaces/$workspaceSlug/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/admin'
+    | '/$merchantSlug'
     | '/changelog'
     | '/faq'
+    | '/merchant-manifest.webmanifest'
     | '/pricing'
     | '/privacy'
-    | '/sign-in'
     | '/terms'
     | '/blog/$slug'
-    | '/workspaces/$workspaceSlug'
     | '/blog'
     | '/docs'
     | '/help'
-    | '/workspaces'
-    | '/api/auth/$'
     | '/docs/$category/$slug'
-    | '/workspaces/$workspaceSlug/settings'
   id:
     | '__root__'
     | '/'
-    | '/admin'
+    | '/$merchantSlug'
     | '/changelog'
     | '/docs'
     | '/faq'
+    | '/merchant-manifest.webmanifest'
     | '/pricing'
     | '/privacy'
-    | '/sign-in'
     | '/terms'
-    | '/workspaces'
     | '/blog/$slug'
-    | '/workspaces/$workspaceSlug'
     | '/blog/'
     | '/docs/'
     | '/help/'
-    | '/workspaces/'
-    | '/api/auth/$'
     | '/docs/$category/$slug'
-    | '/workspaces/$workspaceSlug/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRoute
+  MerchantSlugRoute: typeof MerchantSlugRoute
   ChangelogRoute: typeof ChangelogRoute
   DocsRoute: typeof DocsRouteWithChildren
   FaqRoute: typeof FaqRoute
+  MerchantManifestDotwebmanifestRoute: typeof MerchantManifestDotwebmanifestRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
-  SignInRoute: typeof SignInRoute
   TermsRoute: typeof TermsRoute
-  WorkspacesRoute: typeof WorkspacesRouteWithChildren
   BlogSlugRoute: typeof BlogSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
   HelpIndexRoute: typeof HelpIndexRoute
-  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workspaces': {
-      id: '/workspaces'
-      path: '/workspaces'
-      fullPath: '/workspaces'
-      preLoaderRoute: typeof WorkspacesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/terms': {
       id: '/terms'
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -304,6 +230,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/merchant-manifest.webmanifest': {
+      id: '/merchant-manifest.webmanifest'
+      path: '/merchant-manifest.webmanifest'
+      fullPath: '/merchant-manifest.webmanifest'
+      preLoaderRoute: typeof MerchantManifestDotwebmanifestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/faq': {
@@ -327,11 +260,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChangelogRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
+    '/$merchantSlug': {
+      id: '/$merchantSlug'
+      path: '/$merchantSlug'
+      fullPath: '/$merchantSlug'
+      preLoaderRoute: typeof MerchantSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -340,13 +273,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/workspaces/': {
-      id: '/workspaces/'
-      path: '/'
-      fullPath: '/workspaces/'
-      preLoaderRoute: typeof WorkspacesIndexRouteImport
-      parentRoute: typeof WorkspacesRoute
     }
     '/help/': {
       id: '/help/'
@@ -369,13 +295,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/workspaces/$workspaceSlug': {
-      id: '/workspaces/$workspaceSlug'
-      path: '/$workspaceSlug'
-      fullPath: '/workspaces/$workspaceSlug'
-      preLoaderRoute: typeof WorkspacesWorkspaceSlugRouteImport
-      parentRoute: typeof WorkspacesRoute
-    }
     '/blog/$slug': {
       id: '/blog/$slug'
       path: '/blog/$slug'
@@ -383,26 +302,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/workspaces/$workspaceSlug/settings': {
-      id: '/workspaces/$workspaceSlug/settings'
-      path: '/settings'
-      fullPath: '/workspaces/$workspaceSlug/settings'
-      preLoaderRoute: typeof WorkspacesWorkspaceSlugSettingsRouteImport
-      parentRoute: typeof WorkspacesWorkspaceSlugRoute
-    }
     '/docs/$category/$slug': {
       id: '/docs/$category/$slug'
       path: '/$category/$slug'
       fullPath: '/docs/$category/$slug'
       preLoaderRoute: typeof DocsCategorySlugRouteImport
       parentRoute: typeof DocsRoute
-    }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -419,49 +324,19 @@ const DocsRouteChildren: DocsRouteChildren = {
 
 const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 
-interface WorkspacesWorkspaceSlugRouteChildren {
-  WorkspacesWorkspaceSlugSettingsRoute: typeof WorkspacesWorkspaceSlugSettingsRoute
-}
-
-const WorkspacesWorkspaceSlugRouteChildren: WorkspacesWorkspaceSlugRouteChildren =
-  {
-    WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
-  }
-
-const WorkspacesWorkspaceSlugRouteWithChildren =
-  WorkspacesWorkspaceSlugRoute._addFileChildren(
-    WorkspacesWorkspaceSlugRouteChildren,
-  )
-
-interface WorkspacesRouteChildren {
-  WorkspacesWorkspaceSlugRoute: typeof WorkspacesWorkspaceSlugRouteWithChildren
-  WorkspacesIndexRoute: typeof WorkspacesIndexRoute
-}
-
-const WorkspacesRouteChildren: WorkspacesRouteChildren = {
-  WorkspacesWorkspaceSlugRoute: WorkspacesWorkspaceSlugRouteWithChildren,
-  WorkspacesIndexRoute: WorkspacesIndexRoute,
-}
-
-const WorkspacesRouteWithChildren = WorkspacesRoute._addFileChildren(
-  WorkspacesRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRoute,
+  MerchantSlugRoute: MerchantSlugRoute,
   ChangelogRoute: ChangelogRoute,
   DocsRoute: DocsRouteWithChildren,
   FaqRoute: FaqRoute,
+  MerchantManifestDotwebmanifestRoute: MerchantManifestDotwebmanifestRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
-  SignInRoute: SignInRoute,
   TermsRoute: TermsRoute,
-  WorkspacesRoute: WorkspacesRouteWithChildren,
   BlogSlugRoute: BlogSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
   HelpIndexRoute: HelpIndexRoute,
-  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
