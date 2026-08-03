@@ -257,6 +257,7 @@ describe('Customer Directory contract', () => {
           idempotencyKey: 'split-1',
           actorId: 'usr_owner',
           createdDetails: right.record.observations[0]!.details,
+          contactKeys: [{ kind: 'phone', value: '+40722000000' }],
           noteIds: [consented.notes[0]!.id],
           consentIds: [consented.consent[0]!.id],
           reason: 'Merge was mistaken',
@@ -269,6 +270,7 @@ describe('Customer Directory contract', () => {
           idempotencyKey: 'split-1',
           actorId: 'usr_owner',
           createdDetails: right.record.observations[0]!.details,
+          contactKeys: [{ kind: 'phone', value: '+40722000000' }],
           noteIds: [consented.notes[0]!.id],
           consentIds: [consented.consent[0]!.id],
           reason: 'Merge was mistaken',
@@ -298,6 +300,16 @@ describe('Customer Directory contract', () => {
     expect(result.split.created.consent).toHaveLength(1)
     expect(result.split.source.notes).toHaveLength(0)
     expect(result.split.source.consent).toHaveLength(0)
+    expect(result.split.source.contacts).toEqual([
+      expect.objectContaining({ kind: 'email', value: 'ana@example.com' })
+    ])
+    expect(result.split.created.contacts).toEqual([
+      expect.objectContaining({
+        kind: 'phone',
+        value: '+40722000000',
+        preferred: true
+      })
+    ])
     expect(result.replayedSplit).toEqual(result.split)
   })
 

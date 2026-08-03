@@ -291,6 +291,57 @@ describe('Live Customer Directory contract', () => {
         .bind('2026-08-03T10:00:00.000Z', '2026-08-03T10:00:00.000Z')
         .run()
     ).rejects.toThrow()
+
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_records
+         (id, merchant_id, display_name, status, preferred_locale, revision,
+          last_activity_at, created_at, updated_at)
+         VALUES ('cur_customer_other_duplicate', 'mer_customer_other', 'Other Duplicate',
+                 'active', 'en', 1, ?, ?, ?)`
+      )
+      .bind(
+        '2026-08-03T10:00:00.000Z',
+        '2026-08-03T10:00:00.000Z',
+        '2026-08-03T10:00:00.000Z'
+      )
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_bans
+         (customer_record_id, merchant_id, reason, actor_id, created_at, expires_at)
+         VALUES ('cur_customer_other', 'mer_customer_other', 'Private', 'usr_other', ?, NULL)`
+      )
+      .bind('2026-08-03T10:00:00.000Z')
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_directory_history
+         (id, merchant_id, customer_record_id, kind, actor_id, reason, revision, occurred_at)
+         VALUES ('cuh_customer_other', 'mer_customer_other', 'cur_customer_other',
+                 'created', 'usr_other', NULL, 1, ?)`
+      )
+      .bind('2026-08-03T10:00:00.000Z')
+      .run()
+    await test.d1
+      .prepare(
+        `INSERT INTO customer_duplicate_suggestions
+         (merchant_id, customer_record_id, possible_duplicate_id, created_at)
+         VALUES ('mer_customer_other', 'cur_customer_other',
+                 'cur_customer_other_duplicate', ?)`
+      )
+      .bind('2026-08-03T10:00:00.000Z')
+      .run()
+
+    for (const statement of [
+      `UPDATE customer_bans SET merchant_id = 'mer_customer_live'
+       WHERE customer_record_id = 'cur_customer_other'`,
+      `UPDATE customer_directory_history SET merchant_id = 'mer_customer_live'
+       WHERE id = 'cuh_customer_other'`,
+      `UPDATE customer_duplicate_suggestions SET merchant_id = 'mer_customer_live'
+       WHERE customer_record_id = 'cur_customer_other'`
+    ])
+      await expect(test.d1.prepare(statement).run()).rejects.toThrow()
   })
 
   it('requires explicit Merchant policy to restore and use a banned archived record', async () => {
@@ -380,6 +431,19 @@ describe('Live Customer Directory contract', () => {
         layerFromD1(test.d1)
       )
     )
+    const replayStatements = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          return yield* prepareAppointmentCustomerAssociation(db, {
+            ...input,
+            merchantPolicy: { restoreArchived: true, allowBanned: true }
+          })
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+    expect(replayStatements).toEqual([])
     const restored = await test.d1
       .prepare(`SELECT status FROM customer_records WHERE id = 'cur_archived_banned'`)
       .first<{ status: string }>()

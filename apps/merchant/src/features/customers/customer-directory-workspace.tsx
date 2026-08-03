@@ -5,8 +5,6 @@ import {
   archiveCustomer,
   banCustomer,
   editCustomerPreferred,
-  exportCustomers,
-  getCustomerRecord,
   importCustomers,
   liftCustomerBan,
   mergeCustomers,
@@ -17,10 +15,7 @@ import {
   splitCustomer
 } from '@/lib/server/customer-directory.ts'
 import { customerInitials, filterCustomerEntries } from './customer-contact-model.ts'
-import {
-  encodeCustomerExportCsv,
-  parseCustomerImportCsv
-} from './customer-directory-csv.ts'
+import { parseCustomerImportCsv } from './customer-directory-csv.ts'
 
 const value = (data: FormData, key: string) => {
   const found = data.get(key)
@@ -82,15 +77,13 @@ export function CustomerDirectoryWorkspace({
       setMessage('Saved')
       return true
     } catch {
-      if (selected) {
-        try {
-          replace(await getCustomerRecord({ data: { recordId: selected.id } }))
-          setMessage(
-            'The save was not confirmed. The authoritative revision was reloaded; review the retained input before retrying.'
-          )
-        } catch {
-          setMessage('The record changed or could not be saved. Refresh and try again.')
-        }
+      try {
+        await reloadDirectory()
+        setMessage(
+          'The save was not confirmed. The authoritative directory was reloaded; review the retained input before retrying.'
+        )
+      } catch {
+        setMessage('The record changed or could not be saved. Refresh and try again.')
       }
       return false
     } finally {
@@ -202,6 +195,14 @@ export function CustomerDirectoryWorkspace({
     const consentIds = data
       .getAll('consentId')
       .filter((entry): entry is string => typeof entry === 'string')
+    const selectedContactKeys = new Set(
+      data
+        .getAll('contactKey')
+        .filter((entry): entry is string => typeof entry === 'string')
+    )
+    const contactKeys = selected.contacts
+      .filter((contact) => selectedContactKeys.has(`${contact.kind}:${contact.value}`))
+      .map(({ kind, value: contactValue }) => ({ kind, value: contactValue }))
     if (observationIds.length === 0) return
     setBusy(true)
     setMessage(null)
@@ -216,6 +217,7 @@ export function CustomerDirectoryWorkspace({
           email: value(data, 'createdEmail') || null,
           phone: value(data, 'createdPhone') || null
         },
+        contactKeys,
         noteIds,
         consentIds,
         reason: value(data, 'reason')
@@ -268,9 +270,10 @@ export function CustomerDirectoryWorkspace({
         rows
       }
     })
-      .then((result) => {
+      .then(async (result) => {
+        await reloadDirectory()
         setMessage(
-          `Import complete: ${result.created} created, ${result.matched} matched, ${result.rejected} rejected. Refresh to view the updated directory.`
+          `Import complete: ${result.created} created, ${result.matched} matched, ${result.rejected} rejected.`
         )
         setImportPreview(null)
         form.reset()
@@ -278,9 +281,8 @@ export function CustomerDirectoryWorkspace({
       .catch(async () => {
         try {
           await reloadDirectory()
-          setImportPreview(null)
           setMessage(
-            'The import was not confirmed. Directory revisions were reloaded; preview the retained rows again before retrying.'
+            'The import was not confirmed. Directory revisions were reloaded; review the frozen preview before retrying.'
           )
         } catch {
           setMessage('Import could not be completed. Review the rows and retry.')
@@ -288,41 +290,17 @@ export function CustomerDirectoryWorkspace({
       })
       .finally(() => setBusy(false))
   }
-  const download = () => {
-    setBusy(true)
-    void exportCustomers()
-      .then((rows) => {
-        const csv = encodeCustomerExportCsv(rows)
-        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-        const link = document.createElement('a')
-        link.href = url
-        link.download = 'beesolo-customer-directory.csv'
-        link.click()
-        URL.revokeObjectURL(url)
-      })
-      .catch(() => setMessage('Export could not be generated. Try again.'))
-      .finally(() => setBusy(false))
-  }
-
   return (
     <div className="grid min-h-0 gap-5 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(24rem,1.2fr)]">
       <section aria-label="Customer Records" className="min-h-0 space-y-3">
-        <div className="flex gap-2">
+        <div>
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search Customer Records"
-            className="h-10 min-w-0 flex-1 rounded-xl border border-border bg-background px-3 text-sm"
+            className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm"
           />
-          <button
-            type="button"
-            onClick={download}
-            disabled={busy}
-            className="rounded-xl border border-border px-3 text-sm font-medium"
-          >
-            Export
-          </button>
         </div>
         <ul className="divide-y divide-border rounded-2xl border border-border">
           {visible.map((record) => (
@@ -721,6 +699,27 @@ export function CustomerDirectoryWorkspace({
                     className="h-10 rounded-xl border px-3"
                   />
                 </fieldset>
+                {selected.contacts.length ? (
+                  <fieldset className="space-y-1 rounded-xl border p-2">
+                    <legend className="px-1 text-xs font-medium">
+                      Move contact destinations
+                    </legend>
+                    {selected.contacts.map((contact) => (
+                      <label
+                        key={`${contact.kind}:${contact.value}`}
+                        className="flex gap-2 text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          name="contactKey"
+                          value={`${contact.kind}:${contact.value}`}
+                          defaultChecked={contact.preferred}
+                        />
+                        {contact.kind}: {contact.value} · {contact.status}
+                      </label>
+                    ))}
+                  </fieldset>
+                ) : null}
                 {selected.notes.length ? (
                   <fieldset className="space-y-1 rounded-xl border p-2">
                     <legend className="px-1 text-xs font-medium">

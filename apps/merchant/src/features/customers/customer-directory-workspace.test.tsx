@@ -27,7 +27,14 @@ const record: CustomerRecord = {
   displayName: 'Ana Popescu',
   preferredEmail: 'ana@example.com',
   preferredPhone: '+40700000000',
-  contacts: [],
+  contacts: [
+    {
+      kind: 'email',
+      value: 'ana@example.com',
+      status: 'active',
+      preferred: true
+    }
+  ],
   observations: [
     {
       id: 'obs_one',
@@ -84,10 +91,10 @@ describe('CustomerDirectoryWorkspace', () => {
     expect(html).toContain('Merge possible duplicate')
     expect(html).toContain('Preferred details after merge')
     expect(html).toContain('New record preferred details')
+    expect(html).toContain('Move contact destinations')
     expect(html).toContain('Attributed history')
     expect(html).toContain('edited · usr_owner')
     expect(html).toContain('Import Customer Records')
-    expect(html).toContain('Export')
     expect(html).not.toContain('One captured Customer Details entry per Appointment')
   })
 })

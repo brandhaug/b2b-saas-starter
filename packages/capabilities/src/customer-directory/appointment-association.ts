@@ -59,6 +59,26 @@ export const prepareAppointmentCustomerAssociation = (
   input: AppointmentCustomerAssociationInput
 ): Effect.Effect<readonly BatchStatement[], CapabilityUnavailable> =>
   Effect.gen(function* () {
+    const existingAssociation = yield* orUnavailable('customer-directory')(
+      db
+        .select({
+          merchantId: appointmentFoundations.merchantId,
+          customerRecordId: appointmentFoundations.customerRecordId
+        })
+        .from(appointmentFoundations)
+        .where(eq(appointmentFoundations.appointmentId, input.appointment.id))
+        .limit(1)
+    )
+    if (existingAssociation[0]) {
+      if (existingAssociation[0].merchantId !== input.merchantId)
+        return yield* Effect.fail(
+          new CapabilityUnavailable({
+            capability: 'customer-directory',
+            reason: 'appointment association unavailable'
+          })
+        )
+      if (existingAssociation[0].customerRecordId) return []
+    }
     const first = input.appointment
     const details = {
       name: first.details.name.trim(),

@@ -67,6 +67,14 @@ const Split = Schema.Struct({
       phone: Schema.NullOr(Schema.String)
     })
   ),
+  contactKeys: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        kind: Schema.Literals(['email', 'phone']),
+        value: Schema.String
+      })
+    )
+  ),
   noteIds: Schema.optional(Schema.Array(Schema.String)),
   consentIds: Schema.optional(Schema.Array(Schema.String)),
   reason: Schema.String

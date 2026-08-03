@@ -42,31 +42,3 @@ export const parseCustomerImportCsv = (
       email: email || null,
       phone: phone || null
     }))
-
-const quoteCsvCell = (input: string): string => `"${input.replaceAll('"', '""')}"`
-
-export const encodeCustomerExportCsv = (
-  rows: readonly {
-    readonly id: string
-    readonly name: string
-    readonly email: string | null
-    readonly phone: string | null
-    readonly status: string
-    readonly appointmentIds: readonly string[]
-  }[]
-): string =>
-  [
-    'customer_record_id,name,email,phone,status,appointment_ids',
-    ...rows.map((row) =>
-      [
-        row.id,
-        row.name,
-        row.email ?? '',
-        row.phone ?? '',
-        row.status,
-        row.appointmentIds.join(' ')
-      ]
-        .map(quoteCsvCell)
-        .join(',')
-    )
-  ].join('\n')

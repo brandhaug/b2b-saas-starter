@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  encodeCustomerExportCsv,
-  parseCustomerImportCsv
-} from './customer-directory-csv.ts'
+import { parseCustomerImportCsv } from './customer-directory-csv.ts'
 
 describe('Customer Directory CSV', () => {
   it('parses quoted commas, embedded newlines, and escaped quotes', () => {
@@ -18,20 +15,5 @@ describe('Customer Directory CSV', () => {
       },
       { name: 'Ion\nIonescu', email: 'ion"test@example.com', phone: null }
     ])
-  })
-
-  it('quotes every minimized export cell', () => {
-    expect(
-      encodeCustomerExportCsv([
-        {
-          id: 'cur_one',
-          name: 'Popescu, "Ana"',
-          email: null,
-          phone: '+40700000000',
-          status: 'active',
-          appointmentIds: ['apt_one', 'apt_two']
-        }
-      ])
-    ).toContain('"Popescu, ""Ana"""')
   })
 })

@@ -127,6 +127,10 @@ export const makeCustomerDirectoryRequestHandler = (dependencies: {
       readonly expectedRevision: number
       readonly idempotencyKey: string
       readonly createdDetails?: DirectoryCustomerDetails
+      readonly contactKeys?: readonly {
+        readonly kind: 'email' | 'phone'
+        readonly value: string
+      }[]
       readonly noteIds?: readonly string[]
       readonly consentIds?: readonly string[]
       readonly reason: string

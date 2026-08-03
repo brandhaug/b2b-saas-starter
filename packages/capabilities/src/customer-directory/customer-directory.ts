@@ -94,6 +94,7 @@ export class CustomerDirectoryInvalid extends Schema.TaggedErrorClass<CustomerDi
       'invalid_email',
       'invalid_phone',
       'empty_split',
+      'invalid_split_assignment',
       'invalid_import'
     ])
   }
@@ -135,6 +136,10 @@ type SplitInput = {
   readonly idempotencyKey: string
   readonly actorId: string
   readonly createdDetails?: DirectoryCustomerDetails
+  readonly contactKeys?: readonly {
+    readonly kind: 'email' | 'phone'
+    readonly value: string
+  }[]
   readonly noteIds?: readonly string[]
   readonly consentIds?: readonly string[]
   readonly reason: string
@@ -1011,6 +1016,17 @@ const splitRecord = (
     const invalid = validateDetails(details)
     if (invalid) return yield* Effect.fail(invalid)
     const explicitlyAssigned = input.createdDetails !== undefined
+    const movedContactKeys = new Set(
+      (input.contactKeys ?? []).map((contact) => `${contact.kind}:${contact.value}`)
+    )
+    if (
+      explicitlyAssigned &&
+      ((details.email && !movedContactKeys.has(`email:${details.email}`)) ||
+        (details.phone && !movedContactKeys.has(`phone:${details.phone}`)))
+    )
+      return yield* Effect.fail(
+        new CustomerDirectoryInvalid({ reason: 'invalid_split_assignment' })
+      )
     const movedNoteIds = new Set(input.noteIds ?? [])
     const movedConsentIds = new Set(input.consentIds ?? [])
     const created: CustomerRecord = {
@@ -1019,11 +1035,22 @@ const splitRecord = (
       displayName: details.name,
       preferredEmail: explicitlyAssigned ? details.email : null,
       preferredPhone: explicitlyAssigned ? details.phone : null,
-      contacts: contactsFrom(details).map((contact) =>
-        explicitlyAssigned
-          ? contact
-          : { ...contact, status: 'disputed' as const, preferred: false }
-      ),
+      contacts: explicitlyAssigned
+        ? source.contacts
+            .filter((contact) =>
+              movedContactKeys.has(`${contact.kind}:${contact.value}`)
+            )
+            .map((contact) => ({
+              ...contact,
+              preferred:
+                contact.status === 'active' &&
+                (contact.value === details.email || contact.value === details.phone)
+            }))
+        : contactsFrom(details).map((contact) => ({
+            ...contact,
+            status: 'disputed' as const,
+            preferred: false
+          })),
       observations: moved,
       notes: source.notes.filter((item) => movedNoteIds.has(item.id)),
       consent: source.consent.filter((item) => movedConsentIds.has(item.id)),
@@ -1035,6 +1062,17 @@ const splitRecord = (
     const revision = source.revision + 1
     const remaining = {
       ...source,
+      preferredEmail:
+        source.preferredEmail && movedContactKeys.has(`email:${source.preferredEmail}`)
+          ? null
+          : source.preferredEmail,
+      preferredPhone:
+        source.preferredPhone && movedContactKeys.has(`phone:${source.preferredPhone}`)
+          ? null
+          : source.preferredPhone,
+      contacts: source.contacts.filter(
+        (contact) => !movedContactKeys.has(`${contact.kind}:${contact.value}`)
+      ),
       observations: source.observations.filter((item) => !selected.has(item.id)),
       notes: source.notes.filter((item) => !movedNoteIds.has(item.id)),
       consent: source.consent.filter((item) => !movedConsentIds.has(item.id)),
