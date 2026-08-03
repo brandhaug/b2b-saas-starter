@@ -27,7 +27,8 @@ import { reportOperationalError } from '@b2b-saas-starter/logger'
 import worker, {
   publishBookingWakeUp,
   reconcilePaymentAndResumeGiftCard,
-  reconcilePaymentCallback
+  reconcilePaymentCallback,
+  resolvePartyCancellationBookingPartyId
 } from './server.ts'
 
 describe('Booking Worker entry', () => {
@@ -85,6 +86,48 @@ describe('Booking Worker entry', () => {
       kind: 'notification-intent',
       intentId: 'nti_committed'
     })
+  })
+
+  it('requires party-purpose access before resolving whole-party cancellation', async () => {
+    const rows = new Map([
+      [
+        'cnf_individual',
+        {
+          merchantId: 'mer_mara',
+          purpose: 'appointment_confirmation',
+          bookingPartyId: 'bpt_mara'
+        }
+      ],
+      [
+        'cnf_party',
+        {
+          merchantId: 'mer_mara',
+          purpose: 'party_confirmation',
+          bookingPartyId: 'bpt_mara'
+        }
+      ]
+    ])
+    const db = {
+      prepare: (sql: string) => ({
+        bind: (routeId: string, merchantId: string, purpose: 'party_confirmation') => ({
+          first: async () => {
+            const row = rows.get(routeId)
+            return sql.includes('confirmation_access.purpose = ?') &&
+              row?.merchantId === merchantId &&
+              row.purpose === purpose
+              ? { bookingPartyId: row.bookingPartyId }
+              : null
+          }
+        })
+      })
+    } as unknown as D1Database
+
+    await expect(
+      resolvePartyCancellationBookingPartyId(db, 'mer_mara', 'cnf_individual')
+    ).resolves.toBeNull()
+    await expect(
+      resolvePartyCancellationBookingPartyId(db, 'mer_mara', 'cnf_party')
+    ).resolves.toBe('bpt_mara')
   })
 
   it('accepts only provider-verified callback facts for reconciliation', async () => {

@@ -137,6 +137,26 @@ export const publishBookingWakeUp = async <
   return result
 }
 
+export const resolvePartyCancellationBookingPartyId = async (
+  db: D1Database,
+  merchantId: string,
+  confirmationRouteId: string
+): Promise<string | null> => {
+  const access = await db
+    .prepare(
+      `SELECT confirmation_access.booking_party_id AS bookingPartyId
+       FROM confirmation_access
+       JOIN appointments ON appointments.id = confirmation_access.appointment_id
+       WHERE confirmation_access.route_id = ?
+         AND appointments.merchant_id = ?
+         AND confirmation_access.purpose = ?
+       LIMIT 1`
+    )
+    .bind(confirmationRouteId, merchantId, 'party_confirmation')
+    .first<{ bookingPartyId: string | null }>()
+  return access?.bookingPartyId ?? null
+}
+
 export const reconcilePaymentAndResumeGiftCard = async <
   A extends {
     readonly payment: { readonly id: string; readonly status: string }
@@ -623,21 +643,17 @@ export default {
                     merchantId: merchant.id,
                     scope: input.scope
                   } as const
-                const access = await readyEnv.DB.prepare(
-                  `SELECT confirmation_access.booking_party_id AS bookingPartyId
-                   FROM confirmation_access
-                   JOIN appointments ON appointments.id = confirmation_access.appointment_id
-                   WHERE confirmation_access.route_id = ? AND appointments.merchant_id = ?
-                   LIMIT 1`
+                const bookingPartyId = await resolvePartyCancellationBookingPartyId(
+                  readyEnv.DB,
+                  merchant.id,
+                  input.scope.confirmationRouteId
                 )
-                  .bind(input.scope.confirmationRouteId, merchant.id)
-                  .first<{ bookingPartyId: string | null }>()
-                return access?.bookingPartyId
+                return bookingPartyId
                   ? ({
                       merchantId: merchant.id,
                       scope: {
                         kind: 'party' as const,
-                        bookingPartyId: access.bookingPartyId
+                        bookingPartyId
                       }
                     } as const)
                   : null
