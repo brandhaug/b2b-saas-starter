@@ -250,6 +250,19 @@ describe('Customer Directory contract', () => {
           reason: 'Same customer confirmed',
           now: '2026-08-03T10:00:00.000Z'
         })
+        const implicitContactSplit = yield* Effect.flip(
+          service.split({
+            sourceId: merged.id,
+            observationIds: [right.record.observations[0]!.id],
+            expectedRevision: merged.revision,
+            idempotencyKey: 'split-implicit-contact',
+            actorId: 'usr_owner',
+            contactKeys: [{ kind: 'phone', value: '+40722000000' }],
+            consentIds: [consented.consent[0]!.id],
+            reason: 'Merge was mistaken',
+            now: '2026-08-04T10:00:00.000Z'
+          })
+        )
         const inconsistentSplit = yield* Effect.flip(
           service.split({
             sourceId: merged.id,
@@ -290,7 +303,13 @@ describe('Customer Directory contract', () => {
           reason: 'Merge was mistaken',
           now: '2026-08-04T10:00:00.000Z'
         })
-        return { merged, inconsistentSplit, split, replayedSplit }
+        return {
+          merged,
+          implicitContactSplit,
+          inconsistentSplit,
+          split,
+          replayedSplit
+        }
       })
     )
     expect(result.merged.observations).toHaveLength(2)
@@ -300,6 +319,10 @@ describe('Customer Directory contract', () => {
       preferredPhone: '+40722000000'
     })
     expect(result.inconsistentSplit).toMatchObject({
+      _tag: 'CustomerDirectoryInvalid',
+      reason: 'invalid_split_assignment'
+    })
+    expect(result.implicitContactSplit).toMatchObject({
       _tag: 'CustomerDirectoryInvalid',
       reason: 'invalid_split_assignment'
     })

@@ -1016,6 +1016,10 @@ const splitRecord = (
     const invalid = validateDetails(details)
     if (invalid) return yield* Effect.fail(invalid)
     const explicitlyAssigned = input.createdDetails !== undefined
+    if (!explicitlyAssigned && (input.contactKeys?.length ?? 0) > 0)
+      return yield* Effect.fail(
+        new CustomerDirectoryInvalid({ reason: 'invalid_split_assignment' })
+      )
     const movedContactKeys = new Set(
       (input.contactKeys ?? []).map((contact) => `${contact.kind}:${contact.value}`)
     )
@@ -1036,13 +1040,12 @@ const splitRecord = (
       .filter((evidence) => movedDestinations.has(evidence.destination))
       .map((evidence) => evidence.id)
     if (
-      explicitlyAssigned &&
-      (requiredConsentIds.some((id) => !movedConsentIds.has(id)) ||
-        source.consent.some(
-          (evidence) =>
-            movedConsentIds.has(evidence.id) &&
-            !movedDestinations.has(evidence.destination)
-        ))
+      requiredConsentIds.some((id) => !movedConsentIds.has(id)) ||
+      source.consent.some(
+        (evidence) =>
+          movedConsentIds.has(evidence.id) &&
+          !movedDestinations.has(evidence.destination)
+      )
     )
       return yield* Effect.fail(
         new CustomerDirectoryInvalid({ reason: 'invalid_split_assignment' })
