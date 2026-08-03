@@ -8,8 +8,13 @@ import {
 } from './customer-directory-handler.ts'
 import { runCustomerDirectoryRequest } from './customer-directory-runner.ts'
 import { runMerchantRequest } from './merchant-session.ts'
-import { createMerchantServerContext } from '../server-context.ts'
 import { customerImportFileId } from './customer-import-id.ts'
+
+const directoryFingerprintKey = () => {
+  const key = env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY?.trim()
+  if (!key) throw new Error('CUSTOMER_DIRECTORY_FINGERPRINT_KEY is required.')
+  return key
+}
 
 const RecordId = Schema.Struct({ recordId: Schema.String })
 const Mutation = {
@@ -103,7 +108,7 @@ const run: CustomerDirectoryRunner = (userId, effect) =>
   runCustomerDirectoryRequest({
     db: env.DB,
     userId,
-    fingerprintKey: createMerchantServerContext().merchantSecret(),
+    fingerprintKey: directoryFingerprintKey(),
     effect
   })
 
@@ -219,10 +224,7 @@ export const splitCustomer = createServerFn({ method: 'POST' })
 export const importCustomers = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(ImportRows))
   .handler(async ({ data }) => {
-    const fileId = await customerImportFileId(
-      data.rows,
-      createMerchantServerContext().merchantSecret()
-    )
+    const fileId = await customerImportFileId(data.rows, directoryFingerprintKey())
     return mutate((requests) =>
       requests.importRows({
         ...data,

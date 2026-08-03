@@ -26,11 +26,17 @@ const appointment: OperationalAppointment = {
         role: 'primary',
         name: 'Signature Cut',
         durationMinutes: 30,
+        beforeBufferMinutes: 0,
+        afterBufferMinutes: 0,
         priceMinor: 2300,
         currency: 'USD'
       }
     ],
     durationMinutes: 30,
+    beforeBufferMinutes: 0,
+    afterBufferMinutes: 0,
+    occupiedStartsAt: '2026-07-20T09:00:00.000Z',
+    occupiedEndsAt: '2026-07-20T09:30:00.000Z',
     currency: 'USD',
     totalMinor: 2300,
     merchantTimezone: 'Europe/Bucharest',

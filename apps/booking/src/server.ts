@@ -52,6 +52,7 @@ export type BookingWorkerEnv = {
   }
   readonly CONFIRMATION_SIGNING_KEYS: string
   readonly CONFIRMATION_CURRENT_KEY_ID: string
+  readonly CUSTOMER_DIRECTORY_FINGERPRINT_KEY: string
   readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string
   readonly OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY?: string
   readonly OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION?: string
@@ -258,12 +259,18 @@ export default {
     } catch {
       /* handled by capability */
     }
-    const capabilitiesLayer = selectCapabilitiesLayer(readyEnv, {
-      confirmationKeyring: {
-        currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
-        keys: signingKeys
+    const capabilitiesLayer = selectCapabilitiesLayer(
+      {
+        ...readyEnv,
+        REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY: true
+      },
+      {
+        confirmationKeyring: {
+          currentKeyId: readyEnv.CONFIRMATION_CURRENT_KEY_ID,
+          keys: signingKeys
+        }
       }
-    })
+    )
     const continuationMatch = requestUrl.pathname.match(
       /^\/([^/]+)\/booking\/customer\/continuation\/([^/]+)$/
     )

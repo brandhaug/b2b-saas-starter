@@ -86,6 +86,9 @@ const CONFIRMATION_SIGNING_KEYS = Redacted.make(
   requiredEnv('CONFIRMATION_SIGNING_KEYS')
 )
 const CONFIRMATION_CURRENT_KEY_ID = requiredEnv('CONFIRMATION_CURRENT_KEY_ID')
+const CUSTOMER_DIRECTORY_FINGERPRINT_KEY = Redacted.make(
+  requiredEnv('CUSTOMER_DIRECTORY_FINGERPRINT_KEY')
+)
 const OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY = optionalSecret(
   'OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY'
 )
@@ -189,6 +192,7 @@ export const Stack = Alchemy.Stack(
       main: './apps/api/src/index.ts',
       bindings: {
         DB: db,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
         EMAIL: transactionalEmail,
         BOOKING_EVENTS_QUEUE: bookingEventsQueue,
         ...(META_WHATSAPP_APP_SECRET ? { META_WHATSAPP_APP_SECRET } : {}),
@@ -228,6 +232,7 @@ export const Stack = Alchemy.Stack(
       },
       env: {
         ...optionalModuleEnv,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
         MERCHANT_AUTH_SECRET,
         MERCHANT_AUTH_URL: merchantAppOrigin,
         MERCHANT_AUTH_TRUSTED_ORIGINS: merchantAppOrigin,
@@ -252,7 +257,11 @@ export const Stack = Alchemy.Stack(
       url: false,
       domain: operationsAppDomain,
       main: './apps/operations/src/index.ts',
-      bindings: { DB: db, EMAIL: transactionalEmail },
+      bindings: {
+        DB: db,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+        EMAIL: transactionalEmail
+      },
       env: {
         ...operationsRateLimitEnvironment,
         OPERATIONS_AUTH_SECRET,
@@ -279,6 +288,7 @@ export const Stack = Alchemy.Stack(
       bindings: {
         DB: db,
         BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
         CONFIRMATION_SIGNING_KEYS,
         CONFIRMATION_CURRENT_KEY_ID,
         ...(OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY &&
@@ -321,6 +331,7 @@ export const Stack = Alchemy.Stack(
       bindings: {
         DB: db,
         BOOKING_EVENTS_QUEUE: bookingEventsQueue,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
         CONFIRMATION_SIGNING_KEYS,
         CONFIRMATION_CURRENT_KEY_ID,
         ...(OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY &&
@@ -385,6 +396,7 @@ export const Stack = Alchemy.Stack(
       bindings: {
         DB: db,
         BOOKING: booking,
+        CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
         EMAIL: transactionalEmail
       },
       // Merchant credentials belong only to the Merchant App. The Public

@@ -4,6 +4,7 @@
 // adding a var to `ServerEnvSchema` updates this file automatically.
 
 interface WebWorkerEnv extends Readonly<import('@b2b-saas-starter/env').ServerEnv> {
+  readonly CUSTOMER_DIRECTORY_FINGERPRINT_KEY: string
   // Optional in the inert build shim; runtime reads fail degraded when absent.
   readonly DB?: D1Database
   /** Booking App service binding; absent only in test/provider-light contexts. */

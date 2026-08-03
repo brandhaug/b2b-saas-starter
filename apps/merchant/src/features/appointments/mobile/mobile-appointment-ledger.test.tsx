@@ -53,11 +53,17 @@ const calendar = {
                 role: 'primary' as const,
                 name: 'Haircut',
                 durationMinutes: 30,
+                beforeBufferMinutes: 0,
+                afterBufferMinutes: 0,
                 priceMinor: 5_000,
                 currency: 'RON'
               }
             ],
             durationMinutes: 30,
+            beforeBufferMinutes: 0,
+            afterBufferMinutes: 0,
+            occupiedStartsAt: '2026-07-22T09:00:00.000Z',
+            occupiedEndsAt: '2026-07-22T09:30:00.000Z',
             currency: 'RON',
             totalMinor: 5_000,
             merchantTimezone: 'Europe/Bucharest',

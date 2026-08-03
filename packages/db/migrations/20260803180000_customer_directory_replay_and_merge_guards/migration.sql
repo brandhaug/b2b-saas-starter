@@ -8,6 +8,9 @@ SET `state_json` = json_set(
     `revision` = `revision` + 1,
     `updated_at` = CURRENT_TIMESTAMP;--> statement-breakpoint
 
+DROP TRIGGER IF EXISTS `customer_records_merge_target_insert_guard`;--> statement-breakpoint
+DROP TRIGGER IF EXISTS `customer_records_merge_target_update_guard`;--> statement-breakpoint
+
 CREATE TRIGGER `customer_records_merge_target_insert_guard`
 BEFORE INSERT ON `customer_records`
 WHEN NEW.`merged_into` IS NOT NULL AND (

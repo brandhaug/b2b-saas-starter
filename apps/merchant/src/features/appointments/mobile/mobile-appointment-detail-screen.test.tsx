@@ -25,11 +25,17 @@ const appointment = (
         role: 'primary',
         name: 'Signature Cut',
         durationMinutes: 30,
+        beforeBufferMinutes: 0,
+        afterBufferMinutes: 0,
         priceMinor: 2300,
         currency: 'USD'
       }
     ],
     durationMinutes: 30,
+    beforeBufferMinutes: 0,
+    afterBufferMinutes: 0,
+    occupiedStartsAt: '2026-07-24T09:00:00.000Z',
+    occupiedEndsAt: '2026-07-24T09:30:00.000Z',
     currency: 'USD',
     totalMinor: 2300,
     merchantTimezone: 'Europe/Bucharest',
@@ -53,6 +59,9 @@ describe('MobileAppointmentDetailScreen', () => {
     )
 
     expect(html).toContain('data-mobile-appointment-detail="true"')
+    expect(html).toContain('data-mobile-appointment-detail-density="compact"')
+    expect(html).toContain('data-appointment-status="scheduled"')
+    expect(html).toContain('data-mobile-task-expanded-only="true"')
     expect(html).toContain('Parity Customer')
     expect(html).toContain('Signature Cut')
     expect(html).toContain('Due in person')
@@ -60,9 +69,13 @@ describe('MobileAppointmentDetailScreen', () => {
     expect(html).toContain('href="mailto:parity@example.com"')
     expect(html).toContain('href="/mara/booking"')
     expect(html).toContain('New booking')
+    expect(html).toContain('min-h-20')
+    expect(html).toContain('h-full min-h-full flex-col')
+    expect(html).not.toContain('min-h-24')
+    expect(html).not.toContain('pt-8')
   })
 
-  it('uses completed and paid-online labels without inventing a refund state', () => {
+  it('uses the paid-online label without repeating status in the detail sheet', () => {
     const completed = appointment({
       status: 'completed',
       snapshot: {
@@ -75,7 +88,8 @@ describe('MobileAppointmentDetailScreen', () => {
     )
 
     expect(mobileAppointmentPaymentLabel(completed)).toBe('Paid online')
-    expect(html).toContain('Completed')
+    expect(html).not.toContain('Completed')
+    expect(html).not.toContain('Scheduled')
     expect(html).toContain('Paid online')
     expect(html).toContain('Book again')
     expect(html).not.toContain('Refund')
@@ -107,5 +121,13 @@ describe('MobileAppointmentDetailScreen', () => {
     })
 
     expect(mobileAppointmentPaymentLabel(cancelled)).toBe('Online payment')
+    const html = renderToStaticMarkup(
+      <MobileAppointmentDetailScreen
+        appointment={cancelled}
+        bookingUrl="/mara/booking"
+      />
+    )
+    expect(html).toContain('Rebook')
+    expect(html).not.toContain('New booking')
   })
 })

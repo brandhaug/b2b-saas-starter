@@ -16,7 +16,7 @@ type CustomerDirectoryDatabase = Parameters<typeof layerFromD1>[0]
 export const runCustomerDirectoryRequest = <A>(input: {
   readonly db: CustomerDirectoryDatabase | undefined
   readonly userId: string
-  readonly fingerprintKey?: string
+  readonly fingerprintKey: string
   readonly effect: Effect.Effect<
     A,
     CustomerDirectoryError,

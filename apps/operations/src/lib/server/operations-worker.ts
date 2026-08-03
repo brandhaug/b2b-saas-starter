@@ -51,6 +51,7 @@ export type OperationsWorkerEnv = OperationsEnvironment & {
   readonly DB: D1Database
   readonly BOOKING_EVENTS_QUEUE?: Queue
   readonly EMAIL?: OperationsEmailBinding
+  readonly CUSTOMER_DIRECTORY_FINGERPRINT_KEY?: string
   readonly RATE_LIMITER_OPERATIONS_READ?: CloudflareRateLimit
   readonly RATE_LIMITER_OPERATIONS_AUTHENTICATION?: CloudflareRateLimit
   readonly RATE_LIMITER_OPERATIONS_TOTP?: CloudflareRateLimit
@@ -491,7 +492,16 @@ export const createOperationsWorker = () => ({
                 }
               : {}),
             ...(shortenedPeriodEndsAt ? { shortenedPeriodEndsAt } : {})
-          }).pipe(Effect.provide(selectCapabilitiesLayer({ DB: env.DB })))
+          }).pipe(
+            Effect.provide(
+              selectCapabilitiesLayer({
+                DB: env.DB,
+                CUSTOMER_DIRECTORY_FINGERPRINT_KEY:
+                  env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+                REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY: true
+              })
+            )
+          )
         )
         return Response.json(null)
       } catch {

@@ -8,6 +8,7 @@ describe('Customer Directory request runner', () => {
       runCustomerDirectoryRequest({
         db: undefined,
         userId: 'usr_owner',
+        fingerprintKey: 'customer-directory-runner-test-key',
         effect: Effect.succeed('unreachable')
       })
     ).rejects.toMatchObject({

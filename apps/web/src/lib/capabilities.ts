@@ -18,7 +18,12 @@ const bookingProductEnv = (): BookingProductEnv => {
       'The D1 binding is unavailable.'
     )
   }
-  return { DB: cloudflareEnv.DB }
+  return {
+    DB: cloudflareEnv.DB,
+    CUSTOMER_DIRECTORY_FINGERPRINT_KEY:
+      cloudflareEnv.CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+    REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY: true
+  }
 }
 
 const rethrowCapabilityFailure = (cause: Cause.Cause<unknown>): never => {

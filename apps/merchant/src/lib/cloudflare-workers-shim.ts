@@ -5,6 +5,9 @@ export const env = {
   MERCHANT_AUTH_SECRET:
     process.env.MERCHANT_AUTH_SECRET ??
     'local-merchant-auth-secret-change-me-minimum-32-chars',
+  CUSTOMER_DIRECTORY_FINGERPRINT_KEY:
+    process.env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY ??
+    'local-customer-directory-fingerprint-key-change-me',
   MERCHANT_AUTH_URL: process.env.MERCHANT_AUTH_URL ?? 'http://localhost:3072',
   MERCHANT_AUTH_TRUSTED_ORIGINS:
     process.env.MERCHANT_AUTH_TRUSTED_ORIGINS ??

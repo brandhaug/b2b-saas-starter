@@ -15,6 +15,7 @@ interface MerchantWorkerEnv {
   readonly OPERATIONS_RATE_LIMIT_HANDOFF_EXCHANGE?: string
   readonly OPERATIONS_RATE_LIMIT_WINDOW_SECONDS?: string
   readonly PLATFORM_API_CURSOR_SECRET?: string
+  readonly CUSTOMER_DIRECTORY_FINGERPRINT_KEY?: string
   readonly PUBLIC_SITE_ORIGIN?: string
   readonly MERCHANT_APP_ORIGIN?: string
   readonly STRIPE_SUBSCRIPTION_SECRET_KEY?: string
