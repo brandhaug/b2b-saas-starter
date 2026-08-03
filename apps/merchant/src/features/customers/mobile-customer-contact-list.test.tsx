@@ -64,7 +64,7 @@ const directory: CustomerDirectoryView = {
         'cur_mara',
         'Mara Ionescu',
         'mara@example.com',
-        '+40 700 000 001',
+        '+40700000001',
         '2026-07-24T09:00:00.000Z'
       ),
       contacts: [
@@ -124,6 +124,9 @@ describe('MobileCustomerContactList', () => {
       directory.entries[1]
     ])
     expect(filterCustomerEntries(directory.entries, '000 001')).toEqual([
+      directory.entries[0]
+    ])
+    expect(filterCustomerEntries(directory.entries, '(407) 000-000-01')).toEqual([
       directory.entries[0]
     ])
     expect(filterCustomerEntries(directory.entries, 'Mara Popescu')).toEqual([

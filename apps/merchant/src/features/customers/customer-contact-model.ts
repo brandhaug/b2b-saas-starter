@@ -6,15 +6,23 @@ export type CustomerDirectoryView = {
 
 type CustomerEntry = CustomerRecord
 
-const searchEvidence = (entry: CustomerEntry): readonly (string | null)[] => [
-  entry.displayName,
-  entry.preferredEmail,
-  entry.preferredPhone,
-  ...entry.contacts.map((contact) => contact.value),
+type SearchEvidence = {
+  readonly value: string | null
+  readonly kind: 'text' | 'phone'
+}
+
+const searchEvidence = (entry: CustomerEntry): readonly SearchEvidence[] => [
+  { value: entry.displayName, kind: 'text' },
+  { value: entry.preferredEmail, kind: 'text' },
+  { value: entry.preferredPhone, kind: 'phone' },
+  ...entry.contacts.map((contact) => ({
+    value: contact.value,
+    kind: contact.kind === 'phone' ? ('phone' as const) : ('text' as const)
+  })),
   ...entry.observations.flatMap((observation) => [
-    observation.details.name,
-    observation.details.email,
-    observation.details.phone
+    { value: observation.details.name, kind: 'text' as const },
+    { value: observation.details.email, kind: 'text' as const },
+    { value: observation.details.phone, kind: 'phone' as const }
   ])
 ]
 
@@ -24,9 +32,19 @@ export const customerRecordMatchesQuery = (
 ): boolean => {
   const normalizedQuery = query.trim().toLocaleLowerCase()
   if (!normalizedQuery) return true
+  const queryDigits = normalizedQuery.replace(/\D/g, '')
+  const isPhoneQuery = /^[\d\s()+.-]+$/.test(normalizedQuery) && queryDigits.length >= 3
   return searchEvidence(entry)
-    .filter((value): value is string => Boolean(value))
-    .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
+    .filter((evidence): evidence is SearchEvidence & { readonly value: string } =>
+      Boolean(evidence.value)
+    )
+    .some(
+      (evidence) =>
+        evidence.value.toLocaleLowerCase().includes(normalizedQuery) ||
+        (evidence.kind === 'phone' &&
+          isPhoneQuery &&
+          evidence.value.replace(/\D/g, '').includes(queryDigits))
+    )
 }
 
 export const filterCustomerEntries = (

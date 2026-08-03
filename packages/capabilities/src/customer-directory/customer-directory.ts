@@ -578,42 +578,60 @@ export const makeCustomerDirectoryService = (
           }
         ]
       })),
-    setContactStatus: (recordId, input) => {
-      const normalizedValue =
-        input.kind === 'email' ? email(input.value) : phone(input.value)
-      const becomesPreferred = input.preferred && input.status === 'active'
-      return mutate(store, recordId, input, 'edited', () => ({
-        contacts: (record: CustomerRecord) =>
-          record.contacts.map((contact) =>
-            contact.kind === input.kind && contact.value === normalizedValue
-              ? {
-                  ...contact,
-                  status: input.status,
-                  preferred: becomesPreferred
-                }
-              : becomesPreferred && contact.kind === input.kind
-                ? { ...contact, preferred: false }
-                : contact
-          ),
-        ...(input.kind === 'email'
-          ? {
-              preferredEmail: (record: CustomerRecord) =>
-                becomesPreferred
-                  ? normalizedValue
-                  : record.preferredEmail === normalizedValue
-                    ? null
-                    : record.preferredEmail
-            }
-          : {
-              preferredPhone: (record: CustomerRecord) =>
-                becomesPreferred
-                  ? normalizedValue
-                  : record.preferredPhone === normalizedValue
-                    ? null
-                    : record.preferredPhone
-            })
-      }))
-    },
+    setContactStatus: (recordId, input) =>
+      Effect.gen(function* () {
+        const merchant = yield* MerchantContext
+        const record = store.records.get(recordId)
+        if (!record || record.merchantId !== merchant.id)
+          return yield* Effect.fail(
+            new CapabilityNotFound({ resource: 'customer-record' })
+          )
+
+        const normalizedValue =
+          input.kind === 'email' ? email(input.value) : phone(input.value)
+        if (
+          !record.contacts.some(
+            (contact) =>
+              contact.kind === input.kind && contact.value === normalizedValue
+          )
+        )
+          return yield* Effect.fail(
+            new CapabilityNotFound({ resource: 'customer-contact' })
+          )
+
+        const becomesPreferred = input.preferred && input.status === 'active'
+        return yield* mutate(store, recordId, input, 'edited', () => ({
+          contacts: (record: CustomerRecord) =>
+            record.contacts.map((contact) =>
+              contact.kind === input.kind && contact.value === normalizedValue
+                ? {
+                    ...contact,
+                    status: input.status,
+                    preferred: becomesPreferred
+                  }
+                : becomesPreferred && contact.kind === input.kind
+                  ? { ...contact, preferred: false }
+                  : contact
+            ),
+          ...(input.kind === 'email'
+            ? {
+                preferredEmail: (record: CustomerRecord) =>
+                  becomesPreferred
+                    ? normalizedValue
+                    : record.preferredEmail === normalizedValue
+                      ? null
+                      : record.preferredEmail
+              }
+            : {
+                preferredPhone: (record: CustomerRecord) =>
+                  becomesPreferred
+                    ? normalizedValue
+                    : record.preferredPhone === normalizedValue
+                      ? null
+                      : record.preferredPhone
+              })
+        }))
+      }),
     recordConsent: (recordId, input) =>
       mutate(store, recordId, input, 'edited', (input) => ({
         consent: (record: CustomerRecord) =>

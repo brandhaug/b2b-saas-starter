@@ -247,6 +247,45 @@ describe('Customer Directory contract', () => {
     ).toMatchObject({ preferred: false })
   })
 
+  it('rejects preferring a destination without contact evidence', async () => {
+    const result = await run(
+      'mer_missing_contact_preference',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_missing_contact_preference',
+          details: observation({ email: 'known@example.com', phone: null }),
+          now: '2026-08-01T10:00:00.000Z'
+        })
+        const failure = yield* Effect.flip(
+          service.setContactStatus(created.record.id, {
+            expectedRevision: created.record.revision,
+            idempotencyKey: 'prefer-missing-contact',
+            actorId: 'usr_owner',
+            kind: 'email',
+            value: 'invented@example.com',
+            status: 'active',
+            preferred: true,
+            now: '2026-08-02T10:00:00.000Z'
+          })
+        )
+        return {
+          failure,
+          record: yield* service.get(created.record.id)
+        }
+      })
+    )
+
+    expect(result.failure).toMatchObject({
+      _tag: 'CapabilityNotFound',
+      resource: 'customer-contact'
+    })
+    expect(result.record).toMatchObject({
+      revision: 1,
+      preferredEmail: 'known@example.com'
+    })
+  })
+
   it('reconciles same-destination contact statuses before merge persistence', async () => {
     const result = await run(
       'mer_merge_contact_statuses',

@@ -130,12 +130,15 @@ describe('Live Customer Directory contract', () => {
     expect(links.results).toHaveLength(1)
     const createdHistory = await test.d1
       .prepare(
-        `SELECT revision FROM customer_directory_history
-         WHERE customer_record_id = ? AND kind = 'created'`
+        `SELECT kind, revision FROM customer_directory_history
+         WHERE customer_record_id = ? ORDER BY revision`
       )
       .bind(links.results[0]!.customer_record_id)
-      .all<{ revision: number }>()
-    expect(createdHistory.results).toEqual([{ revision: 1 }, { revision: 2 }])
+      .all<{ kind: string; revision: number }>()
+    expect(createdHistory.results).toEqual([
+      { kind: 'created', revision: 1 },
+      { kind: 'appointment_observed', revision: 2 }
+    ])
   })
 
   it('persists matching, revisions, attributed history, and idempotent recovery', async () => {

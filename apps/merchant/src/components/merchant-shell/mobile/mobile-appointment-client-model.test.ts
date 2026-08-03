@@ -75,6 +75,9 @@ describe('appointment client model', () => {
     expect(groupAppointmentClients(entries, 'alex.old@example')).toEqual([
       { letter: 'A', entries: [entries[1]] }
     ])
+    expect(groupAppointmentClients(entries, '(407) 111-111-11')).toEqual([
+      { letter: 'A', entries: [entries[1]] }
+    ])
   })
 
   it('builds customer details for the appointment draft', () => {

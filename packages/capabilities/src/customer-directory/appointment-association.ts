@@ -308,7 +308,7 @@ export const prepareAppointmentCustomerAssociation = (
           id: `cuh_${appointment.id}`,
           merchantId: input.merchantId,
           customerRecordId: recordId,
-          kind: matchedId ? 'appointment_observed' : 'created',
+          kind: sql<string>`CASE WHEN (SELECT ${customerRecords.revision} FROM ${customerRecords} WHERE ${customerRecords.id} = ${recordId}) = 1 THEN 'created' ELSE 'appointment_observed' END`,
           actorId: historyActor.actorId,
           impersonatedBy: historyActor.impersonatedBy,
           reason: input.origin,
