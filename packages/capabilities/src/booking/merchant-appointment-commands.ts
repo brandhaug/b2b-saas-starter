@@ -876,7 +876,7 @@ export const liveMerchantAppointmentCommands = (options?: {
                 )
                   throw reject('record_completed_invalid')
                 if (
-                  command.kind === 'create' &&
+                  (command.kind === 'create' || command.kind === 'create_series') &&
                   occurrences.some(
                     (item) => Date.parse(item.startsAt) < Date.parse(now)
                   )
@@ -975,9 +975,7 @@ export const liveMerchantAppointmentCommands = (options?: {
                         command.idempotencyKey,
                         JSON.stringify(snapshots[0]!.services),
                         JSON.stringify(customer),
-                        new Date(
-                          `${localOccurrence(occurrences[0]!.startsAt, merchant.timezone).date}T12:00:00.000Z`
-                        ).getUTCDay(),
+                        new Date(`${command.localStartDate}T12:00:00.000Z`).getUTCDay(),
                         command.localStartTime,
                         command.intervalWeeks,
                         occurrences.length,
@@ -1575,27 +1573,39 @@ export const liveMerchantAppointmentCommands = (options?: {
                   throw new CapabilityDenied({ reason: 'owner_session_required' })
                 await assertAccess(raw, merchant.id, actorId, false)
                 const catalog = await loadCatalog(raw, merchant.id, input.serviceIds)
+                const snapshots = input.occurrences.map((occurrence) =>
+                  makeSnapshot(
+                    merchant.timezone,
+                    { name: 'Preview', email: null, phone: null },
+                    occurrence.startsAt,
+                    occurrence.endsAt,
+                    catalog
+                  )
+                )
                 return Promise.all(
-                  input.occurrences.map(async (occurrence) => {
-                    const snapshot = makeSnapshot(
-                      merchant.timezone,
-                      { name: 'Preview', email: null, phone: null },
-                      occurrence.startsAt,
-                      occurrence.endsAt,
-                      catalog
+                  input.occurrences.map(async (occurrence, index) => {
+                    const snapshot = snapshots[index]!
+                    const proposedConflict = snapshots.some(
+                      (candidate, candidateIndex) =>
+                        candidateIndex !== index &&
+                        candidate.occupiedStartsAt < snapshot.occupiedEndsAt &&
+                        candidate.occupiedEndsAt > snapshot.occupiedStartsAt
                     )
-                    const conflict = await raw
-                      .prepare(`SELECT 1 conflictFound FROM appointments a
+                    const persistedConflict = proposedConflict
+                      ? undefined
+                      : await raw
+                          .prepare(`SELECT 1 conflictFound FROM appointments a
                         WHERE a.merchant_id = ? AND a.provider_id = ? AND a.status = 'scheduled'
                         AND COALESCE(json_extract(a.snapshot, '$.occupiedStartsAt'), a.starts_at) < ?
                         AND COALESCE(json_extract(a.snapshot, '$.occupiedEndsAt'), a.ends_at) > ? LIMIT 1`)
-                      .bind(
-                        merchant.id,
-                        catalog.provider.id,
-                        snapshot.occupiedEndsAt,
-                        snapshot.occupiedStartsAt
-                      )
-                      .first<{ conflictFound: number }>()
+                          .bind(
+                            merchant.id,
+                            catalog.provider.id,
+                            snapshot.occupiedEndsAt,
+                            snapshot.occupiedStartsAt
+                          )
+                          .first<{ conflictFound: number }>()
+                    const conflict = proposedConflict || Boolean(persistedConflict)
                     const warning = conflict
                       ? false
                       : await requiresScheduleWarning(

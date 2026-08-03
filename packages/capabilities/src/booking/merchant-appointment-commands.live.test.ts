@@ -302,8 +302,9 @@ describe('Live Merchant Appointment commands', () => {
         {
           appointmentId: 'apt_series_one',
           cadencePosition: 0,
-          startsAt: '2026-08-17T09:00:00.000Z',
-          endsAt: '2026-08-17T09:45:00.000Z'
+          adjusted: true,
+          startsAt: '2026-08-18T09:00:00.000Z',
+          endsAt: '2026-08-18T09:45:00.000Z'
         },
         {
           appointmentId: 'apt_series_two',
@@ -314,6 +315,8 @@ describe('Live Merchant Appointment commands', () => {
       ],
       serviceIds: ['svc_operations_cut'],
       customer: { name: 'Series Customer', email: null, phone: null },
+      warningAcknowledged: true,
+      overrideReason: 'The first occurrence was moved at the customer request.',
       notification: { kind: 'suppress', reason: 'Customer booked in person.' }
     })
 
@@ -329,6 +332,11 @@ describe('Live Merchant Appointment commands', () => {
       { id: 'apt_series_one', status: 'scheduled', seriesId: 'aps_operations' },
       { id: 'apt_series_two', status: 'scheduled', seriesId: 'aps_operations' }
     ])
+    const persistedSeries = await test.d1
+      .prepare(`SELECT weekday FROM appointment_series WHERE id = ?`)
+      .bind('aps_operations')
+      .first<{ weekday: number }>()
+    expect(persistedSeries?.weekday).toBe(1)
 
     const cancelled = await execute({
       kind: 'cancel_remaining_series',
@@ -370,6 +378,31 @@ describe('Live Merchant Appointment commands', () => {
     ])
 
     await expect(
+      run(
+        Effect.flatMap(MerchantAppointmentCommands, (service) =>
+          service.previewSeries({
+            serviceIds: ['svc_operations_cut'],
+            occurrences: [
+              {
+                cadencePosition: 0,
+                startsAt: '2026-08-24T09:00:00.000Z',
+                endsAt: '2026-08-24T09:45:00.000Z'
+              },
+              {
+                cadencePosition: 1,
+                startsAt: '2026-08-24T09:30:00.000Z',
+                endsAt: '2026-08-24T10:15:00.000Z'
+              }
+            ]
+          })
+        )
+      )
+    ).resolves.toEqual([
+      { cadencePosition: 0, status: 'conflict' },
+      { cadencePosition: 1, status: 'conflict' }
+    ])
+
+    await expect(
       execute({
         kind: 'create_series',
         idempotencyKey: 'series-conflict',
@@ -399,6 +432,33 @@ describe('Live Merchant Appointment commands', () => {
     await expect(detail('apt_series_rolled_back')).resolves.toEqual({
       kind: 'not_found'
     })
+  })
+
+  it('rejects a new scheduled Series when any member starts in the past', async () => {
+    await expect(
+      execute({
+        kind: 'create_series',
+        idempotencyKey: 'past-series',
+        intervalWeeks: 1,
+        localStartDate: '2026-07-20',
+        localStartTime: '12:00',
+        occurrences: [
+          {
+            cadencePosition: 0,
+            startsAt: '2026-07-20T09:00:00.000Z',
+            endsAt: '2026-07-20T09:45:00.000Z'
+          },
+          {
+            cadencePosition: 1,
+            startsAt: '2026-07-27T09:00:00.000Z',
+            endsAt: '2026-07-27T09:45:00.000Z'
+          }
+        ],
+        serviceIds: ['svc_operations_cut'],
+        customer: { name: 'Past Series Customer', email: null, phone: null },
+        notification: { kind: 'notify' }
+      })
+    ).rejects.toMatchObject({ reason: 'appointment_start_in_past' })
   })
 
   it('records a past completed visit and its optional collection in one transaction', async () => {

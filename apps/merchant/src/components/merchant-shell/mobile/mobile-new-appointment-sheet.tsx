@@ -244,6 +244,7 @@ function NewAppointmentSheetSurface({
   const [seriesPreview, setSeriesPreview] = useState<
     Readonly<Record<number, 'available' | 'warning' | 'conflict'>>
   >({})
+  const [seriesPreviewKey, setSeriesPreviewKey] = useState('')
   const [seriesWarningsAcknowledged, setSeriesWarningsAcknowledged] = useState(false)
   const [seriesOverrideReason, setSeriesOverrideReason] = useState('')
   const [recurrencePickerOpen, setRecurrencePickerOpen] = useState(false)
@@ -277,6 +278,11 @@ function NewAppointmentSheetSurface({
     if (!selectedService || !availability || !effectiveSelectedTime) return
     setSaveError('')
     try {
+      const previewKey = currentSeriesDraftKey()
+      if (previewKey !== seriesPreviewKey) {
+        setSeriesWarningsAcknowledged(false)
+        setSeriesOverrideReason('')
+      }
       const localTime = appointmentTimes(availability, selectedDate).find(
         (time) => time.instant === effectiveSelectedTime
       )?.value
@@ -307,6 +313,7 @@ function NewAppointmentSheetSurface({
       setSeriesPreview(
         Object.fromEntries(result.map((entry) => [entry.cadencePosition, entry.status]))
       )
+      setSeriesPreviewKey(previewKey)
     } catch (error) {
       setSaveError(
         error instanceof Error ? error.message : 'Series preview could not be checked.'
@@ -324,6 +331,8 @@ function NewAppointmentSheetSurface({
     )?.value
     try {
       if (repeatEveryWeeks && localTime) {
+        if (seriesPreviewKey !== currentSeriesDraftKey())
+          throw new Error('Check the finalized Series before saving it.')
         const occurrences = Array.from(
           { length: repeatCount },
           (_, index) => index
@@ -662,6 +671,24 @@ function NewAppointmentSheetSurface({
     return candidates.length === 1 ? candidates[0]!.toISOString() : null
   })()
 
+  function currentSeriesDraftKey() {
+    return JSON.stringify({
+      serviceId: selectedService?.id ?? null,
+      durationMinutes,
+      selectedDate,
+      selectedTime: effectiveSelectedTime,
+      repeatEveryWeeks,
+      repeatCount,
+      excludedSeriesIndices: [...excludedSeriesIndices].sort(
+        (left, right) => left - right
+      ),
+      seriesDateOverrides,
+      seriesFoldChoices
+    })
+  }
+
+  const seriesPreviewCurrent = seriesPreviewKey === currentSeriesDraftKey()
+
   const activateDialog = useNewAppointmentDialogActivation(sheetRef, presentation)
   const activateDesktopSubstepDialog = useNewAppointmentDialogActivation(
     desktopSubstepRef,
@@ -683,8 +710,8 @@ function NewAppointmentSheetSurface({
       excludedSeriesIndices={excludedSeriesIndices}
       seriesDateOverrides={seriesDateOverrides}
       seriesFoldChoices={seriesFoldChoices}
-      seriesPreview={seriesPreview}
-      seriesWarningsAcknowledged={seriesWarningsAcknowledged}
+      seriesPreview={seriesPreviewCurrent ? seriesPreview : {}}
+      seriesWarningsAcknowledged={seriesPreviewCurrent && seriesWarningsAcknowledged}
       seriesOverrideReason={seriesOverrideReason}
       appointmentNote={appointmentNote}
       clientNote={clientNote}
