@@ -217,20 +217,25 @@ function BookingConfirmationView({
   const copy = (key: Parameters<typeof translateBookingMessage>[1]) =>
     translateBookingMessage(locale, key)
   const isGroup = confirmation.appointments.length > 1
-  const isCancelled = confirmation.appointments.some(
+  const hasCancelled = confirmation.appointments.some(
     (appointment) => appointment.status === 'cancelled'
   )
-  const scheduled = confirmation.appointments.every(
+  const allCancelled = confirmation.appointments.every(
+    (appointment) => appointment.status === 'cancelled'
+  )
+  const allScheduled = confirmation.appointments.every(
     (appointment) => appointment.status === 'scheduled'
   )
   const customerFirstName = confirmation.customerFirstName
-  const headingKey = isCancelled
+  const headingKey = allCancelled
     ? isGroup
       ? 'reservation.heading_group_cancelled'
       : 'reservation.heading_cancelled'
-    : isGroup
-      ? 'reservation.heading_group'
-      : 'reservation.heading'
+    : isGroup && hasCancelled
+      ? 'reservation.heading_group_mixed'
+      : isGroup
+        ? 'reservation.heading_group'
+        : 'reservation.heading'
   const heading = copy(headingKey).replace('{name}', customerFirstName)
   const statusKey = {
     scheduled: 'status.appointment_scheduled',
@@ -240,6 +245,7 @@ function BookingConfirmationView({
   } as const
   const [scrolled, setScrolled] = useState(false)
   const [popupOpen, setPopupOpen] = useState(false)
+  const [cancelAppointmentId, setCancelAppointmentId] = useState<string | null>(null)
   const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState<string | null>(
     null
   )
@@ -257,9 +263,11 @@ function BookingConfirmationView({
   const directionsQuery = confirmation.shop.coordinates
     ? `${confirmation.shop.coordinates.latitude},${confirmation.shop.coordinates.longitude}`
     : shopAddress
-  const cancelPath = isGroup
-    ? '/cancel'
-    : `/appointments/${encodeURIComponent(confirmation.appointments[0]?.id ?? '')}/cancel`
+  const cancelPath = cancelAppointmentId
+    ? `/appointments/${encodeURIComponent(cancelAppointmentId)}/cancel`
+    : isGroup
+      ? '/cancel'
+      : `/appointments/${encodeURIComponent(confirmation.appointments[0]?.id ?? '')}/cancel`
 
   const cancel = async () => {
     setMutation('pending')
@@ -286,7 +294,7 @@ function BookingConfirmationView({
         {...stylex.props(styles.title, scrolled && styles.titleScrolled)}
       >
         <div {...stylex.props(styles.titleContent)}>
-          <ConfirmationIcon cancelled={isCancelled} />
+          <ConfirmationIcon cancelled={allCancelled} />
           <span
             data-testid="text:apptConfirmationTitle"
             {...stylex.props(styles.titleText)}
@@ -316,6 +324,10 @@ function BookingConfirmationView({
               scheduled={appointment.status === 'scheduled'}
               group={isGroup}
               onReschedule={() => setRescheduleAppointmentId(appointment.id)}
+              onCancel={() => {
+                setCancelAppointmentId(appointment.id)
+                setPopupOpen(true)
+              }}
             />
           ))}
           {isGroup ? (
@@ -326,7 +338,7 @@ function BookingConfirmationView({
               </span>
             </div>
           ) : null}
-          {isCancelled && !isGroup ? (
+          {allCancelled && !isGroup ? (
             <section {...stylex.props(styles.scheduleAnotherWrapper)}>
               <button
                 type="button"
@@ -386,7 +398,7 @@ function BookingConfirmationView({
           {confirmation.snapshot.checkoutPath === 'pay_in_person' ? (
             <PayInPerson confirmation={confirmation} />
           ) : null}
-          {scheduled ? (
+          {allScheduled ? (
             <section {...stylex.props(styles.actions)}>
               {!isGroup ? (
                 <button
@@ -447,7 +459,10 @@ function BookingConfirmationView({
         target={popupTarget}
         open={popupOpen}
         label={copy('reservation.cancel_title')}
-        onClose={() => setPopupOpen(false)}
+        onClose={() => {
+          setPopupOpen(false)
+          setCancelAppointmentId(null)
+        }}
         testId="popup:cancelAppointment"
         presenceKey="cancel-appointment"
         legacyGeometry
@@ -459,7 +474,10 @@ function BookingConfirmationView({
             <button
               type="button"
               aria-label={copy('action.close')}
-              onClick={() => setPopupOpen(false)}
+              onClick={() => {
+                setPopupOpen(false)
+                setCancelAppointmentId(null)
+              }}
               {...stylex.props(styles.popupClose)}
             >
               <CloseIcon />
@@ -481,7 +499,10 @@ function BookingConfirmationView({
           <button
             type="button"
             data-testid="button:discardCancel"
-            onClick={() => setPopupOpen(false)}
+            onClick={() => {
+              setPopupOpen(false)
+              setCancelAppointmentId(null)
+            }}
             {...stylex.props(styles.actionButton, styles.popupSecondary)}
           >
             {copy('reservation.cancel_keep')}
@@ -502,7 +523,8 @@ function AppointmentCard({
   cancelled,
   scheduled,
   group,
-  onReschedule
+  onReschedule,
+  onCancel
 }: {
   readonly appointment: BookingConfirmationPresentationData['appointments'][number]
   readonly confirmation: BookingConfirmationPresentationData
@@ -511,6 +533,7 @@ function AppointmentCard({
   readonly scheduled: boolean
   readonly group: boolean
   readonly onReschedule: () => void
+  readonly onCancel: () => void
 }) {
   const locale = confirmation.locale
   const copy = (key: Parameters<typeof translateBookingMessage>[1]) =>
@@ -689,6 +712,16 @@ function AppointmentCard({
               </button>
             ))}
           </div>
+          {group ? (
+            <button
+              type="button"
+              data-testid={`btn:cancel:${appointment.id}`}
+              onClick={onCancel}
+              {...stylex.props(styles.actionButton, styles.dangerAction)}
+            >
+              {copy('reservation.cancel')}
+            </button>
+          ) : null}
         </div>
       ) : null}
       {!group ? (

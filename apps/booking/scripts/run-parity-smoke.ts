@@ -154,25 +154,25 @@ const capture = async (
     scenario.journey === 'cancellation-refund'
   ) {
     await page.clock.runFor(100)
-    const anyProfessional = page.getByRole('button', { name: /any professional/i })
-    await anyProfessional.waitFor({ timeout: 5_000 }).catch(async () => {
+    const service = page.getByRole('button', { name: 'Signature Cut' })
+    await service.waitFor({ timeout: 5_000 }).catch(async () => {
       await page.reload()
-      await anyProfessional.waitFor()
+      await service.waitFor()
     })
-    assertionResults.set('booking shell is visible', await anyProfessional.isVisible())
+    assertionResults.set('booking shell is visible', await service.isVisible())
     const directSessionUrl = page.url()
     await page.reload()
     await page.clock.runFor(100)
-    await anyProfessional.waitFor({ timeout: 5_000 }).catch(async () => {
+    await service.waitFor({ timeout: 5_000 }).catch(async () => {
       await page.reload()
       await page.clock.runFor(100)
-      await anyProfessional.waitFor()
+      await service.waitFor()
     })
     assertionResults.set(
       'direct Session link hydrates without losing intent',
       page.url() === directSessionUrl &&
         new URL(directSessionUrl).searchParams.has('booking') &&
-        (await anyProfessional.isVisible())
+        (await service.isVisible())
     )
     await page.keyboard.press('Tab')
     assertionResults.set(
@@ -186,9 +186,6 @@ const capture = async (
         )
       })
     )
-    await anyProfessional.click()
-    const service = page.getByRole('button', { name: 'Signature Cut' })
-    await service.waitFor()
     assertionResults.set('pointer activation works', await service.isVisible())
     assertionResults.set(
       'long copy reflows without horizontal overflow',
@@ -276,17 +273,37 @@ const capture = async (
         compactBounds.y + compactBounds.height <= 320
     )
     await page.setViewportSize(scenario.viewport)
-    await page.getByRole('button', { name: 'Signature Cut' }).click()
-    await page.getByRole('button', { name: /View order/ }).click()
-    await page.getByRole('button', { name: 'Choose time' }).click()
+    await service.click()
+    await page
+      .getByRole('button', {
+        name: translateBookingMessage(scenario.locale, 'action.view_order')
+      })
+      .click()
+    await page
+      .getByRole('button', {
+        name: translateBookingMessage(scenario.locale, 'scheduling.choose_title')
+      })
+      .click()
     await page
       .getByRole('button', { name: /\d{1,2}:\d{2}/ })
       .first()
       .click()
-    await page.getByRole('button', { name: 'Go to checkout' }).click()
-    await page.getByLabel('Name').fill('Parity Customer')
-    await page.getByLabel('Email').fill('parity@example.com')
-    await page.getByRole('button', { name: 'Review booking' }).click()
+    await page
+      .getByRole('button', {
+        name: translateBookingMessage(scenario.locale, 'action.checkout')
+      })
+      .click()
+    await page
+      .getByLabel(translateBookingMessage(scenario.locale, 'checkout.name'))
+      .fill('Parity Customer')
+    await page
+      .getByLabel(translateBookingMessage(scenario.locale, 'checkout.email'))
+      .fill('parity@example.com')
+    await page
+      .getByRole('button', {
+        name: translateBookingMessage(scenario.locale, 'checkout.review_booking')
+      })
+      .click()
     await page
       .getByText(translateBookingMessage(scenario.locale, 'status.pay_in_person'), {
         exact: true

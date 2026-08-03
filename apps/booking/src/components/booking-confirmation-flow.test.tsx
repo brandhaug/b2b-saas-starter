@@ -282,9 +282,18 @@ describe('Booking confirmation route flow', () => {
         }
       ]
     } satisfies BookingConfirmationPresentation
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => Response.json(mixed))
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/data')) return Response.json(mixed)
+      if (String(input).endsWith('/appointments/apt_SCHEDULED/cancel')) {
+        return new Response(null, { status: 204 })
+      }
+      return new Response(null, { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    window.history.replaceState(
+      null,
+      '',
+      '/mara-booking-studio/booking/confirmations/cnf_demo'
     )
 
     render(
@@ -299,11 +308,27 @@ describe('Booking confirmation route flow', () => {
     const scheduledStatus = screen.getByTestId('text:status:apt_SCHEDULED')
     expect(cancelledStatus.textContent).toContain('Cancelled')
     expect(scheduledStatus.textContent).toContain('Scheduled')
+    expect(screen.getByTestId('text:apptConfirmationTitle').textContent).toBe(
+      'gg, your booking details'
+    )
     const cards = screen.getAllByTestId('container:orderApptGroup')
     expect(within(cards[0]!).queryByTestId('btn:calendar:apple')).toBeNull()
     expect(within(cards[1]!).getByTestId('btn:calendar:apple')).toBeTruthy()
+    expect(screen.queryByTestId('btn:cancel')).toBeNull()
     fireEvent.click(within(cards[1]!).getByTestId('btn:time'))
-    expect(await screen.findByTestId('popup:rescheduleAppointment')).toBeTruthy()
+    const reschedulePopup = await screen.findByTestId('popup:rescheduleAppointment')
+    expect(reschedulePopup).toBeTruthy()
+    fireEvent.click(within(reschedulePopup).getByRole('button', { name: 'Close' }))
+
+    fireEvent.click(within(cards[1]!).getByTestId('btn:cancel:apt_SCHEDULED'))
+    expect(await screen.findByTestId('popup:cancelAppointment')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('button:confirmCancel'))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/mara-booking-studio/booking/confirmations/cnf_demo/appointments/apt_SCHEDULED/cancel',
+        expect.objectContaining({ method: 'POST' })
+      )
+    )
   })
 
   it('expands the real nonzero tax and fee adjustments like legacy', async () => {
