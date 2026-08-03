@@ -141,7 +141,8 @@ describe('beesolo release baseline', () => {
         'team-behavior',
         'platform-api',
         'provider-choice',
-        'provider-navigation'
+        'provider-navigation',
+        'provider-management'
       ])
     )
     expect(
@@ -155,7 +156,8 @@ describe('beesolo release baseline', () => {
     ).toEqual(
       expect.arrayContaining([
         expect.stringContaining('apps/web/src/routes/pricing.tsx'),
-        expect.stringContaining('apps/merchant/src/components/navigation.tsx')
+        expect.stringContaining('apps/merchant/src/components/navigation.tsx'),
+        expect.stringContaining('packages/capabilities/src/team/members.ts')
       ])
     )
     expect(
@@ -168,17 +170,16 @@ describe('beesolo release baseline', () => {
   it('rejects deferred capabilities through the typed launch surface', () => {
     expect(
       validateSoloLaunchSurface({
-        plans: ['solo', 'team'],
-        merchantMembers: {
-          maximumActive: 20,
-          invitations: true,
-          roles: ['owner', 'manager', 'employee']
+        merchantCatalog: {
+          plan: 'team',
+          ownerRole: 'manager',
+          membershipCommands: ['inviteMember'],
+          maximumActiveProviders: 20,
+          providerCommands: ['createProvider']
         },
-        providers: {
-          maximumActive: 20,
-          management: 'multiple-providers',
-          publicChoice: 'customer-selects-provider',
-          navigation: 'visible'
+        booking: {
+          presentation: 'team',
+          publicProviderChoice: 'customer-selects-provider'
         }
       }).map(({ code }) => code)
     ).toEqual(expect.arrayContaining(['team-behavior', 'provider-choice']))

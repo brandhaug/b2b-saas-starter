@@ -22,6 +22,10 @@ import {
 import { MerchantContext } from './merchant-context.ts'
 import { isSupportedCurrency } from './currency.ts'
 import {
+  isSoloOwnerProvider,
+  merchantCatalogSoloLaunchPolicy
+} from './solo-launch-policy.ts'
+import {
   decodePersistedServiceBuffers,
   type ServiceBuffersInput as ServiceBuffersInputType
 } from './service-buffers.ts'
@@ -99,7 +103,7 @@ type CatalogEffect<A> = Effect.Effect<
   MerchantContext
 >
 
-export type MerchantCatalogShape = {
+type MerchantCatalogServiceCommands = {
   readonly read: () => CatalogEffect<MerchantCatalogSnapshot>
   readonly readBookable: () => CatalogEffect<MerchantCatalogSnapshot>
   readonly createService: (input: ServiceInput) => CatalogEffect<ServiceRecord>
@@ -115,11 +119,17 @@ export type MerchantCatalogShape = {
     serviceId: string,
     input: ServiceBuffersInputType
   ) => CatalogEffect<void>
-  readonly updateProvider: (
+}
+
+type MerchantCatalogProviderCommands = {
+  readonly [Command in (typeof merchantCatalogSoloLaunchPolicy.providerCommands)[number]]: (
     providerId: string,
     input: ProviderProfileInput
   ) => CatalogEffect<ProviderRecord>
 }
+
+export type MerchantCatalogShape = MerchantCatalogServiceCommands &
+  MerchantCatalogProviderCommands
 
 export class MerchantCatalog extends Context.Service<
   MerchantCatalog,
@@ -409,11 +419,7 @@ export const SeedMerchantCatalog = (
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         const current = store.providers.get(providerId)
-        if (
-          current?.merchantId !== merchant.id ||
-          !current.isDefault ||
-          current.status !== 'active'
-        ) {
+        if (current?.merchantId !== merchant.id || !isSoloOwnerProvider(current)) {
           return yield* Effect.fail(
             new MerchantCatalogInvalid({ reason: 'item_not_found' })
           )
@@ -821,7 +827,7 @@ export const LiveMerchantCatalog: Layer.Layer<MerchantCatalog, never, Database> 
                 .limit(1)
             )
             const current = rows[0]
-            if (!current || !current.isDefault || current.status !== 'active') {
+            if (!current || !isSoloOwnerProvider(current)) {
               return yield* Effect.fail(
                 new MerchantCatalogInvalid({ reason: 'item_not_found' })
               )

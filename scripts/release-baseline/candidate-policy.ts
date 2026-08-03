@@ -6,6 +6,8 @@ import {
 } from '../../apps/booking/src/parity/full-parity-ledger.ts'
 import { listFiles } from './files.ts'
 import { productionIngress } from './ingress.ts'
+import { merchantCatalogSoloLaunchPolicy } from '../../packages/capabilities/src/merchant-catalog/solo-launch-policy.ts'
+import { bookingSoloLaunchPolicy } from '../../packages/capabilities/src/booking/solo-launch-policy.ts'
 
 export type CandidateIssue = { readonly code: string; readonly message: string }
 
@@ -27,29 +29,28 @@ const providerManagementSurface =
   /(?:New|Create|Add) Provider|(?:to|href)\s*=\s*['"]\/providers\/(?:new|create)['"]/i
 
 export type SoloLaunchSurfaceContract = {
-  readonly plans: readonly string[]
-  readonly merchantMembers: {
-    readonly maximumActive: number
-    readonly invitations: boolean
-    readonly roles: readonly string[]
+  readonly merchantCatalog: {
+    readonly plan: string
+    readonly ownerRole: string
+    readonly membershipCommands: readonly string[]
+    readonly maximumActiveProviders: number
+    readonly providerCommands: readonly string[]
   }
-  readonly providers: {
-    readonly maximumActive: number
-    readonly management: 'owner-profile-only' | 'multiple-providers'
-    readonly publicChoice: 'automatic-sole-provider' | 'customer-selects-provider'
-    readonly navigation: 'hidden' | 'visible'
+  readonly booking: {
+    readonly presentation: string
+    readonly publicProviderChoice: string
   }
 }
 
 export const beesoloLaunchSurface: SoloLaunchSurfaceContract = {
-  plans: ['solo'],
-  merchantMembers: { maximumActive: 1, invitations: false, roles: ['owner'] },
-  providers: {
-    maximumActive: 1,
-    management: 'owner-profile-only',
-    publicChoice: 'automatic-sole-provider',
-    navigation: 'hidden'
-  }
+  merchantCatalog: {
+    plan: merchantCatalogSoloLaunchPolicy.plan,
+    ownerRole: merchantCatalogSoloLaunchPolicy.ownerRole,
+    membershipCommands: merchantCatalogSoloLaunchPolicy.membershipCommands,
+    maximumActiveProviders: merchantCatalogSoloLaunchPolicy.maximumActiveProviders,
+    providerCommands: merchantCatalogSoloLaunchPolicy.providerCommands
+  },
+  booking: bookingSoloLaunchPolicy
 }
 
 export const validateSoloLaunchSurface = (
@@ -57,22 +58,22 @@ export const validateSoloLaunchSurface = (
 ): CandidateIssue[] => {
   const issues: CandidateIssue[] = []
   if (
-    surface.plans.length !== 1 ||
-    surface.plans[0] !== 'solo' ||
-    surface.merchantMembers.maximumActive !== 1 ||
-    surface.merchantMembers.invitations ||
-    surface.merchantMembers.roles.length !== 1 ||
-    surface.merchantMembers.roles[0] !== 'owner'
+    surface.merchantCatalog.plan !== 'solo' ||
+    surface.merchantCatalog.ownerRole !== 'owner' ||
+    surface.merchantCatalog.membershipCommands.length !== 2 ||
+    surface.merchantCatalog.membershipCommands[0] !== 'resolveForUser' ||
+    surface.merchantCatalog.membershipCommands[1] !== 'resolveBySlug'
   )
     issues.push({
       code: 'team-behavior',
       message: 'typed launch surface enables a deferred Team capability'
     })
   if (
-    surface.providers.maximumActive !== 1 ||
-    surface.providers.management !== 'owner-profile-only' ||
-    surface.providers.publicChoice !== 'automatic-sole-provider' ||
-    surface.providers.navigation !== 'hidden'
+    surface.merchantCatalog.maximumActiveProviders !== 1 ||
+    surface.merchantCatalog.providerCommands.length !== 1 ||
+    surface.merchantCatalog.providerCommands[0] !== 'updateProvider' ||
+    surface.booking.presentation !== 'solo' ||
+    surface.booking.publicProviderChoice !== 'automatic-sole-provider'
   )
     issues.push({
       code: 'provider-choice',
@@ -149,6 +150,11 @@ export const collectCandidateSourceIssues = async (
     path.startsWith('apps/web/src/')
   const merchantProduct = (path: string) => path.startsWith('apps/merchant/src/')
   const bookingProduct = (path: string) => path.startsWith('apps/booking/src/')
+  const coreProduct = (path: string) =>
+    path.startsWith('apps/api/src/') ||
+    path.startsWith('apps/background/src/') ||
+    path.startsWith('packages/capabilities/src/') ||
+    path.startsWith('packages/db/src/')
   const activeProduct = (path: string) =>
     publicProduct(path) || merchantProduct(path) || bookingProduct(path)
   reportMatches(
@@ -162,8 +168,16 @@ export const collectCandidateSourceIssues = async (
     (path) => publicProduct(path) || merchantProduct(path)
   )
   for (const pattern of teamBehaviorPatterns)
-    reportMatches('team-behavior', pattern, activeProduct)
-  reportMatches('provider-management', providerManagementSurface, merchantProduct)
+    reportMatches(
+      'team-behavior',
+      pattern,
+      (path) => activeProduct(path) || coreProduct(path)
+    )
+  reportMatches(
+    'provider-management',
+    providerManagementSurface,
+    (path) => merchantProduct(path) || coreProduct(path)
+  )
   reportMatches(
     'provider-navigation',
     /label\s*(?::|=)\s*['"]Providers['"][\s\S]{0,80}to\s*(?::|=)\s*['"]\/providers['"]/i,
@@ -172,7 +186,7 @@ export const collectCandidateSourceIssues = async (
   reportMatches(
     'provider-choice',
     /['"](?:Choose|Select) (?:a )?Provider['"]|['"]Any Provider['"]|providerCards\.anyProvider|showProviders\s*=|kind:\s*['"]specific['"][\s\S]{0,80}providerId/i,
-    (path) => bookingProduct(path) || publicProduct(path)
+    (path) => bookingProduct(path) || publicProduct(path) || coreProduct(path)
   )
   return issues
 }

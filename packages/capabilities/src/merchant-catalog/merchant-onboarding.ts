@@ -19,6 +19,7 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { isSupportedCurrency } from './currency.ts'
 import type { BookingConfiguration } from './booking-configuration.ts'
+import { merchantCatalogSoloLaunchPolicy } from './solo-launch-policy.ts'
 import {
   cancellationPolicyDisclosure,
   DEFAULT_BOOKING_CANCELLATION_POLICY
@@ -57,7 +58,7 @@ export const MerchantRecord = Schema.Struct({
   slug: Schema.String,
   timezone: Schema.String,
   currency: Schema.String,
-  plan: Schema.Literal('solo'),
+  plan: Schema.Literal(merchantCatalogSoloLaunchPolicy.plan),
   ownerUserId: Schema.String,
   defaultProvider: Schema.Struct({
     id: Schema.String,
@@ -130,7 +131,7 @@ export class MerchantOnboarding extends Context.Service<
   MerchantOnboardingShape
 >()('@b2b-saas-starter/capabilities/MerchantOnboarding') {}
 
-export type MerchantMembershipShape = {
+type MerchantMembershipOperations = {
   /** Resolves current ownership from persistence on every invocation. */
   readonly resolveForUser: (
     userId: string
@@ -141,6 +142,11 @@ export type MerchantMembershipShape = {
     slug: string
   ) => Effect.Effect<MerchantRecord, MerchantNotFound | CapabilityUnavailable>
 }
+
+export type MerchantMembershipShape = Pick<
+  MerchantMembershipOperations,
+  (typeof merchantCatalogSoloLaunchPolicy.membershipCommands)[number]
+>
 
 export class MerchantMembership extends Context.Service<
   MerchantMembership,
@@ -214,7 +220,7 @@ const seedCreateRecord = (
   slug: input.slug,
   timezone: input.timezone,
   currency: input.currency,
-  plan: 'solo',
+  plan: merchantCatalogSoloLaunchPolicy.plan,
   ownerUserId: person.id,
   defaultProvider: {
     id: `prv_${person.id}`,
@@ -501,14 +507,14 @@ const LiveMerchantOnboardingService: Layer.Layer<MerchantOnboarding, never, Data
                 slug: input.slug,
                 timezone: input.timezone,
                 currency: input.currency,
-                plan: 'solo',
+                plan: merchantCatalogSoloLaunchPolicy.plan,
                 createdAt: now,
                 updatedAt: now
               }),
               db.insert(merchantMemberships).values({
                 merchantId,
                 userId,
-                role: 'owner',
+                role: merchantCatalogSoloLaunchPolicy.ownerRole,
                 createdAt: now
               }),
               db.insert(providers).values({
@@ -532,7 +538,7 @@ const LiveMerchantOnboardingService: Layer.Layer<MerchantOnboarding, never, Data
                 id: newCapabilityId('sub'),
                 merchantId,
                 ownerUserId: userId,
-                plan: 'solo',
+                plan: merchantCatalogSoloLaunchPolicy.plan,
                 interval: trial.interval,
                 status: 'trialing',
                 trialEndsAt: trial.trialEndsAt,
@@ -672,10 +678,11 @@ export const assertSeedBookingScenarioReleaseBaseline = (
   scenario: SeedBookingScenario
 ): void => {
   const [provider] = scenario.providers
-  if (scenario.merchant.plan !== 'solo')
+  if (scenario.merchant.plan !== merchantCatalogSoloLaunchPolicy.plan)
     invalidSeedMerchantCatalog('Seed Booking Scenario must use the Solo Plan')
   if (
-    scenario.providers.length !== 1 ||
+    scenario.providers.length !==
+      merchantCatalogSoloLaunchPolicy.maximumActiveProviders ||
     !provider ||
     provider.id !== scenario.provider.id ||
     provider.status !== 'active' ||
@@ -862,7 +869,11 @@ export const buildSeedBookingScenario = (anchorTime: string): SeedBookingScenari
     anchorTime,
     owner,
     merchant,
-    membership: { merchantId: merchant.id, userId: owner.id, role: 'owner' },
+    membership: {
+      merchantId: merchant.id,
+      userId: owner.id,
+      role: merchantCatalogSoloLaunchPolicy.ownerRole
+    },
     provider,
     providers: [provider],
     services,

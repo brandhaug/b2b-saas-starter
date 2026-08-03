@@ -313,7 +313,7 @@ const rejected = (reason: BookingConfirmationRejected['reason']) =>
           : 'This appointment has already been confirmed'
   })
 
-const initializeAppointmentFoundation = (
+const buildAppointmentFoundationInitialization = (
   db: typeof Database.Service,
   input: {
     readonly appointmentId: string
@@ -1404,7 +1404,7 @@ export const LiveBookingConfirmation = (
                       )
                     )
                 ),
-                initializeAppointmentFoundation(db, {
+                buildAppointmentFoundationInitialization(db, {
                   appointmentId: item.appointmentId,
                   merchantId: item.row.hold.merchantId,
                   customerNote: item.snapshot.customerDetails.note
@@ -1742,7 +1742,7 @@ export const LiveBookingConfirmation = (
                     )
                   )
               ),
-              initializeAppointmentFoundation(db, {
+              buildAppointmentFoundationInitialization(db, {
                 appointmentId,
                 merchantId: row.session.merchantId,
                 customerNote: snapshot.customerDetails.note

@@ -40,6 +40,7 @@ import {
   ResolvedCatalogText,
   type CatalogLocale
 } from '../merchant-catalog/booking-configuration.ts'
+import { bookingSoloLaunchPolicy } from './solo-launch-policy.ts'
 
 export const ProviderPreference = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('any') }),
@@ -86,7 +87,7 @@ export type ServiceSelection = typeof ServiceSelection.Type
 
 export const BookingJourney = Schema.Struct({
   version: Schema.Number,
-  presentation: Schema.Literals(['solo', 'team']),
+  presentation: Schema.Literal(bookingSoloLaunchPolicy.presentation),
   shopId: Schema.String,
   shops: Schema.Array(
     Schema.Struct({
@@ -759,7 +760,9 @@ const withSoloDefault = (
   catalog: Catalog,
   selection: StoredSelection
 ): Effect.Effect<StoredSelection> => {
-  if (catalog.presentation !== 'solo' || selection.providerPreference !== null) {
+  if (bookingSoloLaunchPolicy.publicProviderChoice !== 'automatic-sole-provider')
+    return Effect.succeed(selection)
+  if (selection.providerPreference !== null) {
     return Effect.succeed(selection)
   }
   const eligibleDefaults = catalog.providers.filter(
