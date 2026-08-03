@@ -17,5 +17,6 @@
       "dependsOn": ["^build"],
       "outputs": []
     }
-  }
+  },
+  "cacheMaxAge": "3d"
 }
