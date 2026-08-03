@@ -6,6 +6,7 @@ import {
   renderAuthorizationMatrix,
   SeedSharedCapabilityFoundations,
   SharedCapabilityFoundations,
+  type CapabilityAuthorityReference,
   type QueueWakeup,
   type SharedCommandInput
 } from './shared-capability-foundations.ts'
@@ -21,6 +22,10 @@ const authority = {
   impersonationId: null,
   accessState: 'active'
 } as const
+const authorityKey = (reference: CapabilityAuthorityReference) =>
+  JSON.stringify([reference])
+const ownerAuthorityKey = (sessionId: string) =>
+  authorityKey({ kind: 'owner-session', sessionId })
 const input: SharedCommandInput = {
   authority: { kind: 'owner-session', sessionId: 'ses_owner' },
   merchantId: 'mer_one',
@@ -40,7 +45,7 @@ describe('shared capability deterministic contract', () => {
   it('resolves authority references and shares replay and changed-payload behavior', async () => {
     const wakeups: QueueWakeup[] = []
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([['owner:ses_owner', authority]]),
+      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]]),
       publishWakeup: (wakeup) => wakeups.push(wakeup)
     })
     const result = await Effect.runPromise(
@@ -48,7 +53,10 @@ describe('shared capability deterministic contract', () => {
         Effect.gen(function* () {
           const service = yield* SharedCapabilityFoundations
           const first = yield* service.execute(input)
-          const replay = yield* service.execute(input)
+          const replay = yield* service.execute({
+            ...input,
+            now: '2026-08-03T09:05:00.000Z'
+          })
           return { first, replay }
         }),
         layer
@@ -83,7 +91,7 @@ describe('shared capability deterministic contract', () => {
 
   it('does not claim work before availableAt', async () => {
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([['owner:ses_owner', authority]])
+      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]])
     })
     const claimed = await Effect.runPromise(
       Effect.provide(
@@ -115,8 +123,8 @@ describe('shared capability deterministic contract', () => {
     }
     const layer = SeedSharedCapabilityFoundations({
       authorities: new Map([
-        ['owner:ses_owner', authority],
-        ['owner:ses_two', secondAuthority]
+        [ownerAuthorityKey('ses_owner'), authority],
+        [ownerAuthorityKey('ses_two'), secondAuthority]
       ]),
       publishWakeup: (wakeup) => wakeups.push(wakeup)
     })
@@ -159,8 +167,8 @@ describe('shared capability deterministic contract', () => {
     }
     const layer = SeedSharedCapabilityFoundations({
       authorities: new Map([
-        ['owner:ses_owner', authority],
-        ['owner:ses_two', secondAuthority]
+        [ownerAuthorityKey('ses_owner'), authority],
+        [ownerAuthorityKey('ses_two'), secondAuthority]
       ])
     })
     const run = (command: SharedCommandInput) =>
@@ -202,7 +210,7 @@ describe('shared capability deterministic contract', () => {
 
   it('rejects same-key replay when structural command or domain input changes', async () => {
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([['owner:ses_owner', authority]]),
+      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]]),
       buildDomainMutation: (command) => ({
         merchantId: command.merchantId,
         mutations: []
@@ -235,12 +243,22 @@ describe('shared capability deterministic contract', () => {
         { kind: 'test', payloadJson: '{"value":2}' }
       )
     ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+    const update = {
+      ...input,
+      idempotencyKey: 'update',
+      expectedRevision: 1,
+      outboxKind: undefined
+    }
+    await run(update, originalDomainInput)
+    await expect(
+      run({ ...update, aggregateId: 'agg_update_changed' }, originalDomainInput)
+    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
   })
 
   it('creates distinct outbox work for delimiter-colliding identity components', async () => {
     const wakeups: QueueWakeup[] = []
     const layer = SeedSharedCapabilityFoundations({
-      authorities: new Map([['owner:ses_owner', authority]]),
+      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]]),
       publishWakeup: (wakeup) => wakeups.push(wakeup)
     })
     await Effect.runPromise(
@@ -274,6 +292,92 @@ describe('shared capability deterministic contract', () => {
         kind: 'capability-outbox',
         outboxId: 'cob:["mer_one","appointment_y","appointment_z",1]'
       }
+    ])
+  })
+
+  it('keeps delimiter-shaped command and aggregate identities independent', async () => {
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: new Map([[ownerAuthorityKey('ses_owner'), authority]])
+    })
+    const results = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const service = yield* SharedCapabilityFoundations
+          const first = yield* service.execute({
+            ...input,
+            capability: 'appointment',
+            aggregateId: 'y:appointment:y',
+            idempotencyKey: 'y:appointment_y:z',
+            outboxKind: undefined
+          })
+          const second = yield* service.execute({
+            ...input,
+            capability: 'appointment:y',
+            aggregateId: 'appointment:y',
+            idempotencyKey: 'appointment_y:z',
+            outboxKind: undefined
+          })
+          return [first, second]
+        }),
+        layer
+      )
+    )
+    expect(results.map((result) => result.aggregateId)).toEqual([
+      'y:appointment:y',
+      'appointment:y'
+    ])
+    expect(results.map((result) => result.revision)).toEqual([1, 1])
+  })
+
+  it('keeps delimiter-shaped claimed-work authority references independent', async () => {
+    const firstReference = {
+      kind: 'claimed-work',
+      workerId: 'worker:a',
+      outboxId: 'b'
+    } as const
+    const secondReference = {
+      kind: 'claimed-work',
+      workerId: 'worker',
+      outboxId: 'a:b'
+    } as const
+    const systemAuthority = {
+      ...authority,
+      actorKind: 'system' as const
+    }
+    const layer = SeedSharedCapabilityFoundations({
+      authorities: new Map([
+        [authorityKey(firstReference), systemAuthority],
+        [authorityKey(secondReference), systemAuthority]
+      ])
+    })
+    const results = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const service = yield* SharedCapabilityFoundations
+          const first = yield* service.execute({
+            ...input,
+            authority: firstReference,
+            operation: 'queued-action',
+            aggregateId: 'claimed_one',
+            idempotencyKey: 'claimed_one',
+            outboxKind: undefined
+          })
+          const second = yield* service.execute({
+            ...input,
+            authority: secondReference,
+            operation: 'queued-action',
+            aggregateId: 'claimed_two',
+            idempotencyKey: 'claimed_two',
+            outboxKind: undefined
+          })
+          return [first, second]
+        }),
+        layer
+      )
+    )
+    expect(results.map((result) => result.aggregateId)).toEqual([
+      'claimed_one',
+      'claimed_two'
     ])
   })
 

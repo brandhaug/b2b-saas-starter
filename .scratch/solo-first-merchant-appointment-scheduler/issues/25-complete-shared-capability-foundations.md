@@ -28,10 +28,11 @@ contract tests cover both behaviors with outbox delivery enabled.
 
 The follow-up review also hardened the identity formats themselves. Outbox IDs now
 encode the full Merchant/capability/aggregate/revision tuple as canonical JSON rather
-than delimiter-based concatenation, and idempotency records bind a canonical replay
-fingerprint covering the structural command plus decoded domain input. Seed and
-real-D1 tests reject structural or domain-payload changes under a reused key and prove
-adversarial delimiter-shaped identities cannot collide.
+than delimiter-based concatenation. Command, aggregate, resource, and authority keys
+use the same unambiguous tuple strategy. Idempotency records bind a SHA-256 digest of
+the canonical structural command plus decoded domain input, keeping payload material
+out of persistence. Seed and real-D1 tests reject structural or domain-payload changes
+under a reused key and prove adversarial delimiter-shaped identities cannot collide.
 
 ### Final review remediation — 2026-08-03
 

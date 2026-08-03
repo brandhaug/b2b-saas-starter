@@ -183,9 +183,11 @@ type ResolvedAuthority = {
 }
 
 const commandKey = (input: SharedCommandInput) =>
-  `${input.merchantId}:${input.capability}:${input.idempotencyKey}`
+  JSON.stringify([input.merchantId, input.capability, input.idempotencyKey])
 const aggregateKey = (input: SharedCommandInput) =>
-  `${input.merchantId}:${input.capability}:${input.aggregateId}`
+  JSON.stringify([input.merchantId, input.capability, input.aggregateId])
+const resourceKey = (input: SharedCommandInput) =>
+  JSON.stringify([input.capability, input.aggregateId])
 const nextRevision = (input: SharedCommandInput) => input.expectedRevision + 1
 const outboxId = (input: SharedCommandInput, revision: number) =>
   `cob:${JSON.stringify([
@@ -197,8 +199,8 @@ const outboxId = (input: SharedCommandInput, revision: number) =>
 const replayFingerprint = (
   input: SharedCommandInput,
   domainInput: DomainMutationRequest | undefined
-) =>
-  JSON.stringify([
+) => {
+  const canonical = JSON.stringify([
     1,
     input.merchantId,
     input.capability,
@@ -210,10 +212,18 @@ const replayFingerprint = (
     input.historyKind,
     input.outboxKind ?? null,
     input.availableAt ?? null,
-    input.now,
     domainInput?.kind ?? null,
     domainInput?.payloadJson ?? null
   ])
+  return crypto.subtle
+    .digest('SHA-256', new TextEncoder().encode(canonical))
+    .then(
+      (digest) =>
+        `sha256:${[...new Uint8Array(digest)]
+          .map((byte) => byte.toString(16).padStart(2, '0'))
+          .join('')}`
+    )
+}
 
 const validateDomainScope = (
   mutation: DomainMutationPlan,
@@ -308,13 +318,7 @@ type SeedFoundationOptions = {
 }
 
 const authorityReferenceKey = (authority: CapabilityAuthorityReference) =>
-  authority.kind === 'owner-session'
-    ? `owner:${authority.sessionId}`
-    : authority.kind === 'impersonated-session'
-      ? `impersonation:${authority.merchantSessionId}`
-      : authority.kind === 'callback-correlation'
-        ? `callback:${authority.correlationId}`
-        : `work:${authority.workerId}:${authority.outboxId}`
+  JSON.stringify([authority])
 
 export const SeedSharedCapabilityFoundations = (
   options: SeedFoundationOptions = {}
@@ -341,8 +345,8 @@ export const SeedSharedCapabilityFoundations = (
   }
   return Layer.succeed(SharedCapabilityFoundations)({
     execute: (input, domainInput) =>
-      Effect.try({
-        try: () => {
+      Effect.tryPromise({
+        try: async () => {
           const decoded = Schema.decodeUnknownSync(SharedCommand)(input)
           const mutationRequest =
             domainInput === undefined
@@ -360,8 +364,13 @@ export const SeedSharedCapabilityFoundations = (
             }
           )
           const authority = resolve(decoded)
-          const resourceKey = `${decoded.capability}:${decoded.aggregateId}`
-          const owners = resourceOwners.get(resourceKey)
+          const key = commandKey(decoded)
+          const fingerprint = await replayFingerprint(decoded, mutationRequest)
+          const existing = commands.get(key)
+          if (existing && existing.fingerprint !== fingerprint)
+            throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
+          const scopedResourceKey = resourceKey(decoded)
+          const owners = resourceOwners.get(scopedResourceKey)
           const ownsResource = owners?.has(decoded.merchantId) ?? false
           if (decoded.expectedRevision > 0 && !ownsResource)
             throw new CapabilityNotFound({ resource: 'merchant-resource' })
@@ -376,12 +385,7 @@ export const SeedSharedCapabilityFoundations = (
           if (denial) throw denial
           const domainDenial = validateDomainScope(mutation, authority)
           if (domainDenial) throw domainDenial
-          const key = commandKey(decoded)
-          const fingerprint = replayFingerprint(decoded, mutationRequest)
-          const existing = commands.get(key)
           if (existing) {
-            if (existing.fingerprint !== fingerprint)
-              throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
             if (decoded.outboxKind)
               options.publishWakeup?.({
                 version: 1,
@@ -405,9 +409,10 @@ export const SeedSharedCapabilityFoundations = (
             resultJson: decoded.resultJson
           }
           revisions.set(aggregateKey(decoded), revision)
-          const committedOwners = resourceOwners.get(resourceKey) ?? new Set<string>()
+          const committedOwners =
+            resourceOwners.get(scopedResourceKey) ?? new Set<string>()
           committedOwners.add(decoded.merchantId)
-          resourceOwners.set(resourceKey, committedOwners)
+          resourceOwners.set(scopedResourceKey, committedOwners)
           commands.set(key, { fingerprint, result })
           if (decoded.outboxKind) {
             const id = outboxId(decoded, revision)
@@ -698,6 +703,21 @@ export const makeLiveSharedCapabilityFoundations = (
               }
             )
             const authority = await resolveAuthority(decoded)
+            const key = commandKey(decoded)
+            const fingerprint = await replayFingerprint(decoded, mutationRequest)
+            const old = await raw
+              .prepare(
+                'SELECT result_json resultJson, aggregate_id aggregateId, revision, payload_fingerprint fingerprint FROM capability_commands WHERE command_key = ?'
+              )
+              .bind(key)
+              .first<{
+                resultJson: string
+                aggregateId: string
+                revision: number
+                fingerprint: string
+              }>()
+            if (old && old.fingerprint !== fingerprint)
+              throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
             const ownResource = await raw
               .prepare(
                 `SELECT merchant_id merchantId FROM capability_aggregate_revisions
@@ -718,22 +738,7 @@ export const makeLiveSharedCapabilityFoundations = (
             if (denial) throw denial
             const domainDenial = validateDomainScope(mutation, authority)
             if (domainDenial) throw domainDenial
-            const key = commandKey(decoded)
-            const fingerprint = replayFingerprint(decoded, mutationRequest)
-            const old = await raw
-              .prepare(
-                'SELECT result_json resultJson, aggregate_id aggregateId, revision, payload_fingerprint fingerprint FROM capability_commands WHERE command_key = ?'
-              )
-              .bind(key)
-              .first<{
-                resultJson: string
-                aggregateId: string
-                revision: number
-                fingerprint: string
-              }>()
             if (old) {
-              if (old.fingerprint !== fingerprint)
-                throw new CapabilityConflict({ reason: 'idempotency_key_reused' })
               if (decoded.outboxKind) await publish(outboxId(decoded, old.revision))
               return {
                 aggregateId: old.aggregateId,

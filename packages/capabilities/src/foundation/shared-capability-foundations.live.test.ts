@@ -365,6 +365,48 @@ describe('Live D1 shared capability foundations', () => {
     ])
   })
 
+  it('keeps delimiter-shaped command identities independent', async () => {
+    await expect(
+      execute({
+        ...command,
+        capability: 'appointment',
+        aggregateId: 'apt_key_one',
+        idempotencyKey: 'y:appointment_y:z',
+        outboxKind: undefined
+      })
+    ).resolves.toMatchObject({ aggregateId: 'apt_key_one', revision: 1 })
+    await expect(
+      execute({
+        ...command,
+        capability: 'appointment:y',
+        aggregateId: 'apt_key_two',
+        idempotencyKey: 'appointment_y:z',
+        outboxKind: undefined
+      })
+    ).resolves.toMatchObject({ aggregateId: 'apt_key_two', revision: 1 })
+  })
+
+  it('stores only a digest of canonical replay material', async () => {
+    await execute(
+      {
+        ...command,
+        aggregateId: 'apt_fingerprint_digest',
+        idempotencyKey: 'fingerprint_digest',
+        outboxKind: undefined
+      },
+      async () => {},
+      [],
+      { kind: 'pii-probe', payloadJson: '{"email":"customer@example.test"}' }
+    )
+    const stored = await test.d1
+      .prepare(
+        "SELECT payload_fingerprint fingerprint FROM capability_commands WHERE aggregate_id = 'apt_fingerprint_digest'"
+      )
+      .first<{ fingerprint: string }>()
+    expect(stored?.fingerprint).toMatch(/^sha256:[0-9a-f]{64}$/)
+    expect(stored?.fingerprint).not.toContain('customer@example.test')
+  })
+
   it('resolves a persisted Owner session and commits the domain mutation with consequences', async () => {
     const wakeups: QueueWakeup[] = []
     const before = {
@@ -421,7 +463,7 @@ describe('Live D1 shared capability foundations', () => {
     ).not.toBeNull()
     expect(
       await execute(
-        input,
+        { ...input, now: '2026-08-03T09:05:00.000Z' },
         async (wakeup) => {
           replayed.push(wakeup)
         },
@@ -588,6 +630,22 @@ describe('Live D1 shared capability foundations', () => {
         payloadJson:
           '[{"operation":"delete","table":"foundation_domain_probe","id":"missing"}]'
       })
+    ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
+    const structuralUpdate = {
+      ...structural,
+      idempotencyKey: 'structural_update_replay',
+      expectedRevision: 1
+    }
+    await expect(
+      execute(structuralUpdate, async () => {}, [], structuralDomainInput)
+    ).resolves.toMatchObject({ revision: 2 })
+    await expect(
+      execute(
+        { ...structuralUpdate, aggregateId: 'apt_structural_update_changed' },
+        async () => {},
+        [],
+        structuralDomainInput
+      )
     ).rejects.toMatchObject({ reason: 'idempotency_key_reused' })
     const base = {
       ...command,
