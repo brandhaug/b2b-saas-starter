@@ -62,6 +62,55 @@ beforeAll(async () => {
 afterAll(async () => test.dispose())
 
 describe('Live Customer Directory contract', () => {
+  it('converges same-contact associations prepared from one pre-batch view', async () => {
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db.insert(appointments).values(
+            ['apt_converge_1', 'apt_converge_2'].map((id, index) => ({
+              id,
+              merchantId: 'mer_customer_live',
+              providerId: 'prv_customer_live',
+              status: 'scheduled' as const,
+              startsAt: `2026-07-0${index + 3}T10:00:00.000Z`,
+              endsAt: `2026-07-0${index + 3}T11:00:00.000Z`,
+              createdAt: '2026-07-03T10:00:00.000Z',
+              updatedAt: '2026-07-03T10:00:00.000Z'
+            }))
+          )
+          const prepared = yield* Effect.all(
+            ['apt_converge_1', 'apt_converge_2'].map((id) =>
+              prepareAppointmentCustomerAssociation(db, {
+                merchantId: 'mer_customer_live',
+                appointment: {
+                  id,
+                  details: {
+                    name: 'Same Customer',
+                    email: 'same@example.com',
+                    phone: null
+                  }
+                },
+                origin: 'merchant_created',
+                now: '2026-07-03T12:00:00.000Z'
+              })
+            )
+          )
+          yield* batch(db, prepared.flat())
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+
+    const links = await test.d1
+      .prepare(
+        `SELECT DISTINCT customer_record_id FROM appointment_foundations
+         WHERE appointment_id IN ('apt_converge_1','apt_converge_2')`
+      )
+      .all<{ customer_record_id: string }>()
+    expect(links.results).toHaveLength(1)
+  })
+
   it('persists matching, revisions, attributed history, and idempotent recovery', async () => {
     const created = await run(
       Effect.gen(function* () {

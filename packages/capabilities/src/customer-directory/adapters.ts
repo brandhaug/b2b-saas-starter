@@ -14,11 +14,12 @@ import {
   type BatchStatement
 } from '@b2b-saas-starter/db'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { CapabilityConflict } from '../errors.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import {
   CustomerDirectory,
-  SeedCustomerDirectory,
   emptySeedCustomerDirectoryStore,
+  makeCustomerDirectoryService,
   type CustomerDirectoryShape,
   type CustomerRecord,
   type SeedCustomerDirectoryStore
@@ -59,10 +60,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
     Effect.gen(function* () {
       const db = yield* Database
       const store = emptySeedCustomerDirectoryStore()
-      const seed = yield* Effect.provide(
-        CustomerDirectory,
-        SeedCustomerDirectory(store)
-      )
+      const directory = makeCustomerDirectoryService(store)
       const ensure = (merchantId: string) =>
         Effect.gen(function* () {
           const [states, records, contacts, observations, bans, histories, duplicates] =
@@ -168,14 +166,13 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
               ...persisted,
               id: row.id,
               merchantId,
-              status:
-                persisted?.status === 'merged'
-                  ? 'merged'
-                  : row.status === 'erased'
-                    ? 'erased'
-                    : row.status === 'quarantined'
-                      ? 'archived'
-                      : 'active',
+              status: row.mergedInto
+                ? 'merged'
+                : row.status === 'erased'
+                  ? 'erased'
+                  : row.status === 'quarantined'
+                    ? 'archived'
+                    : 'active',
               displayName: row.displayName,
               preferredEmail:
                 recordContacts.find(
@@ -211,7 +208,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                     .map((item) => item.possibleDuplicateId)
                 ])
               ],
-              mergedInto: persisted?.mergedInto ?? null,
+              mergedInto: row.mergedInto,
               revision: row.revision,
               lastActivityAt: row.lastActivityAt,
               history: [...(persisted?.history ?? []), ...relationalHistory].sort(
@@ -263,6 +260,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                         ? 'quarantined'
                         : 'active',
                   preferredLocale: 'en',
+                  mergedInto: record.mergedInto,
                   revision: record.revision,
                   lastActivityAt: record.lastActivityAt,
                   createdAt: now,
@@ -272,6 +270,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   target: customerRecords.id,
                   set: {
                     displayName: record.displayName,
+                    mergedInto: record.mergedInto,
                     status:
                       record.status === 'erased'
                         ? 'erased'
@@ -364,30 +363,36 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
           const persisted = yield* Effect.result(persist(merchant.id, now))
           if (persisted._tag === 'Failure') {
             restore(store, merchant.id, before)
+            if (persisted.failure.reason.includes('customer_directory_stale_revision'))
+              return yield* Effect.fail(
+                new CapabilityConflict({ reason: 'stale_revision' })
+              )
             return yield* Effect.fail(persisted.failure)
           }
           return result
         })
       return {
-        matchOrCreate: (input) => write(seed.matchOrCreate(input), input.now),
+        matchOrCreate: (input) => write(directory.matchOrCreate(input), input.now),
         checkPublicEligibility: (details, now) =>
-          read(seed.checkPublicEligibility(details, now)),
-        search: (query) => read(seed.search(query)),
-        get: (id) => read(seed.get(id)),
-        editPreferred: (id, input) => write(seed.editPreferred(id, input), input.now),
-        addNote: (id, input) => write(seed.addNote(id, input), input.now),
+          read(directory.checkPublicEligibility(details, now)),
+        search: (query) => read(directory.search(query)),
+        get: (id) => read(directory.get(id)),
+        editPreferred: (id, input) =>
+          write(directory.editPreferred(id, input), input.now),
+        addNote: (id, input) => write(directory.addNote(id, input), input.now),
         setContactStatus: (id, input) =>
-          write(seed.setContactStatus(id, input), input.now),
-        recordConsent: (id, input) => write(seed.recordConsent(id, input), input.now),
-        setBan: (id, input) => write(seed.setBan(id, input), input.now),
-        liftBan: (id, input) => write(seed.liftBan(id, input), input.now),
-        merge: (input) => write(seed.merge(input), input.now),
-        split: (input) => write(seed.split(input), input.now),
-        archive: (id, input) => write(seed.archive(id, input), input.now),
-        previewImport: (rows) => read(seed.previewImport(rows)),
-        importRows: (input) => write(seed.importRows(input), input.now),
-        exportMinimized: () => read(seed.exportMinimized()),
-        eraseExpired: (input) => write(seed.eraseExpired(input), input.now)
+          write(directory.setContactStatus(id, input), input.now),
+        recordConsent: (id, input) =>
+          write(directory.recordConsent(id, input), input.now),
+        setBan: (id, input) => write(directory.setBan(id, input), input.now),
+        liftBan: (id, input) => write(directory.liftBan(id, input), input.now),
+        merge: (input) => write(directory.merge(input), input.now),
+        split: (input) => write(directory.split(input), input.now),
+        archive: (id, input) => write(directory.archive(id, input), input.now),
+        previewImport: (rows) => read(directory.previewImport(rows)),
+        importRows: (input) => write(directory.importRows(input), input.now),
+        exportMinimized: () => read(directory.exportMinimized()),
+        eraseExpired: (input) => write(directory.eraseExpired(input), input.now)
       } satisfies CustomerDirectoryShape
     })
   )

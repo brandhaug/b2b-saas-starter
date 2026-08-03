@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import {
   appointmentFoundations,
   customerContacts,
@@ -33,6 +33,21 @@ const normalizeEmail = (value: string | null) => value?.trim().toLowerCase() || 
 const normalizePhone = (value: string | null) => {
   const digits = value?.replace(/\D/g, '') ?? ''
   return digits ? `+${digits}` : null
+}
+const stableRecordId = (
+  merchantId: string,
+  identifiers: readonly { kind: string; value: string }[]
+) => {
+  const value = `${merchantId}:${identifiers
+    .map(({ kind, value }) => `${kind}:${value}`)
+    .sort()
+    .join('|')}`
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `cur_contact_${(hash >>> 0).toString(36)}`
 }
 
 /**
@@ -75,6 +90,7 @@ export const prepareAppointmentCustomerAssociation = (
                 and(
                   eq(customerContacts.merchantId, input.merchantId),
                   eq(customerContacts.status, 'active'),
+                  isNull(customerRecords.mergedInto),
                   or(
                     ...identifiers.map((identifier) =>
                       and(
@@ -107,21 +123,28 @@ export const prepareAppointmentCustomerAssociation = (
           })
         )
     }
-    const recordId = matchedId ?? newCapabilityId('cur')
+    const recordId =
+      matchedId ??
+      (candidateIds.length === 0 && identifiers.length > 0
+        ? stableRecordId(input.merchantId, identifiers)
+        : newCapabilityId('cur'))
     const statements: BatchStatement[] = []
     if (!matchedId) {
       statements.push(
-        db.insert(customerRecords).values({
-          id: recordId,
-          merchantId: input.merchantId,
-          displayName: details.name,
-          status: 'active',
-          preferredLocale: 'en',
-          revision: 1,
-          lastActivityAt: input.now,
-          createdAt: input.now,
-          updatedAt: input.now
-        })
+        db
+          .insert(customerRecords)
+          .values({
+            id: recordId,
+            merchantId: input.merchantId,
+            displayName: details.name,
+            status: 'active',
+            preferredLocale: 'en',
+            revision: 1,
+            lastActivityAt: input.now,
+            createdAt: input.now,
+            updatedAt: input.now
+          })
+          .onConflictDoNothing()
       )
     } else {
       statements.push(
@@ -146,17 +169,20 @@ export const prepareAppointmentCustomerAssociation = (
       if (matchedId && matchedKeys.has(`${identifier.kind}:${identifier.value}`))
         continue
       statements.push(
-        db.insert(customerContacts).values({
-          id: newCapabilityId('cuc'),
-          customerRecordId: recordId,
-          merchantId: input.merchantId,
-          kind: identifier.kind,
-          normalizedValue: identifier.value,
-          status: 'active',
-          isPreferred: !matchedId,
-          createdAt: input.now,
-          updatedAt: input.now
-        })
+        db
+          .insert(customerContacts)
+          .values({
+            id: `cuc_${recordId}_${identifier.kind}_${stableRecordId('', [identifier]).slice(12)}`,
+            customerRecordId: recordId,
+            merchantId: input.merchantId,
+            kind: identifier.kind,
+            normalizedValue: identifier.value,
+            status: 'active',
+            isPreferred: !matchedId,
+            createdAt: input.now,
+            updatedAt: input.now
+          })
+          .onConflictDoNothing()
       )
     }
     if (!matchedId) {
@@ -192,17 +218,20 @@ export const prepareAppointmentCustomerAssociation = (
         source: input.origin,
         observedAt: input.now
       }),
-      db.insert(customerDirectoryHistory).values({
-        id: `cuh_${appointment.id}`,
-        merchantId: input.merchantId,
-        customerRecordId: recordId,
-        kind: matchedId ? 'appointment_observed' : 'created',
-        actorId:
-          input.origin === 'public_booking' ? 'public-customer' : 'merchant-owner',
-        reason: input.origin,
-        revision: resultingRevision,
-        occurredAt: input.now
-      })
+      db
+        .insert(customerDirectoryHistory)
+        .values({
+          id: `cuh_${appointment.id}`,
+          merchantId: input.merchantId,
+          customerRecordId: recordId,
+          kind: matchedId ? 'appointment_observed' : 'created',
+          actorId:
+            input.origin === 'public_booking' ? 'public-customer' : 'merchant-owner',
+          reason: input.origin,
+          revision: resultingRevision,
+          occurredAt: input.now
+        })
+        .onConflictDoNothing()
     )
     return statements
   })

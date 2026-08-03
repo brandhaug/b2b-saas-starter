@@ -4,6 +4,15 @@ CREATE INDEX `customer_contacts_active_value_lookup`
 ON `customer_contacts` (`merchant_id`,`kind`,`normalized_value`)
 WHERE `status` = 'active';--> statement-breakpoint
 
+ALTER TABLE `customer_records` ADD `merged_into` text;
+--> statement-breakpoint
+CREATE TRIGGER `customer_directory_states_revision_guard`
+BEFORE UPDATE ON `customer_directory_states`
+WHEN NEW.`revision` <> OLD.`revision` + 1
+BEGIN
+  SELECT RAISE(ABORT, 'customer_directory_stale_revision');
+END;
+--> statement-breakpoint
 CREATE TABLE `customer_observations` (
   `id` text PRIMARY KEY NOT NULL,
   `merchant_id` text NOT NULL REFERENCES `merchants`(`id`) ON DELETE RESTRICT,

@@ -1,7 +1,7 @@
 # Deliver Customer Directory Foundations
 
 Type: task
-Status: in-progress
+Status: resolved
 Blocked by: 25
 
 ## Question
@@ -72,8 +72,11 @@ history. This ticket provides privacy-minimal export data and retention protecti
 inputs; issue 36 owns encrypted asynchronous artifacts and audit/cleanup, while issue
 37 owns verified erasure, suppression fingerprints, holds, and snapshot anonymization.
 
-Post-implementation review reopened this ticket pending removal of the Live adapter's
-JSON shadow authority, database-enforced optimistic concurrency, and collision-safe
-multi-Appointment association. Duplicate suggestions and merged aggregate status now
-survive Live hydration, but these remaining persistence guarantees must be closed
-before the slice is resolved.
+Post-implementation review fixes now separate the reusable directory domain engine
+from its Seed test layer, preserve relational merge targets and duplicate suggestions,
+exclude merged records from Appointment matching, and surface invalid edits through
+the typed Effect error channel. D1 rejects stale aggregate revisions inside the same
+batch, and deterministic contact-derived identities make concurrent and
+multi-Appointment preparation converge on one Merchant-scoped Customer Record.
+Import history carries the requesting actor. Live regression coverage proves
+same-pre-batch convergence and merge/split association movement.

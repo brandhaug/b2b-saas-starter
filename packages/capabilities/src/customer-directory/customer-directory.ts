@@ -114,6 +114,7 @@ type MatchInput = {
   readonly details: DirectoryCustomerDetails
   readonly now: string
   readonly source?: 'appointment' | 'import'
+  readonly actorId?: string
 }
 type MergeInput = {
   readonly survivorId: string
@@ -351,9 +352,9 @@ const contactsFrom = (details: DirectoryCustomerDetails): CustomerContact[] => {
 }
 const fingerprint = (input: unknown) => JSON.stringify(input)
 
-export const SeedCustomerDirectory = (
+export const makeCustomerDirectoryService = (
   store: SeedCustomerDirectoryStore
-): Layer.Layer<CustomerDirectory> => {
+): CustomerDirectoryShape => {
   const self: CustomerDirectoryShape = {
     matchOrCreate: (input) =>
       Effect.gen(function* () {
@@ -407,9 +408,9 @@ export const SeedCustomerDirectory = (
             history: [
               ...match.history,
               history(
-                'edited',
-                'system',
-                'appointment_observation',
+                input.source === 'import' ? 'imported' : 'edited',
+                input.actorId ?? 'system',
+                input.source === 'import' ? 'import_match' : 'appointment_observation',
                 input.now,
                 revision
               )
@@ -442,7 +443,15 @@ export const SeedCustomerDirectory = (
           mergedInto: null,
           revision: 1,
           lastActivityAt: input.now,
-          history: [history('created', 'system', null, input.now, 1)]
+          history: [
+            history(
+              input.source === 'import' ? 'imported' : 'created',
+              input.actorId ?? 'system',
+              input.source === 'import' ? 'import_create' : null,
+              input.now,
+              1
+            )
+          ]
         }
         store.records.set(id, record)
         return { record, matched: false }
@@ -494,15 +503,15 @@ export const SeedCustomerDirectory = (
         return record
       }),
     editPreferred: (recordId, input) =>
-      mutate(store, recordId, input, 'edited', (input) => {
+      Effect.gen(function* () {
         const details = normalize({
           name: input.name,
           email: input.email,
           phone: input.phone
         })
         const invalid = validateDetails(details)
-        if (invalid) throw invalid
-        return {
+        if (invalid) return yield* Effect.fail(invalid)
+        return yield* mutate(store, recordId, input, 'edited', () => ({
           displayName: details.name,
           preferredEmail: details.email,
           preferredPhone: details.phone,
@@ -531,7 +540,7 @@ export const SeedCustomerDirectory = (
               )
             ]
           }
-        }
+        }))
       }),
     addNote: (recordId, input) =>
       mutate(store, recordId, input, 'note_added', (input) => ({
@@ -644,7 +653,8 @@ export const SeedCustomerDirectory = (
               appointmentId: null,
               details: row,
               now: input.now,
-              source: 'import'
+              source: 'import',
+              actorId: input.actorId
             })
           )
           if (result._tag === 'Failure') rejected += 1
@@ -709,8 +719,13 @@ export const SeedCustomerDirectory = (
         return count
       })
   }
-  return Layer.succeed(CustomerDirectory)(self)
+  return self
 }
+
+export const SeedCustomerDirectory = (
+  store: SeedCustomerDirectoryStore
+): Layer.Layer<CustomerDirectory> =>
+  Layer.succeed(CustomerDirectory)(makeCustomerDirectoryService(store))
 
 type Patch = Record<string, unknown | ((record: CustomerRecord) => unknown)>
 const mutate = <I extends Mutation>(

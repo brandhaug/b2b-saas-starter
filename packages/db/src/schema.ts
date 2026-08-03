@@ -3825,6 +3825,7 @@ export const customerRecords = sqliteTable('customer_records', {
     .default('en')
     .notNull(),
   merchantNote: text('merchant_note'),
+  mergedInto: text('merged_into'),
   revision: integer('revision').default(1).notNull(),
   lastActivityAt: text('last_activity_at').notNull(),
   createdAt: isoCreatedAt(),
