@@ -1,8 +1,10 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { and, asc, desc, eq, gte, lt } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm'
 import {
   appointments,
+  appointmentFoundations,
   Database,
+  externalCollections,
   type StoredAppointmentSnapshot
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
@@ -51,6 +53,31 @@ export const OperationalAppointment = Schema.Struct({
   merchantId: Schema.String,
   providerId: Schema.String,
   status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show']),
+  revision: Schema.optional(Schema.Int),
+  bookingPartyId: Schema.optional(Schema.NullOr(Schema.String)),
+  seriesId: Schema.optional(Schema.NullOr(Schema.String)),
+  seriesPosition: Schema.optional(Schema.NullOr(Schema.Int)),
+  externalCollectionNetMinor: Schema.optional(Schema.Int),
+  partyMembers: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        id: Schema.String,
+        revision: Schema.Int,
+        externalCollectionNetMinor: Schema.Int,
+        status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show'])
+      })
+    )
+  ),
+  seriesMembers: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        id: Schema.String,
+        revision: Schema.Int,
+        externalCollectionNetMinor: Schema.Int,
+        status: Schema.Literals(['scheduled', 'completed', 'cancelled', 'no_show'])
+      })
+    )
+  ),
   startsAt: Schema.String,
   endsAt: Schema.String,
   snapshot: AppointmentSnapshot,
@@ -236,7 +263,14 @@ export const SeedAppointmentOperations = (
 const toAppointment = (
   row: typeof appointments.$inferSelect
 ): OperationalAppointment | null =>
-  row.snapshot ? { ...row, snapshot: row.snapshot } : null
+  row.snapshot
+    ? {
+        ...row,
+        snapshot: row.snapshot,
+        revision: row.version,
+        bookingPartyId: row.bookingPartyId
+      }
+    : null
 
 export const LiveAppointmentOperations: Layer.Layer<
   AppointmentOperations,
@@ -303,6 +337,89 @@ export const LiveAppointmentOperations: Layer.Layer<
               .limit(1)
           )
           const appointment = rows[0] ? toAppointment(rows[0]) : null
+          if (appointment?.merchantId === merchant.id) {
+            const foundation = yield* orUnavailable('appointment-operations')(
+              db
+                .select({
+                  seriesId: appointmentFoundations.seriesId,
+                  seriesPosition: appointmentFoundations.seriesPosition
+                })
+                .from(appointmentFoundations)
+                .where(
+                  and(
+                    eq(appointmentFoundations.appointmentId, appointmentId),
+                    eq(appointmentFoundations.merchantId, merchant.id)
+                  )
+                )
+                .limit(1)
+            )
+            const collection = yield* orUnavailable('appointment-operations')(
+              db
+                .select({
+                  net: sql<number>`COALESCE(SUM(CASE ${externalCollections.kind} WHEN 'collection' THEN ${externalCollections.amountMinor} ELSE -${externalCollections.amountMinor} END), 0)`
+                })
+                .from(externalCollections)
+                .where(
+                  and(
+                    eq(externalCollections.appointmentId, appointmentId),
+                    eq(externalCollections.merchantId, merchant.id)
+                  )
+                )
+            )
+            const member = foundation[0]
+            const net = collection[0]
+            const seriesMembers = member?.seriesId
+              ? yield* orUnavailable('appointment-operations')(
+                  db
+                    .select({
+                      id: appointments.id,
+                      revision: appointments.version,
+                      externalCollectionNetMinor: sql<number>`COALESCE((SELECT SUM(CASE ec.kind WHEN 'collection' THEN ec.amount_minor ELSE -ec.amount_minor END) FROM external_collections ec WHERE ec.merchant_id = ${appointments.merchantId} AND ec.appointment_id = ${appointments.id}), 0)`,
+                      status: appointments.status
+                    })
+                    .from(appointments)
+                    .innerJoin(
+                      appointmentFoundations,
+                      eq(appointmentFoundations.appointmentId, appointments.id)
+                    )
+                    .where(
+                      and(
+                        eq(appointments.merchantId, merchant.id),
+                        eq(appointmentFoundations.seriesId, member.seriesId)
+                      )
+                    )
+                )
+              : []
+            const partyMembers = appointment.bookingPartyId
+              ? yield* orUnavailable('appointment-operations')(
+                  db
+                    .select({
+                      id: appointments.id,
+                      revision: appointments.version,
+                      externalCollectionNetMinor: sql<number>`COALESCE((SELECT SUM(CASE ec.kind WHEN 'collection' THEN ec.amount_minor ELSE -ec.amount_minor END) FROM external_collections ec WHERE ec.merchant_id = ${appointments.merchantId} AND ec.appointment_id = ${appointments.id}), 0)`,
+                      status: appointments.status
+                    })
+                    .from(appointments)
+                    .where(
+                      and(
+                        eq(appointments.merchantId, merchant.id),
+                        eq(appointments.bookingPartyId, appointment.bookingPartyId)
+                      )
+                    )
+                )
+              : []
+            return {
+              kind: 'found',
+              appointment: {
+                ...appointment,
+                seriesId: member?.seriesId ?? null,
+                seriesPosition: member?.seriesPosition ?? null,
+                externalCollectionNetMinor: net?.net ?? 0,
+                partyMembers,
+                seriesMembers
+              }
+            } as const
+          }
           return appointment?.merchantId === merchant.id
             ? ({ kind: 'found', appointment } as const)
             : ({ kind: 'not_found' } as const)

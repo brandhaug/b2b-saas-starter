@@ -145,6 +145,31 @@ export {
 } from './appointment-operations.ts'
 export type { AppointmentOperationsShape } from './appointment-operations.ts'
 export {
+  liveMerchantAppointmentCommands,
+  LiveMerchantAppointmentCommands,
+  MerchantAppointmentCommands,
+  MerchantAppointmentCommandSchema,
+  MerchantAppointmentSeriesPreviewSchema,
+  SeedMerchantAppointmentCommands
+} from './merchant-appointment-commands.ts'
+export type {
+  AppendExternalCollection,
+  AppointmentNotificationChoice,
+  AppointmentOperationHistoryEntry,
+  CancelMerchantAppointments,
+  CreateMerchantAppointment,
+  CreateMerchantAppointmentSeries,
+  EditMerchantAppointment,
+  ExternalCollectionMethod,
+  MerchantAppointmentCommand,
+  MerchantAppointmentCommandResult,
+  MerchantAppointmentSeriesPreviewInput,
+  MerchantAppointmentSeriesPreviewResult,
+  MerchantAppointmentCustomer,
+  RescheduleMerchantAppointment,
+  SetMerchantAppointmentOutcome
+} from './merchant-appointment-commands.ts'
+export {
   BookingCancellationRejected,
   BookingCancellations,
   SeedBookingCancellations,

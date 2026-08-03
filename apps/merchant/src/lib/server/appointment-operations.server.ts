@@ -1,7 +1,12 @@
 import { env } from 'cloudflare:workers'
 import { Effect, Layer } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
-import { AppointmentOperations } from '@b2b-saas-starter/capabilities/booking'
+import {
+  AppointmentOperations,
+  MerchantAppointmentCommands,
+  type MerchantAppointmentCommand,
+  type MerchantAppointmentSeriesPreviewInput
+} from '@b2b-saas-starter/capabilities/booking'
 import {
   liveMerchantContext,
   MerchantContext
@@ -10,7 +15,12 @@ import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 
 const run = async <A>(
   userId: string,
-  effect: Effect.Effect<A, unknown, AppointmentOperations | MerchantContext>
+  effect: Effect.Effect<
+    A,
+    unknown,
+    AppointmentOperations | MerchantAppointmentCommands | MerchantContext
+  >,
+  impersonatedBy: string | null = null
 ) => {
   if (!env.DB)
     throw new Error('Appointment Operations requires the Merchant App D1 binding.')
@@ -18,7 +28,13 @@ const run = async <A>(
   return Effect.runPromise(
     Effect.provide(
       effect,
-      Layer.merge(selectCapabilitiesLayer({ DB: env.DB }), context)
+      Layer.mergeAll(
+        selectCapabilitiesLayer(
+          { DB: env.DB },
+          { merchantAppointmentImpersonatedBy: impersonatedBy }
+        ),
+        context
+      )
     )
   )
 }
@@ -34,5 +50,37 @@ export const readAppointmentDetail = (userId: string, appointmentId: string) =>
     userId,
     Effect.flatMap(AppointmentOperations, (operations) =>
       operations.detail(appointmentId)
+    )
+  )
+
+export const executeAppointmentCommand = (
+  userId: string,
+  command: MerchantAppointmentCommand,
+  impersonatedBy: string | null
+) =>
+  run(
+    userId,
+    Effect.flatMap(MerchantAppointmentCommands, (operations) =>
+      operations.execute(command)
+    ),
+    impersonatedBy
+  )
+
+export const readAppointmentHistory = (userId: string, appointmentId: string) =>
+  run(
+    userId,
+    Effect.flatMap(MerchantAppointmentCommands, (operations) =>
+      operations.history(appointmentId)
+    )
+  )
+
+export const previewAppointmentSeries = (
+  userId: string,
+  input: MerchantAppointmentSeriesPreviewInput
+) =>
+  run(
+    userId,
+    Effect.flatMap(MerchantAppointmentCommands, (operations) =>
+      operations.previewSeries(input)
     )
   )

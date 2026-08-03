@@ -4,6 +4,10 @@ import { useState, type ReactNode } from 'react'
 import { merchantOverlayNavigationState } from '@/lib/merchant-home-route.ts'
 import type { MerchantDestination } from '../navigation.tsx'
 import { NewAppointmentDialog } from '../mobile/mobile-new-appointment-sheet.tsx'
+import {
+  appointmentCreateOptions,
+  type AppointmentCreateMode
+} from '../appointment-create-mode.ts'
 
 const walkInsAction = { to: '/walk-ins', icon: <ListOrdered aria-hidden /> } as const
 const customersAction = {
@@ -22,7 +26,10 @@ export function DesktopHomeActions({
   readonly appointmentDate: string | undefined
   readonly interactive?: boolean
 }) {
+  const [createMenuOpen, setCreateMenuOpen] = useState(false)
   const [newAppointmentOpen, setNewAppointmentOpen] = useState(false)
+  const [appointmentMode, setAppointmentMode] =
+    useState<AppointmentCreateMode>('appointment')
   const destinationsByRoute = new Map(
     destinations.map((destination) => [destination.to, destination])
   )
@@ -50,11 +57,11 @@ export function DesktopHomeActions({
             type="button"
             aria-label="New appointment"
             aria-haspopup="dialog"
-            aria-expanded={newAppointmentOpen}
+            aria-expanded={createMenuOpen || newAppointmentOpen}
             data-desktop-home-action="true"
             data-desktop-home-create-action="new-appointment"
             className={`${createActionStyles} shadow-alyn`}
-            onClick={() => setNewAppointmentOpen(true)}
+            onClick={() => setCreateMenuOpen(true)}
           >
             <Plus aria-hidden className="size-7" strokeWidth={1.9} />
           </button>
@@ -74,8 +81,46 @@ export function DesktopHomeActions({
           <span aria-hidden />
         )}
       </nav>
+      {createMenuOpen ? (
+        <dialog
+          open
+          aria-label="Create appointment"
+          aria-modal="true"
+          className="fixed top-1/2 left-1/2 z-50 m-0 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl border bg-background p-5 text-foreground shadow-2xl"
+          onCancel={(event) => {
+            event.preventDefault()
+            setCreateMenuOpen(false)
+          }}
+        >
+          <h2 className="text-xl font-semibold">New</h2>
+          <div className="mt-4 grid gap-2">
+            {appointmentCreateOptions.map(({ mode, label }) => (
+              <button
+                key={mode}
+                type="button"
+                className="h-12 rounded-xl border px-4 text-left font-medium hover:bg-muted"
+                onClick={() => {
+                  setAppointmentMode(mode)
+                  setCreateMenuOpen(false)
+                  setNewAppointmentOpen(true)
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="mt-4 h-11 w-full rounded-xl text-muted-foreground hover:bg-muted"
+            onClick={() => setCreateMenuOpen(false)}
+          >
+            Cancel
+          </button>
+        </dialog>
+      ) : null}
       <NewAppointmentDialog
         open={newAppointmentOpen}
+        mode={appointmentMode}
         presentation="desktop"
         appointmentDate={appointmentDate}
         onRequestClose={() => setNewAppointmentOpen(false)}

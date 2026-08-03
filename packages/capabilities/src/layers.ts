@@ -39,6 +39,11 @@ import {
   SeedAppointmentOperations
 } from './booking/appointment-operations.ts'
 import {
+  liveMerchantAppointmentCommands,
+  MerchantAppointmentCommands,
+  SeedMerchantAppointmentCommands
+} from './booking/merchant-appointment-commands.ts'
+import {
   BookingCancellations,
   emptySeedBookingCancellationStore,
   SeedBookingCancellations
@@ -244,6 +249,7 @@ export type CapabilityServices =
   | BookingCheckout
   | BookingConfirmation
   | AppointmentOperations
+  | MerchantAppointmentCommands
   | BookingCancellations
   | BookingRescheduling
   | BookingNotificationOutbox
@@ -511,6 +517,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
     Layer.provide(SeedPaymentSettlement(emptySeedPaymentSettlementStore()))
   ),
   SeedAppointmentOperations(seedOperationalAppointments),
+  SeedMerchantAppointmentCommands,
   SeedBookingCancellations(emptySeedBookingCancellationStore()),
   SeedBookingRescheduling(emptySeedBookingReschedulingStore()),
   SeedBookingNotificationOutbox
@@ -527,6 +534,7 @@ export type LiveCapabilitiesOptions = {
   readonly notificationDestinationSecrets?:
     | Parameters<typeof LiveBookingConfirmation>[1]
     | undefined
+  readonly merchantAppointmentImpersonatedBy?: string | null | undefined
   readonly capabilityQueueWakeup?:
     | ((wakeup: import('./foundation/index.ts').QueueWakeup) => Promise<void>)
     | undefined
@@ -613,6 +621,9 @@ export const makeLiveCapabilitiesLayer = (
       options.notificationDestinationSecrets
     ).pipe(Layer.provide(LivePaymentSettlement)),
     LiveAppointmentOperations,
+    liveMerchantAppointmentCommands({
+      impersonatedBy: options.merchantAppointmentImpersonatedBy
+    }),
     makeLiveBookingCancellations(options.notificationDestinationSecrets),
     makeLiveBookingRescheduling(options.notificationDestinationSecrets),
     LiveBookingNotificationOutbox
