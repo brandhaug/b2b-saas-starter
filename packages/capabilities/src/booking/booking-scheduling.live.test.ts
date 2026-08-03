@@ -30,6 +30,11 @@ import {
   LiveBookingSessions,
   type BookingSession
 } from './booking-sessions.ts'
+import {
+  LiveMerchantCatalog,
+  MerchantCatalog
+} from '../merchant-catalog/merchant-catalog.ts'
+import { liveMerchantContext } from '../merchant-catalog/merchant-context.ts'
 
 let test: TestD1
 const now = '2026-07-10T09:30:00.000Z'
@@ -196,13 +201,14 @@ const prepareSession = async (
   } = {
     primaryServiceId: 'svc_schedule_primary',
     additionalServiceIds: ['svc_schedule_extra']
-  }
+  },
+  sessionNow = now
 ): Promise<BookingSession> => {
   const dbLayer = layerFromD1(test.d1)
   const session = await Effect.runPromise(
     Effect.provide(
       Effect.flatMap(BookingSessions, (sessions) =>
-        sessions.start({ merchantSlug: 'schedule-hold', now })
+        sessions.start({ merchantSlug: 'schedule-hold', now: sessionNow })
       ),
       LiveBookingSessions.pipe(Layer.provide(dbLayer))
     )
@@ -228,6 +234,148 @@ const prepareSession = async (
 }
 
 describe('Live Booking Scheduling', () => {
+  it('fails closed when persisted Service buffers are outside launch bounds', async () => {
+    const session = await prepareSession({
+      primaryServiceId: 'svc_schedule_primary',
+      additionalServiceIds: []
+    })
+    const dbLayer = layerFromD1(test.d1)
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(Database, (db) =>
+          db
+            .update(services)
+            .set({
+              bookingConfigJson: {
+                beforeBufferMinutes: -5,
+                afterBufferMinutes: 125
+              }
+            })
+            .where(eq(services.id, 'svc_schedule_primary'))
+        ),
+        dbLayer
+      )
+    )
+    const result = await Effect.runPromise(
+      Effect.provide(
+        Effect.result(
+          Effect.flatMap(BookingScheduling, (scheduling) =>
+            scheduling.availability(session, {
+              from: '2026-07-13T00:00:00.000Z',
+              days: 1,
+              now
+            })
+          )
+        ),
+        LiveBookingScheduling.pipe(Layer.provide(dbLayer))
+      )
+    )
+    expect(result).toMatchObject({
+      _tag: 'Failure',
+      failure: { reason: 'not_ready' }
+    })
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(Database, (db) =>
+          db
+            .update(services)
+            .set({ bookingConfigJson: null })
+            .where(eq(services.id, 'svc_schedule_primary'))
+        ),
+        dbLayer
+      )
+    )
+  })
+
+  it('preserves only duration-edited holds that remain available', async () => {
+    const dbLayer = layerFromD1(test.d1)
+    const schedulingLayer = LiveBookingScheduling.pipe(Layer.provide(dbLayer))
+    const catalogLayer = Layer.merge(
+      LiveMerchantCatalog,
+      liveMerchantContext('usr_schedule_owner')
+    ).pipe(Layer.provide(dbLayer))
+    const runScheduling = <A, E>(effect: Effect.Effect<A, E, BookingScheduling>) =>
+      Effect.runPromise(Effect.provide(effect, schedulingLayer))
+    const updateDuration = (durationMinutes: number) =>
+      Effect.runPromise(
+        Effect.provide(
+          Effect.gen(function* () {
+            const catalog = yield* MerchantCatalog
+            const service = (yield* catalog.read()).services.find(
+              (item) => item.id === 'svc_schedule_primary'
+            )!
+            return yield* catalog.updateService(service.id, {
+              ...service,
+              durationMinutes
+            })
+          }),
+          catalogLayer
+        )
+      )
+    const holdNow = new Date().toISOString()
+    const nextMonday = new Date(holdNow)
+    const daysUntilNextMonday = (8 - nextMonday.getUTCDay()) % 7 || 7
+    nextMonday.setUTCDate(nextMonday.getUTCDate() + daysUntilNextMonday)
+    nextMonday.setUTCHours(9, 0, 0, 0)
+    const earlyStartsAt = nextMonday.toISOString()
+    nextMonday.setUTCHours(13)
+    const lateStartsAt = nextMonday.toISOString()
+    const earlySession = await prepareSession(
+      {
+        primaryServiceId: 'svc_schedule_primary',
+        additionalServiceIds: []
+      },
+      holdNow
+    )
+    const earlyHold = await runScheduling(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.hold(earlySession, {
+          startsAt: earlyStartsAt,
+          now: holdNow
+        })
+      )
+    )
+    await updateDuration(60)
+    expect(
+      await runScheduling(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.currentHold(earlySession, { now: holdNow })
+        )
+      )
+    ).toMatchObject({ id: earlyHold.id })
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.release(earlySession)
+      )
+    )
+    await updateDuration(40)
+
+    const lateSession = await prepareSession(
+      {
+        primaryServiceId: 'svc_schedule_primary',
+        additionalServiceIds: []
+      },
+      holdNow
+    )
+    await runScheduling(
+      Effect.flatMap(BookingScheduling, (scheduling) =>
+        scheduling.hold(lateSession, {
+          startsAt: lateStartsAt,
+          now: holdNow
+        })
+      )
+    )
+    await updateDuration(120)
+    expect(
+      await runScheduling(
+        Effect.flatMap(BookingScheduling, (scheduling) =>
+          scheduling.currentHold(lateSession, { now: holdNow })
+        )
+      )
+    ).toBeNull()
+    await updateDuration(40)
+  })
+
   it('acquires and links every request hold in one live D1 batch', async () => {
     const session = await prepareSession()
     const schedulingLayer = LiveBookingScheduling.pipe(

@@ -17,6 +17,63 @@ Deliver the complete resumable Solo activation journey through one-Shop Business
 
 ## Comments
 
+### Final persisted-buffer re-resolution — 2026-08-03
+
+Persisted Service buffers now pass through one bounded decoder in Merchant Catalog,
+Merchant Availability, and Booking Scheduling: missing values retain the launch zero
+default, while malformed, fractional, non-five-minute, negative, and over-limit values
+fail closed. Service duration changes now re-evaluate affected active holds and preserve
+only those still valid against working hours, blocks, Appointments, and competing holds.
+
+Scheduling owns the cross-context consequence planning for duration, buffer, and
+eligibility changes; Merchant Catalog composes those prepared statements with its source
+mutation in one atomic D1 batch. Final independent Standards and Spec reviews report no
+remaining finding.
+
+### Reopened after persisted-buffer review — 2026-08-03
+
+The latest review found that Booking and Scheduling projections accepted malformed
+persisted Service buffer JSON, and Service duration edits invalidated every associated
+hold instead of only holds made unavailable. The issue is reopened until persisted
+buffers fail closed through one shared decoder and duration changes selectively
+re-evaluate affected holds.
+
+### Reopened after final review — 2026-08-03
+
+The final Standards pass found two Merchant Catalog gaps: eligibility replacement no
+longer removed omitted associations, and Service duration/status or eligibility changes
+did not append immutable Schedule Change audit facts. The issue is reopened until both
+atomic behaviors pass public-seam coverage and final review.
+
+### Final re-resolution — 2026-08-03
+
+Restored exact atomic eligibility replacement for Inactive Services, added the typed
+Active-Service Owner-eligibility lifecycle guard, and aligned Seed and Live reactivation
+so the sole Owner-Provider association is restored. Service duration/status and
+eligibility mutations now append authenticated, immutable Schedule Change actor, time,
+and before/after facts in the same transaction as configuration and hold effects.
+Public-seam coverage proves rejection, replacement, audit projection, and reactivation.
+The final Standards and Spec passes report no remaining hard finding or acceptance gap.
+
+### Reopened — 2026-08-03
+
+Re-review found incomplete transactional publication facts, hold acquisition races
+against current schedule and buffer facts, missing selective hold invalidation and
+schedule-change conflict/audit behavior, a deletion-sensitive Launch Test revision,
+an incomplete Preview Mode journey, and missing impact/recovery UX. The issue is
+reopened until those findings are implemented and reviewed again.
+
+### Re-resolution — 2026-08-03
+
+Closed the reopened gaps with monotonic configuration revisions, atomic hold and
+Appointment-conflict guards, selective hold invalidation for schedule, policy, Service
+duration/status, and buffer edits, authenticated Owner audit attribution, Shop-calendar
+Booking Horizon enforcement, persistent Schedule Conflict and change projections, and
+an interactive side-effect-free Preview Mode. Publication now rejects blank legacy
+Business Details, rechecks current notification and subscription evidence, and returns
+step-linked recovery facts. Final parallel Standards and Spec reviews found no remaining
+hard violation or substantive acceptance gap; the focused suite passes 38 tests.
+
 ### Resolution — 2026-08-03
 
 Delivered the resumable Solo activation checklist as a derived projection over current
