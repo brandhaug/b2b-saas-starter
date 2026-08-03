@@ -132,6 +132,10 @@ describe('beesolo release baseline', () => {
       writeFile(
         join(root, 'packages/db/src/provider-policy.ts'),
         `export const chooseProvider = () => ({ kind: 'automatic-sole-provider' })`
+      ),
+      writeFile(
+        join(root, 'packages/db/src/provider-commands.ts'),
+        `export const createProvider = () => ({})`
       )
     ])
 
@@ -157,6 +161,8 @@ describe('beesolo release baseline', () => {
       expect.arrayContaining([
         expect.stringContaining('apps/web/src/routes/pricing.tsx'),
         expect.stringContaining('apps/merchant/src/components/navigation.tsx'),
+        expect.stringContaining('apps/api/src/team-contract.ts'),
+        expect.stringContaining('packages/db/src/provider-commands.ts'),
         expect.stringContaining('packages/capabilities/src/team/members.ts')
       ])
     )
