@@ -419,6 +419,8 @@ export const makeSeedTransactionalEmailLayer = (input: {
   const evidenceByIdempotency = new Map<string, TransactionalEmailEvidence>()
   const commandSignatures = new Map<string, string>()
   const evidenceByProviderId = new Map<string, TransactionalEmailEvidence>()
+  const attemptOrderByIdempotency = new Map<string, number>()
+  let latestAttemptOrder = 0
   const readiness = new Map<string, NotificationReadiness>()
   const callbackEvents = new Set<string>()
   const latestProviderOccurrence = new Map<string, string>()
@@ -514,6 +516,8 @@ export const makeSeedTransactionalEmailLayer = (input: {
             reason: 'idempotency_key_conflict'
           })
         if (replay && !replay.retryable) return replay
+        latestAttemptOrder += 1
+        attemptOrderByIdempotency.set(command.idempotencyKey, latestAttemptOrder)
         const result = yield* provider.submit({
           idempotencyKey: command.idempotencyKey,
           from: provider.sender ?? '',
@@ -589,14 +593,18 @@ export const makeSeedTransactionalEmailLayer = (input: {
       }),
     recoverableOwnerActivationTest: (merchantId) => {
       let latest: readonly [string, TransactionalEmailEvidence] | undefined
+      let latestOrder = -1
       for (const entry of evidenceByIdempotency) {
         const evidence = entry[1]
+        const attemptOrder = attemptOrderByIdempotency.get(entry[0]) ?? -1
         if (
           evidence.merchantId === merchantId &&
           evidence.templateKey.startsWith('owner_activation_test_') &&
-          (!latest || evidence.attemptedAt >= latest[1].attemptedAt)
-        )
+          attemptOrder > latestOrder
+        ) {
           latest = entry
+          latestOrder = attemptOrder
+        }
       }
       return Effect.succeed(
         latest ? recoverableOwnerActivationTest(merchantId, latest[0], latest[1]) : null
@@ -670,11 +678,7 @@ export const makeLiveTransactionalEmailLayer = (
                 eq(emailEvidenceTable.senderIdentity, provider.sender ?? '')
               )
             )
-            .orderBy(
-              desc(emailEvidenceTable.attemptedAt),
-              desc(emailEvidenceTable.updatedAt),
-              desc(sql`rowid`)
-            )
+            .orderBy(desc(emailEvidenceTable.attemptOrder))
             .limit(1)
         )
       const applyVerifiedCallback = (callback: {
@@ -835,6 +839,7 @@ export const makeLiveTransactionalEmailLayer = (
                   status: 'submitting',
                   attemptedAt: command.now,
                   attemptCount: 1,
+                  attemptOrder: sql`(SELECT COALESCE(MAX(attempt_order), 0) + 1 FROM transactional_email_evidence)`,
                   retryable: false,
                   updatedAt: command.now
                 })
@@ -878,6 +883,7 @@ export const makeLiveTransactionalEmailLayer = (
                     status: 'submitting',
                     attemptedAt: command.now,
                     attemptCount: existing.attemptCount + 1,
+                    attemptOrder: sql`(SELECT COALESCE(MAX(attempt_order), 0) + 1 FROM transactional_email_evidence)`,
                     retryable: false,
                     updatedAt: command.now
                   })

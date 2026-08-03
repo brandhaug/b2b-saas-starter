@@ -418,6 +418,7 @@ export const transactionalEmailEvidence = sqliteTable(
     failureCode: text('failure_code'),
     attemptedAt: text('attempted_at').notNull(),
     attemptCount: integer('attempt_count').default(1).notNull(),
+    attemptOrder: integer('attempt_order').default(0).notNull(),
     retryable: integer('retryable', { mode: 'boolean' }).default(false).notNull(),
     acceptedAt: text('accepted_at'),
     deliveredAt: text('delivered_at'),

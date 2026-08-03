@@ -394,6 +394,81 @@ describe('Live Transactional Email', () => {
     })
   })
 
+  it('orders a retry after a newer terminal command in the same millisecond', async () => {
+    let submissions = 0
+    let release!: () => void
+    let signalStarted!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve
+    })
+    const provider = {
+      state: 'configured' as const,
+      sender: 'booking@beesolo.example',
+      fingerprintDestination: () => Effect.succeed('destination-fingerprint'),
+      submit: () =>
+        Effect.promise(async () => {
+          submissions += 1
+          if (submissions === 1)
+            return {
+              _tag: 'failed' as const,
+              code: 'provider_unavailable',
+              retryable: true
+            }
+          if (submissions === 3) {
+            signalStarted()
+            await blocked
+          }
+          return {
+            _tag: 'accepted' as const,
+            providerReferenceFingerprint: `hmac-sha256:${String(submissions).repeat(64)}`,
+            acceptedAt: '2026-08-02T13:00:00.000Z'
+          }
+        }),
+      verifyCallback: () => Effect.succeed({ _tag: 'ignored' as const })
+    }
+    const layer = makeLiveTransactionalEmailLayer(provider).pipe(
+      Layer.provide(layerFromD1(test.d1))
+    )
+    const send = (commandId: string, commandNow: string) =>
+      Effect.runPromise(
+        Effect.flatMap(TransactionalEmail, (email) =>
+          email.sendOwnerActivationTest({
+            merchantId: 'mrc_email',
+            ownerUserId: 'usr_email_owner',
+            verifiedOwnerEmail: null,
+            locale: 'en',
+            idempotencyKey: ownerActivationTestIdempotencyKey('mrc_email', commandId),
+            now: commandNow
+          })
+        ).pipe(Effect.provide(layer))
+      )
+
+    expect(await send('retry-order-old', '2026-08-02T12:59:00.000Z')).toMatchObject({
+      status: 'failed',
+      retryable: true
+    })
+    expect(await send('retry-order-new', '2026-08-02T13:00:00.000Z')).toMatchObject({
+      status: 'accepted'
+    })
+    const retry = send('retry-order-old', '2026-08-02T13:00:00.000Z')
+    await started
+    const recovered = await Effect.runPromise(
+      Effect.flatMap(TransactionalEmail, (email) =>
+        email.recoverableOwnerActivationTest('mrc_email')
+      ).pipe(Effect.provide(layer))
+    )
+    release()
+    await retry
+
+    expect(recovered).toMatchObject({
+      commandId: 'retry-order-old',
+      evidence: { status: 'submitting' }
+    })
+  })
+
   it('rejects retrying the same key after the verified destination changes', async () => {
     let submissions = 0
     const provider = {
@@ -455,10 +530,10 @@ describe('Live Transactional Email', () => {
         `INSERT INTO transactional_email_evidence
          (id, merchant_id, owner_user_id, idempotency_key, purpose, locale,
           template_key, masked_destination, sender_identity, status, attempted_at,
-          attempt_count, retryable, accepted_at, updated_at)
+          attempt_count, attempt_order, retryable, accepted_at, updated_at)
          VALUES (?, 'mrc_email', 'usr_email_owner', ?, 'owner_activation_test', 'en',
           'owner_activation_test_en_v1', 'o••••@example.test',
-          'booking@beesolo.example', ?, ?, 1, ?, ?, ?)`
+          'booking@beesolo.example', ?, ?, 1, -2, ?, ?, ?)`
       )
       .bind('eml_legacy_terminal', 'live-legacy-terminal', 'accepted', now, 0, now, now)
       .run()
@@ -467,10 +542,10 @@ describe('Live Transactional Email', () => {
         `INSERT INTO transactional_email_evidence
          (id, merchant_id, owner_user_id, idempotency_key, purpose, locale,
           template_key, masked_destination, sender_identity, status, failure_code,
-          attempted_at, attempt_count, retryable, updated_at)
+          attempted_at, attempt_count, attempt_order, retryable, updated_at)
          VALUES (?, 'mrc_email', 'usr_email_owner', ?, 'owner_activation_test', 'en',
           'owner_activation_test_en_v1', 'o••••@example.test',
-          'booking@beesolo.example', 'failed', 'provider_unavailable', ?, 1, 1, ?)`
+          'booking@beesolo.example', 'failed', 'provider_unavailable', ?, 1, -1, 1, ?)`
       )
       .bind('eml_legacy_retry', 'live-legacy-retry', now, now)
       .run()
