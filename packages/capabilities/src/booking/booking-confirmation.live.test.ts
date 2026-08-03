@@ -51,7 +51,7 @@ import { testMerchantContext } from '../merchant-catalog/merchant-context.ts'
 import type { BookingSession } from './booking-sessions.ts'
 import {
   CustomerDirectory,
-  LiveCustomerDirectory
+  makeLiveCustomerDirectory
 } from '../customer-directory/index.ts'
 
 let test: TestD1
@@ -1064,7 +1064,9 @@ describe('Live Booking Confirmation', () => {
 
   it('enforces a matched Customer Ban with a generic public failure', async () => {
     const directoryLayer = Layer.merge(
-      LiveCustomerDirectory.pipe(Layer.provide(layerFromD1(test.d1))),
+      makeLiveCustomerDirectory('booking-confirmation-live-test-directory-key').pipe(
+        Layer.provide(layerFromD1(test.d1))
+      ),
       testMerchantContext({
         id: 'mer_confirm',
         publicName: 'Confirm Live',

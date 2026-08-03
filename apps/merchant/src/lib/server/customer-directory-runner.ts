@@ -42,7 +42,7 @@ export const runCustomerDirectoryRequest = <A>(input: {
       Layer.merge(
         selectCapabilitiesLayer({
           DB: input.db,
-          PLATFORM_API_CURSOR_SECRET: input.fingerprintKey
+          CUSTOMER_DIRECTORY_FINGERPRINT_KEY: input.fingerprintKey
         }),
         context
       )

@@ -35,6 +35,8 @@ export type BookingProductEnv = {
     | undefined
   readonly PLATFORM_API_CURSOR_SECRET?: string | undefined
   readonly REQUIRE_PLATFORM_API_CURSOR_SECRET?: boolean | undefined
+  readonly CUSTOMER_DIRECTORY_FINGERPRINT_KEY?: string | undefined
+  readonly REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY?: boolean | undefined
   readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string | undefined
   readonly OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY?: string | undefined
   readonly OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION?: string | undefined
@@ -169,6 +171,9 @@ export const selectCapabilitiesLayer = (
         }
       : undefined)
   return makeLiveLayerFromD1(env.DB, {
+    customerDirectoryFingerprintKey: env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+    requireCustomerDirectoryFingerprintKey:
+      env.REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
     platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET,
     requirePlatformApiCursorSecret: env.REQUIRE_PLATFORM_API_CURSOR_SECRET,
     confirmationKeyring: options.confirmationKeyring,

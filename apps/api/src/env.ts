@@ -16,6 +16,7 @@ export type ApiEnv = RateLimitBindings & {
     }) => Promise<unknown>
   }
   readonly PLATFORM_API_CURSOR_SECRET?: string
+  readonly CUSTOMER_DIRECTORY_FINGERPRINT_KEY?: string
   readonly ENVIRONMENT?: string
   readonly BOOKING_EVENTS_QUEUE?: Queue
   readonly META_WHATSAPP_APP_SECRET?: string
@@ -49,6 +50,8 @@ export const bookingProductEnv = (env: ApiEnv): BookingProductEnv => {
       env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY,
     BOOKING_EVENTS_QUEUE: env.BOOKING_EVENTS_QUEUE,
     PLATFORM_API_CURSOR_SECRET: env.PLATFORM_API_CURSOR_SECRET,
-    REQUIRE_PLATFORM_API_CURSOR_SECRET: env.ENVIRONMENT === 'production'
+    REQUIRE_PLATFORM_API_CURSOR_SECRET: env.ENVIRONMENT === 'production',
+    CUSTOMER_DIRECTORY_FINGERPRINT_KEY: env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
+    REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY: env.ENVIRONMENT === 'production'
   }
 }

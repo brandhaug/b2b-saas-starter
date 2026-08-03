@@ -517,6 +517,8 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
 )
 
 export type LiveCapabilitiesOptions = {
+  readonly customerDirectoryFingerprintKey?: string | undefined
+  readonly requireCustomerDirectoryFingerprintKey?: boolean | undefined
   readonly platformApiCursorSecret?: string | undefined
   readonly requirePlatformApiCursorSecret?: boolean | undefined
   readonly confirmationKeyring?:
@@ -541,10 +543,17 @@ export const makeLiveCapabilitiesLayer = (
     !options.platformApiCursorSecret?.trim()
   )
     throw new Error('PLATFORM_API_CURSOR_SECRET is required in production.')
+  if (
+    options.requireCustomerDirectoryFingerprintKey &&
+    !options.customerDirectoryFingerprintKey?.trim()
+  )
+    throw new Error('CUSTOMER_DIRECTORY_FINGERPRINT_KEY is required in production.')
   // Cloudflare Workers prohibit random generation while evaluating a module.
   // Callers construct the live layer from inside a request, queue, or scheduled
   // handler, so create the local-only fallback at that handler-time boundary.
   const cursorSecret = options.platformApiCursorSecret || crypto.randomUUID()
+  const customerDirectoryFingerprintKey =
+    options.customerDirectoryFingerprintKey || crypto.randomUUID()
   const liveBookingPartiesLayer = LiveBookingParties
   const livePricingQuotesLayer = LivePricingQuotes
   const liveBookingCheckoutLayer = LiveBookingCheckout.pipe(
@@ -562,7 +571,7 @@ export const makeLiveCapabilitiesLayer = (
         ? { handleOutbox: options.capabilityOutboxHandler }
         : {})
     }),
-    makeLiveCustomerDirectory(cursorSecret),
+    makeLiveCustomerDirectory(customerDirectoryFingerprintKey),
     liveBookingPartiesLayer,
     livePricingQuotesLayer,
     LivePaymentLedger,

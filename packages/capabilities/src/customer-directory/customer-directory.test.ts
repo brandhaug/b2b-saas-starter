@@ -758,6 +758,116 @@ describe('Customer Directory contract', () => {
     })
   })
 
+  it('rolls back failed bulk commands and rejects unknown split assignments', async () => {
+    const result = await run(
+      'mer_atomic_bulk',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        yield* service.importRows({
+          fileId: 'baseline-file',
+          idempotencyKey: 'baseline-import',
+          expectedRevisions: {},
+          rows: [
+            {
+              name: 'Baseline Customer',
+              email: 'baseline@example.com',
+              phone: null,
+              externalReference: 'external-baseline'
+            }
+          ],
+          actorId: 'usr_owner',
+          now: '2026-08-01T10:00:00.000Z'
+        })
+        const beforeImport = yield* service.search('', { includeArchived: true })
+        const failedImport = yield* Effect.result(
+          service.importRows({
+            fileId: 'failing-file',
+            idempotencyKey: 'failing-import',
+            expectedRevisions: {},
+            rows: [
+              { name: 'Must Roll Back', email: null, phone: null },
+              {
+                name: 'Changed External Payload',
+                email: 'baseline@example.com',
+                phone: null,
+                externalReference: 'external-baseline'
+              }
+            ],
+            actorId: 'usr_owner',
+            now: '2026-08-01T11:00:00.000Z'
+          })
+        )
+        const afterImport = yield* service.search('', { includeArchived: true })
+
+        const first = yield* service.matchOrCreate({
+          appointmentId: 'apt_retention_first',
+          details: observation({ email: 'first-retention@example.com', phone: null }),
+          now: '2025-01-01T10:00:00.000Z'
+        })
+        const second = yield* service.matchOrCreate({
+          appointmentId: 'apt_retention_second',
+          details: observation({ email: 'second-retention@example.com', phone: null }),
+          now: '2025-01-01T11:00:00.000Z'
+        })
+        const failedErasure = yield* Effect.result(
+          service.eraseExpired({
+            idempotencyKey: 'stale-bulk-erasure',
+            expectedRevisions: {
+              [first.record.id]: first.record.revision,
+              [second.record.id]: second.record.revision + 1
+            },
+            now: '2027-01-01T10:00:00.000Z',
+            inactiveBefore: '2026-01-01T00:00:00.000Z',
+            actorId: 'retention-worker'
+          })
+        )
+        const firstAfterErasure = yield* service.get(first.record.id)
+
+        const splitSource = yield* service.matchOrCreate({
+          appointmentId: 'apt_split_known',
+          details: observation({ email: 'split-assign@example.com', phone: null }),
+          now: '2026-01-01T10:00:00.000Z'
+        })
+        const splitMatched = yield* service.matchOrCreate({
+          appointmentId: 'apt_split_known_second',
+          details: observation({ email: 'split-assign@example.com', phone: null }),
+          now: '2026-01-02T10:00:00.000Z'
+        })
+        const unknownAssignment = yield* Effect.result(
+          service.split({
+            sourceId: splitMatched.record.id,
+            observationIds: [
+              splitSource.record.observations[0]!.id,
+              'cuo_missing_assignment'
+            ],
+            expectedRevision: splitMatched.record.revision,
+            idempotencyKey: 'split-unknown-assignment',
+            actorId: 'usr_owner',
+            reason: 'Reviewed assignment',
+            now: '2026-01-03T10:00:00.000Z'
+          })
+        )
+        return {
+          beforeImport,
+          failedImport,
+          afterImport,
+          failedErasure,
+          firstAfterErasure,
+          unknownAssignment
+        }
+      })
+    )
+
+    expect(result.failedImport._tag).toBe('Failure')
+    expect(result.afterImport).toEqual(result.beforeImport)
+    expect(result.failedErasure._tag).toBe('Failure')
+    expect(result.firstAfterErasure.status).toBe('active')
+    expect(result.unknownAssignment).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'invalid_split_assignment' })
+    })
+  })
+
   it('keeps erased and merged records terminal and removes directory PII', async () => {
     const result = await run(
       'mer_terminal_records',

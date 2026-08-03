@@ -444,6 +444,22 @@ export const emptyCustomerDirectoryState = (): CustomerDirectoryState => ({
 })
 export type SeedCustomerDirectoryStore = CustomerDirectoryState
 export const emptySeedCustomerDirectoryStore = emptyCustomerDirectoryState
+const snapshotState = (store: CustomerDirectoryState) => ({
+  records: new Map(store.records),
+  commands: new Map(store.commands),
+  imports: new Set(store.imports)
+})
+const restoreSnapshot = (
+  store: CustomerDirectoryState,
+  snapshot: ReturnType<typeof snapshotState>
+) => {
+  store.records.clear()
+  for (const [id, record] of snapshot.records) store.records.set(id, record)
+  store.commands.clear()
+  for (const [key, command] of snapshot.commands) store.commands.set(key, command)
+  store.imports.clear()
+  for (const entry of snapshot.imports) store.imports.add(entry)
+}
 const validateDetails = (
   details: DirectoryCustomerDetails
 ): CustomerDirectoryError | null => {
@@ -923,80 +939,89 @@ export const makeCustomerDirectoryService = (
             rejected: replay.result.rejected
           }
         }
-        let created = 0,
-          matched = 0,
-          rejected = 0
-        for (let index = 0; index < input.rows.length; index++) {
-          const row = input.rows[index]!
-          const normalized = normalizeCustomerDetails(row)
-          const rowKey = row.externalReference
-            ? `${merchant.id}:import-row:${yield* fingerprint(store, {
-                externalReference: row.externalReference
-              })}`
-            : null
-          const rowFingerprint = yield* fingerprint(store, {
-            name: normalized.name,
-            email: normalized.email,
-            phone: normalized.phone
-          })
-          const rowMappingPrefix = rowKey ? `${rowKey}=>` : null
-          const existingRowMapping = rowMappingPrefix
-            ? [...store.imports].find((entry) => entry.startsWith(rowMappingPrefix))
-            : undefined
-          if (existingRowMapping && rowMappingPrefix) {
-            const [storedFingerprint, existingRecordId] = existingRowMapping
-              .slice(rowMappingPrefix.length)
-              .split('=>')
-            const existingRecord = existingRecordId
-              ? store.records.get(existingRecordId)
+        const before = snapshotState(store)
+        return yield* Effect.gen(function* () {
+          let created = 0,
+            matched = 0,
+            rejected = 0
+          for (let index = 0; index < input.rows.length; index++) {
+            const row = input.rows[index]!
+            const normalized = normalizeCustomerDetails(row)
+            const rowKey = row.externalReference
+              ? `${merchant.id}:import-row:${yield* fingerprint(store, {
+                  externalReference: row.externalReference
+                })}`
+              : null
+            const rowFingerprint = yield* fingerprint(store, {
+              name: normalized.name,
+              email: normalized.email,
+              phone: normalized.phone
+            })
+            const rowMappingPrefix = rowKey ? `${rowKey}=>` : null
+            const existingRowMapping = rowMappingPrefix
+              ? [...store.imports].find((entry) => entry.startsWith(rowMappingPrefix))
               : undefined
-            if (!existingRecord || storedFingerprint !== rowFingerprint)
+            if (existingRowMapping && rowMappingPrefix) {
+              const [storedFingerprint, existingRecordId] = existingRowMapping
+                .slice(rowMappingPrefix.length)
+                .split('=>')
+              const existingRecord = existingRecordId
+                ? store.records.get(existingRecordId)
+                : undefined
+              if (!existingRecord || storedFingerprint !== rowFingerprint)
+                return yield* Effect.fail(
+                  new CapabilityConflict({ reason: 'idempotency_key_reused' })
+                )
+              matched += 1
+              continue
+            }
+            const { matching } = recordsMatchingDetails(
+              matchableMerchantRecords(store, merchant.id),
+              normalized
+            )
+            if (
+              matching.length === 1 &&
+              input.expectedRevisions[matching[0]!.id] !== matching[0]!.revision
+            )
               return yield* Effect.fail(
-                new CapabilityConflict({ reason: 'idempotency_key_reused' })
+                new CapabilityConflict({
+                  reason: 'stale_revision',
+                  currentRevision: matching[0]!.revision
+                })
               )
-            matched += 1
-            continue
-          }
-          const { matching } = recordsMatchingDetails(
-            matchableMerchantRecords(store, merchant.id),
-            normalized
-          )
-          if (
-            matching.length === 1 &&
-            input.expectedRevisions[matching[0]!.id] !== matching[0]!.revision
-          )
-            return yield* Effect.fail(
-              new CapabilityConflict({
-                reason: 'stale_revision',
-                currentRevision: matching[0]!.revision
+            const result = yield* Effect.result(
+              self.matchOrCreate({
+                appointmentId: null,
+                details: row,
+                now: input.now,
+                source: 'import',
+                actorId: input.actorId
               })
             )
-          const result = yield* Effect.result(
-            self.matchOrCreate({
-              appointmentId: null,
-              details: row,
-              now: input.now,
-              source: 'import',
-              actorId: input.actorId
+            if (result._tag === 'Failure') rejected += 1
+            else {
+              if (result.success.matched) matched += 1
+              else created += 1
+              if (rowMappingPrefix)
+                store.imports.add(
+                  `${rowMappingPrefix}${rowFingerprint}=>${result.success.record.id}`
+                )
+            }
+          }
+          store.imports.add(importKey)
+          const result = { created, matched, rejected }
+          store.commands.set(importKey, {
+            fingerprint: commandFingerprint,
+            result: { _tag: 'import', ...result }
+          })
+          return result
+        }).pipe(
+          Effect.onError(() =>
+            Effect.sync(() => {
+              restoreSnapshot(store, before)
             })
           )
-          if (result._tag === 'Failure') rejected += 1
-          else {
-            if (result.success.matched) matched += 1
-            else created += 1
-            if (rowMappingPrefix)
-              store.imports.add(
-                `${rowMappingPrefix}${rowFingerprint}=>${result.success.record.id}`
-              )
-          }
-        }
-        store.imports.add(importKey)
-        const result = { created, matched, rejected }
-        store.commands.set(importKey, {
-          fingerprint: commandFingerprint,
-          result: { _tag: 'import', ...result }
-        })
-        return result
+        )
       }),
     exportMinimized: () =>
       Effect.gen(function* () {
@@ -1049,45 +1074,48 @@ export const makeCustomerDirectoryService = (
           return replay.result.value
         }
         const protectedIds = new Set(protectedRecordIds)
-        let count = 0
-        for (const record of store.records.values())
-          if (
+        const eligible = [...store.records.values()].filter(
+          (record) =>
             record.merchantId === merchant.id &&
             record.status !== 'erased' &&
             record.lastActivityAt < inactiveBefore &&
             !protectedIds.has(record.id) &&
             !activeBan(record, now)
-          ) {
-            if (expectedRevisions[record.id] !== record.revision)
-              return yield* Effect.fail(
-                new CapabilityConflict({
-                  reason: 'stale_revision',
-                  currentRevision: record.revision
-                })
-              )
-            const revision = record.revision + 1
-            store.records.set(record.id, {
-              ...record,
-              status: 'erased',
-              displayName: 'Erased customer',
-              preferredEmail: null,
-              preferredPhone: null,
-              contacts: [],
-              notes: [],
-              consent: [],
-              ban: null,
-              observations: record.observations.map((observation) => ({
-                ...observation,
-                details: { name: 'Erased customer', email: null, phone: null }
-              })),
-              revision,
-              history: [
-                ...record.history,
-                history('erased', actorId, 'retention', now, revision)
-              ]
+        )
+        const stale = eligible.find(
+          (record) => expectedRevisions[record.id] !== record.revision
+        )
+        if (stale)
+          return yield* Effect.fail(
+            new CapabilityConflict({
+              reason: 'stale_revision',
+              currentRevision: stale.revision
             })
-            count += 1
-          }
+          )
+        for (const record of eligible) {
+          const revision = record.revision + 1
+          store.records.set(record.id, {
+            ...record,
+            status: 'erased',
+            displayName: 'Erased customer',
+            preferredEmail: null,
+            preferredPhone: null,
+            contacts: [],
+            notes: [],
+            consent: [],
+            ban: null,
+            observations: record.observations.map((observation) => ({
+              ...observation,
+              details: { name: 'Erased customer', email: null, phone: null }
+            })),
+            revision,
+            history: [
+              ...record.history,
+              history('erased', actorId, 'retention', now, revision)
+            ]
+          })
+        }
+        const count = eligible.length
         store.commands.set(commandKey, {
           fingerprint: commandFingerprint,
           result: { _tag: 'count', value: count }
@@ -1346,6 +1374,31 @@ const splitRecord = (
         })
       )
     const selected = new Set(input.observationIds)
+    const contactAssignments = input.contactKeys ?? []
+    const contactAssignmentKeys = contactAssignments.map(
+      (contact) => `${contact.kind}:${contact.value}`
+    )
+    const noteAssignments = input.noteIds ?? []
+    const consentAssignments = input.consentIds ?? []
+    const allAssignmentsExist =
+      selected.size === input.observationIds.length &&
+      input.observationIds.every((id) =>
+        source.observations.some((observation) => observation.id === id)
+      ) &&
+      new Set(contactAssignmentKeys).size === contactAssignmentKeys.length &&
+      contactAssignmentKeys.every((key) =>
+        source.contacts.some((contact) => `${contact.kind}:${contact.value}` === key)
+      ) &&
+      new Set(noteAssignments).size === noteAssignments.length &&
+      noteAssignments.every((id) => source.notes.some((note) => note.id === id)) &&
+      new Set(consentAssignments).size === consentAssignments.length &&
+      consentAssignments.every((id) =>
+        source.consent.some((evidence) => evidence.id === id)
+      )
+    if (!allAssignmentsExist)
+      return yield* Effect.fail(
+        new CustomerDirectoryInvalid({ reason: 'invalid_split_assignment' })
+      )
     const moved = source.observations.filter((item) => selected.has(item.id))
     if (moved.length === 0 || moved.length === source.observations.length)
       return yield* Effect.fail(new CustomerDirectoryInvalid({ reason: 'empty_split' }))
@@ -1359,9 +1412,7 @@ const splitRecord = (
       return yield* Effect.fail(
         new CustomerDirectoryInvalid({ reason: 'invalid_split_assignment' })
       )
-    const movedContactKeys = new Set(
-      (input.contactKeys ?? []).map((contact) => `${contact.kind}:${contact.value}`)
-    )
+    const movedContactKeys = new Set(contactAssignmentKeys)
     if (
       explicitlyAssigned &&
       ((details.email && !movedContactKeys.has(`email:${details.email}`)) ||
@@ -1370,10 +1421,10 @@ const splitRecord = (
       return yield* Effect.fail(
         new CustomerDirectoryInvalid({ reason: 'invalid_split_assignment' })
       )
-    const movedNoteIds = new Set(input.noteIds ?? [])
-    const movedConsentIds = new Set(input.consentIds ?? [])
+    const movedNoteIds = new Set(noteAssignments)
+    const movedConsentIds = new Set(consentAssignments)
     const movedDestinations = new Set(
-      (input.contactKeys ?? []).map((contact) => contact.value)
+      contactAssignments.map((contact) => contact.value)
     )
     const requiredConsentIds = source.consent
       .filter((evidence) => movedDestinations.has(evidence.destination))

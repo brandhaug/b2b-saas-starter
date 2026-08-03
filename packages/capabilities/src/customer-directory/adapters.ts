@@ -595,7 +595,3 @@ export const makeLiveCustomerDirectory = (
       } satisfies CustomerDirectoryShape
     })
   )
-
-export const LiveCustomerDirectory = makeLiveCustomerDirectory(
-  'customer-directory-local-live-fingerprint-key'
-)

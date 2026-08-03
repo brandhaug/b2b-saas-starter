@@ -12,7 +12,7 @@ import {
 } from '@b2b-saas-starter/db'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
-import { LiveCustomerDirectory } from './adapters.ts'
+import { makeLiveCustomerDirectory } from './adapters.ts'
 import { CustomerDirectory } from './customer-directory.ts'
 import {
   prepareAppointmentCustomerAssociation,
@@ -29,7 +29,12 @@ const merchant = Layer.succeed(MerchantContext)({
   plan: 'solo'
 })
 const layer = () =>
-  Layer.merge(LiveCustomerDirectory.pipe(Layer.provide(layerFromD1(test.d1))), merchant)
+  Layer.merge(
+    makeLiveCustomerDirectory('customer-directory-live-test-key').pipe(
+      Layer.provide(layerFromD1(test.d1))
+    ),
+    merchant
+  )
 const run = <A, E>(effect: Effect.Effect<A, E, CustomerDirectory | MerchantContext>) =>
   Effect.runPromise(Effect.provide(effect, layer()))
 
@@ -574,6 +579,31 @@ describe('Live Customer Directory contract', () => {
         '2026-08-03T10:00:00.000Z',
         '2026-08-03T10:00:00.000Z',
         '2026-08-03T10:00:00.000Z'
+      )
+      .run()
+    await test.d1
+      .prepare(
+        `UPDATE customer_records SET merged_into = 'cur_customer_other'
+         WHERE id = 'cur_customer_other_duplicate'`
+      )
+      .run()
+    await expect(
+      test.d1
+        .prepare(`DELETE FROM customer_records WHERE id = 'cur_customer_other'`)
+        .run()
+    ).rejects.toThrow()
+    await expect(
+      test.d1
+        .prepare(
+          `UPDATE customer_records SET id = 'cur_customer_other_renamed'
+           WHERE id = 'cur_customer_other'`
+        )
+        .run()
+    ).rejects.toThrow()
+    await test.d1
+      .prepare(
+        `UPDATE customer_records SET merged_into = NULL
+         WHERE id = 'cur_customer_other_duplicate'`
       )
       .run()
     await test.d1

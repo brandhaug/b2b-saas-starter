@@ -16,32 +16,6 @@ WHERE `status` = 'active';--> statement-breakpoint
 
 ALTER TABLE `customer_records` ADD `merged_into` text;
 --> statement-breakpoint
-CREATE TRIGGER `customer_records_merge_target_insert_guard`
-BEFORE INSERT ON `customer_records`
-WHEN NEW.`merged_into` IS NOT NULL AND (
-  NEW.`merged_into` = NEW.`id` OR NOT EXISTS (
-    SELECT 1 FROM `customer_records` target
-    WHERE target.`id` = NEW.`merged_into`
-      AND target.`merchant_id` = NEW.`merchant_id`
-  )
-)
-BEGIN SELECT RAISE(ABORT, 'customer_merge_target_invalid'); END;
---> statement-breakpoint
-CREATE TRIGGER `customer_records_merge_target_update_guard`
-BEFORE UPDATE OF `merged_into`, `merchant_id` ON `customer_records`
-WHEN NEW.`merged_into` IS NOT NULL AND (
-  NEW.`merged_into` = NEW.`id` OR NOT EXISTS (
-    SELECT 1 FROM `customer_records` target
-    WHERE target.`id` = NEW.`merged_into`
-      AND target.`merchant_id` = NEW.`merchant_id`
-  )
-)
-BEGIN SELECT RAISE(ABORT, 'customer_merge_target_invalid'); END;
---> statement-breakpoint
-UPDATE `customer_records`
-SET `merged_into` = `merged_into`
-WHERE `merged_into` IS NOT NULL;
---> statement-breakpoint
 CREATE TRIGGER `customer_directory_states_revision_guard`
 BEFORE UPDATE ON `customer_directory_states`
 WHEN NEW.`revision` <> OLD.`revision` + 1

@@ -21,7 +21,6 @@ export * from './foundation/index.ts'
 export {
   CustomerDirectory as CustomerDirectoryService,
   CustomerDirectoryInvalid,
-  LiveCustomerDirectory,
   SeedCustomerDirectory,
   emptySeedCustomerDirectoryStore
 } from './customer-directory/index.ts'
