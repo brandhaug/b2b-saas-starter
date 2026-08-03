@@ -63,6 +63,7 @@ export type CustomerHistory = {
     | 'imported'
     | 'appointment_observed'
   readonly actorId: string
+  readonly impersonatedBy?: string | null
   readonly reason: string | null
   readonly at: string
   readonly revision: number

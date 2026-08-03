@@ -1,0 +1,122 @@
+// @vitest-environment jsdom
+
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
+import { CustomerDirectoryWorkspace } from './customer-directory-workspace.tsx'
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+const server = vi.hoisted(() => ({
+  addCustomerNote: vi.fn(),
+  archiveCustomer: vi.fn(),
+  banCustomer: vi.fn(),
+  editCustomerPreferred: vi.fn(),
+  exportCustomers: vi.fn(),
+  getCustomerRecord: vi.fn(),
+  importCustomers: vi.fn(),
+  liftCustomerBan: vi.fn(),
+  mergeCustomers: vi.fn(),
+  previewCustomerImport: vi.fn(),
+  recordCustomerConsent: vi.fn(),
+  searchCustomerRecords: vi.fn(),
+  setCustomerContactStatus: vi.fn(),
+  splitCustomer: vi.fn()
+}))
+
+vi.mock('@/lib/server/customer-directory.ts', () => server)
+
+const record = (id: string, duplicateId: string): CustomerRecord => ({
+  id,
+  merchantId: 'mer_test',
+  status: 'active',
+  displayName: id === 'cur_one' ? 'Ana Popescu' : 'Ana P.',
+  preferredEmail: 'ana@example.com',
+  preferredPhone: null,
+  contacts: [],
+  observations: [
+    {
+      id: `${id}_obs_one`,
+      appointmentId: `${id}_apt_one`,
+      details: { name: 'Ana Popescu', email: 'ana@example.com', phone: null },
+      observedAt: '2026-08-03T09:00:00.000Z',
+      source: 'appointment'
+    },
+    {
+      id: `${id}_obs_two`,
+      appointmentId: `${id}_apt_two`,
+      details: { name: 'Ana Popescu', email: 'ana@example.com', phone: null },
+      observedAt: '2026-08-03T10:00:00.000Z',
+      source: 'appointment'
+    }
+  ],
+  notes: [],
+  consent: [],
+  ban: null,
+  possibleDuplicateOf: [duplicateId],
+  mergedInto: null,
+  revision: 2,
+  lastActivityAt: '2026-08-03T10:00:00.000Z',
+  history: []
+})
+
+const records = [record('cur_one', 'cur_two'), record('cur_two', 'cur_one')]
+let root: Root | undefined
+
+afterEach(async () => {
+  await act(async () => root?.unmount())
+  root = undefined
+  document.body.innerHTML = ''
+  vi.clearAllMocks()
+})
+
+const renderWorkspace = async () => {
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  await act(async () =>
+    root?.render(<CustomerDirectoryWorkspace initialRecords={records} />)
+  )
+  return container
+}
+
+const formWithButton = (container: HTMLElement, label: string) =>
+  [...container.querySelectorAll('form')].find((form) =>
+    [...form.querySelectorAll('button')].some((button) =>
+      button.textContent?.includes(label)
+    )
+  )
+
+describe('CustomerDirectoryWorkspace conflict recovery', () => {
+  it('reloads both merge records after an unconfirmed merge', async () => {
+    server.mergeCustomers.mockRejectedValueOnce(new Error('stale'))
+    server.searchCustomerRecords.mockResolvedValueOnce(records)
+    const container = await renderWorkspace()
+    const form = formWithButton(container, 'Merge into this record')!
+    const absorbed = form.querySelector(
+      'select[name="absorbedId"]'
+    ) as unknown as HTMLSelectElement
+    absorbed.value = 'cur_two'
+    form.querySelector<HTMLInputElement>('input[name="reason"]')!.value = 'Same person'
+
+    await act(async () => form.requestSubmit())
+
+    expect(server.searchCustomerRecords).toHaveBeenCalledWith({ data: { query: '' } })
+    expect(container.textContent).toContain('Both records were reloaded')
+  })
+
+  it('reloads the directory after an unconfirmed split', async () => {
+    server.splitCustomer.mockRejectedValueOnce(new Error('stale'))
+    server.searchCustomerRecords.mockResolvedValueOnce(records)
+    const container = await renderWorkspace()
+    const form = formWithButton(container, 'Create split record')!
+    form.querySelector<HTMLInputElement>('input[name="observationId"]')!.checked = true
+    form.querySelector<HTMLInputElement>('input[name="reason"]')!.value = 'Wrong merge'
+
+    await act(async () => form.requestSubmit())
+
+    expect(server.searchCustomerRecords).toHaveBeenCalledWith({ data: { query: '' } })
+    expect(container.textContent).toContain('directory was reloaded')
+  })
+})

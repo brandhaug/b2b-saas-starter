@@ -1,14 +1,12 @@
 import { env } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Layer, Schema } from 'effect'
-import { layerFromD1 } from '@b2b-saas-starter/db'
+import { Schema } from 'effect'
 import { type CustomerRecord } from '@b2b-saas-starter/capabilities/customer-directory'
-import { liveMerchantContext } from '@b2b-saas-starter/capabilities/merchant-catalog'
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
   makeCustomerDirectoryRequestHandler,
   type CustomerDirectoryRunner
 } from './customer-directory-handler.ts'
+import { runCustomerDirectoryRequest } from './customer-directory-runner.ts'
 import { runMerchantRequest } from './merchant-session.ts'
 
 const RecordId = Schema.Struct({ recordId: Schema.String })
@@ -92,16 +90,8 @@ const ImportRows = Schema.Struct({
   rows: Schema.Array(ImportRow)
 })
 
-const run: CustomerDirectoryRunner = async (userId, effect) => {
-  if (!env.DB) throw new Error('Customer Directory requires D1.')
-  const context = liveMerchantContext(userId).pipe(Layer.provide(layerFromD1(env.DB)))
-  return Effect.runPromise(
-    Effect.provide(
-      effect,
-      Layer.merge(selectCapabilitiesLayer({ DB: env.DB }), context)
-    )
-  )
-}
+const run: CustomerDirectoryRunner = (userId, effect) =>
+  runCustomerDirectoryRequest({ db: env.DB, userId, effect })
 
 const requestsFor = (userId: string) =>
   makeCustomerDirectoryRequestHandler({
@@ -167,11 +157,41 @@ export const archiveCustomer = createServerFn({ method: 'POST' })
 
 export const mergeCustomers = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(Merge))
-  .handler(({ data }) => mutate((requests) => requests.merge(data)))
+  .handler(({ data }) =>
+    mutate((requests) =>
+      requests.merge({
+        survivorId: data.survivorId,
+        absorbedId: data.absorbedId,
+        expectedSurvivorRevision: data.expectedSurvivorRevision,
+        expectedAbsorbedRevision: data.expectedAbsorbedRevision,
+        idempotencyKey: data.idempotencyKey,
+        reason: data.reason,
+        ...(data.preferredDetailsSourceId === undefined
+          ? {}
+          : { preferredDetailsSourceId: data.preferredDetailsSourceId })
+      })
+    )
+  )
 
 export const splitCustomer = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(Split))
-  .handler(({ data }) => mutate((requests) => requests.split(data)))
+  .handler(({ data }) =>
+    mutate((requests) =>
+      requests.split({
+        sourceId: data.sourceId,
+        observationIds: data.observationIds,
+        expectedRevision: data.expectedRevision,
+        idempotencyKey: data.idempotencyKey,
+        reason: data.reason,
+        ...(data.createdDetails === undefined
+          ? {}
+          : { createdDetails: data.createdDetails }),
+        ...(data.contactKeys === undefined ? {} : { contactKeys: data.contactKeys }),
+        ...(data.noteIds === undefined ? {} : { noteIds: data.noteIds }),
+        ...(data.consentIds === undefined ? {} : { consentIds: data.consentIds })
+      })
+    )
+  )
 
 export const importCustomers = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(ImportRows))

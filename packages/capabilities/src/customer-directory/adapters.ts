@@ -155,6 +155,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 id: entry.id,
                 kind: entry.kind as CustomerRecord['history'][number]['kind'],
                 actorId: entry.actorId,
+                impersonatedBy: entry.impersonatedBy,
                 reason: entry.reason,
                 at: entry.occurredAt,
                 revision: entry.revision
@@ -324,6 +325,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                     customerRecordId: record.id,
                     kind: history.kind,
                     actorId: history.actorId,
+                    impersonatedBy: history.impersonatedBy ?? null,
                     reason: history.reason,
                     revision: history.revision,
                     occurredAt: history.at

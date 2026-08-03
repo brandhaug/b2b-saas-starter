@@ -17,7 +17,7 @@ import { hashSha256 } from '../internal/crypto.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { CapabilityUnavailable } from '../errors.ts'
 
-export type AppointmentCustomerAssociationInput = {
+type AppointmentCustomerAssociationBase = {
   readonly merchantId: string
   readonly appointment: {
     readonly id: string
@@ -28,13 +28,24 @@ export type AppointmentCustomerAssociationInput = {
       readonly note?: string
     }
   }
-  readonly origin: 'public_booking' | 'merchant_created' | 'record_completed'
   readonly merchantPolicy?: {
     readonly restoreArchived: boolean
     readonly allowBanned: boolean
   }
   readonly now: string
 }
+
+export type AppointmentCustomerAssociationInput = AppointmentCustomerAssociationBase &
+  (
+    | { readonly origin: 'public_booking' }
+    | {
+        readonly origin: 'merchant_created' | 'record_completed'
+        readonly actor: {
+          readonly merchantMemberId: string
+          readonly impersonatedBy?: string | null
+        }
+      }
+  )
 
 const normalizeEmail = (value: string | null) => value?.trim().toLowerCase() || null
 const normalizePhone = (value: string | null) => {
@@ -253,6 +264,13 @@ export const prepareAppointmentCustomerAssociation = (
         )
     }
     const appointment = input.appointment
+    const historyActor =
+      input.origin === 'public_booking'
+        ? { actorId: 'public-customer', impersonatedBy: null }
+        : {
+            actorId: input.actor.merchantMemberId,
+            impersonatedBy: input.actor.impersonatedBy ?? null
+          }
     const foundationOrigin =
       input.origin === 'record_completed' ? 'merchant_created' : input.origin
     statements.push(
@@ -269,9 +287,7 @@ export const prepareAppointmentCustomerAssociation = (
         .onConflictDoUpdate({
           target: appointmentFoundations.appointmentId,
           set: {
-            customerRecordId: recordId,
-            origin: foundationOrigin,
-            customerNote: appointment.details.note?.trim() || null
+            customerRecordId: recordId
           },
           setWhere: eq(appointmentFoundations.merchantId, input.merchantId)
         }),
@@ -293,8 +309,8 @@ export const prepareAppointmentCustomerAssociation = (
           merchantId: input.merchantId,
           customerRecordId: recordId,
           kind: matchedId ? 'appointment_observed' : 'created',
-          actorId:
-            input.origin === 'public_booking' ? 'public-customer' : 'merchant-owner',
+          actorId: historyActor.actorId,
+          impersonatedBy: historyActor.impersonatedBy,
           reason: input.origin,
           revision: sql<number>`(SELECT ${customerRecords.revision} FROM ${customerRecords} WHERE ${customerRecords.id} = ${recordId})`,
           occurredAt: input.now

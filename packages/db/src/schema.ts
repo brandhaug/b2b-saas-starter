@@ -3991,6 +3991,7 @@ export const customerDirectoryHistory = sqliteTable(
       .references(() => customerRecords.id, { onDelete: 'cascade' }),
     kind: text('kind').notNull(),
     actorId: text('actor_id').notNull(),
+    impersonatedBy: text('impersonated_by'),
     reason: text('reason'),
     revision: integer('revision').notNull(),
     occurredAt: text('occurred_at').notNull()

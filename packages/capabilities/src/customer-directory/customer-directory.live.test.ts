@@ -110,6 +110,7 @@ describe('Live Customer Directory contract', () => {
                   }
                 },
                 origin: 'merchant_created',
+                actor: { merchantMemberId: 'usr_owner' },
                 now: '2026-07-03T12:00:00.000Z'
               })
             )
@@ -214,6 +215,7 @@ describe('Live Customer Directory contract', () => {
               merchantId: 'mer_customer_live',
               appointment: { id, details: { name, email, phone: null } },
               origin: 'record_completed',
+              actor: { merchantMemberId: 'usr_owner' },
               now: '2026-08-02T12:00:00.000Z'
             })
             yield* batch(db, statements)
@@ -449,6 +451,7 @@ describe('Live Customer Directory contract', () => {
         }
       },
       origin: 'merchant_created' as const,
+      actor: { merchantMemberId: 'usr_owner' },
       now: '2026-08-03T11:00:00.000Z'
     }
     await expect(

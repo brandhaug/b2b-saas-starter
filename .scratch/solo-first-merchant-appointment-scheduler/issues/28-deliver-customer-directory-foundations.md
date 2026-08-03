@@ -131,3 +131,18 @@ finds no hard repository-standard violations. It retains one non-blocking archit
 smell for follow-up: the Live adapter still reconciles overlapping legacy JSON state and
 normalized relational Customer Record projections; removing that transitional dual
 authority is a future deepening change, not a correctness blocker for this slice.
+
+### Final blocker fixes — 2026-08-03
+
+The final review found and closed two attribution/error-channel gaps. The Merchant
+Customer Directory runner now reports a missing D1 binding as typed
+`CapabilityUnavailable` instead of throwing a plain error. Non-public Appointment
+association preparation now requires the effective Merchant Member actor and accepts
+the real impersonating Operator as provenance; both persist in Customer Directory
+history through the additive `impersonated_by` column. Public booking remains attributed
+to `public-customer`.
+
+Focused request-runner and Live D1 association tests pass, and Merchant, capabilities,
+and database package typechecks pass. A repeated standards/spec review found no remaining
+issue-28 blocker. The workspace-wide check remains stopped by unrelated concurrent
+Merchant Catalog type errors.
