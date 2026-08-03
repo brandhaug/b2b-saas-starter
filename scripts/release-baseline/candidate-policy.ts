@@ -15,17 +15,71 @@ const ignoredCandidateSource =
 const historicalDocumentation = /^docs\/(?:adr|agents|generated|research)\//
 const teamBehaviorPatterns = [
   /Team Plan|name:\s*['"]Team['"]|plans? for teams/i,
+  /presentation\s*(?::|=|===?)\s*['"]team['"]/i,
   /additional Merchant Members?|member invitations?|invite staff/i,
   /Manager (?:or|and) Employee roles?|ownership transfer/i,
-  /(?:list|add|create|invite|remove)Members?/i,
   /role\s*(?::|=)\s*['"](?:manager|employee)['"]/i,
   /label\s*(?::|=)\s*['"]Members['"][\s\S]{0,80}to\s*(?::|=)\s*['"]\/members['"]/i,
   /per-seat billing/i,
   /(?:upgrade (?:to )?|downgrade (?:from )?)Team|Team (?:upgrade|downgrade)|downgrade to Solo/i
 ] as const
-const additionalProviderBehavior =
-  /additional Provider|createProvider|addProvider|providerLimit|maxProviders/i
-const providerChoiceBehavior = /selectProvider|chooseProvider|setProviderPreference/i
+const providerManagementSurface =
+  /(?:New|Create|Add) Provider|(?:to|href)\s*=\s*['"]\/providers\/(?:new|create)['"]/i
+
+export type SoloLaunchSurfaceContract = {
+  readonly plans: readonly string[]
+  readonly merchantMembers: {
+    readonly maximumActive: number
+    readonly invitations: boolean
+    readonly roles: readonly string[]
+  }
+  readonly providers: {
+    readonly maximumActive: number
+    readonly management: 'owner-profile-only' | 'multiple-providers'
+    readonly publicChoice: 'automatic-sole-provider' | 'customer-selects-provider'
+    readonly navigation: 'hidden' | 'visible'
+  }
+}
+
+export const beesoloLaunchSurface: SoloLaunchSurfaceContract = {
+  plans: ['solo'],
+  merchantMembers: { maximumActive: 1, invitations: false, roles: ['owner'] },
+  providers: {
+    maximumActive: 1,
+    management: 'owner-profile-only',
+    publicChoice: 'automatic-sole-provider',
+    navigation: 'hidden'
+  }
+}
+
+export const validateSoloLaunchSurface = (
+  surface: SoloLaunchSurfaceContract
+): CandidateIssue[] => {
+  const issues: CandidateIssue[] = []
+  if (
+    surface.plans.length !== 1 ||
+    surface.plans[0] !== 'solo' ||
+    surface.merchantMembers.maximumActive !== 1 ||
+    surface.merchantMembers.invitations ||
+    surface.merchantMembers.roles.length !== 1 ||
+    surface.merchantMembers.roles[0] !== 'owner'
+  )
+    issues.push({
+      code: 'team-behavior',
+      message: 'typed launch surface enables a deferred Team capability'
+    })
+  if (
+    surface.providers.maximumActive !== 1 ||
+    surface.providers.management !== 'owner-profile-only' ||
+    surface.providers.publicChoice !== 'automatic-sole-provider' ||
+    surface.providers.navigation !== 'hidden'
+  )
+    issues.push({
+      code: 'provider-choice',
+      message: 'typed launch surface enables deferred Provider management or choice'
+    })
+  return issues
+}
 
 export const collectCandidateSourceIssues = async (
   root: string
@@ -64,7 +118,7 @@ export const collectCandidateSourceIssues = async (
       text: await readFile(path, 'utf8').catch(() => '')
     }))
   )
-  const issues: CandidateIssue[] = []
+  const issues: CandidateIssue[] = validateSoloLaunchSurface(beesoloLaunchSurface)
   const reportMatches = (
     code: string,
     pattern: RegExp,
@@ -95,11 +149,6 @@ export const collectCandidateSourceIssues = async (
     path.startsWith('apps/web/src/')
   const merchantProduct = (path: string) => path.startsWith('apps/merchant/src/')
   const bookingProduct = (path: string) => path.startsWith('apps/booking/src/')
-  const coreProduct = (path: string) =>
-    path.startsWith('apps/api/src/') ||
-    path.startsWith('apps/background/src/') ||
-    path.startsWith('packages/capabilities/src/') ||
-    path.startsWith('packages/db/src/')
   const activeProduct = (path: string) =>
     publicProduct(path) || merchantProduct(path) || bookingProduct(path)
   reportMatches(
@@ -113,12 +162,8 @@ export const collectCandidateSourceIssues = async (
     (path) => publicProduct(path) || merchantProduct(path)
   )
   for (const pattern of teamBehaviorPatterns)
-    reportMatches(
-      'team-behavior',
-      pattern,
-      (path) => publicProduct(path) || merchantProduct(path) || coreProduct(path)
-    )
-  reportMatches('team-behavior', additionalProviderBehavior, coreProduct)
+    reportMatches('team-behavior', pattern, activeProduct)
+  reportMatches('provider-management', providerManagementSurface, merchantProduct)
   reportMatches(
     'provider-navigation',
     /label\s*(?::|=)\s*['"]Providers['"][\s\S]{0,80}to\s*(?::|=)\s*['"]\/providers['"]/i,
@@ -129,7 +174,6 @@ export const collectCandidateSourceIssues = async (
     /['"](?:Choose|Select) (?:a )?Provider['"]|['"]Any Provider['"]|providerCards\.anyProvider|showProviders\s*=|kind:\s*['"]specific['"][\s\S]{0,80}providerId/i,
     (path) => bookingProduct(path) || publicProduct(path)
   )
-  reportMatches('provider-choice', providerChoiceBehavior, coreProduct)
   return issues
 }
 

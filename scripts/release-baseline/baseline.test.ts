@@ -7,6 +7,7 @@ import { productionIngress, renderIngressInventory } from './ingress.ts'
 import {
   collectCandidateSourceIssues,
   validateReleaseParity,
+  validateSoloLaunchSurface,
   validateSoloCandidate
 } from './candidate-policy.ts'
 import {
@@ -106,11 +107,11 @@ describe('beesolo release baseline', () => {
       ),
       writeFile(
         join(root, 'apps/web/src/routes/pricing.tsx'),
-        `const plan = { name: 'Team' }`
+        `const plan = { name: 'Team', presentation: 'team' }; if (plan.presentation === 'team') throw new Error()`
       ),
       writeFile(
         join(root, 'apps/merchant/src/components/navigation.tsx'),
-        `<><title>B2B SaaS Starter</title><NavItem label="Providers" to="/providers" /></>`
+        `<><title>B2B SaaS Starter</title><NavItem label="Providers" to="/providers" /><button>Create provider</button></>`
       ),
       writeFile(
         join(root, 'apps/booking/src/components/selection.tsx'),
@@ -130,7 +131,7 @@ describe('beesolo release baseline', () => {
       ),
       writeFile(
         join(root, 'packages/db/src/provider-policy.ts'),
-        `export const selectProvider = () => undefined`
+        `export const chooseProvider = () => ({ kind: 'automatic-sole-provider' })`
       )
     ])
 
@@ -153,11 +154,34 @@ describe('beesolo release baseline', () => {
       (await collectCandidateSourceIssues(root)).map(({ message }) => message)
     ).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('apps/api/src/team-contract.ts'),
-        expect.stringContaining('packages/capabilities/src/team/members.ts'),
-        expect.stringContaining('packages/db/src/provider-policy.ts')
+        expect.stringContaining('apps/web/src/routes/pricing.tsx'),
+        expect.stringContaining('apps/merchant/src/components/navigation.tsx')
       ])
     )
+    expect(
+      (await collectCandidateSourceIssues(root)).some(({ message }) =>
+        message.includes('packages/db/src/provider-policy.ts')
+      )
+    ).toBe(false)
+  })
+
+  it('rejects deferred capabilities through the typed launch surface', () => {
+    expect(
+      validateSoloLaunchSurface({
+        plans: ['solo', 'team'],
+        merchantMembers: {
+          maximumActive: 20,
+          invitations: true,
+          roles: ['owner', 'manager', 'employee']
+        },
+        providers: {
+          maximumActive: 20,
+          management: 'multiple-providers',
+          publicChoice: 'customer-selects-provider',
+          navigation: 'visible'
+        }
+      }).map(({ code }) => code)
+    ).toEqual(expect.arrayContaining(['team-behavior', 'provider-choice']))
   })
 
   it('binds API configuration and migration contents into candidate identity', async () => {

@@ -45,6 +45,27 @@ const quote = (requestId: string, providerId: string, startsAt: string) => ({
 })
 
 describe('Booking Confirmation', () => {
+  it('rejects confirmation access outside the canonical Appointment set', () => {
+    const invalidScenario = {
+      ...scenario,
+      confirmationAccess: [
+        { ...scenario.confirmationAccess[0]!, appointmentId: 'apt_other' }
+      ]
+    }
+    const selections = emptySeedBookingSelectionStore({
+      merchants: [],
+      providers: invalidScenario.providers,
+      services: invalidScenario.services,
+      eligibility: invalidScenario.eligibility.map(seedBookingSelectionEligibilityKey)
+    })
+    const scheduling = emptySeedBookingSchedulingStore(invalidScenario, selections)
+    const checkout = emptySeedBookingCheckoutStore(scheduling)
+
+    expect(() =>
+      emptySeedBookingConfirmationStore(emptySeedBookingSessionStore(), checkout)
+    ).toThrow('Confirmation access references an unknown fixture Appointment')
+  })
+
   it('atomically confirms every request and replays the same party result', async () => {
     const sessions = emptySeedBookingSessionStore()
     const session: BookingSession = {

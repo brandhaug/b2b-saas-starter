@@ -313,6 +313,27 @@ const rejected = (reason: BookingConfirmationRejected['reason']) =>
           : 'This appointment has already been confirmed'
   })
 
+const initializeAppointmentFoundation = (
+  db: typeof Database.Service,
+  input: {
+    readonly appointmentId: string
+    readonly merchantId: string
+    readonly customerNote: string | null | undefined
+  }
+): BatchStatement =>
+  db
+    .update(appointmentFoundations)
+    .set({
+      origin: 'public_booking',
+      customerNote: input.customerNote?.trim() || null
+    })
+    .where(
+      and(
+        eq(appointmentFoundations.appointmentId, input.appointmentId),
+        eq(appointmentFoundations.merchantId, input.merchantId)
+      )
+    )
+
 export type SeedBookingConfirmationStore = {
   readonly sessions: SeedBookingSessionStore
   readonly checkout: SeedBookingCheckoutStore
@@ -325,17 +346,34 @@ export type SeedBookingConfirmationStore = {
   >
 }
 
+export class SeedBookingConfirmationFixtureInvalid extends Schema.TaggedErrorClass<SeedBookingConfirmationFixtureInvalid>()(
+  'SeedBookingConfirmationFixtureInvalid',
+  { message: Schema.String }
+) {}
+
 export const emptySeedBookingConfirmationStore = (
   sessions: SeedBookingSessionStore,
   checkout: SeedBookingCheckoutStore
-): SeedBookingConfirmationStore => ({
-  sessions,
-  checkout,
-  appointments: new Map(),
-  access: new Map(),
-  exchangedAccess: new Set(),
-  outbox: new Map()
-})
+): SeedBookingConfirmationStore => {
+  const scenario = checkout.scheduling.scenario
+  const appointmentIds = new Set(scenario.appointments.map(({ id }) => id))
+  if (
+    scenario.confirmationAccess.some(
+      ({ appointmentId }) => !appointmentIds.has(appointmentId)
+    )
+  )
+    throw new SeedBookingConfirmationFixtureInvalid({
+      message: 'Confirmation access references an unknown fixture Appointment'
+    })
+  return {
+    sessions,
+    checkout,
+    appointments: new Map(),
+    access: new Map(),
+    exchangedAccess: new Set(),
+    outbox: new Map()
+  }
+}
 
 const recordForAppointmentParty = (
   store: SeedBookingConfirmationStore,
@@ -1366,18 +1404,11 @@ export const LiveBookingConfirmation = (
                       )
                     )
                 ),
-                db
-                  .update(appointmentFoundations)
-                  .set({
-                    origin: 'public_booking',
-                    customerNote: item.snapshot.customerDetails.note?.trim() || null
-                  })
-                  .where(
-                    and(
-                      eq(appointmentFoundations.appointmentId, item.appointmentId),
-                      eq(appointmentFoundations.merchantId, item.row.hold.merchantId)
-                    )
-                  ),
+                initializeAppointmentFoundation(db, {
+                  appointmentId: item.appointmentId,
+                  merchantId: item.row.hold.merchantId,
+                  customerNote: item.snapshot.customerDetails.note
+                }),
                 db.insert(confirmationAccess).values({
                   routeId: item.routeId,
                   appointmentId: item.appointmentId,
@@ -1711,18 +1742,11 @@ export const LiveBookingConfirmation = (
                     )
                   )
               ),
-              db
-                .update(appointmentFoundations)
-                .set({
-                  origin: 'public_booking',
-                  customerNote: snapshot.customerDetails.note?.trim() || null
-                })
-                .where(
-                  and(
-                    eq(appointmentFoundations.appointmentId, appointmentId),
-                    eq(appointmentFoundations.merchantId, row.session.merchantId)
-                  )
-                ),
+              initializeAppointmentFoundation(db, {
+                appointmentId,
+                merchantId: row.session.merchantId,
+                customerNote: snapshot.customerDetails.note
+              }),
               db.insert(confirmationAccess).values(accessMetadata),
               db.insert(bookingOutbox).values({
                 id: outboxId,

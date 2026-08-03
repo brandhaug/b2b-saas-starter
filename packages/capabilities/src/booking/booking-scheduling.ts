@@ -265,6 +265,28 @@ export type SeedBookingSchedulingStore = {
   readonly partyRequests: Map<string, ReadonlySet<string>>
 }
 
+export class SeedBookingSchedulingFixtureInvalid extends Schema.TaggedErrorClass<SeedBookingSchedulingFixtureInvalid>()(
+  'SeedBookingSchedulingFixtureInvalid',
+  { message: Schema.String }
+) {}
+
+const assertSeedBookingSchedulingFixture = (scenario: SeedBookingScenario): void => {
+  const merchantId = scenario.merchant.id
+  const providerId = scenario.provider.id
+  if (
+    scenario.scheduleRules.some(
+      (rule) => rule.merchantId !== merchantId || rule.providerId !== providerId
+    ) ||
+    scenario.appointments.some(
+      (appointment) =>
+        appointment.merchantId !== merchantId || appointment.providerId !== providerId
+    )
+  )
+    throw new SeedBookingSchedulingFixtureInvalid({
+      message: 'Scheduling facts cross the fixture Merchant boundary'
+    })
+}
+
 const releaseSeedHolds = (store: SeedBookingSchedulingStore, sessionId: string) => {
   const activeRequestId = store.activeRequests.get(sessionId)
   for (const [holdId, hold] of store.holds) {
@@ -299,6 +321,7 @@ export const emptySeedBookingSchedulingStore = (
   scenario: SeedBookingScenario,
   selections: SeedBookingSelectionStore
 ): SeedBookingSchedulingStore => {
+  assertSeedBookingSchedulingFixture(scenario)
   const store = {
     scenario,
     selections,

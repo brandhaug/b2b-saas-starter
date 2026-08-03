@@ -71,6 +71,26 @@ const fixture = async () => {
 }
 
 describe('Booking Scheduling', () => {
+  it('rejects canonical Scheduling facts outside the fixture Merchant boundary', () => {
+    const scenario = buildSeedBookingScenario(now)
+    const selections = emptySeedBookingSelectionStore({
+      merchants: [],
+      providers: scenario.providers,
+      services: scenario.services,
+      eligibility: scenario.eligibility.map(seedBookingSelectionEligibilityKey)
+    })
+
+    expect(() =>
+      emptySeedBookingSchedulingStore(
+        {
+          ...scenario,
+          scheduleRules: [{ ...scenario.scheduleRules[0]!, merchantId: 'mer_other' }]
+        },
+        selections
+      )
+    ).toThrow('Scheduling facts cross the fixture Merchant boundary')
+  })
+
   it('supports the 60-day legacy booking horizon and rejects longer ranges', async () => {
     const { run } = await fixture()
     const bookingSession = session('bsn_one')
