@@ -20,7 +20,7 @@ const session: BookingSession = {
   absoluteExpiresAt: '2026-07-10T12:00:00.000Z'
 }
 
-const fixture = (presentation: 'solo' | 'team' = 'team') => {
+const fixture = (presentation: 'solo' = 'solo') => {
   const store = emptySeedBookingSelectionStore({
     merchants: [{ id: 'mer_mara', slug: 'mara-studio', presentation }],
     shops: [

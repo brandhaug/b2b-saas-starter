@@ -76,6 +76,8 @@ const quote = {
       role: 'primary' as const,
       name: 'Cut',
       durationMinutes: 60,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
       priceMinor: 5000,
       currency: 'USD'
     },
@@ -84,11 +86,17 @@ const quote = {
       role: 'additional' as const,
       name: 'Detail',
       durationMinutes: 30,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
       priceMinor: 2500,
       currency: 'USD'
     }
   ],
   durationMinutes: 90,
+  beforeBufferMinutes: 0,
+  afterBufferMinutes: 0,
+  occupiedStartsAt: '2026-07-13T09:00:00.000Z',
+  occupiedEndsAt: '2026-07-13T10:30:00.000Z',
   currency: 'USD',
   totalMinor: 7500
 }
@@ -697,7 +705,9 @@ describe('Live Booking Confirmation', () => {
               quote: {
                 ...quote,
                 startsAt: '2026-07-16T09:00:00.000Z',
-                endsAt: '2026-07-16T10:30:00.000Z'
+                endsAt: '2026-07-16T10:30:00.000Z',
+                occupiedStartsAt: '2026-07-16T09:00:00.000Z',
+                occupiedEndsAt: '2026-07-16T10:30:00.000Z'
               }
             },
             {
@@ -713,7 +723,9 @@ describe('Live Booking Confirmation', () => {
               quote: {
                 ...quote,
                 startsAt: '2026-07-16T11:00:00.000Z',
-                endsAt: '2026-07-16T12:30:00.000Z'
+                endsAt: '2026-07-16T12:30:00.000Z',
+                occupiedStartsAt: '2026-07-16T11:00:00.000Z',
+                occupiedEndsAt: '2026-07-16T12:30:00.000Z'
               }
             }
           ])

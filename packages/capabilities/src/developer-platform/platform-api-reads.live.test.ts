@@ -26,11 +26,17 @@ const snapshot = {
       role: 'primary' as const,
       name: 'Cut',
       durationMinutes: 45,
+      beforeBufferMinutes: 0,
+      afterBufferMinutes: 0,
       priceMinor: 5000,
       currency: 'RON'
     }
   ],
   durationMinutes: 45,
+  beforeBufferMinutes: 0,
+  afterBufferMinutes: 0,
+  occupiedStartsAt: '2026-07-12T09:00:00.000Z',
+  occupiedEndsAt: '2026-07-12T09:45:00.000Z',
   currency: 'RON',
   totalMinor: 5000,
   merchantTimezone: 'Europe/Bucharest',
