@@ -290,6 +290,8 @@ const en = {
   'reservation.cancel_title': 'Cancel order',
   'reservation.cancel_copy':
     'Are you sure you want to cancel this order? Please note that this will cancel all associated appointments.',
+  'reservation.cancel_appointment_copy':
+    'Are you sure you want to cancel this appointment?',
   'reservation.cancel_confirm': 'Cancel',
   'reservation.cancel_keep': 'Keep',
   'checkout.title': 'Confirm booking',
@@ -580,6 +582,8 @@ const es = {
   'reservation.cancel_title': 'Cancelar pedido',
   'reservation.cancel_copy':
     '¿Estás seguro de que quieres cancelar este pedido? Ten en cuenta que esto cancelará todas las citas asociadas.',
+  'reservation.cancel_appointment_copy':
+    '¿Estás seguro de que quieres cancelar esta cita?',
   'reservation.cancel_confirm': 'Cancelar',
   'reservation.cancel_keep': 'Mantener',
   'checkout.title': 'Confirmar reserva',
@@ -872,6 +876,8 @@ const fr = {
   'reservation.cancel_title': 'Annuler la commande',
   'reservation.cancel_copy':
     'Êtes-vous sûr de vouloir annuler cette commande ? Veuillez noter que cela annulera tous les rendez-vous associés.',
+  'reservation.cancel_appointment_copy':
+    'Êtes-vous sûr de vouloir annuler ce rendez-vous ?',
   'reservation.cancel_confirm': 'Annuler',
   'reservation.cancel_keep': 'Garder',
   'checkout.title': 'Confirmer la réservation',
@@ -1163,6 +1169,7 @@ const ro = {
   'reservation.cancel_title': 'Anulează rezervarea',
   'reservation.cancel_copy':
     'Sigur dorești să anulezi această rezervare? Toate programările asociate vor fi anulate.',
+  'reservation.cancel_appointment_copy': 'Sigur dorești să anulezi această programare?',
   'reservation.cancel_confirm': 'Anulează',
   'reservation.cancel_keep': 'Păstrează',
   'checkout.title': 'Confirmă rezervarea',

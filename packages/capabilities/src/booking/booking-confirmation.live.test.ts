@@ -254,7 +254,9 @@ beforeAll(async () => {
         yield* seedSession('bsn_rollback', {
           ...quote,
           startsAt: '2026-07-15T09:00:00.000Z',
-          endsAt: '2026-07-15T10:30:00.000Z'
+          endsAt: '2026-07-15T10:30:00.000Z',
+          occupiedStartsAt: '2026-07-15T09:00:00.000Z',
+          occupiedEndsAt: '2026-07-15T10:30:00.000Z'
         })
         for (let index = 0; index < 25; index += 1)
           yield* seedSession(`bsn_contender_${index}`, {
@@ -269,7 +271,9 @@ beforeAll(async () => {
         yield* seedSession('bsn_banned', {
           ...quote,
           startsAt: '2026-07-11T13:00:00.000Z',
-          endsAt: '2026-07-11T14:30:00.000Z'
+          endsAt: '2026-07-11T14:30:00.000Z',
+          occupiedStartsAt: '2026-07-11T13:00:00.000Z',
+          occupiedEndsAt: '2026-07-11T14:30:00.000Z'
         })
       }),
       layerFromD1(test.d1)

@@ -311,6 +311,7 @@ describe('Booking confirmation route flow', () => {
     expect(screen.getByTestId('text:apptConfirmationTitle').textContent).toBe(
       'gg, your booking details'
     )
+    expect(screen.queryByTestId('text:confirmationStatus')).toBeNull()
     const cards = screen.getAllByTestId('container:orderApptGroup')
     expect(within(cards[0]!).queryByTestId('btn:calendar:apple')).toBeNull()
     expect(within(cards[1]!).getByTestId('btn:calendar:apple')).toBeTruthy()
@@ -321,7 +322,14 @@ describe('Booking confirmation route flow', () => {
     fireEvent.click(within(reschedulePopup).getByRole('button', { name: 'Close' }))
 
     fireEvent.click(within(cards[1]!).getByTestId('btn:cancel:apt_SCHEDULED'))
-    expect(await screen.findByTestId('popup:cancelAppointment')).toBeTruthy()
+    const cancelPopup = await screen.findByRole('dialog', {
+      name: 'Cancel appointment'
+    })
+    expect(cancelPopup).toBeTruthy()
+    expect(
+      within(cancelPopup).getByText('Are you sure you want to cancel this appointment?')
+    ).toBeTruthy()
+    expect(within(cancelPopup).queryByText(/all associated appointments/i)).toBeNull()
     fireEvent.click(screen.getByTestId('button:confirmCancel'))
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(

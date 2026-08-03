@@ -226,6 +226,11 @@ function BookingConfirmationView({
   const allScheduled = confirmation.appointments.every(
     (appointment) => appointment.status === 'scheduled'
   )
+  const aggregateStatus = confirmation.appointments.every(
+    (appointment) => appointment.status === confirmation.appointments[0]?.status
+  )
+    ? confirmation.appointments[0]?.status
+    : undefined
   const customerFirstName = confirmation.customerFirstName
   const headingKey = allCancelled
     ? isGroup
@@ -268,6 +273,14 @@ function BookingConfirmationView({
     : isGroup
       ? '/cancel'
       : `/appointments/${encodeURIComponent(confirmation.appointments[0]?.id ?? '')}/cancel`
+  const cancelTitle =
+    cancelAppointmentId === null
+      ? copy('reservation.cancel_title')
+      : copy('reservation.cancel')
+  const cancelCopy =
+    cancelAppointmentId === null
+      ? copy('reservation.cancel_copy')
+      : copy('reservation.cancel_appointment_copy')
 
   const cancel = async () => {
     setMutation('pending')
@@ -302,9 +315,14 @@ function BookingConfirmationView({
             {heading}
           </span>
         </div>
-        <span {...stylex.props(styles.visuallyHidden)}>
-          {copy(statusKey[confirmation.status])}
-        </span>
+        {aggregateStatus ? (
+          <span
+            data-testid="text:confirmationStatus"
+            {...stylex.props(styles.visuallyHidden)}
+          >
+            {copy(statusKey[aggregateStatus])}
+          </span>
+        ) : null}
       </div>
 
       <div {...stylex.props(styles.contentFrame)}>
@@ -458,7 +476,7 @@ function BookingConfirmationView({
       <BookingPopupSheet
         target={popupTarget}
         open={popupOpen}
-        label={copy('reservation.cancel_title')}
+        label={cancelTitle}
         onClose={() => {
           setPopupOpen(false)
           setCancelAppointmentId(null)
@@ -468,9 +486,7 @@ function BookingConfirmationView({
         legacyGeometry
         header={
           <div {...stylex.props(styles.popupHeader)}>
-            <h2 {...stylex.props(styles.popupTitle)}>
-              {copy('reservation.cancel_title')}
-            </h2>
+            <h2 {...stylex.props(styles.popupTitle)}>{cancelTitle}</h2>
             <button
               type="button"
               aria-label={copy('action.close')}
@@ -486,7 +502,7 @@ function BookingConfirmationView({
         }
       >
         <div {...stylex.props(styles.popupBody)}>
-          <p {...stylex.props(styles.popupCopy)}>{copy('reservation.cancel_copy')}</p>
+          <p {...stylex.props(styles.popupCopy)}>{cancelCopy}</p>
           <button
             type="button"
             data-testid="button:confirmCancel"

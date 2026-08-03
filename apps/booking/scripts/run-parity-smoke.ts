@@ -70,13 +70,18 @@ const exerciseHistoryBoundary = async (
   )
 }
 
-const openScheduling = async (page: Page) => {
-  const anyProfessional = page.getByRole('button', { name: /any professional/i })
-  await anyProfessional.waitFor()
-  await anyProfessional.click()
+const openScheduling = async (page: Page, locale: BookingLocale) => {
   await page.getByRole('button', { name: 'Signature Cut' }).click()
-  await page.getByRole('button', { name: /View order/ }).click()
-  await page.getByRole('button', { name: 'Choose time' }).click()
+  await page
+    .getByRole('button', {
+      name: translateBookingMessage(locale, 'action.view_order')
+    })
+    .click()
+  await page
+    .getByRole('button', {
+      name: translateBookingMessage(locale, 'scheduling.choose_title')
+    })
+    .click()
 }
 
 const capture = async (
@@ -294,8 +299,14 @@ const capture = async (
       })
       .click()
     await page
-      .getByLabel(translateBookingMessage(scenario.locale, 'checkout.name'))
-      .fill('Parity Customer')
+      .getByLabel(translateBookingMessage(scenario.locale, 'checkout.first_name'))
+      .fill('Parity')
+    await page
+      .getByLabel(translateBookingMessage(scenario.locale, 'checkout.last_name'))
+      .fill('Customer')
+    await page
+      .getByLabel(translateBookingMessage(scenario.locale, 'checkout.phone_number'))
+      .fill('202 555 0123')
     await page
       .getByLabel(translateBookingMessage(scenario.locale, 'checkout.email'))
       .fill('parity@example.com')
@@ -470,7 +481,7 @@ const capture = async (
     }
   } else if (scenario.journey.startsWith('scheduling-')) {
     await page.clock.runFor(100)
-    await openScheduling(page)
+    await openScheduling(page, scenario.locale)
     if (scenario.journey === 'scheduling-loading') {
       await page.getByRole('heading', { name: 'Finding available times' }).waitFor()
       assertionResults.set('Availability loading is visible', true)
@@ -539,10 +550,18 @@ const capture = async (
       bookingSurface = currentFrame
     }
     if (scenario.motion.policy === 'sample-timeline') {
-      await shell.getByRole('button', { name: /n’importe quel professionnel/i }).click()
-      await shell.getByRole('button', { name: 'Signature Cut' }).waitFor()
+      await shell.getByRole('button', { name: 'Signature Cut' }).click()
+      await shell
+        .getByRole('button', {
+          name: translateBookingMessage(scenario.locale, 'action.back')
+        })
+        .waitFor()
       await page.clock.runFor(Math.max(...scenario.motion.checkpoints))
-      await shell.getByRole('button', { name: 'Back' }).click()
+      await shell
+        .getByRole('button', {
+          name: translateBookingMessage(scenario.locale, 'action.back')
+        })
+        .click()
       await captureMotionTimeline()
     }
     assertionResults.set('booking shell is visible', await shell.isVisible())
