@@ -12,6 +12,7 @@ import {
 import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { authorizeSubscriptionAccess } from '../subscriptions/subscription-access.ts'
 import { MerchantContext } from './merchant-context.ts'
 import { isSupportedCurrency } from './currency.ts'
 
@@ -436,17 +437,11 @@ const unavailable = (reason: string) =>
   new CapabilityUnavailable({ capability: 'merchant-catalog', reason })
 
 const ensureSubscriptionMutation = (db: EffectDatabase, merchantId: string) =>
-  orUnavailable('merchant-catalog')(
-    db
-      .select({ status: merchantSubscriptions.status })
-      .from(merchantSubscriptions)
-      .where(eq(merchantSubscriptions.merchantId, merchantId))
-      .limit(1)
-  ).pipe(
-    Effect.flatMap((rows) =>
-      rows[0]?.status === 'restricted' || rows[0]?.status === 'cancelled'
-        ? Effect.fail(new MerchantCatalogInvalid({ reason: 'restricted_access' }))
-        : Effect.void
+  authorizeSubscriptionAccess(db, { merchantId }, 'configuration').pipe(
+    Effect.mapError((error) =>
+      error._tag === 'CapabilityDenied'
+        ? new MerchantCatalogInvalid({ reason: 'restricted_access' })
+        : error
     )
   )
 

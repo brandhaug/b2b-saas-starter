@@ -16,10 +16,14 @@ import {
   type EffectDatabase,
   type PromiseDrizzleDatabase
 } from '@b2b-saas-starter/db'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityDenied, CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
+import {
+  authorizeSubscriptionAccess,
+  subscriptionAllowsNewDemand
+} from '../subscriptions/subscription-access.ts'
 import type { SeedBookingScenario } from '../merchant-catalog/merchant-onboarding.ts'
 
 export const ScheduleRuleInput = Schema.Struct({
@@ -876,7 +880,7 @@ const requireLiveProvider = (
 type LiveAvailabilityConfiguration = {
   booking_policies_json: string | null
   service_booking_config_json: string | null
-  subscription_access: number
+  subscription_status: typeof merchantSubscriptions.$inferSelect.status | null
 }
 
 const liveControlledAvailability = (
@@ -899,7 +903,7 @@ const liveControlledAvailability = (
         .prepare(
           `SELECT mas.booking_policies_json,
              json(s.booking_config_json) AS service_booking_config_json,
-             CASE WHEN ms.status IN ('trialing','active','grace') THEN 1 ELSE 0 END AS subscription_access
+             ms.status AS subscription_status
            FROM services s
            LEFT JOIN merchant_activation_states mas ON mas.merchant_id=s.merchant_id
            LEFT JOIN merchant_subscriptions ms ON ms.merchant_id=s.merchant_id
@@ -907,7 +911,10 @@ const liveControlledAvailability = (
         )
         .bind(input.serviceId, input.merchantId)
         .first<LiveAvailabilityConfiguration>()
-      if (!configuration || configuration.subscription_access !== 1)
+      if (
+        !configuration ||
+        !subscriptionAllowsNewDemand(configuration.subscription_status)
+      )
         return { timezone: input.timezone, slots: [] }
       const policies = configuration.booking_policies_json
         ? Schema.decodeUnknownOption(
@@ -1265,6 +1272,11 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
       saveDateOverride: (input) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
+          yield* authorizeSubscriptionAccess(
+            db,
+            { merchantId: merchant.id },
+            'configuration'
+          )
           const validDate = /^\d{4}-\d{2}-\d{2}$/.test(input.localDate)
           const intervalsValid =
             input.kind === 'closed'
@@ -1382,6 +1394,11 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
       addBlockedTime: (input) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
+          yield* authorizeSubscriptionAccess(
+            db,
+            { merchantId: merchant.id },
+            'configuration'
+          )
           const starts = new Date(input.startsAt)
           const ends = new Date(input.endsAt)
           if (
@@ -1516,6 +1533,11 @@ export const LiveScheduling: Layer.Layer<Scheduling, never, Database> = Layer.ef
       changeTimezone: (input) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
+          yield* authorizeSubscriptionAccess(
+            db,
+            { merchantId: merchant.id },
+            'configuration'
+          )
           if (!input.confirmed)
             return yield* Effect.fail(
               new SchedulingValidationError({ reason: 'confirmation_required' })
@@ -1757,7 +1779,7 @@ export const LiveBookingPublication: Layer.Layer<BookingPublication, never, Data
             if (
               row.page.status !== 'published' ||
               !row.subscription ||
-              !['trialing', 'active', 'grace'].includes(row.subscription.status)
+              !subscriptionAllowsNewDemand(row.subscription.status)
             )
               return yield* Effect.fail(
                 new PublicBookingPageNotFound({ reason: 'unpublished' })

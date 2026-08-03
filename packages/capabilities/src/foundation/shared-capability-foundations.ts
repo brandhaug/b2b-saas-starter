@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, Schema } from 'effect'
+import type { D1Database } from '@cloudflare/workers-types'
 import { Database, rawD1FromDatabase } from '@b2b-saas-starter/db'
 import {
   CapabilityConflict,

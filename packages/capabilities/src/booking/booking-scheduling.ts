@@ -40,6 +40,10 @@ import type {
   SeedBookingSelectionStore
 } from './booking-selection.ts'
 import type { BookingSession } from './booking-sessions.ts'
+import {
+  NEW_DEMAND_SUBSCRIPTION_SQL_VALUES,
+  subscriptionAllowsNewDemand
+} from '../subscriptions/subscription-access.ts'
 
 export const BookingTimeSlot = Schema.Struct({
   startsAt: Schema.String,
@@ -978,8 +982,8 @@ const liveInputs = (
           endsAt: blocked.endsAt
         }))
       },
-      subscriptionAccess: ['trialing', 'active', 'grace'].includes(
-        subscriptionRows[0]?.status ?? ''
+      subscriptionAccess: subscriptionAllowsNewDemand(
+        subscriptionRows[0]?.status ?? null
       )
     }
   })
@@ -1104,7 +1108,7 @@ const liveHoldParty = (
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN time_slot_holds h ON h.provider_id = c2.provider_id AND h.expires_at > ? AND h.booking_session_id <> c2.booking_session_id AND h.starts_at < c2.ends_at AND h.ends_at > c2.starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN appointments a ON a.provider_id = c2.provider_id AND a.status = 'scheduled' AND a.starts_at < c2.ends_at AND a.ends_at > c2.starts_at)
           AND NOT EXISTS (SELECT 1 FROM candidates c2 JOIN blocked_times b ON b.merchant_id = c2.merchant_id AND b.starts_at < c2.ends_at AND b.ends_at > c2.starts_at)
-          AND NOT EXISTS (SELECT 1 FROM candidates c2 WHERE NOT EXISTS (SELECT 1 FROM merchant_subscriptions s WHERE s.merchant_id = c2.merchant_id AND s.status IN ('trialing', 'active', 'grace')))
+          AND NOT EXISTS (SELECT 1 FROM candidates c2 WHERE NOT EXISTS (SELECT 1 FROM merchant_subscriptions s WHERE s.merchant_id = c2.merchant_id AND s.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES})))
           AND EXISTS (SELECT 1 FROM booking_requests r JOIN booking_parties p ON p.id = r.booking_party_id WHERE r.id = c.booking_request_id AND p.booking_session_id = c.booking_session_id AND p.lifecycle = 'active')`,
       params: [...params, candidateRows.length, command.now]
     }
@@ -1328,7 +1332,7 @@ export const LiveBookingScheduling: Layer.Layer<BookingScheduling, never, Databa
                 )`,
                 `EXISTS (
                   SELECT 1 FROM merchant_subscriptions
-                  WHERE merchant_id = ? AND status IN ('trialing', 'active', 'grace')
+                  WHERE merchant_id = ? AND status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES})
                 )`,
                 ...generated.selected.map(
                   () => `EXISTS (

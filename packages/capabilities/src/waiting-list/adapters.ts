@@ -22,6 +22,7 @@ import { hashSha256, randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { deriveSlots } from '../scheduling/scheduling.ts'
+import { authorizeSubscriptionAccess } from '../subscriptions/subscription-access.ts'
 import {
   AvailabilityOfferUnavailable,
   PendingOfferExists,
@@ -76,6 +77,49 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
   WaitingList,
   Effect.gen(function* () {
     const db = yield* Database
+    const pausePendingOffers = (applicationId: string, now: string) =>
+      Effect.gen(function* () {
+        const pending = yield* orUnavailable('waiting-list')(
+          db
+            .select({ id: availabilityOffers.id })
+            .from(availabilityOffers)
+            .where(
+              and(
+                eq(availabilityOffers.waitingListApplicationId, applicationId),
+                eq(availabilityOffers.status, 'pending')
+              )
+            )
+        )
+        if (pending.length === 0) return
+        const offerIds = pending.map(({ id }) => id)
+        yield* orUnavailable('waiting-list')(
+          batch(db, [
+            db
+              .update(availabilityOffers)
+              .set({ status: 'superseded', respondedAt: now })
+              .where(inArray(availabilityOffers.id, offerIds)),
+            db
+              .update(notificationIntents)
+              .set({ status: 'cancelled', updatedAt: now })
+              .where(
+                and(
+                  eq(notificationIntents.sourceType, 'availability-offer'),
+                  inArray(notificationIntents.sourceId, offerIds),
+                  inArray(notificationIntents.status, ['pending', 'failed'])
+                )
+              )
+          ])
+        )
+      })
+    const offersAllowed = (applicationId: string, shopId: string, now: string) =>
+      authorizeSubscriptionAccess(db, { shopId }, 'new-demand').pipe(
+        Effect.as(true),
+        Effect.catchTag('CapabilityDenied', (denial) =>
+          pausePendingOffers(applicationId, now).pipe(
+            Effect.andThen(Effect.fail(denial))
+          )
+        )
+      )
     const readAuthorized = (offerId: string, capability: string, now: string) =>
       Effect.gen(function* () {
         const capabilityHash = yield* Effect.promise(() => hashSha256(capability))
@@ -388,6 +432,7 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
             return yield* new WaitingListInvalid({
               reason: 'candidate_ineligible'
             })
+          yield* authorizeSubscriptionAccess(db, { shopId: input.shopId }, 'new-demand')
           const capabilityHash = yield* Effect.promise(() =>
             hashSha256(input.capability)
           )
@@ -480,6 +525,7 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
             })
           if (application.status !== 'active' || application.expiresAt <= input.now)
             return yield* new WaitingListInvalid({ reason: 'application_inactive' })
+          yield* offersAllowed(application.id, application.shopId, input.now)
           const request = decodeRequest(application.requestJson)
           const slotEligible =
             input.slot.shopId === application.shopId &&
@@ -768,6 +814,12 @@ export const LiveWaitingList: Layer.Layer<WaitingList, never, Database> = Layer.
           for (const row of applications) {
             const application = applicationFromRow(row)
             if (application.expiresAt <= now) continue
+            const allowed = yield* offersAllowed(
+              application.id,
+              application.shopId,
+              now
+            ).pipe(Effect.catchTag('CapabilityDenied', () => Effect.succeed(false)))
+            if (!allowed) continue
             const [pending] = yield* orUnavailable('waiting-list')(
               db
                 .select()

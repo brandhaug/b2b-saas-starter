@@ -195,3 +195,8 @@ export type {
   BookingWebhookEvent
 } from './booking-notifications.ts'
 export { CapabilityUnavailable } from '../errors.ts'
+export {
+  appointmentSubscriptionOperation,
+  authorizeAppointmentSubscriptionAccess
+} from './appointment-subscription-access.ts'
+export type { AppointmentSubscriptionMutation } from './appointment-subscription-access.ts'

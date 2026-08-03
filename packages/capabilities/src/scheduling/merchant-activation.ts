@@ -4,6 +4,7 @@ import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import { Scheduling, SchedulingValidationError } from './scheduling.ts'
+import { NEW_DEMAND_SUBSCRIPTION_SQL_VALUES } from '../subscriptions/subscription-access.ts'
 
 export const activationSteps = [
   'business-details',
@@ -453,7 +454,7 @@ SELECT
     COALESCE(mas.policies_confirmed_at,'') || '|' || COALESCE(mas.booking_policies_json,'')
     AS source_revision,
   mas.launch_test_source_revision,
-  CASE WHEN ms.status IN ('trialing','active','grace') THEN 1 ELSE 0 END
+  CASE WHEN ms.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}) THEN 1 ELSE 0 END
     AS subscription_access,
   CASE WHEN pbp.status = 'published' THEN 1 ELSE 0 END AS published_intent,
   mas.first_activated_at,
@@ -806,7 +807,7 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
                   .prepare(
                     `UPDATE public_booking_pages SET status='published',updated_at=?
                      WHERE merchant_id=? AND EXISTS (SELECT 1 FROM merchant_subscriptions
-                       WHERE merchant_id=? AND status IN ('trialing','active','grace'))
+                       WHERE merchant_id=? AND status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))
                      AND EXISTS (SELECT 1 FROM schedule_rules sr
                        JOIN providers p ON p.id=sr.provider_id AND p.merchant_id=sr.merchant_id
                        JOIN provider_service_eligibility pse ON pse.provider_id=p.id AND pse.merchant_id=p.merchant_id
@@ -875,7 +876,7 @@ export const LiveMerchantActivation: Layer.Layer<MerchantActivation, never, Data
                    AND EXISTS (SELECT 1 FROM transactional_email_evidence tee WHERE tee.merchant_id=m.id
                      AND tee.purpose='owner_activation_test' AND tee.status IN ('captured','accepted','delivered'))
                ) AND EXISTS (SELECT 1 FROM merchant_subscriptions ms WHERE ms.merchant_id=?
-                 AND ms.status IN ('trialing','active','grace'))`
+                 AND ms.status IN (${NEW_DEMAND_SUBSCRIPTION_SQL_VALUES}))`
                   )
                   .bind(now, merchant.id, merchant.id, row.revision, merchant.id),
                 db.$client.config.db

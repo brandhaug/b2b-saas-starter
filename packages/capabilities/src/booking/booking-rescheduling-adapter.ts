@@ -48,6 +48,7 @@ import {
 import type { NotificationDestinationProtectionSecrets } from '../notifications/index.ts'
 import { merchantReminderAvailableAt } from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
+import { authorizeAppointmentSubscriptionAccess } from './appointment-subscription-access.ts'
 
 const stableSuffix = (value: string) => {
   let hash = 2166136261
@@ -188,6 +189,17 @@ export const makeLiveBookingRescheduling = (
     BookingRescheduling,
     Effect.gen(function* () {
       const db = yield* Database
+      const authorizeExistingCommitment = (merchantId: string) =>
+        authorizeAppointmentSubscriptionAccess(db, merchantId, 'reschedule').pipe(
+          Effect.catchTag('CapabilityDenied', () =>
+            Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'booking-rescheduling',
+                reason: 'existing commitment policy rejected rescheduling'
+              })
+            )
+          )
+        )
       const notificationProtection = hasNotificationDestinationProtection(
         destinationSecrets
       )
@@ -451,6 +463,7 @@ export const makeLiveBookingRescheduling = (
       return {
         begin: (input) =>
           Effect.gen(function* () {
+            yield* authorizeExistingCommitment(input.merchantId)
             const appointment = yield* readAppointment(
               input.merchantId,
               input.appointmentId
@@ -561,6 +574,7 @@ export const makeLiveBookingRescheduling = (
         prepare: (input) =>
           Effect.gen(function* () {
             const session = yield* readSession(input.sessionId, input.capabilityHash)
+            yield* authorizeExistingCommitment(session.merchantId)
             if (Date.parse(session.expiresAt) <= Date.parse(input.now)) {
               yield* orUnavailable('booking-rescheduling')(
                 db
@@ -647,6 +661,7 @@ export const makeLiveBookingRescheduling = (
           }),
         commit: (input) =>
           Effect.gen(function* () {
+            yield* authorizeExistingCommitment(input.merchantId)
             const [replay] = yield* orUnavailable('booking-rescheduling')(
               db
                 .select()

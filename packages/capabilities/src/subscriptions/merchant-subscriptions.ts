@@ -9,11 +9,19 @@ import {
   merchantSubscriptions,
   merchantSubscriptionUnmatchedEvents,
   merchantSubscriptionTrialClaims,
+  rawD1FromDatabase,
   type EffectDatabase
 } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { bookingRetentionDisposition } from '../booking/subscription-retention.ts'
+import { customerDirectoryRetentionDisposition } from '../customer-directory/subscription-retention.ts'
+import { merchantCatalogRetentionDisposition } from '../merchant-catalog/subscription-retention.ts'
+import { reportingRetentionDisposition } from '../reporting/subscription-retention.ts'
+import { schedulingRetentionDisposition } from '../scheduling/subscription-retention.ts'
+import { waitingListRetentionDisposition } from '../waiting-list/subscription-retention.ts'
+import { walkInRetentionDisposition } from '../walk-ins/subscription-retention.ts'
 
 export const SOLO_PRICES = {
   monthly: { amountMinor: 1900, currency: 'EUR', excludesVat: true },
@@ -36,6 +44,7 @@ export const subscriptionEvidenceFromProviderEvent = (input: {
   readonly amountRefunded?: number | undefined
   readonly status?: string | undefined
   readonly cancelAtPeriodEnd?: boolean | undefined
+  readonly priceChanged?: boolean | undefined
 }): SubscriptionEvidence | undefined => {
   if (!input.merchantId || !input.providerCustomerRef || !input.providerSubscriptionRef)
     return undefined
@@ -80,13 +89,7 @@ export const subscriptionEvidenceFromProviderEvent = (input: {
   if (input.eventType === 'charge.dispute.closed' && input.status === 'won')
     return { ...base, kind: 'chargeback-won' }
   if (input.eventType === 'charge.refunded') {
-    if (
-      input.amount !== undefined &&
-      input.amountRefunded !== undefined &&
-      input.amountRefunded === input.amount
-    )
-      return undefined
-    return { ...base, kind: 'partial-refund' }
+    return undefined
   }
   if (
     input.eventType === 'customer.subscription.updated' &&
@@ -98,7 +101,11 @@ export const subscriptionEvidenceFromProviderEvent = (input: {
         ? 'subscription-cancel-scheduled'
         : 'subscription-cancel-reversed'
     }
-  if (input.eventType === 'customer.subscription.updated' && input.actualPriceId) {
+  if (
+    input.eventType === 'customer.subscription.updated' &&
+    input.priceChanged === true &&
+    input.actualPriceId
+  ) {
     const priceId =
       input.actualPriceId === input.monthlyPriceId
         ? 'price_solo_monthly'
@@ -135,10 +142,13 @@ export type MerchantSubscription = {
   readonly currentPeriodEndsAt?: string | undefined
   readonly graceEndsAt?: string | undefined
   readonly cancelAtPeriodEnd: boolean
+  readonly pendingInterval?: BillingInterval | undefined
+  readonly pendingChangeAt?: string | undefined
   readonly providerCustomerRef?: string | undefined
   readonly providerSubscriptionRef?: string | undefined
   readonly restrictedAt?: string | undefined
   readonly retentionEndsAt?: string | undefined
+  readonly retentionDisposedAt?: string | undefined
   readonly revision: number
 }
 
@@ -235,26 +245,18 @@ export type MerchantSubscriptionsShape = {
   readonly reconcile: (
     evidence: SubscriptionEvidence
   ) => Effect.Effect<MerchantSubscription, SubscriptionDenied | CapabilityUnavailable>
-  readonly recordSupportRefund: (
-    evidence: SubscriptionEvidence &
-      (
-        | {
-            readonly kind: 'full-refund'
-            readonly refundConsequence: 'end-access' | 'courtesy-preserve-access'
-          }
-        | {
-            readonly kind: 'partial-refund'
-            readonly shortenedPeriodEndsAt?: string | undefined
-          }
-      )
-  ) => Effect.Effect<MerchantSubscription, SubscriptionDenied | CapabilityUnavailable>
+  readonly decideSupportRefund: (input: {
+    readonly eventId: string
+    readonly consequence?: 'end-access' | 'courtesy-preserve-access' | undefined
+    readonly shortenedPeriodEndsAt?: string | undefined
+  }) => Effect.Effect<MerchantSubscription, SubscriptionDenied | CapabilityUnavailable>
   readonly tick: (
     now: string
   ) => Effect.Effect<readonly SubscriptionNotice[], CapabilityUnavailable>
   readonly notices: (
     merchantId: string
   ) => Effect.Effect<readonly SubscriptionNotice[], CapabilityUnavailable>
-  readonly providerBacked: () => Effect.Effect<
+  readonly reconciliationCandidates: () => Effect.Effect<
     readonly MerchantSubscription[],
     CapabilityUnavailable
   >
@@ -273,6 +275,11 @@ export type MerchantSubscriptionsShape = {
     readonly eventType: string
     readonly reason: string
     readonly receivedAt: string
+    readonly merchantId?: string | undefined
+    readonly occurredAt?: string | undefined
+    readonly providerCustomerRef?: string | undefined
+    readonly providerSubscriptionRef?: string | undefined
+    readonly refundKind?: 'full-refund' | 'partial-refund' | undefined
   }) => Effect.Effect<void, CapabilityUnavailable>
 }
 
@@ -295,6 +302,17 @@ export type SeedMerchantSubscriptionStore = {
     interval: BillingInterval
   }>
   readonly notices: Map<string, SubscriptionNotice>
+  readonly unmatched: Map<
+    string,
+    {
+      readonly eventType: string
+      readonly merchantId?: string | undefined
+      readonly occurredAt?: string | undefined
+      readonly providerCustomerRef?: string | undefined
+      readonly providerSubscriptionRef?: string | undefined
+      readonly refundKind?: 'full-refund' | 'partial-refund' | undefined
+    }
+  >
 }
 
 export const emptySeedMerchantSubscriptionStore =
@@ -304,7 +322,8 @@ export const emptySeedMerchantSubscriptionStore =
     idempotency: new Map(),
     evidence: new Map(),
     priceEvidence: [],
-    notices: new Map()
+    notices: new Map(),
+    unmatched: new Map()
   })
 
 const plusDays = (instant: string, days: number) =>
@@ -347,7 +366,20 @@ const projectEvidence = (
   initial: MerchantSubscription,
   facts: readonly SubscriptionEvidence[]
 ): MerchantSubscription => {
-  let value = initial
+  let value: MerchantSubscription = {
+    merchantId: initial.merchantId,
+    ownerUserId: initial.ownerUserId,
+    plan: 'solo',
+    interval: initial.interval,
+    access: 'trialing',
+    price: SOLO_PRICES[initial.interval],
+    trialEndsAt: initial.trialEndsAt,
+    cancelAtPeriodEnd: false,
+    revision: 1,
+    ...(initial.retentionDisposedAt
+      ? { retentionDisposedAt: initial.retentionDisposedAt }
+      : {})
+  }
   for (const fact of [...facts].sort((a, b) =>
     a.occurredAt === b.occurredAt
       ? a.eventId.localeCompare(b.eventId)
@@ -394,7 +426,12 @@ const projectEvidence = (
         value = { ...value, ...common, cancelAtPeriodEnd: false }
         break
       case 'interval-change-scheduled':
-        value = { ...value, ...common }
+        value = {
+          ...value,
+          ...common,
+          pendingInterval: priceInterval(fact),
+          pendingChangeAt: fact.periodEndsAt
+        }
         break
       case 'interval-change-applied': {
         const interval = priceInterval(fact)
@@ -404,7 +441,9 @@ const projectEvidence = (
             ...common,
             interval,
             price: SOLO_PRICES[interval],
-            currentPeriodEndsAt: fact.periodEndsAt ?? value.currentPeriodEndsAt
+            currentPeriodEndsAt: fact.periodEndsAt ?? value.currentPeriodEndsAt,
+            pendingInterval: undefined,
+            pendingChangeAt: undefined
           }
         break
       }
@@ -450,6 +489,34 @@ const projectEvidence = (
     }
   }
   return value
+}
+
+const noticeKindsForEvidence = (
+  initial: MerchantSubscription,
+  projected: MerchantSubscription,
+  fact: SubscriptionEvidence
+): readonly SubscriptionNotice['kind'][] => {
+  const kinds: SubscriptionNotice['kind'][] = []
+  if (
+    projected.access === 'active' &&
+    (initial.access === 'grace' || initial.access === 'restricted')
+  )
+    kinds.push('recovered')
+  if (projected.access === 'restricted' && initial.access !== 'restricted')
+    kinds.push('restricted')
+  if (fact.kind === 'invoice-paid') kinds.push('paid-success')
+  if (fact.kind === 'invoice-payment-failed') kinds.push('grace-started')
+  if (
+    fact.kind === 'subscription-cancel-scheduled' ||
+    fact.kind === 'interval-change-scheduled'
+  )
+    kinds.push('scheduled-change')
+  if (
+    fact.kind === 'interval-change-applied' ||
+    (fact.kind === 'subscription-ended' && initial.cancelAtPeriodEnd)
+  )
+    kinds.push('scheduled-change-applied')
+  return [...new Set(kinds)]
 }
 
 export const SeedMerchantSubscriptions = (
@@ -518,39 +585,10 @@ export const SeedMerchantSubscriptions = (
             (item) => item.merchantId === fact.merchantId
           )
         )
-        if (
-          projected.access === 'active' &&
-          (initial.access === 'grace' || initial.access === 'restricted')
-        ) {
+        for (const kind of noticeKindsForEvidence(initial, projected, fact)) {
           const notice = {
             merchantId: fact.merchantId,
-            kind: 'recovered' as const,
-            effectiveAt: fact.occurredAt,
-            cycleKey: fact.periodEndsAt ?? fact.eventId
-          }
-          store.notices.set(
-            `${notice.merchantId}:${notice.kind}:${notice.cycleKey}`,
-            notice
-          )
-        }
-        const evidenceNoticeKind =
-          fact.kind === 'invoice-paid'
-            ? ('paid-success' as const)
-            : fact.kind === 'invoice-payment-failed'
-              ? ('grace-started' as const)
-              : fact.kind === 'subscription-cancel-scheduled'
-                ? ('scheduled-change' as const)
-                : fact.kind === 'interval-change-scheduled'
-                  ? ('scheduled-change' as const)
-                  : fact.kind === 'interval-change-applied'
-                    ? ('scheduled-change-applied' as const)
-                    : fact.kind === 'subscription-ended' && initial.cancelAtPeriodEnd
-                      ? ('scheduled-change-applied' as const)
-                      : undefined
-        if (evidenceNoticeKind) {
-          const notice = {
-            merchantId: fact.merchantId,
-            kind: evidenceNoticeKind,
+            kind,
             effectiveAt: fact.occurredAt,
             cycleKey: fact.periodEndsAt ?? fact.eventId
           }
@@ -563,20 +601,45 @@ export const SeedMerchantSubscriptions = (
         return projected
       }),
     reconcile: (fact) => service.recordEvidence(fact),
-    recordSupportRefund: (fact) => service.recordEvidence(fact),
+    decideSupportRefund: (input) => {
+      const retained = store.unmatched.get(input.eventId)
+      if (
+        !retained?.refundKind ||
+        !retained.merchantId ||
+        !retained.occurredAt ||
+        !retained.providerCustomerRef ||
+        !retained.providerSubscriptionRef
+      )
+        return Effect.fail(new SubscriptionDenied({ reason: 'invalid_state' }))
+      if (retained.refundKind === 'full-refund' && !input.consequence)
+        return Effect.fail(
+          new SubscriptionDenied({ reason: 'refund_consequence_required' })
+        )
+      return service.recordEvidence({
+        merchantId: retained.merchantId,
+        eventId: input.eventId,
+        occurredAt: retained.occurredAt,
+        providerCustomerRef: retained.providerCustomerRef,
+        providerSubscriptionRef: retained.providerSubscriptionRef,
+        kind: retained.refundKind,
+        ...(retained.refundKind === 'full-refund'
+          ? { refundConsequence: input.consequence! }
+          : input.shortenedPeriodEndsAt
+            ? { shortenedPeriodEndsAt: input.shortenedPeriodEndsAt }
+            : {})
+      })
+    },
     notices: (merchantId) =>
       Effect.succeed(
         [...store.notices.values()].filter((notice) => notice.merchantId === merchantId)
       ),
-    providerBacked: () =>
-      Effect.succeed(
-        [...store.subscriptions.values()].filter(
-          (subscription) => subscription.providerSubscriptionRef
-        )
-      ),
+    reconciliationCandidates: () => Effect.succeed([...store.subscriptions.values()]),
     pendingNoticeDeliveries: () => Effect.succeed([]),
     acknowledgeNotice: () => Effect.void,
-    retainUnmatchedEvent: () => Effect.void,
+    retainUnmatchedEvent: (input) =>
+      Effect.sync(() => {
+        store.unmatched.set(input.eventId, input)
+      }),
     tick: (now) =>
       Effect.sync(() => {
         const created: SubscriptionNotice[] = []
@@ -648,17 +711,19 @@ export const SeedMerchantSubscriptions = (
               add({ merchantId, kind: 'grace-6-days', effectiveAt: now, cycleKey })
           }
           if (
-            current.cancelAtPeriodEnd &&
-            current.currentPeriodEndsAt &&
-            Date.parse(current.currentPeriodEndsAt) - Date.parse(now) <=
+            (current.cancelAtPeriodEnd || current.pendingInterval !== undefined) &&
+            (current.pendingChangeAt ?? current.currentPeriodEndsAt) &&
+            Date.parse(current.pendingChangeAt ?? current.currentPeriodEndsAt!) -
+              Date.parse(now) <=
               3 * 86_400_000 &&
-            Date.parse(current.currentPeriodEndsAt) > Date.parse(now)
+            Date.parse(current.pendingChangeAt ?? current.currentPeriodEndsAt!) >
+              Date.parse(now)
           )
             add({
               merchantId,
               kind: 'scheduled-change-3-days',
               effectiveAt: now,
-              cycleKey: current.currentPeriodEndsAt
+              cycleKey: current.pendingChangeAt ?? current.currentPeriodEndsAt!
             })
           if (next.access === 'restricted' && next.retentionEndsAt) {
             const days = Math.ceil(
@@ -678,6 +743,12 @@ export const SeedMerchantSubscriptions = (
                 effectiveAt: now,
                 cycleKey: next.retentionEndsAt
               })
+            if (days <= 0 && !next.retentionDisposedAt)
+              next = {
+                ...next,
+                retentionDisposedAt: now,
+                revision: next.revision + 1
+              }
           }
           store.subscriptions.set(merchantId, next)
         }
@@ -705,6 +776,9 @@ const fromRow = (
     : {}),
   ...(row.restrictedAt ? { restrictedAt: row.restrictedAt } : {}),
   ...(row.retentionEndsAt ? { retentionEndsAt: row.retentionEndsAt } : {}),
+  ...(row.retentionDisposedAt ? { retentionDisposedAt: row.retentionDisposedAt } : {}),
+  ...(row.pendingInterval ? { pendingInterval: row.pendingInterval } : {}),
+  ...(row.pendingChangeAt ? { pendingChangeAt: row.pendingChangeAt } : {}),
   cancelAtPeriodEnd: row.cancelAtPeriodEnd,
   revision: row.revision
 })
@@ -714,6 +788,23 @@ const unavailable = (reason: unknown) =>
     capability: 'merchant-subscriptions',
     reason: reason instanceof Error ? reason.message : String(reason)
   })
+
+const retentionDispositionQueries = (merchantId: string, now: string) => [
+  ...bookingRetentionDisposition(merchantId, now),
+  ...customerDirectoryRetentionDisposition(merchantId, now),
+  ...merchantCatalogRetentionDisposition(merchantId, now),
+  ...schedulingRetentionDisposition(merchantId, now),
+  ...waitingListRetentionDisposition(merchantId, now),
+  ...walkInRetentionDisposition(merchantId, now),
+  ...reportingRetentionDisposition(merchantId),
+  {
+    sql: `INSERT OR IGNORE INTO merchant_subscription_retention_dispositions
+          (merchant_id, kind, policy_version, summary_json, disposed_at)
+          VALUES (?, 'merchant-operational-data-disposed', 'solo-retention-v1',
+            '{"disposed":["merchant-identity","catalog","scheduling","customer-personal-data","active-queues","report-artifacts"],"preserved":["billing","tax","security","audit","historical-financial-facts"]}', ?)`,
+    params: [merchantId, now]
+  }
+]
 
 const liveGet = (db: EffectDatabase, merchantId: string) =>
   orUnavailable('merchant-subscriptions')(
@@ -731,6 +822,7 @@ const liveGet = (db: EffectDatabase, merchantId: string) =>
   )
 
 const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
+  const rawD1 = rawD1FromDatabase(db)
   const recordEvidence: MerchantSubscriptionsShape['recordEvidence'] = (fact) =>
     Effect.gen(function* () {
       const current = yield* liveGet(db, fact.merchantId)
@@ -768,81 +860,16 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
         fact
       ])
       const now = new Date().toISOString()
-      const lifecycleNotice =
-        projected.access === 'active' &&
-        (current.access === 'grace' || current.access === 'restricted')
-          ? {
-              id: newCapabilityId('sno'),
-              merchantId: fact.merchantId,
-              kind: 'recovered',
-              cycleKey: fact.periodEndsAt ?? fact.eventId,
-              effectiveAt: fact.occurredAt,
-              createdAt: now
-            }
-          : projected.access === 'restricted' && current.access !== 'restricted'
-            ? {
-                id: newCapabilityId('sno'),
-                merchantId: fact.merchantId,
-                kind: 'restricted',
-                cycleKey: fact.eventId,
-                effectiveAt: fact.occurredAt,
-                createdAt: now
-              }
-            : fact.kind === 'invoice-paid'
-              ? {
-                  id: newCapabilityId('sno'),
-                  merchantId: fact.merchantId,
-                  kind: 'paid-success',
-                  cycleKey: fact.periodEndsAt ?? fact.eventId,
-                  effectiveAt: fact.occurredAt,
-                  createdAt: now
-                }
-              : fact.kind === 'invoice-payment-failed'
-                ? {
-                    id: newCapabilityId('sno'),
-                    merchantId: fact.merchantId,
-                    kind: 'grace-started',
-                    cycleKey: fact.periodEndsAt ?? fact.eventId,
-                    effectiveAt: fact.occurredAt,
-                    createdAt: now
-                  }
-                : fact.kind === 'subscription-cancel-scheduled'
-                  ? {
-                      id: newCapabilityId('sno'),
-                      merchantId: fact.merchantId,
-                      kind: 'scheduled-change',
-                      cycleKey: fact.periodEndsAt ?? fact.eventId,
-                      effectiveAt: fact.occurredAt,
-                      createdAt: now
-                    }
-                  : fact.kind === 'interval-change-scheduled'
-                    ? {
-                        id: newCapabilityId('sno'),
-                        merchantId: fact.merchantId,
-                        kind: 'scheduled-change',
-                        cycleKey: fact.periodEndsAt ?? fact.eventId,
-                        effectiveAt: fact.occurredAt,
-                        createdAt: now
-                      }
-                    : fact.kind === 'interval-change-applied'
-                      ? {
-                          id: newCapabilityId('sno'),
-                          merchantId: fact.merchantId,
-                          kind: 'scheduled-change-applied',
-                          cycleKey: fact.periodEndsAt ?? fact.eventId,
-                          effectiveAt: fact.occurredAt,
-                          createdAt: now
-                        }
-                      : fact.kind === 'subscription-ended' && current.cancelAtPeriodEnd
-                        ? {
-                            id: newCapabilityId('sno'),
-                            merchantId: fact.merchantId,
-                            kind: 'scheduled-change-applied',
-                            cycleKey: fact.periodEndsAt ?? fact.eventId,
-                            effectiveAt: fact.occurredAt,
-                            createdAt: now
-                          }
-                        : undefined
+      const lifecycleNotices = noticeKindsForEvidence(current, projected, fact).map(
+        (kind) => ({
+          id: newCapabilityId('sno'),
+          merchantId: fact.merchantId,
+          kind,
+          cycleKey: fact.periodEndsAt ?? fact.eventId,
+          effectiveAt: fact.occurredAt,
+          createdAt: now
+        })
+      )
       const writes = [
         db
           .insert(merchantSubscriptionEvents)
@@ -873,14 +900,9 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
                 .onConflictDoNothing()
             ]
           : []),
-        ...(lifecycleNotice
-          ? [
-              db
-                .insert(merchantSubscriptionNotices)
-                .values(lifecycleNotice)
-                .onConflictDoNothing()
-            ]
-          : []),
+        ...lifecycleNotices.map((notice) =>
+          db.insert(merchantSubscriptionNotices).values(notice).onConflictDoNothing()
+        ),
         db
           .update(merchantSubscriptions)
           .set({
@@ -892,6 +914,9 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
             graceEndsAt: projected.graceEndsAt,
             restrictedAt: projected.restrictedAt,
             retentionEndsAt: projected.retentionEndsAt,
+            retentionDisposedAt: projected.retentionDisposedAt,
+            pendingInterval: projected.pendingInterval,
+            pendingChangeAt: projected.pendingChangeAt,
             cancelAtPeriodEnd: projected.cancelAtPeriodEnd,
             revision: projected.revision,
             updatedAt: now
@@ -985,7 +1010,48 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
     get: (merchantId) => liveGet(db, merchantId),
     recordEvidence,
     reconcile: recordEvidence,
-    recordSupportRefund: recordEvidence,
+    decideSupportRefund: (input) =>
+      Effect.gen(function* () {
+        const [retained] = yield* orUnavailable('merchant-subscriptions')(
+          db
+            .select()
+            .from(merchantSubscriptionUnmatchedEvents)
+            .where(eq(merchantSubscriptionUnmatchedEvents.eventId, input.eventId))
+            .limit(1)
+        )
+        if (
+          !retained?.refundKind ||
+          !retained.merchantId ||
+          !retained.occurredAt ||
+          !retained.providerCustomerRef ||
+          !retained.providerSubscriptionRef
+        )
+          return yield* Effect.fail(new SubscriptionDenied({ reason: 'invalid_state' }))
+        if (retained.refundKind === 'full-refund' && !input.consequence)
+          return yield* Effect.fail(
+            new SubscriptionDenied({ reason: 'refund_consequence_required' })
+          )
+        const subscription = yield* recordEvidence({
+          merchantId: retained.merchantId,
+          eventId: input.eventId,
+          occurredAt: retained.occurredAt,
+          providerCustomerRef: retained.providerCustomerRef,
+          providerSubscriptionRef: retained.providerSubscriptionRef,
+          kind: retained.refundKind,
+          ...(retained.refundKind === 'full-refund'
+            ? { refundConsequence: input.consequence! }
+            : input.shortenedPeriodEndsAt
+              ? { shortenedPeriodEndsAt: input.shortenedPeriodEndsAt }
+              : {})
+        })
+        yield* orUnavailable('merchant-subscriptions')(
+          db
+            .update(merchantSubscriptionUnmatchedEvents)
+            .set({ reconciledAt: new Date().toISOString() })
+            .where(eq(merchantSubscriptionUnmatchedEvents.eventId, input.eventId))
+        )
+        return subscription
+      }),
     notices: (merchantId) =>
       orUnavailable('merchant-subscriptions')(
         db
@@ -1048,37 +1114,37 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
                 status: next.access,
                 restrictedAt: next.restrictedAt,
                 retentionEndsAt: next.retentionEndsAt,
+                retentionDisposedAt: next.retentionDisposedAt,
                 revision: next.revision,
                 updatedAt: now
               })
-              .where(eq(merchantSubscriptions.merchantId, current.merchantId))
+              .where(eq(merchantSubscriptions.merchantId, current.merchantId)),
+            ...(!current.retentionDisposedAt && next.retentionDisposedAt
+              ? retentionDispositionQueries(current.merchantId, now).map((query) => ({
+                  toSQL: () => query
+                }))
+              : [])
           ]
           yield* batch(db, writes).pipe(Effect.mapError(unavailable))
           notices.push(...noticesToCreate)
         }
         return notices
       }),
-    providerBacked: () =>
+    reconciliationCandidates: () =>
       orUnavailable('merchant-subscriptions')(
         db.select().from(merchantSubscriptions)
-      ).pipe(
-        Effect.map((rows) =>
-          rows
-            .map(fromRow)
-            .filter((subscription) => subscription.providerSubscriptionRef)
-        )
-      ),
+      ).pipe(Effect.map((rows) => rows.map(fromRow))),
     pendingNoticeDeliveries: (limit) =>
       Effect.tryPromise({
         try: async () => {
-          const rows = await db.$client.config.db
+          const rows = await rawD1
             .prepare(
               `SELECT msn.merchant_id, msn.kind, msn.cycle_key, msn.effective_at,
                       u.email AS owner_email
                FROM merchant_subscription_notices msn
                JOIN merchant_memberships mm
                  ON mm.merchant_id = msn.merchant_id AND mm.role = 'owner'
-               JOIN user u ON u.id = mm.user_id AND u.email_verified = 1
+               JOIN user u ON u.id = mm.user_id AND u.emailVerified = 1
                WHERE msn.acknowledged_at IS NULL
                ORDER BY msn.effective_at LIMIT ?`
             )
@@ -1105,7 +1171,7 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
     acknowledgeNotice: (notice, now) =>
       Effect.tryPromise({
         try: async () => {
-          await db.$client.config.db
+          await rawD1
             .prepare(
               `UPDATE merchant_subscription_notices SET acknowledged_at = ?
                WHERE merchant_id = ? AND kind = ? AND cycle_key = ?
@@ -1120,7 +1186,17 @@ const makeLiveService = (db: EffectDatabase): MerchantSubscriptionsShape => {
       orUnavailable('merchant-subscriptions')(
         db
           .insert(merchantSubscriptionUnmatchedEvents)
-          .values(input)
+          .values({
+            eventId: input.eventId,
+            eventType: input.eventType,
+            reason: input.reason,
+            receivedAt: input.receivedAt,
+            merchantId: input.merchantId,
+            occurredAt: input.occurredAt,
+            providerCustomerRef: input.providerCustomerRef,
+            providerSubscriptionRef: input.providerSubscriptionRef,
+            refundKind: input.refundKind
+          })
           .onConflictDoNothing()
       ).pipe(Effect.asVoid)
   }

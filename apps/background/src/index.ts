@@ -46,6 +46,7 @@ import {
 
 type Env = {
   readonly DB: D1Database
+  readonly PRIVACY_LEDGER?: D1Database
   readonly BOOKING_EVENTS_QUEUE?: Queue
   readonly CONFIRMATION_CURRENT_KEY_ID?: string
   readonly CONFIRMATION_SIGNING_KEYS?: string

@@ -91,11 +91,172 @@ describe('StripeBilling', () => {
           latestInvoice: {
             id: 'in_1',
             status: 'open',
+            attemptCount: 0,
             occurredAt: '2026-08-01T12:00:00.000Z'
           }
         }
       })
     ).toBeUndefined()
+  })
+
+  it('reconstructs a missed failed renewal from a past-due attempted invoice', async () => {
+    const billing = makeStripeBilling({
+      secretKey: 'sk_test',
+      monthlyPriceId: 'price_monthly',
+      annualPriceId: 'price_annual',
+      fetch: vi.fn(async () =>
+        Response.json({
+          customer: 'cus_1',
+          status: 'past_due',
+          current_period_end: 1_788_710_400,
+          latest_invoice: {
+            id: 'in_failed',
+            status: 'open',
+            created: 1_786_032_000,
+            attempt_count: 1
+          }
+        })
+      )
+    })
+    const subscription = {
+      merchantId: 'mer_1',
+      ownerUserId: 'usr_1',
+      plan: 'solo' as const,
+      interval: 'monthly' as const,
+      access: 'active' as const,
+      price: {
+        amountMinor: 1900 as const,
+        currency: 'EUR' as const,
+        excludesVat: true as const
+      },
+      trialEndsAt: '2026-08-01T00:00:00.000Z',
+      cancelAtPeriodEnd: false,
+      providerCustomerRef: 'cus_1',
+      providerSubscriptionRef: 'sub_1',
+      revision: 2
+    }
+    const snapshot = await Effect.runPromise(
+      billing.retrieve({ merchantId: 'mer_1', subscription })
+    )
+
+    expect(
+      reconciliationEvidence({
+        now: '2026-08-03T12:00:00.000Z',
+        subscription,
+        snapshot
+      })
+    ).toMatchObject({
+      kind: 'invoice-payment-failed',
+      eventId: 'reconcile:sub_1:in_failed:past_due:1',
+      occurredAt: '2026-08-03T12:00:00.000Z'
+    })
+  })
+
+  it('discovers the first Stripe subscription when both creation webhooks were missed', async () => {
+    const fetch = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toContain('/subscriptions/search?query=')
+      return Response.json({
+        data: [
+          {
+            id: 'sub_discovered',
+            customer: 'cus_discovered',
+            status: 'active',
+            current_period_end: 1_788_710_400,
+            items: {
+              data: [{ id: 'si_discovered', price: { id: 'price_annual' } }]
+            },
+            latest_invoice: {
+              id: 'in_discovered',
+              status: 'paid',
+              created: 1_786_032_000,
+              attempt_count: 1,
+              status_transitions: { paid_at: 1_786_032_000 }
+            }
+          }
+        ]
+      })
+    })
+    const billing = makeStripeBilling({
+      secretKey: 'sk_test',
+      monthlyPriceId: 'price_monthly',
+      annualPriceId: 'price_annual',
+      fetch
+    })
+    const snapshot = await Effect.runPromise(billing.discover({ merchantId: 'mer_1' }))
+    const evidence = reconciliationEvidence({
+      now: '2026-08-03T12:00:00.000Z',
+      subscription: {
+        merchantId: 'mer_1',
+        ownerUserId: 'usr_1',
+        plan: 'solo',
+        interval: 'monthly',
+        access: 'trialing',
+        price: { amountMinor: 1900, currency: 'EUR', excludesVat: true },
+        trialEndsAt: '2026-08-16T00:00:00.000Z',
+        cancelAtPeriodEnd: false,
+        revision: 1
+      },
+      snapshot
+    })
+
+    expect(evidence).toMatchObject({
+      kind: 'invoice-paid',
+      providerSubscriptionRef: 'sub_discovered',
+      providerCustomerRef: 'cus_discovered',
+      priceId: 'price_solo_annual',
+      amountMinor: 19000
+    })
+  })
+
+  it('orders reconciled recovery by the invoice paid transition, not invoice creation', async () => {
+    const billing = makeStripeBilling({
+      secretKey: 'sk_test',
+      monthlyPriceId: 'price_monthly',
+      annualPriceId: 'price_annual',
+      fetch: vi.fn(async () =>
+        Response.json({
+          customer: 'cus_1',
+          status: 'active',
+          current_period_end: 1_788_710_400,
+          latest_invoice: {
+            id: 'in_recovered',
+            status: 'paid',
+            created: 1_786_032_000,
+            attempt_count: 2,
+            status_transitions: { paid_at: 1_785_801_600 }
+          }
+        })
+      )
+    })
+    const subscription = {
+      merchantId: 'mer_1',
+      ownerUserId: 'usr_1',
+      plan: 'solo' as const,
+      interval: 'monthly' as const,
+      access: 'grace' as const,
+      price: {
+        amountMinor: 1900 as const,
+        currency: 'EUR' as const,
+        excludesVat: true as const
+      },
+      trialEndsAt: '2026-08-01T00:00:00.000Z',
+      graceEndsAt: '2026-08-09T00:00:00.000Z',
+      cancelAtPeriodEnd: false,
+      providerCustomerRef: 'cus_1',
+      providerSubscriptionRef: 'sub_1',
+      revision: 3
+    }
+    const snapshot = await Effect.runPromise(
+      billing.retrieve({ merchantId: 'mer_1', subscription })
+    )
+
+    expect(
+      reconciliationEvidence({
+        now: '2026-08-03T12:00:00.000Z',
+        subscription,
+        snapshot
+      })?.occurredAt
+    ).toBe('2026-08-04T00:00:00.000Z')
   })
 
   it('voids the failed invoice and immediately cancels during Grace', async () => {

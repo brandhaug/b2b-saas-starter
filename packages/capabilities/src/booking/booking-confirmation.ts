@@ -37,6 +37,7 @@ import type { BookingSession } from './booking-sessions.ts'
 import type { SeedBookingCheckoutStore } from './booking-checkout.ts'
 import type { SeedBookingSessionStore } from './booking-sessions.ts'
 import { PaymentSettlement } from '../payments/index.ts'
+import { subscriptionAllowsNewDemandSql } from '../subscriptions/subscription-access.ts'
 import {
   deriveNotificationDestinationProtection,
   hasNotificationDestinationProtection,
@@ -1358,6 +1359,7 @@ export const LiveBookingConfirmation = (
                       and(
                         eq(timeSlotHolds.id, item.row.hold.id),
                         gt(timeSlotHolds.expiresAt, input.now),
+                        subscriptionAllowsNewDemandSql(timeSlotHolds.merchantId),
                         sql`NOT EXISTS (SELECT 1 FROM appointments conflicting WHERE conflicting.merchant_id = ${timeSlotHolds.merchantId} AND conflicting.provider_id = ${timeSlotHolds.providerId} AND conflicting.status = 'scheduled' AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedStartsAt'), conflicting.starts_at) < COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedEndsAt'), ${timeSlotHolds.endsAt}) AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedEndsAt'), conflicting.ends_at) > COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedStartsAt'), ${timeSlotHolds.startsAt}))`,
                         settlementGuard
                       )
@@ -1691,6 +1693,7 @@ export const LiveBookingConfirmation = (
                     and(
                       eq(timeSlotHolds.id, row.hold.id),
                       gt(timeSlotHolds.expiresAt, input.now),
+                      subscriptionAllowsNewDemandSql(timeSlotHolds.merchantId),
                       sql`NOT EXISTS (SELECT 1 FROM appointments conflicting WHERE conflicting.merchant_id = ${timeSlotHolds.merchantId} AND conflicting.provider_id = ${timeSlotHolds.providerId} AND conflicting.status = 'scheduled' AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedStartsAt'), conflicting.starts_at) < COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedEndsAt'), ${timeSlotHolds.endsAt}) AND COALESCE(json_extract(conflicting.snapshot, '$.occupiedEndsAt'), conflicting.ends_at) > COALESCE(json_extract(${timeSlotHolds.quote}, '$.occupiedStartsAt'), ${timeSlotHolds.startsAt}))`
                     )
                   )

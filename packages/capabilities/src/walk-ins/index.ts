@@ -1,5 +1,5 @@
 import { Context, Effect, Schema } from 'effect'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityDenied, CapabilityUnavailable } from '../errors.ts'
 import { NotificationIntentId, ShopId, WalkInEntryId } from '../ids.ts'
 
 export const WalkInStatus = Schema.Literals([
@@ -112,6 +112,7 @@ export type WalkInError =
   | WalkInUnavailable
   | WalkInDuplicate
   | WalkInTransitionRejected
+  | CapabilityDenied
   | CapabilityUnavailable
 export type WalkInAcknowledgment = {
   readonly entry: typeof WalkInQueueEntry.Type

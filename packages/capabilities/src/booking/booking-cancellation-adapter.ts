@@ -39,6 +39,7 @@ import {
 } from '../notifications/index.ts'
 import type { NotificationDestinationProtectionSecrets } from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
+import { authorizeAppointmentSubscriptionAccess } from './appointment-subscription-access.ts'
 
 const stableSuffix = (value: string) => {
   let hash = 2166136261
@@ -260,6 +261,20 @@ export const makeLiveBookingCancellations = (
           }),
         cancel: (input) =>
           Effect.gen(function* () {
+            yield* authorizeAppointmentSubscriptionAccess(
+              db,
+              input.merchantId,
+              'cancel'
+            ).pipe(
+              Effect.catchTag('CapabilityDenied', () =>
+                Effect.fail(
+                  new CapabilityUnavailable({
+                    capability: 'booking-cancellations',
+                    reason: 'existing commitment policy rejected cancellation'
+                  })
+                )
+              )
+            )
             const [replay] = yield* orUnavailable('booking-cancellations')(
               db
                 .select()

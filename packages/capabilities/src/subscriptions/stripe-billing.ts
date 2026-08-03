@@ -54,9 +54,24 @@ export type StripeBilling = {
     readonly merchantId: string
     readonly subscription: MerchantSubscription
   }) => Effect.Effect<StripeSubscriptionSnapshot, SubscriptionDenied>
+  readonly discover: (input: {
+    readonly merchantId: string
+  }) => Effect.Effect<StripeSubscriptionSnapshot, SubscriptionDenied>
 }
 
 export type StripeSubscriptionSnapshot = {
+  readonly subscriptionRef?: string | undefined
+  readonly billingInterval?: BillingInterval | undefined
+  readonly providerStatus?:
+    | 'trialing'
+    | 'active'
+    | 'past_due'
+    | 'unpaid'
+    | 'canceled'
+    | 'incomplete'
+    | 'incomplete_expired'
+    | 'paused'
+    | undefined
   readonly customerRef?: string | undefined
   readonly currentPeriodEndsAt?: string | undefined
   readonly currentPeriodStartsAt?: string | undefined
@@ -67,6 +82,7 @@ export type StripeSubscriptionSnapshot = {
         readonly id: string
         readonly status: 'paid' | 'uncollectible' | 'void' | 'open' | 'draft'
         readonly occurredAt: string
+        readonly attemptCount: number
       }
     | undefined
 }
@@ -76,31 +92,43 @@ export const reconciliationEvidence = (input: {
   readonly subscription: MerchantSubscription
   readonly snapshot: StripeSubscriptionSnapshot
 }): import('./merchant-subscriptions.ts').SubscriptionEvidence | undefined => {
-  const providerSubscriptionRef = input.subscription.providerSubscriptionRef
+  const providerSubscriptionRef =
+    input.snapshot.subscriptionRef ?? input.subscription.providerSubscriptionRef
   const providerCustomerRef =
     input.snapshot.customerRef ?? input.subscription.providerCustomerRef
   const invoice = input.snapshot.latestInvoice
+  const failedRenewal =
+    invoice?.status === 'uncollectible' ||
+    (invoice?.status === 'open' &&
+      invoice.attemptCount > 0 &&
+      (input.snapshot.providerStatus === 'past_due' ||
+        input.snapshot.providerStatus === 'unpaid'))
   if (
     !providerSubscriptionRef ||
     !providerCustomerRef ||
     !invoice ||
-    (invoice.status !== 'paid' && invoice.status !== 'uncollectible')
+    (invoice.status !== 'paid' && !failedRenewal)
   )
     return undefined
   return {
     merchantId: input.subscription.merchantId,
-    eventId: `reconcile:${providerSubscriptionRef}:${invoice.id}:${invoice.status}`,
-    occurredAt: invoice.occurredAt,
+    eventId:
+      invoice.status === 'paid'
+        ? `reconcile:${providerSubscriptionRef}:${invoice.id}:paid`
+        : `reconcile:${providerSubscriptionRef}:${invoice.id}:${input.snapshot.providerStatus ?? invoice.status}:${invoice.attemptCount}`,
+    occurredAt: invoice.status === 'paid' ? invoice.occurredAt : input.now,
     kind: invoice.status === 'paid' ? 'invoice-paid' : 'invoice-payment-failed',
     providerCustomerRef,
     providerSubscriptionRef,
     periodEndsAt:
       input.snapshot.currentPeriodEndsAt ?? input.subscription.currentPeriodEndsAt,
     priceId:
-      input.subscription.interval === 'monthly'
+      (input.snapshot.billingInterval ?? input.subscription.interval) === 'monthly'
         ? 'price_solo_monthly'
         : 'price_solo_annual',
-    amountMinor: input.subscription.price.amountMinor,
+    amountMinor:
+      SOLO_PRICES[input.snapshot.billingInterval ?? input.subscription.interval]
+        .amountMinor,
     currency: 'EUR'
   }
 }
@@ -207,10 +235,12 @@ export const reconcileStripeSubscription = (input: {
   readonly now: string
 }) =>
   Effect.gen(function* () {
-    const snapshot = yield* input.billing.retrieve({
-      merchantId: input.subscription.merchantId,
-      subscription: input.subscription
-    })
+    const snapshot = input.subscription.providerSubscriptionRef
+      ? yield* input.billing.retrieve({
+          merchantId: input.subscription.merchantId,
+          subscription: input.subscription
+        })
+      : yield* input.billing.discover({ merchantId: input.subscription.merchantId })
     const evidence = reconciliationEvidence({
       now: input.now,
       subscription: input.subscription,
@@ -223,11 +253,15 @@ export const reconcileStripeSubscription = (input: {
       input.subscription.graceEndsAt &&
       input.subscription.graceEndsAt <= input.now &&
       snapshot.latestInvoice &&
-      input.subscription.providerSubscriptionRef &&
-      input.subscription.providerCustomerRef
+      (snapshot.subscriptionRef ?? input.subscription.providerSubscriptionRef) &&
+      (snapshot.customerRef ?? input.subscription.providerCustomerRef)
     ) {
+      const subscriptionRef =
+        snapshot.subscriptionRef ?? input.subscription.providerSubscriptionRef!
+      const customerRef =
+        snapshot.customerRef ?? input.subscription.providerCustomerRef!
       yield* input.billing.endGraceSubscription({
-        subscriptionRef: input.subscription.providerSubscriptionRef,
+        subscriptionRef,
         invoiceRef: snapshot.latestInvoice.id,
         idempotencyKey: `grace-expiry:${input.subscription.merchantId}:${input.subscription.graceEndsAt}`
       })
@@ -236,8 +270,8 @@ export const reconcileStripeSubscription = (input: {
         eventId: `grace-expired:${input.subscription.graceEndsAt}`,
         occurredAt: input.subscription.graceEndsAt,
         kind: 'subscription-ended',
-        providerCustomerRef: input.subscription.providerCustomerRef,
-        providerSubscriptionRef: input.subscription.providerSubscriptionRef
+        providerCustomerRef: customerRef,
+        providerSubscriptionRef: subscriptionRef
       })
     }
     return evidence
@@ -250,7 +284,7 @@ export const reconcileAllStripeSubscriptions = (input: {
   readonly billing: StripeBilling
   readonly now: string
 }) =>
-  Effect.flatMap(input.subscriptions.providerBacked(), (subscriptions) =>
+  Effect.flatMap(input.subscriptions.reconciliationCandidates(), (subscriptions) =>
     Effect.forEach(
       subscriptions,
       (subscription) =>
@@ -267,7 +301,20 @@ export const reconcileAllStripeSubscriptions = (input: {
 const StripeUrlResponse = Schema.Struct({ url: Schema.String })
 const decodeUrl = Schema.decodeUnknownSync(StripeUrlResponse)
 const StripeSubscriptionResponse = Schema.Struct({
+  id: Schema.optional(Schema.String),
   customer: Schema.optional(Schema.String),
+  status: Schema.optional(
+    Schema.Literals([
+      'trialing',
+      'active',
+      'past_due',
+      'unpaid',
+      'canceled',
+      'incomplete',
+      'incomplete_expired',
+      'paused'
+    ])
+  ),
   current_period_end: Schema.optional(Schema.Number),
   current_period_start: Schema.optional(Schema.Number),
   items: Schema.optional(
@@ -286,12 +333,25 @@ const StripeSubscriptionResponse = Schema.Struct({
       Schema.Struct({
         id: Schema.String,
         status: Schema.Literals(['paid', 'uncollectible', 'void', 'open', 'draft']),
-        created: Schema.Number
+        created: Schema.Number,
+        attempt_count: Schema.optional(Schema.Number),
+        status_transitions: Schema.optional(
+          Schema.Struct({
+            paid_at: Schema.optional(Schema.NullOr(Schema.Number)),
+            marked_uncollectible_at: Schema.optional(Schema.NullOr(Schema.Number))
+          })
+        )
       })
     ])
   )
 })
 const decodeSubscription = Schema.decodeUnknownSync(StripeSubscriptionResponse)
+const StripeSubscriptionSearchResponse = Schema.Struct({
+  data: Schema.Array(StripeSubscriptionResponse)
+})
+const decodeSubscriptionSearch = Schema.decodeUnknownSync(
+  StripeSubscriptionSearchResponse
+)
 const StripeIdentifierResponse = Schema.Struct({ id: Schema.String })
 const decodeIdentifier = Schema.decodeUnknownSync(StripeIdentifierResponse)
 
@@ -343,6 +403,56 @@ export const makeStripeBilling = (
           catch: () => new SubscriptionDenied({ reason: 'provider_unavailable' })
         })
       : Effect.fail(new SubscriptionDenied({ reason: 'billing_not_configured' }))
+
+  const toSnapshot = (
+    value: typeof StripeSubscriptionResponse.Type
+  ): StripeSubscriptionSnapshot => {
+    const priceRef = value.items?.data[0]?.price.id
+    const billingInterval =
+      priceRef === config.monthlyPriceId
+        ? ('monthly' as const)
+        : priceRef === config.annualPriceId
+          ? ('annual' as const)
+          : undefined
+    return {
+      ...(value.id ? { subscriptionRef: value.id } : {}),
+      ...(value.status ? { providerStatus: value.status } : {}),
+      ...(value.customer ? { customerRef: value.customer } : {}),
+      ...(billingInterval ? { billingInterval } : {}),
+      ...(value.current_period_end
+        ? {
+            currentPeriodEndsAt: new Date(value.current_period_end * 1000).toISOString()
+          }
+        : {}),
+      ...(value.current_period_start
+        ? {
+            currentPeriodStartsAt: new Date(
+              value.current_period_start * 1000
+            ).toISOString()
+          }
+        : {}),
+      ...(value.items?.data[0]
+        ? {
+            itemRef: value.items.data[0].id,
+            priceRef: value.items.data[0].price.id
+          }
+        : {}),
+      ...(typeof value.latest_invoice === 'object'
+        ? {
+            latestInvoice: {
+              id: value.latest_invoice.id,
+              status: value.latest_invoice.status,
+              attemptCount: value.latest_invoice.attempt_count ?? 0,
+              occurredAt: new Date(
+                (value.latest_invoice.status_transitions?.paid_at ??
+                  value.latest_invoice.status_transitions?.marked_uncollectible_at ??
+                  value.latest_invoice.created) * 1000
+              ).toISOString()
+            }
+          }
+        : {})
+    }
+  }
 
   return {
     state: configured ? 'configured' : 'needs_configuration',
@@ -466,43 +576,21 @@ export const makeStripeBilling = (
         ? request(
             `subscriptions/${encodeURIComponent(input.subscription.providerSubscriptionRef)}?expand[]=latest_invoice.lines.data.price`,
             {}
-          ).pipe(
-            Effect.map(decodeSubscription),
-            Effect.map((value) => ({
-              ...(value.customer ? { customerRef: value.customer } : {}),
-              ...(value.current_period_end
-                ? {
-                    currentPeriodEndsAt: new Date(
-                      value.current_period_end * 1000
-                    ).toISOString()
-                  }
-                : {}),
-              ...(value.current_period_start
-                ? {
-                    currentPeriodStartsAt: new Date(
-                      value.current_period_start * 1000
-                    ).toISOString()
-                  }
-                : {}),
-              ...(value.items?.data[0]
-                ? {
-                    itemRef: value.items.data[0].id,
-                    priceRef: value.items.data[0].price.id
-                  }
-                : {}),
-              ...(typeof value.latest_invoice === 'object'
-                ? {
-                    latestInvoice: {
-                      id: value.latest_invoice.id,
-                      status: value.latest_invoice.status,
-                      occurredAt: new Date(
-                        value.latest_invoice.created * 1000
-                      ).toISOString()
-                    }
-                  }
-                : {})
-            }))
-          )
-        : Effect.fail(new SubscriptionDenied({ reason: 'not_found' }))
+          ).pipe(Effect.map(decodeSubscription), Effect.map(toSnapshot))
+        : Effect.fail(new SubscriptionDenied({ reason: 'not_found' })),
+    discover: (input) => {
+      const query = encodeURIComponent(`metadata['merchant_id']:'${input.merchantId}'`)
+      return request(
+        `subscriptions/search?query=${query}&expand[]=data.latest_invoice.lines.data.price`,
+        {}
+      ).pipe(
+        Effect.map(decodeSubscriptionSearch),
+        Effect.flatMap((result) =>
+          result.data.length === 1
+            ? Effect.succeed(toSnapshot(result.data[0]!))
+            : Effect.fail(new SubscriptionDenied({ reason: 'not_found' }))
+        )
+      )
+    }
   }
 }

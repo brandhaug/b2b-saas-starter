@@ -3642,38 +3642,56 @@ export const beesoloMigrationEvidence = sqliteTable('beesolo_migration_evidence'
   recordedAt: text('recorded_at').notNull()
 })
 
-export const merchantSubscriptions = sqliteTable('merchant_subscriptions', {
-  id: id(),
-  merchantId: text('merchant_id')
-    .notNull()
-    .unique()
-    .references(() => merchants.id, { onDelete: 'restrict' }),
-  plan: text('plan', { enum: ['solo'] })
-    .default('solo')
-    .notNull(),
-  ownerUserId: text('owner_user_id').references(() => user.id, {
-    onDelete: 'restrict'
-  }),
-  interval: text('interval', { enum: ['monthly', 'annual'] })
-    .default('monthly')
-    .notNull(),
-  status: text('status', {
-    enum: ['trialing', 'active', 'grace', 'restricted', 'cancelled']
-  }).notNull(),
-  providerCustomerRef: text('provider_customer_ref'),
-  providerSubscriptionRef: text('provider_subscription_ref').unique(),
-  trialEndsAt: text('trial_ends_at'),
-  currentPeriodEndsAt: text('current_period_ends_at'),
-  graceEndsAt: text('grace_ends_at'),
-  restrictedAt: text('restricted_at'),
-  retentionEndsAt: text('retention_ends_at'),
-  cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' })
-    .default(false)
-    .notNull(),
-  revision: integer('revision').default(1).notNull(),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
-})
+export const merchantSubscriptions = sqliteTable(
+  'merchant_subscriptions',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .unique()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    plan: text('plan', { enum: ['solo'] })
+      .default('solo')
+      .notNull(),
+    ownerUserId: text('owner_user_id').references(() => user.id, {
+      onDelete: 'restrict'
+    }),
+    interval: text('interval', { enum: ['monthly', 'annual'] })
+      .default('monthly')
+      .notNull(),
+    status: text('status', {
+      enum: ['trialing', 'active', 'grace', 'restricted', 'cancelled']
+    }).notNull(),
+    providerCustomerRef: text('provider_customer_ref'),
+    providerSubscriptionRef: text('provider_subscription_ref').unique(),
+    trialEndsAt: text('trial_ends_at'),
+    currentPeriodEndsAt: text('current_period_ends_at'),
+    graceEndsAt: text('grace_ends_at'),
+    restrictedAt: text('restricted_at'),
+    retentionEndsAt: text('retention_ends_at'),
+    retentionDisposedAt: text('retention_disposed_at'),
+    pendingInterval: text('pending_interval', { enum: ['monthly', 'annual'] }),
+    pendingChangeAt: text('pending_change_at'),
+    cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' })
+      .default(false)
+      .notNull(),
+    revision: integer('revision').default(1).notNull(),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    check('merchant_subscriptions_solo_plan', sql`${table.plan} = 'solo'`),
+    check(
+      'merchant_subscriptions_status_valid',
+      sql`${table.status} IN ('trialing','active','grace','restricted','cancelled')`
+    ),
+    check(
+      'merchant_subscriptions_cancel_boolean',
+      sql`${table.cancelAtPeriodEnd} IN (0,1)`
+    ),
+    check('merchant_subscriptions_revision_positive', sql`${table.revision} > 0`)
+  ]
+)
 
 export const merchantSubscriptionTrialClaims = sqliteTable(
   'merchant_subscription_trial_claims',
@@ -3709,7 +3727,27 @@ export const merchantSubscriptionUnmatchedEvents = sqliteTable(
     eventType: text('event_type').notNull(),
     reason: text('reason').notNull(),
     receivedAt: text('received_at').notNull(),
+    merchantId: text('merchant_id').references(() => merchants.id, {
+      onDelete: 'restrict'
+    }),
+    occurredAt: text('occurred_at'),
+    providerCustomerRef: text('provider_customer_ref'),
+    providerSubscriptionRef: text('provider_subscription_ref'),
+    refundKind: text('refund_kind', { enum: ['full-refund', 'partial-refund'] }),
     reconciledAt: text('reconciled_at')
+  }
+)
+
+export const merchantSubscriptionRetentionDispositions = sqliteTable(
+  'merchant_subscription_retention_dispositions',
+  {
+    merchantId: text('merchant_id')
+      .primaryKey()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    kind: text('kind', { enum: ['merchant-operational-data-disposed'] }).notNull(),
+    policyVersion: text('policy_version').notNull(),
+    summaryJson: text('summary_json').notNull(),
+    disposedAt: text('disposed_at').notNull()
   }
 )
 

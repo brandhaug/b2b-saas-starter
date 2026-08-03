@@ -23,15 +23,11 @@ import {
   makeOperationsDiscoveryLayer,
   makeOperationsImpersonationLayer,
   makeMessagingGovernanceLayer,
-  makeMessagingWorkspacesLayer
+  makeMessagingWorkspacesLayer,
+  decideSubscriptionRefund
 } from '@b2b-saas-starter/capabilities/operations'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
-import {
-  MerchantSubscriptions,
-  SubscriptionDenied,
-  type MerchantSubscriptionsShape
-} from '@b2b-saas-starter/capabilities/subscriptions'
 import { clientKey, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
 import { Effect, Schema } from 'effect'
 import { makeOperationsAbuseProtection } from './operations-abuse-protection.ts'
@@ -468,16 +464,6 @@ export const createOperationsWorker = () => ({
         }).pipe(Effect.provide(makeMessagingGovernanceLayer(db)))
       )
 
-    const runSubscriptions = <A>(
-      use: (subscriptions: MerchantSubscriptionsShape) => Effect.Effect<A, unknown>
-    ): Promise<A> =>
-      Effect.runPromise(
-        Effect.gen(function* () {
-          const subscriptions = yield* MerchantSubscriptions
-          return yield* use(subscriptions)
-        }).pipe(Effect.provide(selectCapabilitiesLayer({ DB: env.DB })))
-      )
-
     if (
       request.method === 'POST' &&
       url.pathname === '/api/operations/subscriptions/refunds'
@@ -485,51 +471,27 @@ export const createOperationsWorker = () => ({
       if (!principal.roles.includes('operator-manager'))
         return Response.json({ error: 'forbidden' }, { status: 403 })
       const form = await request.formData()
-      const merchantId = formText(form, 'merchantId')
       const eventId = formText(form, 'eventId')
-      const kind = formText(form, 'kind')
       const consequence = formText(form, 'consequence')
       const shortenedPeriodEndsAt = formText(form, 'shortenedPeriodEndsAt')
       if (
-        !merchantId ||
         !eventId ||
-        (kind !== 'full-refund' && kind !== 'partial-refund') ||
-        (kind === 'full-refund' &&
+        (consequence &&
           consequence !== 'end-access' &&
           consequence !== 'courtesy-preserve-access')
       )
         return Response.json({ error: 'invalid_refund_decision' }, { status: 400 })
       try {
-        await runSubscriptions((subscriptions) =>
-          Effect.gen(function* () {
-            const current = yield* subscriptions.get(merchantId)
-            if (!current.providerCustomerRef || !current.providerSubscriptionRef)
-              return yield* Effect.fail(
-                new SubscriptionDenied({ reason: 'invalid_state' })
-              )
-            const common = {
-              merchantId,
-              eventId,
-              occurredAt: new Date().toISOString(),
-              providerCustomerRef: current.providerCustomerRef,
-              providerSubscriptionRef: current.providerSubscriptionRef
-            }
-            if (kind === 'full-refund')
-              yield* subscriptions.recordSupportRefund({
-                ...common,
-                kind,
-                refundConsequence:
-                  consequence === 'end-access'
-                    ? 'end-access'
-                    : 'courtesy-preserve-access'
-              })
-            else
-              yield* subscriptions.recordSupportRefund({
-                ...common,
-                kind,
-                ...(shortenedPeriodEndsAt ? { shortenedPeriodEndsAt } : {})
-              })
-          })
+        await Effect.runPromise(
+          decideSubscriptionRefund({
+            eventId,
+            ...(consequence
+              ? {
+                  consequence: consequence as 'end-access' | 'courtesy-preserve-access'
+                }
+              : {}),
+            ...(shortenedPeriodEndsAt ? { shortenedPeriodEndsAt } : {})
+          }).pipe(Effect.provide(selectCapabilitiesLayer({ DB: env.DB })))
         )
         return Response.json(null)
       } catch {

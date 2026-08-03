@@ -48,3 +48,36 @@ Verification passed workspace typechecking, focused Seed/Live D1 and Stripe cont
 tests, and lint (with unrelated existing warnings). The serial full workspace run
 reaches the unrelated legacy multi-Provider live fixtures, which the Solo-only D1
 invariant now rejects; those fixture failures are outside this lifecycle ticket.
+
+### Reopened — 2026-08-03
+
+Reopened after a fresh two-axis review found incomplete missing-event reconciliation,
+Restricted Access integration gaps, incomplete scheduled-change notices, weak support
+refund correlation, and no terminal retention disposition. The prior resolution is
+retained as implementation history; the unchecked acceptance criteria are authoritative.
+
+### Re-resolution — 2026-08-03
+
+Closed every finding from the reopened two-axis review. Reconciliation now considers
+all local subscriptions and can recover the first missing Stripe subscription by its
+immutable Merchant metadata; provider invoice transitions and actual price intervals
+remain evidence for the deterministic D1 projection.
+
+Restricted Access uses one canonical new-demand predicate across Booking, Scheduling,
+activation, Walk-ins, Waiting List, and catalog setup. The shared appointment command
+boundary explicitly denies Merchant-Created and Record Completed Appointment demand
+and admits the complete existing-commitment matrix only for a matching persisted
+resource. Cancellation and rescheduling adapters consume that same policy directly.
+
+Operations now owns the staff refund-decision workflow and derives every correlation
+fact from retained signed provider evidence. Terminal retention is coordinated by
+Subscriptions through explicit context-owned disposition modules: public Merchant
+identity and configuration are closed, publication and future schedules are removed,
+customer and queue data are irreversibly redacted, exports expire, and billing, tax,
+security, audit, and historical financial facts retain their own legal lifetimes.
+
+Final Standards and Spec reviews both passed with no actionable findings. Focused
+lifecycle, Stripe, webhook, background, authorization-policy, retention, and migration
+tests pass serially; capabilities and Operations typechecks pass. The repository still
+contains unrelated concurrent fixture work for the stricter Solo D1 triggers, which is
+outside this issue and was not modified as part of the resolution.

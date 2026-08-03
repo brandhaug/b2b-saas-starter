@@ -1,8 +1,10 @@
+import { Schema } from 'effect'
 import type {
   AuthorizationCapabilityInventory,
   DomainMutationRequest,
   SharedCommandInput
 } from '../foundation/index.ts'
+import { appointmentSubscriptionOperation } from './appointment-subscription-access.ts'
 
 export const appointmentRestrictedAccessPolicy = {
   capability: 'appointment',
@@ -26,11 +28,27 @@ export const classifyAppointmentRestrictedMutation = (
   try {
     const payload = Schema.decodeUnknownSync(
       Schema.Struct({
-        appointmentId: Schema.String.check(Schema.isMinLength(1)),
-        action: Schema.Literals(['cancel', 'reschedule', 'complete', 'no-show'])
+        appointmentId: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+        bookingPartyId: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+        action: Schema.Literals([
+          'merchant-create',
+          'record-completed',
+          'edit',
+          'reschedule',
+          'cancel',
+          'complete',
+          'no-show',
+          'outcome-correction',
+          'external-collection',
+          'whole-party-cancel'
+        ])
       })
     )(JSON.parse(request.payloadJson))
-    return payload.appointmentId === input.aggregateId
+    const targetId = payload.appointmentId ?? payload.bookingPartyId
+    return (
+      targetId === input.aggregateId &&
+      appointmentSubscriptionOperation(payload.action) === 'existing-commitment'
+    )
   } catch {
     return false
   }
@@ -51,4 +69,3 @@ export const appointmentAuthorizationInventory = {
     mutation: [appointmentRestrictedAccessPolicy.exception]
   }
 } as const satisfies AuthorizationCapabilityInventory
-import { Schema } from 'effect'

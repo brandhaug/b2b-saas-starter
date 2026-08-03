@@ -71,7 +71,10 @@ const StripeEvent = Schema.Struct({
   data: Schema.Struct({
     object: StripeObject,
     previous_attributes: Schema.optional(
-      Schema.Struct({ cancel_at_period_end: Schema.optional(Schema.Boolean) })
+      Schema.Struct({
+        cancel_at_period_end: Schema.optional(Schema.Boolean),
+        items: Schema.optional(Schema.Unknown)
+      })
     )
   })
 })
@@ -219,7 +222,10 @@ const evidenceFor = (
     occurredAt: new Date(event.created * 1000).toISOString(),
     providerCustomerRef: customer,
     providerSubscriptionRef: subscription,
-    periodEndsAt: seconds(line?.period_end) ?? seconds(object.period_end),
+    periodEndsAt:
+      seconds(line?.period_end) ??
+      seconds(object.period_end) ??
+      seconds(object.current_period_end),
     actualPriceId,
     monthlyPriceId: env.STRIPE_SOLO_MONTHLY_PRICE_ID,
     annualPriceId: env.STRIPE_SOLO_ANNUAL_PRICE_ID,
@@ -230,7 +236,8 @@ const evidenceFor = (
     cancelAtPeriodEnd:
       event.data.previous_attributes?.cancel_at_period_end !== undefined
         ? object.cancel_at_period_end
-        : undefined
+        : undefined,
+    priceChanged: event.data.previous_attributes?.items !== undefined
   })
 }
 
@@ -264,13 +271,35 @@ export const handleStripeSubscriptionWebhook = async (
   event = await correlatedEvent(event, env)
   const evidence = evidenceFor(event, env)
   if (!evidence) {
+    const object = event.data.object
+    const metadata = object.metadata ?? {}
+    const merchantId = metadata.merchant_id ?? object.client_reference_id
+    const providerCustomerRef = referenceId(object.customer)
+    const providerSubscriptionRef = referenceId(object.subscription) ?? object.id
+    const refundKind =
+      event.type === 'charge.refunded' &&
+      object.amount !== undefined &&
+      object.amount_refunded !== undefined
+        ? object.amount === object.amount_refunded
+          ? ('full-refund' as const)
+          : ('partial-refund' as const)
+        : undefined
     await Effect.runPromise(
       Effect.flatMap(MerchantSubscriptions, (service) =>
         service.retainUnmatchedEvent({
           eventId: event.id,
           eventType: event.type,
           reason: 'correlation_or_event_not_supported',
-          receivedAt: new Date().toISOString()
+          receivedAt: new Date().toISOString(),
+          ...(refundKind && merchantId && providerCustomerRef && providerSubscriptionRef
+            ? {
+                merchantId,
+                occurredAt: new Date(event.created * 1000).toISOString(),
+                providerCustomerRef,
+                providerSubscriptionRef,
+                refundKind
+              }
+            : {})
         })
       ).pipe(Effect.provide(selectCapabilitiesLayer(bookingProductEnv(env))))
     )

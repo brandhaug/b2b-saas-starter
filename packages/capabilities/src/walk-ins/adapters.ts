@@ -17,6 +17,7 @@ import { CapabilityUnavailable } from '../errors.ts'
 import { hashSha256, randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { authorizeSubscriptionAccess } from '../subscriptions/subscription-access.ts'
 import {
   WalkInDuplicate,
   WalkInEntryNotFound,
@@ -535,6 +536,11 @@ export const LiveWalkIns: Layer.Layer<WalkIns, never, Database> = Layer.effect(
         }),
       enroll: (enrollment) =>
         Effect.gen(function* () {
+          yield* authorizeSubscriptionAccess(
+            db,
+            { shopId: enrollment.shopId },
+            'new-demand'
+          )
           const configuration = yield* configurationFor(enrollment.shopId)
           const enrollmentOptions = yield* service.overview(enrollment.shopId)
           if (enrollmentOptions.state === 'closed')

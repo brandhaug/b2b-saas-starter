@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema } from 'effect'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityDenied, CapabilityUnavailable } from '../errors.ts'
 import { hashSha256 } from '../internal/crypto.ts'
 
 export const WaitingListStatus = Schema.Literals([
@@ -153,6 +153,7 @@ type WaitingListError =
   | WaitingListApplicationUnavailable
   | PendingOfferExists
   | AvailabilityOfferUnavailable
+  | CapabilityDenied
   | CapabilityUnavailable
 export type WaitingListShape = {
   readonly apply: (input: {
@@ -166,7 +167,7 @@ export type WaitingListShape = {
     expiresAt: string
   }) => Effect.Effect<
     WaitingListApplicationRecord,
-    WaitingListInvalid | CapabilityUnavailable
+    WaitingListInvalid | CapabilityDenied | CapabilityUnavailable
   >
   readonly withdraw: (
     applicationId: string,
