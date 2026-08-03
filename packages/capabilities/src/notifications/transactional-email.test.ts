@@ -226,7 +226,10 @@ describe('Transactional Email readiness', () => {
     expect(
       await run(
         Effect.flatMap(TransactionalEmail, (email) =>
-          email.recoverableOwnerActivationTest(command.merchantId)
+          email.ownerActivationTestAttempt({
+            merchantId: command.merchantId,
+            now: command.now
+          })
         ),
         layer
       )
@@ -366,4 +369,76 @@ describe('Transactional Email readiness', () => {
       )
     ).toMatchObject({ state: 'failed', reason: 'hard_bounce' })
   })
+
+  it.each([
+    {
+      callbackStatus: 'delivered' as const,
+      failLatest: true,
+      expected: { state: 'failed', reason: 'provider_request_failed' }
+    },
+    {
+      callbackStatus: 'failed' as const,
+      failLatest: false,
+      expected: { state: 'ready' }
+    }
+  ])(
+    'derives readiness from the latest attempt after an older $callbackStatus callback',
+    async ({ callbackStatus, failLatest, expected }) => {
+      let submission = 0
+      const provider = makeConfiguredTransactionalEmailProvider({
+        sender: 'booking@beesolo.example',
+        callbackSecret: 'callback-secret',
+        providerReferenceFingerprintKey: 'provider-reference-key',
+        send: async () => {
+          submission += 1
+          if (failLatest && submission === 2) throw new Error('provider unavailable')
+          return {
+            providerSubmissionId: `submission-${submission}`,
+            acceptedAt: now
+          }
+        }
+      })
+      const layer = makeSeedTransactionalEmailLayer({ runtime: 'production', provider })
+      const send = (idempotencyKey: string) =>
+        run(
+          Effect.flatMap(TransactionalEmail, (email) =>
+            email.sendOwnerActivationTest({
+              merchantId: 'mrc_ordered_readiness',
+              ownerUserId: 'usr_owner',
+              verifiedOwnerEmail: 'owner@example.test',
+              locale: 'en',
+              idempotencyKey,
+              now
+            })
+          ),
+          layer
+        )
+
+      await send('older-attempt')
+      await send('newer-attempt')
+      const rawBody = JSON.stringify({
+        eventId: `evt_older_${callbackStatus}`,
+        messageId: 'submission-1',
+        status: callbackStatus,
+        occurredAt: now,
+        ...(callbackStatus === 'failed' ? { code: 'hard_bounce' } : {})
+      })
+      const signature = await provider.signCallbackForTest!(now, rawBody)
+      await run(
+        Effect.flatMap(TransactionalEmail, (email) =>
+          email.receiveCallback({ rawBody, signature, timestamp: now, now })
+        ),
+        layer
+      )
+
+      expect(
+        await run(
+          Effect.flatMap(TransactionalEmail, (email) =>
+            email.readiness('mrc_ordered_readiness')
+          ),
+          layer
+        )
+      ).toMatchObject(expected)
+    }
+  )
 })

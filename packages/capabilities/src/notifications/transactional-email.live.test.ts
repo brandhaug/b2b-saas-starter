@@ -9,6 +9,7 @@ import {
   ownerActivationTestIdempotencyKey
 } from './transactional-email.ts'
 import { makeTransactionalEmailCapabilityLayer } from '../runtime.ts'
+import { CapabilityUnavailable } from '../errors.ts'
 
 const now = '2026-08-02T10:00:00.000Z'
 let test: TestD1
@@ -312,7 +313,10 @@ describe('Live Transactional Email', () => {
     const recover = () =>
       Effect.runPromise(
         Effect.flatMap(TransactionalEmail, (email) =>
-          email.recoverableOwnerActivationTest(command.merchantId)
+          email.ownerActivationTestAttempt({
+            merchantId: command.merchantId,
+            now: command.now
+          })
         ).pipe(Effect.provide(layer))
       )
     expect(await invoke()).toMatchObject({ status: 'failed', retryable: true })
@@ -382,7 +386,10 @@ describe('Live Transactional Email', () => {
     await started
     const recovered = await Effect.runPromise(
       Effect.flatMap(TransactionalEmail, (email) =>
-        email.recoverableOwnerActivationTest('mrc_email')
+        email.ownerActivationTestAttempt({
+          merchantId: 'mrc_email',
+          now: '2026-08-02T12:00:00.000Z'
+        })
       ).pipe(Effect.provide(layer))
     )
     release()
@@ -457,7 +464,10 @@ describe('Live Transactional Email', () => {
     await started
     const recovered = await Effect.runPromise(
       Effect.flatMap(TransactionalEmail, (email) =>
-        email.recoverableOwnerActivationTest('mrc_email')
+        email.ownerActivationTestAttempt({
+          merchantId: 'mrc_email',
+          now: '2026-08-02T13:00:00.000Z'
+        })
       ).pipe(Effect.provide(layer))
     )
     release()
@@ -466,6 +476,72 @@ describe('Live Transactional Email', () => {
     expect(recovered).toMatchObject({
       commandId: 'retry-order-old',
       evidence: { status: 'submitting' }
+    })
+  })
+
+  it('expires an interrupted submission without resubmitting it', async () => {
+    const provider = {
+      state: 'configured' as const,
+      sender: 'booking@beesolo.example',
+      fingerprintDestination: () => Effect.succeed('destination-fingerprint'),
+      submit: () =>
+        Effect.fail(
+          new CapabilityUnavailable({
+            capability: 'transactional-email-provider',
+            reason: 'worker_interrupted'
+          })
+        ),
+      verifyCallback: () => Effect.succeed({ _tag: 'ignored' as const })
+    }
+    const layer = makeLiveTransactionalEmailLayer(provider).pipe(
+      Layer.provide(layerFromD1(test.d1))
+    )
+    const send = Effect.runPromise(
+      Effect.flatMap(TransactionalEmail, (email) =>
+        email.sendOwnerActivationTest({
+          merchantId: 'mrc_email',
+          ownerUserId: 'usr_email_owner',
+          verifiedOwnerEmail: null,
+          locale: 'en',
+          idempotencyKey: ownerActivationTestIdempotencyKey(
+            'mrc_email',
+            'interrupted-submission'
+          ),
+          now: '2026-08-02T14:00:00.000Z'
+        })
+      ).pipe(Effect.provide(layer))
+    )
+
+    await expect(send).rejects.toMatchObject({
+      _tag: 'CapabilityUnavailable',
+      reason: 'worker_interrupted'
+    })
+    const readiness = await Effect.runPromise(
+      Effect.flatMap(TransactionalEmail, (email) => email.readiness('mrc_email')).pipe(
+        Effect.provide(layer)
+      )
+    )
+    const latest = await Effect.runPromise(
+      Effect.flatMap(TransactionalEmail, (email) =>
+        email.ownerActivationTestAttempt({
+          merchantId: 'mrc_email',
+          now: '2026-08-02T14:02:00.000Z'
+        })
+      ).pipe(Effect.provide(layer))
+    )
+
+    expect(readiness).toEqual({
+      merchantId: 'mrc_email',
+      state: 'failed',
+      reason: 'submission_interrupted'
+    })
+    expect(latest).toMatchObject({
+      commandId: 'interrupted-submission',
+      evidence: {
+        status: 'submission_unknown',
+        failureCode: 'submission_interrupted',
+        retryable: false
+      }
     })
   })
 

@@ -12,6 +12,11 @@ describe('Owner activation email attempts', () => {
       .mockReturnValueOnce('command-two')
 
     const first = startOwnerActivationEmailAttempt(null, createCommandId, 'ro')
+    const lostResponseRetry = startOwnerActivationEmailAttempt(
+      first,
+      createCommandId,
+      'en'
+    )
     const retryable = completeOwnerActivationEmailAttempt(first, {
       status: 'failed',
       retryable: true
@@ -34,6 +39,8 @@ describe('Owner activation email attempts', () => {
 
     expect(first.commandId).toBe('command-one')
     expect(first.locale).toBe('ro')
+    expect(lostResponseRetry.commandId).toBe('command-one')
+    expect(lostResponseRetry.locale).toBe('ro')
     expect(retry.commandId).toBe('command-one')
     expect(retry.locale).toBe('ro')
     expect(inProgressRetry.commandId).toBe('command-one')

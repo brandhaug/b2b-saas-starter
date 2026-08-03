@@ -96,7 +96,7 @@ export const sendOwnerActivationTestEmail = createServerFn({ method: 'POST' })
       })
   )
 
-export const getRecoverableOwnerActivationTestEmail = createServerFn({
+export const getOwnerActivationTestEmailAttempt = createServerFn({
   method: 'GET'
 }).handler(async () =>
   runMerchantRequest('publication.update', (session) => {
@@ -107,7 +107,10 @@ export const getRecoverableOwnerActivationTestEmail = createServerFn({
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         const email = yield* TransactionalEmail
-        const attempt = yield* email.recoverableOwnerActivationTest(merchant.id)
+        const attempt = yield* email.ownerActivationTestAttempt({
+          merchantId: merchant.id,
+          now: new Date().toISOString()
+        })
         return attempt
       }).pipe(
         Effect.provide(

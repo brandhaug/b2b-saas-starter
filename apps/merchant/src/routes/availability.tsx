@@ -19,7 +19,7 @@ import {
   setPublicPagePublished
 } from '@/lib/server/scheduling.ts'
 import {
-  getRecoverableOwnerActivationTestEmail,
+  getOwnerActivationTestEmailAttempt,
   sendOwnerActivationTestEmail
 } from '@/lib/server/transactional-email.ts'
 import {
@@ -179,7 +179,7 @@ function ActivationJourney({
   const [policies, setPolicies] = useState(activation.policies)
   useEffect(() => {
     let active = true
-    void getRecoverableOwnerActivationTestEmail()
+    void getOwnerActivationTestEmailAttempt()
       .then((recovered) => {
         if (!active) return
         setEmailAttempt(
@@ -194,6 +194,10 @@ function ActivationJourney({
               )
             : null
         )
+        if (recovered)
+          onMessage(
+            `Previous activation email attempt: ${recovered.evidence.status.replaceAll('_', ' ')}.`
+          )
         setEmailAttemptLoaded(true)
       })
       .catch(() => {
@@ -338,6 +342,7 @@ function ActivationJourney({
               () => crypto.randomUUID(),
               'en'
             )
+            setEmailAttempt(attempt)
             save(
               sendOwnerActivationTestEmail({
                 data: { locale: attempt.locale, commandId: attempt.commandId }

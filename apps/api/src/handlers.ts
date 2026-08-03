@@ -1,4 +1,4 @@
-import { Effect, Layer, Result, type Scope } from 'effect'
+import { Effect, Result, type Scope } from 'effect'
 import type { HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import {
@@ -15,12 +15,11 @@ import {
   TransactionalEmailCallbackUnavailable,
   BookingProductApi
 } from '@b2b-saas-starter/api'
-import { layerFromD1 } from '@b2b-saas-starter/db'
+import { TransactionalEmail } from '@b2b-saas-starter/capabilities/notifications'
 import {
-  TransactionalEmail,
-  makeConfiguredTransactionalEmailProvider,
-  makeLiveTransactionalEmailLayer
-} from '@b2b-saas-starter/capabilities/notifications'
+  makeTransactionalEmailCallbackCapabilityLayer,
+  transactionalEmailIsConfigured
+} from '@b2b-saas-starter/capabilities/runtime'
 import {
   PlatformApiReads,
   PlatformApiTokenRegistry,
@@ -36,7 +35,7 @@ import {
   TRACE_HEADER,
   withRequestScope
 } from '@b2b-saas-starter/logger'
-import type { ApiEnv } from './env.ts'
+import { bookingProductEnv, type ApiEnv } from './env.ts'
 import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
 
 const bearerToken = (request: HttpServerRequest.HttpServerRequest) => {
@@ -214,28 +213,19 @@ export const healthGroup = (env: ApiEnv) =>
 export const transactionalEmailCallbackGroup = (env: ApiEnv) =>
   HttpApiBuilder.group(BookingProductApi, 'transactional-email-callback', (handlers) =>
     handlers.handle('receive', ({ headers, payload }) => {
-      if (
-        !env.DB ||
-        !env.EMAIL ||
-        !env.CLOUDFLARE_EMAIL_FROM ||
-        env.TRANSACTIONAL_EMAIL_SENDER_VERIFIED !== 'true' ||
-        !env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET ||
-        !env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY
-      )
+      if (!env.DB)
         return Effect.fail(
           new TransactionalEmailCallbackUnavailable({
             code: 'transactional_email_needs_configuration'
           })
         )
-      const provider = makeConfiguredTransactionalEmailProvider({
-        sender: env.CLOUDFLARE_EMAIL_FROM,
-        callbackSecret: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET,
-        providerReferenceFingerprintKey:
-          env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY,
-        send: async () => {
-          throw new Error('callback-only provider')
-        }
-      })
+      const productEnv = bookingProductEnv(env)
+      if (!transactionalEmailIsConfigured(productEnv))
+        return Effect.fail(
+          new TransactionalEmailCallbackUnavailable({
+            code: 'transactional_email_needs_configuration'
+          })
+        )
       return Effect.flatMap(TransactionalEmail, (email) =>
         email.receiveCallback({
           rawBody: payload,
@@ -255,11 +245,7 @@ export const transactionalEmailCallbackGroup = (env: ApiEnv) =>
             })
           )
         ),
-        Effect.provide(
-          makeLiveTransactionalEmailLayer(provider).pipe(
-            Layer.provide(layerFromD1(env.DB))
-          )
-        )
+        Effect.provide(makeTransactionalEmailCallbackCapabilityLayer(productEnv))
       )
     })
   )

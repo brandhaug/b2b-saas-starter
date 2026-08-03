@@ -17,7 +17,7 @@ export const startOwnerActivationEmailAttempt = (
 ): OwnerActivationEmailAttempt => ({
   commandId: previous?.reuseCommand ? previous.commandId : createCommandId(),
   locale: previous?.reuseCommand ? previous.locale : locale,
-  reuseCommand: false
+  reuseCommand: true
 })
 
 export const completeOwnerActivationEmailAttempt = (

@@ -71,6 +71,58 @@ export type BookingProductEnv = {
   readonly TRANSACTIONAL_EMAIL_DISABLED?: string | undefined
 }
 
+export const transactionalEmailIsConfigured = (env: BookingProductEnv) =>
+  Boolean(
+    env.EMAIL &&
+    env.CLOUDFLARE_EMAIL_FROM?.trim() &&
+    env.TRANSACTIONAL_EMAIL_SENDER_VERIFIED === 'true' &&
+    env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET?.trim() &&
+    env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?.trim()
+  )
+
+const configuredTransactionalEmailProvider = (env: BookingProductEnv, send: boolean) =>
+  makeConfiguredTransactionalEmailProvider({
+    sender: env.CLOUDFLARE_EMAIL_FROM!,
+    callbackSecret: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET!,
+    providerReferenceFingerprintKey:
+      env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY!,
+    ...(send
+      ? {
+          send: async (message) => {
+            const response = await env.EMAIL!.send({
+              from: message.from,
+              to: message.to,
+              subject: message.subject,
+              text: message.text,
+              headers: { 'X-BeeSolo-Idempotency-Key': message.idempotencyKey }
+            })
+            if (
+              !response ||
+              typeof response !== 'object' ||
+              !('messageId' in response) ||
+              typeof response.messageId !== 'string' ||
+              response.messageId.length === 0
+            )
+              throw new Error('email_provider_acceptance_reference_missing')
+            return {
+              providerSubmissionId: response.messageId,
+              acceptedAt:
+                'acceptedAt' in response &&
+                typeof response.acceptedAt === 'string' &&
+                Number.isFinite(Date.parse(response.acceptedAt))
+                  ? response.acceptedAt
+                  : new Date().toISOString()
+            }
+          }
+        }
+      : {})
+  })
+
+export const makeTransactionalEmailCallbackCapabilityLayer = (env: BookingProductEnv) =>
+  makeLiveTransactionalEmailLayer(
+    configuredTransactionalEmailProvider(env, false)
+  ).pipe(Layer.provide(layerFromD1(env.DB)))
+
 export const makeTransactionalEmailCapabilityLayer = (
   env: BookingProductEnv & {
     readonly ENVIRONMENT?: string | undefined
@@ -84,50 +136,13 @@ export const makeTransactionalEmailCapabilityLayer = (
         : env.ENVIRONMENT === 'preview'
           ? ('preview' as const)
           : ('production' as const)
-  const configured = Boolean(
-    env.EMAIL &&
-    env.CLOUDFLARE_EMAIL_FROM?.trim() &&
-    env.TRANSACTIONAL_EMAIL_SENDER_VERIFIED === 'true' &&
-    env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET?.trim() &&
-    env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?.trim()
-  )
+  const configured = transactionalEmailIsConfigured(env)
   const provider = selectTransactionalEmailProvider({
     runtime,
     disabled: env.TRANSACTIONAL_EMAIL_DISABLED === 'true',
     ...(configured
       ? {
-          provider: makeConfiguredTransactionalEmailProvider({
-            sender: env.CLOUDFLARE_EMAIL_FROM!,
-            callbackSecret: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET!,
-            providerReferenceFingerprintKey:
-              env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY!,
-            send: async (message) => {
-              const response = await env.EMAIL!.send({
-                from: message.from,
-                to: message.to,
-                subject: message.subject,
-                text: message.text,
-                headers: { 'X-BeeSolo-Idempotency-Key': message.idempotencyKey }
-              })
-              if (
-                !response ||
-                typeof response !== 'object' ||
-                !('messageId' in response) ||
-                typeof response.messageId !== 'string' ||
-                response.messageId.length === 0
-              )
-                throw new Error('email_provider_acceptance_reference_missing')
-              return {
-                providerSubmissionId: response.messageId,
-                acceptedAt:
-                  'acceptedAt' in response &&
-                  typeof response.acceptedAt === 'string' &&
-                  Number.isFinite(Date.parse(response.acceptedAt))
-                    ? response.acceptedAt
-                    : new Date().toISOString()
-              }
-            }
-          })
+          provider: configuredTransactionalEmailProvider(env, true)
         }
       : {})
   })
