@@ -1,4 +1,4 @@
-CREATE INDEX `customer_contacts_active_value_lookup`
+CREATE UNIQUE INDEX `customer_contacts_active_value_unique`
 ON `customer_contacts` (`merchant_id`,`kind`,`normalized_value`)
 WHERE `status` = 'active';--> statement-breakpoint
 

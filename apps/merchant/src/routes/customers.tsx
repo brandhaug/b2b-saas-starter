@@ -8,7 +8,7 @@ export const Route = createFileRoute('/customers')({
   beforeLoad: async ({ location }) => requireMerchantSession(location.href),
   loader: async () => ({
     entries: await searchCustomerRecords({
-      data: { query: '', includeArchived: true }
+      data: { query: '' }
     })
   }),
   component: CustomersPage

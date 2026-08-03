@@ -204,7 +204,7 @@ describe('Customer Directory contract', () => {
     expect(result.ownerSearch).toEqual([result.archived])
   })
 
-  it('searches prior observations and superseded contacts without restoring them', async () => {
+  it('searches prior names without exposing superseded destinations', async () => {
     const result = await run(
       'mer_historical_search',
       Effect.gen(function* () {
@@ -236,7 +236,7 @@ describe('Customer Directory contract', () => {
     )
 
     expect(result.byPriorName.map(({ id }) => id)).toEqual([result.edited.id])
-    expect(result.byPriorEmail.map(({ id }) => id)).toEqual([result.edited.id])
+    expect(result.byPriorEmail).toEqual([])
     expect(
       result.edited.contacts.find(({ value }) => value === 'previous@example.com')
     ).toMatchObject({ status: 'superseded', preferred: false })
@@ -370,7 +370,7 @@ describe('Customer Directory contract', () => {
       })
     )
 
-    expect(result.replay).toEqual(result.first)
+    expect(result.replay).toEqual(result.source)
     expect(result.source.contacts).not.toContainEqual(
       expect.objectContaining({ kind: 'phone', value: '+40722000000' })
     )
@@ -584,13 +584,16 @@ describe('Customer Directory contract', () => {
       Effect.gen(function* () {
         const service = yield* CustomerDirectory
         const rows = [
-          observation({ name: 'Imported One', phone: null }),
+          {
+            ...observation({ name: 'Imported One', phone: null }),
+            externalReference: 'crm-row-1'
+          },
           observation({ name: '', email: 'invalid', phone: null })
         ]
         const preview = yield* service.previewImport(rows)
         const committed = yield* service.importRows({
           fileId: 'file-1',
-          idempotencyKey: 'import-file-1',
+          idempotencyKey: 'retry-with-new-command-key',
           expectedRevisions: {},
           rows,
           actorId: 'usr_owner',
@@ -605,6 +608,14 @@ describe('Customer Directory contract', () => {
           now: '2026-08-02T10:00:00.000Z'
         })
         const record = (yield* service.search('imported one'))[0]!
+        const rowReplay = yield* service.importRows({
+          fileId: 'file-2',
+          idempotencyKey: 'second-file-same-row',
+          expectedRevisions: { [record.id]: record.revision },
+          rows: [rows[0]!],
+          actorId: 'usr_owner',
+          now: '2026-08-02T10:30:00.000Z'
+        })
         const changed = yield* service.addNote(record.id, {
           expectedRevision: record.revision,
           idempotencyKey: 'note-import',
@@ -626,6 +637,7 @@ describe('Customer Directory contract', () => {
           preview,
           committed,
           replay,
+          rowReplay,
           changed,
           stale,
           exported: yield* service.exportMinimized()
@@ -636,12 +648,108 @@ describe('Customer Directory contract', () => {
     expect(result.preview.map((row) => row.outcome)).toEqual(['create', 'invalid'])
     expect(result.committed).toEqual({ created: 1, matched: 0, rejected: 1 })
     expect(result.replay).toEqual(result.committed)
+    expect(result.rowReplay).toEqual({ created: 0, matched: 1, rejected: 0 })
     expect(result.stale._tag).toBe('Failure')
     expect(result.changed.ban).toBeNull()
     expect(result.exported[0]).not.toHaveProperty('notes')
     expect(result.changed.observations[0]).toMatchObject({
       appointmentId: null,
       source: 'import'
+    })
+  })
+
+  it('keeps erased and merged records terminal and removes directory PII', async () => {
+    const result = await run(
+      'mer_terminal_records',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_terminal',
+          details: observation({ email: 'erase@example.com', phone: '+40722000000' }),
+          now: '2026-01-01T10:00:00.000Z'
+        })
+        const noted = yield* service.addNote(created.record.id, {
+          expectedRevision: created.record.revision,
+          idempotencyKey: 'terminal-note',
+          actorId: 'usr_owner',
+          text: 'Sensitive note',
+          now: '2026-01-01T11:00:00.000Z'
+        })
+        yield* service.eraseExpired({
+          idempotencyKey: 'erase-terminal',
+          expectedRevisions: { [noted.id]: noted.revision },
+          now: '2026-08-03T10:00:00.000Z',
+          inactiveBefore: '2026-02-01T00:00:00.000Z',
+          actorId: 'retention-worker'
+        })
+        const erased = yield* service.get(noted.id)
+        return {
+          erased,
+          replay: yield* service.addNote(created.record.id, {
+            expectedRevision: created.record.revision,
+            idempotencyKey: 'terminal-note',
+            actorId: 'usr_owner',
+            text: 'Sensitive note',
+            now: '2026-01-01T11:00:00.000Z'
+          }),
+          restore: yield* Effect.result(
+            service.archive(erased.id, {
+              expectedRevision: erased.revision,
+              idempotencyKey: 'restore-erased',
+              actorId: 'usr_owner',
+              archived: false,
+              now: '2026-08-03T11:00:00.000Z'
+            })
+          )
+        }
+      })
+    )
+
+    expect(result.erased).toMatchObject({
+      status: 'erased',
+      displayName: 'Erased customer',
+      contacts: [],
+      notes: [],
+      consent: []
+    })
+    expect(result.erased.observations[0]?.details).toEqual({
+      name: 'Erased customer',
+      email: null,
+      phone: null
+    })
+    expect(result.replay).toEqual(result.erased)
+    expect(result.restore).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'invalid_record_status' })
+    })
+  })
+
+  it('rejects blank audit reasons at the capability boundary', async () => {
+    const result = await run(
+      'mer_reason_required',
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const created = yield* service.matchOrCreate({
+          appointmentId: 'apt_reason_required',
+          details: observation(),
+          now: '2026-08-03T10:00:00.000Z'
+        })
+        return yield* Effect.result(
+          service.setBan(created.record.id, {
+            expectedRevision: created.record.revision,
+            idempotencyKey: 'blank-reason',
+            actorId: 'usr_owner',
+            reason: '   ',
+            expiresAt: null,
+            now: '2026-08-03T11:00:00.000Z'
+          })
+        )
+      })
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'Failure',
+      failure: expect.objectContaining({ reason: 'reason_required' })
     })
   })
 })

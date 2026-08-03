@@ -5,6 +5,7 @@ import {
   CapabilityUnavailable
 } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { hashSha256 } from '../internal/crypto.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import {
   normalizeCustomerDetails,
@@ -116,15 +117,16 @@ const customerSearchEvidence = (
   { value: record.displayName, kind: 'text' },
   { value: record.preferredEmail, kind: 'text' },
   { value: record.preferredPhone, kind: 'phone' },
-  ...record.contacts.map((contact) => ({
-    value: contact.value,
-    kind: contact.kind === 'phone' ? ('phone' as const) : ('text' as const)
-  })),
-  ...record.observations.flatMap((observation) => [
-    { value: observation.details.name, kind: 'text' as const },
-    { value: observation.details.email, kind: 'text' as const },
-    { value: observation.details.phone, kind: 'phone' as const }
-  ])
+  ...record.contacts
+    .filter((contact) => contact.status === 'active')
+    .map((contact) => ({
+      value: contact.value,
+      kind: contact.kind === 'phone' ? ('phone' as const) : ('text' as const)
+    })),
+  ...record.observations.map((observation) => ({
+    value: observation.details.name,
+    kind: 'text' as const
+  }))
 ]
 
 export const customerRecordMatchesQuery = (
@@ -157,6 +159,8 @@ export class CustomerDirectoryInvalid extends Schema.TaggedErrorClass<CustomerDi
       'invalid_name',
       'invalid_email',
       'invalid_phone',
+      'reason_required',
+      'invalid_record_status',
       'empty_split',
       'invalid_split_assignment',
       'invalid_import'
@@ -222,14 +226,14 @@ type RecordConsentInput = typeof RecordCustomerConsentInputSchema.Type
 
 export const SetCustomerBanInputSchema = Schema.Struct({
   ...MutationFields,
-  reason: Schema.String,
+  reason: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1)),
   expiresAt: Schema.NullOr(Schema.String)
 })
 type SetBanInput = typeof SetCustomerBanInputSchema.Type
 
 export const LiftCustomerBanInputSchema = Schema.Struct({
   ...MutationFields,
-  reason: Schema.String
+  reason: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1))
 })
 type LiftBanInput = typeof LiftCustomerBanInputSchema.Type
 
@@ -247,7 +251,7 @@ export const MergeCustomerInputSchema = Schema.Struct({
   idempotencyKey: Schema.String,
   actorId: Schema.String,
   preferredDetailsSourceId: Schema.optional(Schema.String),
-  reason: Schema.String,
+  reason: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1)),
   now: Schema.String
 })
 type MergeInput = typeof MergeCustomerInputSchema.Type
@@ -266,7 +270,7 @@ export const SplitCustomerInputSchema = Schema.Struct({
   contactKeys: Schema.optional(Schema.Array(CustomerContactKeySchema)),
   noteIds: Schema.optional(Schema.Array(Schema.String)),
   consentIds: Schema.optional(Schema.Array(Schema.String)),
-  reason: Schema.String,
+  reason: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1)),
   now: Schema.String
 })
 type SplitInput = typeof SplitCustomerInputSchema.Type
@@ -280,6 +284,7 @@ export const CustomerImportRowSchema = Schema.Struct({
   ...DirectoryCustomerDetailsSchema.fields,
   externalReference: Schema.optional(Schema.String)
 })
+export type CustomerImportRow = typeof CustomerImportRowSchema.Type
 export const ImportCustomerRowsInputSchema = Schema.Struct({
   fileId: Schema.String,
   idempotencyKey: Schema.String,
@@ -399,10 +404,27 @@ export class CustomerDirectory extends Context.Service<
   CustomerDirectoryShape
 >()('@b2b-saas-starter/capabilities/CustomerDirectory') {}
 
-type StoredCommand = { readonly fingerprint: string; readonly result: unknown }
+export type StoredCommandResult =
+  | { readonly _tag: 'record'; readonly recordId: string }
+  | {
+      readonly _tag: 'split'
+      readonly sourceId: string
+      readonly createdId: string
+    }
+  | {
+      readonly _tag: 'import'
+      readonly created: number
+      readonly matched: number
+      readonly rejected: number
+    }
+  | { readonly _tag: 'count'; readonly value: number }
+export type StoredCustomerDirectoryCommand = {
+  readonly fingerprint: string
+  readonly result: StoredCommandResult
+}
 export type CustomerDirectoryState = {
   readonly records: Map<string, CustomerRecord>
-  readonly commands: Map<string, StoredCommand>
+  readonly commands: Map<string, StoredCustomerDirectoryCommand>
   readonly imports: Set<string>
 }
 export const emptyCustomerDirectoryState = (): CustomerDirectoryState => ({
@@ -503,7 +525,11 @@ const contactsFrom = (details: DirectoryCustomerDetails): CustomerContact[] => {
     })
   return result
 }
-const fingerprint = (input: unknown) => JSON.stringify(input)
+const fingerprint = (input: unknown) =>
+  Effect.promise(() => hashSha256(JSON.stringify(input)))
+const hasReason = (reason: string) => reason.trim().length > 0
+const mutableRecord = (record: CustomerRecord) =>
+  record.status === 'active' || record.status === 'archived'
 
 export const makeCustomerDirectoryService = (
   store: CustomerDirectoryState
@@ -770,22 +796,48 @@ export const makeCustomerDirectoryService = (
               ]
       })),
     setBan: (recordId, input) =>
-      mutate(store, recordId, input, 'banned', (input) => ({
-        ban: {
-          reason: input.reason,
-          actorId: input.actorId,
-          createdAt: input.now,
-          expiresAt: input.expiresAt
-        }
-      })),
+      hasReason(input.reason)
+        ? mutate(store, recordId, input, 'banned', (input) => ({
+            ban: {
+              reason: input.reason,
+              actorId: input.actorId,
+              createdAt: input.now,
+              expiresAt: input.expiresAt
+            }
+          }))
+        : Effect.fail(new CustomerDirectoryInvalid({ reason: 'reason_required' })),
     liftBan: (recordId, input) =>
-      mutate(store, recordId, input, 'ban_lifted', () => ({ ban: null }), input.reason),
-    merge: (input) => mergeRecords(store, input),
-    split: (input) => splitRecord(store, input),
+      hasReason(input.reason)
+        ? mutate(
+            store,
+            recordId,
+            input,
+            'ban_lifted',
+            () => ({ ban: null }),
+            input.reason
+          )
+        : Effect.fail(new CustomerDirectoryInvalid({ reason: 'reason_required' })),
+    merge: (input) =>
+      hasReason(input.reason)
+        ? mergeRecords(store, input)
+        : Effect.fail(new CustomerDirectoryInvalid({ reason: 'reason_required' })),
+    split: (input) =>
+      hasReason(input.reason)
+        ? splitRecord(store, input)
+        : Effect.fail(new CustomerDirectoryInvalid({ reason: 'reason_required' })),
     archive: (recordId, input) =>
-      mutate(store, recordId, input, input.archived ? 'archived' : 'restored', () => ({
-        status: input.archived ? 'archived' : 'active'
-      })),
+      mutate(
+        store,
+        recordId,
+        input,
+        input.archived ? 'archived' : 'restored',
+        () => ({ status: input.archived ? 'archived' : 'active' }),
+        null,
+        (record) =>
+          record.status === (input.archived ? 'active' : 'archived')
+            ? null
+            : new CustomerDirectoryInvalid({ reason: 'invalid_record_status' })
+      ),
     previewImport: (rows) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
@@ -810,18 +862,26 @@ export const makeCustomerDirectoryService = (
     importRows: (input) =>
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
-        const importKey = `${merchant.id}:${input.idempotencyKey}`
-        const commandFingerprint = fingerprint(input)
+        const importKey = `${merchant.id}:import-file:${input.fileId}`
+        const commandFingerprint = yield* fingerprint({
+          fileId: input.fileId,
+          rows: input.rows,
+          actorId: input.actorId
+        })
         const replay = store.commands.get(importKey)
         if (replay) {
           if (replay.fingerprint !== commandFingerprint)
             return yield* Effect.fail(
               new CapabilityConflict({ reason: 'idempotency_key_reused' })
             )
-          return replay.result as {
-            readonly created: number
-            readonly matched: number
-            readonly rejected: number
+          if (replay.result._tag !== 'import')
+            return yield* Effect.fail(
+              new CapabilityConflict({ reason: 'idempotency_key_reused' })
+            )
+          return {
+            created: replay.result.created,
+            matched: replay.result.matched,
+            rejected: replay.result.rejected
           }
         }
         let created = 0,
@@ -829,6 +889,13 @@ export const makeCustomerDirectoryService = (
           rejected = 0
         for (let index = 0; index < input.rows.length; index++) {
           const row = input.rows[index]!
+          const rowKey = row.externalReference
+            ? `${merchant.id}:import-row:${row.externalReference}`
+            : null
+          if (rowKey && store.imports.has(rowKey)) {
+            matched += 1
+            continue
+          }
           const normalized = normalizeCustomerDetails(row)
           const { matching } = recordsMatchingDetails(
             matchableMerchantRecords(store, merchant.id),
@@ -854,12 +921,18 @@ export const makeCustomerDirectoryService = (
             })
           )
           if (result._tag === 'Failure') rejected += 1
-          else if (result.success.matched) matched += 1
-          else created += 1
+          else {
+            if (result.success.matched) matched += 1
+            else created += 1
+            if (rowKey) store.imports.add(rowKey)
+          }
         }
         store.imports.add(importKey)
         const result = { created, matched, rejected }
-        store.commands.set(importKey, { fingerprint: commandFingerprint, result })
+        store.commands.set(importKey, {
+          fingerprint: commandFingerprint,
+          result: { _tag: 'import', ...result }
+        })
         return result
       }),
     exportMinimized: () =>
@@ -893,7 +966,7 @@ export const makeCustomerDirectoryService = (
       Effect.gen(function* () {
         const merchant = yield* MerchantContext
         const commandKey = `${merchant.id}:${idempotencyKey}`
-        const commandFingerprint = fingerprint({
+        const commandFingerprint = yield* fingerprint({
           now,
           inactiveBefore,
           actorId,
@@ -906,7 +979,11 @@ export const makeCustomerDirectoryService = (
             return yield* Effect.fail(
               new CapabilityConflict({ reason: 'idempotency_key_reused' })
             )
-          return replay.result as number
+          if (replay.result._tag !== 'count')
+            return yield* Effect.fail(
+              new CapabilityConflict({ reason: 'idempotency_key_reused' })
+            )
+          return replay.result.value
         }
         const protectedIds = new Set(protectedRecordIds)
         let count = 0
@@ -936,6 +1013,10 @@ export const makeCustomerDirectoryService = (
               notes: [],
               consent: [],
               ban: null,
+              observations: record.observations.map((observation) => ({
+                ...observation,
+                details: { name: 'Erased customer', email: null, phone: null }
+              })),
               revision,
               history: [
                 ...record.history,
@@ -946,7 +1027,7 @@ export const makeCustomerDirectoryService = (
           }
         store.commands.set(commandKey, {
           fingerprint: commandFingerprint,
-          result: count
+          result: { _tag: 'count', value: count }
         })
         return count
       })
@@ -975,15 +1056,28 @@ const mutate = <I extends Mutation>(
     if (!record || record.merchantId !== merchant.id)
       return yield* Effect.fail(new CapabilityNotFound({ resource: 'customer-record' }))
     const key = `${merchant.id}:${input.idempotencyKey}`,
-      fp = fingerprint(input),
+      fp = yield* fingerprint(input),
       replay = store.commands.get(key)
     if (replay) {
       if (replay.fingerprint !== fp)
         return yield* Effect.fail(
           new CapabilityConflict({ reason: 'idempotency_key_reused' })
         )
-      return replay.result as CustomerRecord
+      if (replay.result._tag !== 'record')
+        return yield* Effect.fail(
+          new CapabilityConflict({ reason: 'idempotency_key_reused' })
+        )
+      const current = store.records.get(replay.result.recordId)
+      if (!current || current.merchantId !== merchant.id)
+        return yield* Effect.fail(
+          new CapabilityNotFound({ resource: 'customer-record' })
+        )
+      return current
     }
+    if (!mutableRecord(record))
+      return yield* Effect.fail(
+        new CustomerDirectoryInvalid({ reason: 'invalid_record_status' })
+      )
     if (record.revision !== input.expectedRevision)
       return yield* Effect.fail(
         new CapabilityConflict({
@@ -1011,7 +1105,10 @@ const mutate = <I extends Mutation>(
       ]
     } as CustomerRecord
     store.records.set(recordId, next)
-    store.commands.set(key, { fingerprint: fp, result: next })
+    store.commands.set(key, {
+      fingerprint: fp,
+      result: { _tag: 'record', recordId: next.id }
+    })
     return next
   })
 
@@ -1022,14 +1119,23 @@ const mergeRecords = (
   Effect.gen(function* () {
     const merchant = yield* MerchantContext
     const commandKey = `${merchant.id}:${input.idempotencyKey}`
-    const commandFingerprint = fingerprint(input)
+    const commandFingerprint = yield* fingerprint(input)
     const replay = store.commands.get(commandKey)
     if (replay) {
       if (replay.fingerprint !== commandFingerprint)
         return yield* Effect.fail(
           new CapabilityConflict({ reason: 'idempotency_key_reused' })
         )
-      return replay.result as CustomerRecord
+      if (replay.result._tag !== 'record')
+        return yield* Effect.fail(
+          new CapabilityConflict({ reason: 'idempotency_key_reused' })
+        )
+      const current = store.records.get(replay.result.recordId)
+      if (!current || current.merchantId !== merchant.id)
+        return yield* Effect.fail(
+          new CapabilityNotFound({ resource: 'customer-record' })
+        )
+      return current
     }
     const survivor = store.records.get(input.survivorId),
       absorbed = store.records.get(input.absorbedId)
@@ -1040,6 +1146,10 @@ const mergeRecords = (
       absorbed.merchantId !== merchant.id
     )
       return yield* Effect.fail(new CapabilityNotFound({ resource: 'customer-record' }))
+    if (survivor.status !== 'active' || absorbed.status !== 'active')
+      return yield* Effect.fail(
+        new CustomerDirectoryInvalid({ reason: 'invalid_record_status' })
+      )
     if (
       survivor.revision !== input.expectedSurvivorRevision ||
       absorbed.revision !== input.expectedAbsorbedRevision
@@ -1119,7 +1229,7 @@ const mergeRecords = (
     })
     store.commands.set(commandKey, {
       fingerprint: commandFingerprint,
-      result: merged
+      result: { _tag: 'record', recordId: merged.id }
     })
     return merged
   })
@@ -1135,21 +1245,32 @@ const splitRecord = (
   Effect.gen(function* () {
     const merchant = yield* MerchantContext
     const commandKey = `${merchant.id}:${input.idempotencyKey}`
-    const commandFingerprint = fingerprint(input)
+    const commandFingerprint = yield* fingerprint(input)
     const replay = store.commands.get(commandKey)
     if (replay) {
       if (replay.fingerprint !== commandFingerprint)
         return yield* Effect.fail(
           new CapabilityConflict({ reason: 'idempotency_key_reused' })
         )
-      return replay.result as {
-        source: CustomerRecord
-        created: CustomerRecord
-      }
+      if (replay.result._tag !== 'split')
+        return yield* Effect.fail(
+          new CapabilityConflict({ reason: 'idempotency_key_reused' })
+        )
+      const replayedSource = store.records.get(replay.result.sourceId)
+      const replayedCreated = store.records.get(replay.result.createdId)
+      if (!replayedSource || !replayedCreated)
+        return yield* Effect.fail(
+          new CapabilityNotFound({ resource: 'customer-record' })
+        )
+      return { source: replayedSource, created: replayedCreated }
     }
     const source = store.records.get(input.sourceId)
     if (!source || source.merchantId !== merchant.id)
       return yield* Effect.fail(new CapabilityNotFound({ resource: 'customer-record' }))
+    if (source.status !== 'active')
+      return yield* Effect.fail(
+        new CustomerDirectoryInvalid({ reason: 'invalid_record_status' })
+      )
     if (source.revision !== input.expectedRevision)
       return yield* Effect.fail(
         new CapabilityConflict({
@@ -1259,7 +1380,11 @@ const splitRecord = (
     const result = { source: remaining, created }
     store.commands.set(commandKey, {
       fingerprint: commandFingerprint,
-      result
+      result: {
+        _tag: 'split',
+        sourceId: result.source.id,
+        createdId: result.created.id
+      }
     })
     return result
   })

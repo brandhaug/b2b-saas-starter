@@ -3913,9 +3913,6 @@ export const customerContacts = sqliteTable(
     uniqueIndex('customer_contacts_preferred_kind_unique')
       .on(table.customerRecordId, table.kind)
       .where(sql`${table.isPreferred} = 1 AND ${table.status} = 'active'`),
-    index('customer_contacts_active_value_lookup')
-      .on(table.merchantId, table.kind, table.normalizedValue)
-      .where(sql`${table.status} = 'active'`)
   ]
 )
 

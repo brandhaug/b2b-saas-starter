@@ -15,6 +15,7 @@ const Mutation = {
   expectedRevision: Schema.Number,
   idempotencyKey: Schema.String
 } as const
+const AuditReason = Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1))
 const EditPreferred = Schema.Struct({
   ...Mutation,
   name: Schema.String,
@@ -39,10 +40,10 @@ const RecordConsent = Schema.Struct({
 })
 const SetBan = Schema.Struct({
   ...Mutation,
-  reason: Schema.String,
+  reason: AuditReason,
   expiresAt: Schema.NullOr(Schema.String)
 })
-const LiftBan = Schema.Struct({ ...Mutation, reason: Schema.String })
+const LiftBan = Schema.Struct({ ...Mutation, reason: AuditReason })
 const Archive = Schema.Struct({ ...Mutation, archived: Schema.Boolean })
 const Merge = Schema.Struct({
   survivorId: Schema.String,
@@ -51,7 +52,7 @@ const Merge = Schema.Struct({
   expectedAbsorbedRevision: Schema.Number,
   idempotencyKey: Schema.String,
   preferredDetailsSourceId: Schema.optional(Schema.String),
-  reason: Schema.String
+  reason: AuditReason
 })
 const Split = Schema.Struct({
   sourceId: Schema.String,
@@ -75,7 +76,7 @@ const Split = Schema.Struct({
   ),
   noteIds: Schema.optional(Schema.Array(Schema.String)),
   consentIds: Schema.optional(Schema.Array(Schema.String)),
-  reason: Schema.String
+  reason: AuditReason
 })
 const ImportRow = Schema.Struct({
   name: Schema.String,

@@ -123,6 +123,28 @@ describe('CustomerDirectoryWorkspace conflict recovery', () => {
     expect(container.textContent).toContain('Exported 1 customer records.')
   })
 
+  it('loads archived records only through the explicit restore workflow', async () => {
+    const archived = {
+      ...record('cur_archived', 'cur_two'),
+      status: 'archived' as const,
+      displayName: 'Archived Customer'
+    }
+    server.searchCustomerRecords.mockResolvedValueOnce([...records, archived])
+    const container = await renderWorkspace()
+    expect(container.textContent).not.toContain('Archived Customer')
+    const button = [...container.querySelectorAll('button')].find((candidate) =>
+      candidate.textContent?.includes('Show archived records')
+    )!
+
+    await act(async () => button.click())
+
+    expect(server.searchCustomerRecords).toHaveBeenCalledWith({
+      data: { query: '', includeArchived: true }
+    })
+    expect(container.textContent).toContain('Archived Customer')
+    expect(container.textContent).toContain('Hide archived records')
+  })
+
   it('reloads both merge records after an unconfirmed merge', async () => {
     server.mergeCustomers.mockRejectedValueOnce(new Error('stale'))
     server.searchCustomerRecords.mockResolvedValueOnce(records)
@@ -137,7 +159,7 @@ describe('CustomerDirectoryWorkspace conflict recovery', () => {
     await act(async () => form.requestSubmit())
 
     expect(server.searchCustomerRecords).toHaveBeenCalledWith({
-      data: { query: '', includeArchived: true }
+      data: { query: '', includeArchived: false }
     })
     expect(container.textContent).toContain('Both records were reloaded')
   })
@@ -153,7 +175,7 @@ describe('CustomerDirectoryWorkspace conflict recovery', () => {
     await act(async () => form.requestSubmit())
 
     expect(server.searchCustomerRecords).toHaveBeenCalledWith({
-      data: { query: '', includeArchived: true }
+      data: { query: '', includeArchived: false }
     })
     expect(container.textContent).toContain('directory was reloaded')
   })

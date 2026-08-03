@@ -129,9 +129,7 @@ describe('MobileCustomerContactList', () => {
     expect(filterCustomerEntries(directory.entries, 'Mara Popescu')).toEqual([
       directory.entries[0]
     ])
-    expect(filterCustomerEntries(directory.entries, 'mara.old@example')).toEqual([
-      directory.entries[0]
-    ])
+    expect(filterCustomerEntries(directory.entries, 'mara.old@example')).toEqual([])
     expect(filterCustomerEntries(directory.entries, 'missing')).toEqual([])
   })
 

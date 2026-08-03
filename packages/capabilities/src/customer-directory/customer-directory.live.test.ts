@@ -146,6 +146,87 @@ describe('Live Customer Directory contract', () => {
     ])
   })
 
+  it('uses the contact uniqueness guard to make concurrent preparation retry-safe', async () => {
+    const prepared = await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db.insert(appointments).values(
+            ['apt_concurrent_1', 'apt_concurrent_2'].map((id, index) => ({
+              id,
+              merchantId: 'mer_customer_live',
+              providerId: 'prv_customer_live',
+              status: 'scheduled' as const,
+              startsAt: `2026-07-1${index}T10:00:00.000Z`,
+              endsAt: `2026-07-1${index}T11:00:00.000Z`,
+              createdAt: '2026-07-10T09:00:00.000Z',
+              updatedAt: '2026-07-10T09:00:00.000Z'
+            }))
+          )
+          const input = (id: string, email: string | null) => ({
+            merchantId: 'mer_customer_live',
+            appointment: {
+              id,
+              details: {
+                name: 'Concurrent Customer',
+                email,
+                phone: '+40700000002'
+              }
+            },
+            origin: 'public_booking' as const,
+            now: '2026-07-10T12:00:00.000Z'
+          })
+          return {
+            first: yield* prepareAppointmentCustomerAssociation(
+              db,
+              input('apt_concurrent_1', 'concurrent@example.com')
+            ),
+            second: yield* prepareAppointmentCustomerAssociation(
+              db,
+              input('apt_concurrent_2', null)
+            ),
+            input
+          }
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.flatMap(Database, (db) => batch(db, prepared.first)),
+        layerFromD1(test.d1)
+      )
+    )
+    await expect(
+      Effect.runPromise(
+        Effect.provide(
+          Effect.flatMap(Database, (db) => batch(db, prepared.second)),
+          layerFromD1(test.d1)
+        )
+      )
+    ).rejects.toBeDefined()
+    await Effect.runPromise(
+      Effect.provide(
+        Effect.gen(function* () {
+          const db = yield* Database
+          const retried = yield* prepareAppointmentCustomerAssociation(
+            db,
+            prepared.input('apt_concurrent_2', null)
+          )
+          yield* batch(db, retried)
+        }),
+        layerFromD1(test.d1)
+      )
+    )
+    const links = await test.d1
+      .prepare(
+        `SELECT DISTINCT customer_record_id FROM appointment_foundations
+         WHERE appointment_id IN ('apt_concurrent_1','apt_concurrent_2')`
+      )
+      .all<{ customer_record_id: string }>()
+    expect(links.results).toHaveLength(1)
+  })
+
   it('persists matching, revisions, attributed history, and idempotent recovery', async () => {
     const created = await run(
       Effect.gen(function* () {
@@ -203,6 +284,42 @@ describe('Live Customer Directory contract', () => {
     expect(supplementalRecords[0]).not.toHaveProperty('displayName')
     expect(supplementalRecords[0]).not.toHaveProperty('contacts')
     expect(supplementalRecords[0]).not.toHaveProperty('history')
+
+    await run(
+      Effect.gen(function* () {
+        const service = yield* CustomerDirectory
+        const allRecords = yield* service.search('', { includeArchived: true })
+        return yield* service.eraseExpired({
+          idempotencyKey: 'erase-live-customer',
+          expectedRevisions: { [created.record.id]: updated.first.revision },
+          now: '2027-08-02T10:00:00.000Z',
+          inactiveBefore: '2027-01-01T00:00:00.000Z',
+          actorId: 'retention-worker',
+          protectedRecordIds: allRecords
+            .filter((record) => record.id !== created.record.id)
+            .map((record) => record.id)
+        })
+      })
+    )
+    const retainedRows = await test.d1
+      .prepare(
+        `SELECT c.id contact_id, c.normalized_value, o.name, o.normalized_email,
+                o.normalized_phone, s.state_json
+         FROM customer_directory_states s
+         LEFT JOIN customer_contacts c ON c.merchant_id = s.merchant_id
+         LEFT JOIN customer_observations o ON o.merchant_id = s.merchant_id
+         WHERE s.merchant_id = ? AND (o.customer_record_id = ? OR o.id IS NULL)`
+      )
+      .bind('mer_customer_live', created.record.id)
+      .all<Record<string, unknown>>()
+    const retainedText = JSON.stringify(retainedRows.results)
+    expect(retainedText).not.toContain('mara@example.com')
+    expect(retainedText).not.toContain('Prefers quiet appointments')
+    const erasedRow = await test.d1
+      .prepare(`SELECT display_name, status FROM customer_records WHERE id = ?`)
+      .bind(created.record.id)
+      .first<{ display_name: string; status: string }>()
+    expect(erasedRow).toEqual({ display_name: 'Erased customer', status: 'erased' })
   })
 
   it('moves relational Appointment associations through merge and split', async () => {

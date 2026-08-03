@@ -1,5 +1,5 @@
-import { Effect, Layer } from 'effect'
-import { eq } from 'drizzle-orm'
+import { Effect, Layer, Schema } from 'effect'
+import { and, eq, inArray, or } from 'drizzle-orm'
 import {
   Database,
   appointmentFoundations,
@@ -14,49 +14,97 @@ import {
   type BatchStatement
 } from '@b2b-saas-starter/db'
 import { orUnavailable } from '../internal/unavailable.ts'
-import { CapabilityConflict } from '../errors.ts'
+import { CapabilityConflict, CapabilityUnavailable } from '../errors.ts'
+import { hashSha256 } from '../internal/crypto.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import {
   CustomerDirectory,
   emptyCustomerDirectoryState,
   makeCustomerDirectoryService,
+  ConsentEvidenceSchema,
+  CustomerHistorySchema,
+  CustomerObservationSchema,
+  MerchantNoteSchema,
   type CustomerDirectoryState,
   type CustomerDirectoryShape,
-  type CustomerRecord
+  type CustomerRecord,
+  type StoredCustomerDirectoryCommand
 } from './customer-directory.ts'
-
-type State = (typeof customerDirectoryStates.$inferSelect)['stateJson']
 
 type RecordSupplement = Pick<
   CustomerRecord,
   'id' | 'merchantId' | 'notes' | 'consent' | 'observations'
 >
 
+const RecordSupplementSchema = Schema.Struct({
+  id: Schema.String,
+  merchantId: Schema.String,
+  notes: Schema.Array(MerchantNoteSchema),
+  consent: Schema.Array(ConsentEvidenceSchema),
+  observations: Schema.Array(CustomerObservationSchema)
+})
+const StoredCommandResultSchema = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('record'), recordId: Schema.String }),
+  Schema.Struct({
+    _tag: Schema.Literal('split'),
+    sourceId: Schema.String,
+    createdId: Schema.String
+  }),
+  Schema.Struct({
+    _tag: Schema.Literal('import'),
+    created: Schema.Number,
+    matched: Schema.Number,
+    rejected: Schema.Number
+  }),
+  Schema.Struct({ _tag: Schema.Literal('count'), value: Schema.Number })
+])
+const PersistedStateSchema = Schema.Struct({
+  records: Schema.Array(RecordSupplementSchema),
+  commands: Schema.Array(
+    Schema.Tuple([
+      Schema.String,
+      Schema.Struct({
+        fingerprint: Schema.String,
+        result: StoredCommandResultSchema
+      })
+    ])
+  ),
+  imports: Schema.Array(Schema.String)
+})
+type State = (typeof customerDirectoryStates.$inferSelect)['stateJson']
+
 type MemoryState = {
   readonly records: readonly CustomerRecord[]
-  readonly commands: State['commands']
-  readonly imports: State['imports']
+  readonly commands: readonly (readonly [string, StoredCustomerDirectoryCommand])[]
+  readonly imports: readonly string[]
 }
 
-const stateFor = (store: CustomerDirectoryState, merchantId: string): State => ({
-  records: [...store.records.values()]
-    .filter((record) => record.merchantId === merchantId)
-    .map(
-      (record): RecordSupplement => ({
-        id: record.id,
-        merchantId: record.merchantId,
-        notes: record.notes,
-        consent: record.consent,
-        observations: record.observations.filter(
-          (observation) => observation.appointmentId === null
-        )
-      })
-    ),
-  commands: [...store.commands.entries()].filter(([key]) =>
-    key.startsWith(`${merchantId}:`)
-  ),
-  imports: [...store.imports].filter((key) => key.startsWith(`${merchantId}:`))
+const supplementFor = (record: CustomerRecord): RecordSupplement => ({
+  id: record.id,
+  merchantId: record.merchantId,
+  notes: record.notes,
+  consent: record.consent,
+  observations: record.observations.filter(
+    (observation) => observation.appointmentId === null
+  )
 })
+
+const stateFor = (
+  store: CustomerDirectoryState,
+  merchantId: string,
+  persistedSupplements: ReadonlyMap<string, RecordSupplement>
+): State => {
+  const records = new Map(persistedSupplements)
+  for (const record of store.records.values())
+    if (record.merchantId === merchantId) records.set(record.id, supplementFor(record))
+  return {
+    records: [...records.values()],
+    commands: [...store.commands.entries()].filter(([key]) =>
+      key.startsWith(`${merchantId}:`)
+    ),
+    imports: [...store.imports].filter((key) => key.startsWith(`${merchantId}:`))
+  }
+}
 
 const memoryStateFor = (
   store: CustomerDirectoryState,
@@ -91,6 +139,18 @@ const restoreMemory = (
   for (const file of state.imports) store.imports.add(file)
 }
 
+const groupByRecord = <T extends { readonly customerRecordId: string }>(
+  rows: readonly T[]
+) => {
+  const grouped = new Map<string, T[]>()
+  for (const row of rows) {
+    const current = grouped.get(row.customerRecordId) ?? []
+    current.push(row)
+    grouped.set(row.customerRecordId, current)
+  }
+  return grouped
+}
+
 export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Database> =
   Layer.effect(
     CustomerDirectory,
@@ -98,9 +158,49 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
       const db = yield* Database
       const store = emptyCustomerDirectoryState()
       const observedRevisions = new Map<string, number>()
+      const persistedSupplements = new Map<string, RecordSupplement>()
       const directory = makeCustomerDirectoryService(store)
-      const ensure = (merchantId: string) =>
+      const ensure = (merchantId: string, recordIds?: readonly string[]) =>
         Effect.gen(function* () {
+          const recordWhere = recordIds?.length
+            ? and(
+                eq(customerRecords.merchantId, merchantId),
+                inArray(customerRecords.id, recordIds)
+              )
+            : eq(customerRecords.merchantId, merchantId)
+          const contactWhere = recordIds?.length
+            ? and(
+                eq(customerContacts.merchantId, merchantId),
+                inArray(customerContacts.customerRecordId, recordIds)
+              )
+            : eq(customerContacts.merchantId, merchantId)
+          const observationWhere = recordIds?.length
+            ? and(
+                eq(customerObservations.merchantId, merchantId),
+                inArray(customerObservations.customerRecordId, recordIds)
+              )
+            : eq(customerObservations.merchantId, merchantId)
+          const banWhere = recordIds?.length
+            ? and(
+                eq(customerBans.merchantId, merchantId),
+                inArray(customerBans.customerRecordId, recordIds)
+              )
+            : eq(customerBans.merchantId, merchantId)
+          const historyWhere = recordIds?.length
+            ? and(
+                eq(customerDirectoryHistory.merchantId, merchantId),
+                inArray(customerDirectoryHistory.customerRecordId, recordIds)
+              )
+            : eq(customerDirectoryHistory.merchantId, merchantId)
+          const duplicateWhere = recordIds?.length
+            ? and(
+                eq(customerDuplicateSuggestions.merchantId, merchantId),
+                or(
+                  inArray(customerDuplicateSuggestions.customerRecordId, recordIds),
+                  inArray(customerDuplicateSuggestions.possibleDuplicateId, recordIds)
+                )
+              )
+            : eq(customerDuplicateSuggestions.merchantId, merchantId)
           const [states, records, contacts, observations, bans, histories, duplicates] =
             yield* Effect.all([
               orUnavailable('customer-directory')(
@@ -110,58 +210,55 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   .where(eq(customerDirectoryStates.merchantId, merchantId))
               ),
               orUnavailable('customer-directory')(
-                db
-                  .select()
-                  .from(customerRecords)
-                  .where(eq(customerRecords.merchantId, merchantId))
+                db.select().from(customerRecords).where(recordWhere)
               ),
               orUnavailable('customer-directory')(
-                db
-                  .select()
-                  .from(customerContacts)
-                  .where(eq(customerContacts.merchantId, merchantId))
+                db.select().from(customerContacts).where(contactWhere)
               ),
               orUnavailable('customer-directory')(
-                db
-                  .select()
-                  .from(customerObservations)
-                  .where(eq(customerObservations.merchantId, merchantId))
+                db.select().from(customerObservations).where(observationWhere)
               ),
               orUnavailable('customer-directory')(
-                db
-                  .select()
-                  .from(customerBans)
-                  .where(eq(customerBans.merchantId, merchantId))
+                db.select().from(customerBans).where(banWhere)
               ),
               orUnavailable('customer-directory')(
-                db
-                  .select()
-                  .from(customerDirectoryHistory)
-                  .where(eq(customerDirectoryHistory.merchantId, merchantId))
+                db.select().from(customerDirectoryHistory).where(historyWhere)
               ),
               orUnavailable('customer-directory')(
-                db
-                  .select()
-                  .from(customerDuplicateSuggestions)
-                  .where(eq(customerDuplicateSuggestions.merchantId, merchantId))
+                db.select().from(customerDuplicateSuggestions).where(duplicateWhere)
               )
             ])
-          const state = states[0]?.stateJson
+          const state = yield* Schema.decodeUnknownEffect(PersistedStateSchema)(
+            states[0]?.stateJson ?? { records: [], commands: [], imports: [] }
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new CapabilityUnavailable({
+                  capability: 'customer-directory',
+                  reason: 'persisted state is invalid'
+                })
+            )
+          )
           observedRevisions.set(merchantId, states[0]?.revision ?? 0)
           clearMerchantState(store, merchantId)
-          for (const command of state?.commands ?? []) store.commands.set(...command)
-          for (const file of state?.imports ?? []) store.imports.add(file)
+          for (const command of state.commands)
+            store.commands.set(command[0], command[1])
+          for (const file of state.imports) store.imports.add(file)
           const supplements = new Map(
-            (state?.records as RecordSupplement[] | undefined)?.map((record) => [
-              record.id,
-              record
-            ]) ?? []
+            state.records.map((record) => [record.id, record] as const)
           )
+          persistedSupplements.clear()
+          for (const [id, supplement] of supplements)
+            persistedSupplements.set(id, supplement)
+          const contactsByRecord = groupByRecord(contacts)
+          const observationsByRecord = groupByRecord(observations)
+          const bansByRecord = groupByRecord(bans)
+          const historyByRecord = groupByRecord(histories)
+          const duplicatesByRecord = groupByRecord(duplicates)
           for (const row of records) {
             const supplement = supplements.get(row.id)
-            const recordContacts = contacts
-              .filter((contact) => contact.customerRecordId === row.id)
-              .map((contact) => ({
+            const recordContacts = (contactsByRecord.get(row.id) ?? []).map(
+              (contact) => ({
                 kind: contact.kind,
                 value: contact.normalizedValue,
                 status:
@@ -169,10 +266,10 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                     ? ('superseded' as const)
                     : contact.status,
                 preferred: contact.isPreferred
-              }))
-            const recordObservations = observations
-              .filter((observation) => observation.customerRecordId === row.id)
-              .map((observation) => ({
+              })
+            )
+            const recordObservations = (observationsByRecord.get(row.id) ?? []).map(
+              (observation) => ({
                 id: observation.id,
                 appointmentId: observation.appointmentId,
                 details: {
@@ -182,21 +279,32 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 },
                 observedAt: observation.observedAt,
                 source: 'appointment' as const
-              }))
+              })
+            )
             const observationIds = new Set(
               supplement?.observations.map((observation) => observation.id) ?? []
             )
-            const relationalHistory = histories
-              .filter((entry) => entry.customerRecordId === row.id)
-              .map((entry) => ({
-                id: entry.id,
-                kind: entry.kind as CustomerRecord['history'][number]['kind'],
-                actorId: entry.actorId,
-                impersonatedBy: entry.impersonatedBy,
-                reason: entry.reason,
-                at: entry.occurredAt,
-                revision: entry.revision
-              }))
+            const relationalHistory = yield* Effect.forEach(
+              historyByRecord.get(row.id) ?? [],
+              (entry) =>
+                Schema.decodeUnknownEffect(CustomerHistorySchema)({
+                  id: entry.id,
+                  kind: entry.kind,
+                  actorId: entry.actorId,
+                  impersonatedBy: entry.impersonatedBy,
+                  reason: entry.reason,
+                  at: entry.occurredAt,
+                  revision: entry.revision
+                }).pipe(
+                  Effect.mapError(
+                    () =>
+                      new CapabilityUnavailable({
+                        capability: 'customer-directory',
+                        reason: 'persisted history is invalid'
+                      })
+                  )
+                )
+            )
             store.records.set(row.id, {
               id: row.id,
               merchantId,
@@ -225,10 +333,10 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
               ],
               notes: supplement?.notes ?? [],
               consent: supplement?.consent ?? [],
-              ban: bans.find((ban) => ban.customerRecordId === row.id) ?? null,
-              possibleDuplicateOf: duplicates
-                .filter((item) => item.customerRecordId === row.id)
-                .map((item) => item.possibleDuplicateId),
+              ban: bansByRecord.get(row.id)?.[0] ?? null,
+              possibleDuplicateOf: (duplicatesByRecord.get(row.id) ?? []).map(
+                (item) => item.possibleDuplicateId
+              ),
               mergedInto: row.mergedInto,
               revision: row.revision,
               lastActivityAt: row.lastActivityAt,
@@ -238,41 +346,68 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
             })
           }
         })
-      const persist = (merchantId: string, now: string, expectedRevision: number) =>
+      const persist = (
+        merchantId: string,
+        now: string,
+        expectedRevision: number,
+        before: MemoryState
+      ) =>
         Effect.gen(function* () {
           const stateWrite = db
             .insert(customerDirectoryStates)
             .values({
               merchantId,
-              stateJson: stateFor(store, merchantId),
+              stateJson: stateFor(store, merchantId, persistedSupplements),
               revision: 1,
               updatedAt: now
             })
             .onConflictDoUpdate({
               target: customerDirectoryStates.merchantId,
               set: {
-                stateJson: stateFor(store, merchantId),
+                stateJson: stateFor(store, merchantId, persistedSupplements),
                 revision: expectedRevision + 1,
                 updatedAt: now
               }
             })
-          const records = [...store.records.values()].filter(
-            (record) => record.merchantId === merchantId
+          const previousRecords = new Map(
+            before.records.map((record) => [record.id, record])
           )
-          const statements: BatchStatement[] = [
-            stateWrite,
-            db
-              .delete(customerDuplicateSuggestions)
-              .where(eq(customerDuplicateSuggestions.merchantId, merchantId)),
-            ...records.flatMap((record) => [
+          const records = [...store.records.values()].filter(
+            (record) =>
+              record.merchantId === merchantId &&
+              JSON.stringify(previousRecords.get(record.id)) !== JSON.stringify(record)
+          )
+          const changedIds = records.map((record) => record.id)
+          const terminalIds = records
+            .filter(
+              (record) => record.status === 'merged' || record.status === 'erased'
+            )
+            .map((record) => record.id)
+          const statements: BatchStatement[] = [stateWrite]
+          if (changedIds.length > 0)
+            statements.push(
               db
-                .delete(customerContacts)
-                .where(eq(customerContacts.customerRecordId, record.id)),
+                .delete(customerDuplicateSuggestions)
+                .where(
+                  inArray(customerDuplicateSuggestions.customerRecordId, changedIds)
+                ),
+              ...records.flatMap((record) => [
+                db
+                  .delete(customerContacts)
+                  .where(eq(customerContacts.customerRecordId, record.id)),
+                db
+                  .delete(customerBans)
+                  .where(eq(customerBans.customerRecordId, record.id))
+              ])
+            )
+          if (terminalIds.length > 0)
+            statements.push(
               db
-                .delete(customerBans)
-                .where(eq(customerBans.customerRecordId, record.id))
-            ])
-          ]
+                .delete(customerDuplicateSuggestions)
+                .where(
+                  inArray(customerDuplicateSuggestions.possibleDuplicateId, terminalIds)
+                )
+            )
           for (const record of records) {
             statements.push(
               db
@@ -311,10 +446,15 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   }
                 })
             )
-            for (const contact of record.contacts)
+            for (const contact of record.contacts) {
+              const contactDigest = yield* Effect.promise(() =>
+                hashSha256(
+                  `${merchantId}:${record.id}:${contact.kind}:${contact.value}`
+                )
+              )
               statements.push(
                 db.insert(customerContacts).values({
-                  id: `cuc_${record.id}_${contact.kind}_${contact.value}`,
+                  id: `cuc_${contactDigest.slice(0, 32)}`,
                   customerRecordId: record.id,
                   merchantId,
                   kind: contact.kind,
@@ -325,6 +465,7 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                   updatedAt: now
                 })
               )
+            }
             if (record.ban)
               statements.push(
                 db.insert(customerBans).values({
@@ -369,7 +510,12 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
                 statements.push(
                   db
                     .update(customerObservations)
-                    .set({ customerRecordId: record.id })
+                    .set({
+                      customerRecordId: record.id,
+                      name: observation.details.name,
+                      normalizedEmail: observation.details.email,
+                      normalizedPhone: observation.details.phone
+                    })
                     .where(eq(customerObservations.id, observation.id)),
                   db
                     .update(appointmentFoundations)
@@ -385,21 +531,28 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
           }
           yield* orUnavailable('customer-directory')(batch(db, statements))
         })
-      const read = <A, E>(effect: Effect.Effect<A, E, MerchantContext>) =>
+      const read = <A, E>(
+        effect: Effect.Effect<A, E, MerchantContext>,
+        recordIds?: readonly string[]
+      ) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
-          yield* ensure(merchant.id)
+          yield* ensure(merchant.id, recordIds)
           return yield* effect
         })
-      const write = <A, E>(effect: Effect.Effect<A, E, MerchantContext>, now: string) =>
+      const write = <A, E>(
+        effect: Effect.Effect<A, E, MerchantContext>,
+        now: string,
+        recordIds?: readonly string[]
+      ) =>
         Effect.gen(function* () {
           const merchant = yield* MerchantContext
-          yield* ensure(merchant.id)
+          yield* ensure(merchant.id, recordIds)
           const before = memoryStateFor(store, merchant.id)
           const expectedRevision = observedRevisions.get(merchant.id) ?? 0
           const result = yield* effect
           const persisted = yield* Effect.result(
-            persist(merchant.id, now, expectedRevision)
+            persist(merchant.id, now, expectedRevision, before)
           )
           if (persisted._tag === 'Failure') {
             restoreMemory(store, merchant.id, before)
@@ -416,19 +569,23 @@ export const LiveCustomerDirectory: Layer.Layer<CustomerDirectory, never, Databa
         checkPublicEligibility: (details, now) =>
           read(directory.checkPublicEligibility(details, now)),
         search: (query, options) => read(directory.search(query, options)),
-        get: (id) => read(directory.get(id)),
+        get: (id) => read(directory.get(id), [id]),
         editPreferred: (id, input) =>
-          write(directory.editPreferred(id, input), input.now),
-        addNote: (id, input) => write(directory.addNote(id, input), input.now),
+          write(directory.editPreferred(id, input), input.now, [id]),
+        addNote: (id, input) => write(directory.addNote(id, input), input.now, [id]),
         setContactStatus: (id, input) =>
-          write(directory.setContactStatus(id, input), input.now),
+          write(directory.setContactStatus(id, input), input.now, [id]),
         recordConsent: (id, input) =>
-          write(directory.recordConsent(id, input), input.now),
-        setBan: (id, input) => write(directory.setBan(id, input), input.now),
-        liftBan: (id, input) => write(directory.liftBan(id, input), input.now),
-        merge: (input) => write(directory.merge(input), input.now),
-        split: (input) => write(directory.split(input), input.now),
-        archive: (id, input) => write(directory.archive(id, input), input.now),
+          write(directory.recordConsent(id, input), input.now, [id]),
+        setBan: (id, input) => write(directory.setBan(id, input), input.now, [id]),
+        liftBan: (id, input) => write(directory.liftBan(id, input), input.now, [id]),
+        merge: (input) =>
+          write(directory.merge(input), input.now, [
+            input.survivorId,
+            input.absorbedId
+          ]),
+        split: (input) => write(directory.split(input), input.now, [input.sourceId]),
+        archive: (id, input) => write(directory.archive(id, input), input.now, [id]),
         previewImport: (rows) => read(directory.previewImport(rows)),
         importRows: (input) => write(directory.importRows(input), input.now),
         exportMinimized: () => read(directory.exportMinimized()),

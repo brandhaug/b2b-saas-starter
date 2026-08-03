@@ -1,4 +1,4 @@
-import type { DirectoryCustomerDetails } from '@b2b-saas-starter/capabilities/customer-directory'
+import type { CustomerImportRow } from '@b2b-saas-starter/capabilities/customer-directory'
 
 const parseCells = (input: string): readonly (readonly string[])[] => {
   const rows: string[][] = []
@@ -32,13 +32,12 @@ const parseCells = (input: string): readonly (readonly string[])[] => {
   return rows
 }
 
-export const parseCustomerImportCsv = (
-  input: string
-): readonly DirectoryCustomerDetails[] =>
+export const parseCustomerImportCsv = (input: string): readonly CustomerImportRow[] =>
   parseCells(input)
     .filter(([name]) => Boolean(name))
-    .map(([name = '', email = '', phone = '']) => ({
+    .map(([name = '', email = '', phone = '', externalReference = '']) => ({
       name,
       email: email || null,
-      phone: phone || null
+      phone: phone || null,
+      ...(externalReference ? { externalReference } : {})
     }))
