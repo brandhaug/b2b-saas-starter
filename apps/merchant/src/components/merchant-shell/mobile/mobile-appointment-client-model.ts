@@ -24,8 +24,6 @@ export type AppointmentClientGroup = {
   readonly entries: readonly CustomerEntry[]
 }
 
-const normalizedSearchValue = (value: string) => value.trim().toLocaleLowerCase()
-
 const clientLetter = (name: string) => {
   const first = name.trim().charAt(0).toLocaleUpperCase()
   return /^[A-Z]$/.test(first) ? first : '#'
@@ -35,9 +33,8 @@ export const groupAppointmentClients = (
   entries: readonly CustomerEntry[],
   query: string
 ): readonly AppointmentClientGroup[] => {
-  const normalizedQuery = normalizedSearchValue(query)
-  const filtered = normalizedQuery
-    ? entries.filter((entry) => customerRecordMatchesQuery(entry, normalizedQuery))
+  const filtered = query.trim()
+    ? entries.filter((entry) => customerRecordMatchesQuery(entry, query))
     : entries
 
   const sorted = [...filtered].sort((left, right) =>

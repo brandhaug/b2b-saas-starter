@@ -13,10 +13,9 @@ export const filterCustomerEntries = (
   entries: readonly CustomerEntry[],
   query: string
 ) => {
-  const normalizedQuery = query.trim().toLocaleLowerCase()
-  if (!normalizedQuery) return entries
+  if (!query.trim()) return entries
 
-  return entries.filter((entry) => customerRecordMatchesQuery(entry, normalizedQuery))
+  return entries.filter((entry) => customerRecordMatchesQuery(entry, query))
 }
 
 export const customerInitials = (name: string) => {
