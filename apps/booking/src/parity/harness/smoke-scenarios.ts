@@ -51,19 +51,25 @@ const shellScenario = (profile: Parameters<typeof scenarioPresentationFor>[0]) =
 }
 
 export const smokeScenarios = await Promise.all([
-  defineScenario({
-    ...base,
-    id: 'booking/cancellation-refund',
-    journey: 'cancellation-refund',
-    route: '/mara-booking-studio/booking',
-    assertions: [
-      'protected confirmation offers an explicit individual cancellation',
-      'cancellation commits while provider-free refund work remains optional',
-      'the cancelled Appointment is visible after the command',
-      'no sibling Appointment is changed implicitly',
-      'no undeclared network request is made'
-    ]
-  }),
+  ...(['en', 'es', 'fr', 'ro'] as const).map((locale) =>
+    defineScenario({
+      ...base,
+      id:
+        locale === 'en'
+          ? 'booking/cancellation-refund'
+          : `booking/cancellation-refund-${locale}`,
+      journey: 'cancellation-refund',
+      locale,
+      route: '/mara-booking-studio/booking',
+      assertions: [
+        'protected confirmation offers an explicit individual cancellation',
+        'cancellation commits while provider-free refund work remains optional',
+        'the cancelled Appointment is visible after the command',
+        'no sibling Appointment is changed implicitly',
+        'no undeclared network request is made'
+      ]
+    })
+  ),
   ...(['en', 'es', 'fr', 'ro'] as const).map((locale) =>
     defineScenario({
       ...base,

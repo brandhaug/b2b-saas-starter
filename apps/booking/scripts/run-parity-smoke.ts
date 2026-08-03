@@ -511,7 +511,10 @@ const capture = async (
             .isVisible()) &&
           (await page
             .getByRole('button', {
-              name: translateBookingMessage(scenario.locale, 'reservation.cancel')
+              name: translateBookingMessage(
+                scenario.locale,
+                'confirmation.cancel_appointment'
+              )
             })
             .isVisible())
       )
