@@ -19,6 +19,7 @@ import {
   makeLiveTransactionalEmailLayer,
   selectTransactionalEmailProvider
 } from './notifications/transactional-email.ts'
+import { LiveOperationalMessagingJobs } from './notifications/operational-messaging-jobs.ts'
 export { SeedLayer, type CapabilitiesLayer, type CapabilityServices } from './layers.ts'
 export { CapabilityUnavailable } from './errors.ts'
 
@@ -192,6 +193,9 @@ export const selectCapabilitiesLayer = (
       : {})
   })
 }
+
+export const makeOperationalMessagingJobsLayer = (env: BookingProductEnv) =>
+  LiveOperationalMessagingJobs.pipe(Layer.provide(layerFromD1(env.DB)))
 
 export const makeOperationalMessagingExecutionLayer = (
   env: BookingProductEnv & { readonly ENVIRONMENT?: string | undefined },
