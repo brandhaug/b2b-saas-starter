@@ -158,7 +158,10 @@ export const selectCapabilitiesLayer = (
   env: BookingProductEnv,
   options: Pick<
     import('./layers.ts').LiveCapabilitiesOptions,
-    'confirmationKeyring' | 'notificationDestinationSecrets' | 'capabilityOutboxHandler'
+    | 'confirmationKeyring'
+    | 'notificationDestinationSecrets'
+    | 'capabilityOutboxHandler'
+    | 'merchantAppointmentImpersonatedBy'
   > = {}
 ): CapabilitiesLayer => {
   const destinationSecrets =
@@ -178,6 +181,7 @@ export const selectCapabilitiesLayer = (
     platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET,
     requirePlatformApiCursorSecret: env.REQUIRE_PLATFORM_API_CURSOR_SECRET,
     confirmationKeyring: options.confirmationKeyring,
+    merchantAppointmentImpersonatedBy: options.merchantAppointmentImpersonatedBy,
     capabilityOutboxHandler: options.capabilityOutboxHandler,
     ...(env.BOOKING_EVENTS_QUEUE
       ? {

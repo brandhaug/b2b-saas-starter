@@ -29,10 +29,11 @@ export const runAppointmentCommand = createServerFn({ method: 'POST' })
   .handler(
     async ({ data }): Promise<MerchantAppointmentCommandResult> =>
       runMerchantRequest('appointment.update', (session) =>
-        executeAppointmentCommand(session.user.id, {
-          ...data,
-          impersonatedBy: session.session.impersonatedBy ?? null
-        })
+        executeAppointmentCommand(
+          session.user.id,
+          data,
+          session.session.impersonatedBy ?? null
+        )
       )
   )
 

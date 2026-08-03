@@ -8,6 +8,8 @@ import {
   getAppointmentHistory,
   runAppointmentCommand
 } from '@/lib/server/appointment-operations.ts'
+import { getMerchantCatalog } from '@/lib/server/merchant-catalog.ts'
+import type { ServiceRecord } from '@b2b-saas-starter/capabilities/merchant-catalog'
 
 export function AppointmentOperationsPanel({
   appointment
@@ -28,10 +30,33 @@ export function AppointmentOperationsPanel({
   const [rescheduleLocal, setRescheduleLocal] = useState(() =>
     localDateTimeValue(appointment.startsAt, appointment.snapshot.merchantTimezone)
   )
+  const currentPrimaryService = appointment.snapshot.services.find(
+    (service) => service.role === 'primary'
+  )
+  const [catalogServices, setCatalogServices] = useState<readonly ServiceRecord[]>([])
+  const [rescheduleServiceId, setRescheduleServiceId] = useState(
+    currentPrimaryService?.id ?? ''
+  )
+  const [rescheduleNotify, setRescheduleNotify] = useState(true)
+  const [scheduleWarningAcknowledged, setScheduleWarningAcknowledged] = useState(false)
+  const [scheduleOverrideReason, setScheduleOverrideReason] = useState('')
+  const [cancellationCategory, setCancellationCategory] = useState<
+    'customer_requested' | 'merchant_unavailable' | 'duplicate_or_error' | 'other'
+  >('customer_requested')
+  const [cancellationNote, setCancellationNote] = useState('')
+  const [cancellationMessage, setCancellationMessage] = useState('')
+  const [cancellationNotify, setCancellationNotify] = useState(true)
+  const [returnOnCancellation, setReturnOnCancellation] = useState(false)
   const [collectionAmount, setCollectionAmount] = useState('')
   const [collectionKind, setCollectionKind] = useState<'collection' | 'return'>(
     'collection'
   )
+  const [collectionMethod, setCollectionMethod] = useState<
+    'cash' | 'card_terminal' | 'bank_transfer' | 'other'
+  >('cash')
+  const [collectionNote, setCollectionNote] = useState('')
+  const [collectionOffsetId, setCollectionOffsetId] = useState('')
+  const [collectionCorrectionReason, setCollectionCorrectionReason] = useState('')
   const [history, setHistory] = useState<
     Awaited<ReturnType<typeof getAppointmentHistory>>
   >([])
@@ -46,6 +71,24 @@ export function AppointmentOperationsPanel({
       active = false
     }
   }, [appointment.id])
+  useEffect(() => {
+    if (appointment.status !== 'scheduled') return
+    let active = true
+    getMerchantCatalog()
+      .then((catalog) => {
+        if (active)
+          setCatalogServices(
+            catalog.services.filter(
+              (service) =>
+                service.status === 'active' && service.eligibleProviderIds.length > 0
+            )
+          )
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [appointment.status])
   const revision = appointment.revision ?? 1
 
   const execute = async (command: MerchantAppointmentCommand) => {
@@ -82,18 +125,52 @@ export function AppointmentOperationsPanel({
       return
     }
     const startsAt = instants[0]!.toISOString()
+    const replacementService = catalogServices.find(
+      (service) => service.id === rescheduleServiceId
+    )
+    const durationMinutes =
+      rescheduleServiceId !== currentPrimaryService?.id && replacementService
+        ? replacementService.durationMinutes
+        : appointment.snapshot.durationMinutes
     void execute({
       kind: 'reschedule',
       idempotencyKey: crypto.randomUUID(),
       appointmentId: appointment.id,
       expectedRevision: revision,
       startsAt,
-      endsAt: new Date(
-        Date.parse(startsAt) + appointment.snapshot.durationMinutes * 60_000
-      ).toISOString(),
-      notification: { kind: 'notify' }
+      endsAt: new Date(Date.parse(startsAt) + durationMinutes * 60_000).toISOString(),
+      ...(rescheduleServiceId !== currentPrimaryService?.id
+        ? { serviceIds: [rescheduleServiceId] }
+        : {}),
+      ...(scheduleWarningAcknowledged
+        ? {
+            warningAcknowledged: true,
+            ...(scheduleOverrideReason.trim()
+              ? { overrideReason: scheduleOverrideReason }
+              : {})
+          }
+        : {}),
+      notification: rescheduleNotify
+        ? { kind: 'notify' }
+        : { kind: 'suppress', reason: 'Customer already knows.' }
     })
   }
+
+  const cancellationFacts = () => ({
+    category: cancellationCategory,
+    ...(cancellationNote.trim() ? { privateNote: cancellationNote } : {}),
+    ...(cancellationMessage.trim() ? { customerMessage: cancellationMessage } : {}),
+    ...(returnOnCancellation && (appointment.externalCollectionNetMinor ?? 0) > 0
+      ? {
+          returnedAmounts: {
+            [appointment.id]: appointment.externalCollectionNetMinor ?? 0
+          }
+        }
+      : {}),
+    notification: cancellationNotify
+      ? ({ kind: 'notify' } as const)
+      : ({ kind: 'suppress', reason: 'Customer already knows.' } as const)
+  })
 
   return (
     <section aria-label="Appointment operations" className="mt-6 border bg-card p-5">
@@ -164,6 +241,61 @@ export function AppointmentOperationsPanel({
               onChange={(event) => setRescheduleLocal(event.target.value)}
               className="h-10 rounded-lg border bg-background px-3"
             />
+            <select
+              aria-label="Replacement service"
+              value={rescheduleServiceId}
+              onChange={(event) => setRescheduleServiceId(event.target.value)}
+              className="h-10 rounded-lg border bg-background px-3"
+            >
+              {currentPrimaryService ? (
+                <option value={currentPrimaryService.id}>
+                  Keep {currentPrimaryService.name} —{' '}
+                  {(appointment.snapshot.totalMinor / 100).toFixed(2)}{' '}
+                  {appointment.snapshot.currency}
+                </option>
+              ) : null}
+              {catalogServices
+                .filter((service) => service.id !== currentPrimaryService?.id)
+                .map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name} — {(service.priceMinor / 100).toFixed(2)}{' '}
+                    {service.currency}
+                  </option>
+                ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Current: {new Date(appointment.startsAt).toLocaleString()} ·{' '}
+              {(appointment.snapshot.totalMinor / 100).toFixed(2)}{' '}
+              {appointment.snapshot.currency}. Proposed time and any selected current
+              Service will be revalidated atomically.
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={rescheduleNotify}
+                onChange={(event) => setRescheduleNotify(event.target.checked)}
+              />
+              Notify customer about this revision
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={scheduleWarningAcknowledged}
+                onChange={(event) =>
+                  setScheduleWarningAcknowledged(event.target.checked)
+                }
+              />
+              Acknowledge outside-hours or Blocked Time warning if shown
+            </label>
+            {scheduleWarningAcknowledged ? (
+              <input
+                aria-label="Schedule override reason"
+                value={scheduleOverrideReason}
+                onChange={(event) => setScheduleOverrideReason(event.target.value)}
+                placeholder="Optional private override reason"
+                className="h-10 rounded-lg border bg-background px-3"
+              />
+            ) : null}
             <CommandButton onClick={reschedule}>Reschedule and notify</CommandButton>
             <div className="grid grid-cols-2 gap-2">
               <CommandButton
@@ -180,7 +312,7 @@ export function AppointmentOperationsPanel({
                             amountMinor:
                               appointment.snapshot.totalMinor -
                               (appointment.externalCollectionNetMinor ?? 0),
-                            method: 'cash' as const,
+                            method: collectionMethod,
                             recordedAt: new Date().toISOString()
                           }
                         }
@@ -209,11 +341,25 @@ export function AppointmentOperationsPanel({
                   kind: 'complete',
                   idempotencyKey: crypto.randomUUID(),
                   appointmentId: appointment.id,
-                  expectedRevision: revision
+                  expectedRevision: revision,
+                  completionChoice: 'already_recorded'
                 })
               }
             >
-              Complete — already recorded or collect later
+              Complete — already recorded
+            </CommandButton>
+            <CommandButton
+              onClick={() =>
+                void execute({
+                  kind: 'complete',
+                  idempotencyKey: crypto.randomUUID(),
+                  appointmentId: appointment.id,
+                  expectedRevision: revision,
+                  completionChoice: 'collect_later'
+                })
+              }
+            >
+              Complete — collect later
             </CommandButton>
             <CommandButton
               destructive
@@ -223,13 +369,69 @@ export function AppointmentOperationsPanel({
                   idempotencyKey: crypto.randomUUID(),
                   appointmentId: appointment.id,
                   expectedRevisions: { [appointment.id]: revision },
-                  category: 'customer_requested',
-                  notification: { kind: 'notify' }
+                  ...cancellationFacts()
                 })
               }
             >
               Cancel Appointment
             </CommandButton>
+          </fieldset>
+        ) : null}
+
+        {appointment.status === 'scheduled' ? (
+          <fieldset disabled={pending} className="grid gap-2 rounded-xl border p-3">
+            <legend className="px-1 text-sm font-medium">Cancellation facts</legend>
+            <select
+              aria-label="Cancellation category"
+              value={cancellationCategory}
+              onChange={(event) =>
+                setCancellationCategory(
+                  event.target.value as typeof cancellationCategory
+                )
+              }
+              className="h-10 rounded-lg border bg-background px-3"
+            >
+              <option value="customer_requested">Customer requested</option>
+              <option value="merchant_unavailable">Merchant unavailable</option>
+              <option value="duplicate_or_error">Duplicate or error</option>
+              <option value="other">Other</option>
+            </select>
+            <input
+              aria-label="Private cancellation note"
+              value={cancellationNote}
+              onChange={(event) => setCancellationNote(event.target.value)}
+              placeholder={
+                cancellationCategory === 'other'
+                  ? 'Private note (required)'
+                  : 'Optional private note'
+              }
+              className="h-10 rounded-lg border bg-background px-3"
+            />
+            <input
+              aria-label="Customer cancellation message"
+              value={cancellationMessage}
+              onChange={(event) => setCancellationMessage(event.target.value)}
+              placeholder="Optional customer message"
+              className="h-10 rounded-lg border bg-background px-3"
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={cancellationNotify}
+                onChange={(event) => setCancellationNotify(event.target.checked)}
+              />
+              Notify customer
+            </label>
+            {(appointment.externalCollectionNetMinor ?? 0) > 0 ? (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={returnOnCancellation}
+                  onChange={(event) => setReturnOnCancellation(event.target.checked)}
+                />
+                Value was actually returned; append a matching Returned fact
+              </label>
+            ) : null}
           </fieldset>
         ) : null}
 
@@ -265,8 +467,7 @@ export function AppointmentOperationsPanel({
                     .seriesMembers!.filter((member) => member.status === 'scheduled')
                     .map((member) => [member.id, member.revision])
                 ),
-                category: 'merchant_unavailable',
-                notification: { kind: 'notify' }
+                ...cancellationFacts()
               })
             }
           >
@@ -288,8 +489,7 @@ export function AppointmentOperationsPanel({
                     .partyMembers!.filter((member) => member.status === 'scheduled')
                     .map((member) => [member.id, member.revision])
                 ),
-                category: 'customer_requested',
-                notification: { kind: 'notify' }
+                ...cancellationFacts()
               })
             }
           >
@@ -325,6 +525,42 @@ export function AppointmentOperationsPanel({
               <option value="return">Returned</option>
             </select>
           </div>
+          <select
+            aria-label="External Collection method"
+            value={collectionMethod}
+            onChange={(event) =>
+              setCollectionMethod(event.target.value as typeof collectionMethod)
+            }
+            className="h-10 rounded-lg border bg-background px-3"
+          >
+            <option value="cash">Cash</option>
+            <option value="card_terminal">Card terminal</option>
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="other">Other</option>
+          </select>
+          <input
+            aria-label="External Collection note or reference"
+            value={collectionNote}
+            onChange={(event) => setCollectionNote(event.target.value)}
+            placeholder="Optional note or reference"
+            className="h-10 rounded-lg border bg-background px-3"
+          />
+          <input
+            aria-label="External Collection offset entry"
+            value={collectionOffsetId}
+            onChange={(event) => setCollectionOffsetId(event.target.value)}
+            placeholder="Original entry ID for a correction"
+            className="h-10 rounded-lg border bg-background px-3"
+          />
+          {collectionOffsetId ? (
+            <input
+              aria-label="External Collection correction reason"
+              value={collectionCorrectionReason}
+              onChange={(event) => setCollectionCorrectionReason(event.target.value)}
+              placeholder="Correction reason (required)"
+              className="h-10 rounded-lg border bg-background px-3"
+            />
+          ) : null}
           <CommandButton
             onClick={() => {
               const amountMinor = Math.round(Number(collectionAmount) * 100)
@@ -338,8 +574,15 @@ export function AppointmentOperationsPanel({
                 entry: {
                   kind: collectionKind,
                   amountMinor,
-                  method: 'cash',
-                  recordedAt: new Date().toISOString()
+                  method: collectionMethod,
+                  recordedAt: new Date().toISOString(),
+                  ...(collectionNote.trim() ? { noteOrReference: collectionNote } : {}),
+                  ...(collectionOffsetId.trim()
+                    ? {
+                        offsetsEntryId: collectionOffsetId,
+                        correctionReason: collectionCorrectionReason
+                      }
+                    : {})
                 }
               })
             }}

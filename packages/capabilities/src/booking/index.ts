@@ -145,9 +145,11 @@ export {
 } from './appointment-operations.ts'
 export type { AppointmentOperationsShape } from './appointment-operations.ts'
 export {
+  liveMerchantAppointmentCommands,
   LiveMerchantAppointmentCommands,
   MerchantAppointmentCommands,
-  MerchantAppointmentCommandSchema
+  MerchantAppointmentCommandSchema,
+  SeedMerchantAppointmentCommands
 } from './merchant-appointment-commands.ts'
 export type {
   AppendExternalCollection,

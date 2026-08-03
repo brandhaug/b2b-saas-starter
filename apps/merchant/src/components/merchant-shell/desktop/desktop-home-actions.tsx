@@ -4,6 +4,10 @@ import { useState, type ReactNode } from 'react'
 import { merchantOverlayNavigationState } from '@/lib/merchant-home-route.ts'
 import type { MerchantDestination } from '../navigation.tsx'
 import { NewAppointmentDialog } from '../mobile/mobile-new-appointment-sheet.tsx'
+import {
+  appointmentCreateOptions,
+  type AppointmentCreateMode
+} from '../appointment-create-mode.ts'
 
 const walkInsAction = { to: '/walk-ins', icon: <ListOrdered aria-hidden /> } as const
 const customersAction = {
@@ -24,9 +28,8 @@ export function DesktopHomeActions({
 }) {
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
   const [newAppointmentOpen, setNewAppointmentOpen] = useState(false)
-  const [appointmentMode, setAppointmentMode] = useState<
-    'appointment' | 'series' | 'record-completed'
-  >('appointment')
+  const [appointmentMode, setAppointmentMode] =
+    useState<AppointmentCreateMode>('appointment')
   const destinationsByRoute = new Map(
     destinations.map((destination) => [destination.to, destination])
   )
@@ -91,13 +94,7 @@ export function DesktopHomeActions({
         >
           <h2 className="text-xl font-semibold">New</h2>
           <div className="mt-4 grid gap-2">
-            {(
-              [
-                ['appointment', 'Appointment'],
-                ['series', 'Appointment series'],
-                ['record-completed', 'Record completed visit']
-              ] as const
-            ).map(([mode, label]) => (
+            {appointmentCreateOptions.map(({ mode, label }) => (
               <button
                 key={mode}
                 type="button"

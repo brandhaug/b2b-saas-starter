@@ -3,7 +3,6 @@ import { Effect, Layer } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import {
   AppointmentOperations,
-  LiveMerchantAppointmentCommands,
   MerchantAppointmentCommands,
   type MerchantAppointmentCommand
 } from '@b2b-saas-starter/capabilities/booking'
@@ -19,7 +18,8 @@ const run = async <A>(
     A,
     unknown,
     AppointmentOperations | MerchantAppointmentCommands | MerchantContext
-  >
+  >,
+  impersonatedBy: string | null = null
 ) => {
   if (!env.DB)
     throw new Error('Appointment Operations requires the Merchant App D1 binding.')
@@ -28,8 +28,10 @@ const run = async <A>(
     Effect.provide(
       effect,
       Layer.mergeAll(
-        selectCapabilitiesLayer({ DB: env.DB }),
-        LiveMerchantAppointmentCommands.pipe(Layer.provide(layerFromD1(env.DB))),
+        selectCapabilitiesLayer(
+          { DB: env.DB },
+          { merchantAppointmentImpersonatedBy: impersonatedBy }
+        ),
         context
       )
     )
@@ -52,13 +54,15 @@ export const readAppointmentDetail = (userId: string, appointmentId: string) =>
 
 export const executeAppointmentCommand = (
   userId: string,
-  command: MerchantAppointmentCommand
+  command: MerchantAppointmentCommand,
+  impersonatedBy: string | null
 ) =>
   run(
     userId,
     Effect.flatMap(MerchantAppointmentCommands, (operations) =>
       operations.execute(command)
-    )
+    ),
+    impersonatedBy
   )
 
 export const readAppointmentHistory = (userId: string, appointmentId: string) =>

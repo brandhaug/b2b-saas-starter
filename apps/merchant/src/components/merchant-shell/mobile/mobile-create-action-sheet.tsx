@@ -5,12 +5,12 @@ import {
 } from './mobile-sheet-motion.ts'
 import { useMobileSurfaceChrome } from './use-mobile-surface-chrome.ts'
 import './mobile-create-action-sheet.css'
+import {
+  appointmentCreateOptions,
+  type AppointmentCreateMode
+} from '../appointment-create-mode.ts'
 
-export type MobileCreateIntent =
-  | 'appointment'
-  | 'series'
-  | 'record-completed'
-  | 'block-time'
+export type MobileCreateIntent = AppointmentCreateMode | 'block-time'
 
 type CreateActionSheetState = 'entering' | 'open' | 'closing'
 
@@ -162,30 +162,17 @@ function MobileCreateActionSheetDialog({
           aria-label="Create"
           className="overflow-hidden rounded-[1.4rem] bg-background shadow-2xl"
         >
-          <button
-            type="button"
-            style={IOS_ACTION_BUTTON_RESET}
-            className="flex h-14 w-full appearance-none items-center justify-center bg-transparent text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted"
-            onClick={() => choose('appointment')}
-          >
-            Appointment
-          </button>
-          <button
-            type="button"
-            style={IOS_ACTION_BUTTON_RESET}
-            className="flex h-14 w-full appearance-none items-center justify-center border-t bg-transparent text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted dark:border-white/10"
-            onClick={() => choose('series')}
-          >
-            Appointment series
-          </button>
-          <button
-            type="button"
-            style={IOS_ACTION_BUTTON_RESET}
-            className="flex h-14 w-full appearance-none items-center justify-center border-t bg-transparent text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted dark:border-white/10"
-            onClick={() => choose('record-completed')}
-          >
-            Record completed visit
-          </button>
+          {appointmentCreateOptions.map(({ mode, label }, index) => (
+            <button
+              key={mode}
+              type="button"
+              style={IOS_ACTION_BUTTON_RESET}
+              className={`flex h-14 w-full appearance-none items-center justify-center bg-transparent text-[1.0625rem] font-semibold text-info transition-colors active:bg-muted ${index === 0 ? '' : 'border-t dark:border-white/10'}`}
+              onClick={() => choose(mode)}
+            >
+              {label}
+            </button>
+          ))}
           <button
             type="button"
             style={IOS_ACTION_BUTTON_RESET}

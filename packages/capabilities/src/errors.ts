@@ -20,6 +20,10 @@ export class CapabilityDenied extends Schema.TaggedErrorClass<CapabilityDenied>(
 
 export class CapabilityConflict extends Schema.TaggedErrorClass<CapabilityConflict>()(
   'CapabilityConflict',
-  { reason: Schema.String, currentRevision: Schema.optional(Schema.Number) },
+  {
+    reason: Schema.String,
+    currentRevision: Schema.optional(Schema.Number),
+    current: Schema.optional(Schema.Unknown)
+  },
   { httpApiStatus: 409 }
 ) {}

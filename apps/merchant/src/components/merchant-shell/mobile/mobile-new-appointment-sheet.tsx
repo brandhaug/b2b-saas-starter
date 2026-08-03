@@ -55,6 +55,7 @@ import {
 } from './mobile-sheet-header.tsx'
 import { useMobileCollapsingSheetTitle } from './use-mobile-collapsing-sheet-title.ts'
 import { useMobileRouteSheet } from './use-mobile-route-sheet.ts'
+import type { AppointmentCreateMode } from '../appointment-create-mode.ts'
 
 type NewAppointmentStep =
   | 'appointment'
@@ -70,7 +71,7 @@ export type NewAppointmentPresentation = 'desktop' | 'mobile'
 type NewAppointmentDialogProps = {
   readonly open: boolean
   readonly appointmentDate?: string | undefined
-  readonly mode?: 'appointment' | 'series' | 'record-completed'
+  readonly mode?: AppointmentCreateMode
   readonly onRequestClose: () => void
 }
 
@@ -133,7 +134,7 @@ function MobileNewAppointmentSheetDialog({
   onRequestClose
 }: {
   readonly appointmentDate: string
-  readonly mode: 'appointment' | 'series' | 'record-completed'
+  readonly mode: AppointmentCreateMode
   readonly onRequestClose: () => void
 }) {
   const sheet = useMobileRouteSheet({ layout: 'sheet', onRequestClose })
@@ -153,7 +154,7 @@ function DesktopNewAppointmentSheetDialog({
   onRequestClose
 }: {
   readonly appointmentDate: string
-  readonly mode: 'appointment' | 'series' | 'record-completed'
+  readonly mode: AppointmentCreateMode
   readonly onRequestClose: () => void
 }) {
   const sheet = useDesktopAppointmentDialogSurface(onRequestClose)
@@ -191,7 +192,7 @@ function NewAppointmentSheetSurface({
   sheet
 }: {
   readonly appointmentDate: string
-  readonly mode: 'appointment' | 'series' | 'record-completed'
+  readonly mode: AppointmentCreateMode
   readonly presentation: NewAppointmentPresentation
   readonly sheet: NewAppointmentSheetController
 }) {
@@ -216,7 +217,24 @@ function NewAppointmentSheetSurface({
     mode === 'series' ? 1 : null
   )
   const [recordedLocalTime, setRecordedLocalTime] = useState('12:00')
+  const [completionReason, setCompletionReason] = useState('')
+  const [completionCollectionKind, setCompletionCollectionKind] = useState<
+    'collected' | 'already_recorded' | 'collect_later'
+  >('collect_later')
+  const [completionAmount, setCompletionAmount] = useState('')
+  const [completionMethod, setCompletionMethod] = useState<
+    'cash' | 'card_terminal' | 'bank_transfer' | 'other'
+  >('cash')
+  const [historicalOverlapAcknowledged, setHistoricalOverlapAcknowledged] =
+    useState(false)
   const [repeatCount, setRepeatCount] = useState(4)
+  const [excludedSeriesIndices, setExcludedSeriesIndices] = useState<number[]>([])
+  const [seriesDateOverrides, setSeriesDateOverrides] = useState<
+    Readonly<Record<number, string>>
+  >({})
+  const [seriesFoldChoices, setSeriesFoldChoices] = useState<
+    Readonly<Record<number, 0 | 1>>
+  >({})
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'failed'>('idle')
   const [saveError, setSaveError] = useState('')
   const [recurrencePickerOpen, setRecurrencePickerOpen] = useState(false)
@@ -256,23 +274,31 @@ function NewAppointmentSheetSurface({
     )?.value
     try {
       if (repeatEveryWeeks && localTime) {
-        const occurrences = Array.from({ length: repeatCount }, (_, index) => {
-          const date = addDraftCalendarDays(selectedDate, index * repeatEveryWeeks * 7)
-          const candidates = civilTimeInstants(date, localTime, availability.timezone)
-          if (candidates.length !== 1)
-            throw new Error(
-              candidates.length === 0
-                ? `${date} ${localTime} does not exist because of a timezone change.`
-                : `${date} ${localTime} is ambiguous because of a timezone change.`
-            )
-          const startsAt = candidates[0]!.toISOString()
-          return {
-            startsAt,
-            endsAt: new Date(
-              Date.parse(startsAt) + durationMinutes * 60_000
-            ).toISOString()
-          }
-        })
+        const occurrences = Array.from({ length: repeatCount }, (_, index) => index)
+          .filter((index) => !excludedSeriesIndices.includes(index))
+          .map((index) => {
+            const date =
+              seriesDateOverrides[index] ??
+              addDraftCalendarDays(selectedDate, index * repeatEveryWeeks * 7)
+            const candidates = civilTimeInstants(date, localTime, availability.timezone)
+            if (candidates.length === 0)
+              throw new Error(
+                `${date} ${localTime} does not exist because of a timezone change. Adjust or exclude that occurrence.`
+              )
+            if (candidates.length > 1 && seriesFoldChoices[index] === undefined)
+              throw new Error(
+                `${date} ${localTime} is ambiguous. Choose the earlier or later instant in the preview.`
+              )
+            const startsAt = candidates[seriesFoldChoices[index] ?? 0]!.toISOString()
+            return {
+              startsAt,
+              endsAt: new Date(
+                Date.parse(startsAt) + durationMinutes * 60_000
+              ).toISOString()
+            }
+          })
+        if (occurrences.length < 2)
+          throw new Error('A series requires at least two included Appointments.')
         await runAppointmentCommand({
           data: {
             kind: 'create_series',
@@ -290,9 +316,16 @@ function NewAppointmentSheetSurface({
               phone: selectedClient.phone,
               ...(clientNote ? { note: clientNote } : {})
             },
-            notification: notifyCustomer
-              ? { kind: 'notify' }
-              : { kind: 'suppress', reason: 'Customer already knows.' }
+            ...(mode === 'record-completed'
+              ? {}
+              : {
+                  notification: notifyCustomer
+                    ? ({ kind: 'notify' } as const)
+                    : ({
+                        kind: 'suppress',
+                        reason: 'Customer already knows.'
+                      } as const)
+                })
           }
         })
       } else {
@@ -317,8 +350,17 @@ function NewAppointmentSheetSurface({
             ...(appointmentNote ? { appointmentNote } : {}),
             ...(mode === 'record-completed'
               ? {
-                  completionReason: 'Recorded after the visit was completed.',
-                  completionCollection: { kind: 'collect_later' as const }
+                  completionReason,
+                  warningAcknowledged: historicalOverlapAcknowledged,
+                  completionCollection:
+                    completionCollectionKind === 'collected'
+                      ? {
+                          kind: 'collected' as const,
+                          amountMinor: Math.round(Number(completionAmount) * 100),
+                          method: completionMethod,
+                          recordedAt: new Date().toISOString()
+                        }
+                      : { kind: completionCollectionKind }
                 }
               : {}),
             notification: notifyCustomer
@@ -575,12 +617,20 @@ function NewAppointmentSheetSurface({
       selectedTime={effectiveSelectedTime}
       repeatEveryWeeks={repeatEveryWeeks}
       repeatCount={repeatCount}
+      excludedSeriesIndices={excludedSeriesIndices}
+      seriesDateOverrides={seriesDateOverrides}
+      seriesFoldChoices={seriesFoldChoices}
       appointmentNote={appointmentNote}
       clientNote={clientNote}
       availability={availability}
       availabilityState={availabilityState}
       mode={mode}
       recordedLocalTime={recordedLocalTime}
+      completionReason={completionReason}
+      completionCollectionKind={completionCollectionKind}
+      completionAmount={completionAmount}
+      completionMethod={completionMethod}
+      historicalOverlapAcknowledged={historicalOverlapAcknowledged}
       saveState={saveState}
       saveError={saveError}
       onClose={() => sheet.closeSheet()}
@@ -600,11 +650,34 @@ function NewAppointmentSheetSurface({
       onChangeRecordedLocalTime={(time) => {
         setRecordedLocalTime(time)
       }}
+      onChangeCompletionReason={setCompletionReason}
+      onChangeCompletionCollectionKind={setCompletionCollectionKind}
+      onChangeCompletionAmount={setCompletionAmount}
+      onChangeCompletionMethod={setCompletionMethod}
+      onToggleHistoricalOverlapAcknowledgement={() =>
+        setHistoricalOverlapAcknowledged((current) => !current)
+      }
       onChooseRepeat={() => {
         if (presentation === 'desktop') openStep('recurrence', 'repeat')
         else setRecurrencePickerOpen(true)
       }}
-      onChangeRepeatCount={setRepeatCount}
+      onChangeRepeatCount={(count) => {
+        setRepeatCount(count)
+        setExcludedSeriesIndices((current) => current.filter((index) => index < count))
+      }}
+      onToggleSeriesOccurrence={(index) =>
+        setExcludedSeriesIndices((current) =>
+          current.includes(index)
+            ? current.filter((candidate) => candidate !== index)
+            : [...current, index]
+        )
+      }
+      onChangeSeriesOccurrenceDate={(index, date) =>
+        setSeriesDateOverrides((current) => ({ ...current, [index]: date }))
+      }
+      onChooseSeriesFold={(index, choice) =>
+        setSeriesFoldChoices((current) => ({ ...current, [index]: choice }))
+      }
       onEditAppointmentNote={() => openStep('appointment-notes', 'appointment-notes')}
       onEditClientNote={() => openStep('client-notes', 'client-notes')}
       onToggleNotify={() => setNotifyCustomer((current) => !current)}
@@ -933,12 +1006,20 @@ function AppointmentDraft({
   selectedTime,
   repeatEveryWeeks,
   repeatCount,
+  excludedSeriesIndices,
+  seriesDateOverrides,
+  seriesFoldChoices,
   appointmentNote,
   clientNote,
   availability,
   availabilityState,
   mode,
   recordedLocalTime,
+  completionReason,
+  completionCollectionKind,
+  completionAmount,
+  completionMethod,
+  historicalOverlapAcknowledged,
   saveState,
   saveError,
   onClose,
@@ -948,8 +1029,16 @@ function AppointmentDraft({
   onSelectDate,
   onSelectTime,
   onChangeRecordedLocalTime,
+  onChangeCompletionReason,
+  onChangeCompletionCollectionKind,
+  onChangeCompletionAmount,
+  onChangeCompletionMethod,
+  onToggleHistoricalOverlapAcknowledgement,
   onChooseRepeat,
   onChangeRepeatCount,
+  onToggleSeriesOccurrence,
+  onChangeSeriesOccurrenceDate,
+  onChooseSeriesFold,
   onEditAppointmentNote,
   onEditClientNote,
   onToggleNotify,
@@ -964,12 +1053,20 @@ function AppointmentDraft({
   readonly selectedTime: string | null
   readonly repeatEveryWeeks: number | null
   readonly repeatCount: number
+  readonly excludedSeriesIndices: readonly number[]
+  readonly seriesDateOverrides: Readonly<Record<number, string>>
+  readonly seriesFoldChoices: Readonly<Record<number, 0 | 1>>
   readonly appointmentNote: string
   readonly clientNote: string
   readonly availability: Availability | null
   readonly availabilityState: 'idle' | 'loading' | 'ready' | 'error'
-  readonly mode: 'appointment' | 'series' | 'record-completed'
+  readonly mode: AppointmentCreateMode
   readonly recordedLocalTime: string
+  readonly completionReason: string
+  readonly completionCollectionKind: 'collected' | 'already_recorded' | 'collect_later'
+  readonly completionAmount: string
+  readonly completionMethod: 'cash' | 'card_terminal' | 'bank_transfer' | 'other'
+  readonly historicalOverlapAcknowledged: boolean
   readonly saveState: 'idle' | 'saving' | 'failed'
   readonly saveError: string
   readonly onClose: () => void
@@ -979,8 +1076,20 @@ function AppointmentDraft({
   readonly onSelectDate: (date: string) => void
   readonly onSelectTime: (time: string) => void
   readonly onChangeRecordedLocalTime: (time: string) => void
+  readonly onChangeCompletionReason: (reason: string) => void
+  readonly onChangeCompletionCollectionKind: (
+    kind: 'collected' | 'already_recorded' | 'collect_later'
+  ) => void
+  readonly onChangeCompletionAmount: (amount: string) => void
+  readonly onChangeCompletionMethod: (
+    method: 'cash' | 'card_terminal' | 'bank_transfer' | 'other'
+  ) => void
+  readonly onToggleHistoricalOverlapAcknowledgement: () => void
   readonly onChooseRepeat: () => void
   readonly onChangeRepeatCount: (count: number) => void
+  readonly onToggleSeriesOccurrence: (index: number) => void
+  readonly onChangeSeriesOccurrenceDate: (index: number, date: string) => void
+  readonly onChooseSeriesFold: (index: number, choice: 0 | 1) => void
   readonly onEditAppointmentNote: () => void
   readonly onEditClientNote: () => void
   readonly onToggleNotify: () => void
@@ -991,7 +1100,16 @@ function AppointmentDraft({
     handleScroll: handleTitleScroll,
     largeTitleRef
   } = useMobileCollapsingSheetTitle()
-  const canSave = Boolean(selectedClient && selectedService && selectedTime)
+  const canSave = Boolean(
+    selectedClient &&
+    selectedService &&
+    selectedTime &&
+    (mode !== 'record-completed' ||
+      (completionReason.trim() &&
+        historicalOverlapAcknowledged &&
+        (completionCollectionKind !== 'collected' || Number(completionAmount) > 0))) &&
+    (!repeatEveryWeeks || repeatCount - excludedSeriesIndices.length >= 2)
+  )
   const desktop = presentation === 'desktop'
 
   return (
@@ -1107,8 +1225,20 @@ function AppointmentDraft({
                 selectedDate={selectedDate}
                 selectedTime={recordedLocalTime}
                 timezone={availability?.timezone}
+                reason={completionReason}
+                collectionKind={completionCollectionKind}
+                collectionAmount={completionAmount}
+                collectionMethod={completionMethod}
+                overlapAcknowledged={historicalOverlapAcknowledged}
                 onSelectDate={onSelectDate}
                 onSelectTime={onChangeRecordedLocalTime}
+                onChangeReason={onChangeCompletionReason}
+                onChangeCollectionKind={onChangeCompletionCollectionKind}
+                onChangeCollectionAmount={onChangeCompletionAmount}
+                onChangeCollectionMethod={onChangeCompletionMethod}
+                onToggleOverlapAcknowledgement={
+                  onToggleHistoricalOverlapAcknowledgement
+                }
               />
             ) : (
               <AppointmentSchedulingSection
@@ -1175,13 +1305,66 @@ function AppointmentDraft({
                   className="mt-2 ml-9 grid max-h-40 gap-1 overflow-auto text-sm text-muted-foreground"
                 >
                   {Array.from({ length: repeatCount }, (_, index) => {
-                    const date = addDraftCalendarDays(
-                      selectedDate,
-                      index * repeatEveryWeeks * 7
-                    )
+                    const date =
+                      seriesDateOverrides[index] ??
+                      addDraftCalendarDays(selectedDate, index * repeatEveryWeeks * 7)
+                    const localTime = appointmentTimes(availability, selectedDate).find(
+                      (time) => time.instant === selectedTime
+                    )?.value
+                    const candidates =
+                      availability && localTime
+                        ? civilTimeInstants(date, localTime, availability.timezone)
+                        : []
+                    const excluded = excludedSeriesIndices.includes(index)
                     return (
-                      <li key={date}>
-                        {index + 1}. {formatDraftDate(date)}
+                      <li
+                        key={index}
+                        className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg border p-2"
+                      >
+                        <span className={excluded ? 'line-through opacity-60' : ''}>
+                          {index + 1}. {formatDraftDate(date)}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-info"
+                          onClick={() => onToggleSeriesOccurrence(index)}
+                        >
+                          {excluded ? 'Include' : 'Exclude'}
+                        </button>
+                        {excluded ? null : (
+                          <input
+                            type="date"
+                            aria-label={`Series occurrence ${index + 1} date`}
+                            value={date}
+                            onChange={(event) =>
+                              onChangeSeriesOccurrenceDate(index, event.target.value)
+                            }
+                            className="h-9 rounded-lg border bg-background px-2"
+                          />
+                        )}
+                        {!excluded && candidates.length === 2 ? (
+                          <select
+                            aria-label={`Series occurrence ${index + 1} ambiguous time`}
+                            value={seriesFoldChoices[index] ?? ''}
+                            onChange={(event) =>
+                              onChooseSeriesFold(
+                                index,
+                                Number(event.target.value) as 0 | 1
+                              )
+                            }
+                            className="h-9 rounded-lg border bg-background px-2"
+                          >
+                            <option value="">Resolve time…</option>
+                            <option value="0">Earlier instant</option>
+                            <option value="1">Later instant</option>
+                          </select>
+                        ) : null}
+                        {!excluded && localTime && candidates.length === 0 ? (
+                          <span className="col-span-2 text-xs text-destructive">
+                            This local time does not exist. Adjust the date or exclude
+                            it.
+                          </span>
+                        ) : null}
                       </li>
                     )
                   })}
@@ -1190,32 +1373,34 @@ function AppointmentDraft({
             ) : null}
           </div>
 
-          <button
-            type="button"
-            aria-pressed={notifyCustomer}
-            data-mobile-new-appointment-notify="true"
-            className="flex min-h-16 w-full items-center gap-4 border-b border-border/70 text-left"
-            onClick={onToggleNotify}
-          >
-            <Bell
-              aria-hidden
-              className="size-5 shrink-0 text-muted-foreground"
-              strokeWidth={1.7}
-            />
-            <span className="min-w-0 flex-1 text-[1.0625rem] font-medium">
-              Notify customer
-            </span>
-            <span
-              aria-hidden
-              className={`grid size-8 place-items-center rounded-full transition-colors ${
-                notifyCustomer
-                  ? 'bg-info text-info-foreground'
-                  : 'bg-muted text-muted-foreground'
-              }`}
+          {mode === 'record-completed' ? null : (
+            <button
+              type="button"
+              aria-pressed={notifyCustomer}
+              data-mobile-new-appointment-notify="true"
+              className="flex min-h-16 w-full items-center gap-4 border-b border-border/70 text-left"
+              onClick={onToggleNotify}
             >
-              {notifyCustomer ? <Check className="size-6" strokeWidth={2.2} /> : null}
-            </span>
-          </button>
+              <Bell
+                aria-hidden
+                className="size-5 shrink-0 text-muted-foreground"
+                strokeWidth={1.7}
+              />
+              <span className="min-w-0 flex-1 text-[1.0625rem] font-medium">
+                Notify customer
+              </span>
+              <span
+                aria-hidden
+                className={`grid size-8 place-items-center rounded-full transition-colors ${
+                  notifyCustomer
+                    ? 'bg-info text-info-foreground'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {notifyCustomer ? <Check className="size-6" strokeWidth={2.2} /> : null}
+              </span>
+            </button>
+          )}
         </div>
       </MobileSheetScrollport>
 
@@ -1573,7 +1758,7 @@ function appointmentRepeatLabel(weeks: number | null) {
   return `Every ${weeks} weeks`
 }
 
-function appointmentComposerTitle(mode: 'appointment' | 'series' | 'record-completed') {
+function appointmentComposerTitle(mode: AppointmentCreateMode) {
   if (mode === 'series') return 'Book an appointment series'
   if (mode === 'record-completed') return 'Record a completed visit'
   return 'Book an appointment'
@@ -1583,14 +1768,38 @@ function RecordCompletedSchedulingSection({
   selectedDate,
   selectedTime,
   timezone,
+  reason,
+  collectionKind,
+  collectionAmount,
+  collectionMethod,
+  overlapAcknowledged,
   onSelectDate,
-  onSelectTime
+  onSelectTime,
+  onChangeReason,
+  onChangeCollectionKind,
+  onChangeCollectionAmount,
+  onChangeCollectionMethod,
+  onToggleOverlapAcknowledgement
 }: {
   readonly selectedDate: string
   readonly selectedTime: string
   readonly timezone: string | undefined
+  readonly reason: string
+  readonly collectionKind: 'collected' | 'already_recorded' | 'collect_later'
+  readonly collectionAmount: string
+  readonly collectionMethod: 'cash' | 'card_terminal' | 'bank_transfer' | 'other'
+  readonly overlapAcknowledged: boolean
   readonly onSelectDate: (date: string) => void
   readonly onSelectTime: (time: string) => void
+  readonly onChangeReason: (reason: string) => void
+  readonly onChangeCollectionKind: (
+    kind: 'collected' | 'already_recorded' | 'collect_later'
+  ) => void
+  readonly onChangeCollectionAmount: (amount: string) => void
+  readonly onChangeCollectionMethod: (
+    method: 'cash' | 'card_terminal' | 'bank_transfer' | 'other'
+  ) => void
+  readonly onToggleOverlapAcknowledgement: () => void
 }) {
   return (
     <section className="grid gap-4 border-b border-border/70 py-5">
@@ -1619,6 +1828,73 @@ function RecordCompletedSchedulingSection({
           className="h-11 rounded-xl border bg-background px-3 text-base"
         />
       </label>
+      <label className="grid gap-1.5 text-sm font-medium">
+        Completion reason
+        <textarea
+          aria-label="Completed visit reason"
+          value={reason}
+          onChange={(event) => onChangeReason(event.target.value)}
+          className="min-h-20 rounded-xl border bg-background p-3 text-base"
+          placeholder="Why is this visit being entered after completion?"
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-medium">
+        External Collection choice
+        <select
+          aria-label="Completed visit collection choice"
+          value={collectionKind}
+          onChange={(event) =>
+            onChangeCollectionKind(
+              event.target.value as 'collected' | 'already_recorded' | 'collect_later'
+            )
+          }
+          className="h-11 rounded-xl border bg-background px-3 text-base"
+        >
+          <option value="collected">Record Collected now</option>
+          <option value="already_recorded">Already recorded</option>
+          <option value="collect_later">Collect later</option>
+        </select>
+      </label>
+      {collectionKind === 'collected' ? (
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            aria-label="Completed visit collection amount"
+            inputMode="decimal"
+            value={collectionAmount}
+            onChange={(event) => onChangeCollectionAmount(event.target.value)}
+            placeholder="Amount"
+            className="h-11 rounded-xl border bg-background px-3 text-base"
+          />
+          <select
+            aria-label="Completed visit collection method"
+            value={collectionMethod}
+            onChange={(event) =>
+              onChangeCollectionMethod(
+                event.target.value as
+                  | 'cash'
+                  | 'card_terminal'
+                  | 'bank_transfer'
+                  | 'other'
+              )
+            }
+            className="h-11 rounded-xl border bg-background px-3 text-base"
+          >
+            <option value="cash">Cash</option>
+            <option value="card_terminal">Card terminal</option>
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      ) : null}
+      <button
+        type="button"
+        aria-pressed={overlapAcknowledged}
+        className="rounded-xl border p-3 text-left text-sm"
+        onClick={onToggleOverlapAcknowledgement}
+      >
+        {overlapAcknowledged ? '✓ ' : ''}I reviewed the historical time. If it overlaps
+        another Appointment, both facts remain visible and this visit reserves no time.
+      </button>
       {!timezone ? (
         <p className="text-sm text-muted-foreground">Loading Shop timezone…</p>
       ) : null}

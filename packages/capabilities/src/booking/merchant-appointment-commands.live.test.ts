@@ -202,7 +202,15 @@ describe('Live Merchant Appointment commands', () => {
         expectedRevision: 0,
         customer: { name: 'Alex Customer', email: null, phone: null }
       })
-    ).rejects.toMatchObject({ reason: 'stale_revision', currentRevision: 1 })
+    ).rejects.toMatchObject({
+      reason: 'stale_revision',
+      currentRevision: 1,
+      current: {
+        id: 'apt_operations_one',
+        revision: 1,
+        status: 'scheduled'
+      }
+    })
 
     await execute({
       kind: 'append_collection',
@@ -230,6 +238,15 @@ describe('Live Merchant Appointment commands', () => {
         }
       })
     ).rejects.toMatchObject({ reason: 'collection_net_out_of_bounds' })
+
+    await expect(
+      execute({
+        kind: 'complete',
+        idempotencyKey: 'complete-without-collection-choice',
+        appointmentId: 'apt_operations_one',
+        expectedRevision: 2
+      })
+    ).rejects.toMatchObject({ reason: 'outcome_not_available' })
   })
 
   it('revokes old Confirmation access when the customer destination changes', async () => {

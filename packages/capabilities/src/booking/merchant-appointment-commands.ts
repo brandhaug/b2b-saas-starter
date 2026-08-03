@@ -34,8 +34,7 @@ const NotificationWire = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('suppress'), reason: NonEmpty })
 ])
 const CommonWire = {
-  idempotencyKey: NonEmpty,
-  impersonatedBy: Schema.optional(Schema.NullOr(Schema.String))
+  idempotencyKey: NonEmpty
 } as const
 const CollectionMethodWire = Schema.Literals([
   'cash',
@@ -149,6 +148,9 @@ export const MerchantAppointmentCommandSchema = Schema.Union([
     expectedRevision: Revision,
     outcome: Schema.optional(Schema.Literals(['completed', 'no_show'])),
     reason: Schema.optional(Schema.String),
+    completionChoice: Schema.optional(
+      Schema.Literals(['already_recorded', 'collect_later'])
+    ),
     collection: Schema.optional(
       Schema.Struct({
         amountMinor: PositiveMinor,
@@ -188,7 +190,6 @@ export type MerchantAppointmentCustomer = {
 
 type CommandBase = {
   readonly idempotencyKey: string
-  readonly impersonatedBy?: string | null | undefined
 }
 
 export type CreateMerchantAppointment = CommandBase & {
@@ -213,7 +214,7 @@ export type CreateMerchantAppointment = CommandBase & {
       }
     | { readonly kind: 'already_recorded' | 'collect_later' }
     | undefined
-  readonly notification: AppointmentNotificationChoice
+  readonly notification?: AppointmentNotificationChoice | undefined
 }
 
 export type CreateMerchantAppointmentSeries = CommandBase & {
@@ -278,6 +279,7 @@ export type SetMerchantAppointmentOutcome = CommandBase & {
   readonly expectedRevision: number
   readonly outcome?: 'completed' | 'no_show' | undefined
   readonly reason?: string | undefined
+  readonly completionChoice?: 'already_recorded' | 'collect_later' | undefined
   readonly collection?:
     | {
         readonly amountMinor: number
@@ -366,6 +368,18 @@ export class MerchantAppointmentCommands extends Context.Service<
   MerchantAppointmentCommandsShape
 >()('@b2b-saas-starter/capabilities/MerchantAppointmentCommands') {}
 
+export const SeedMerchantAppointmentCommands: Layer.Layer<MerchantAppointmentCommands> =
+  Layer.succeed(MerchantAppointmentCommands)({
+    execute: () =>
+      Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'merchant-appointment-commands',
+          reason: 'seed_mutations_disabled'
+        })
+      ),
+    history: () => Effect.succeed([])
+  })
+
 type ServiceRow = {
   readonly id: string
   readonly name: string
@@ -387,10 +401,11 @@ type AppointmentRow = {
   readonly snapshot: string | StoredAppointmentSnapshot | null
 }
 
-const reject = (reason: string, currentRevision?: number) =>
+const reject = (reason: string, currentRevision?: number, current?: unknown) =>
   new CapabilityConflict({
     reason,
-    ...(currentRevision === undefined ? {} : { currentRevision })
+    ...(currentRevision === undefined ? {} : { currentRevision }),
+    ...(current === undefined ? {} : { current })
   })
 
 const normalizeCustomer = (customer: MerchantAppointmentCustomer) => ({
@@ -667,6 +682,7 @@ const historyStatement = (
     operationId: string
     command: MerchantAppointmentCommand
     actorId: string
+    impersonatedBy: string | null
     priorRevision: number
     resultingRevision: number
     facts: unknown
@@ -685,7 +701,7 @@ const historyStatement = (
       input.operationId,
       input.command.kind,
       input.actorId,
-      input.command.impersonatedBy ?? null,
+      input.impersonatedBy,
       input.priorRevision,
       input.resultingRevision,
       JSON.stringify(input.facts),
@@ -733,283 +749,675 @@ const mapFailure = (cause: unknown) => {
     : new CapabilityUnavailable({ capability: 'merchant-appointment-commands', reason })
 }
 
-export const LiveMerchantAppointmentCommands: Layer.Layer<
-  MerchantAppointmentCommands,
-  never,
-  Database
-> = Layer.effect(
-  MerchantAppointmentCommands,
-  Effect.map(Database, (db) => {
-    const raw = rawD1FromDatabase(db)
-    const execute: MerchantAppointmentCommandsShape['execute'] = (command) =>
-      Effect.flatMap(MerchantContext, (merchant) =>
-        Effect.tryPromise({
-          try: async () => {
-            validateNotification(command)
-            if (!command.idempotencyKey.trim()) throw reject('idempotency_key_required')
-            const fingerprint = await commandFingerprint(command)
-            const replay = await raw
-              .prepare(`SELECT payload_fingerprint fingerprint, result_json resultJson
+export const liveMerchantAppointmentCommands = (options?: {
+  readonly impersonatedBy?: string | null | undefined
+}): Layer.Layer<MerchantAppointmentCommands, never, Database> =>
+  Layer.effect(
+    MerchantAppointmentCommands,
+    Effect.map(Database, (db) => {
+      const raw = rawD1FromDatabase(db)
+      const execute: MerchantAppointmentCommandsShape['execute'] = (command) =>
+        Effect.flatMap(MerchantContext, (merchant) =>
+          Effect.tryPromise({
+            try: async () => {
+              validateNotification(command)
+              if (command.kind === 'create' && !command.notification)
+                throw reject('notification_choice_required')
+              if (!command.idempotencyKey.trim())
+                throw reject('idempotency_key_required')
+              const fingerprint = await commandFingerprint(command)
+              const replay = await raw
+                .prepare(`SELECT payload_fingerprint fingerprint, result_json resultJson
               FROM appointment_operation_commands WHERE merchant_id = ? AND idempotency_key = ? LIMIT 1`)
-              .bind(merchant.id, command.idempotencyKey)
-              .first<{ fingerprint: string; resultJson: string }>()
-            if (replay) {
-              if (replay.fingerprint !== fingerprint)
-                throw reject('idempotency_key_reused')
-              return {
-                ...(JSON.parse(replay.resultJson) as MerchantAppointmentCommandResult),
-                replayed: true
+                .bind(merchant.id, command.idempotencyKey)
+                .first<{ fingerprint: string; resultJson: string }>()
+              if (replay) {
+                if (replay.fingerprint !== fingerprint)
+                  throw reject('idempotency_key_reused')
+                return {
+                  ...(JSON.parse(
+                    replay.resultJson
+                  ) as MerchantAppointmentCommandResult),
+                  replayed: true
+                }
               }
-            }
-            const actorId = merchant.actorUserId
-            if (!actorId)
-              throw new CapabilityDenied({ reason: 'owner_session_required' })
-            const createLike =
-              command.kind === 'create' ||
-              command.kind === 'record_completed' ||
-              command.kind === 'create_series'
-            await assertAccess(raw, merchant.id, actorId, !createLike)
-            const now = new Date().toISOString()
-            const operationId = newCapabilityId('apo')
-
-            if (
-              command.kind === 'create' ||
-              command.kind === 'record_completed' ||
-              command.kind === 'create_series'
-            ) {
-              const customer = normalizeCustomer(command.customer)
-              if (!customer.name) throw reject('customer_name_required')
-              const catalog = await loadCatalog(raw, merchant.id, command.serviceIds)
-              const occurrences =
+              const actorId = merchant.actorUserId
+              if (!actorId)
+                throw new CapabilityDenied({ reason: 'owner_session_required' })
+              const createLike =
+                command.kind === 'create' ||
+                command.kind === 'record_completed' ||
                 command.kind === 'create_series'
-                  ? command.occurrences
-                  : [
-                      {
-                        appointmentId: command.appointmentId,
-                        startsAt: command.startsAt,
-                        endsAt: command.endsAt
-                      }
-                    ]
+              await assertAccess(raw, merchant.id, actorId, !createLike)
+              const now = new Date().toISOString()
+              const operationId = newCapabilityId('apo')
+
               if (
-                command.kind === 'create_series' &&
-                (occurrences.length < 2 ||
-                  occurrences.length > 52 ||
-                  command.intervalWeeks < 1 ||
-                  command.intervalWeeks > 8)
-              )
-                throw reject('series_rule_invalid')
-              if (command.kind === 'create_series')
-                validateSeriesCadence(command, merchant.timezone)
-              if (
-                command.kind === 'record_completed' &&
-                (!command.completionReason?.trim() ||
-                  !command.completionCollection ||
-                  occurrences.some((item) => Date.parse(item.endsAt) > Date.parse(now)))
-              )
-                throw reject('record_completed_invalid')
-              if (
-                command.kind === 'create' &&
-                occurrences.some((item) => Date.parse(item.startsAt) < Date.parse(now))
-              )
-                throw reject('appointment_start_in_past')
-              const appointmentIds = occurrences.map(
-                (item) => item.appointmentId ?? newCapabilityId('apt')
-              )
-              const snapshots = occurrences.map((item) =>
-                makeSnapshot(
-                  merchant.timezone,
-                  command.customer,
-                  item.startsAt,
-                  item.endsAt,
-                  catalog
+                command.kind === 'create' ||
+                command.kind === 'record_completed' ||
+                command.kind === 'create_series'
+              ) {
+                const customer = normalizeCustomer(command.customer)
+                if (!customer.name) throw reject('customer_name_required')
+                const catalog = await loadCatalog(raw, merchant.id, command.serviceIds)
+                const occurrences =
+                  command.kind === 'create_series'
+                    ? command.occurrences
+                    : [
+                        {
+                          appointmentId: command.appointmentId,
+                          startsAt: command.startsAt,
+                          endsAt: command.endsAt
+                        }
+                      ]
+                if (
+                  command.kind === 'create_series' &&
+                  (occurrences.length < 2 ||
+                    occurrences.length > 52 ||
+                    command.intervalWeeks < 1 ||
+                    command.intervalWeeks > 8)
                 )
-              )
-              if (
-                command.kind !== 'record_completed' &&
-                !command.warningAcknowledged &&
-                (
-                  await Promise.all(
-                    snapshots.map((snapshot) =>
-                      requiresScheduleWarning(
-                        raw,
-                        merchant.id,
-                        merchant.timezone,
-                        catalog.provider.id,
-                        snapshot
+                  throw reject('series_rule_invalid')
+                if (command.kind === 'create_series')
+                  validateSeriesCadence(command, merchant.timezone)
+                if (
+                  command.kind === 'record_completed' &&
+                  (!command.completionReason?.trim() ||
+                    !command.completionCollection ||
+                    occurrences.some(
+                      (item) => Date.parse(item.endsAt) > Date.parse(now)
+                    ))
+                )
+                  throw reject('record_completed_invalid')
+                if (
+                  command.kind === 'create' &&
+                  occurrences.some(
+                    (item) => Date.parse(item.startsAt) < Date.parse(now)
+                  )
+                )
+                  throw reject('appointment_start_in_past')
+                const appointmentIds = occurrences.map(
+                  (item) => item.appointmentId ?? newCapabilityId('apt')
+                )
+                const snapshots = occurrences.map((item) =>
+                  makeSnapshot(
+                    merchant.timezone,
+                    command.customer,
+                    item.startsAt,
+                    item.endsAt,
+                    catalog
+                  )
+                )
+                if (
+                  command.kind === 'record_completed' &&
+                  !command.warningAcknowledged
+                ) {
+                  const historicalOverlap = await raw
+                    .prepare(`SELECT 1 overlapFound FROM appointments
+                      WHERE merchant_id = ? AND provider_id = ?
+                      AND starts_at < ? AND ends_at > ? LIMIT 1`)
+                    .bind(
+                      merchant.id,
+                      catalog.provider.id,
+                      occurrences[0]!.endsAt,
+                      occurrences[0]!.startsAt
+                    )
+                    .first<{ overlapFound: number }>()
+                  if (historicalOverlap)
+                    throw reject('historical_overlap_acknowledgement_required')
+                }
+                if (
+                  command.kind !== 'record_completed' &&
+                  !command.warningAcknowledged &&
+                  (
+                    await Promise.all(
+                      snapshots.map((snapshot) =>
+                        requiresScheduleWarning(
+                          raw,
+                          merchant.id,
+                          merchant.timezone,
+                          catalog.provider.id,
+                          snapshot
+                        )
                       )
                     )
-                  )
-                ).some(Boolean)
-              )
-                throw reject('schedule_warning_acknowledgement_required')
-              const seriesId =
-                command.kind === 'create_series'
-                  ? (command.seriesId ?? newCapabilityId('aps'))
-                  : undefined
-              const revisions = Object.fromEntries(appointmentIds.map((id) => [id, 1]))
-              const result: MerchantAppointmentCommandResult = {
-                operationId,
-                appointmentIds,
-                revisions,
-                replayed: false,
-                ...(seriesId ? { seriesId } : {})
-              }
-              const statements: D1PreparedStatement[] = []
-              const accessGuardId = `guard:${operationId}:access`
-              statements.push(
-                raw
-                  .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
+                  ).some(Boolean)
+                )
+                  throw reject('schedule_warning_acknowledgement_required')
+                const seriesId =
+                  command.kind === 'create_series'
+                    ? (command.seriesId ?? newCapabilityId('aps'))
+                    : undefined
+                const revisions = Object.fromEntries(
+                  appointmentIds.map((id) => [id, 1])
+                )
+                const result: MerchantAppointmentCommandResult = {
+                  operationId,
+                  appointmentIds,
+                  revisions,
+                  replayed: false,
+                  ...(seriesId ? { seriesId } : {})
+                }
+                const statements: D1PreparedStatement[] = []
+                const accessGuardId = `guard:${operationId}:access`
+                statements.push(
+                  raw
+                    .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
                 VALUES (?, CASE WHEN EXISTS (
                   SELECT 1 FROM merchant_subscriptions ms WHERE ms.merchant_id = ?
                   AND ms.status IN ('trialing','active','grace')
                   AND NOT EXISTS (SELECT 1 FROM merchant_access_holds h
                     WHERE h.merchant_id = ms.merchant_id AND h.user_id = ? AND h.released_at IS NULL)
                 ) THEN 1 ELSE 0 END)`)
-                  .bind(accessGuardId, merchant.id, actorId)
-              )
-              if (command.kind === 'create_series') {
-                statements.push(
-                  raw
-                    .prepare(
-                      `INSERT INTO capability_transaction_guards (id, accepted) VALUES (?, 1)`
-                    )
-                    .bind(`appointment-series-membership:${seriesId}`),
-                  raw
-                    .prepare(`INSERT INTO appointment_series
+                    .bind(accessGuardId, merchant.id, actorId)
+                )
+                if (command.kind === 'create_series') {
+                  statements.push(
+                    raw
+                      .prepare(
+                        `INSERT INTO capability_transaction_guards (id, accepted) VALUES (?, 1)`
+                      )
+                      .bind(`appointment-series-membership:${seriesId}`),
+                    raw
+                      .prepare(`INSERT INTO appointment_series
                     (id, merchant_id, idempotency_key, service_snapshot_json, customer_snapshot_json,
                      weekday, local_start_time, interval_weeks, occurrence_count, status, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`)
-                    .bind(
-                      seriesId!,
-                      merchant.id,
-                      command.idempotencyKey,
-                      JSON.stringify(snapshots[0]!.services),
-                      JSON.stringify(customer),
-                      new Date(occurrences[0]!.startsAt).getUTCDay(),
-                      command.localStartTime,
-                      command.intervalWeeks,
-                      occurrences.length,
-                      now,
-                      now
-                    )
-                )
-              }
-              for (const [index, appointmentId] of appointmentIds.entries()) {
-                const occurrence = occurrences[index]!
-                const snapshot = snapshots[index]!
-                if (Date.parse(occurrence.startsAt) >= Date.parse(occurrence.endsAt))
-                  throw reject('appointment_interval_invalid')
-                const historical = command.kind === 'record_completed'
-                statements.push(
-                  raw
-                    .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
+                      .bind(
+                        seriesId!,
+                        merchant.id,
+                        command.idempotencyKey,
+                        JSON.stringify(snapshots[0]!.services),
+                        JSON.stringify(customer),
+                        new Date(
+                          `${localOccurrence(occurrences[0]!.startsAt, merchant.timezone).date}T12:00:00.000Z`
+                        ).getUTCDay(),
+                        command.localStartTime,
+                        command.intervalWeeks,
+                        occurrences.length,
+                        now,
+                        now
+                      )
+                  )
+                }
+                for (const [index, appointmentId] of appointmentIds.entries()) {
+                  const occurrence = occurrences[index]!
+                  const snapshot = snapshots[index]!
+                  if (Date.parse(occurrence.startsAt) >= Date.parse(occurrence.endsAt))
+                    throw reject('appointment_interval_invalid')
+                  const historical = command.kind === 'record_completed'
+                  statements.push(
+                    raw
+                      .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
                   VALUES (?, CASE WHEN ? OR NOT EXISTS (
                     SELECT 1 FROM appointments a WHERE a.merchant_id = ? AND a.provider_id = ?
                     AND a.status = 'scheduled'
                     AND COALESCE(json_extract(a.snapshot, '$.occupiedStartsAt'), a.starts_at) < ?
                     AND COALESCE(json_extract(a.snapshot, '$.occupiedEndsAt'), a.ends_at) > ?
                   ) THEN 1 ELSE 0 END)`)
-                    .bind(
-                      `guard:${operationId}:${appointmentId}`,
-                      historical ? 1 : 0,
-                      merchant.id,
-                      catalog.provider.id,
-                      snapshot.occupiedEndsAt,
-                      snapshot.occupiedStartsAt
-                    )
-                )
-                statements.push(
-                  raw
-                    .prepare(`INSERT INTO appointments
-                  (id, merchant_id, provider_id, status, version, starts_at, ends_at, snapshot, created_at, updated_at)
-                  VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`)
-                    .bind(
-                      appointmentId,
-                      merchant.id,
-                      catalog.provider.id,
-                      historical ? 'completed' : 'scheduled',
-                      occurrence.startsAt,
-                      occurrence.endsAt,
-                      JSON.stringify(snapshot),
-                      now,
-                      now
-                    )
-                )
-                if (
-                  command.kind === 'record_completed' &&
-                  command.completionCollection?.kind === 'collected'
-                ) {
-                  if (command.completionCollection.amountMinor > snapshot.totalMinor)
-                    throw reject('collection_net_out_of_bounds')
+                      .bind(
+                        `guard:${operationId}:${appointmentId}`,
+                        historical ? 1 : 0,
+                        merchant.id,
+                        catalog.provider.id,
+                        snapshot.occupiedEndsAt,
+                        snapshot.occupiedStartsAt
+                      )
+                  )
                   statements.push(
                     raw
-                      .prepare(`INSERT INTO external_collections
+                      .prepare(`INSERT INTO appointments
+                  (id, merchant_id, provider_id, status, version, starts_at, ends_at, snapshot, created_at, updated_at)
+                  VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`)
+                      .bind(
+                        appointmentId,
+                        merchant.id,
+                        catalog.provider.id,
+                        historical ? 'completed' : 'scheduled',
+                        occurrence.startsAt,
+                        occurrence.endsAt,
+                        JSON.stringify(snapshot),
+                        now,
+                        now
+                      )
+                  )
+                  if (
+                    command.kind === 'record_completed' &&
+                    command.completionCollection?.kind === 'collected'
+                  ) {
+                    if (command.completionCollection.amountMinor > snapshot.totalMinor)
+                      throw reject('collection_net_out_of_bounds')
+                    statements.push(
+                      raw
+                        .prepare(`INSERT INTO external_collections
                     (id, merchant_id, appointment_id, idempotency_key, kind, method, amount_minor, currency,
                      actor_id, note_or_reference, recorded_at, created_at)
                     VALUES (?, ?, ?, ?, 'collection', ?, ?, ?, ?, ?, ?, ?)`)
+                        .bind(
+                          newCapabilityId('exc'),
+                          merchant.id,
+                          appointmentId,
+                          `${command.idempotencyKey}:${appointmentId}`,
+                          command.completionCollection.method,
+                          command.completionCollection.amountMinor,
+                          snapshot.currency,
+                          actorId,
+                          command.completionCollection.noteOrReference ?? null,
+                          command.completionCollection.recordedAt,
+                          now
+                        )
+                    )
+                  }
+                }
+                const associations = await Effect.runPromise(
+                  prepareAppointmentCustomerAssociationBatch(
+                    db,
+                    appointmentIds.map((id) => ({
+                      merchantId: merchant.id,
+                      appointment: {
+                        id,
+                        ...(command.customerRecordId
+                          ? { selectedCustomerRecordId: command.customerRecordId }
+                          : {}),
+                        ...(command.kind !== 'create_series' && command.appointmentNote
+                          ? { customerNote: command.appointmentNote }
+                          : {}),
+                        ...(seriesId
+                          ? {
+                              series: {
+                                id: seriesId,
+                                position: appointmentIds.indexOf(id)
+                              }
+                            }
+                          : {}),
+                        details: { ...customer, email: customer.email || null }
+                      },
+                      origin:
+                        command.kind === 'record_completed'
+                          ? ('record_completed' as const)
+                          : ('merchant_created' as const),
+                      actor: {
+                        merchantMemberId: actorId,
+                        impersonatedBy: options?.impersonatedBy ?? null
+                      },
+                      now
+                    }))
+                  )
+                )
+                statements.push(
+                  ...associations.map((statement) => prepared(raw, statement))
+                )
+                for (const [index, appointmentId] of appointmentIds.entries()) {
+                  if (seriesId)
+                    statements.push(
+                      raw
+                        .prepare(
+                          `UPDATE appointment_foundations SET series_id = ?, series_position = ? WHERE appointment_id = ? AND merchant_id = ?`
+                        )
+                        .bind(seriesId, index, appointmentId, merchant.id)
+                    )
+                  statements.push(
+                    historyStatement(raw, {
+                      merchantId: merchant.id,
+                      appointmentId,
+                      operationId,
+                      command,
+                      actorId,
+                      impersonatedBy: options?.impersonatedBy ?? null,
+                      priorRevision: 0,
+                      resultingRevision: 1,
+                      facts: {
+                        after: snapshots[index],
+                        status:
+                          command.kind === 'record_completed'
+                            ? 'completed'
+                            : 'scheduled'
+                      },
+                      now
+                    })
+                  )
+                  statements.push(
+                    raw
+                      .prepare(
+                        `DELETE FROM time_slot_holds WHERE merchant_id = ? AND provider_id = ? AND starts_at < ? AND ends_at > ?`
+                      )
+                      .bind(
+                        merchant.id,
+                        catalog.provider.id,
+                        snapshots[index]!.occupiedEndsAt,
+                        snapshots[index]!.occupiedStartsAt
+                      )
+                  )
+
+                  statements.push(
+                    raw
+                      .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
+                      .bind(`guard:${operationId}:${appointmentId}`)
+                  )
+                }
+                if (seriesId)
+                  statements.push(
+                    raw
+                      .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
+                      .bind(`appointment-series-membership:${seriesId}`)
+                  )
+                statements.push(
+                  raw
+                    .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
+                    .bind(accessGuardId)
+                )
+                statements.push(
+                  commandStatement(
+                    raw,
+                    merchant.id,
+                    command,
+                    fingerprint,
+                    operationId,
+                    result,
+                    now
+                  )
+                )
+                await raw.batch(statements)
+                return result
+              }
+
+              const mutationCommand = command as ExistingMerchantAppointmentCommand
+              let targetIds: string[]
+              if (
+                mutationCommand.kind === 'cancel' ||
+                mutationCommand.kind === 'cancel_party' ||
+                mutationCommand.kind === 'cancel_remaining_series'
+              )
+                targetIds = await appointmentIdsFor(raw, merchant.id, mutationCommand)
+              else targetIds = [mutationCommand.appointmentId!]
+              if (targetIds.length === 0)
+                throw new CapabilityNotFound({ resource: 'appointment' })
+              const placeholders = targetIds.map(() => '?').join(',')
+              const rows = await raw
+                .prepare(`SELECT id, merchant_id merchantId, booking_party_id bookingPartyId,
+              status, version, starts_at startsAt, ends_at endsAt, snapshot
+              FROM appointments WHERE merchant_id = ? AND id IN (${placeholders}) ORDER BY starts_at`)
+                .bind(merchant.id, ...targetIds)
+                .all<AppointmentRow>()
+              if (rows.results.length !== targetIds.length)
+                throw new CapabilityNotFound({ resource: 'appointment' })
+              const rowById = new Map(rows.results.map((row) => [row.id, row]))
+              const statements: D1PreparedStatement[] = []
+              const accessGuardId = `guard:${operationId}:access`
+              statements.push(
+                raw
+                  .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
+              VALUES (?, CASE WHEN EXISTS (
+                SELECT 1 FROM merchant_subscriptions ms WHERE ms.merchant_id = ?
+                AND NOT EXISTS (SELECT 1 FROM merchant_access_holds h
+                  WHERE h.merchant_id = ms.merchant_id AND h.user_id = ? AND h.released_at IS NULL)
+              ) THEN 1 ELSE 0 END)`)
+                  .bind(accessGuardId, merchant.id, actorId)
+              )
+              const revisions: Record<string, number> = {}
+              for (const appointmentId of targetIds) {
+                const row = rowById.get(appointmentId)!
+                const expected =
+                  'expectedRevisions' in mutationCommand
+                    ? mutationCommand.expectedRevisions[appointmentId]
+                    : mutationCommand.expectedRevision
+                if (expected !== row.version)
+                  throw reject('stale_revision', row.version, {
+                    id: row.id,
+                    status: row.status,
+                    revision: row.version,
+                    startsAt: row.startsAt,
+                    endsAt: row.endsAt,
+                    snapshot: jsonSnapshot(row.snapshot)
+                  })
+                const revisionGuardId = `guard:${operationId}:revision:${appointmentId}`
+                statements.push(
+                  raw
+                    .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
+                VALUES (?, CASE WHEN EXISTS (SELECT 1 FROM appointments
+                  WHERE id = ? AND merchant_id = ? AND version = ?) THEN 1 ELSE 0 END)`)
+                    .bind(revisionGuardId, appointmentId, merchant.id, row.version)
+                )
+                const snapshot = jsonSnapshot(row.snapshot)
+                let nextSnapshot = snapshot
+                let nextStatus = row.status
+                let startsAt = row.startsAt
+                let endsAt = row.endsAt
+                if (mutationCommand.kind === 'edit')
+                  nextSnapshot = {
+                    ...snapshot,
+                    customerDetails: normalizeCustomer(mutationCommand.customer)
+                  }
+                if (mutationCommand.kind === 'reschedule') {
+                  if (row.status !== 'scheduled')
+                    throw reject('appointment_not_scheduled')
+                  startsAt = mutationCommand.startsAt
+                  endsAt = mutationCommand.endsAt
+                  if (Date.parse(startsAt) < Date.parse(now))
+                    throw reject('appointment_start_in_past')
+                  const catalog = mutationCommand.serviceIds
+                    ? await loadCatalog(raw, merchant.id, mutationCommand.serviceIds)
+                    : null
+                  nextSnapshot = catalog
+                    ? makeSnapshot(
+                        merchant.timezone,
+                        snapshot.customerDetails,
+                        startsAt,
+                        endsAt,
+                        catalog
+                      )
+                    : {
+                        ...snapshot,
+                        startsAt,
+                        endsAt,
+                        occupiedStartsAt: new Date(
+                          Date.parse(startsAt) - snapshot.beforeBufferMinutes * 60_000
+                        ).toISOString(),
+                        occupiedEndsAt: new Date(
+                          Date.parse(endsAt) + snapshot.afterBufferMinutes * 60_000
+                        ).toISOString()
+                      }
+                  if (
+                    !mutationCommand.warningAcknowledged &&
+                    (await requiresScheduleWarning(
+                      raw,
+                      merchant.id,
+                      merchant.timezone,
+                      nextSnapshot.assignedProvider.id,
+                      nextSnapshot
+                    ))
+                  )
+                    throw reject('schedule_warning_acknowledgement_required')
+                  statements.push(
+                    raw
+                      .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
+                  VALUES (?, CASE WHEN NOT EXISTS (SELECT 1 FROM appointments a
+                    WHERE a.merchant_id = ? AND a.provider_id = ? AND a.id <> ? AND a.status = 'scheduled'
+                    AND COALESCE(json_extract(a.snapshot, '$.occupiedStartsAt'), a.starts_at) < ?
+                    AND COALESCE(json_extract(a.snapshot, '$.occupiedEndsAt'), a.ends_at) > ?) THEN 1 ELSE 0 END)`)
+                      .bind(
+                        `guard:${operationId}:overlap:${appointmentId}`,
+                        merchant.id,
+                        snapshot.assignedProvider.id,
+                        appointmentId,
+                        nextSnapshot.occupiedEndsAt,
+                        nextSnapshot.occupiedStartsAt
+                      )
+                  )
+                }
+                if (
+                  mutationCommand.kind === 'cancel' ||
+                  mutationCommand.kind === 'cancel_party' ||
+                  mutationCommand.kind === 'cancel_remaining_series'
+                ) {
+                  if (row.status !== 'scheduled')
+                    throw reject('appointment_not_scheduled')
+                  if (
+                    mutationCommand.category === 'other' &&
+                    !mutationCommand.privateNote?.trim()
+                  )
+                    throw reject('cancellation_note_required')
+                  nextStatus = 'cancelled'
+                }
+                if (
+                  mutationCommand.kind === 'complete' ||
+                  mutationCommand.kind === 'no_show' ||
+                  mutationCommand.kind === 'correct_outcome'
+                ) {
+                  const requested =
+                    mutationCommand.kind === 'complete'
+                      ? 'completed'
+                      : mutationCommand.kind === 'no_show'
+                        ? 'no_show'
+                        : mutationCommand.outcome
+                  if (!requested) throw reject('outcome_required')
+                  if (mutationCommand.kind === 'correct_outcome') {
+                    if (
+                      (row.status !== 'completed' && row.status !== 'no_show') ||
+                      !mutationCommand.reason?.trim()
+                    )
+                      throw reject('outcome_correction_invalid')
+                  } else if (
+                    row.status !== 'scheduled' ||
+                    Date.parse(now) < Date.parse(row.startsAt)
+                  )
+                    throw reject('outcome_not_available')
+                  if (
+                    mutationCommand.kind === 'complete' &&
+                    Boolean(mutationCommand.collection) ===
+                      Boolean(mutationCommand.completionChoice)
+                  )
+                    throw reject('completion_collection_choice_required')
+                  nextStatus = requested
+                }
+                const nextRevision = row.version + 1
+                if (mutationCommand.kind === 'edit') {
+                  const beforeEmail = snapshot.customerDetails.email
+                    .trim()
+                    .toLowerCase()
+                  const beforePhone = snapshot.customerDetails.phone?.trim() || null
+                  const afterEmail = nextSnapshot.customerDetails.email
+                    .trim()
+                    .toLowerCase()
+                  const afterPhone = nextSnapshot.customerDetails.phone?.trim() || null
+                  const destinationChanged =
+                    beforeEmail !== afterEmail || beforePhone !== afterPhone
+                  if (destinationChanged && !mutationCommand.notification)
+                    throw reject('destination_notification_choice_required')
+                  if (destinationChanged)
+                    statements.push(
+                      raw
+                        .prepare(
+                          `UPDATE confirmation_access SET revoked_at = ? WHERE appointment_id = ? AND revoked_at IS NULL`
+                        )
+                        .bind(now, appointmentId)
+                    )
+                  statements.push(
+                    raw
+                      .prepare(
+                        `UPDATE appointment_foundations SET customer_note = ? WHERE appointment_id = ? AND merchant_id = ?`
+                      )
+                      .bind(
+                        mutationCommand.appointmentNote?.trim() || null,
+                        appointmentId,
+                        merchant.id
+                      )
+                  )
+                }
+                statements.push(
+                  raw
+                    .prepare(`UPDATE appointments SET status = ?, version = ?, starts_at = ?, ends_at = ?, snapshot = ?, updated_at = ?
+                WHERE id = ? AND merchant_id = ? AND version = ?`)
+                    .bind(
+                      nextStatus,
+                      nextRevision,
+                      startsAt,
+                      endsAt,
+                      JSON.stringify(nextSnapshot),
+                      now,
+                      appointmentId,
+                      merchant.id,
+                      row.version
+                    )
+                )
+
+                const collection =
+                  mutationCommand.kind === 'append_collection'
+                    ? mutationCommand.entry
+                    : mutationCommand.kind === 'complete' && mutationCommand.collection
+                      ? { ...mutationCommand.collection, kind: 'collection' as const }
+                      : undefined
+                const returnedAmount =
+                  mutationCommand.kind === 'cancel' ||
+                  mutationCommand.kind === 'cancel_party' ||
+                  mutationCommand.kind === 'cancel_remaining_series'
+                    ? mutationCommand.returnedAmounts?.[appointmentId]
+                    : undefined
+                if (collection || returnedAmount) {
+                  const amountMinor = collection?.amountMinor ?? returnedAmount!
+                  if (!Number.isInteger(amountMinor) || amountMinor <= 0)
+                    throw reject('collection_amount_invalid')
+                  const net = await raw
+                    .prepare(`SELECT COALESCE(SUM(CASE kind WHEN 'collection' THEN amount_minor ELSE -amount_minor END), 0) net
+                  FROM external_collections WHERE merchant_id = ? AND appointment_id = ?`)
+                    .bind(merchant.id, appointmentId)
+                    .first<{ net: number }>()
+                  const collectionKind = collection?.kind ?? 'return'
+                  const resultingNet =
+                    (net?.net ?? 0) +
+                    (collectionKind === 'collection' ? amountMinor : -amountMinor)
+                  if (resultingNet < 0 || resultingNet > snapshot.totalMinor)
+                    throw reject('collection_net_out_of_bounds')
+                  if (
+                    collection?.offsetsEntryId &&
+                    !collection.correctionReason?.trim()
+                  )
+                    throw reject('collection_correction_reason_required')
+                  const collectionGuardId = `guard:${operationId}:collection:${appointmentId}`
+                  statements.push(
+                    raw
+                      .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
+                  VALUES (?, CASE WHEN (
+                    SELECT COALESCE(SUM(CASE kind WHEN 'collection' THEN amount_minor ELSE -amount_minor END), 0)
+                    FROM external_collections WHERE merchant_id = ? AND appointment_id = ?
+                  ) + ? BETWEEN 0 AND ? THEN 1 ELSE 0 END)`)
+                      .bind(
+                        collectionGuardId,
+                        merchant.id,
+                        appointmentId,
+                        collectionKind === 'collection' ? amountMinor : -amountMinor,
+                        snapshot.totalMinor
+                      )
+                  )
+                  statements.push(
+                    raw
+                      .prepare(`INSERT INTO external_collections
+                  (id, merchant_id, appointment_id, idempotency_key, kind, method, amount_minor, currency, actor_id,
+                   note_or_reference, offsets_entry_id, correction_reason, recorded_at, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
                       .bind(
                         newCapabilityId('exc'),
                         merchant.id,
                         appointmentId,
                         `${command.idempotencyKey}:${appointmentId}`,
-                        command.completionCollection.method,
-                        command.completionCollection.amountMinor,
+                        collectionKind,
+                        collection?.method ?? 'other',
+                        amountMinor,
                         snapshot.currency,
                         actorId,
-                        command.completionCollection.noteOrReference ?? null,
-                        command.completionCollection.recordedAt,
+                        collection?.noteOrReference ?? null,
+                        collection?.offsetsEntryId ?? null,
+                        collection?.correctionReason ?? null,
+                        collection?.recordedAt ?? now,
                         now
                       )
                   )
-                }
-              }
-              const associations = await Effect.runPromise(
-                prepareAppointmentCustomerAssociationBatch(
-                  db,
-                  appointmentIds.map((id) => ({
-                    merchantId: merchant.id,
-                    appointment: {
-                      id,
-                      ...(command.customerRecordId
-                        ? { selectedCustomerRecordId: command.customerRecordId }
-                        : {}),
-                      ...(command.kind !== 'create_series' && command.appointmentNote
-                        ? { customerNote: command.appointmentNote }
-                        : {}),
-                      ...(seriesId
-                        ? {
-                            series: {
-                              id: seriesId,
-                              position: appointmentIds.indexOf(id)
-                            }
-                          }
-                        : {}),
-                      details: { ...customer, email: customer.email || null }
-                    },
-                    origin:
-                      command.kind === 'record_completed'
-                        ? ('record_completed' as const)
-                        : ('merchant_created' as const),
-                    actor: {
-                      merchantMemberId: actorId,
-                      impersonatedBy: command.impersonatedBy ?? null
-                    },
-                    now
-                  }))
-                )
-              )
-              statements.push(
-                ...associations.map((statement) => prepared(raw, statement))
-              )
-              for (const [index, appointmentId] of appointmentIds.entries()) {
-                if (seriesId)
                   statements.push(
                     raw
-                      .prepare(
-                        `UPDATE appointment_foundations SET series_id = ?, series_position = ? WHERE appointment_id = ? AND merchant_id = ?`
-                      )
-                      .bind(seriesId, index, appointmentId, merchant.id)
+                      .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
+                      .bind(collectionGuardId)
                   )
+                }
                 statements.push(
                   historyStatement(raw, {
                     merchantId: merchant.id,
@@ -1017,45 +1425,77 @@ export const LiveMerchantAppointmentCommands: Layer.Layer<
                     operationId,
                     command,
                     actorId,
-                    priorRevision: 0,
-                    resultingRevision: 1,
+                    impersonatedBy: options?.impersonatedBy ?? null,
+                    priorRevision: row.version,
+                    resultingRevision: nextRevision,
                     facts: {
-                      after: snapshots[index],
-                      status:
-                        command.kind === 'record_completed' ? 'completed' : 'scheduled'
+                      before: {
+                        status: row.status,
+                        startsAt: row.startsAt,
+                        endsAt: row.endsAt,
+                        snapshot
+                      },
+                      after: {
+                        status: nextStatus,
+                        startsAt,
+                        endsAt,
+                        snapshot: nextSnapshot
+                      }
                     },
                     now
                   })
                 )
+                if (nextStatus !== 'scheduled')
+                  statements.push(
+                    raw
+                      .prepare(
+                        `UPDATE scheduled_work SET status = 'cancelled', updated_at = ? WHERE source_type = 'appointment' AND source_id = ? AND status = 'pending'`
+                      )
+                      .bind(now, appointmentId)
+                  )
+                if (mutationCommand.kind === 'reschedule') {
+                  statements.push(
+                    raw
+                      .prepare(
+                        `DELETE FROM time_slot_holds WHERE merchant_id = ? AND provider_id = ? AND starts_at < ? AND ends_at > ?`
+                      )
+                      .bind(
+                        merchant.id,
+                        nextSnapshot.assignedProvider.id,
+                        nextSnapshot.occupiedEndsAt,
+                        nextSnapshot.occupiedStartsAt
+                      )
+                  )
+                  statements.push(
+                    raw
+                      .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
+                      .bind(`guard:${operationId}:overlap:${appointmentId}`)
+                  )
+                }
+                statements.push(
+                  raw
+                    .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
+                    .bind(revisionGuardId)
+                )
+                revisions[appointmentId] = nextRevision
+              }
+              if (
+                mutationCommand.kind === 'cancel_remaining_series' &&
+                mutationCommand.seriesId
+              )
                 statements.push(
                   raw
                     .prepare(
-                      `DELETE FROM time_slot_holds WHERE merchant_id = ? AND provider_id = ? AND starts_at < ? AND ends_at > ?`
+                      `UPDATE appointment_series SET status = 'cancelled_remaining', updated_at = ? WHERE id = ? AND merchant_id = ?`
                     )
-                    .bind(
-                      merchant.id,
-                      catalog.provider.id,
-                      snapshots[index]!.occupiedEndsAt,
-                      snapshots[index]!.occupiedStartsAt
-                    )
+                    .bind(now, mutationCommand.seriesId, merchant.id)
                 )
-                statements.push(
-                  raw
-                    .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
-                    .bind(`guard:${operationId}:${appointmentId}`)
-                )
+              const result: MerchantAppointmentCommandResult = {
+                operationId,
+                appointmentIds: targetIds,
+                revisions,
+                replayed: false
               }
-              if (seriesId)
-                statements.push(
-                  raw
-                    .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
-                    .bind(`appointment-series-membership:${seriesId}`)
-                )
-              statements.push(
-                raw
-                  .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
-                  .bind(accessGuardId)
-              )
               statements.push(
                 commandStatement(
                   raw,
@@ -1067,409 +1507,41 @@ export const LiveMerchantAppointmentCommands: Layer.Layer<
                   now
                 )
               )
-              await raw.batch(statements)
-              return result
-            }
-
-            const mutationCommand = command as ExistingMerchantAppointmentCommand
-            let targetIds: string[]
-            if (
-              mutationCommand.kind === 'cancel' ||
-              mutationCommand.kind === 'cancel_party' ||
-              mutationCommand.kind === 'cancel_remaining_series'
-            )
-              targetIds = await appointmentIdsFor(raw, merchant.id, mutationCommand)
-            else targetIds = [mutationCommand.appointmentId!]
-            if (targetIds.length === 0)
-              throw new CapabilityNotFound({ resource: 'appointment' })
-            const placeholders = targetIds.map(() => '?').join(',')
-            const rows = await raw
-              .prepare(`SELECT id, merchant_id merchantId, booking_party_id bookingPartyId,
-              status, version, starts_at startsAt, ends_at endsAt, snapshot
-              FROM appointments WHERE merchant_id = ? AND id IN (${placeholders}) ORDER BY starts_at`)
-              .bind(merchant.id, ...targetIds)
-              .all<AppointmentRow>()
-            if (rows.results.length !== targetIds.length)
-              throw new CapabilityNotFound({ resource: 'appointment' })
-            const rowById = new Map(rows.results.map((row) => [row.id, row]))
-            const statements: D1PreparedStatement[] = []
-            const accessGuardId = `guard:${operationId}:access`
-            statements.push(
-              raw
-                .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
-              VALUES (?, CASE WHEN EXISTS (
-                SELECT 1 FROM merchant_subscriptions ms WHERE ms.merchant_id = ?
-                AND NOT EXISTS (SELECT 1 FROM merchant_access_holds h
-                  WHERE h.merchant_id = ms.merchant_id AND h.user_id = ? AND h.released_at IS NULL)
-              ) THEN 1 ELSE 0 END)`)
-                .bind(accessGuardId, merchant.id, actorId)
-            )
-            const revisions: Record<string, number> = {}
-            for (const appointmentId of targetIds) {
-              const row = rowById.get(appointmentId)!
-              const expected =
-                'expectedRevisions' in mutationCommand
-                  ? mutationCommand.expectedRevisions[appointmentId]
-                  : mutationCommand.expectedRevision
-              if (expected !== row.version) throw reject('stale_revision', row.version)
-              const revisionGuardId = `guard:${operationId}:revision:${appointmentId}`
-              statements.push(
-                raw
-                  .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
-                VALUES (?, CASE WHEN EXISTS (SELECT 1 FROM appointments
-                  WHERE id = ? AND merchant_id = ? AND version = ?) THEN 1 ELSE 0 END)`)
-                  .bind(revisionGuardId, appointmentId, merchant.id, row.version)
-              )
-              const snapshot = jsonSnapshot(row.snapshot)
-              let nextSnapshot = snapshot
-              let nextStatus = row.status
-              let startsAt = row.startsAt
-              let endsAt = row.endsAt
-              if (mutationCommand.kind === 'edit')
-                nextSnapshot = {
-                  ...snapshot,
-                  customerDetails: normalizeCustomer(mutationCommand.customer)
-                }
-              if (mutationCommand.kind === 'reschedule') {
-                if (row.status !== 'scheduled')
-                  throw reject('appointment_not_scheduled')
-                startsAt = mutationCommand.startsAt
-                endsAt = mutationCommand.endsAt
-                if (Date.parse(startsAt) < Date.parse(now))
-                  throw reject('appointment_start_in_past')
-                const catalog = mutationCommand.serviceIds
-                  ? await loadCatalog(raw, merchant.id, mutationCommand.serviceIds)
-                  : null
-                nextSnapshot = catalog
-                  ? makeSnapshot(
-                      merchant.timezone,
-                      snapshot.customerDetails,
-                      startsAt,
-                      endsAt,
-                      catalog
-                    )
-                  : {
-                      ...snapshot,
-                      startsAt,
-                      endsAt,
-                      occupiedStartsAt: new Date(
-                        Date.parse(startsAt) - snapshot.beforeBufferMinutes * 60_000
-                      ).toISOString(),
-                      occupiedEndsAt: new Date(
-                        Date.parse(endsAt) + snapshot.afterBufferMinutes * 60_000
-                      ).toISOString()
-                    }
-                if (
-                  !mutationCommand.warningAcknowledged &&
-                  (await requiresScheduleWarning(
-                    raw,
-                    merchant.id,
-                    merchant.timezone,
-                    nextSnapshot.assignedProvider.id,
-                    nextSnapshot
-                  ))
-                )
-                  throw reject('schedule_warning_acknowledgement_required')
-                statements.push(
-                  raw
-                    .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
-                  VALUES (?, CASE WHEN NOT EXISTS (SELECT 1 FROM appointments a
-                    WHERE a.merchant_id = ? AND a.provider_id = ? AND a.id <> ? AND a.status = 'scheduled'
-                    AND COALESCE(json_extract(a.snapshot, '$.occupiedStartsAt'), a.starts_at) < ?
-                    AND COALESCE(json_extract(a.snapshot, '$.occupiedEndsAt'), a.ends_at) > ?) THEN 1 ELSE 0 END)`)
-                    .bind(
-                      `guard:${operationId}:overlap:${appointmentId}`,
-                      merchant.id,
-                      snapshot.assignedProvider.id,
-                      appointmentId,
-                      nextSnapshot.occupiedEndsAt,
-                      nextSnapshot.occupiedStartsAt
-                    )
-                )
-              }
-              if (
-                mutationCommand.kind === 'cancel' ||
-                mutationCommand.kind === 'cancel_party' ||
-                mutationCommand.kind === 'cancel_remaining_series'
-              ) {
-                if (row.status !== 'scheduled')
-                  throw reject('appointment_not_scheduled')
-                if (
-                  mutationCommand.category === 'other' &&
-                  !mutationCommand.privateNote?.trim()
-                )
-                  throw reject('cancellation_note_required')
-                nextStatus = 'cancelled'
-              }
-              if (
-                mutationCommand.kind === 'complete' ||
-                mutationCommand.kind === 'no_show' ||
-                mutationCommand.kind === 'correct_outcome'
-              ) {
-                const requested =
-                  mutationCommand.kind === 'complete'
-                    ? 'completed'
-                    : mutationCommand.kind === 'no_show'
-                      ? 'no_show'
-                      : mutationCommand.outcome
-                if (!requested) throw reject('outcome_required')
-                if (mutationCommand.kind === 'correct_outcome') {
-                  if (
-                    (row.status !== 'completed' && row.status !== 'no_show') ||
-                    !mutationCommand.reason?.trim()
-                  )
-                    throw reject('outcome_correction_invalid')
-                } else if (
-                  row.status !== 'scheduled' ||
-                  Date.parse(now) < Date.parse(row.startsAt)
-                )
-                  throw reject('outcome_not_available')
-                nextStatus = requested
-              }
-              const nextRevision = row.version + 1
-              if (mutationCommand.kind === 'edit') {
-                const beforeEmail = snapshot.customerDetails.email.trim().toLowerCase()
-                const beforePhone = snapshot.customerDetails.phone?.trim() || null
-                const afterEmail = nextSnapshot.customerDetails.email
-                  .trim()
-                  .toLowerCase()
-                const afterPhone = nextSnapshot.customerDetails.phone?.trim() || null
-                const destinationChanged =
-                  beforeEmail !== afterEmail || beforePhone !== afterPhone
-                if (destinationChanged && !mutationCommand.notification)
-                  throw reject('destination_notification_choice_required')
-                if (destinationChanged)
-                  statements.push(
-                    raw
-                      .prepare(
-                        `UPDATE confirmation_access SET revoked_at = ? WHERE appointment_id = ? AND revoked_at IS NULL`
-                      )
-                      .bind(now, appointmentId)
-                  )
-                statements.push(
-                  raw
-                    .prepare(
-                      `UPDATE appointment_foundations SET customer_note = ? WHERE appointment_id = ? AND merchant_id = ?`
-                    )
-                    .bind(
-                      mutationCommand.appointmentNote?.trim() || null,
-                      appointmentId,
-                      merchant.id
-                    )
-                )
-              }
-              statements.push(
-                raw
-                  .prepare(`UPDATE appointments SET status = ?, version = ?, starts_at = ?, ends_at = ?, snapshot = ?, updated_at = ?
-                WHERE id = ? AND merchant_id = ? AND version = ?`)
-                  .bind(
-                    nextStatus,
-                    nextRevision,
-                    startsAt,
-                    endsAt,
-                    JSON.stringify(nextSnapshot),
-                    now,
-                    appointmentId,
-                    merchant.id,
-                    row.version
-                  )
-              )
-
-              const collection =
-                mutationCommand.kind === 'append_collection'
-                  ? mutationCommand.entry
-                  : mutationCommand.kind === 'complete' && mutationCommand.collection
-                    ? { ...mutationCommand.collection, kind: 'collection' as const }
-                    : undefined
-              const returnedAmount =
-                mutationCommand.kind === 'cancel' ||
-                mutationCommand.kind === 'cancel_party' ||
-                mutationCommand.kind === 'cancel_remaining_series'
-                  ? mutationCommand.returnedAmounts?.[appointmentId]
-                  : undefined
-              if (collection || returnedAmount) {
-                const amountMinor = collection?.amountMinor ?? returnedAmount!
-                if (!Number.isInteger(amountMinor) || amountMinor <= 0)
-                  throw reject('collection_amount_invalid')
-                const net = await raw
-                  .prepare(`SELECT COALESCE(SUM(CASE kind WHEN 'collection' THEN amount_minor ELSE -amount_minor END), 0) net
-                  FROM external_collections WHERE merchant_id = ? AND appointment_id = ?`)
-                  .bind(merchant.id, appointmentId)
-                  .first<{ net: number }>()
-                const collectionKind = collection?.kind ?? 'return'
-                const resultingNet =
-                  (net?.net ?? 0) +
-                  (collectionKind === 'collection' ? amountMinor : -amountMinor)
-                if (resultingNet < 0 || resultingNet > snapshot.totalMinor)
-                  throw reject('collection_net_out_of_bounds')
-                if (collection?.offsetsEntryId && !collection.correctionReason?.trim())
-                  throw reject('collection_correction_reason_required')
-                const collectionGuardId = `guard:${operationId}:collection:${appointmentId}`
-                statements.push(
-                  raw
-                    .prepare(`INSERT INTO capability_transaction_guards (id, accepted)
-                  VALUES (?, CASE WHEN (
-                    SELECT COALESCE(SUM(CASE kind WHEN 'collection' THEN amount_minor ELSE -amount_minor END), 0)
-                    FROM external_collections WHERE merchant_id = ? AND appointment_id = ?
-                  ) + ? BETWEEN 0 AND ? THEN 1 ELSE 0 END)`)
-                    .bind(
-                      collectionGuardId,
-                      merchant.id,
-                      appointmentId,
-                      collectionKind === 'collection' ? amountMinor : -amountMinor,
-                      snapshot.totalMinor
-                    )
-                )
-                statements.push(
-                  raw
-                    .prepare(`INSERT INTO external_collections
-                  (id, merchant_id, appointment_id, idempotency_key, kind, method, amount_minor, currency, actor_id,
-                   note_or_reference, offsets_entry_id, correction_reason, recorded_at, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-                    .bind(
-                      newCapabilityId('exc'),
-                      merchant.id,
-                      appointmentId,
-                      `${command.idempotencyKey}:${appointmentId}`,
-                      collectionKind,
-                      collection?.method ?? 'other',
-                      amountMinor,
-                      snapshot.currency,
-                      actorId,
-                      collection?.noteOrReference ?? null,
-                      collection?.offsetsEntryId ?? null,
-                      collection?.correctionReason ?? null,
-                      collection?.recordedAt ?? now,
-                      now
-                    )
-                )
-                statements.push(
-                  raw
-                    .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
-                    .bind(collectionGuardId)
-                )
-              }
-              statements.push(
-                historyStatement(raw, {
-                  merchantId: merchant.id,
-                  appointmentId,
-                  operationId,
-                  command,
-                  actorId,
-                  priorRevision: row.version,
-                  resultingRevision: nextRevision,
-                  facts: {
-                    before: {
-                      status: row.status,
-                      startsAt: row.startsAt,
-                      endsAt: row.endsAt,
-                      snapshot
-                    },
-                    after: {
-                      status: nextStatus,
-                      startsAt,
-                      endsAt,
-                      snapshot: nextSnapshot
-                    }
-                  },
-                  now
-                })
-              )
-              if (nextStatus !== 'scheduled')
-                statements.push(
-                  raw
-                    .prepare(
-                      `UPDATE scheduled_work SET status = 'cancelled', updated_at = ? WHERE source_type = 'appointment' AND source_id = ? AND status = 'pending'`
-                    )
-                    .bind(now, appointmentId)
-                )
-              if (mutationCommand.kind === 'reschedule') {
-                statements.push(
-                  raw
-                    .prepare(
-                      `DELETE FROM time_slot_holds WHERE merchant_id = ? AND provider_id = ? AND starts_at < ? AND ends_at > ?`
-                    )
-                    .bind(
-                      merchant.id,
-                      nextSnapshot.assignedProvider.id,
-                      nextSnapshot.occupiedEndsAt,
-                      nextSnapshot.occupiedStartsAt
-                    )
-                )
-                statements.push(
-                  raw
-                    .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
-                    .bind(`guard:${operationId}:overlap:${appointmentId}`)
-                )
-              }
               statements.push(
                 raw
                   .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
-                  .bind(revisionGuardId)
+                  .bind(accessGuardId)
               )
-              revisions[appointmentId] = nextRevision
-            }
-            if (
-              mutationCommand.kind === 'cancel_remaining_series' &&
-              mutationCommand.seriesId
-            )
-              statements.push(
-                raw
-                  .prepare(
-                    `UPDATE appointment_series SET status = 'cancelled_remaining', updated_at = ? WHERE id = ? AND merchant_id = ?`
-                  )
-                  .bind(now, mutationCommand.seriesId, merchant.id)
-              )
-            const result: MerchantAppointmentCommandResult = {
-              operationId,
-              appointmentIds: targetIds,
-              revisions,
-              replayed: false
-            }
-            statements.push(
-              commandStatement(
-                raw,
-                merchant.id,
-                command,
-                fingerprint,
-                operationId,
-                result,
-                now
-              )
-            )
-            statements.push(
-              raw
-                .prepare(`DELETE FROM capability_transaction_guards WHERE id = ?`)
-                .bind(accessGuardId)
-            )
-            await raw.batch(statements)
-            return result
-          },
-          catch: mapFailure
-        })
-      )
-    return {
-      execute,
-      history: (appointmentId) =>
-        Effect.flatMap(MerchantContext, (merchant) =>
-          Effect.tryPromise({
-            try: async () => {
-              const result = await raw
-                .prepare(`SELECT operation_id operationId, command, actor_id actorId,
+              await raw.batch(statements)
+              return result
+            },
+            catch: mapFailure
+          })
+        )
+      return {
+        execute,
+        history: (appointmentId) =>
+          Effect.flatMap(MerchantContext, (merchant) =>
+            Effect.tryPromise({
+              try: async () => {
+                const result = await raw
+                  .prepare(`SELECT operation_id operationId, command, actor_id actorId,
             impersonated_by impersonatedBy, prior_revision priorRevision, resulting_revision resultingRevision,
             facts_json factsJson, reason, notification_choice_json notificationChoiceJson, occurred_at occurredAt
             FROM appointment_operation_history WHERE merchant_id = ? AND appointment_id = ? ORDER BY resulting_revision`)
-                .bind(merchant.id, appointmentId)
-                .all<AppointmentOperationHistoryEntry>()
-              return result.results
-            },
-            catch: (cause) =>
-              new CapabilityUnavailable({
-                capability: 'merchant-appointment-history',
-                reason: cause instanceof Error ? cause.message : String(cause)
-              })
-          })
-        )
-    }
-  })
-)
+                  .bind(merchant.id, appointmentId)
+                  .all<AppointmentOperationHistoryEntry>()
+                return result.results
+              },
+              catch: (cause) =>
+                new CapabilityUnavailable({
+                  capability: 'merchant-appointment-history',
+                  reason: cause instanceof Error ? cause.message : String(cause)
+                })
+            })
+          )
+      }
+    })
+  )
+
+export const LiveMerchantAppointmentCommands = liveMerchantAppointmentCommands()
