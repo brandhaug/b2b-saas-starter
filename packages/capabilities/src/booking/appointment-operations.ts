@@ -10,6 +10,7 @@ import {
 import { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
+import { readAppointmentEmailSummaries } from '../notifications/appointment-email.ts'
 
 export const AppointmentSnapshot = Schema.Struct({
   startsAt: Schema.String,
@@ -58,6 +59,41 @@ export const OperationalAppointment = Schema.Struct({
   seriesId: Schema.optional(Schema.NullOr(Schema.String)),
   seriesPosition: Schema.optional(Schema.NullOr(Schema.Int)),
   externalCollectionNetMinor: Schema.optional(Schema.Int),
+  emailDeliveries: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        id: Schema.String,
+        purpose: Schema.Literals([
+          'appointment_confirmation',
+          'appointment_reschedule',
+          'appointment_cancellation',
+          'appointment_reminder'
+        ]),
+        locale: Schema.Literals(['ro', 'en']),
+        maskedDestination: Schema.NullOr(Schema.String),
+        status: Schema.Literals([
+          'pending',
+          'claimed',
+          'captured',
+          'accepted',
+          'delivered',
+          'failed',
+          'suppressed',
+          'unavailable',
+          'submission_unknown',
+          'superseded',
+          'superseded_after_submission'
+        ]),
+        reason: Schema.NullOr(Schema.String),
+        availableAt: Schema.String,
+        acceptedAt: Schema.NullOr(Schema.String),
+        deliveredAt: Schema.NullOr(Schema.String),
+        lastAttemptAt: Schema.NullOr(Schema.String),
+        attemptCount: Schema.Int,
+        underReview: Schema.Boolean
+      })
+    )
+  ),
   partyMembers: Schema.optional(
     Schema.Array(
       Schema.Struct({
@@ -408,6 +444,17 @@ export const LiveAppointmentOperations: Layer.Layer<
                     )
                 )
               : []
+            const emailDeliveries = yield* readAppointmentEmailSummaries(db, {
+              merchantId: merchant.id,
+              appointmentId
+            }).pipe(
+              Effect.map((summaries) =>
+                summaries.map(({ intentId, ...summary }) => ({
+                  id: intentId,
+                  ...summary
+                }))
+              )
+            )
             return {
               kind: 'found',
               appointment: {
@@ -415,6 +462,7 @@ export const LiveAppointmentOperations: Layer.Layer<
                 seriesId: member?.seriesId ?? null,
                 seriesPosition: member?.seriesPosition ?? null,
                 externalCollectionNetMinor: net?.net ?? 0,
+                emailDeliveries,
                 partyMembers,
                 seriesMembers
               }

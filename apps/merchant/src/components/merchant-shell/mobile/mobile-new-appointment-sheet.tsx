@@ -201,6 +201,7 @@ function NewAppointmentSheetSurface({
 }) {
   const sheetRef = sheet.sheetRef
   const [notifyCustomer, setNotifyCustomer] = useState(mode !== 'record-completed')
+  const [customerLocale, setCustomerLocale] = useState<'ro' | 'en'>('en')
   const [step, setStep] = useState<NewAppointmentStep>('appointment')
   const [desktopSubstepState, setDesktopSubstepState] = useState<
     'preparing' | 'entering' | 'open' | 'closing'
@@ -392,10 +393,11 @@ function NewAppointmentSheetSurface({
               ? {}
               : {
                   notification: notifyCustomer
-                    ? ({ kind: 'notify' } as const)
+                    ? ({ kind: 'notify', locale: customerLocale } as const)
                     : ({
                         kind: 'suppress',
-                        reason: 'Customer already knows.'
+                        reason: 'Customer already knows.',
+                        locale: customerLocale
                       } as const)
                 })
           }
@@ -436,8 +438,12 @@ function NewAppointmentSheetSurface({
                 }
               : {}),
             notification: notifyCustomer
-              ? { kind: 'notify' }
-              : { kind: 'suppress', reason: 'Customer already knows.' }
+              ? { kind: 'notify', locale: customerLocale }
+              : {
+                  kind: 'suppress',
+                  reason: 'Customer already knows.',
+                  locale: customerLocale
+                }
           }
         })
       }
@@ -700,6 +706,7 @@ function NewAppointmentSheetSurface({
     <AppointmentDraft
       presentation={presentation}
       notifyCustomer={notifyCustomer}
+      customerLocale={customerLocale}
       selectedClient={selectedClient}
       selectedService={selectedService}
       durationMinutes={durationMinutes}
@@ -779,6 +786,7 @@ function NewAppointmentSheetSurface({
       onEditAppointmentNote={() => openStep('appointment-notes', 'appointment-notes')}
       onEditClientNote={() => openStep('client-notes', 'client-notes')}
       onToggleNotify={() => setNotifyCustomer((current) => !current)}
+      onChangeCustomerLocale={setCustomerLocale}
       onSave={() => void saveAppointment()}
     />
   )
@@ -1097,6 +1105,7 @@ function useNewAppointmentDialogActivation(
 function AppointmentDraft({
   presentation,
   notifyCustomer,
+  customerLocale,
   selectedClient,
   selectedService,
   durationMinutes,
@@ -1146,10 +1155,12 @@ function AppointmentDraft({
   onEditAppointmentNote,
   onEditClientNote,
   onToggleNotify,
+  onChangeCustomerLocale,
   onSave
 }: {
   readonly presentation: NewAppointmentPresentation
   readonly notifyCustomer: boolean
+  readonly customerLocale: 'ro' | 'en'
   readonly selectedClient: AppointmentClient | null
   readonly selectedService: ServiceRecord | null
   readonly durationMinutes: number
@@ -1203,6 +1214,7 @@ function AppointmentDraft({
   readonly onEditAppointmentNote: () => void
   readonly onEditClientNote: () => void
   readonly onToggleNotify: () => void
+  readonly onChangeCustomerLocale: (locale: 'ro' | 'en') => void
   readonly onSave: () => void
 }) {
   const {
@@ -1521,32 +1533,50 @@ function AppointmentDraft({
           </div>
 
           {mode === 'record-completed' ? null : (
-            <button
-              type="button"
-              aria-pressed={notifyCustomer}
-              data-mobile-new-appointment-notify="true"
-              className="flex min-h-16 w-full items-center gap-4 border-b border-border/70 text-left"
-              onClick={onToggleNotify}
-            >
-              <Bell
-                aria-hidden
-                className="size-5 shrink-0 text-muted-foreground"
-                strokeWidth={1.7}
-              />
-              <span className="min-w-0 flex-1 text-[1.0625rem] font-medium">
-                Notify customer
-              </span>
-              <span
-                aria-hidden
-                className={`grid size-8 place-items-center rounded-full transition-colors ${
-                  notifyCustomer
-                    ? 'bg-info text-info-foreground'
-                    : 'bg-muted text-muted-foreground'
-                }`}
+            <>
+              <button
+                type="button"
+                aria-pressed={notifyCustomer}
+                data-mobile-new-appointment-notify="true"
+                className="flex min-h-16 w-full items-center gap-4 border-b border-border/70 text-left"
+                onClick={onToggleNotify}
               >
-                {notifyCustomer ? <Check className="size-6" strokeWidth={2.2} /> : null}
-              </span>
-            </button>
+                <Bell
+                  aria-hidden
+                  className="size-5 shrink-0 text-muted-foreground"
+                  strokeWidth={1.7}
+                />
+                <span className="min-w-0 flex-1 text-[1.0625rem] font-medium">
+                  Notify customer
+                </span>
+                <span
+                  aria-hidden
+                  className={`grid size-8 place-items-center rounded-full transition-colors ${
+                    notifyCustomer
+                      ? 'bg-info text-info-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {notifyCustomer ? (
+                    <Check className="size-6" strokeWidth={2.2} />
+                  ) : null}
+                </span>
+              </button>
+              <label className="grid gap-1 border-b border-border/70 py-3 text-sm">
+                Customer email language
+                <select
+                  aria-label="Customer email language"
+                  className="h-10 rounded-lg border bg-background px-3"
+                  value={customerLocale}
+                  onChange={(event) =>
+                    onChangeCustomerLocale(event.target.value as 'ro' | 'en')
+                  }
+                >
+                  <option value="en">English</option>
+                  <option value="ro">Română</option>
+                </select>
+              </label>
+            </>
           )}
         </div>
       </MobileSheetScrollport>

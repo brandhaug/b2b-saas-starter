@@ -893,7 +893,7 @@ describe('Live Booking Confirmation', () => {
       )
     ).toMatchObject({
       phase: 'scheduled',
-      availableAt: '2026-07-14T09:00:00.000Z'
+      availableAt: '2026-07-14T00:00:00.000Z'
     })
     expect(stored.access.map((access) => access.purpose).sort()).toEqual([
       'appointment_confirmation',

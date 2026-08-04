@@ -6,6 +6,8 @@ interface MerchantWorkerEnv {
   readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string
   readonly TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
   readonly TRANSACTIONAL_EMAIL_DISABLED?: string
+  readonly CONFIRMATION_SIGNING_KEYS?: string
+  readonly CONFIRMATION_CURRENT_KEY_ID?: string
   readonly ENVIRONMENT?: string
   readonly MERCHANT_AUTH_SECRET?: string
   readonly MERCHANT_AUTH_URL?: string

@@ -41,15 +41,21 @@ import { PaymentSettlement } from '../payments/index.ts'
 import { subscriptionAllowsNewDemandSql } from '../subscriptions/subscription-access.ts'
 import {
   deriveNotificationDestinationProtection,
+  appointmentEmailMutationStatements,
   hasNotificationDestinationProtection,
   notificationIntentMutationStatements,
+  prepareAppointmentEmailMutation,
   prepareBookingIntentMutation
 } from '../notifications/index.ts'
 import type {
+  AppointmentEmailWakeup,
   NotificationDestinationProtectionSecrets,
   PreparedBookingIntentMutation
 } from '../notifications/index.ts'
-import { merchantReminderAvailableAt } from '../notifications/index.ts'
+import {
+  appointmentEmailReminderAvailableAt,
+  merchantReminderAvailableAt
+} from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
 import { AppointmentSnapshot as AppointmentSnapshotSchema } from './appointment-operations.ts'
 import {
@@ -760,7 +766,8 @@ const resultsFrom = async (
 
 export const LiveBookingConfirmation = (
   keyring: ConfirmationSigningKeyring,
-  destinationSecrets?: NotificationDestinationProtectionSecrets
+  destinationSecrets?: NotificationDestinationProtectionSecrets,
+  publishAppointmentEmailWakeup?: (wakeup: AppointmentEmailWakeup) => Promise<void>
 ): Layer.Layer<BookingConfirmation, never, Database | PaymentSettlement> =>
   Layer.effect(
     BookingConfirmation,
@@ -1298,8 +1305,15 @@ export const LiveBookingConfirmation = (
                   routeId,
                   outboxId,
                   snapshot,
-                  reminderAt: merchantReminderAvailableAt({
+                  operationalReminderAt: merchantReminderAvailableAt({
                     startsAt: snapshot.startsAt,
+                    timeZone: snapshot.merchantTimezone,
+                    now: input.now,
+                    controls: reminderControls ?? null
+                  }),
+                  emailReminderAt: appointmentEmailReminderAvailableAt({
+                    startsAt: snapshot.startsAt,
+                    timeZone: snapshot.merchantTimezone,
                     now: input.now,
                     controls: reminderControls ?? null
                   }),
@@ -1342,21 +1356,21 @@ export const LiveBookingConfirmation = (
                         },
                         notificationProtection
                       ),
-                      item.reminderAt
+                      item.operationalReminderAt
                         ? prepareBookingIntentMutation(
                             db,
                             {
                               shopId: item.row.shopId,
                               sourceId: item.appointmentId,
                               sourceVersion: 1,
-                              semanticDeduplicationKey: `reminder:${item.appointmentId}:1:${item.reminderAt}`,
+                              semanticDeduplicationKey: `reminder:${item.appointmentId}:1:${item.operationalReminderAt}`,
                               rawDestination: item.snapshot.customerDetails.phone,
                               permissionGranted:
                                 item.snapshot.operationalMessagingPermission
                                   ?.granted === true,
                               purpose: 'appointment_reminder',
                               locale: item.row.party.locale === 'ro' ? 'ro' : 'en',
-                              availableAt: item.reminderAt,
+                              availableAt: item.operationalReminderAt,
                               appointmentStartsAt: item.snapshot.startsAt,
                               createdAt: input.now,
                               traceId: input.traceId,
@@ -1381,6 +1395,96 @@ export const LiveBookingConfirmation = (
                         PreparedBookingIntentMutation | null
                       ]
                     >([null, null])
+              )
+              const emailGroups = new Map<string, typeof generated>()
+              for (const item of generated) {
+                const destination = item.snapshot.customerDetails.email
+                  .trim()
+                  .toLowerCase()
+                emailGroups.set(destination, [
+                  ...(emailGroups.get(destination) ?? []),
+                  item
+                ])
+              }
+              const preparedEmailConfirmations = yield* Effect.forEach(
+                [...emailGroups.entries()],
+                ([destination, items]) => {
+                  const first = items[0]!
+                  return prepareAppointmentEmailMutation(
+                    db,
+                    {
+                      merchantId: first.row.hold.merchantId,
+                      shopId: first.row.shopId,
+                      sourceType: items.length > 1 ? 'booking_party' : 'appointment',
+                      sourceId: items.length > 1 ? party.id : first.appointmentId,
+                      sourceRevision: 1,
+                      appointmentIds: items.map((item) => item.appointmentId),
+                      purpose: 'appointment_confirmation',
+                      destination,
+                      locale: party.locale === 'ro' ? 'ro' : 'en',
+                      facts: {
+                        merchantLabel: partyShop?.publicName ?? session.merchantSlug,
+                        startsAt: first.snapshot.startsAt,
+                        timeZone: first.snapshot.merchantTimezone,
+                        confirmationAccess: {
+                          merchantSlug: session.merchantSlug,
+                          routeId: first.routeId,
+                          bookingPartyId: party.id,
+                          purpose:
+                            first === generated[0]
+                              ? 'party_confirmation'
+                              : 'appointment_confirmation',
+                          tokenVersion: 1,
+                          signingKeyId: keyring.currentKeyId,
+                          expiresAt: first.expiresAt
+                        },
+                        affectedAppointmentCount: items.length
+                      },
+                      availableAt: input.now,
+                      createdAt: input.now
+                    },
+                    destinationSecrets
+                  )
+                }
+              )
+              const preparedEmailReminders = yield* Effect.forEach(generated, (item) =>
+                item.emailReminderAt
+                  ? prepareAppointmentEmailMutation(
+                      db,
+                      {
+                        merchantId: item.row.hold.merchantId,
+                        shopId: item.row.shopId,
+                        sourceType: 'appointment',
+                        sourceId: item.appointmentId,
+                        sourceRevision: 1,
+                        appointmentIds: [item.appointmentId],
+                        purpose: 'appointment_reminder',
+                        destination: item.snapshot.customerDetails.email,
+                        locale: party.locale === 'ro' ? 'ro' : 'en',
+                        facts: {
+                          merchantLabel: partyShop?.publicName ?? session.merchantSlug,
+                          startsAt: item.snapshot.startsAt,
+                          timeZone: item.snapshot.merchantTimezone,
+                          confirmationAccess: {
+                            merchantSlug: session.merchantSlug,
+                            routeId: item.routeId,
+                            bookingPartyId: party.id,
+                            purpose:
+                              item === generated[0]
+                                ? 'party_confirmation'
+                                : 'appointment_confirmation',
+                            tokenVersion: 1,
+                            signingKeyId: keyring.currentKeyId,
+                            expiresAt: item.expiresAt
+                          }
+                        },
+                        availableAt: item.emailReminderAt,
+                        usefulUntil: item.snapshot.startsAt,
+                        createdAt: input.now
+                      },
+                      destinationSecrets
+                    )
+                  : Effect.succeed(null)
               )
               const customerAssociationInputs = generated.map((item) => ({
                 merchantId: item.row.hold.merchantId,
@@ -1477,6 +1581,14 @@ export const LiveBookingConfirmation = (
                   intents.flatMap((intent) =>
                     intent ? notificationIntentMutationStatements(intent) : []
                   )
+                )
+              )
+              statements.push(
+                ...preparedEmailConfirmations.flatMap((intent) =>
+                  appointmentEmailMutationStatements(intent)
+                ),
+                ...preparedEmailReminders.flatMap((intent) =>
+                  intent ? appointmentEmailMutationStatements(intent) : []
                 )
               )
               statements.push(
@@ -1652,6 +1764,18 @@ export const LiveBookingConfirmation = (
                   capability: 'booking-confirmation',
                   reason: 'Committed Booking Party could not be read'
                 })
+              if (publishAppointmentEmailWakeup)
+                yield* Effect.promise(() =>
+                  Promise.allSettled(
+                    [
+                      ...preparedEmailConfirmations,
+                      ...preparedEmailReminders.filter(
+                        (intent): intent is NonNullable<typeof intent> =>
+                          intent !== null
+                      )
+                    ].map((intent) => publishAppointmentEmailWakeup(intent.wakeup))
+                  )
+                )
               return yield* Effect.promise(() => resultsFrom(stored, keyring, false))
             }
 

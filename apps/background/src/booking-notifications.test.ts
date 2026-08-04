@@ -3,7 +3,6 @@ import { Effect, Layer } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
 import { BookingNotificationOutbox } from '@b2b-saas-starter/capabilities/booking'
 import type { BookingNotificationWork } from '@b2b-saas-starter/capabilities/booking'
-import { EmailDispatcher, EmailSendError } from '@b2b-saas-starter/email'
 import {
   BOOKING_RETRY_DELAYS,
   classifyBookingResponse,
@@ -43,16 +42,9 @@ describe('booking webhook contract', () => {
 })
 
 describe('processBookingOutbox', () => {
-  it('records email and durable completion independently of Appointment success', async () => {
+  it('retires legacy email state without sending alongside Appointment email intents', async () => {
     const recordEmail = vi.fn(() => Effect.void)
     const finish = vi.fn(() => Effect.void)
-    const send = vi.fn(() =>
-      Effect.succeed({
-        mode: 'cloudflare-email' as const,
-        to: 'mia@example.com',
-        subject: 'Your appointment is confirmed'
-      })
-    )
     const work: BookingNotificationWork = {
       outboxId: 'out_test',
       appointmentId: 'apt_test',
@@ -130,129 +122,15 @@ describe('processBookingOutbox', () => {
           currentKeyId: 'current',
           keys: { current: 'confirmation-key' }
         }
-      }).pipe(
-        Effect.provide(store),
-        Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
-        Effect.provide(FetchHttpClient.layer)
-      )
+      }).pipe(Effect.provide(store), Effect.provide(FetchHttpClient.layer))
     )
-    expect(send).toHaveBeenCalledOnce()
-    expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({ idempotencyKey: 'out_test' })
-    )
-    expect(recordEmail).toHaveBeenCalledWith('out_test', 'delivered', null, 1, null)
-    expect(finish).toHaveBeenCalledWith('out_test', 'completed', work.createdAt)
-
-    send.mockClear()
-    recordEmail.mockClear()
-    await Effect.runPromise(
-      processBookingOutbox({
-        outboxId: work.outboxId,
-        now: work.createdAt,
-        publicOrigin: 'https://example.com',
-        emailProviderState: 'needs_configuration',
-        confirmationKeyring: { currentKeyId: 'current', keys: {} }
-      }).pipe(
-        Effect.provide(store),
-        Effect.provide(Layer.succeed(EmailDispatcher)({ send })),
-        Effect.provide(FetchHttpClient.layer)
-      )
-    )
-    expect(send).not.toHaveBeenCalled()
     expect(recordEmail).toHaveBeenCalledWith(
       'out_test',
-      'needs_configuration',
-      'email_not_configured',
+      'disabled',
+      'migrated_to_appointment_email_intent',
       0,
       null
     )
-
-    recordEmail.mockClear()
-    await Effect.runPromise(
-      processBookingOutbox({
-        outboxId: work.outboxId,
-        now: work.createdAt,
-        publicOrigin: 'https://example.com',
-        emailProviderState: 'configured',
-        confirmationKeyring: {
-          currentKeyId: 'current',
-          keys: { current: 'confirmation-key' }
-        }
-      }).pipe(
-        Effect.provide(store),
-        Effect.provide(
-          Layer.succeed(EmailDispatcher)({
-            send: () =>
-              Effect.fail(
-                new EmailSendError({
-                  message: 'provider unavailable',
-                  to: 'mia@example.com',
-                  subject: 'Your appointment is confirmed'
-                })
-              )
-          })
-        ),
-        Effect.provide(FetchHttpClient.layer)
-      )
-    )
-    expect(recordEmail).toHaveBeenCalledWith(
-      'out_test',
-      'failed_retryable',
-      'email_send_failed',
-      1,
-      '2026-07-11T10:00:30.000Z'
-    )
-
-    recordEmail.mockClear()
-    await Effect.runPromise(
-      processBookingOutbox({
-        outboxId: work.outboxId,
-        now: work.createdAt,
-        publicOrigin: 'https://example.com',
-        emailProviderState: 'configured',
-        confirmationKeyring: {
-          currentKeyId: 'current',
-          keys: { current: 'confirmation-key' }
-        }
-      }).pipe(
-        Effect.provide(
-          Layer.succeed(BookingNotificationOutbox)({
-            claim: () => Effect.succeed({ ...work, emailAttemptCount: 6 }),
-            recoverable: () => Effect.succeed([]),
-            recordEmail,
-            ensureEvent: () =>
-              Effect.succeed({
-                id: 'evt_test',
-                rawBody: '{"id":"evt_test"}',
-                occurredAt: work.createdAt
-              }),
-            endpoints: () => Effect.succeed([]),
-            attempts: () => Effect.succeed([]),
-            recordAttempt: () => Effect.void,
-            finish
-          })
-        ),
-        Effect.provide(
-          Layer.succeed(EmailDispatcher)({
-            send: () =>
-              Effect.fail(
-                new EmailSendError({
-                  message: 'provider unavailable',
-                  to: 'mia@example.com',
-                  subject: 'Your appointment is confirmed'
-                })
-              )
-          })
-        ),
-        Effect.provide(FetchHttpClient.layer)
-      )
-    )
-    expect(recordEmail).toHaveBeenCalledWith(
-      'out_test',
-      'failed_terminal',
-      'email_retries_exhausted',
-      7,
-      null
-    )
+    expect(finish).toHaveBeenCalledWith('out_test', 'completed', work.createdAt)
   })
 })

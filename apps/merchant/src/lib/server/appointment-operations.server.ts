@@ -12,6 +12,7 @@ import {
   MerchantContext
 } from '@b2b-saas-starter/capabilities/merchant-catalog'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { merchantCapabilitiesEnv } from './capabilities-env.server.ts'
 
 const run = async <A>(
   userId: string,
@@ -29,10 +30,9 @@ const run = async <A>(
     Effect.provide(
       effect,
       Layer.mergeAll(
-        selectCapabilitiesLayer(
-          { DB: env.DB },
-          { merchantAppointmentImpersonatedBy: impersonatedBy }
-        ),
+        selectCapabilitiesLayer(merchantCapabilitiesEnv(), {
+          merchantAppointmentImpersonatedBy: impersonatedBy
+        }),
         context
       )
     )

@@ -232,10 +232,13 @@ export const Stack = Alchemy.Stack(
       rootDir: './apps/merchant',
       bindings: {
         DB: db,
-        EMAIL: transactionalEmail
+        EMAIL: transactionalEmail,
+        CONFIRMATION_SIGNING_KEYS,
+        CONFIRMATION_CURRENT_KEY_ID
       },
       env: {
         ...optionalModuleEnv,
+        PUBLIC_SITE_ORIGIN: publicSiteOrigin,
         CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
         MERCHANT_AUTH_SECRET,
         MERCHANT_AUTH_URL: merchantAppOrigin,

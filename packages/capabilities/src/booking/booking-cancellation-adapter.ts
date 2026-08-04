@@ -7,8 +7,10 @@ import {
   bookingParties,
   bookingSessions,
   cancellationCommands,
+  confirmationAccess,
   Database,
   lifecycleHistory,
+  merchants,
   giftCardLedgerEntries,
   paymentTransactions,
   payments,
@@ -32,12 +34,18 @@ import {
 } from './booking-cancellation.ts'
 import {
   deriveNotificationDestinationProtection,
+  appointmentEmailMutationStatements,
   hasNotificationDestinationProtection,
   notificationIntentMutationStatements,
+  prepareAppointmentEmailMutation,
   prepareBookingIntentMutation,
+  supersedeAppointmentEmailMutations,
   supersedeObsoleteBookingIntentMutations
 } from '../notifications/index.ts'
-import type { NotificationDestinationProtectionSecrets } from '../notifications/index.ts'
+import type {
+  AppointmentEmailWakeup,
+  NotificationDestinationProtectionSecrets
+} from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
 import { authorizeAppointmentSubscriptionAccess } from './appointment-subscription-access.ts'
 
@@ -100,7 +108,8 @@ const distributeAllocations = (
 }
 
 export const makeLiveBookingCancellations = (
-  destinationSecrets?: NotificationDestinationProtectionSecrets
+  destinationSecrets?: NotificationDestinationProtectionSecrets,
+  publishAppointmentEmailWakeup?: (wakeup: AppointmentEmailWakeup) => Promise<void>
 ): Layer.Layer<BookingCancellations, never, Database> =>
   Layer.effect(
     BookingCancellations,
@@ -355,7 +364,9 @@ export const makeLiveBookingCancellations = (
                   appointment: appointments,
                   party: bookingParties,
                   shop: shops,
-                  session: bookingSessions
+                  session: bookingSessions,
+                  merchant: merchants,
+                  access: confirmationAccess
                 })
                 .from(appointments)
                 .innerJoin(
@@ -363,9 +374,14 @@ export const makeLiveBookingCancellations = (
                   eq(bookingParties.id, appointments.bookingPartyId)
                 )
                 .innerJoin(shops, eq(shops.id, bookingParties.shopId))
+                .innerJoin(merchants, eq(merchants.id, appointments.merchantId))
                 .innerJoin(
                   bookingSessions,
                   eq(bookingSessions.id, bookingParties.bookingSessionId)
+                )
+                .leftJoin(
+                  confirmationAccess,
+                  eq(confirmationAccess.appointmentId, appointments.id)
                 )
                 .where(
                   inArray(
@@ -412,6 +428,78 @@ export const makeLiveBookingCancellations = (
                   )
                 : Effect.succeed(null)
             })
+            const emailGroups = new Map<
+              string,
+              readonly {
+                readonly record: (typeof records)[number]
+                readonly notification: (typeof notificationRows)[number]
+                readonly snapshot: StoredAppointmentSnapshot
+              }[]
+            >()
+            for (const record of records) {
+              const notification = notificationRows.find(
+                (candidate) => candidate.appointment.id === record.id
+              )
+              const snapshot = notification?.appointment.snapshot
+              if (!notification || !snapshot) continue
+              const destination = snapshot.customerDetails.email.trim().toLowerCase()
+              emailGroups.set(destination, [
+                ...(emailGroups.get(destination) ?? []),
+                { record, notification, snapshot }
+              ])
+            }
+            const preparedEmailIntents = yield* Effect.forEach(
+              [...emailGroups.entries()],
+              ([destination, grouped]) => {
+                const first = grouped[0]!
+                const sourceVersion = Math.max(
+                  ...grouped.map(({ record }) => record.version + 1)
+                )
+                return prepareAppointmentEmailMutation(
+                  db,
+                  {
+                    merchantId: input.merchantId,
+                    shopId: first.notification.shop.id,
+                    sourceType:
+                      scope.kind === 'appointment'
+                        ? 'appointment'
+                        : scope.kind === 'party'
+                          ? 'booking_party'
+                          : 'appointment_series',
+                    sourceId: scope.kind === 'appointment' ? first.record.id : targetId,
+                    sourceRevision: sourceVersion,
+                    appointmentIds: grouped.map(({ record }) => record.id),
+                    purpose: 'appointment_cancellation',
+                    destination,
+                    locale: first.notification.session.locale === 'ro' ? 'ro' : 'en',
+                    facts: {
+                      merchantLabel: first.notification.shop.publicName,
+                      startsAt: first.record.startsAt,
+                      timeZone: first.snapshot.merchantTimezone,
+                      affectedAppointmentCount: grouped.length,
+                      ...(first.notification.access &&
+                      !first.notification.access.revokedAt &&
+                      first.notification.access.expiresAt > input.now
+                        ? {
+                            confirmationAccess: {
+                              merchantSlug: first.notification.merchant.slug,
+                              routeId: first.notification.access.routeId,
+                              bookingPartyId: first.notification.access.bookingPartyId,
+                              purpose: first.notification.access.purpose,
+                              tokenVersion: first.notification.access.tokenVersion,
+                              signingKeyId: first.notification.access.signingKeyId,
+                              expiresAt: first.notification.access.expiresAt
+                            }
+                          }
+                        : {})
+                    },
+                    availableAt: input.now,
+                    createdAt: input.now
+                  },
+                  destinationSecrets
+                )
+              }
+            )
             const notificationIntentIds = preparedIntents.flatMap((intent) =>
               intent ? [intent.intentId] : []
             )
@@ -482,11 +570,19 @@ export const makeLiveBookingCancellations = (
                       beforeVersion: record.version + 1,
                       now: input.now
                     }),
+                    ...supersedeAppointmentEmailMutations(db, {
+                      appointmentId: record.id,
+                      beforeRevision: record.version + 1,
+                      now: input.now
+                    }),
                     ...(preparedIntents[index]
                       ? notificationIntentMutationStatements(preparedIntents[index]!)
                       : [])
                   ]
                 }),
+                ...preparedEmailIntents.flatMap((intent) =>
+                  appointmentEmailMutationStatements(intent)
+                ),
                 ...obligationRows.flatMap((row) => [
                   db.insert(refundObligations).values({
                     id: row.id,
@@ -543,6 +639,14 @@ export const makeLiveBookingCancellations = (
                 reason: 'cancellation_commit_missing'
               })
             const result = yield* readCommand(stored)
+            if (publishAppointmentEmailWakeup)
+              yield* Effect.promise(() =>
+                Promise.allSettled(
+                  preparedEmailIntents.map((intent) =>
+                    publishAppointmentEmailWakeup(intent.wakeup)
+                  )
+                )
+              )
             return { ...result, replayed: false }
           }),
         recordRefundOutcome: (input) =>

@@ -9,9 +9,11 @@ import {
   bookingSessionAdditionalServices,
   bookingSessions,
   checkoutPolicies,
+  confirmationAccess,
   Database,
   lifecycleHistory,
   merchantMessagingControls,
+  merchants,
   notificationIntents,
   payments,
   policyAcceptances,
@@ -40,13 +42,22 @@ import {
 } from './booking-rescheduling.ts'
 import {
   deriveNotificationDestinationProtection,
+  appointmentEmailMutationStatements,
   hasNotificationDestinationProtection,
   notificationIntentMutationStatements,
+  prepareAppointmentEmailMutation,
   prepareBookingIntentMutation,
+  supersedeAppointmentEmailMutations,
   supersedeObsoleteBookingIntentMutations
 } from '../notifications/index.ts'
-import type { NotificationDestinationProtectionSecrets } from '../notifications/index.ts'
-import { merchantReminderAvailableAt } from '../notifications/index.ts'
+import type {
+  AppointmentEmailWakeup,
+  NotificationDestinationProtectionSecrets
+} from '../notifications/index.ts'
+import {
+  appointmentEmailReminderAvailableAt,
+  merchantReminderAvailableAt
+} from '../notifications/index.ts'
 import { appointmentOperationalNotificationFacts } from './operational-notification-facts.ts'
 import { authorizeAppointmentSubscriptionAccess } from './appointment-subscription-access.ts'
 
@@ -183,7 +194,8 @@ const mapReplacement = (
 }
 
 export const makeLiveBookingRescheduling = (
-  destinationSecrets?: NotificationDestinationProtectionSecrets
+  destinationSecrets?: NotificationDestinationProtectionSecrets,
+  publishAppointmentEmailWakeup?: (wakeup: AppointmentEmailWakeup) => Promise<void>
 ): Layer.Layer<BookingRescheduling, never, Database> =>
   Layer.effect(
     BookingRescheduling,
@@ -606,6 +618,8 @@ export const makeLiveBookingRescheduling = (
               ...input.replacement,
               reminderAt: merchantReminderAvailableAt({
                 startsAt: input.replacement.hold.startsAt,
+                timeZone: (appointment.snapshot as StoredAppointmentSnapshot)
+                  .merchantTimezone,
                 now: input.now,
                 controls: reminderControls ?? null
               })
@@ -807,6 +821,50 @@ export const makeLiveBookingRescheduling = (
             const locale = appointment.notificationContext?.locale ?? 'en'
             const merchantLabel =
               appointment.notificationContext?.merchantLabel ?? input.merchantId
+            const [emailReminderControls] = yield* orUnavailable(
+              'booking-rescheduling'
+            )(
+              db
+                .select()
+                .from(merchantMessagingControls)
+                .where(eq(merchantMessagingControls.shopId, appointment.shopId))
+                .limit(1)
+            )
+            const emailReminderAt = appointmentEmailReminderAvailableAt({
+              startsAt: replacement.hold.startsAt,
+              timeZone: (appointment.snapshot as StoredAppointmentSnapshot)
+                .merchantTimezone,
+              now: input.now,
+              controls: emailReminderControls ?? null
+            })
+            const [confirmation] = yield* orUnavailable('booking-rescheduling')(
+              db
+                .select({ access: confirmationAccess, merchantSlug: merchants.slug })
+                .from(confirmationAccess)
+                .innerJoin(
+                  appointments,
+                  eq(appointments.id, confirmationAccess.appointmentId)
+                )
+                .innerJoin(merchants, eq(merchants.id, appointments.merchantId))
+                .where(eq(confirmationAccess.appointmentId, appointment.id))
+                .limit(1)
+            )
+            const confirmationFacts =
+              confirmation?.access &&
+              !confirmation.access.revokedAt &&
+              confirmation.access.expiresAt > input.now
+                ? {
+                    confirmationAccess: {
+                      merchantSlug: confirmation.merchantSlug,
+                      routeId: confirmation.access.routeId,
+                      bookingPartyId: confirmation.access.bookingPartyId,
+                      purpose: confirmation.access.purpose,
+                      tokenVersion: confirmation.access.tokenVersion,
+                      signingKeyId: confirmation.access.signingKeyId,
+                      expiresAt: confirmation.access.expiresAt
+                    }
+                  }
+                : {}
             const rescheduleIntent = notificationProtection
               ? yield* prepareBookingIntentMutation(
                   db,
@@ -871,6 +929,61 @@ export const makeLiveBookingRescheduling = (
                     notificationProtection
                   )
                 : null
+            const emailRescheduleIntent = yield* prepareAppointmentEmailMutation(
+              db,
+              {
+                merchantId: input.merchantId,
+                shopId: appointment.shopId,
+                sourceType: 'appointment',
+                sourceId: appointment.id,
+                sourceRevision: toVersion,
+                appointmentIds: [appointment.id],
+                purpose: 'appointment_reschedule',
+                destination:
+                  (appointment.snapshot as StoredAppointmentSnapshot).customerDetails
+                    .email ?? null,
+                locale,
+                facts: {
+                  merchantLabel,
+                  startsAt: replacement.hold.startsAt,
+                  timeZone: (appointment.snapshot as StoredAppointmentSnapshot)
+                    .merchantTimezone,
+                  ...confirmationFacts
+                },
+                availableAt: input.now,
+                createdAt: input.now
+              },
+              destinationSecrets
+            )
+            const emailReminderIntent = emailReminderAt
+              ? yield* prepareAppointmentEmailMutation(
+                  db,
+                  {
+                    merchantId: input.merchantId,
+                    shopId: appointment.shopId,
+                    sourceType: 'appointment',
+                    sourceId: appointment.id,
+                    sourceRevision: toVersion,
+                    appointmentIds: [appointment.id],
+                    purpose: 'appointment_reminder',
+                    destination:
+                      (appointment.snapshot as StoredAppointmentSnapshot)
+                        .customerDetails.email ?? null,
+                    locale,
+                    facts: {
+                      merchantLabel,
+                      startsAt: replacement.hold.startsAt,
+                      timeZone: (appointment.snapshot as StoredAppointmentSnapshot)
+                        .merchantTimezone,
+                      ...confirmationFacts
+                    },
+                    availableAt: emailReminderAt,
+                    usefulUntil: replacement.hold.startsAt,
+                    createdAt: input.now
+                  },
+                  destinationSecrets
+                )
+              : null
             const statements = [
               ...(replacement.settlement.kind === 'refund'
                 ? [
@@ -964,6 +1077,11 @@ export const makeLiveBookingRescheduling = (
                 beforeVersion: toVersion,
                 now: input.now
               }),
+              ...supersedeAppointmentEmailMutations(db, {
+                appointmentId: appointment.id,
+                beforeRevision: toVersion,
+                now: input.now
+              }),
               db
                 .update(rescheduleSessions)
                 .set({
@@ -978,6 +1096,12 @@ export const makeLiveBookingRescheduling = (
                 : []),
               ...(reminderIntent
                 ? notificationIntentMutationStatements(reminderIntent)
+                : []),
+              ...(emailRescheduleIntent
+                ? appointmentEmailMutationStatements(emailRescheduleIntent)
+                : []),
+              ...(emailReminderIntent
+                ? appointmentEmailMutationStatements(emailReminderIntent)
                 : [])
             ]
             const concurrent = yield* orUnavailable('booking-rescheduling')(
@@ -1026,6 +1150,16 @@ export const makeLiveBookingRescheduling = (
                 capability: 'booking-rescheduling',
                 reason: 'reschedule_command_missing_after_commit'
               })
+            if (publishAppointmentEmailWakeup)
+              yield* Effect.promise(() =>
+                Promise.allSettled(
+                  [emailRescheduleIntent, emailReminderIntent]
+                    .filter(
+                      (intent): intent is NonNullable<typeof intent> => intent !== null
+                    )
+                    .map((intent) => publishAppointmentEmailWakeup(intent.wakeup))
+                )
+              )
             return yield* readResult(stored, false)
           })
       }

@@ -160,6 +160,7 @@ describe('Operations Messaging workspaces', () => {
     const overview = await run((service) => service.overview({ actor, query: '456' }))
     expect(overview.health).toMatchObject({
       openCaseCount: 1,
+      appointmentEmailAttentionCount: 0,
       ambiguousCount: 1,
       merchantChargeMilliEuro: 45,
       providerCostMilliEuro: 23.9

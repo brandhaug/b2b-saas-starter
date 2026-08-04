@@ -468,6 +468,211 @@ export const transactionalEmailCallbackReceipts = sqliteTable(
   }
 )
 
+/**
+ * Durable, revision-bound Appointment email work. This is deliberately separate
+ * from activation-test evidence and mobile Notification Intents: an Appointment
+ * command can commit this row without depending on either provider lifecycle.
+ */
+export const appointmentEmailIntents = sqliteTable(
+  'appointment_email_intents',
+  {
+    id: id(),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    shopId: text('shop_id')
+      .notNull()
+      .references(() => shops.id, { onDelete: 'cascade' }),
+    sourceType: text('source_type', {
+      enum: ['appointment', 'appointment_series', 'booking_party']
+    }).notNull(),
+    sourceId: text('source_id').notNull(),
+    sourceRevision: integer('source_revision').notNull(),
+    appointmentIdsJson: text('appointment_ids_json', { mode: 'json' })
+      .$type<readonly string[]>()
+      .notNull(),
+    purpose: text('purpose', {
+      enum: [
+        'appointment_confirmation',
+        'appointment_reschedule',
+        'appointment_cancellation',
+        'appointment_reminder'
+      ]
+    }).notNull(),
+    semanticKey: text('semantic_key').notNull().unique(),
+    locale: text('locale', { enum: ['ro', 'en'] }).notNull(),
+    templateKey: text('template_key').notNull(),
+    templateVersion: integer('template_version').notNull(),
+    destinationCiphertext: text('destination_ciphertext'),
+    destinationKeyVersion: integer('destination_key_version').notNull(),
+    destinationFingerprint: text('destination_fingerprint'),
+    maskedDestination: text('masked_destination'),
+    factsJson: text('facts_json', { mode: 'json' })
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    factsFingerprint: text('facts_fingerprint').notNull(),
+    availableAt: text('available_at').notNull(),
+    usefulUntil: text('useful_until'),
+    status: text('status', {
+      enum: [
+        'pending',
+        'claimed',
+        'captured',
+        'accepted',
+        'delivered',
+        'failed',
+        'suppressed',
+        'unavailable',
+        'submission_unknown',
+        'superseded',
+        'superseded_after_submission'
+      ]
+    }).notNull(),
+    statusReason: text('status_reason'),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    nextAttemptAt: text('next_attempt_at'),
+    claimedAt: text('claimed_at'),
+    claimToken: text('claim_token'),
+    providerReferenceFingerprint: text('provider_reference_fingerprint').unique(),
+    acceptedAt: text('accepted_at'),
+    deliveredAt: text('delivered_at'),
+    latestProviderOccurredAt: text('latest_provider_occurred_at'),
+    terminalAt: text('terminal_at'),
+    createdAt: isoCreatedAt(),
+    updatedAt: isoUpdatedAt()
+  },
+  (table) => [
+    index('appointment_email_intents_due_idx').on(
+      table.status,
+      table.nextAttemptAt,
+      table.availableAt
+    ),
+    index('appointment_email_intents_source_idx').on(
+      table.sourceType,
+      table.sourceId,
+      table.sourceRevision
+    ),
+    index('appointment_email_intents_appointment_idx').on(
+      table.shopId,
+      table.createdAt
+    ),
+    check(
+      'appointment_email_intents_revision_positive',
+      sql`${table.sourceRevision} > 0`
+    ),
+    check(
+      'appointment_email_intents_attempt_count_nonnegative',
+      sql`${table.attemptCount} >= 0`
+    )
+  ]
+)
+
+/** Every provider interaction is an append-only fact, independent of projection. */
+export const appointmentEmailAttempts = sqliteTable(
+  'appointment_email_attempts',
+  {
+    id: id(),
+    intentId: text('intent_id')
+      .notNull()
+      .references(() => appointmentEmailIntents.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    state: text('state', {
+      enum: [
+        'prepared',
+        'submitting',
+        'captured',
+        'accepted',
+        'failed_retryable',
+        'failed_terminal',
+        'submission_unknown'
+      ]
+    }).notNull(),
+    failureCode: text('failure_code'),
+    startedAt: text('started_at').notNull(),
+    completedAt: text('completed_at'),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('appointment_email_attempts_intent_ordinal_unique').on(
+      table.intentId,
+      table.ordinal
+    ),
+    index('appointment_email_attempts_intent_idx').on(table.intentId, table.startedAt),
+    check('appointment_email_attempts_ordinal_positive', sql`${table.ordinal} > 0`)
+  ]
+)
+
+export const appointmentEmailCallbackReceipts = sqliteTable(
+  'appointment_email_callback_receipts',
+  {
+    eventFingerprint: text('event_fingerprint').primaryKey(),
+    intentId: text('intent_id').references(() => appointmentEmailIntents.id, {
+      onDelete: 'set null'
+    }),
+    providerReferenceFingerprint: text('provider_reference_fingerprint').notNull(),
+    providerStatus: text('provider_status', {
+      enum: ['delivered', 'failed']
+    }).notNull(),
+    providerOccurredAt: text('provider_occurred_at').notNull(),
+    normalizedCode: text('normalized_code'),
+    outcome: text('outcome', {
+      enum: ['pending', 'applied', 'out_of_order']
+    }).notNull(),
+    receivedAt: text('received_at').notNull()
+  },
+  (table) => [
+    index('appointment_email_callbacks_provider_idx').on(
+      table.providerReferenceFingerprint,
+      table.providerOccurredAt
+    )
+  ]
+)
+
+/** Redacted terminal evidence; this is intentionally not replayable work. */
+export const appointmentEmailDeadLetters = sqliteTable(
+  'appointment_email_dead_letters',
+  {
+    id: id(),
+    intentId: text('intent_id')
+      .notNull()
+      .unique()
+      .references(() => appointmentEmailIntents.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    safeReason: text('safe_reason').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [index('appointment_email_dead_letters_merchant_idx').on(table.merchantId)]
+)
+
+export const appointmentEmailAttention = sqliteTable(
+  'appointment_email_attention',
+  {
+    id: id(),
+    intentId: text('intent_id')
+      .notNull()
+      .unique()
+      .references(() => appointmentEmailIntents.id, { onDelete: 'cascade' }),
+    merchantId: text('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'cascade' }),
+    kind: text('kind', {
+      enum: ['complaint', 'hard_bounce', 'submission_unknown', 'delivery_failed']
+    }).notNull(),
+    status: text('status', { enum: ['open', 'resolved'] })
+      .default('open')
+      .notNull(),
+    safeSummary: text('safe_summary').notNull(),
+    openedAt: text('opened_at').notNull(),
+    resolvedAt: text('resolved_at')
+  },
+  (table) => [
+    index('appointment_email_attention_status_idx').on(table.status, table.openedAt)
+  ]
+)
+
 export const account = sqliteTable(
   'account',
   {

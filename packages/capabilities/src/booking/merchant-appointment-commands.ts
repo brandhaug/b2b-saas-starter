@@ -16,6 +16,14 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { MerchantContext } from '../merchant-catalog/merchant-context.ts'
 import { decodePersistedServiceBuffers } from '../merchant-catalog/service-buffers.ts'
 import { prepareAppointmentCustomerAssociationBatch } from '../customer-directory/appointment-association.ts'
+import {
+  appointmentEmailMutationStatements,
+  appointmentEmailReminderAvailableAt,
+  prepareAppointmentEmailMutation,
+  supersedeAppointmentEmailMutations,
+  type AppointmentEmailWakeup,
+  type NotificationDestinationProtectionSecrets
+} from '../notifications/index.ts'
 
 const NonEmpty = Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1))
 const IsoInstant = Schema.String.check(
@@ -30,8 +38,15 @@ const CustomerWire = Schema.Struct({
   note: Schema.optional(Schema.String)
 })
 const NotificationWire = Schema.Union([
-  Schema.Struct({ kind: Schema.Literal('notify') }),
-  Schema.Struct({ kind: Schema.Literal('suppress'), reason: NonEmpty })
+  Schema.Struct({
+    kind: Schema.Literal('notify'),
+    locale: Schema.Literals(['ro', 'en'])
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('suppress'),
+    reason: NonEmpty,
+    locale: Schema.Literals(['ro', 'en'])
+  })
 ])
 const CommonWire = {
   idempotencyKey: NonEmpty
@@ -201,8 +216,12 @@ export type MerchantAppointmentSeriesPreviewResult = readonly {
 }[]
 
 export type AppointmentNotificationChoice =
-  | { readonly kind: 'notify' }
-  | { readonly kind: 'suppress'; readonly reason: string }
+  | { readonly kind: 'notify'; readonly locale: 'ro' | 'en' }
+  | {
+      readonly kind: 'suppress'
+      readonly reason: string
+      readonly locale: 'ro' | 'en'
+    }
 
 export type MerchantAppointmentCustomer = {
   readonly name: string
@@ -797,6 +816,18 @@ const mapFailure = (cause: unknown) => {
 
 export const liveMerchantAppointmentCommands = (options?: {
   readonly impersonatedBy?: string | null | undefined
+  readonly notificationDestinationSecrets?:
+    | NotificationDestinationProtectionSecrets
+    | undefined
+  readonly confirmationKeyring?:
+    | {
+        readonly currentKeyId: string
+        readonly keys: Readonly<Record<string, string>>
+      }
+    | undefined
+  readonly publishAppointmentEmailWakeup?:
+    | ((wakeup: AppointmentEmailWakeup) => Promise<void>)
+    | undefined
 }): Layer.Layer<MerchantAppointmentCommands, never, Database> =>
   Layer.effect(
     MerchantAppointmentCommands,
@@ -837,7 +868,56 @@ export const liveMerchantAppointmentCommands = (options?: {
               await assertAccess(raw, merchant.id, actorId, !createLike)
               const now = new Date().toISOString()
               const operationId = newCapabilityId('apo')
-
+              const appointmentEmailWakeups: AppointmentEmailWakeup[] = []
+              const notificationShop = await raw
+                .prepare(
+                  `SELECT s.id, s.public_name publicName,
+                              COALESCE(c.enabled, 1) enabled,
+                              COALESCE(c.reminder_enabled, 1) reminderEnabled,
+                              COALESCE(c.reminder_lead_minutes, 1440) reminderLeadMinutes,
+                              COALESCE(c.frozen, 0) frozen
+                       FROM shops s LEFT JOIN merchant_messaging_controls c ON c.shop_id = s.id
+                       WHERE s.merchant_id = ? ORDER BY s.created_at, s.id LIMIT 1`
+                )
+                .bind(merchant.id)
+                .first<{
+                  id: string
+                  publicName: string
+                  enabled: number
+                  reminderEnabled: number
+                  reminderLeadMinutes: number
+                  frozen: number
+                }>()
+              const prepareEmail = async (
+                emailInput: Parameters<typeof prepareAppointmentEmailMutation>[1]
+              ) => {
+                if (!notificationShop) return [] as D1PreparedStatement[]
+                const mutation = await Effect.runPromise(
+                  prepareAppointmentEmailMutation(
+                    db,
+                    emailInput,
+                    options?.notificationDestinationSecrets
+                  )
+                )
+                appointmentEmailWakeups.push(mutation.wakeup)
+                return appointmentEmailMutationStatements(mutation).map((statement) =>
+                  prepared(raw, statement)
+                )
+              }
+              const reminderAt = (startsAt: string) =>
+                notificationShop
+                  ? appointmentEmailReminderAvailableAt({
+                      startsAt,
+                      timeZone: merchant.timezone,
+                      now,
+                      controls: {
+                        enabled: notificationShop.enabled === 1,
+                        reminderEnabled: notificationShop.reminderEnabled === 1,
+                        reminderLeadMinutes: notificationShop.reminderLeadMinutes,
+                        frozen: notificationShop.frozen === 1
+                      }
+                    })
+                  : null
               if (
                 command.kind === 'create' ||
                 command.kind === 'record_completed' ||
@@ -885,6 +965,15 @@ export const liveMerchantAppointmentCommands = (options?: {
                 const appointmentIds = occurrences.map(
                   (item) => item.appointmentId ?? newCapabilityId('apt')
                 )
+                const confirmationRoutes = appointmentIds.map((appointmentId) => ({
+                  routeId: newCapabilityId('cnf'),
+                  expiresAt: new Date(
+                    Date.parse(
+                      occurrences[appointmentIds.indexOf(appointmentId)]!.endsAt
+                    ) +
+                      30 * 24 * 60 * 60_000
+                  ).toISOString()
+                }))
                 const snapshots = occurrences.map((item) =>
                   makeSnapshot(
                     merchant.timezone,
@@ -1025,6 +1114,27 @@ export const liveMerchantAppointmentCommands = (options?: {
                         now
                       )
                   )
+                  const route = confirmationRoutes[index]!
+                  if (
+                    !historical &&
+                    options?.confirmationKeyring?.keys[
+                      options.confirmationKeyring.currentKeyId
+                    ]
+                  )
+                    statements.push(
+                      raw
+                        .prepare(`INSERT INTO confirmation_access
+                          (route_id, appointment_id, purpose, token_version, signing_key_id,
+                           expires_at, exchanged_at, revoked_at, created_at)
+                          VALUES (?, ?, 'appointment_confirmation', 1, ?, ?, NULL, NULL, ?)`)
+                        .bind(
+                          route.routeId,
+                          appointmentId,
+                          options.confirmationKeyring.currentKeyId,
+                          route.expiresAt,
+                          now
+                        )
+                    )
                   if (
                     command.kind === 'record_completed' &&
                     command.completionCollection?.kind === 'collected'
@@ -1139,6 +1249,85 @@ export const liveMerchantAppointmentCommands = (options?: {
                       .bind(`guard:${operationId}:${appointmentId}`)
                   )
                 }
+                if (command.kind !== 'record_completed' && notificationShop) {
+                  const notification = command.notification
+                  const confirmationStatements = await prepareEmail({
+                    merchantId: merchant.id,
+                    shopId: notificationShop.id,
+                    sourceType: seriesId ? 'appointment_series' : 'appointment',
+                    sourceId: seriesId ?? appointmentIds[0]!,
+                    sourceRevision: 1,
+                    appointmentIds,
+                    purpose: 'appointment_confirmation',
+                    destination: customer.email || null,
+                    locale: notification?.locale ?? 'en',
+                    facts: {
+                      merchantLabel: notificationShop.publicName,
+                      startsAt: snapshots[0]!.startsAt,
+                      timeZone: merchant.timezone,
+                      ...(options?.confirmationKeyring
+                        ? {
+                            confirmationAccess: {
+                              merchantSlug: merchant.slug,
+                              routeId: confirmationRoutes[0]!.routeId,
+                              purpose: 'appointment_confirmation' as const,
+                              tokenVersion: 1,
+                              signingKeyId: options.confirmationKeyring.currentKeyId,
+                              expiresAt: confirmationRoutes[0]!.expiresAt
+                            }
+                          }
+                        : {}),
+                      affectedAppointmentCount: appointmentIds.length
+                    },
+                    availableAt: now,
+                    createdAt: now,
+                    ...(notification?.kind === 'suppress'
+                      ? { suppressionReason: notification.reason }
+                      : {})
+                  })
+                  statements.push(...confirmationStatements)
+                  for (const [index, appointmentId] of appointmentIds.entries()) {
+                    const dueAt = reminderAt(snapshots[index]!.startsAt)
+                    if (!dueAt) continue
+                    statements.push(
+                      ...(await prepareEmail({
+                        merchantId: merchant.id,
+                        shopId: notificationShop.id,
+                        sourceType: 'appointment',
+                        sourceId: appointmentId,
+                        sourceRevision: 1,
+                        appointmentIds: [appointmentId],
+                        purpose: 'appointment_reminder',
+                        destination: customer.email || null,
+                        locale: notification?.locale ?? 'en',
+                        facts: {
+                          merchantLabel: notificationShop.publicName,
+                          startsAt: snapshots[index]!.startsAt,
+                          timeZone: merchant.timezone,
+                          ...(options?.confirmationKeyring
+                            ? {
+                                confirmationAccess: {
+                                  merchantSlug: merchant.slug,
+                                  routeId: confirmationRoutes[index]!.routeId,
+                                  purpose: 'appointment_confirmation' as const,
+                                  tokenVersion: 1,
+                                  signingKeyId:
+                                    options.confirmationKeyring.currentKeyId,
+                                  expiresAt: confirmationRoutes[index]!.expiresAt
+                                }
+                              }
+                            : {})
+                        },
+                        availableAt: dueAt,
+                        usefulUntil: snapshots[index]!.startsAt,
+                        createdAt: now,
+                        ...(notification?.kind === 'suppress'
+                          ? { suppressionReason: notification.reason }
+                          : {})
+                      }))
+                    )
+                  }
+                }
                 if (seriesId)
                   statements.push(
                     raw
@@ -1162,6 +1351,10 @@ export const liveMerchantAppointmentCommands = (options?: {
                   )
                 )
                 await raw.batch(statements)
+                if (options?.publishAppointmentEmailWakeup)
+                  await Promise.allSettled(
+                    appointmentEmailWakeups.map(options.publishAppointmentEmailWakeup)
+                  )
                 return result
               }
 
@@ -1335,26 +1528,30 @@ export const liveMerchantAppointmentCommands = (options?: {
                   nextStatus = requested
                 }
                 const nextRevision = row.version + 1
+                let destinationChanged = false
                 if (mutationCommand.kind === 'edit') {
                   const beforeEmail = snapshot.customerDetails.email
                     .trim()
                     .toLowerCase()
-                  const beforePhone = snapshot.customerDetails.phone?.trim() || null
                   const afterEmail = nextSnapshot.customerDetails.email
                     .trim()
                     .toLowerCase()
-                  const afterPhone = nextSnapshot.customerDetails.phone?.trim() || null
-                  const destinationChanged =
-                    beforeEmail !== afterEmail || beforePhone !== afterPhone
+                  destinationChanged = beforeEmail !== afterEmail
                   if (destinationChanged && !mutationCommand.notification)
                     throw reject('destination_notification_choice_required')
+                  if (
+                    destinationChanged &&
+                    mutationCommand.notification?.kind !== 'notify'
+                  )
+                    throw reject('destination_notification_must_notify')
                   if (destinationChanged)
                     statements.push(
                       raw
                         .prepare(
-                          `UPDATE confirmation_access SET revoked_at = ? WHERE appointment_id = ? AND revoked_at IS NULL`
+                          `UPDATE confirmation_access SET token_version = token_version + 1,
+                           exchanged_at = NULL, revoked_at = NULL WHERE appointment_id = ?`
                         )
-                        .bind(now, appointmentId)
+                        .bind(appointmentId)
                     )
                   statements.push(
                     raw
@@ -1368,6 +1565,24 @@ export const liveMerchantAppointmentCommands = (options?: {
                       )
                   )
                 }
+                const confirmationAccess =
+                  notificationShop &&
+                  (mutationCommand.kind === 'reschedule' || destinationChanged)
+                    ? await raw
+                        .prepare(`SELECT route_id routeId, booking_party_id bookingPartyId,
+                          purpose, token_version tokenVersion, signing_key_id signingKeyId,
+                          expires_at expiresAt FROM confirmation_access
+                          WHERE appointment_id = ? ORDER BY created_at, route_id LIMIT 1`)
+                        .bind(appointmentId)
+                        .first<{
+                          routeId: string
+                          bookingPartyId: string | null
+                          purpose: 'appointment_confirmation' | 'party_confirmation'
+                          tokenVersion: number
+                          signingKeyId: string
+                          expiresAt: string
+                        }>()
+                    : null
                 statements.push(
                   raw
                     .prepare(`UPDATE appointments SET status = ?, version = ?, starts_at = ?, ends_at = ?, snapshot = ?, updated_at = ?
@@ -1384,6 +1599,104 @@ export const liveMerchantAppointmentCommands = (options?: {
                       row.version
                     )
                 )
+                statements.push(
+                  ...supersedeAppointmentEmailMutations(db, {
+                    appointmentId,
+                    beforeRevision: nextRevision,
+                    now
+                  }).map((statement) => prepared(raw, statement))
+                )
+                if (
+                  notificationShop &&
+                  (mutationCommand.kind === 'reschedule' || destinationChanged)
+                ) {
+                  const purpose = destinationChanged
+                    ? ('appointment_confirmation' as const)
+                    : ('appointment_reschedule' as const)
+                  const notification =
+                    'notification' in mutationCommand
+                      ? mutationCommand.notification
+                      : undefined
+                  statements.push(
+                    ...(await prepareEmail({
+                      merchantId: merchant.id,
+                      shopId: notificationShop.id,
+                      sourceType: 'appointment',
+                      sourceId: appointmentId,
+                      sourceRevision: nextRevision,
+                      appointmentIds: [appointmentId],
+                      purpose,
+                      destination: nextSnapshot.customerDetails.email || null,
+                      locale: notification?.locale ?? 'en',
+                      facts: {
+                        merchantLabel: notificationShop.publicName,
+                        startsAt,
+                        timeZone: merchant.timezone,
+                        ...(confirmationAccess
+                          ? {
+                              confirmationAccess: {
+                                merchantSlug: merchant.slug,
+                                routeId: confirmationAccess.routeId,
+                                bookingPartyId: confirmationAccess.bookingPartyId,
+                                purpose: confirmationAccess.purpose,
+                                tokenVersion:
+                                  confirmationAccess.tokenVersion +
+                                  (destinationChanged ? 1 : 0),
+                                signingKeyId: confirmationAccess.signingKeyId,
+                                expiresAt: confirmationAccess.expiresAt
+                              }
+                            }
+                          : {})
+                      },
+                      availableAt: now,
+                      createdAt: now,
+                      ...(!destinationChanged && notification?.kind === 'suppress'
+                        ? { suppressionReason: notification.reason }
+                        : {})
+                    }))
+                  )
+                  const dueAt = reminderAt(startsAt)
+                  if (dueAt)
+                    statements.push(
+                      ...(await prepareEmail({
+                        merchantId: merchant.id,
+                        shopId: notificationShop.id,
+                        sourceType: 'appointment',
+                        sourceId: appointmentId,
+                        sourceRevision: nextRevision,
+                        appointmentIds: [appointmentId],
+                        purpose: 'appointment_reminder',
+                        destination: nextSnapshot.customerDetails.email || null,
+                        locale: notification?.locale ?? 'en',
+                        facts: {
+                          merchantLabel: notificationShop.publicName,
+                          startsAt,
+                          timeZone: merchant.timezone,
+                          ...(confirmationAccess
+                            ? {
+                                confirmationAccess: {
+                                  merchantSlug: merchant.slug,
+                                  routeId: confirmationAccess.routeId,
+                                  bookingPartyId: confirmationAccess.bookingPartyId,
+                                  purpose: confirmationAccess.purpose,
+                                  tokenVersion:
+                                    confirmationAccess.tokenVersion +
+                                    (destinationChanged ? 1 : 0),
+                                  signingKeyId: confirmationAccess.signingKeyId,
+                                  expiresAt: confirmationAccess.expiresAt
+                                }
+                              }
+                            : {})
+                        },
+                        availableAt: dueAt,
+                        usefulUntil: startsAt,
+                        createdAt: now,
+                        ...(notification?.kind === 'suppress'
+                          ? { suppressionReason: notification.reason }
+                          : {})
+                      }))
+                    )
+                }
 
                 const collection =
                   mutationCommand.kind === 'append_collection'
@@ -1534,6 +1847,94 @@ export const liveMerchantAppointmentCommands = (options?: {
                     )
                     .bind(now, mutationCommand.seriesId, merchant.id)
                 )
+              if (
+                notificationShop &&
+                (mutationCommand.kind === 'cancel' ||
+                  mutationCommand.kind === 'cancel_party' ||
+                  mutationCommand.kind === 'cancel_remaining_series')
+              ) {
+                const groupedByDestination = new Map<string, AppointmentRow[]>()
+                for (const row of rows.results) {
+                  const snapshot = jsonSnapshot(row.snapshot)
+                  const destination = snapshot.customerDetails.email
+                    .trim()
+                    .toLowerCase()
+                  groupedByDestination.set(destination, [
+                    ...(groupedByDestination.get(destination) ?? []),
+                    row
+                  ])
+                }
+                for (const [destination, grouped] of groupedByDestination) {
+                  const first = grouped[0]!
+                  const snapshot = jsonSnapshot(first.snapshot)
+                  const cancellationAccess = await raw
+                    .prepare(`SELECT route_id routeId, booking_party_id bookingPartyId,
+                      purpose, token_version tokenVersion, signing_key_id signingKeyId,
+                      expires_at expiresAt, revoked_at revokedAt FROM confirmation_access
+                      WHERE appointment_id = ? ORDER BY created_at, route_id LIMIT 1`)
+                    .bind(first.id)
+                    .first<{
+                      routeId: string
+                      bookingPartyId: string | null
+                      purpose: 'appointment_confirmation' | 'party_confirmation'
+                      tokenVersion: number
+                      signingKeyId: string
+                      expiresAt: string
+                      revokedAt: string | null
+                    }>()
+                  statements.push(
+                    ...(await prepareEmail({
+                      merchantId: merchant.id,
+                      shopId: notificationShop.id,
+                      sourceType:
+                        mutationCommand.kind === 'cancel'
+                          ? 'appointment'
+                          : mutationCommand.kind === 'cancel_party'
+                            ? 'booking_party'
+                            : 'appointment_series',
+                      sourceId:
+                        mutationCommand.kind === 'cancel'
+                          ? first.id
+                          : mutationCommand.kind === 'cancel_party'
+                            ? mutationCommand.bookingPartyId!
+                            : mutationCommand.seriesId!,
+                      sourceRevision: Math.max(
+                        ...grouped.map((item) => item.version + 1)
+                      ),
+                      appointmentIds: grouped.map((item) => item.id),
+                      purpose: 'appointment_cancellation',
+                      destination: destination || null,
+                      locale: mutationCommand.notification.locale,
+                      facts: {
+                        merchantLabel: notificationShop.publicName,
+                        startsAt: first.startsAt,
+                        timeZone: snapshot.merchantTimezone,
+                        affectedAppointmentCount: grouped.length,
+                        ...(cancellationAccess &&
+                        !cancellationAccess.revokedAt &&
+                        cancellationAccess.expiresAt > now
+                          ? {
+                              confirmationAccess: {
+                                merchantSlug: merchant.slug,
+                                routeId: cancellationAccess.routeId,
+                                bookingPartyId: cancellationAccess.bookingPartyId,
+                                purpose: cancellationAccess.purpose,
+                                tokenVersion: cancellationAccess.tokenVersion,
+                                signingKeyId: cancellationAccess.signingKeyId,
+                                expiresAt: cancellationAccess.expiresAt
+                              }
+                            }
+                          : {})
+                      },
+                      availableAt: now,
+                      createdAt: now,
+                      ...(mutationCommand.notification.kind === 'suppress'
+                        ? { suppressionReason: mutationCommand.notification.reason }
+                        : {})
+                    }))
+                  )
+                }
+              }
               const result: MerchantAppointmentCommandResult = {
                 operationId,
                 appointmentIds: targetIds,
@@ -1557,6 +1958,10 @@ export const liveMerchantAppointmentCommands = (options?: {
                   .bind(accessGuardId)
               )
               await raw.batch(statements)
+              if (options?.publishAppointmentEmailWakeup)
+                await Promise.allSettled(
+                  appointmentEmailWakeups.map(options.publishAppointmentEmailWakeup)
+                )
               return result
             },
             catch: mapFailure

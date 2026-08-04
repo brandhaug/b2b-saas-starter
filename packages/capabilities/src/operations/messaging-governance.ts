@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq, isNull, notExists, sql } from 'drizzle-orm'
 import type { PromiseDrizzleDatabase } from '@b2b-saas-starter/db'
 import {
+  appointmentEmailAttention,
   auditEvents,
   merchantMessagingControls,
   messagingIncidentQuarantine,
@@ -1371,7 +1372,37 @@ export const makeMessagingGovernanceLayer = (
           .from(messagingReconciliationCases)
           .where(eq(messagingReconciliationCases.id, input.caseId))
           .limit(1)
-        if (!caseRow) throw denied('resolve-case', 'case_not_found')
+        if (!caseRow) {
+          const [emailAttention] = await db
+            .select()
+            .from(appointmentEmailAttention)
+            .where(eq(appointmentEmailAttention.id, input.caseId))
+            .limit(1)
+          if (!emailAttention) throw denied('resolve-case', 'case_not_found')
+          if (emailAttention.status === 'resolved')
+            throw denied('resolve-case', 'case_already_closed')
+          await db.batch([
+            db
+              .update(appointmentEmailAttention)
+              .set({ status: 'resolved', resolvedAt: now.toISOString() })
+              .where(eq(appointmentEmailAttention.id, emailAttention.id)),
+            db.insert(auditEvents).values(
+              audit({
+                principal,
+                eventType: `messaging.appointment-email.${input.disposition}`,
+                targetType: 'appointment-email-attention',
+                targetId: emailAttention.id,
+                reason: input.reason,
+                now,
+                metadata: {
+                  classification: input.classification.trim(),
+                  source: input.source.trim()
+                }
+              })
+            )
+          ])
+          return
+        }
         if (caseRow.status === 'resolved' || caseRow.status === 'waived')
           throw denied('resolve-case', 'case_already_closed')
         await db.batch([

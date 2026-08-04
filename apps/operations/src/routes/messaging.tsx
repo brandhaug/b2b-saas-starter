@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { OperationsShell, ScreenState, SubmitButton } from '@/components/operations-ui'
+import { AppointmentEmailAttentionHealth } from '@/components/appointment-email-attention-health'
 import { requireOperationsSession } from '@/lib/require-operations-session'
 import { getMessagingOverview } from '@/lib/server/operations-server-functions'
 
@@ -36,6 +37,9 @@ function MessagingOverviewRoute() {
         aria-label="Messaging health summary"
       >
         <HealthFact label="Open cases" value={health.openCaseCount} />
+        <AppointmentEmailAttentionHealth
+          count={health.appointmentEmailAttentionCount}
+        />
         <HealthFact label="Ambiguous" value={health.ambiguousCount} />
         <HealthFact label="Complaints" value={health.complaintCount} />
         <HealthFact label="Delivered routes" value={health.deliveredRouteCount} />

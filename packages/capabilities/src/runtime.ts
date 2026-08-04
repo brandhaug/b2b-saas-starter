@@ -20,6 +20,7 @@ import {
   selectTransactionalEmailProvider
 } from './notifications/transactional-email.ts'
 import { LiveOperationalMessagingJobs } from './notifications/operational-messaging-jobs.ts'
+import { makeLiveAppointmentEmailWorkflows } from './notifications/appointment-email.ts'
 export { SeedLayer, type CapabilitiesLayer, type CapabilityServices } from './layers.ts'
 export { CapabilityUnavailable } from './errors.ts'
 
@@ -30,7 +31,9 @@ export type BookingProductEnv = {
   readonly BOOKING_EVENTS_QUEUE?:
     | {
         readonly send: (
-          message: import('./foundation/index.ts').QueueWakeup
+          message:
+            | import('./foundation/index.ts').QueueWakeup
+            | import('./notifications/index.ts').AppointmentEmailWakeup
         ) => Promise<unknown>
       }
     | undefined
@@ -72,6 +75,9 @@ export type BookingProductEnv = {
   readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string | undefined
   readonly TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string | undefined
   readonly TRANSACTIONAL_EMAIL_DISABLED?: string | undefined
+  readonly CONFIRMATION_SIGNING_KEYS?: string | undefined
+  readonly CONFIRMATION_CURRENT_KEY_ID?: string | undefined
+  readonly PUBLIC_SITE_ORIGIN?: string | undefined
 }
 
 export const transactionalEmailIsConfigured = (env: BookingProductEnv) =>
@@ -154,6 +160,44 @@ export const makeTransactionalEmailCapabilityLayer = (
   )
 }
 
+export const makeAppointmentEmailWorkflowsLayer = (
+  env: BookingProductEnv & { readonly ENVIRONMENT?: string | undefined }
+) => {
+  let confirmationSigningKeys: Readonly<Record<string, string>> = {}
+  try {
+    confirmationSigningKeys = JSON.parse(
+      env.CONFIRMATION_SIGNING_KEYS ?? '{}'
+    ) as Readonly<Record<string, string>>
+  } catch {
+    // A malformed keyring produces an explicit unavailable delivery outcome.
+  }
+  const runtime =
+    env.ENVIRONMENT === 'test'
+      ? ('test' as const)
+      : env.ENVIRONMENT === 'development'
+        ? ('local' as const)
+        : env.ENVIRONMENT === 'preview'
+          ? ('preview' as const)
+          : ('production' as const)
+  const provider = selectTransactionalEmailProvider({
+    runtime,
+    disabled: env.TRANSACTIONAL_EMAIL_DISABLED === 'true',
+    ...(transactionalEmailIsConfigured(env)
+      ? { provider: configuredTransactionalEmailProvider(env, true) }
+      : {})
+  })
+  return makeLiveAppointmentEmailWorkflows({
+    provider,
+    destinationEncryptionSecret:
+      env.OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY ??
+      env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET,
+    confirmationSigningKeys,
+    publicOrigin:
+      env.PUBLIC_SITE_ORIGIN ??
+      (runtime === 'local' || runtime === 'test' ? 'http://localhost:3071' : undefined)
+  }).pipe(Layer.provide(layerFromD1(env.DB)))
+}
+
 export const selectCapabilitiesLayer = (
   env: BookingProductEnv,
   options: Pick<
@@ -164,6 +208,22 @@ export const selectCapabilitiesLayer = (
     | 'merchantAppointmentImpersonatedBy'
   > = {}
 ): CapabilitiesLayer => {
+  let configuredConfirmationKeys: Readonly<Record<string, string>> = {}
+  try {
+    configuredConfirmationKeys = JSON.parse(
+      env.CONFIRMATION_SIGNING_KEYS ?? '{}'
+    ) as Readonly<Record<string, string>>
+  } catch {
+    // Capability operations report the unavailable current key explicitly.
+  }
+  const confirmationKeyring =
+    options.confirmationKeyring ??
+    (env.CONFIRMATION_CURRENT_KEY_ID
+      ? {
+          currentKeyId: env.CONFIRMATION_CURRENT_KEY_ID,
+          keys: configuredConfirmationKeys
+        }
+      : undefined)
   const destinationSecrets =
     options.notificationDestinationSecrets ??
     (env.OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY &&
@@ -173,20 +233,29 @@ export const selectCapabilitiesLayer = (
           fingerprint: env.OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY,
           keyVersion: Number(env.OPERATIONAL_MESSAGING_DESTINATION_KEY_VERSION ?? '1')
         }
-      : undefined)
+      : env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET &&
+          env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY
+        ? {
+            encryption: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET,
+            fingerprint: env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY,
+            keyVersion: 1
+          }
+        : undefined)
   return makeLiveLayerFromD1(env.DB, {
     customerDirectoryFingerprintKey: env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
     requireCustomerDirectoryFingerprintKey:
       env.REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
     platformApiCursorSecret: env.PLATFORM_API_CURSOR_SECRET,
     requirePlatformApiCursorSecret: env.REQUIRE_PLATFORM_API_CURSOR_SECRET,
-    confirmationKeyring: options.confirmationKeyring,
+    ...(confirmationKeyring ? { confirmationKeyring } : {}),
     merchantAppointmentImpersonatedBy: options.merchantAppointmentImpersonatedBy,
     capabilityOutboxHandler: options.capabilityOutboxHandler,
     ...(env.BOOKING_EVENTS_QUEUE
       ? {
           capabilityQueueWakeup: async (
-            wakeup: import('./foundation/index.ts').QueueWakeup
+            wakeup:
+              | import('./foundation/index.ts').QueueWakeup
+              | import('./notifications/index.ts').AppointmentEmailWakeup
           ) => {
             await env.BOOKING_EVENTS_QUEUE!.send(wakeup)
           }

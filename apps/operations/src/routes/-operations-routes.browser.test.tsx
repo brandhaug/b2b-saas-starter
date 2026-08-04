@@ -133,6 +133,7 @@ beforeEach(() => {
     ready({
       health: {
         openCaseCount: 1,
+        appointmentEmailAttentionCount: 0,
         ambiguousCount: 1,
         complaintCount: 0,
         deliveredRouteCount: 23,

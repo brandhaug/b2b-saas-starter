@@ -536,7 +536,11 @@ export type LiveCapabilitiesOptions = {
     | undefined
   readonly merchantAppointmentImpersonatedBy?: string | null | undefined
   readonly capabilityQueueWakeup?:
-    | ((wakeup: import('./foundation/index.ts').QueueWakeup) => Promise<void>)
+    | ((
+        wakeup:
+          | import('./foundation/index.ts').QueueWakeup
+          | import('./notifications/index.ts').AppointmentEmailWakeup
+      ) => Promise<void>)
     | undefined
   readonly capabilityOutboxHandler?:
     | ((claim: import('./foundation/index.ts').OutboxClaim) => Promise<void>)
@@ -618,14 +622,32 @@ export const makeLiveCapabilitiesLayer = (
     liveBookingCheckoutLayer,
     LiveBookingConfirmation(
       options.confirmationKeyring ?? { currentKeyId: 'unconfigured', keys: {} },
-      options.notificationDestinationSecrets
+      options.notificationDestinationSecrets,
+      options.capabilityQueueWakeup
     ).pipe(Layer.provide(LivePaymentSettlement)),
     LiveAppointmentOperations,
     liveMerchantAppointmentCommands({
-      impersonatedBy: options.merchantAppointmentImpersonatedBy
+      impersonatedBy: options.merchantAppointmentImpersonatedBy,
+      ...(options.notificationDestinationSecrets
+        ? {
+            notificationDestinationSecrets: options.notificationDestinationSecrets
+          }
+        : {}),
+      ...(options.confirmationKeyring
+        ? { confirmationKeyring: options.confirmationKeyring }
+        : {}),
+      ...(options.capabilityQueueWakeup
+        ? { publishAppointmentEmailWakeup: options.capabilityQueueWakeup }
+        : {})
     }),
-    makeLiveBookingCancellations(options.notificationDestinationSecrets),
-    makeLiveBookingRescheduling(options.notificationDestinationSecrets),
+    makeLiveBookingCancellations(
+      options.notificationDestinationSecrets,
+      options.capabilityQueueWakeup
+    ),
+    makeLiveBookingRescheduling(
+      options.notificationDestinationSecrets,
+      options.capabilityQueueWakeup
+    ),
     LiveBookingNotificationOutbox
   )
 }

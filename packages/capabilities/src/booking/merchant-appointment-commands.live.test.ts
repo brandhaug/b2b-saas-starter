@@ -172,7 +172,7 @@ describe('Live Merchant Appointment commands', () => {
         email: 'alex@example.com',
         phone: '+40700000000'
       },
-      notification: { kind: 'notify' }
+      notification: { kind: 'notify', locale: 'en' }
     } as const satisfies MerchantAppointmentCommand
 
     const first = await execute(command)
@@ -249,7 +249,7 @@ describe('Live Merchant Appointment commands', () => {
     ).rejects.toMatchObject({ reason: 'outcome_not_available' })
   })
 
-  it('revokes old Confirmation access when the customer destination changes', async () => {
+  it('rotates Confirmation access when the customer destination changes', async () => {
     await test.d1
       .prepare(
         `INSERT INTO confirmation_access
@@ -275,19 +275,16 @@ describe('Live Merchant Appointment commands', () => {
         email: 'alex.changed@example.com',
         phone: '+40700000000'
       },
-      notification: {
-        kind: 'suppress',
-        reason: 'Customer already has the updated details.'
-      }
+      notification: { kind: 'notify', locale: 'en' }
     })
 
     const access = await test.d1
       .prepare(
-        `SELECT revoked_at revokedAt FROM confirmation_access WHERE route_id = ?`
+        `SELECT token_version tokenVersion, revoked_at revokedAt FROM confirmation_access WHERE route_id = ?`
       )
       .bind('cnf_operations_old')
-      .first<{ revokedAt: string | null }>()
-    expect(access?.revokedAt).not.toBeNull()
+      .first<{ tokenVersion: number; revokedAt: string | null }>()
+    expect(access).toEqual({ tokenVersion: 2, revokedAt: null })
   })
 
   it('materializes a finite weekly Series atomically and cancels remaining Scheduled members', async () => {
@@ -317,7 +314,11 @@ describe('Live Merchant Appointment commands', () => {
       customer: { name: 'Series Customer', email: null, phone: null },
       warningAcknowledged: true,
       overrideReason: 'The first occurrence was moved at the customer request.',
-      notification: { kind: 'suppress', reason: 'Customer booked in person.' }
+      notification: {
+        kind: 'suppress',
+        reason: 'Customer booked in person.',
+        locale: 'en'
+      }
     })
 
     const persistedMembers = await test.d1
@@ -344,7 +345,7 @@ describe('Live Merchant Appointment commands', () => {
       seriesId: 'aps_operations',
       expectedRevisions: { apt_series_one: 1, apt_series_two: 1 },
       category: 'merchant_unavailable',
-      notification: { kind: 'notify' }
+      notification: { kind: 'notify', locale: 'en' }
     })
 
     expect(created.appointmentIds).toEqual(['apt_series_one', 'apt_series_two'])
@@ -425,7 +426,7 @@ describe('Live Merchant Appointment commands', () => {
         ],
         serviceIds: ['svc_operations_cut'],
         customer: { name: 'Conflict Customer', email: null, phone: null },
-        notification: { kind: 'notify' }
+        notification: { kind: 'notify', locale: 'en' }
       })
     ).rejects.toMatchObject({ reason: 'concurrent_appointment_conflict' })
 
@@ -456,7 +457,7 @@ describe('Live Merchant Appointment commands', () => {
         ],
         serviceIds: ['svc_operations_cut'],
         customer: { name: 'Past Series Customer', email: null, phone: null },
-        notification: { kind: 'notify' }
+        notification: { kind: 'notify', locale: 'en' }
       })
     ).rejects.toMatchObject({ reason: 'appointment_start_in_past' })
   })
@@ -477,7 +478,11 @@ describe('Live Merchant Appointment commands', () => {
         method: 'cash',
         recordedAt: '2026-08-03T06:45:00.000Z'
       },
-      notification: { kind: 'suppress', reason: 'Historical visit.' }
+      notification: {
+        kind: 'suppress',
+        reason: 'Historical visit.',
+        locale: 'en'
+      }
     })
 
     const stored = await test.d1
@@ -510,7 +515,7 @@ describe('Live Merchant Appointment commands', () => {
         endsAt: '2026-09-10T09:45:00.000Z',
         serviceIds: ['svc_operations_cut'],
         customer: { name: 'Restricted Customer', email: null, phone: null },
-        notification: { kind: 'notify' }
+        notification: { kind: 'notify', locale: 'en' }
       })
     ).rejects.toMatchObject({ reason: 'restricted_access' })
 
@@ -521,7 +526,11 @@ describe('Live Merchant Appointment commands', () => {
         appointmentId: 'apt_operations_one',
         expectedRevisions: { apt_operations_one: 3 },
         category: 'customer_requested',
-        notification: { kind: 'suppress', reason: 'Customer already knows.' }
+        notification: {
+          kind: 'suppress',
+          reason: 'Customer already knows.',
+          locale: 'en'
+        }
       })
     ).resolves.toMatchObject({ revisions: { apt_operations_one: 4 } })
   })

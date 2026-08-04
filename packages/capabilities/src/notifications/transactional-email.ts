@@ -435,7 +435,194 @@ export const makeLiveTransactionalEmailLayer = (
               )
               .bind(callback.providerReferenceFingerprint)
               .first<{ id: string }>()
-            if (!evidence) return 'pending' as const
+            if (!evidence) {
+              const appointmentIntent = await rawD1
+                .prepare(
+                  `SELECT id, merchant_id merchantId, destination_fingerprint destinationFingerprint
+                   FROM appointment_email_intents
+                   WHERE provider_reference_fingerprint = ? LIMIT 1`
+                )
+                .bind(callback.providerReferenceFingerprint)
+                .first<{
+                  id: string
+                  merchantId: string
+                  destinationFingerprint: string | null
+                }>()
+              if (!appointmentIntent) return 'pending' as const
+              const status = callback.status
+              const statements = [
+                rawD1
+                  .prepare(
+                    `UPDATE appointment_email_intents
+                     SET status = CASE WHEN status = 'superseded_after_submission'
+                                      THEN status ELSE ? END,
+                         delivered_at = ?,
+                         status_reason = CASE WHEN status = 'superseded_after_submission'
+                                              THEN status_reason ELSE ? END,
+                         latest_provider_occurred_at = ?, terminal_at = ?, updated_at = ?
+                     WHERE id = ? AND status ${status === 'failed' ? "IN ('accepted','delivered','superseded_after_submission')" : "IN ('accepted','superseded_after_submission')"}
+                       AND (latest_provider_occurred_at IS NULL OR latest_provider_occurred_at < ?)`
+                  )
+                  .bind(
+                    status === 'delivered' ? 'delivered' : 'failed',
+                    status === 'delivered' ? callback.occurredAt : null,
+                    status === 'failed' ? (callback.code ?? 'provider_failed') : null,
+                    callback.occurredAt,
+                    callback.occurredAt,
+                    callback.occurredAt,
+                    appointmentIntent.id,
+                    callback.occurredAt
+                  ),
+                rawD1
+                  .prepare(
+                    `INSERT OR IGNORE INTO appointment_email_callback_receipts
+                     (event_fingerprint, intent_id, provider_reference_fingerprint,
+                      provider_status, provider_occurred_at, normalized_code, outcome, received_at)
+                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`
+                  )
+                  .bind(
+                    callback.eventFingerprint,
+                    appointmentIntent.id,
+                    callback.providerReferenceFingerprint,
+                    callback.status,
+                    callback.occurredAt,
+                    callback.code ?? null,
+                    callback.occurredAt
+                  ),
+                rawD1
+                  .prepare(
+                    `UPDATE appointment_email_callback_receipts SET outcome = CASE
+                       WHEN EXISTS (SELECT 1 FROM appointment_email_intents
+                         WHERE id = ? AND latest_provider_occurred_at = ?)
+                       THEN 'applied' ELSE 'out_of_order' END
+                     WHERE event_fingerprint = ?`
+                  )
+                  .bind(
+                    appointmentIntent.id,
+                    callback.occurredAt,
+                    callback.eventFingerprint
+                  ),
+                rawD1
+                  .prepare(
+                    `UPDATE transactional_email_callback_receipts SET outcome = CASE
+                       WHEN EXISTS (SELECT 1 FROM appointment_email_intents
+                         WHERE id = ? AND latest_provider_occurred_at = ?)
+                       THEN 'applied' ELSE 'out_of_order' END
+                     WHERE event_id = ?`
+                  )
+                  .bind(
+                    appointmentIntent.id,
+                    callback.occurredAt,
+                    callback.eventFingerprint
+                  )
+              ]
+              if (
+                status === 'failed' &&
+                (callback.code === 'hard_bounce' || callback.code === 'complaint')
+              ) {
+                statements.push(
+                  rawD1
+                    .prepare(
+                      `UPDATE appointment_email_intents
+                       SET status = 'unavailable', status_reason = ?, terminal_at = ?,
+                           next_attempt_at = NULL, claimed_at = NULL, claim_token = NULL,
+                           updated_at = ?
+                       WHERE destination_fingerprint = ?
+                         AND id <> ?
+                         AND status IN ('pending','claimed','failed')
+                         AND EXISTS (SELECT 1 FROM appointment_email_intents current
+                           WHERE current.id = ?
+                             AND current.status IN ('failed','superseded_after_submission')
+                             AND current.latest_provider_occurred_at = ?)`
+                    )
+                    .bind(
+                      callback.code === 'complaint'
+                        ? 'destination_suppressed_complaint'
+                        : 'destination_suppressed_hard_bounce',
+                      callback.occurredAt,
+                      callback.occurredAt,
+                      appointmentIntent.destinationFingerprint,
+                      appointmentIntent.id,
+                      appointmentIntent.id,
+                      callback.occurredAt
+                    )
+                )
+                statements.push(
+                  rawD1
+                    .prepare(
+                      `INSERT OR IGNORE INTO appointment_email_attention
+                       (id, intent_id, merchant_id, kind, status, safe_summary, opened_at)
+                       SELECT ?, ?, ?, ?, 'open', ?, ?
+                       WHERE EXISTS (SELECT 1 FROM appointment_email_intents
+                         WHERE id = ? AND status IN ('failed','superseded_after_submission')
+                           AND latest_provider_occurred_at = ?)`
+                    )
+                    .bind(
+                      `aea_${appointmentIntent.id.slice(-24)}`,
+                      appointmentIntent.id,
+                      appointmentIntent.merchantId,
+                      callback.code,
+                      callback.code === 'complaint'
+                        ? 'Customer complaint requires Operations review.'
+                        : 'Customer email hard-bounced.',
+                      callback.occurredAt,
+                      appointmentIntent.id,
+                      callback.occurredAt
+                    )
+                )
+              }
+              if (status === 'failed') {
+                statements.push(
+                  rawD1
+                    .prepare(
+                      `INSERT OR IGNORE INTO appointment_email_dead_letters
+                       (id, intent_id, merchant_id, safe_reason, created_at)
+                       SELECT ?, ?, ?, ?, ?
+                       WHERE EXISTS (SELECT 1 FROM appointment_email_intents
+                         WHERE id = ? AND status IN ('failed','superseded_after_submission')
+                           AND latest_provider_occurred_at = ?)`
+                    )
+                    .bind(
+                      `aed_${appointmentIntent.id.slice(-24)}`,
+                      appointmentIntent.id,
+                      appointmentIntent.merchantId,
+                      callback.code ?? 'provider_failed',
+                      callback.occurredAt,
+                      appointmentIntent.id,
+                      callback.occurredAt
+                    )
+                )
+                statements.push(
+                  rawD1
+                    .prepare(
+                      `INSERT OR IGNORE INTO appointment_email_attention
+                       (id, intent_id, merchant_id, kind, status, safe_summary, opened_at)
+                       SELECT ?, ?, ?, 'delivery_failed', 'open',
+                              'Appointment email delivery failed.', ?
+                       WHERE EXISTS (SELECT 1 FROM appointment_email_intents
+                         WHERE id = ? AND status IN ('failed','superseded_after_submission')
+                           AND latest_provider_occurred_at = ?)`
+                    )
+                    .bind(
+                      `aea_${appointmentIntent.id.slice(-24)}`,
+                      appointmentIntent.id,
+                      appointmentIntent.merchantId,
+                      callback.occurredAt,
+                      appointmentIntent.id,
+                      callback.occurredAt
+                    )
+                )
+              }
+              await rawD1.batch(statements)
+              const receipt = await rawD1
+                .prepare(
+                  `SELECT outcome FROM appointment_email_callback_receipts
+                   WHERE event_fingerprint = ? LIMIT 1`
+                )
+                .bind(callback.eventFingerprint)
+                .first<{ outcome: 'applied' | 'out_of_order' }>()
+              return receipt?.outcome ?? ('out_of_order' as const)
+            }
             const status = callback.status
             await rawD1.batch([
               rawD1

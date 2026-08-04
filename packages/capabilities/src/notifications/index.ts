@@ -12,6 +12,7 @@ export * from './meta-whatsapp.ts'
 export * from './meta-whatsapp-callback.ts'
 export * from './merchant-messaging-settings.ts'
 export * from './transactional-email.ts'
+export * from './appointment-email.ts'
 
 export const NotificationIntent = Schema.Struct({
   id: NotificationIntentId,

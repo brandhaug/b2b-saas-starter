@@ -10,5 +10,7 @@ Keep fake `captured` outcomes distinct from provider acceptance and delivery.
 Console/fake adapters are permitted only in explicit local and test runtimes;
 other unconfigured runtimes fail closed as `needs_configuration`.
 
-Transactional email and signed Platform Webhooks remain independent Booking
-outbox consequences until their owning migration explicitly changes them.
+Appointment email uses its own revision-bound intent and attempt aggregates. The
+domain command and immutable email intent commit atomically; provider I/O runs
+afterward from queue wakeups or the scheduled recovery sweep. Signed Platform
+Webhooks remain an independent Booking outbox consequence.

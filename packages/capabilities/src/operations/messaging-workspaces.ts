@@ -8,6 +8,9 @@ import {
 } from '../notifications/messaging-finance.ts'
 import {
   chargeableDeliveries,
+  appointmentEmailAttention,
+  appointmentEmailAttempts,
+  appointmentEmailIntents,
   deliveryRoutes,
   merchantMessagingBalanceSummaries,
   merchants,
@@ -51,6 +54,7 @@ const CaseStatus = Schema.Literals(['open', 'investigating', 'resolved', 'waived
 
 export const MessagingHealthSummary = Schema.Struct({
   openCaseCount: Schema.Int,
+  appointmentEmailAttentionCount: Schema.Int,
   ambiguousCount: Schema.Int,
   complaintCount: Schema.Int,
   deliveredRouteCount: Schema.Int,
@@ -510,28 +514,51 @@ export const makeMessagingWorkspacesLayer = (
           'messaging-overview',
           currentTime()
         )
-        const [rows, caseHealth, routes, charges, costs] = await Promise.all([
-          loadQueue(query === undefined ? undefined : { query }),
-          db
-            .select({
-              openCaseCount: sql<number>`sum(case when ${messagingReconciliationCases.status} in ('open', 'investigating') then 1 else 0 end)`,
-              ambiguousCount: sql<number>`sum(case when lower(${messagingReconciliationCases.kind}) like '%ambigu%' then 1 else 0 end)`,
-              complaintCount: sql<number>`sum(case when lower(${messagingReconciliationCases.kind}) like '%complaint%' then 1 else 0 end)`
-            })
-            .from(messagingReconciliationCases),
-          db
-            .select({ count: sql<number>`count(*)` })
-            .from(deliveryRoutes)
-            .where(eq(deliveryRoutes.state, 'delivered')),
-          db
-            .select({
-              total: sql<number>`coalesce(sum(${chargeableDeliveries.chargeMilliEuro}), 0)`
-            })
-            .from(chargeableDeliveries),
-          db
-            .select({
-              count: sql<number>`count(*)`,
-              euroMilli: sql<number>`coalesce(sum(case
+        const [rows, caseHealth, emailAttention, routes, charges, costs] =
+          await Promise.all([
+            loadQueue(query === undefined ? undefined : { query }),
+            db
+              .select({
+                openCaseCount: sql<number>`sum(case when ${messagingReconciliationCases.status} in ('open', 'investigating') then 1 else 0 end)`,
+                ambiguousCount: sql<number>`sum(case when lower(${messagingReconciliationCases.kind}) like '%ambigu%' then 1 else 0 end)`,
+                complaintCount: sql<number>`sum(case when lower(${messagingReconciliationCases.kind}) like '%complaint%' then 1 else 0 end)`
+              })
+              .from(messagingReconciliationCases),
+            db
+              .select({
+                caseId: appointmentEmailAttention.id,
+                merchantId: appointmentEmailAttention.merchantId,
+                merchantName: merchants.publicName,
+                intentId: appointmentEmailAttention.intentId,
+                purpose: appointmentEmailIntents.purpose,
+                maskedDestination: appointmentEmailIntents.maskedDestination,
+                kind: appointmentEmailAttention.kind,
+                safeSummary: appointmentEmailAttention.safeSummary,
+                openedAt: appointmentEmailAttention.openedAt
+              })
+              .from(appointmentEmailAttention)
+              .innerJoin(
+                appointmentEmailIntents,
+                eq(appointmentEmailIntents.id, appointmentEmailAttention.intentId)
+              )
+              .innerJoin(
+                merchants,
+                eq(merchants.id, appointmentEmailAttention.merchantId)
+              )
+              .where(eq(appointmentEmailAttention.status, 'open')),
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(deliveryRoutes)
+              .where(eq(deliveryRoutes.state, 'delivered')),
+            db
+              .select({
+                total: sql<number>`coalesce(sum(${chargeableDeliveries.chargeMilliEuro}), 0)`
+              })
+              .from(chargeableDeliveries),
+            db
+              .select({
+                count: sql<number>`count(*)`,
+                euroMilli: sql<number>`coalesce(sum(case
                 when ${providerMessagingCosts.currency} <> 'EUR' then 0
                 when ${providerMessagingCosts.currencyScale} = 0 then ${providerMessagingCosts.amountMinorUnits} * 1000.0
                 when ${providerMessagingCosts.currencyScale} = 1 then ${providerMessagingCosts.amountMinorUnits} * 100.0
@@ -543,13 +570,14 @@ export const makeMessagingWorkspacesLayer = (
                 when ${providerMessagingCosts.currencyScale} = 7 then ${providerMessagingCosts.amountMinorUnits} / 10000.0
                 when ${providerMessagingCosts.currencyScale} = 8 then ${providerMessagingCosts.amountMinorUnits} / 100000.0
                 else ${providerMessagingCosts.amountMinorUnits} / 1000000.0 end), 0)`
-            })
-            .from(providerMessagingCosts)
-        ])
+              })
+              .from(providerMessagingCosts)
+          ])
         const health = caseHealth[0]
         return {
           health: {
             openCaseCount: health?.openCaseCount ?? 0,
+            appointmentEmailAttentionCount: emailAttention.length,
             ambiguousCount: health?.ambiguousCount ?? 0,
             complaintCount: health?.complaintCount ?? 0,
             deliveredRouteCount: routes[0]?.count ?? 0,
@@ -557,7 +585,25 @@ export const makeMessagingWorkspacesLayer = (
             providerCostCount: costs[0]?.count ?? 0,
             providerCostMilliEuro: costs[0]?.euroMilli ?? 0
           },
-          cases: rows.map(queueItem)
+          cases: [
+            ...emailAttention.map((item) => ({
+              caseId: item.caseId,
+              merchantId: item.merchantId,
+              merchantName: item.merchantName,
+              intentId: item.intentId,
+              purpose: item.purpose,
+              ...optional('maskedDestination', item.maskedDestination),
+              kind: item.kind,
+              status: 'open' as const,
+              severity:
+                item.kind === 'complaint' || item.kind === 'hard_bounce'
+                  ? ('high' as const)
+                  : ('medium' as const),
+              safeSummary: item.safeSummary,
+              openedAt: item.openedAt
+            })),
+            ...rows.map(queueItem)
+          ]
         }
       }),
 
@@ -570,6 +616,88 @@ export const makeMessagingWorkspacesLayer = (
           'messaging-case-detail',
           currentTime()
         )
+        const [emailCase] = await db
+          .select({
+            attention: appointmentEmailAttention,
+            intent: appointmentEmailIntents,
+            merchantName: merchants.publicName
+          })
+          .from(appointmentEmailAttention)
+          .innerJoin(
+            appointmentEmailIntents,
+            eq(appointmentEmailIntents.id, appointmentEmailAttention.intentId)
+          )
+          .innerJoin(merchants, eq(merchants.id, appointmentEmailAttention.merchantId))
+          .where(eq(appointmentEmailAttention.id, caseId))
+          .limit(1)
+        if (emailCase) {
+          const attempts = await db
+            .select()
+            .from(appointmentEmailAttempts)
+            .where(eq(appointmentEmailAttempts.intentId, emailCase.intent.id))
+            .orderBy(
+              asc(appointmentEmailAttempts.startedAt),
+              asc(appointmentEmailAttempts.id)
+            )
+          const caseItem = {
+            caseId: emailCase.attention.id,
+            merchantId: emailCase.attention.merchantId,
+            merchantName: emailCase.merchantName,
+            intentId: emailCase.intent.id,
+            purpose: emailCase.intent.purpose,
+            ...optional('maskedDestination', emailCase.intent.maskedDestination),
+            kind: emailCase.attention.kind,
+            status:
+              emailCase.attention.status === 'open'
+                ? ('open' as const)
+                : ('resolved' as const),
+            severity:
+              emailCase.attention.kind === 'complaint' ||
+              emailCase.attention.kind === 'hard_bounce'
+                ? ('high' as const)
+                : ('medium' as const),
+            safeSummary: emailCase.attention.safeSummary,
+            openedAt: emailCase.attention.openedAt
+          }
+          return {
+            case: caseItem,
+            intent: {
+              intentId: emailCase.intent.id,
+              sourceType: emailCase.intent.sourceType,
+              sourceId: emailCase.intent.sourceId,
+              sourceVersion: emailCase.intent.sourceRevision,
+              purpose: emailCase.intent.purpose,
+              ...optional('maskedDestination', emailCase.intent.maskedDestination),
+              availableAt: emailCase.intent.availableAt,
+              ...optional('terminalAt', emailCase.intent.terminalAt)
+            },
+            routes: [],
+            attempts: attempts.map((attempt) => ({
+              attemptId: attempt.id,
+              routeId: `appointment-email:${emailCase.intent.id}`,
+              ordinal: attempt.ordinal,
+              state:
+                attempt.state === 'failed_retryable'
+                  ? ('rejected_retryable' as const)
+                  : attempt.state === 'failed_terminal'
+                    ? ('rejected_terminal' as const)
+                    : attempt.state,
+              startedAt: attempt.startedAt,
+              ...optional('completedAt', attempt.completedAt)
+            })),
+            evidence: [],
+            charges: [],
+            providerCosts: [],
+            reconciliation: {
+              status:
+                emailCase.attention.status === 'open'
+                  ? ('open' as const)
+                  : ('resolved' as const),
+              resolutions: []
+            },
+            complaints: emailCase.attention.kind === 'complaint' ? [caseItem] : []
+          }
+        }
         const rows = await loadQueue({ caseId })
         const row = rows.find((candidate) => candidate.caseId === caseId)
         if (!row?.intentId) throw denied('messaging-case-detail', 'case_not_found')

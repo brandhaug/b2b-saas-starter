@@ -4,6 +4,7 @@ import {
   MerchantMessagingSettings,
   MerchantMessagingSettingsInput,
   SeedMerchantMessagingSettings,
+  appointmentEmailReminderAvailableAt,
   merchantReminderAvailableAt
 } from './merchant-messaging-settings.ts'
 
@@ -77,6 +78,7 @@ describe('Merchant Messaging Settings', () => {
   it('derives a future reminder from the saved Merchant lead time', () => {
     expect(
       merchantReminderAvailableAt({
+        timeZone: 'Europe/Bucharest',
         startsAt: '2026-07-31T12:00:00.000Z',
         now: '2026-07-29T11:59:59.999Z',
         controls: {
@@ -89,6 +91,7 @@ describe('Merchant Messaging Settings', () => {
     ).toBe('2026-07-29T12:00:00.000Z')
     expect(
       merchantReminderAvailableAt({
+        timeZone: 'Europe/Bucharest',
         startsAt: '2026-07-31T12:00:00.000Z',
         now: '2026-07-29T12:00:00.001Z',
         controls: {
@@ -99,5 +102,46 @@ describe('Merchant Messaging Settings', () => {
         }
       })
     ).toBeNull()
+  })
+
+  it('makes a required email reminder immediately due when its target has passed', () => {
+    expect(
+      appointmentEmailReminderAvailableAt({
+        timeZone: 'Europe/Bucharest',
+        startsAt: '2026-07-31T12:00:00.000Z',
+        now: '2026-07-31T10:00:00.000Z',
+        controls: {
+          enabled: false,
+          reminderEnabled: false,
+          reminderLeadMinutes: 2880,
+          frozen: true
+        }
+      })
+    ).toBe('2026-07-31T10:00:00.000Z')
+  })
+
+  it('applies the Shop-local delivery window across ordinary and DST dates', () => {
+    const controls = {
+      enabled: true,
+      reminderEnabled: true,
+      reminderLeadMinutes: 120,
+      frozen: false
+    } as const
+    expect(
+      merchantReminderAvailableAt({
+        startsAt: '2026-07-15T05:00:00.000Z',
+        timeZone: 'Europe/Bucharest',
+        now: '2026-07-13T00:00:00.000Z',
+        controls
+      })
+    ).toBe('2026-07-14T17:00:00.000Z')
+    expect(
+      merchantReminderAvailableAt({
+        startsAt: '2026-03-29T06:00:00.000Z',
+        timeZone: 'Europe/Bucharest',
+        now: '2026-03-27T00:00:00.000Z',
+        controls
+      })
+    ).toBe('2026-03-28T18:00:00.000Z')
   })
 })

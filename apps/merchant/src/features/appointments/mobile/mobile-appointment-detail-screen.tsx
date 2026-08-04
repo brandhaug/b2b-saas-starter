@@ -4,6 +4,7 @@ import type { ComponentType, SVGProps } from 'react'
 import { appointmentDetailValues } from '../shared/appointment-detail-values.ts'
 import { mobileAppointmentPaymentLabel } from './mobile-appointment-detail-model.ts'
 import { AppointmentOperationsPanel } from '../shared/appointment-operations-panel.tsx'
+import { AppointmentEmailDeliveryHistory } from '../shared/appointment-email-delivery-history.tsx'
 
 export function MobileAppointmentDetailScreen({
   appointment,
@@ -133,6 +134,8 @@ export function MobileAppointmentDetailScreen({
           )}
         </div>
       </section>
+
+      <AppointmentEmailDeliveryHistory appointment={appointment} compact />
 
       {contactActionsEnabled ? (
         <AppointmentOperationsPanel appointment={appointment} />

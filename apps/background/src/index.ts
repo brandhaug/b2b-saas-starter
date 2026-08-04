@@ -3,6 +3,7 @@ import { FetchHttpClient } from 'effect/unstable/http'
 import {
   makeOperationalMessagingJobsLayer,
   makeOperationalMessagingExecutionLayer,
+  makeAppointmentEmailWorkflowsLayer,
   selectCapabilitiesLayer,
   type BookingProductEnv
 } from '@b2b-saas-starter/capabilities/runtime'
@@ -36,6 +37,7 @@ import { decodeBookingEventsWakeup } from './booking-events-queue.ts'
 import {
   NotificationIntentExecution,
   NotificationIntentLifecycle,
+  AppointmentEmailWorkflows,
   OperationalMessagingJobs
 } from '@b2b-saas-starter/capabilities/notifications'
 import { SharedCapabilityFoundations } from '@b2b-saas-starter/capabilities/foundation'
@@ -55,6 +57,10 @@ type Env = {
   readonly EMAIL?: SendEmailBinding
   readonly CLOUDFLARE_EMAIL_FROM?: string
   readonly OPERATIONAL_EMAIL_ENABLED?: string
+  readonly TRANSACTIONAL_EMAIL_SENDER_VERIFIED?: string
+  readonly TRANSACTIONAL_EMAIL_CALLBACK_SECRET?: string
+  readonly TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY?: string
+  readonly TRANSACTIONAL_EMAIL_DISABLED?: string
   readonly ENVIRONMENT?: string
   readonly OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY?: string
   readonly OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY?: string
@@ -90,6 +96,13 @@ const capabilitiesEnv = (env: Env): BookingProductEnv => ({
   CUSTOMER_DIRECTORY_FINGERPRINT_KEY: env.CUSTOMER_DIRECTORY_FINGERPRINT_KEY,
   REQUIRE_CUSTOMER_DIRECTORY_FINGERPRINT_KEY: env.ENVIRONMENT === 'production',
   BOOKING_EVENTS_QUEUE: env.BOOKING_EVENTS_QUEUE,
+  EMAIL: env.EMAIL,
+  CLOUDFLARE_EMAIL_FROM: env.CLOUDFLARE_EMAIL_FROM,
+  TRANSACTIONAL_EMAIL_SENDER_VERIFIED: env.TRANSACTIONAL_EMAIL_SENDER_VERIFIED,
+  TRANSACTIONAL_EMAIL_CALLBACK_SECRET: env.TRANSACTIONAL_EMAIL_CALLBACK_SECRET,
+  TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY:
+    env.TRANSACTIONAL_EMAIL_PROVIDER_REFERENCE_FINGERPRINT_KEY,
+  TRANSACTIONAL_EMAIL_DISABLED: env.TRANSACTIONAL_EMAIL_DISABLED,
   OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY:
     env.OPERATIONAL_MESSAGING_DESTINATION_ENCRYPTION_KEY,
   OPERATIONAL_MESSAGING_DESTINATION_FINGERPRINT_KEY:
@@ -108,7 +121,10 @@ const capabilitiesEnv = (env: Env): BookingProductEnv => ({
   META_WHATSAPP_PROVIDER_ACCOUNT_KEY: env.META_WHATSAPP_PROVIDER_ACCOUNT_KEY,
   META_WHATSAPP_REFERENCE_ENCRYPTION_KEY: env.META_WHATSAPP_REFERENCE_ENCRYPTION_KEY,
   META_WHATSAPP_REFERENCE_FINGERPRINT_KEY: env.META_WHATSAPP_REFERENCE_FINGERPRINT_KEY,
-  META_WHATSAPP_REFERENCE_KEY_VERSION: env.META_WHATSAPP_REFERENCE_KEY_VERSION
+  META_WHATSAPP_REFERENCE_KEY_VERSION: env.META_WHATSAPP_REFERENCE_KEY_VERSION,
+  CONFIRMATION_SIGNING_KEYS: env.CONFIRMATION_SIGNING_KEYS,
+  CONFIRMATION_CURRENT_KEY_ID: env.CONFIRMATION_CURRENT_KEY_ID,
+  PUBLIC_SITE_ORIGIN: env.PUBLIC_SITE_ORIGIN
 })
 
 const bookingConfig = (env: Env) => {
@@ -261,6 +277,36 @@ const recoverNotificationIntents = (now: string, env: Env) =>
     )
   ).pipe(Effect.provide(operationalMessagingLayer(env, now)), Effect.asVoid)
 
+const appointmentEmailLayer = (env: Env) =>
+  makeAppointmentEmailWorkflowsLayer({
+    ...capabilitiesEnv(env),
+    ENVIRONMENT: env.ENVIRONMENT
+  })
+
+const processAppointmentEmail = (intentId: string, now: string, env: Env) =>
+  withTriggerScope(
+    {
+      service: 'background',
+      event: 'appointment_email',
+      env,
+      metadata: { intentId }
+    },
+    Effect.flatMap(AppointmentEmailWorkflows, (workflows) =>
+      workflows.execute({ intentId, now })
+    ).pipe(Effect.provide(appointmentEmailLayer(env)))
+  )
+
+const recoverAppointmentEmails = (now: string, env: Env) =>
+  Effect.flatMap(AppointmentEmailWorkflows, (workflows) =>
+    Effect.flatMap(workflows.discoverDue({ now, limit: 1000 }), (intentIds) =>
+      Effect.forEach(
+        intentIds,
+        (intentId) => processAppointmentEmail(intentId, now, env),
+        { concurrency: 8, discard: true }
+      )
+    )
+  ).pipe(Effect.provide(appointmentEmailLayer(env)), Effect.asVoid)
+
 const reconcileAndRetainOperationalMessaging = (now: string, env: Env) =>
   Effect.gen(function* () {
     const jobs = yield* OperationalMessagingJobs
@@ -386,6 +432,7 @@ export default {
               [
                 recoverBookingNotificationOutbox(now, env),
                 recoverNotificationIntents(now, env),
+                recoverAppointmentEmails(now, env),
                 reconcileAndRetainOperationalMessaging(now, env),
                 recoverOperationsNotificationIntents(now, env),
                 reconcileMerchantSubscriptions(now, env),
@@ -486,7 +533,9 @@ export default {
         messages.map(async (message) => {
           const wakeup = decodeBookingEventsWakeup(message.body)
           if (!wakeup) {
-            message.ack()
+            // Poison envelopes are retried to the configured queue dead-letter
+            // sink; acknowledging them would erase the only Operations evidence.
+            message.retry({ delaySeconds: 30 })
             return
           }
           const now = new Date().toISOString()
@@ -508,7 +557,9 @@ export default {
                 )
               : wakeup.kind === 'notification-intent'
                 ? processNotificationIntent(wakeup.intentId, now, env)
-                : processBookingNotificationOutbox(wakeup.outboxId, now, env)
+                : wakeup.kind === 'appointment-email'
+                  ? processAppointmentEmail(wakeup.intentId, now, env)
+                  : processBookingNotificationOutbox(wakeup.outboxId, now, env)
           const result = await runtime.runPromise(Effect.result(execution))
           if (Result.isSuccess(result)) message.ack()
           else message.retry({ delaySeconds: 30 })

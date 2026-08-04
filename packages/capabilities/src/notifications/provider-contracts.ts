@@ -185,9 +185,15 @@ export const BookingOutboxQueueWakeup = Schema.Struct({
   kind: Schema.Literal('booking-outbox'),
   outboxId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(128))
 })
+export const AppointmentEmailQueueWakeup = Schema.Struct({
+  version: Schema.Literal(1),
+  kind: Schema.Literal('appointment-email'),
+  intentId: Schema.String.check(Schema.isPattern(/^aem_[A-Za-z0-9_-]+$/))
+})
 export const BookingEventsWakeupSchema = Schema.Union([
   BookingOutboxQueueWakeup,
-  ProviderQueueWakeup
+  ProviderQueueWakeup,
+  AppointmentEmailQueueWakeup
 ])
 export type BookingEventsWakeup = typeof BookingEventsWakeupSchema.Type
 

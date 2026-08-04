@@ -30,6 +30,7 @@ export function AppointmentOperationsPanel({
   const [destinationNotification, setDestinationNotification] = useState<
     'notify' | 'suppress'
   >('notify')
+  const [customerLocale, setCustomerLocale] = useState<'ro' | 'en'>('en')
   const [outcomeCorrectionReason, setOutcomeCorrectionReason] = useState('')
   const [rescheduleLocal, setRescheduleLocal] = useState(() =>
     localDateTimeValue(appointment.startsAt, appointment.snapshot.merchantTimezone)
@@ -168,8 +169,12 @@ export function AppointmentOperationsPanel({
           }
         : {}),
       notification: rescheduleNotify
-        ? { kind: 'notify' }
-        : { kind: 'suppress', reason: 'Customer already knows.' }
+        ? { kind: 'notify', locale: customerLocale }
+        : {
+            kind: 'suppress',
+            reason: 'Customer already knows.',
+            locale: customerLocale
+          }
     })
   }
 
@@ -189,8 +194,12 @@ export function AppointmentOperationsPanel({
         }
       : {}),
     notification: cancellationNotify
-      ? ({ kind: 'notify' } as const)
-      : ({ kind: 'suppress', reason: 'Customer already knows.' } as const)
+      ? ({ kind: 'notify', locale: customerLocale } as const)
+      : ({
+          kind: 'suppress',
+          reason: 'Customer already knows.',
+          locale: customerLocale
+        } as const)
   })
 
   return (
@@ -237,6 +246,15 @@ export function AppointmentOperationsPanel({
             onChange={(event) => setCustomerEmail(event.target.value)}
             className="h-10 rounded-lg border bg-background px-3"
           />
+          <select
+            aria-label="Customer email language"
+            value={customerLocale}
+            onChange={(event) => setCustomerLocale(event.target.value as 'ro' | 'en')}
+            className="h-10 rounded-lg border bg-background px-3"
+          >
+            <option value="en">English</option>
+            <option value="ro">Română</option>
+          </select>
           <input
             aria-label="Customer phone"
             value={customerPhone}
@@ -257,10 +275,11 @@ export function AppointmentOperationsPanel({
                 },
                 notification:
                   destinationNotification === 'notify'
-                    ? { kind: 'notify' }
+                    ? { kind: 'notify', locale: customerLocale }
                     : {
                         kind: 'suppress',
-                        reason: 'Customer already knows.'
+                        reason: 'Customer already knows.',
+                        locale: customerLocale
                       }
               })
             }

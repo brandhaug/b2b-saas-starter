@@ -55,6 +55,7 @@ export type MerchantMessagingSettingsProjection =
 
 export const merchantReminderAvailableAt = (input: {
   readonly startsAt: string
+  readonly timeZone: string
   readonly now: string
   readonly controls: {
     readonly enabled: boolean
@@ -71,8 +72,71 @@ export const merchantReminderAvailableAt = (input: {
     (lead !== 120 && lead !== 1440 && lead !== 2880)
   )
     return null
-  const availableAt = new Date(Date.parse(input.startsAt) - lead * 60_000).toISOString()
+  const rawTarget = new Date(Date.parse(input.startsAt) - lead * 60_000)
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: input.timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  })
+  const parts = (instant: Date) =>
+    Object.fromEntries(
+      formatter
+        .formatToParts(instant)
+        .filter((part) => part.type !== 'literal')
+        .map((part) => [part.type, Number(part.value)])
+    ) as Record<'year' | 'month' | 'day' | 'hour' | 'minute' | 'second', number>
+  const local = parts(rawTarget)
+  let availableAt = rawTarget.toISOString()
+  if (local.hour < 8 || local.hour > 20) {
+    const localDay = new Date(
+      Date.UTC(local.year, local.month - 1, local.day, 20, 0, 0)
+    )
+    if (local.hour < 8) localDay.setUTCDate(localDay.getUTCDate() - 1)
+    const desired = Date.UTC(
+      localDay.getUTCFullYear(),
+      localDay.getUTCMonth(),
+      localDay.getUTCDate(),
+      20,
+      0,
+      0
+    )
+    let candidate = desired
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const observed = parts(new Date(candidate))
+      const observedWall = Date.UTC(
+        observed.year,
+        observed.month - 1,
+        observed.day,
+        observed.hour,
+        observed.minute,
+        observed.second
+      )
+      candidate += desired - observedWall
+    }
+    availableAt = new Date(candidate).toISOString()
+  }
   return availableAt > input.now ? availableAt : null
+}
+
+export const appointmentEmailReminderAvailableAt = (
+  input: Parameters<typeof merchantReminderAvailableAt>[0]
+) => {
+  const scheduled = merchantReminderAvailableAt({
+    ...input,
+    controls: {
+      enabled: true,
+      reminderEnabled: true,
+      reminderLeadMinutes: input.controls?.reminderLeadMinutes ?? 1440,
+      frozen: false
+    }
+  })
+  if (scheduled) return scheduled
+  return input.startsAt > input.now ? input.now : null
 }
 
 export class MerchantMessagingSettingsNotFound extends Schema.TaggedErrorClass<MerchantMessagingSettingsNotFound>()(

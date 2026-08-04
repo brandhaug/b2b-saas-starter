@@ -2,13 +2,10 @@ import { Effect, Result } from 'effect'
 import { HttpBody, HttpClient } from 'effect/unstable/http'
 import {
   BookingNotificationOutbox,
-  deriveConfirmationToken,
-  type BookingNotificationWork,
   type ConfirmationSigningKeyring
 } from '@b2b-saas-starter/capabilities/booking'
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform'
 import type { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { AppointmentConfirmationEmail, EmailDispatcher } from '@b2b-saas-starter/email'
 
 export const BOOKING_RETRY_DELAYS = [30, 60, 90, 120, 150, 180] as const
 export type OperationalEmailProviderState =
@@ -66,51 +63,6 @@ const id = (prefix: 'dlv') => {
   return `${prefix}_${hex(bytes.buffer)}`
 }
 
-const money = (minor: number, currency: string) =>
-  new Intl.NumberFormat('en', { style: 'currency', currency }).format(minor / 100)
-
-const confirmationUrl = (
-  work: BookingNotificationWork,
-  publicOrigin: string,
-  keyring: ConfirmationSigningKeyring
-) =>
-  Effect.gen(function* () {
-    const token = yield* Effect.promise(() =>
-      deriveConfirmationToken(work.confirmation, keyring)
-    )
-    return `${publicOrigin.replace(/\/$/, '')}/${encodeURIComponent(work.merchantSlug)}/booking/confirmations/${encodeURIComponent(work.confirmation.routeId)}?token=${encodeURIComponent(token)}`
-  })
-
-const sendEmail = (
-  work: BookingNotificationWork,
-  publicOrigin: string,
-  keyring: ConfirmationSigningKeyring
-) =>
-  Effect.gen(function* () {
-    const dispatcher = yield* EmailDispatcher
-    const url = yield* confirmationUrl(work, publicOrigin, keyring)
-    yield* dispatcher.send({
-      idempotencyKey: work.outboxId,
-      from: '',
-      to: work.snapshot.customerDetails.email,
-      subject: 'Your appointment is confirmed',
-      element: AppointmentConfirmationEmail({
-        startsAt: work.snapshot.startsAt,
-        timeZone: work.snapshot.merchantTimezone,
-        services: work.snapshot.services.map((service) => ({
-          name: service.name,
-          price: money(service.priceMinor, service.currency)
-        })),
-        total: money(work.snapshot.totalMinor, work.snapshot.currency),
-        settlementLabel:
-          work.snapshot.checkoutPath === 'online_payment'
-            ? 'Paid Online'
-            : 'Pay In Person',
-        confirmationUrl: url
-      })
-    })
-  })
-
 export const processBookingOutbox = (input: {
   readonly outboxId: string
   readonly now: string
@@ -121,76 +73,25 @@ export const processBookingOutbox = (input: {
 }): Effect.Effect<
   void,
   CapabilityUnavailable,
-  BookingNotificationOutbox | EmailDispatcher | HttpClient.HttpClient
+  BookingNotificationOutbox | HttpClient.HttpClient
 > =>
   Effect.gen(function* () {
     const store = yield* BookingNotificationOutbox
     const work = yield* store.claim(input.outboxId, input.now)
     if (!work) return
-    let emailRetryPending = false
+    const emailRetryPending = false
     if (
       work.emailStatus === 'pending' ||
       work.emailStatus === 'needs_configuration' ||
       work.emailStatus === 'failed_retryable'
-    ) {
-      const emailDue = !work.emailNextAttemptAt || work.emailNextAttemptAt <= input.now
-      if (!emailDue) {
-        // A queue wake-up may arrive before the durable retry deadline.
-        emailRetryPending = true
-      } else if (input.emailProviderState === 'disabled')
-        yield* store.recordEmail(work.outboxId, 'disabled', null, 0, null)
-      else if (input.emailProviderState === 'needs_configuration') {
-        yield* store.recordEmail(
-          work.outboxId,
-          'needs_configuration',
-          'email_not_configured',
-          0,
-          null
-        )
-        emailRetryPending = true
-      } else {
-        const attemptNumber = work.emailAttemptCount + 1
-        const outcome = yield* Effect.result(
-          sendEmail(work, input.publicOrigin, input.confirmationKeyring).pipe(
-            Effect.annotateLogs({ traceId: work.traceId, outboxId: work.outboxId })
-          )
-        )
-        if (Result.isSuccess(outcome))
-          yield* store.recordEmail(
-            work.outboxId,
-            'delivered',
-            null,
-            attemptNumber,
-            null
-          )
-        else if (attemptNumber >= 7)
-          yield* store.recordEmail(
-            work.outboxId,
-            'failed_terminal',
-            'email_retries_exhausted',
-            attemptNumber,
-            null
-          )
-        else {
-          const delay = BOOKING_RETRY_DELAYS[attemptNumber - 1]!
-          const nextAttemptAt = new Date(
-            Date.parse(input.now) + delay * 1000
-          ).toISOString()
-          yield* store.recordEmail(
-            work.outboxId,
-            'failed_retryable',
-            'email_send_failed',
-            attemptNumber,
-            nextAttemptAt
-          )
-          if (input.scheduleRetry)
-            yield* Effect.promise(() =>
-              input.scheduleRetry!(work.outboxId, delay)
-            ).pipe(Effect.catch(() => Effect.void))
-          emailRetryPending = true
-        }
-      }
-    }
+    )
+      yield* store.recordEmail(
+        work.outboxId,
+        'disabled',
+        'migrated_to_appointment_email_intent',
+        work.emailAttemptCount,
+        null
+      )
 
     const event = yield* store.ensureEvent(work)
     const endpoints = yield* store.endpoints(work.merchantId)
