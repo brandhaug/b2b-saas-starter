@@ -6,7 +6,6 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   type ColumnDef,
-  type RowData,
   type SortingState,
   useReactTable
 } from '@tanstack/react-table'
@@ -21,13 +20,6 @@ import {
   TableRow
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-
-declare module '@tanstack/react-table' {
-  // oxlint-disable-next-line typescript/consistent-type-definitions -- module augmentation only merges into an interface; a type alias is a duplicate identifier
-  interface ColumnMeta<TData extends RowData, TValue> {
-    readonly sticky?: boolean
-  }
-}
 
 const STICKY_CLASSES = 'sticky left-0 z-10 bg-card'
 

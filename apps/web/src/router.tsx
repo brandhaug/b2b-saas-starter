@@ -56,9 +56,4 @@ export function getRouter() {
   return router
 }
 
-declare module '@tanstack/react-router' {
-  // oxlint-disable-next-line typescript/consistent-type-definitions -- module augmentation merges into an interface; a type alias is a duplicate identifier
-  interface Register {
-    router: ReturnType<typeof getRouter>
-  }
-}
+// The `Register` augmentation lives in `router-register.d.ts` — see the note there.
