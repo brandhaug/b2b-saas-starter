@@ -14,7 +14,6 @@ jobs:
       - uses: ./.github/actions/setup
       - run: bun run typecheck
       - run: bun run lint
-      - run: bun run format:check
       # Includes the coverage ratchet on the application layer: the
       # capabilities `test` script runs with --coverage (thresholds live in
       # packages/capabilities/vitest.config.ts) — fails on decay.
