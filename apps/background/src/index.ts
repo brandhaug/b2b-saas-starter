@@ -22,7 +22,9 @@ import {
 import { makeStarterEnvModuleConfig, type ServerEnv } from '@b2b-saas-starter/env'
 import {
   annotateWide,
-  newTraceId,
+  currentTraceId,
+  makeOtlpLayer,
+  parentSpanFromHeaders,
   TRACE_HEADER,
   WideEventLoggerLive,
   withTriggerScope
@@ -64,8 +66,43 @@ export type DeliveryOutcome = 'ack' | 'retry'
 /** Queue name of the dead-letter consumer branch (see wrangler.jsonc). */
 const DEAD_LETTER_QUEUE = 'b2b-saas-starter-webhooks-dlq'
 
-const StaticLayer = Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
-const staticRuntime = ManagedRuntime.make(StaticLayer)
+// One fetch client and one logger set per isolate: neither performs I/O on
+// behalf of a single invocation, so both are safe to memoize for the isolate's
+// life — and cheaper than rebuilding them per queue batch or cron tick.
+const staticRuntime = ManagedRuntime.make(
+  Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
+)
+
+/**
+ * Runs one worker invocation. The exporter half of observability is the part
+ * that must be per invocation: `local: true` builds it fresh so the OTLP
+ * exporters flush before the handler's promise settles — a Worker may not
+ * perform I/O on behalf of an invocation that already ended, so a per-isolate
+ * exporter would go silent after its first flush (see `makeOtlpLayer`). It is
+ * provided inside `staticRuntime`, so the console loggers are already in
+ * context when the OTLP layer merges with them.
+ */
+function runInvocation<A, E>(
+  env: Env,
+  effect: Effect.Effect<A, E, HttpClient.HttpClient>
+) {
+  return staticRuntime.runPromise(
+    Effect.provide(effect, makeOtlpLayer('background', env), { local: true })
+  )
+}
+
+/**
+ * The upstream trace to continue, if the producer stamped one on the message.
+ * The body is untrusted here, so it goes through the same boundary decode the
+ * consumers use; an undecodable message simply starts its own trace.
+ */
+function queueParentSpan(envelope: WebhookQueueEnvelope) {
+  const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(envelope.body)
+  return Result.match(decoded, {
+    onFailure: () => undefined,
+    onSuccess: (message) => parentSpanFromHeaders({ traceparent: message.traceparent })
+  })
+}
 
 /**
  * Redelivery backoff. Also used to derive the persisted `nextAttemptAt` so
@@ -341,7 +378,6 @@ function deliverWebhook(
   envelope: WebhookQueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient> {
-  const traceId = newTraceId()
   // endpointId/eventType land on the wide event via `annotateWide` after the
   // boundary decode in `processWebhookMessage` — the raw body is untrusted
   // here, so the envelope carries only the attempt count.
@@ -349,13 +385,17 @@ function deliverWebhook(
     {
       service: 'background',
       event: 'webhook_delivery',
-      traceId,
+      parent: queueParentSpan(envelope),
+      spanKind: 'consumer',
       env,
       metadata: { attempts: envelope.attempts }
     },
-    processWebhookMessage(envelope, traceId).pipe(
-      Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
-    )
+    // The `x-trace-id` forwarded to the receiver is this scope's OTel trace id,
+    // so the header a receiver quotes back resolves in the trace backend too.
+    Effect.gen(function* () {
+      const traceId = yield* currentTraceId
+      return yield* processWebhookMessage(envelope, traceId)
+    }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
     // `_cause` is deliberately unused: the wide event above already logged the
     // failure cause on exit, and the queue needs an outcome, not an exception.
   ).pipe(Effect.catchCause((_cause) => Effect.succeed<DeliveryOutcome>('retry')))
@@ -416,12 +456,13 @@ function recordDeadLetter(
   const program = processDeadLetterMessage(envelope).pipe(
     Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
   )
-
   return withTriggerScope(
     {
       service: 'background',
       event: 'webhook_dead_letter',
       env,
+      parent: queueParentSpan(envelope),
+      spanKind: 'consumer',
       metadata: { attempts: envelope.attempts }
     },
     program
@@ -433,7 +474,7 @@ export default {
   // Neither handler is `async`: the Workers runtime awaits the promise each
   // one returns, and there is nothing to await before returning it.
   scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
-    return staticRuntime.runPromise(refreshCatalog(env))
+    return runInvocation(env, refreshCatalog(env))
   },
 
   // Queue message bodies are untyped at runtime; `processWebhookMessage` and
@@ -441,7 +482,8 @@ export default {
   // runs concurrently as one Effect instead of a raw `Promise.all`.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     if (batch.queue === DEAD_LETTER_QUEUE) {
-      return staticRuntime.runPromise(
+      return runInvocation(
+        env,
         Effect.forEach(
           batch.messages,
           (message) =>
@@ -452,7 +494,8 @@ export default {
         )
       )
     }
-    return staticRuntime.runPromise(
+    return runInvocation(
+      env,
       Effect.forEach(
         batch.messages,
         (message) =>

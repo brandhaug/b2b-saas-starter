@@ -3,15 +3,31 @@ import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { Effect } from 'effect'
 import { Auth, type Session } from '@b2b-saas-starter/auth'
+import { annotateWide } from '@b2b-saas-starter/logger'
 import { authRuntime } from '../auth-runtime'
+import { withWebRequestScope } from '../observability'
 
+/**
+ * The session read every gate below is built on. `authRuntime` carries the
+ * `Auth` service only, so the scope has to come from the request:
+ * `withWebRequestScope` makes this a child span of the request span and folds
+ * the gate's outcome into that request's one wide event. Without it the gate
+ * that runs first on every gated route would be invisible.
+ */
 const readSession = createServerOnlyFn((): Promise<Session | null> => {
   const request = getRequest()
   return authRuntime.runPromise(
-    Effect.gen(function* () {
-      const auth = yield* Auth.Tag
-      return yield* auth.api.getSession({ headers: request.headers })
-    })
+    withWebRequestScope(
+      { event: 'auth.session' },
+      Effect.gen(function* () {
+        const auth = yield* Auth.Tag
+        const session = yield* auth.api.getSession({ headers: request.headers })
+        // Whether the gate found a session is the useful fact. Never the token,
+        // never the email.
+        yield* annotateWide({ authenticated: session !== null })
+        return session
+      })
+    )
   )
 })
 

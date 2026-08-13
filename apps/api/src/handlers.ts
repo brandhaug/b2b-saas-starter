@@ -32,7 +32,9 @@ import {
 import { EmailDispatcher, WorkspaceInvitationEmail } from '@b2b-saas-starter/email'
 import {
   annotateWide,
-  newTraceId,
+  currentTraceId,
+  makeOtlpLayer,
+  parentSpanFromHeaders,
   readWideEventEnvironment,
   TRACE_HEADER,
   withRequestScope
@@ -166,11 +168,16 @@ function observed<A, E, R>(
       service: 'api',
       event: `request.${event}`,
       traceId: request.headers[TRACE_HEADER],
+      parent: parentSpanFromHeaders(request.headers),
+      spanKind: 'server',
       environment: readWideEventEnvironment(env),
       metadata: { pathname: request.url, method: request.method, ...metadata }
     },
     body.pipe(Effect.tap(() => annotateWide({ outcome: 'ok' })))
-  )
+    // `local: true` forces a fresh build per request: the OTLP exporters must
+    // live and die inside one invocation (see `makeOtlpLayer`), and a shared
+    // memo map would hand every later request the first request's exporters.
+  ).pipe(Effect.provide(makeOtlpLayer('api', env), { local: true }))
 }
 
 function provideWorkspace<A, E, R>(
@@ -502,9 +509,12 @@ export function invitationGroup(env: ApiEnv) {
                   outcome: 'invitation_send_failed',
                   emailError: delivery.failure.message
                 })
+                // The id handed to the caller is the one the wide event and the
+                // exported trace carry, so a support ticket quoting it lands on
+                // the right request.
                 return yield* Effect.fail(
                   new InternalError({
-                    traceId: request.headers[TRACE_HEADER] ?? newTraceId()
+                    traceId: request.headers[TRACE_HEADER] ?? (yield* currentTraceId)
                   })
                 )
               }

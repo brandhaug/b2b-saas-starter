@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { Database, webhookEndpoints } from '@b2b-saas-starter/db'
+import { currentTraceparent } from '@b2b-saas-starter/logger'
 import type { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -16,6 +17,12 @@ export const WebhookQueueMessage = Schema.Struct({
   endpointId: Schema.String,
   workspaceId: Schema.String,
   eventType: Schema.String,
+  // Deliberately an unchecked string, with no W3C pattern. A failed decode at
+  // the consumer's queue boundary is treated as a malformed message and acked,
+  // so a strict check here would turn a cosmetic trace defect into a silently
+  // dropped webhook. The consumer's decoder (`parentSpanFromHeaders`) already
+  // ignores a value it cannot parse and starts its own trace instead.
+  traceparent: Schema.optional(Schema.String),
   payload: Schema.Unknown
 })
 export type WebhookQueueMessage = typeof WebhookQueueMessage.Type
@@ -70,6 +77,10 @@ export function LiveWebhookPublisher(
             // instead of failing the app.
             if (!queue) return
             const ctx = yield* WorkspaceContext
+            // Stamp the producing request's trace context onto the message so
+            // the background consumer continues this trace instead of starting
+            // an unrelated one. Absent outside a span (tests, direct calls).
+            const traceparent = yield* currentTraceparent
             const endpoints = yield* unavailable(
               db
                 .select({
@@ -97,6 +108,7 @@ export function LiveWebhookPublisher(
                         endpointId: endpoint.id,
                         workspaceId: ctx.workspace.id,
                         eventType: input.eventType,
+                        traceparent,
                         payload: input.payload
                       }
                     }))

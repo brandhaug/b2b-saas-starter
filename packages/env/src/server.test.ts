@@ -102,6 +102,41 @@ describe('moduleConfigStatus', () => {
     expect(billing.configured).toBe(false)
   })
 
+  it('observability configures on the OTLP endpoint alone', () => {
+    const observability = statusFor(
+      { OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318' },
+      'observability'
+    )
+    expect(observability.configured).toBe(true)
+    expect(observability.envPresent).toBe(true)
+    expect(observability.missing).toEqual([])
+  })
+
+  it('treats Sentry and PostHog as independent reserved hooks', () => {
+    // Either hook alone means "present but unwired" — they activate different
+    // providers, so neither implies the other.
+    const sentryOnly = statusFor(
+      { SENTRY_DSN: 'https://key@sentry.io/1' },
+      'observability'
+    )
+    expect(sentryOnly.envPresent).toBe(true)
+    expect(sentryOnly.configured).toBe(false)
+    // `missing` names what reaching `configured` needs, not what env lacks.
+    expect(sentryOnly.missing).toEqual(['OTEL_EXPORTER_OTLP_ENDPOINT'])
+
+    const posthogOnly = statusFor({ POSTHOG_KEY: 'phc_test' }, 'observability')
+    expect(posthogOnly.envPresent).toBe(true)
+    expect(posthogOnly.configured).toBe(false)
+    expect(posthogOnly.missing).toEqual(['OTEL_EXPORTER_OTLP_ENDPOINT'])
+  })
+
+  it('reports observability unset when no exporter and no reserved hook exist', () => {
+    const observability = statusFor({}, 'observability')
+    expect(observability.configured).toBe(false)
+    expect(observability.envPresent).toBe(false)
+    expect(observability.missing).toEqual(['OTEL_EXPORTER_OTLP_ENDPOINT'])
+  })
+
   it('ai activates on either Workers AI flag or an OpenAI key', () => {
     const unset = statusFor({}, 'ai')
     expect(unset.configured).toBe(false)
