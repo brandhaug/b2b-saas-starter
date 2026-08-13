@@ -168,7 +168,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-email": "6.6.6",
-    "recharts": "3.9.2",
+    "recharts": "3.10.1",
     "rehype-pretty-code": "0.14.3",
     "rehype-slug": "6.0.0",
     "remark-frontmatter": "5.0.0",
