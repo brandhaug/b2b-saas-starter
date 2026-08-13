@@ -46,13 +46,13 @@ export function signInAuditInput(exchange: {
 export type AuthAuditOutcome = 'skipped' | 'recorded' | 'dropped'
 
 /** A 2xx auth response whose body did not parse as JSON. */
-export class AuthAuditBodyUnreadable extends Schema.TaggedErrorClass<AuthAuditBodyUnreadable>()(
+export class AuthAuditBodyUnreadable extends Schema.TaggedError<AuthAuditBodyUnreadable>()(
   'AuthAuditBodyUnreadable',
   { reason: Schema.String }
 ) {}
 
 /** The audit write itself failed (D1 hiccup, layer unavailable). */
-export class AuthAuditWriteFailed extends Schema.TaggedErrorClass<AuthAuditWriteFailed>()(
+export class AuthAuditWriteFailed extends Schema.TaggedError<AuthAuditWriteFailed>()(
   'AuthAuditWriteFailed',
   { reason: Schema.String }
 ) {}

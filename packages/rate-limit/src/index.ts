@@ -16,7 +16,7 @@ export type CloudflareRateLimit = {
  * Never reaches callers — `take` degrades to the in-memory fallback — but the
  * reason is carried this far so it can be put on the request's wide event.
  */
-export class RateLimitBindingFailure extends Schema.TaggedErrorClass<RateLimitBindingFailure>()(
+export class RateLimitBindingFailure extends Schema.TaggedError<RateLimitBindingFailure>()(
   'RateLimitBindingFailure',
   { reason: Schema.String }
 ) {}

@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 
-export class AssistantUnavailable extends Schema.TaggedErrorClass<AssistantUnavailable>()(
+export class AssistantUnavailable extends Schema.TaggedError<AssistantUnavailable>()(
   'AssistantUnavailable',
   {
     reason: Schema.String

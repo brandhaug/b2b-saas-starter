@@ -33,12 +33,12 @@ export type SendEmailBinding = {
   readonly send: (message: SendEmailBuilderArgs) => Promise<unknown>
 }
 
-export class EmailRenderError extends Schema.TaggedErrorClass<EmailRenderError>()(
+export class EmailRenderError extends Schema.TaggedError<EmailRenderError>()(
   'EmailRenderError',
   { message: Schema.String }
 ) {}
 
-export class EmailSendError extends Schema.TaggedErrorClass<EmailSendError>()(
+export class EmailSendError extends Schema.TaggedError<EmailSendError>()(
   'EmailSendError',
   { message: Schema.String, to: Schema.String, subject: Schema.String }
 ) {}
