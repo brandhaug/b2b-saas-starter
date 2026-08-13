@@ -167,7 +167,7 @@
     "posthog-js": "1.416.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-email": "6.6.6",
+    "react-email": "6.9.2",
     "recharts": "3.10.1",
     "rehype-pretty-code": "0.14.5",
     "rehype-slug": "6.0.0",
