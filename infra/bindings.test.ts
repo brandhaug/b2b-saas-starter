@@ -1,3 +1,7 @@
+// This suite reads repo files from disk in a plain Vitest process on Bun, not
+// inside a Worker or an Effect runtime, so the node builtins below are the
+// platform APIs available to it. Pulling in `@effect/platform` FileSystem/Path
+// would mean an Effect runtime per test for three synchronous file reads.
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,7 +26,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 // Minimal JSONC → JSON: strips // and /* */ comments outside of strings.
 // (No jsonc parser ships in the repo's dependency set.)
-const stripJsonComments = (input: string): string => {
+function stripJsonComments(input: string): string {
   let out = ''
   let inString = false
   let inLineComment = false
@@ -74,11 +78,6 @@ const stripJsonComments = (input: string): string => {
   return out
 }
 
-const readWranglerConfig = (app: string): Record<string, unknown> => {
-  const raw = readFileSync(join(repoRoot, 'apps', app, 'wrangler.jsonc'), 'utf8')
-  return JSON.parse(stripJsonComments(raw)) as Record<string, unknown>
-}
-
 type WranglerRateLimitBinding = {
   readonly name: string
   readonly type: string
@@ -96,19 +95,36 @@ type WranglerQueueConsumer = {
   readonly dead_letter_queue?: string
 }
 
-const rateLimitBindings = (
-  config: Record<string, unknown>
-): WranglerRateLimitBinding[] => {
-  const unsafe = config['unsafe'] as
-    | { readonly bindings?: readonly WranglerRateLimitBinding[] }
-    | undefined
-  return [...(unsafe?.bindings ?? [])].filter((binding) => binding.type === 'ratelimit')
+type WranglerQueueProducer = {
+  readonly binding: string
+  readonly queue: string
 }
 
-const expectRateLimitSync = (
+// Only the slice of wrangler.jsonc this suite asserts on. Declaring it as the
+// parse result keeps every reader below cast-free.
+type WranglerConfig = {
+  readonly unsafe?: { readonly bindings?: readonly WranglerRateLimitBinding[] }
+  readonly queues?: {
+    readonly consumers?: readonly WranglerQueueConsumer[]
+    readonly producers?: readonly WranglerQueueProducer[]
+  }
+}
+
+function readWranglerConfig(app: string): WranglerConfig {
+  const raw = readFileSync(join(repoRoot, 'apps', app, 'wrangler.jsonc'), 'utf8')
+  return JSON.parse(stripJsonComments(raw))
+}
+
+function rateLimitBindings(config: WranglerConfig): WranglerRateLimitBinding[] {
+  return [...(config.unsafe?.bindings ?? [])].filter(
+    (binding) => binding.type === 'ratelimit'
+  )
+}
+
+function expectRateLimitSync(
   wrangler: readonly WranglerRateLimitBinding[],
   specs: readonly RateLimitBindingSpec[]
-) => {
+) {
   expect(wrangler.map((binding) => binding.name)).toEqual(
     specs.map((spec) => spec.name)
   )
@@ -127,12 +143,12 @@ const expectRateLimitSync = (
   }
 }
 
-const expectConsumerSync = (
+function expectConsumerSync(
   consumer: WranglerQueueConsumer | undefined,
   queue: string,
   settings: QueueConsumerSettings,
   deadLetterQueue?: string
-) => {
+) {
   expect(consumer, `no wrangler consumer declared for queue ${queue}`).toBeDefined()
   if (!consumer) return
   expect(consumer.max_batch_size).toBe(settings.batchSize)
@@ -155,10 +171,7 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
 
   it('apps/background queue consumers match the webhook consumer settings', () => {
     const config = readWranglerConfig('background')
-    const queues = config['queues'] as
-      | { readonly consumers?: readonly WranglerQueueConsumer[] }
-      | undefined
-    const consumers = queues?.consumers ?? []
+    const consumers = config.queues?.consumers ?? []
     expect(consumers).toHaveLength(2)
     expectConsumerSync(
       consumers.find((consumer) => consumer.queue === webhookQueueName),
@@ -174,12 +187,9 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
   })
 
   it('webhook producers point at the same queue name', () => {
-    for (const app of ['api', 'background'] as const) {
+    for (const app of ['api', 'background']) {
       const config = readWranglerConfig(app)
-      const queues = config['queues'] as
-        | { readonly producers?: readonly { binding: string; queue: string }[] }
-        | undefined
-      const producer = queues?.producers?.find(
+      const producer = config.queues?.producers?.find(
         (candidate) => candidate.binding === 'WEBHOOK_QUEUE'
       )
       expect(producer?.queue, `apps/${app} WEBHOOK_QUEUE producer`).toBe(

@@ -1,6 +1,12 @@
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { desc, eq } from 'drizzle-orm'
-import { auditEvents, Database, user, type BatchStatement } from '@b2b-saas-starter/db'
+import {
+  auditEvents,
+  Database,
+  user,
+  type BatchStatement,
+  type JsonObject
+} from '@b2b-saas-starter/db'
 import type { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -21,10 +27,15 @@ export type RecordAuditEventInput = {
   readonly eventType: string
   readonly targetType: string
   readonly targetId?: string | null
-  readonly metadata?: Record<string, unknown>
+  /**
+   * Per-event-type detail (token name + scopes, webhook url + events, delivery
+   * attempts). Heterogeneous by design, but JSON — it is stored verbatim in the
+   * `audit_events.metadata` JSON column.
+   */
+  readonly metadata?: JsonObject
 }
 
-export type AuditEventLogShape = {
+export type AuditEventLogInterface = {
   readonly list: Effect.Effect<
     readonly AuditEvent[],
     CapabilityUnavailable,
@@ -37,51 +48,56 @@ export type AuditEventLogShape = {
   /**
    * Builds the audit insert statement (id + timestamp owned here) without
    * executing it, so mutating capabilities can run it atomically alongside
-   * their own write via `batch` from `@b2b-saas-starter/db`.
+   * their own write via `batch` from `@b2b-saas-starter/db`. Effectful because
+   * the id and `createdAt` are read from `Clock`, not from the ambient wall
+   * clock — yield it, then pass the statement to `batch`.
    */
-  readonly prepareRecord: (input: RecordAuditEventInput) => BatchStatement
+  readonly prepareRecord: (
+    input: RecordAuditEventInput
+  ) => Effect.Effect<BatchStatement>
 }
 
-export class AuditEventLog extends Context.Service<AuditEventLog, AuditEventLogShape>()(
-  '@b2b-saas-starter/capabilities/AuditEventLog'
-) {}
+export class AuditEventLog extends Context.Service<
+  AuditEventLog,
+  AuditEventLogInterface
+>()('@b2b-saas-starter/capabilities/AuditEventLog') {}
 
 const noopStatement: BatchStatement = {
   toSQL: () => ({ sql: 'select 1', params: [] })
 }
 
-export const SeedAuditEventLog = (
+export function SeedAuditEventLog(
   seed: readonly AuditEvent[]
-): Layer.Layer<AuditEventLog> =>
-  Layer.succeed(AuditEventLog)({
+): Layer.Layer<AuditEventLog> {
+  return Layer.succeed(AuditEventLog)({
     list: Effect.succeed(seed),
     listGlobal: Effect.succeed(seed),
     record: () => Effect.void,
-    prepareRecord: () => noopStatement
+    prepareRecord: () => Effect.succeed(noopStatement)
   })
+}
 
 export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
   Layer.effect(AuditEventLog)(
     Effect.gen(function* () {
       const db = yield* Database
 
-      const queryRows = (workspaceId?: string) =>
-        orUnavailable('audit-event-log')(
-          workspaceId === undefined
-            ? db
-                .select({ event: auditEvents, actor: user })
-                .from(auditEvents)
-                .leftJoin(user, eq(user.id, auditEvents.actorUserId))
-                .orderBy(desc(auditEvents.createdAt))
-                .limit(100)
-            : db
-                .select({ event: auditEvents, actor: user })
-                .from(auditEvents)
-                .leftJoin(user, eq(user.id, auditEvents.actorUserId))
-                .where(eq(auditEvents.workspaceId, workspaceId))
-                .orderBy(desc(auditEvents.createdAt))
-                .limit(100)
-        ).pipe(
+      function auditQuery(workspaceId?: string) {
+        const base = db
+          .select({ event: auditEvents, actor: user })
+          .from(auditEvents)
+          .leftJoin(user, eq(user.id, auditEvents.actorUserId))
+        if (workspaceId === undefined) {
+          return base.orderBy(desc(auditEvents.createdAt)).limit(100)
+        }
+        return base
+          .where(eq(auditEvents.workspaceId, workspaceId))
+          .orderBy(desc(auditEvents.createdAt))
+          .limit(100)
+      }
+
+      function queryRows(workspaceId?: string) {
+        return orUnavailable('audit-event-log')(auditQuery(workspaceId)).pipe(
           Effect.map((rows) =>
             rows.map((row) => ({
               id: row.event.id,
@@ -92,18 +108,22 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
             }))
           )
         )
+      }
 
-      const insertFor = (input: RecordAuditEventInput) =>
-        db.insert(auditEvents).values({
-          id: newCapabilityId('aud'),
+      const insertFor = Effect.fnUntraced(function* (input: RecordAuditEventInput) {
+        const id = yield* newCapabilityId('aud')
+        const createdAt = yield* DateTime.now
+        return db.insert(auditEvents).values({
+          id,
           workspaceId: input.workspaceId ?? null,
           actorUserId: input.actorUserId ?? null,
           eventType: input.eventType,
           targetType: input.targetType,
           targetId: input.targetId ?? null,
           metadata: input.metadata ?? {},
-          createdAt: new Date().toISOString()
+          createdAt: DateTime.formatIso(createdAt)
         })
+      })
 
       return {
         list: Effect.gen(function* () {
@@ -112,7 +132,10 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         }),
         listGlobal: queryRows(),
         record: (input) =>
-          orUnavailable('audit-event-log')(insertFor(input)).pipe(Effect.asVoid),
+          insertFor(input).pipe(
+            Effect.flatMap(orUnavailable('audit-event-log')),
+            Effect.asVoid
+          ),
         prepareRecord: (input) => insertFor(input)
       }
     })

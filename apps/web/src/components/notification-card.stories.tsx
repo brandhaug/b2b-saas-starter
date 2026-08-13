@@ -10,7 +10,7 @@ function NotificationCard({
   readonly notifications: readonly NotificationPreview[]
 }) {
   return (
-    <Card className="w-[28rem]">
+    <Card className="w-112">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BellIcon className="size-4" /> Notifications

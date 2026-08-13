@@ -15,7 +15,7 @@ Drizzle ORM (drizzle-orm `1.0.0-rc.4`) schema, migrations, and the shared `Datab
 
 - **No native boolean.** Booleans use `integer({ mode: 'boolean' })`. Don't switch to raw `integer` — capabilities read these as JS `boolean`.
 - **Mixed timestamp shapes by design.** Better Auth tables store epoch-seconds in `integer` columns (its plugin contract); starter tables store ISO strings in `text` columns. Don't normalize without updating both sides — Better Auth admin plugin queries by integer.
-- **JSON columns are `text` with explicit `$type`.** `metadata`, `scopes`, etc. — Drizzle parses on read; never write the raw string.
+- **JSON columns are `text` with explicit `$type`.** `metadata`, `scopes`, etc. — Drizzle parses on read; never write the raw string. `auditEvents.metadata` is typed `JsonObject` (exported from `schema.ts` alongside `JsonValue`): audit detail is heterogeneous per event type, but it is JSON, so the column contract stays JSON rather than `Record<string, unknown>`.
 - **All FKs cascade-delete from `workspaces.id`.** Removing a workspace removes its children. Audit log preserves removed-workspace rows via `workspaceId: null` system events — keep that asymmetry.
 
 ## Seed lives outside this package

@@ -227,6 +227,17 @@
   --font-mono: var(--font-mono);
   --font-display: var(--font-display);
 
+  /* Micro type, below the DESIGN.md scale. Mono chrome lettering only —
+     keyboard hints, dense table micro-headers, and the engineering lettering
+     inside the architecture schematic. Never prose, never interactive labels. */
+  --text-2xs: 0.6875rem;
+  --text-3xs: 0.625rem;
+  --text-4xs: 0.5rem;
+
+  /* Dialog surfaces span the viewport minus the mobile gutter before the
+     `sm:` breakpoint caps them at a container width. */
+  --container-dialog-inset: calc(100% - 2rem);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

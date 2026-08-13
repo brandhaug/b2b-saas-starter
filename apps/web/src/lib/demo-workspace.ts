@@ -11,7 +11,7 @@ export const DEMO_WORKSPACE_SLUG = 'starter-lab'
  * docs/setup.md). Only exists after seeding a local D1 — the plain vite dev
  * shim has no database, so these do nothing there.
  */
-export const DEMO_CREDENTIALS = {
+export const DEMO_CREDENTIALS: { readonly email: string; readonly password: string } = {
   email: 'demo@starter.local',
   password: 'demo-starter-password'
-} as const
+}

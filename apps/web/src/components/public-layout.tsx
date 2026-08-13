@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BoxesIcon, MenuIcon } from 'lucide-react'
 import { SearchButton } from '@/components/command-palette'
@@ -25,7 +24,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
       >
         Skip to content
       </a>
-      <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger

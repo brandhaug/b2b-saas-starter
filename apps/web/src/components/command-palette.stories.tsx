@@ -11,7 +11,7 @@ import {
 
 function CommandPalettePreview() {
   return (
-    <div className="w-[28rem] overflow-hidden rounded-lg border border-border bg-popover shadow-md">
+    <div className="w-112 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
       <Command>
         <CommandInput placeholder="Search docs, pages, and actions..." />
         <CommandList>

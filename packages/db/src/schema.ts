@@ -8,19 +8,42 @@ import {
   type AnySQLiteColumn
 } from 'drizzle-orm/sqlite-core'
 
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const workspaceRoles = ['owner', 'admin', 'member'] as const
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const moduleStatuses = [
   'ready',
   'needs-config',
   'disabled',
   'attention'
 ] as const
+/**
+ * What a `mode: 'json'` text column can hold: exactly what
+ * `JSON.stringify`/`JSON.parse` round-trips. Audit metadata is heterogeneous
+ * per event type (token name + scopes, webhook url + events, delivery
+ * attempts), so "JSON" is the honest column contract — not `unknown`, which
+ * would also admit functions, `undefined`, and class instances that D1 cannot
+ * store.
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly JsonValue[]
+  | { readonly [key: string]: JsonValue }
+
+/** A JSON object payload — the shape of every `mode: 'json'` metadata column. */
+export type JsonObject = Readonly<Record<string, JsonValue>>
+
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const apiTokenScopes = ['read', 'write', 'admin'] as const
 export type ApiTokenScopeValue = (typeof apiTokenScopes)[number]
 export type CatalogRefreshSummary = {
   readonly modules: number
   readonly durationMs: number
 }
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const providerKinds = [
   'github',
   'stripe',
@@ -37,31 +60,42 @@ export const providerKinds = [
 // tables store ISO strings in text columns — see AGENTS.md before normalizing.
 // Drizzle column builders are single-use, so every helper returns fresh
 // builders per call.
-const id = () => text('id').primaryKey()
+function id() {
+  return text('id').primaryKey()
+}
 
-const authTimestamps = () => ({
-  createdAt: integer('createdAt', { mode: 'timestamp' })
-    .default(sql`(unixepoch())`)
-    .notNull(),
-  updatedAt: integer('updatedAt', { mode: 'timestamp' })
-    .default(sql`(unixepoch())`)
-    .notNull()
-})
+function authTimestamps() {
+  return {
+    createdAt: integer('createdAt', { mode: 'timestamp' })
+      .default(sql`(unixepoch())`)
+      .notNull(),
+    updatedAt: integer('updatedAt', { mode: 'timestamp' })
+      .default(sql`(unixepoch())`)
+      .notNull()
+  }
+}
 
-const isoCreatedAt = () => text('created_at').notNull()
+function isoCreatedAt() {
+  return text('created_at').notNull()
+}
 
-const isoUpdatedAt = () => text('updated_at').notNull()
+function isoUpdatedAt() {
+  return text('updated_at').notNull()
+}
 
-const workspaceRef = () =>
-  text('workspace_id')
+function workspaceRef() {
+  return text('workspace_id')
     .notNull()
     .references(() => workspaces.id, { onDelete: 'cascade' })
+}
 
-const workspaceRefNullable = () =>
-  text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' })
+function workspaceRefNullable() {
+  return text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' })
+}
 
-const workspaceIdIndex = (tableName: string, workspaceId: AnySQLiteColumn) =>
-  index(`${tableName}_workspace_id_idx`).on(workspaceId)
+function workspaceIdIndex(tableName: string, workspaceId: AnySQLiteColumn) {
+  return index(`${tableName}_workspace_id_idx`).on(workspaceId)
+}
 
 export const user = sqliteTable('user', {
   id: id(),
@@ -325,7 +359,7 @@ export const auditEvents = sqliteTable(
     targetType: text('target_type').notNull(),
     targetId: text('target_id'),
     metadata: text('metadata', { mode: 'json' })
-      .$type<Record<string, unknown>>()
+      .$type<JsonObject>()
       .default(sql`'{}'`)
       .notNull(),
     createdAt: isoCreatedAt()

@@ -11,5 +11,5 @@ export function cn(...inputs: ClassValue[]) {
  * absolute path falls back to /workspaces.
  */
 export function safeRedirect(raw: string | undefined): string {
-  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/workspaces'
+  return raw?.startsWith('/') && !raw.startsWith('//') ? raw : '/workspaces'
 }

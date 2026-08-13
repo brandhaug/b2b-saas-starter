@@ -1,11 +1,10 @@
-import type { ComponentType } from 'react'
-import { Suspense } from 'react'
+import { Suspense, type ComponentType } from 'react'
 import { render, screen } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mountRoute } from '@/test/router-mock'
 
 const mocks = vi.hoisted(() => ({
-  loaderData: { value: {} as unknown },
+  loaderData: { value: {} },
   params: { value: { workspaceSlug: 'starter-lab' } },
   navigate: vi.fn(),
   signOut: vi.fn(),
@@ -112,13 +111,12 @@ describe('WorkspaceSettingsPage', () => {
     await renderPage()
     const switches = screen.getAllByRole('switch')
     expect(switches).toHaveLength(2)
-    const readyToggle = switches[0] as HTMLElement
-    const needsConfigToggle = switches[1] as HTMLElement
-    expect(readyToggle.getAttribute('aria-checked')).toBe('true')
-    expect(needsConfigToggle.getAttribute('aria-checked')).toBe('false')
+    const [readyToggle, needsConfigToggle] = switches
+    expect(readyToggle?.getAttribute('aria-checked')).toBe('true')
+    expect(needsConfigToggle?.getAttribute('aria-checked')).toBe('false')
     for (const toggle of switches) {
       // Base UI marks disabled controls with data-disabled.
-      expect((toggle as HTMLElement).hasAttribute('data-disabled')).toBe(true)
+      expect(toggle.hasAttribute('data-disabled')).toBe(true)
     }
   })
 

@@ -1,14 +1,28 @@
+import type { ComponentType, SVGProps } from 'react'
 import { Activity, BarChart3, CreditCard, Mail } from 'lucide-react'
 import { GithubIcon } from '@/components/icons/github'
 
-export const publicLinks = [
+/** `to` stays a literal union so TanStack Router still type-checks the links. */
+type PublicLink = {
+  readonly to: '/docs' | '/blog' | '/pricing' | '/faq'
+  readonly label: string
+}
+
+export const publicLinks: readonly PublicLink[] = [
   { to: '/docs', label: 'Docs' },
   { to: '/blog', label: 'Blog' },
   { to: '/pricing', label: 'Pricing' },
   { to: '/faq', label: 'FAQ' }
-] as const
+]
 
-export const optionalProviderModules = [
+type OptionalProviderModule = {
+  readonly id: string
+  readonly name: string
+  readonly role: string
+  readonly icon: ComponentType<SVGProps<SVGSVGElement>>
+}
+
+export const optionalProviderModules: readonly OptionalProviderModule[] = [
   {
     id: 'stripe',
     name: 'Stripe',
@@ -39,9 +53,11 @@ export const optionalProviderModules = [
     role: 'Example OAuth Provider',
     icon: GithubIcon
   }
-] as const
+]
 
-export const faqItems = [
+type FaqItem = { readonly question: string; readonly answer: string }
+
+export const faqItems: readonly FaqItem[] = [
   {
     question: 'Why TanStack Start instead of Next.js or Remix?',
     answer:
@@ -77,9 +93,16 @@ export const faqItems = [
     answer:
       'MIT. Fork it, rename it, ship it. Attribution is appreciated but not required.'
   }
-] as const
+]
 
-export const changelog = [
+type ChangelogEntry = {
+  readonly version: string
+  readonly date: string
+  readonly title: string
+  readonly changes: readonly string[]
+}
+
+export const changelog: readonly ChangelogEntry[] = [
   {
     version: '0.1.0',
     date: '2026-05-16',
@@ -91,4 +114,4 @@ export const changelog = [
       'Outbound webhooks through Cloudflare Queues'
     ]
   }
-] as const
+]

@@ -6,16 +6,16 @@ import { CapabilityUnavailable } from '../errors.ts'
  * error so callers see infrastructure failures in the error channel instead of
  * as defects. Apply to every Live-layer database call.
  */
-export const orUnavailable =
-  (capability: string) =>
-  <A, E, R>(
-    effect: Effect.Effect<A, E, R>
-  ): Effect.Effect<A, CapabilityUnavailable, R> =>
-    Effect.mapError(
-      effect,
-      (error) =>
-        new CapabilityUnavailable({
-          capability,
-          reason: error instanceof Error ? error.message : String(error)
-        })
-    )
+export function orUnavailable(
+  capability: string
+): <A, E, R>(
+  effect: Effect.Effect<A, E, R>
+) => Effect.Effect<A, CapabilityUnavailable, R> {
+  return (effect) =>
+    Effect.mapError(effect, (error) => {
+      if (error instanceof Error) {
+        return new CapabilityUnavailable({ capability, reason: error.message })
+      }
+      return new CapabilityUnavailable({ capability, reason: String(error) })
+    })
+}

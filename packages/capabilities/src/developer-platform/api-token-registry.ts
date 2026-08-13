@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import {
   apiTokens,
@@ -69,7 +69,7 @@ export type RevokeApiTokenInput = {
   readonly actorUserId?: string
 }
 
-export type ApiTokenRegistryShape = {
+export type ApiTokenRegistryInterface = {
   readonly list: Effect.Effect<
     readonly ApiToken[],
     CapabilityUnavailable,
@@ -90,7 +90,7 @@ export type ApiTokenRegistryShape = {
 
 export class ApiTokenRegistry extends Context.Service<
   ApiTokenRegistry,
-  ApiTokenRegistryShape
+  ApiTokenRegistryInterface
 >()('@b2b-saas-starter/capabilities/ApiTokenRegistry') {}
 
 /**
@@ -109,43 +109,47 @@ export const SEED_API_TOKEN = 'bsk_seed_0000000000000000'
 export const LAST_USED_WRITE_INTERVAL_MS = 60_000
 
 /** Pure throttle decision for the `lastUsedAt` bump — exported for tests. */
-export const shouldBumpLastUsedAt = (
-  lastUsedAt: string | null,
-  now: number
-): boolean => {
+export function shouldBumpLastUsedAt(lastUsedAt: string | null, now: number): boolean {
   if (!lastUsedAt) return true
   const parsed = Date.parse(lastUsedAt)
-  return Number.isNaN(parsed) || now - parsed >= LAST_USED_WRITE_INTERVAL_MS
+  if (Number.isNaN(parsed)) return true
+  return now - parsed >= LAST_USED_WRITE_INTERVAL_MS
 }
 
-export const SeedApiTokenRegistry = (
+export function SeedApiTokenRegistry(
   seed: readonly ApiToken[]
-): Layer.Layer<ApiTokenRegistry> =>
-  Layer.succeed(ApiTokenRegistry)({
+): Layer.Layer<ApiTokenRegistry> {
+  return Layer.succeed(ApiTokenRegistry)({
     list: Effect.succeed(seed),
-    create: (input) =>
-      Effect.succeed({
-        id: `tok_${Date.now()}`,
+    create: Effect.fnUntraced(function* (input) {
+      const id = yield* newCapabilityId('tok')
+      const createdAt = yield* DateTime.now
+      return {
+        id,
         name: input.name,
         prefix: 'bsk_seed',
         scopes: [...input.scopes],
         lastUsedAt: null,
-        createdAt: new Date().toISOString(),
+        createdAt: DateTime.formatIso(createdAt),
         token: 'bsk_seed_created_token'
-      }),
+      }
+    }),
     revoke: () => Effect.succeed(true),
-    verifyBearerToken: (token, _requiredScope) =>
+    verifyBearerToken: (token, _requiredScope) => {
       // The seed token carries all scopes, so `insufficient_scope` is
       // unreachable here — every failure is an unknown token.
-      token === SEED_API_TOKEN
-        ? Effect.succeed({
-            id: seed[0]?.id ?? 'tok_seed',
-            workspaceId: 'wrk_starter',
-            workspaceSlug: 'starter-lab',
-            scopes: API_TOKEN_SCOPES
-          })
-        : Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
+      if (token !== SEED_API_TOKEN) {
+        return Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
+      }
+      return Effect.succeed({
+        id: seed[0]?.id ?? 'tok_seed',
+        workspaceId: 'wrk_starter',
+        workspaceSlug: 'starter-lab',
+        scopes: API_TOKEN_SCOPES
+      })
+    }
   })
+}
 
 /**
  * Hashing scheme for stored bearer-token hashes. The D1 seed script
@@ -154,9 +158,13 @@ export const SeedApiTokenRegistry = (
  */
 export const hashApiToken = hashSha256
 
-const randomToken = (): string => `bsk_live_${randomHex(24)}`
+function randomToken(): string {
+  return `bsk_live_${randomHex(24)}`
+}
 
-const tokenPrefix = (token: string): string => token.slice(0, 17)
+function tokenPrefix(token: string): string {
+  return token.slice(0, 17)
+}
 
 const unavailable = orUnavailable('api-token-registry')
 
@@ -197,9 +205,9 @@ export const LiveApiTokenRegistry: Layer.Layer<
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const token = randomToken()
-          const createdAt = new Date().toISOString()
+          const createdAt = DateTime.formatIso(yield* DateTime.now)
           const row = {
-            id: newCapabilityId('tok'),
+            id: yield* newCapabilityId('tok'),
             workspaceId: ctx.workspace.id,
             name: input.name,
             tokenPrefix: tokenPrefix(token),
@@ -210,18 +218,16 @@ export const LiveApiTokenRegistry: Layer.Layer<
             createdAt,
             createdByUserId: input.actorUserId ?? null
           }
+          const auditCreated = yield* audit.prepareRecord({
+            workspaceId: ctx.workspace.id,
+            actorUserId: input.actorUserId ?? null,
+            eventType: 'api_token.created',
+            targetType: 'api_token',
+            targetId: row.id,
+            metadata: { name: input.name, scopes: input.scopes }
+          })
           yield* unavailable(
-            batch(db, [
-              db.insert(apiTokens).values(row),
-              audit.prepareRecord({
-                workspaceId: ctx.workspace.id,
-                actorUserId: input.actorUserId ?? null,
-                eventType: 'api_token.created',
-                targetType: 'api_token',
-                targetId: row.id,
-                metadata: { name: input.name, scopes: input.scopes }
-              })
-            ])
+            batch(db, [db.insert(apiTokens).values(row), auditCreated])
           )
           return {
             id: row.id,
@@ -252,11 +258,20 @@ export const LiveApiTokenRegistry: Layer.Layer<
           // No row in this workspace to revoke — skip both the update and the
           // audit event instead of recording a phantom revocation.
           if (matched.length === 0) return false
+          const revokedAt = yield* DateTime.now
+          const auditRevoked = yield* audit.prepareRecord({
+            workspaceId: ctx.workspace.id,
+            actorUserId: input.actorUserId ?? null,
+            eventType: 'api_token.revoked',
+            targetType: 'api_token',
+            targetId: input.tokenId,
+            metadata: {}
+          })
           yield* unavailable(
             batch(db, [
               db
                 .update(apiTokens)
-                .set({ revokedAt: new Date().toISOString() })
+                .set({ revokedAt: DateTime.formatIso(revokedAt) })
                 .where(
                   and(
                     eq(apiTokens.id, input.tokenId),
@@ -264,14 +279,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
                     isNull(apiTokens.revokedAt)
                   )
                 ),
-              audit.prepareRecord({
-                workspaceId: ctx.workspace.id,
-                actorUserId: input.actorUserId ?? null,
-                eventType: 'api_token.revoked',
-                targetType: 'api_token',
-                targetId: input.tokenId,
-                metadata: {}
-              })
+              auditRevoked
             ])
           )
           return true
@@ -304,11 +312,14 @@ export const LiveApiTokenRegistry: Layer.Layer<
           // Bump `lastUsedAt` at most once per LAST_USED_WRITE_INTERVAL_MS.
           // The per-request `api_token.used` audit event was removed: it did a
           // second D1 write per request and flooded the governance log.
-          if (shouldBumpLastUsedAt(row.token.lastUsedAt, Date.now())) {
+          const usedAt = yield* DateTime.now
+          if (
+            shouldBumpLastUsedAt(row.token.lastUsedAt, DateTime.toEpochMillis(usedAt))
+          ) {
             yield* unavailable(
               db
                 .update(apiTokens)
-                .set({ lastUsedAt: new Date().toISOString() })
+                .set({ lastUsedAt: DateTime.formatIso(usedAt) })
                 .where(eq(apiTokens.id, row.token.id))
             )
           }

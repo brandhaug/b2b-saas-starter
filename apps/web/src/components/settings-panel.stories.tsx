@@ -13,7 +13,7 @@ type ModuleToggleRow = {
 
 function SettingsPanel({ rows }: { readonly rows: readonly ModuleToggleRow[] }) {
   return (
-    <Card className="w-[32rem]">
+    <Card className="w-128">
       <CardHeader>
         <CardTitle>Module state</CardTitle>
         <p className="text-xs text-muted-foreground">

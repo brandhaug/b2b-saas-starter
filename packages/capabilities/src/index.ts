@@ -16,6 +16,7 @@ export * from './developer-platform/webhook-url.ts'
 
 // governance
 export * from './governance/audit-event-log.ts'
+export * from './governance/workspace-identity.ts'
 export * from './governance/workspace-membership.ts'
 
 // notifications

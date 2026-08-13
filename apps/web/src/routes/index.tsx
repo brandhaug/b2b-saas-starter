@@ -49,7 +49,7 @@ export const Route = createFileRoute('/')({
 const GITHUB_URL =
   'https://github.com/brandhaug/full-stack-typescript-monorepo-starter-with-authentication'
 
-const BILL_OF_MATERIALS = [
+const BILL_OF_MATERIALS: readonly string[] = [
   'TanStack Start',
   'Effect v4',
   'Drizzle D1',
@@ -58,7 +58,7 @@ const BILL_OF_MATERIALS = [
   'Tailwind v4',
   'Cloudflare Workers',
   'Alchemy v2'
-] as const
+]
 
 const REST_SNIPPET = `curl -H "Authorization: Bearer bsk_live_xxx" \\
   https://api.example.com/workspaces/starter-lab/overview
@@ -76,7 +76,9 @@ const MCP_SNIPPET = `{
   "tools": []
 }`
 
-const CLOUDFLARE_RUNTIME = [
+type RuntimeRow = { readonly label: string; readonly value: string }
+
+const CLOUDFLARE_RUNTIME: readonly RuntimeRow[] = [
   { label: 'apps/web', value: 'Worker' },
   { label: 'apps/api', value: 'Worker' },
   { label: 'apps/background', value: 'Worker (cron + queue)' },
@@ -85,17 +87,16 @@ const CLOUDFLARE_RUNTIME = [
   { label: 'Outbound email', value: 'Email Service' },
   { label: 'Static assets', value: 'Worker Assets' },
   { label: 'Infrastructure', value: 'Alchemy v2' }
-] as const
+]
 
-const DISABLED_STATUS_META = {
+type StatusMeta = { readonly dot: string; readonly text: string }
+
+const DISABLED_STATUS_META: StatusMeta = {
   dot: 'border border-muted-foreground/70 bg-transparent',
   text: 'text-muted-foreground'
-} as const
+}
 
-const MODULE_STATUS_META: Record<
-  string,
-  { readonly dot: string; readonly text: string }
-> = {
+const MODULE_STATUS_META: Record<string, StatusMeta> = {
   ready: { dot: 'bg-primary', text: 'text-foreground' },
   'needs-config': { dot: 'bg-signal', text: 'text-signal-ink' },
   attention: { dot: 'bg-destructive', text: 'text-destructive' },
@@ -119,7 +120,7 @@ function HomePage() {
                 <p className="rise font-mono text-sm text-signal-ink">
                   A Cloudflare-first B2B SaaS starter
                 </p>
-                <h1 className="rise rise-2 mt-5 text-balance text-5xl font-semibold leading-[1.04] tracking-tight sm:text-6xl">
+                <h1 className="rise rise-2 mt-5 text-balance text-5xl font-semibold leading-none tracking-tight sm:text-6xl">
                   The hard parts, already wired.
                 </h1>
                 <p className="rise rise-3 mt-6 text-pretty text-lg text-muted-foreground">
@@ -182,7 +183,7 @@ function HomePage() {
               Starter modules and their current module state in the seed workspace
             </caption>
             <thead>
-              <tr className="border-b border-border font-mono text-[11px] text-muted-foreground">
+              <tr className="border-b border-border font-mono text-xs text-muted-foreground">
                 <th scope="col" className="w-10 py-2 pr-4 font-normal max-sm:hidden">
                   #
                 </th>
@@ -334,9 +335,7 @@ function HomePage() {
                   </p>
                   <p className="mt-auto inline-flex items-center gap-2">
                     <span className="size-2 rounded-full border border-signal-ink" />
-                    <span className="font-mono text-[11px] text-signal-ink">
-                      env-gated
-                    </span>
+                    <span className="font-mono text-xs text-signal-ink">env-gated</span>
                   </p>
                 </div>
               ))}
@@ -397,7 +396,7 @@ function HomePage() {
                         <span className="text-sm font-medium group-hover:text-primary">
                           {post.frontmatter.title}
                         </span>
-                        <time className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                        <time className="shrink-0 font-mono text-xs text-muted-foreground">
                           {new Date(post.frontmatter.date).toLocaleDateString('en-US', {
                             year: 'numeric',
                             month: 'short',
@@ -469,7 +468,7 @@ function SnippetPanel({
 }) {
   return (
     <figure className="min-w-0 border border-border bg-card">
-      <figcaption className="border-b border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">
+      <figcaption className="border-b border-border px-4 py-2 font-mono text-xs text-muted-foreground">
         {label}
       </figcaption>
       <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-foreground/90">

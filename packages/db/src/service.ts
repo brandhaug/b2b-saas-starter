@@ -11,14 +11,16 @@ export class Database extends Context.Service<Database, EffectDatabase>()(
   '@b2b-saas-starter/db/Database'
 ) {}
 
-export const layerFromDb = (db: EffectDatabase): Layer.Layer<Database> =>
-  Layer.succeed(Database)(db)
+export function layerFromDb(db: EffectDatabase): Layer.Layer<Database> {
+  return Layer.succeed(Database)(db)
+}
 
-export const layerFromD1 = (d1: D1Client.D1ClientConfig['db']): Layer.Layer<Database> =>
-  Layer.effect(Database)(SQLiteD1Drizzle.makeWithDefaults({})).pipe(
+export function layerFromD1(d1: D1Client.D1ClientConfig['db']): Layer.Layer<Database> {
+  return Layer.effect(Database)(SQLiteD1Drizzle.makeWithDefaults({})).pipe(
     Layer.provide(D1Client.layer({ db: d1 })),
     Layer.orDie
   )
+}
 
 export class DbBatchError extends Schema.TaggedErrorClass<DbBatchError>()(
   'DbBatchError',
@@ -39,22 +41,25 @@ export type BatchStatement = {
  * drizzle driver has no batch API, so this compiles the builders and runs them
  * through the raw `D1Database` binding held by the underlying `D1Client`.
  */
-export const batch = (
+function batchFailureReason(cause: unknown): string {
+  if (cause instanceof Error) return cause.message
+  return String(cause)
+}
+
+export function batch(
   db: EffectDatabase,
   statements: readonly BatchStatement[]
-): Effect.Effect<void, DbBatchError> =>
-  Effect.tryPromise({
-    try: async () => {
+): Effect.Effect<void, DbBatchError> {
+  return Effect.tryPromise({
+    try: () => {
       const raw = db.$client.config.db
-      await raw.batch(
+      return raw.batch(
         statements.map((statement) => {
           const query = statement.toSQL()
           return raw.prepare(query.sql).bind(...query.params)
         })
       )
     },
-    catch: (cause) =>
-      new DbBatchError({
-        reason: cause instanceof Error ? cause.message : String(cause)
-      })
-  })
+    catch: (cause) => new DbBatchError({ reason: batchFailureReason(cause) })
+  }).pipe(Effect.asVoid)
+}

@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
+    "@effect/vitest": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

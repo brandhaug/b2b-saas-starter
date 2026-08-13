@@ -1,4 +1,5 @@
-export const CHART_COLORS = [
+/** Non-empty by construction, so `CHART_COLORS[0]` is always a usable fallback. */
+export const CHART_COLORS: readonly [string, ...string[]] = [
   'hsl(217, 91%, 60%)',
   'hsl(142, 71%, 45%)',
   'hsl(262, 83%, 58%)',
@@ -9,4 +10,4 @@ export const CHART_COLORS = [
   'hsl(339, 80%, 56%)',
   'hsl(174, 72%, 40%)',
   'hsl(280, 68%, 53%)'
-] as const
+]

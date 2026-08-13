@@ -7,7 +7,9 @@ import { getWebHandler } from './http.ts'
 // driven by the contract + handler layers in handlers.ts / http.ts. There is no
 // hand-maintained route table to drift from the contract.
 export default {
-  async fetch(request: Request, env: ApiEnv): Promise<Response> {
+  // Not `async`: the Workers runtime awaits the returned promise, and the
+  // handler has nothing to await before returning it.
+  fetch(request: Request, env: ApiEnv): Promise<Response> {
     return getWebHandler(env)(request)
   }
 }

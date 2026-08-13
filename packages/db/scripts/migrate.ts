@@ -7,15 +7,45 @@
 // runner would create, so already-applied migrations are skipped on re-run.
 //
 // Usage: bun scripts/migrate.ts [--remote]   (defaults to --local)
+//
+// This is a Bun CLI entry point, not application code: it runs outside any Effect
+// runtime, its whole job is to spawn `wrangler` and shuttle files, and its exit
+// code is the contract with the `db:migrate:*` package scripts. There is no
+// Effect runtime to read Config/Stdio/FileSystem/Command from here.
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Schema } from 'effect'
 import { listMigrations } from '../src/migrations-fs.ts'
 
 const packageDir = join(import.meta.dir, '..')
-const target = process.argv.includes('--remote') ? '--remote' : '--local'
 
-const wranglerExecute = async (args: string[], captureJson: boolean) => {
+function resolveTarget(argv: readonly string[]): '--remote' | '--local' {
+  if (argv.includes('--remote')) return '--remote'
+  return '--local'
+}
+
+const target = resolveTarget(process.argv)
+
+function jsonFlags(captureJson: boolean): string[] {
+  if (captureJson) return ['--json']
+  return []
+}
+
+function stdoutMode(captureJson: boolean): 'pipe' | 'inherit' {
+  if (captureJson) return 'pipe'
+  return 'inherit'
+}
+
+async function readStdout(
+  stdout: ReadableStream<Uint8Array> | undefined,
+  captureJson: boolean
+): Promise<string> {
+  if (!captureJson) return ''
+  return new Response(stdout).text()
+}
+
+async function wranglerExecute(args: string[], captureJson: boolean) {
   const proc = Bun.spawn(
     [
       'bunx',
@@ -26,17 +56,28 @@ const wranglerExecute = async (args: string[], captureJson: boolean) => {
       target,
       `--config=${join(packageDir, 'wrangler.jsonc')}`,
       ...args,
-      ...(captureJson ? ['--json'] : [])
+      ...jsonFlags(captureJson)
     ],
-    { stdout: captureJson ? 'pipe' : 'inherit', stderr: 'inherit' }
+    { stdout: stdoutMode(captureJson), stderr: 'inherit' }
   )
-  const stdout = captureJson ? await new Response(proc.stdout).text() : ''
+  const stdout = await readStdout(proc.stdout, captureJson)
   const code = await proc.exited
   if (code !== 0) {
     process.exit(code)
   }
   return stdout
 }
+
+// Wrangler's `--json` output for a SELECT: one batch per statement. Decoding it
+// instead of casting means a wrangler output change fails here, loudly, rather
+// than producing an empty applied-set and re-running every migration.
+const AppliedMigrationsJson = Schema.fromJsonString(
+  Schema.Array(
+    Schema.Struct({
+      results: Schema.Array(Schema.Struct({ name: Schema.String }))
+    })
+  )
+)
 
 const migrations = listMigrations()
 
@@ -52,8 +93,8 @@ const appliedJson = await wranglerExecute(
   true
 )
 const applied = new Set<string>(
-  (JSON.parse(appliedJson) as Array<{ results: Array<{ name: string }> }>).flatMap(
-    (batch) => batch.results.map((row) => row.name)
+  Schema.decodeUnknownSync(AppliedMigrationsJson)(appliedJson).flatMap((batch) =>
+    batch.results.map((row) => row.name)
   )
 )
 

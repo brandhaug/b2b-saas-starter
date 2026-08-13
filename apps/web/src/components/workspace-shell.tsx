@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
+import { Cause, Effect, Exit, Option } from 'effect'
 import {
   BellIcon,
   BoxesIcon,
@@ -22,6 +22,8 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet'
 import { authClient } from '@/lib/auth-client'
+
+const SIGN_OUT_FAILED = 'Sign-out failed'
 
 export function WorkspaceShell({
   children,
@@ -107,20 +109,39 @@ export function WorkspaceShell({
 function SignOutButton() {
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
+  // `Effect.tryPromise` keeps the Better Auth rejection in the error channel;
+  // `Effect.ensuring` re-enables the button either way, so a failed sign-out
+  // can be retried instead of leaving the header stuck.
+  const signOut = Effect.ensuring(
+    Effect.tryPromise({
+      try: async () => {
+        await authClient.signOut()
+        await router.navigate({ to: '/sign-in' })
+      },
+      catch: (cause) => (cause instanceof Error ? cause.message : SIGN_OUT_FAILED)
+    }),
+    Effect.sync(() => setSigningOut(false))
+  )
+  // The button is the platform edge: report the failure instead of letting it
+  // escape as an unhandled rejection.
+  async function runSignOut() {
+    const exit = await Effect.runPromiseExit(signOut)
+    if (Exit.isFailure(exit)) {
+      console.error(
+        'Sign-out failed',
+        Option.getOrElse(Cause.findErrorOption(exit.cause), () => SIGN_OUT_FAILED)
+      )
+    }
+  }
   return (
     <Button
       variant="ghost"
       size="icon"
       aria-label="Sign out"
       disabled={signingOut}
-      onClick={async () => {
+      onClick={() => {
         setSigningOut(true)
-        try {
-          await authClient.signOut()
-          await router.navigate({ to: '/sign-in' })
-        } finally {
-          setSigningOut(false)
-        }
+        void runSignOut()
       }}
     >
       <LogOutIcon className="size-4" />

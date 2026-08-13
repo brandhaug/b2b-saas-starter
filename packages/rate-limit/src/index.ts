@@ -1,4 +1,4 @@
-import { Effect, type Scope } from 'effect'
+import { Clock, Effect, Schema, type Scope } from 'effect'
 import { annotateWide } from '@b2b-saas-starter/logger'
 
 // Cloudflare Rate Limiting binding shape (subset). The actual bindings are
@@ -11,12 +11,22 @@ export type CloudflareRateLimit = {
   }>
 }
 
+/**
+ * The Cloudflare ratelimit binding call rejected (transient platform error).
+ * Never reaches callers — `take` degrades to the in-memory fallback — but the
+ * reason is carried this far so it can be put on the request's wide event.
+ */
+export class RateLimitBindingFailure extends Schema.TaggedErrorClass<RateLimitBindingFailure>()(
+  'RateLimitBindingFailure',
+  { reason: Schema.String }
+) {}
+
 export type RateLimitInput<Bucket extends string> = {
   readonly bucket: Bucket
   readonly key: string
 }
 
-export type RateLimiterShape<Bucket extends string> = {
+export type RateLimiterInterface<Bucket extends string> = {
   readonly take: (
     input: RateLimitInput<Bucket>
   ) => Effect.Effect<boolean, never, Scope.Scope>
@@ -43,9 +53,13 @@ type BucketState = { count: number; resetAt: number }
 
 const fallbackStore = new Map<string, BucketState>()
 
-const takeFromFallback = (bucket: string, key: string, limit: number): boolean => {
+function takeFromFallback(
+  bucket: string,
+  key: string,
+  limit: number,
+  now: number
+): boolean {
   const id = `${bucket}:${key}`
-  const now = Date.now()
   const existing = fallbackStore.get(id)
   if (!existing || existing.resetAt < now) {
     fallbackStore.set(id, { count: 1, resetAt: now + FALLBACK_WINDOW_MS })
@@ -58,40 +72,63 @@ const takeFromFallback = (bucket: string, key: string, limit: number): boolean =
   return true
 }
 
-export const makeRateLimiter = <Bucket extends string>(
-  config: RateLimiterConfig<Bucket>
-): RateLimiterShape<Bucket> => ({
-  take: (input) =>
-    Effect.gen(function* () {
-      const binding = config.binding(input.bucket)
-      if (binding) {
-        const outcome = yield* Effect.promise(async () => {
-          try {
-            return await binding.limit({ key: input.key })
-          } catch {
-            return null
-          }
-        })
-        if (outcome) return outcome.success
-      }
-      // Falling back to the per-isolate in-memory map — either the binding
-      // is missing (local dev, tests) or its call failed (transient
-      // platform error). Don't fail open; flag the degraded mode on the
-      // request's wide event so fallback traffic is queryable.
-      yield* annotateWide({
-        rateLimitDegraded: true,
-        rateLimitFallback: binding ? 'binding_error' : 'missing_binding',
-        rateLimitBucket: input.bucket
-      })
-      return takeFromFallback(
-        input.bucket,
-        input.key,
-        config.fallbackLimits[input.bucket]
-      )
-    })
-})
+function bindingFailureReason(cause: unknown): string {
+  if (cause instanceof Error) return cause.message
+  return String(cause)
+}
 
-export const clientKey = (request: Request): string => {
+/** Why the limiter degraded: the binding was never provisioned, or its call failed. */
+function fallbackReason(
+  binding: CloudflareRateLimit | undefined
+): 'binding_error' | 'missing_binding' {
+  if (binding === undefined) return 'missing_binding'
+  return 'binding_error'
+}
+
+export function makeRateLimiter<Bucket extends string>(
+  config: RateLimiterConfig<Bucket>
+): RateLimiterInterface<Bucket> {
+  return {
+    take: (input) =>
+      Effect.gen(function* () {
+        const binding = config.binding(input.bucket)
+        if (binding) {
+          const attempt = yield* Effect.result(
+            Effect.tryPromise({
+              try: () => binding.limit({ key: input.key }),
+              catch: (cause) =>
+                new RateLimitBindingFailure({ reason: bindingFailureReason(cause) })
+            })
+          )
+          if (attempt._tag === 'Success') {
+            const outcome = attempt.success
+            return outcome.success
+          }
+          // Carry the binding's own failure reason onto the wide event before
+          // degrading — the fallback must never hide why the binding failed.
+          yield* annotateWide({ rateLimitBindingError: attempt.failure.reason })
+        }
+        // Falling back to the per-isolate in-memory map — either the binding
+        // is missing (local dev, tests) or its call failed (transient
+        // platform error). Don't fail open; flag the degraded mode on the
+        // request's wide event so fallback traffic is queryable.
+        yield* annotateWide({
+          rateLimitDegraded: true,
+          rateLimitFallback: fallbackReason(binding),
+          rateLimitBucket: input.bucket
+        })
+        const now = yield* Clock.currentTimeMillis
+        return takeFromFallback(
+          input.bucket,
+          input.key,
+          config.fallbackLimits[input.bucket],
+          now
+        )
+      })
+  }
+}
+
+export function clientKey(request: Request): string {
   // Only trust `cf-connecting-ip`: Cloudflare sets it on every request and
   // strips client-supplied values. `x-forwarded-for` is attacker-controlled
   // (rotate the header, dodge the limit), so it is deliberately not used.

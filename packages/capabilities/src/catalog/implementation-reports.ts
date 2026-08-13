@@ -14,7 +14,7 @@ export const ImplementationReport = Schema.Struct({
 })
 export type ImplementationReport = typeof ImplementationReport.Type
 
-export type ImplementationReportsShape = {
+export type ImplementationReportsInterface = {
   readonly list: Effect.Effect<
     readonly ImplementationReport[],
     CapabilityUnavailable,
@@ -24,15 +24,16 @@ export type ImplementationReportsShape = {
 
 export class ImplementationReports extends Context.Service<
   ImplementationReports,
-  ImplementationReportsShape
+  ImplementationReportsInterface
 >()('@b2b-saas-starter/capabilities/ImplementationReports') {}
 
-export const SeedImplementationReports = (
+export function SeedImplementationReports(
   seed: readonly ImplementationReport[]
-): Layer.Layer<ImplementationReports> =>
-  Layer.succeed(ImplementationReports)({
+): Layer.Layer<ImplementationReports> {
+  return Layer.succeed(ImplementationReports)({
     list: Effect.succeed(seed)
   })
+}
 
 export const LiveImplementationReports: Layer.Layer<
   ImplementationReports,

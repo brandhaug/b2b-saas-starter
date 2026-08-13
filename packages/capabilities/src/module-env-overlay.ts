@@ -39,16 +39,19 @@ const integrationProviderEnvIds: Record<string, string> = {
 
 // missing env → needs-config; env present but the runtime isn't wired yet
 // (e.g. billing) → attention; fully configured → ready.
-const envDerivedStatus = (status: ModuleEnvStatus): ModuleStatus =>
-  !status.envPresent ? 'needs-config' : status.configured ? 'ready' : 'attention'
+function envDerivedStatus(status: ModuleEnvStatus): ModuleStatus {
+  if (!status.envPresent) return 'needs-config'
+  if (!status.configured) return 'attention'
+  return 'ready'
+}
 
-const moduleEnvOverlay = (
+function moduleEnvOverlay(
   statuses: readonly ModuleEnvStatus[]
 ): Layer.Layer<
   StarterModuleCatalog | IntegrationSurfaces,
   never,
   StarterModuleCatalog | IntegrationSurfaces
-> => {
+> {
   const byEnvModuleId = new Map(statuses.map((status) => [status.moduleId, status]))
   const catalogOverlay = Layer.effect(StarterModuleCatalog)(
     Effect.gen(function* () {
@@ -82,13 +85,14 @@ const moduleEnvOverlay = (
               integrationProviderEnvIds[surface.provider] ?? ''
             )
             if (status === undefined) return surface
-            return {
-              ...surface,
-              status: envDerivedStatus(status),
-              summary: status.envPresent
-                ? surface.summary
-                : `Set ${status.missing.join(', ')} to activate this integration.`
+            if (!status.envPresent) {
+              return {
+                ...surface,
+                status: envDerivedStatus(status),
+                summary: `Set ${status.missing.join(', ')} to activate this integration.`
+              }
             }
+            return { ...surface, status: envDerivedStatus(status) }
           })
         )
       }
@@ -104,10 +108,10 @@ const moduleEnvOverlay = (
  * through untouched. `undefined` statuses (caller has no env information)
  * leave the layer as-is.
  */
-export const withModuleEnvStatus = <R, E>(
+export function withModuleEnvStatus<R, E>(
   layer: Layer.Layer<CapabilityServices | R, E>,
   statuses: readonly ModuleEnvStatus[] | undefined
-): Layer.Layer<CapabilityServices | R, E> =>
-  statuses === undefined
-    ? layer
-    : moduleEnvOverlay(statuses).pipe(Layer.provideMerge(layer))
+): Layer.Layer<CapabilityServices | R, E> {
+  if (statuses === undefined) return layer
+  return moduleEnvOverlay(statuses).pipe(Layer.provideMerge(layer))
+}

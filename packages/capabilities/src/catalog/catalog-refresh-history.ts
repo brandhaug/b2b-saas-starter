@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Result, Schema } from 'effect'
+import { Clock, Context, DateTime, Effect, Layer, Option, Result, Schema } from 'effect'
 import { desc } from 'drizzle-orm'
 import {
   Database,
@@ -28,7 +28,7 @@ export const CatalogRefreshSummarySchema = Schema.Struct({
   durationMs: Schema.Number
 })
 
-export type CatalogRefreshHistoryShape = {
+export type CatalogRefreshHistoryInterface = {
   readonly listRecent: Effect.Effect<
     readonly CatalogRefreshRun[],
     CapabilityUnavailable
@@ -44,8 +44,14 @@ export type CatalogRefreshHistoryShape = {
 
 export class CatalogRefreshHistory extends Context.Service<
   CatalogRefreshHistory,
-  CatalogRefreshHistoryShape
+  CatalogRefreshHistoryInterface
 >()('@b2b-saas-starter/capabilities/CatalogRefreshHistory') {}
+
+/** Status + refreshed-module count recorded for one catalog refresh run. */
+type RefreshRunOutcome = {
+  readonly status: CatalogRefreshStatus
+  readonly modules: number
+}
 
 /**
  * One catalog refresh run with the "no refresh run goes unrecorded" rule
@@ -60,16 +66,25 @@ export const runCatalogRefresh: Effect.Effect<
   CapabilityUnavailable,
   StarterModuleCatalog | CatalogRefreshHistory
 > = Effect.gen(function* () {
-  const startedAt = new Date().toISOString()
-  const startedMs = Date.now()
+  const startedAtDateTime = yield* DateTime.now
+  const startedAt = DateTime.formatIso(startedAtDateTime)
+  const startedMs = DateTime.toEpochMillis(startedAtDateTime)
   const catalog = yield* StarterModuleCatalog
   const history = yield* CatalogRefreshHistory
   const modules = yield* Effect.result(catalog.listAllModules)
+  const completedMs = yield* Clock.currentTimeMillis
+  const outcome = Result.match(modules, {
+    onSuccess: (refreshed): RefreshRunOutcome => ({
+      status: 'ok',
+      modules: refreshed.length
+    }),
+    onFailure: (): RefreshRunOutcome => ({ status: 'failed', modules: 0 })
+  })
   yield* history.recordRun({
-    label: new Date(startedAt).toUTCString(),
-    status: Result.isSuccess(modules) ? 'ok' : 'failed',
-    modules: Result.isSuccess(modules) ? modules.success.length : 0,
-    durationMs: Date.now() - startedMs,
+    label: DateTime.toDateUtc(startedAtDateTime).toUTCString(),
+    status: outcome.status,
+    modules: outcome.modules,
+    durationMs: completedMs - startedMs,
     startedAt
   })
   if (Result.isFailure(modules)) {
@@ -78,17 +93,50 @@ export const runCatalogRefresh: Effect.Effect<
   return modules.success.length
 })
 
-export const SeedCatalogRefreshHistory = (
+export function SeedCatalogRefreshHistory(
   seed: readonly CatalogRefreshRun[]
-): Layer.Layer<CatalogRefreshHistory> =>
-  Layer.succeed(CatalogRefreshHistory)({
+): Layer.Layer<CatalogRefreshHistory> {
+  return Layer.succeed(CatalogRefreshHistory)({
     listRecent: Effect.succeed(seed),
     recordRun: () => Effect.void
   })
+}
 
-const labelFromDate = (iso: string): string => {
-  const day = new Date(iso).getUTCDay()
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day] ?? 'Day'
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function labelFromDate(iso: string): string {
+  return Option.match(DateTime.make(iso), {
+    onNone: () => 'Day',
+    onSome: (moment) => WEEKDAY_LABELS[DateTime.getPartUtc(moment, 'weekDay')] ?? 'Day'
+  })
+}
+
+/** Anything the row does not spell as `failed` is reported as a successful run. */
+function refreshStatus(status: string): CatalogRefreshStatus {
+  if (status === 'failed') return 'failed'
+  return 'ok'
+}
+
+/** Maps one persisted run row onto the wire DTO, tolerating a malformed summary. */
+function toCatalogRefreshRun(
+  row: typeof catalogRefreshRuns.$inferSelect
+): CatalogRefreshRun {
+  const summary = Schema.decodeUnknownOption(CatalogRefreshSummarySchema)(row.summary)
+  const counts = Option.match(summary, {
+    onNone: () => ({ modules: 0, durationMs: 0 }),
+    onSome: (decoded) => ({
+      modules: decoded.modules,
+      durationMs: decoded.durationMs
+    })
+  })
+  return {
+    id: row.id,
+    label: labelFromDate(row.startedAt),
+    status: refreshStatus(row.status),
+    modules: counts.modules,
+    durationMs: counts.durationMs,
+    startedAt: row.startedAt
+  }
 }
 
 export const LiveCatalogRefreshHistory: Layer.Layer<
@@ -106,37 +154,24 @@ export const LiveCatalogRefreshHistory: Layer.Layer<
           .from(catalogRefreshRuns)
           .orderBy(desc(catalogRefreshRuns.startedAt))
           .limit(14)
-      ).pipe(
-        Effect.map((rows) =>
-          rows.map((row) => {
-            const summary = Schema.decodeUnknownOption(CatalogRefreshSummarySchema)(
-              row.summary
-            )
-            return {
-              id: row.id,
-              label: labelFromDate(row.startedAt),
-              status: row.status === 'failed' ? 'failed' : 'ok',
-              modules: summary._tag === 'Some' ? summary.value.modules : 0,
-              durationMs: summary._tag === 'Some' ? summary.value.durationMs : 0,
-              startedAt: row.startedAt
-            }
-          })
-        )
-      ),
-      recordRun: (input) =>
-        unavailable(
+      ).pipe(Effect.map((rows) => rows.map(toCatalogRefreshRun))),
+      recordRun: Effect.fnUntraced(function* (input) {
+        const id = yield* newCapabilityId('crr')
+        const completedAt = yield* DateTime.now
+        return yield* unavailable(
           db.insert(catalogRefreshRuns).values({
-            id: newCapabilityId('crr'),
+            id,
             workspaceId: null,
             status: input.status,
             startedAt: input.startedAt,
-            completedAt: new Date().toISOString(),
+            completedAt: DateTime.formatIso(completedAt),
             summary: {
               modules: input.modules,
               durationMs: input.durationMs
             } satisfies CatalogRefreshSummary
           })
         ).pipe(Effect.asVoid)
+      })
     }
   })
 )

@@ -9,8 +9,9 @@ import { authRuntime } from '@/lib/auth-runtime'
 import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
 import { recordAuthAudit } from '@/lib/server/auth-audit'
 
-const processEnv = (): object | undefined =>
-  typeof process === 'undefined' ? undefined : process.env
+function processEnv(): object | undefined {
+  return typeof process === 'undefined' ? undefined : process.env
+}
 
 async function handleAuth(request: Request): Promise<Response> {
   const bucket = request.method === 'POST' ? 'auth_write' : 'auth_read'
@@ -43,11 +44,10 @@ async function handleAuth(request: Request): Promise<Response> {
         )
         const response = HttpServerResponse.toWeb(serverResponse)
         // Governance audit for credential sign-in attempts (ADR 0025) —
-        // best-effort by contract, so it can't fail the auth response, but a
-        // dropped write is surfaced on the wide event.
-        const authAudit = yield* Effect.promise(() =>
-          recordAuthAudit(request, response)
-        )
+        // best-effort by contract, so it can't fail the auth response. It
+        // annotates its own failure reason onto this wide event; the outcome is
+        // added below.
+        const authAudit = yield* recordAuthAudit(request, response)
         if (authAudit !== 'skipped') {
           yield* annotateWide({ authAudit })
         }

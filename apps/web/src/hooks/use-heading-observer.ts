@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useRef, useState } from 'react'
 
-interface Heading {
+type Heading = {
   readonly id: string
   readonly text: string
   readonly level: number
@@ -31,7 +31,7 @@ export function useHeadingObserver({
       const elements = target.querySelectorAll<HTMLElement>('h2[id], h3[id]')
       const extracted = [...elements].map((el) => ({
         id: el.id,
-        text: el.textContent ?? '',
+        text: el.textContent,
         level: Number(el.tagName[1])
       }))
       setHeadings(extracted)

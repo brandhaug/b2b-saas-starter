@@ -21,7 +21,7 @@ function ReadinessCard({
   readonly rows: readonly ReadinessRow[]
 }) {
   return (
-    <Card className="w-[32rem]">
+    <Card className="w-128">
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div className="grid gap-1">
           <CardTitle>Adoption readiness</CardTitle>

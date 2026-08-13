@@ -1,7 +1,7 @@
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { Database, integrationConnections } from '@b2b-saas-starter/db'
-import { MODULE_STATUSES, ModuleStatus } from '../catalog/starter-module-catalog.ts'
+import { ModuleStatus } from '../catalog/starter-module-catalog.ts'
 import type { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -15,14 +15,21 @@ export const IntegrationSurface = Schema.Struct({
 })
 export type IntegrationSurface = typeof IntegrationSurface.Type
 
-const moduleStatusValues = new Set<string>(MODULE_STATUSES)
+const decodeModuleStatus = Schema.decodeUnknownOption(ModuleStatus)
 
-const decodeModuleStatusOrDisabled = (value: unknown): ModuleStatus =>
-  typeof value === 'string' && moduleStatusValues.has(value)
-    ? (value as ModuleStatus)
-    : 'disabled'
+/**
+ * `integration_connections.status` is free text in D1, so the stored value is
+ * parsed here at the row boundary. A status the catalog no longer knows about
+ * reads as `disabled` instead of leaking a raw string into the wire contract.
+ */
+function decodeModuleStatusOrDisabled(stored: string): ModuleStatus {
+  return Option.match(decodeModuleStatus(stored), {
+    onNone: (): ModuleStatus => 'disabled',
+    onSome: (status) => status
+  })
+}
 
-export type IntegrationSurfacesShape = {
+export type IntegrationSurfacesInterface = {
   readonly list: Effect.Effect<
     readonly IntegrationSurface[],
     CapabilityUnavailable,
@@ -32,15 +39,16 @@ export type IntegrationSurfacesShape = {
 
 export class IntegrationSurfaces extends Context.Service<
   IntegrationSurfaces,
-  IntegrationSurfacesShape
+  IntegrationSurfacesInterface
 >()('@b2b-saas-starter/capabilities/IntegrationSurfaces') {}
 
-export const SeedIntegrationSurfaces = (
+export function SeedIntegrationSurfaces(
   seed: readonly IntegrationSurface[]
-): Layer.Layer<IntegrationSurfaces> =>
-  Layer.succeed(IntegrationSurfaces)({
+): Layer.Layer<IntegrationSurfaces> {
+  return Layer.succeed(IntegrationSurfaces)({
     list: Effect.succeed(seed)
   })
+}
 
 export const LiveIntegrationSurfaces: Layer.Layer<
   IntegrationSurfaces,

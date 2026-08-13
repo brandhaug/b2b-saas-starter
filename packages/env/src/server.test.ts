@@ -9,7 +9,7 @@ import {
   ServerEnvSchema
 } from './server.ts'
 
-const statusFor = (env: Record<string, string | undefined>, moduleId: string) => {
+function statusFor(env: Record<string, string | undefined>, moduleId: string) {
   const status = moduleConfigStatus(readServerEnv(env)).find(
     (item) => item.moduleId === moduleId
   )
@@ -25,7 +25,9 @@ describe('readServerEnv', () => {
   })
 
   it('fails fast in strict mode when required baseline vars are missing', () => {
-    expect(() => readServerEnv({}, { mode: 'strict' })).toThrow()
+    // The schema names the first missing baseline var, so a strict-mode boot
+    // failure says which var to set instead of failing opaquely.
+    expect(() => readServerEnv({}, { mode: 'strict' })).toThrow(/BETTER_AUTH_SECRET/)
   })
 
   it('prefers real values over local defaults', () => {
@@ -34,11 +36,13 @@ describe('readServerEnv', () => {
   })
 
   it('accepts a raw worker env: bindings and unknown keys are ignored', () => {
-    const env = readServerEnv({
+    // Shaped like a real worker env — bindings beside the vars.
+    const workerEnv = {
       DB: { fake: 'd1-binding' },
       RATE_LIMITER_REST: { limit: () => Promise.resolve({ success: true }) },
       CLOUDFLARE_EMAIL_FROM: 'no-reply@example.com'
-    })
+    }
+    const env = readServerEnv(workerEnv)
     expect(env.CLOUDFLARE_EMAIL_FROM).toBe('no-reply@example.com')
     expect('DB' in env).toBe(false)
   })
@@ -133,6 +137,10 @@ describe('redactedEnvStatus', () => {
     )
     const email = status.find((item) => item.moduleId === 'cloudflare-email')
     expect(email?.values).toBe('configured')
+    // The assertion IS about the raw serialization: no secret value may appear anywhere
+    // in the serialized status, whatever its shape. A Schema codec would only check the
+    // fields it declares, which is a strictly weaker redaction guarantee.
+    // oxlint-disable-next-line effect/noGlobals -- serialization is the thing under test
     expect(JSON.stringify(status)).not.toContain('no-reply@example.com')
   })
 })

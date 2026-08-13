@@ -3,7 +3,7 @@ import type { MDXComponents } from 'mdx/types'
 
 import { Link } from '@tanstack/react-router'
 
-export interface MdxComponentProps {
+export type MdxComponentProps = {
   readonly components?: MDXComponents
 }
 

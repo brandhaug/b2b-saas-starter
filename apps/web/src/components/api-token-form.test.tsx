@@ -45,9 +45,9 @@ describe('ApiTokenForm', () => {
   it('requires at least one scope', async () => {
     render(<ApiTokenForm workspaceSlug="starter-lab" />)
     // "read" is checked by default — uncheck it.
-    const readCheckbox = screen.getAllByRole('checkbox')[0]
+    const [readCheckbox] = screen.getAllByRole('checkbox')
     expect(readCheckbox).toBeDefined()
-    fireEvent.click(readCheckbox as HTMLElement)
+    fireEvent.click(readCheckbox!)
     await screen.findByText('Pick at least one scope')
   })
 

@@ -9,8 +9,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/server/notifications', () => ({
   listNotificationsServerFn: (input: unknown) => mocks.listNotifications(input),
-  notificationsQueryKey: (workspaceSlug: string) =>
-    ['notifications', workspaceSlug] as const
+  notificationsQueryKey: (
+    workspaceSlug: string
+  ): readonly ['notifications', string] => ['notifications', workspaceSlug]
 }))
 
 import { LiveNotifications, type NotificationPreview } from './live-notifications'

@@ -13,7 +13,7 @@ function SignInCard({
   readonly githubEnabled?: boolean
 }) {
   return (
-    <Card className="w-[28rem]">
+    <Card className="w-112">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
         <p className="text-sm text-muted-foreground">
@@ -46,11 +46,11 @@ function SignInCard({
           <GitBranchIcon className="size-4" />
           Continue with GitHub
         </Button>
-        {!githubEnabled ? (
+        {githubEnabled ? null : (
           <p className="text-xs text-muted-foreground">
             Configure GitHub OAuth secrets to enable.
           </p>
-        ) : null}
+        )}
       </CardContent>
     </Card>
   )

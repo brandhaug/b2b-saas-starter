@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 
 import type { MdxComponentProps } from '@/components/mdx-link'
 
-interface DocFrontmatter {
+type DocFrontmatter = {
   readonly title: string
   readonly description: string
   readonly category: string
@@ -11,7 +11,7 @@ interface DocFrontmatter {
   readonly updated?: string
 }
 
-interface DocArticle {
+type DocArticle = {
   readonly slug: string
   readonly category: string
   readonly frontmatter: DocFrontmatter
@@ -27,7 +27,7 @@ export const DOC_CATEGORIES = {
   'adoption-readiness': 'Adoption & reports',
   operations: 'Operations',
   governance: 'Governance'
-} as const
+}
 
 export type DocCategory = keyof typeof DOC_CATEGORIES
 

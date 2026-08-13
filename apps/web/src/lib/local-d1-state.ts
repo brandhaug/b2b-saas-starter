@@ -17,4 +17,6 @@ export const dbPackageDir = join(
 export const localD1PersistPath = join(dbPackageDir, '.wrangler/state/v3')
 
 /** Whether a migrated local D1 exists under the persist root. */
-export const hasLocalD1State = (): boolean => existsSync(join(localD1PersistPath, 'd1'))
+export function hasLocalD1State(): boolean {
+  return existsSync(join(localD1PersistPath, 'd1'))
+}

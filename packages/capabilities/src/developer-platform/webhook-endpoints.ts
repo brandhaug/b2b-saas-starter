@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Option, Schema } from 'effect'
+import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
 import { and, count, eq, sql } from 'drizzle-orm'
 import {
   batch,
@@ -96,7 +96,7 @@ export type RotateWebhookSecretInput = {
   readonly actorUserId?: string
 }
 
-export type WebhookEndpointsShape = {
+export type WebhookEndpointsInterface = {
   readonly list: Effect.Effect<
     readonly WebhookEndpoint[],
     CapabilityUnavailable,
@@ -151,46 +151,54 @@ export type WebhookEndpointsShape = {
 
 export class WebhookEndpoints extends Context.Service<
   WebhookEndpoints,
-  WebhookEndpointsShape
+  WebhookEndpointsInterface
 >()('@b2b-saas-starter/capabilities/WebhookEndpoints') {}
 
 // Shared SSRF/shape guard — both layers must reject the same URLs so tests
 // against Seed exercise the same contract as Live.
-const ensureValidWebhookUrl = (url: string): Effect.Effect<void, InvalidWebhookUrl> => {
+function ensureValidWebhookUrl(url: string): Effect.Effect<void, InvalidWebhookUrl> {
   const check = validateWebhookUrl(url)
-  return check.valid
-    ? Effect.void
-    : Effect.fail(new InvalidWebhookUrl({ url, reason: check.reason }))
+  if (check.valid) return Effect.void
+  return Effect.fail(new InvalidWebhookUrl({ url, reason: check.reason }))
 }
 
-export const SeedWebhookEndpoints = (
+export function SeedWebhookEndpoints(
   seed: readonly WebhookEndpoint[]
-): Layer.Layer<WebhookEndpoints> =>
-  Layer.succeed(WebhookEndpoints)({
+): Layer.Layer<WebhookEndpoints> {
+  return Layer.succeed(WebhookEndpoints)({
     list: Effect.succeed(seed),
-    create: (input) =>
-      ensureValidWebhookUrl(input.url).pipe(
-        Effect.as({
-          id: `wh_${Date.now()}`,
-          url: input.url,
-          enabled: true,
-          events: [...input.events],
-          successRate: 100
-        })
-      ),
+    create: Effect.fnUntraced(function* (input) {
+      yield* ensureValidWebhookUrl(input.url)
+      return {
+        id: yield* newCapabilityId('wh'),
+        url: input.url,
+        enabled: true,
+        events: [...input.events],
+        successRate: 100
+      }
+    }),
     disable: (input) =>
       Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
-    rotateSecret: (input) =>
-      Effect.succeed(
-        seed.some((endpoint) => endpoint.id === input.endpointId)
-          ? Option.some({ signingSecret: 'whsec_seed_rotated' })
-          : Option.none()
-      ),
+    rotateSecret: (input) => {
+      if (!seed.some((endpoint) => endpoint.id === input.endpointId)) {
+        return Effect.succeed(Option.none())
+      }
+      return Effect.succeed(Option.some({ signingSecret: 'whsec_seed_rotated' }))
+    },
     getDispatchTarget: () => Effect.succeed(null),
     recordDeliveryAttempt: () => Effect.void
   })
+}
 
-const randomSecret = (): string => `whsec_${randomHex(24)}`
+function randomSecret(): string {
+  return `whsec_${randomHex(24)}`
+}
+
+/** An endpoint with no delivery attempts yet reports a full success rate. */
+function deliverySuccessRate(total: number, delivered: number): number {
+  if (total === 0) return 100
+  return Math.round((delivered / total) * 100)
+}
 
 const unavailable = orUnavailable('webhook-endpoints')
 
@@ -203,8 +211,8 @@ export const LiveWebhookEndpoints: Layer.Layer<
     const db = yield* Database
     const audit = yield* AuditEventLog
 
-    const endpointInWorkspace = (endpointId: string, workspaceId: string) =>
-      unavailable(
+    function endpointInWorkspace(endpointId: string, workspaceId: string) {
+      return unavailable(
         db
           .select({ id: webhookEndpoints.id })
           .from(webhookEndpoints)
@@ -216,6 +224,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           )
           .limit(1)
       ).pipe(Effect.map((rows) => rows.length > 0))
+    }
 
     /**
      * One audited endpoint mutation: verify the endpoint belongs to the
@@ -232,18 +241,26 @@ export const LiveWebhookEndpoints: Layer.Layer<
      * where clause re-applies `(id, workspaceId)`, so a foreign workspace's
      * endpoint is never mutated even when this pre-check goes stale.
      */
-    const auditedEndpointUpdate = <
+    function auditedEndpointUpdate<
       S extends Partial<typeof webhookEndpoints.$inferInsert>
     >(
       input: { readonly endpointId: string; readonly actorUserId?: string },
       eventType: string,
       makeSet: () => S
-    ): Effect.Effect<Option.Option<S>, CapabilityUnavailable, WorkspaceContext> =>
-      Effect.gen(function* () {
+    ): Effect.Effect<Option.Option<S>, CapabilityUnavailable, WorkspaceContext> {
+      return Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
         const exists = yield* endpointInWorkspace(input.endpointId, ctx.workspace.id)
         if (!exists) return Option.none()
         const set = makeSet()
+        const auditStatement = yield* audit.prepareRecord({
+          workspaceId: ctx.workspace.id,
+          actorUserId: input.actorUserId ?? null,
+          eventType,
+          targetType: 'webhook_endpoint',
+          targetId: input.endpointId,
+          metadata: {}
+        })
         yield* unavailable(
           batch(db, [
             db
@@ -255,18 +272,12 @@ export const LiveWebhookEndpoints: Layer.Layer<
                   eq(webhookEndpoints.workspaceId, ctx.workspace.id)
                 )
               ),
-            audit.prepareRecord({
-              workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
-              eventType,
-              targetType: 'webhook_endpoint',
-              targetId: input.endpointId,
-              metadata: {}
-            })
+            auditStatement
           ])
         )
         return Option.some(set)
       })
+    }
 
     return {
       list: Effect.gen(function* () {
@@ -297,10 +308,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           url: row.url,
           enabled: row.enabled,
           events: row.events,
-          successRate:
-            row.total === 0
-              ? 100
-              : Math.round((Number(row.delivered) / row.total) * 100)
+          successRate: deliverySuccessRate(row.total, Number(row.delivered))
         }))
       }),
       create: (input) =>
@@ -308,28 +316,27 @@ export const LiveWebhookEndpoints: Layer.Layer<
           yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext
           const signingSecret = randomSecret()
+          const createdAt = yield* DateTime.now
           const endpoint = {
-            id: newCapabilityId('wh'),
+            id: yield* newCapabilityId('wh'),
             workspaceId: ctx.workspace.id,
             url: input.url,
             description: input.description,
             signingSecret,
             enabled: true,
             events: [...input.events],
-            createdAt: new Date().toISOString()
+            createdAt: DateTime.formatIso(createdAt)
           }
+          const auditCreated = yield* audit.prepareRecord({
+            workspaceId: ctx.workspace.id,
+            actorUserId: input.actorUserId ?? null,
+            eventType: 'webhook_endpoint.created',
+            targetType: 'webhook_endpoint',
+            targetId: endpoint.id,
+            metadata: { url: input.url, events: input.events }
+          })
           yield* unavailable(
-            batch(db, [
-              db.insert(webhookEndpoints).values(endpoint),
-              audit.prepareRecord({
-                workspaceId: ctx.workspace.id,
-                actorUserId: input.actorUserId ?? null,
-                eventType: 'webhook_endpoint.created',
-                targetType: 'webhook_endpoint',
-                targetId: endpoint.id,
-                metadata: { url: input.url, events: input.events }
-              })
-            ])
+            batch(db, [db.insert(webhookEndpoints).values(endpoint), auditCreated])
           )
           return {
             id: endpoint.id,
@@ -374,46 +381,45 @@ export const LiveWebhookEndpoints: Layer.Layer<
             }
           })
         ),
-      recordDeliveryAttempt: (input) => {
-        const deliveryId = input.id ?? newCapabilityId('whd')
+      recordDeliveryAttempt: Effect.fnUntraced(function* (input) {
+        const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
+        const lastAttemptAt = yield* DateTime.now
         const deliveryInsert = db.insert(webhookDeliveries).values({
           id: deliveryId,
           endpointId: input.endpointId,
           eventType: input.eventType,
           status: input.status,
           attempts: input.attempts,
-          lastAttemptAt: new Date().toISOString(),
+          lastAttemptAt: DateTime.formatIso(lastAttemptAt),
           nextAttemptAt: input.nextAttemptAt ?? null,
           responseStatus: input.responseStatus ?? null
         })
         const auditEventType = terminalDeliveryAuditEventType[input.status]
         if (auditEventType === undefined) {
-          return unavailable(deliveryInsert).pipe(Effect.asVoid)
+          return yield* unavailable(deliveryInsert).pipe(Effect.asVoid)
         }
         // Terminal outcome: the attempt row and its audit event commit or roll
         // back together, mirroring ApiTokenRegistry's mutation+audit batches.
         // `workspaceId` comes from the queue message — verified against the
         // endpoint by `getDispatchTarget` on the delivery path, trusted as
         // stamped by our own publisher on the dead-letter path.
-        return unavailable(
-          batch(db, [
-            deliveryInsert,
-            audit.prepareRecord({
-              workspaceId: input.workspaceId,
-              actorUserId: null,
-              eventType: auditEventType,
-              targetType: 'webhook_endpoint',
-              targetId: input.endpointId,
-              metadata: {
-                deliveryId,
-                eventType: input.eventType,
-                attempts: input.attempts,
-                responseStatus: input.responseStatus ?? null
-              }
-            })
-          ])
-        ).pipe(Effect.asVoid)
-      }
+        const auditStatement = yield* audit.prepareRecord({
+          workspaceId: input.workspaceId,
+          actorUserId: null,
+          eventType: auditEventType,
+          targetType: 'webhook_endpoint',
+          targetId: input.endpointId,
+          metadata: {
+            deliveryId,
+            eventType: input.eventType,
+            attempts: input.attempts,
+            responseStatus: input.responseStatus ?? null
+          }
+        })
+        return yield* unavailable(batch(db, [deliveryInsert, auditStatement])).pipe(
+          Effect.asVoid
+        )
+      })
     }
   })
 )

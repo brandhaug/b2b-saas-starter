@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Record, Schema } from 'effect'
 
 const optional = Schema.optional(Schema.String)
 
@@ -31,14 +31,15 @@ export const ServerEnvSchema = Schema.Struct({
 export type ServerEnv = typeof ServerEnvSchema.Type
 
 /** Every env var the schema declares — derived from the schema, never hand-mirrored. */
-export const serverEnvKeys = Object.keys(ServerEnvSchema.fields) as ReadonlyArray<
-  keyof ServerEnv
->
+export const serverEnvKeys: ReadonlyArray<keyof ServerEnv> = Record.keys(
+  ServerEnvSchema.fields
+)
 
 // Optional module env forwarded by alchemy to all three workers. Secret keys
 // are wrapped in `Redacted` at deploy time; plain keys are forwarded as-is.
 // `satisfies` pins both lists to schema keys, so a typo or a var that was
 // removed from the schema is a compile error.
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvSecretKeys = [
   'GITHUB_CLIENT_ID',
   'GITHUB_CLIENT_SECRET',
@@ -48,6 +49,7 @@ export const optionalModuleEnvSecretKeys = [
   'OPENAI_API_KEY'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvPlainKeys = [
   'SENTRY_DSN',
   'POSTHOG_KEY',
@@ -71,20 +73,36 @@ export type ModuleConfigStatus = {
   readonly missing: readonly string[]
 }
 
-const hasValue = (value: string | undefined): boolean =>
-  typeof value === 'string' && value.length > 0
+function hasValue(value: string | undefined): boolean {
+  return typeof value === 'string' && value.length > 0
+}
+
+/**
+ * The raw env bag handed to a worker, as far as this boundary is concerned:
+ * every schema var may be absent. Bindings (D1, queues, rate limiters) ride
+ * along on the same object and are simply extra properties here — they are
+ * never read, and every value that is read goes through the schema below.
+ */
+export type RawEnvSource = Partial<ServerEnv>
+
+/**
+ * Local development stays provider-light: the Local Auth Path works with no
+ * configured env at all. `strict` mode drops the defaults so a deployed worker
+ * fails validation instead of silently booting on a development secret.
+ */
+function localDefaultsFor(mode: 'local' | 'strict'): Partial<ServerEnv> {
+  if (mode === 'strict') return {}
+  return {
+    BETTER_AUTH_SECRET: 'local-dev-secret-change-me-minimum-32-chars',
+    BETTER_AUTH_URL: 'http://localhost:3071'
+  }
+}
 
 export function readServerEnv(
-  source: Record<string, unknown>,
+  source: RawEnvSource,
   options?: { readonly mode?: 'local' | 'strict' }
 ): ServerEnv {
-  const localDefaults: Partial<ServerEnv> =
-    options?.mode === 'strict'
-      ? {}
-      : {
-          BETTER_AUTH_SECRET: 'local-dev-secret-change-me-minimum-32-chars',
-          BETTER_AUTH_URL: 'http://localhost:3071'
-        }
+  const localDefaults = localDefaultsFor(options?.mode ?? 'local')
   // Pick only schema keys from the source (worker envs also carry bindings)
   // and let the schema validate — the field list lives in ONE place above.
   const picked = Object.fromEntries(
@@ -93,46 +111,61 @@ export function readServerEnv(
   return Schema.decodeUnknownSync(ServerEnvSchema)(picked)
 }
 
-export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[] {
-  const status = (
-    moduleId: string,
-    required: readonly (keyof ServerEnv)[],
-    options?: { readonly runtimeWired?: boolean }
-  ): ModuleConfigStatus => {
-    const missing = required.filter((key) => !hasValue(env[key]))
-    const envPresent = missing.length === 0
-    return {
-      moduleId,
-      configured: envPresent && (options?.runtimeWired ?? true),
-      envPresent,
-      missing
-    }
+/** An Optional Provider Module is configured once every var it requires has a value. */
+function requiredKeysStatus(
+  env: ServerEnv,
+  moduleId: string,
+  required: readonly (keyof ServerEnv)[],
+  options?: { readonly runtimeWired?: boolean }
+): ModuleConfigStatus {
+  const missing = required.filter((key) => !hasValue(env[key]))
+  const envPresent = missing.length === 0
+  return {
+    moduleId,
+    configured: envPresent && (options?.runtimeWired ?? true),
+    envPresent,
+    missing
   }
+}
 
-  // The AI provider activates on EITHER Workers AI (flag) or an
-  // OpenAI-compatible key (`packages/ai`), so its status is an OR of the two
-  // instead of the all-required pattern above. `missing` lists both var names
-  // to say "configure one of these" (names only, never values).
-  const aiEnvPresent = env.WORKERS_AI_ENABLED === 'true' || hasValue(env.OPENAI_API_KEY)
-  const ai: ModuleConfigStatus = {
+/**
+ * The AI provider activates on EITHER Workers AI (flag) or an
+ * OpenAI-compatible key (`packages/ai`), so its status is an OR of the two
+ * instead of the all-required pattern above. `missing` lists both var names
+ * to say "configure one of these" (names only, never values).
+ */
+function aiStatus(env: ServerEnv): ModuleConfigStatus {
+  const envPresent = env.WORKERS_AI_ENABLED === 'true' || hasValue(env.OPENAI_API_KEY)
+  if (envPresent) {
+    return { moduleId: 'ai', configured: true, envPresent: true, missing: [] }
+  }
+  return {
     moduleId: 'ai',
-    configured: aiEnvPresent,
-    envPresent: aiEnvPresent,
-    missing: aiEnvPresent ? [] : ['WORKERS_AI_ENABLED', 'OPENAI_API_KEY']
+    configured: false,
+    envPresent: false,
+    missing: ['WORKERS_AI_ENABLED', 'OPENAI_API_KEY']
   }
+}
 
+export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[] {
   return [
-    status('better-auth', ['BETTER_AUTH_SECRET', 'BETTER_AUTH_URL']),
-    status('github-oauth', ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET']),
-    status('billing', ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'], {
+    requiredKeysStatus(env, 'better-auth', ['BETTER_AUTH_SECRET', 'BETTER_AUTH_URL']),
+    requiredKeysStatus(env, 'github-oauth', [
+      'GITHUB_CLIENT_ID',
+      'GITHUB_CLIENT_SECRET'
+    ]),
+    requiredKeysStatus(env, 'billing', ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'], {
       runtimeWired: false
     }),
-    status('observability', ['SENTRY_DSN', 'POSTHOG_KEY'], {
+    requiredKeysStatus(env, 'observability', ['SENTRY_DSN', 'POSTHOG_KEY'], {
       runtimeWired: false
     }),
-    status('cloudflare-email', ['CLOUDFLARE_EMAIL_FROM']),
-    status('turnstile', ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY']),
-    ai
+    requiredKeysStatus(env, 'cloudflare-email', ['CLOUDFLARE_EMAIL_FROM']),
+    requiredKeysStatus(env, 'turnstile', [
+      'TURNSTILE_SITE_KEY',
+      'TURNSTILE_SECRET_KEY'
+    ]),
+    aiStatus(env)
   ]
 }
 
@@ -143,14 +176,22 @@ export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[
  * var-name remaps are needed.
  */
 export function makeStarterEnvModuleConfig(
-  env: Record<string, unknown>
+  env: RawEnvSource
 ): readonly ModuleConfigStatus[] {
   return moduleConfigStatus(readServerEnv(env))
+}
+
+type RedactedValueSummary = 'configured' | 'env-present' | 'missing'
+
+function summarizeValues(status: ModuleConfigStatus): RedactedValueSummary {
+  if (status.configured) return 'configured'
+  if (status.envPresent) return 'env-present'
+  return 'missing'
 }
 
 export function redactedEnvStatus(env: ServerEnv) {
   return moduleConfigStatus(env).map((item) => ({
     ...item,
-    values: item.configured ? 'configured' : item.envPresent ? 'env-present' : 'missing'
+    values: summarizeValues(item)
   }))
 }

@@ -4,7 +4,7 @@ import {
   makeRateLimiter,
   type CloudflareRateLimit,
   type RateLimitInput as GenericRateLimitInput,
-  type RateLimiterShape as GenericRateLimiterShape
+  type RateLimiterInterface as GenericRateLimiterInterface
 } from '@b2b-saas-starter/rate-limit'
 
 // Thin config module over @b2b-saas-starter/rate-limit: this file owns the
@@ -29,9 +29,9 @@ export type RateLimitBucket =
 
 export type RateLimitInput = GenericRateLimitInput<RateLimitBucket>
 
-export type RateLimiterShape = GenericRateLimiterShape<RateLimitBucket>
+export type RateLimiterInterface = GenericRateLimiterInterface<RateLimitBucket>
 
-export class RateLimiter extends Context.Service<RateLimiter, RateLimiterShape>()(
+export class RateLimiter extends Context.Service<RateLimiter, RateLimiterInterface>()(
   '@b2b-saas-starter/api/RateLimiter'
 ) {}
 
@@ -43,32 +43,36 @@ const FALLBACK_LIMITS: Record<RateLimitBucket, number> = {
   mcp: 30
 }
 
-const pickBinding = (
+function pickBinding(
   env: RateLimitBindings,
   bucket: RateLimitBucket
-): CloudflareRateLimit | undefined => {
+): CloudflareRateLimit | undefined {
   switch (bucket) {
-    case 'rest_read':
+    case 'rest_read': {
       return env.RATE_LIMITER_REST
-    case 'rest_write':
+    }
+    case 'rest_write': {
       return env.RATE_LIMITER_REST_WRITE
-    case 'invitations':
+    }
+    case 'invitations': {
       return env.RATE_LIMITER_INVITATIONS
-    case 'assistant':
+    }
+    case 'assistant': {
       return env.RATE_LIMITER_ASSISTANT
-    case 'mcp':
+    }
+    case 'mcp': {
       return env.RATE_LIMITER_MCP
+    }
   }
 }
 
-export const makeRateLimiterLayer = (
-  env: RateLimitBindings
-): Layer.Layer<RateLimiter> =>
-  Layer.succeed(RateLimiter)(
+export function makeRateLimiterLayer(env: RateLimitBindings): Layer.Layer<RateLimiter> {
+  return Layer.succeed(RateLimiter)(
     makeRateLimiter({
       binding: (bucket) => pickBinding(env, bucket),
       fallbackLimits: FALLBACK_LIMITS
     })
   )
+}
 
 export { clientKey }

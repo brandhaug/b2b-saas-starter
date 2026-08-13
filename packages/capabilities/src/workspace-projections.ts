@@ -18,10 +18,8 @@ import {
   WebhookEndpoints,
   type WebhookEndpoint
 } from './developer-platform/webhook-endpoints.ts'
-import {
-  WorkspaceMembership,
-  type Workspace
-} from './governance/workspace-membership.ts'
+import type { Workspace } from './governance/workspace-identity.ts'
+import { WorkspaceMembership } from './governance/workspace-membership.ts'
 import {
   NotificationFeed,
   type Notification
@@ -52,13 +50,14 @@ export type ModuleStatusCount = {
 }
 
 /** Per-status Module State tally, in stable display order. */
-export const countModuleStatuses = (
+export function countModuleStatuses(
   modules: readonly StarterModuleWithState[]
-): readonly ModuleStatusCount[] =>
-  MODULE_STATUS_ORDER.map((status) => ({
+): readonly ModuleStatusCount[] {
+  return MODULE_STATUS_ORDER.map((status) => ({
     status,
     count: modules.filter((module) => module.state.status === status).length
   }))
+}
 
 export type WorkspaceOverviewProjection = {
   readonly workspace: Workspace
@@ -147,14 +146,14 @@ export type WorkspaceListItemProjection = {
  * user's memberships first and scopes each per-workspace read itself, using
  * the membership row the query already proved as the actor.
  */
-export const listWorkspacesForUser = (
+export function listWorkspacesForUser(
   userId: string
 ): Effect.Effect<
   readonly WorkspaceListItemProjection[],
   CapabilityUnavailable,
   WorkspaceMembership | StarterModuleCatalog | NotificationFeed
-> =>
-  Effect.gen(function* () {
+> {
+  return Effect.gen(function* () {
     const membership = yield* WorkspaceMembership
     const catalog = yield* StarterModuleCatalog
     const feed = yield* NotificationFeed
@@ -185,6 +184,7 @@ export const listWorkspacesForUser = (
       { concurrency: 'unbounded' }
     )
   })
+}
 
 export type WorkspaceSettingsSummaryProjection = {
   readonly modules: readonly StarterModuleWithState[]

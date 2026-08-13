@@ -14,7 +14,7 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import { env as baseEnv } from './cloudflare-workers-shim.ts'
 
-const provisionLocalD1 = async (): Promise<D1Database | undefined> => {
+async function provisionLocalD1(): Promise<D1Database | undefined> {
   if (!import.meta.env.SSR) return undefined
   const { join } = await import('node:path')
   const { dbPackageDir, hasLocalD1State, localD1PersistPath } =
@@ -30,13 +30,15 @@ const provisionLocalD1 = async (): Promise<D1Database | undefined> => {
   return proxy.env.DB
 }
 
-// Vite can re-evaluate this module across SSR module-graph invalidations;
-// keep a single workerd proxy per dev-server process.
-const globalKey = Symbol.for('b2b-saas-starter.local-d1')
-type GlobalWithLocalD1 = typeof globalThis & {
-  [globalKey]?: Promise<D1Database | undefined>
+// Vite can re-evaluate this module across SSR module-graph invalidations; keep
+// a single workerd proxy per dev-server process. The slot is declared on the
+// global scope so the type checker knows it, rather than asserted onto
+// `globalThis` at the use site.
+declare global {
+  // `var` is the only declaration form that adds a slot to the global scope.
+  var b2bStarterLocalD1: Promise<D1Database | undefined> | undefined
 }
-const globalWithLocalD1 = globalThis as GlobalWithLocalD1
-globalWithLocalD1[globalKey] ??= provisionLocalD1()
 
-export const env = { ...baseEnv, DB: await globalWithLocalD1[globalKey] }
+globalThis.b2bStarterLocalD1 ??= provisionLocalD1()
+
+export const env = { ...baseEnv, DB: await globalThis.b2bStarterLocalD1 }

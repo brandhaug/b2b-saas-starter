@@ -40,3 +40,4 @@ bun run test
 4. Use Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, and Alchemy.
 5. Keep Contributor's visual patterns but do not import Contributor's developer-productivity domain language.
 6. Keep Hexwardens' architecture discipline but do not copy game, PWA, realtime, or Durable Object requirements without a starter use case.
+7. Put every declaration merge (`declare module`, same-name interface merges) in a `.d.ts` file, and give that file a top-level import so it stays a module. Elsewhere `consistent-type-definitions` rewrites `interface` to `type`, and `oxlint --fix` runs in the pre-commit hook. See `apps/web/src/router-register.d.ts`.

@@ -7,7 +7,7 @@ import type { IntegrationSurface } from './notifications/integration-surfaces.ts
 import type { Notification } from './notifications/notification-feed.ts'
 import type { StarterModuleWithState } from './catalog/starter-module-catalog.ts'
 import type { WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
-import type { Member, Workspace } from './governance/workspace-membership.ts'
+import type { Member, Workspace } from './governance/workspace-identity.ts'
 
 const now = '2026-05-16T09:00:00.000Z'
 
@@ -25,13 +25,13 @@ export const seedWorkspaceRecord: Workspace = {
  * membership against the fixture members, so the demo user must be a member
  * in BOTH layers or SPA navigation 404s while full-page loads succeed.
  */
-export const demoUserIdentity = {
+export const demoUserIdentity: Member = {
   id: 'usr_demo',
   name: 'Demo Admin',
   email: 'demo@starter.local',
   role: 'owner',
   systemRole: 'admin'
-} as const
+}
 
 export const seedMembers: readonly Member[] = [
   demoUserIdentity,

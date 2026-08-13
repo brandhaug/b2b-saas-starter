@@ -13,7 +13,7 @@ import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
 import {
   liveWorkspaceContext,
   seedWorkspaceContext,
-  WorkspaceContext,
+  type WorkspaceContext,
   type ActorRef
 } from './workspace-context.ts'
 import type { CapabilityUnavailable, WorkspaceNotFound } from './errors.ts'
@@ -33,31 +33,34 @@ export type StarterEnv = {
   readonly moduleConfig?: readonly ModuleEnvStatus[] | undefined
 }
 
-export const selectCapabilitiesLayer = (env: StarterEnv): CapabilitiesLayer => {
-  const base = env.DB
-    ? makeLiveLayerFromD1(env.DB, { webhookQueue: env.WEBHOOK_QUEUE })
-    : SeedLayer
-  return withModuleEnvStatus(base, env.moduleConfig)
+export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
+  if (env.DB === undefined) {
+    return withModuleEnvStatus(SeedLayer, env.moduleConfig)
+  }
+  const live = makeLiveLayerFromD1(env.DB, { webhookQueue: env.WEBHOOK_QUEUE })
+  return withModuleEnvStatus(live, env.moduleConfig)
 }
 
-export const selectWorkspaceLayer = (
+export function selectWorkspaceLayer(
   env: StarterEnv,
   slug: string,
   actor?: ActorRef
 ): Layer.Layer<
   CapabilityServices | WorkspaceContext,
   WorkspaceNotFound | CapabilityUnavailable
-> => {
-  const base = env.DB
-    ? Layer.mergeAll(
-        makeLiveCapabilitiesLayer({ webhookQueue: env.WEBHOOK_QUEUE }),
-        liveWorkspaceContext(slug, actor)
-      ).pipe(Layer.provide(layerFromD1(env.DB)))
-    : // Passing `seedMembers` makes the seed path enforce the same actor
-      // membership semantics as the live path (fixture members allowed).
-      Layer.merge(
-        SeedLayer,
-        seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers)
-      )
-  return withModuleEnvStatus(base, env.moduleConfig)
+> {
+  if (env.DB === undefined) {
+    // Passing `seedMembers` makes the seed path enforce the same actor
+    // membership semantics as the live path (fixture members allowed).
+    const seeded = Layer.merge(
+      SeedLayer,
+      seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers)
+    )
+    return withModuleEnvStatus(seeded, env.moduleConfig)
+  }
+  const live = Layer.mergeAll(
+    makeLiveCapabilitiesLayer({ webhookQueue: env.WEBHOOK_QUEUE }),
+    liveWorkspaceContext(slug, actor)
+  ).pipe(Layer.provide(layerFromD1(env.DB)))
+  return withModuleEnvStatus(live, env.moduleConfig)
 }

@@ -22,7 +22,7 @@ export type SeedNotification = Notification & {
   readonly userId?: string | null
 }
 
-export type NotificationFeedShape = {
+export type NotificationFeedInterface = {
   readonly list: Effect.Effect<
     readonly Notification[],
     CapabilityUnavailable,
@@ -33,18 +33,21 @@ export type NotificationFeedShape = {
 
 export class NotificationFeed extends Context.Service<
   NotificationFeed,
-  NotificationFeedShape
+  NotificationFeedInterface
 >()('@b2b-saas-starter/capabilities/NotificationFeed') {}
 
-const visibleToActor = (notification: SeedNotification, actor: Actor | null): boolean =>
-  notification.userId === undefined ||
-  notification.userId === null ||
-  notification.userId === actor?.userId
+function visibleToActor(notification: SeedNotification, actor: Actor | null): boolean {
+  return (
+    notification.userId === undefined ||
+    notification.userId === null ||
+    notification.userId === actor?.userId
+  )
+}
 
-export const SeedNotificationFeed = (
+export function SeedNotificationFeed(
   seed: readonly SeedNotification[]
-): Layer.Layer<NotificationFeed> =>
-  Layer.succeed(NotificationFeed)({
+): Layer.Layer<NotificationFeed> {
+  return Layer.succeed(NotificationFeed)({
     list: Effect.gen(function* () {
       const ctx = yield* WorkspaceContext
       return seed
@@ -58,6 +61,7 @@ export const SeedNotificationFeed = (
       ).length
     })
   })
+}
 
 const unavailable = orUnavailable('notification-feed')
 
@@ -66,26 +70,29 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
     Effect.gen(function* () {
       const db = yield* Database
 
-      const toNotification = (
-        row: typeof notifications.$inferSelect
-      ): Notification => ({
-        id: row.id,
-        title: row.title,
-        message: row.message,
-        createdAt: row.createdAt,
-        read: row.readAt !== null
-      })
+      function toNotification(row: typeof notifications.$inferSelect): Notification {
+        return {
+          id: row.id,
+          title: row.title,
+          message: row.message,
+          createdAt: row.createdAt,
+          read: row.readAt !== null
+        }
+      }
 
       // Broadcast rows (userId IS NULL) are visible to everyone in the
       // workspace; user-targeted rows only to that actor. Without an actor in
       // context, only broadcast rows are visible.
-      const visibilityFilter = (workspaceId: string, actor: Actor | null) =>
-        and(
-          eq(notifications.workspaceId, workspaceId),
-          actor === null
-            ? isNull(notifications.userId)
-            : or(isNull(notifications.userId), eq(notifications.userId, actor.userId))
+      function visibilityFilter(workspaceId: string, actor: Actor | null) {
+        const workspaceScope = eq(notifications.workspaceId, workspaceId)
+        if (actor === null) {
+          return and(workspaceScope, isNull(notifications.userId))
+        }
+        return and(
+          workspaceScope,
+          or(isNull(notifications.userId), eq(notifications.userId, actor.userId))
         )
+      }
 
       return {
         list: Effect.gen(function* () {

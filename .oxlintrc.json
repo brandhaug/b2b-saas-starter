@@ -1,9 +1,29 @@
 {
-  "plugins": ["typescript", "react", "react-hooks", "jsx-a11y", "oxc"],
+  "plugins": [
+    "typescript",
+    "react",
+    "react-hooks",
+    "jsx-a11y",
+    "oxc",
+    "unicorn",
+    "import",
+    "promise",
+    "vitest"
+  ],
+  "jsPlugins": ["eslint-plugin-better-tailwindcss", "oxlint-plugin-effect/plugin"],
+  "settings": {
+    "better-tailwindcss": {
+      "entryPoint": "apps/web/src/index.css"
+    }
+  },
+  "categories": {
+    "correctness": "error"
+  },
   "env": {
     "browser": true,
     "node": true,
-    "es2022": true
+    "es2024": true,
+    "builtin": true
   },
   "ignorePatterns": [
     "node_modules/**",
@@ -13,15 +33,516 @@
     "apps/web/src/routeTree.gen.ts"
   ],
   "rules": {
-    "jsx-a11y/label-has-associated-control": "off",
-    "no-console": "warn"
+    "eqeqeq": "error",
+    "no-await-in-loop": "error",
+    "array-callback-return": "error",
+    "no-duplicate-imports": "error",
+    "no-eq-null": "error",
+    "no-promise-executor-return": "error",
+    "no-useless-concat": "error",
+    "object-shorthand": "error",
+    "radix": "error",
+    "no-label-var": "error",
+    "no-self-compare": "error",
+    "no-template-curly-in-string": "error",
+    "default-case-last": "error",
+    "no-unneeded-ternary": "error",
+    "no-useless-rename": "error",
+    "no-lone-blocks": "error",
+    "no-sequences": "error",
+    "prefer-const": "error",
+    "prefer-exponentiation-operator": "error",
+    "no-var": "error",
+    "prefer-object-spread": "error",
+    "preserve-caught-error": "error",
+    "no-else-return": ["error", { "allowElseIf": false }],
+    "no-lonely-if": "error",
+    "no-nested-ternary": "error",
+    "no-param-reassign": "error",
+    "prefer-destructuring": ["error", { "array": false }],
+    "prefer-template": "error",
+    "default-param-last": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "no-console": ["error", { "allow": ["warn", "error"] }],
+
+    "@typescript-eslint/ban-ts-comment": ["error", { "minimumDescriptionLength": 10 }],
+    "no-array-constructor": "error",
+    "@typescript-eslint/no-duplicate-enum-values": "error",
+    "@typescript-eslint/no-dynamic-delete": "error",
+    "@typescript-eslint/no-empty-object-type": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-extra-non-null-assertion": "error",
+    "@typescript-eslint/no-extraneous-class": "error",
+    "@typescript-eslint/no-misused-new": "error",
+    "@typescript-eslint/no-namespace": "error",
+    "@typescript-eslint/no-non-null-asserted-nullish-coalescing": "error",
+    "@typescript-eslint/no-non-null-asserted-optional-chain": "error",
+    "@typescript-eslint/no-non-null-assertion": "error",
+    "@typescript-eslint/no-require-imports": "error",
+    "@typescript-eslint/no-this-alias": "error",
+    "@typescript-eslint/no-unnecessary-condition": "error",
+    "@typescript-eslint/no-unnecessary-type-constraint": "error",
+    "@typescript-eslint/no-unsafe-declaration-merging": "error",
+    "@typescript-eslint/no-unsafe-function-type": "error",
+    "no-unused-expressions": "error",
+    "no-useless-constructor": "error",
+    "@typescript-eslint/no-wrapper-object-types": "error",
+    // prefer-as-const is off because it contradicts `effect/noAs`. Given
+    // `const x: 'queued' = 'queued'`, prefer-as-const demands `as const`, and noAs then
+    // rejects the result. noAs is the rule with the stronger claim, so it wins.
+    "@typescript-eslint/prefer-as-const": "off",
+    "@typescript-eslint/prefer-literal-enum-member": "error",
+    "@typescript-eslint/prefer-namespace-keyword": "error",
+    "@typescript-eslint/require-await": "error",
+    "@typescript-eslint/triple-slash-reference": "error",
+    "@typescript-eslint/adjacent-overload-signatures": "error",
+    "@typescript-eslint/ban-tslint-comment": "error",
+    "@typescript-eslint/consistent-generic-constructors": "error",
+    "@typescript-eslint/consistent-indexed-object-style": ["error", "record"],
+    // "type" (not the default "interface"): Effect service shapes and schema-derived
+    // aliases are type aliases throughout this repo, and `interface` cannot express them.
+    // Declaration merging (`declare module`) and self-referential types still need
+    // `interface`; those few sites carry a disable comment naming this rule.
+    "@typescript-eslint/consistent-type-definitions": ["error", "type"],
+    "@typescript-eslint/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports", "fixStyle": "inline-type-imports" }
+    ],
+    "@typescript-eslint/no-confusing-non-null-assertion": "error",
+    "no-empty-function": "error",
+    "@typescript-eslint/prefer-enum-initializers": "error",
+    "@typescript-eslint/prefer-for-of": "error",
+    "@typescript-eslint/prefer-function-type": "error",
+    "@typescript-eslint/prefer-optional-chain": "error",
+    "@typescript-eslint/prefer-ts-expect-error": "error",
+    "@typescript-eslint/no-invalid-void-type": "error",
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/no-misused-promises": "error",
+    "@typescript-eslint/await-thenable": "error",
+    "@typescript-eslint/no-misused-spread": "error",
+    "@typescript-eslint/no-for-in-array": "error",
+    "@typescript-eslint/no-array-delete": "error",
+    "@typescript-eslint/no-mixed-enums": "error",
+    "@typescript-eslint/no-duplicate-type-constituents": "error",
+    "@typescript-eslint/unbound-method": "error",
+    "@typescript-eslint/no-base-to-string": "error",
+    // no-unnecessary-type-assertion stays off. Under oxlint-tsgolint 7.x it is at least
+    // deterministic (0.24 flagged necessary casts at random), but it still reports false
+    // positives: it called `(await res.json()) as { _tag: string }` unnecessary, and
+    // applying the fix produced TS2571 because `Response.json()` returns `unknown`.
+    // Since `oxlint --fix` runs in the pre-commit hook, a false positive here silently
+    // strips a needed cast. Re-evaluate on the next oxlint-tsgolint upgrade.
+    "@typescript-eslint/return-await": "error",
+    "@typescript-eslint/switch-exhaustiveness-check": "error",
+    "@typescript-eslint/restrict-plus-operands": "error",
+    "@typescript-eslint/require-array-sort-compare": "error",
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": "error",
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
+    "@typescript-eslint/no-unnecessary-template-expression": "error",
+
+    "unicorn/catch-error-name": "error",
+    "unicorn/consistent-existence-index-check": "error",
+    "unicorn/filename-case": "error",
+    "unicorn/new-for-builtins": "error",
+    "unicorn/no-abusive-eslint-disable": "error",
+    "unicorn/no-await-in-promise-methods": "error",
+    "unicorn/no-empty-file": "error",
+    "unicorn/no-instanceof-builtins": "error",
+    "unicorn/no-invalid-fetch-options": "error",
+    "unicorn/no-invalid-remove-event-listener": "error",
+    "unicorn/no-negated-condition": "error",
+    "unicorn/no-new-array": "error",
+    "unicorn/no-single-promise-in-promise-methods": "error",
+    "unicorn/no-thenable": "error",
+    "unicorn/no-typeof-undefined": "error",
+    "unicorn/no-useless-fallback-in-spread": "error",
+    "unicorn/no-useless-promise-resolve-reject": "error",
+    "unicorn/no-useless-spread": "error",
+    "unicorn/no-useless-switch-case": "error",
+    "unicorn/no-useless-undefined": [
+      "error",
+      { "checkArguments": false, "checkArrowFunctionBody": false }
+    ],
+    "unicorn/no-zero-fractions": "error",
+    "unicorn/numeric-separators-style": "error",
+    "unicorn/prefer-array-find": "error",
+    "unicorn/prefer-array-flat-map": "error",
+    "unicorn/prefer-array-some": "error",
+    "unicorn/prefer-date-now": "error",
+    "unicorn/prefer-dom-node-append": "error",
+    "unicorn/prefer-logical-operator-over-ternary": "error",
+    "unicorn/prefer-native-coercion-functions": "error",
+    "unicorn/prefer-node-protocol": "error",
+    "unicorn/prefer-number-properties": "error",
+    "unicorn/prefer-object-from-entries": "error",
+    "unicorn/prefer-regexp-test": "error",
+    "unicorn/prefer-set-has": "error",
+    "unicorn/prefer-spread": "error",
+    "unicorn/prefer-string-replace-all": "error",
+    "unicorn/prefer-string-slice": "error",
+    "unicorn/require-array-join-separator": "error",
+    "unicorn/switch-case-braces": "error",
+    "unicorn/text-encoding-identifier-case": "error",
+
+    "react/button-has-type": "error",
+    "react/checked-requires-onchange-or-readonly": "error",
+    "react/display-name": "error",
+    "react/function-component-definition": [
+      "error",
+      {
+        "namedComponents": "function-declaration",
+        "unnamedComponents": "arrow-function"
+      }
+    ],
+    "func-style": ["error", "declaration", { "allowArrowFunctions": false }],
+    "react/iframe-missing-sandbox": "error",
+    "react/jsx-boolean-value": "error",
+    "react/jsx-curly-brace-presence": [
+      "error",
+      { "props": "never", "children": "never", "propElementValues": "always" }
+    ],
+    "react/jsx-no-constructed-context-values": "error",
+    "react/jsx-no-useless-fragment": ["error", { "allowExpressions": true }],
+    "react/jsx-props-no-spread-multi": "error",
+    "react/no-danger": "error",
+    "react/no-unstable-nested-components": "error",
+    "react/only-export-components": "error",
+    "react/self-closing-comp": "error",
+    "react/style-prop-object": "error",
+    "react/void-dom-elements-no-children": "error",
+    "react-hooks/exhaustive-deps": "error",
+
+    "jsx-a11y/alt-text": "error",
+    "jsx-a11y/anchor-has-content": "error",
+    "jsx-a11y/aria-props": "error",
+    "jsx-a11y/aria-proptypes": "error",
+    "jsx-a11y/aria-role": "error",
+    "jsx-a11y/click-events-have-key-events": "error",
+    "jsx-a11y/heading-has-content": "error",
+    "jsx-a11y/html-has-lang": "error",
+    "jsx-a11y/iframe-has-title": "error",
+    "jsx-a11y/img-redundant-alt": "error",
+    "jsx-a11y/interactive-supports-focus": "error",
+    "jsx-a11y/label-has-associated-control": "error",
+    "jsx-a11y/no-redundant-roles": "error",
+    "jsx-a11y/no-static-element-interactions": "error",
+    "jsx-a11y/role-has-required-aria-props": "error",
+    "jsx-a11y/role-supports-aria-props": "error",
+    "jsx-a11y/tabindex-no-positive": "error",
+
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "import/no-named-as-default": "error",
+    "import/no-self-import": "error",
+
+    "oxc/approx-constant": "error",
+    "oxc/misrefactored-assign-op": "error",
+    "oxc/no-accumulating-spread": "error",
+    "oxc/no-barrel-file": "error",
+
+    "promise/always-return": "error",
+    "promise/no-multiple-resolved": "error",
+    "promise/no-new-statics": "error",
+    "promise/no-return-wrap": "error",
+    "promise/param-names": "error",
+    "promise/prefer-catch": "error",
+    "promise/valid-params": "error",
+
+    "vitest/no-commented-out-tests": "error",
+    "vitest/no-disabled-tests": "error",
+    "vitest/no-focused-tests": "error",
+    "vitest/no-identical-title": "error",
+    "vitest/no-standalone-expect": "error",
+    "vitest/padding-around-test-blocks": "error",
+    "vitest/prefer-to-have-length": "error",
+    "vitest/require-to-throw-message": "error",
+    "vitest/valid-describe-callback": "error",
+    "vitest/valid-expect": "error",
+
+    // Effect discipline (oxlint-plugin-effect), full `recommended` preset except the two
+    // rules noted below. The preset is written for Effect-native TypeScript, so the rules
+    // that assume no JSX and no DOM are switched off for `apps/web` in an override.
+    "effect/noAs": "error",
+    "effect/noAsyncFunction": "error",
+    "effect/noDynamicImports": "error",
+    "effect/noEffectBind": "error",
+    "effect/noEffectDo": "error",
+    "effect/noGlobals": "error",
+    "effect/noNewError": "error",
+    "effect/noNewPromise": "error",
+    "effect/noNodeBuiltinImport": "error",
+    "effect/noShapeInSymbolNames": "error",
+    "effect/noTernary": "error",
+    "effect/noTestLifecycleHooks": "error",
+    "effect/noThrowStatement": "error",
+    "effect/noTryCatch": "error",
+    "effect/preferEffectFn": "error",
+    // noNullish stays off. It bans `null` and `undefined` outright, which contradicts the
+    // Effect v4 schema guidance this repo follows: `Schema.optionalKey` for absent keys,
+    // `Schema.optional` when explicit `undefined` is part of the contract, and
+    // `Schema.NullOr` / `UndefinedOr` / `NullishOr` when nullish values are part of the
+    // encoded contract. It is also unworkable against React and TanStack APIs.
+    // anti-slop rules, vendored by oxlint-plugin-effect from dmmulroy/anti-slop
+    "effect/noChainedTypeAssertions": "error",
+    // noConditionalEmptyObjectSpread stays off. Its autofix rewrites
+    // `...(x === undefined ? {} : { k: x })` into a bare `k: x`, which turns "key absent"
+    // into "key present, value undefined" — a type error under this repo's
+    // exactOptionalPropertyTypes, and a behaviour change regardless. oxlint applies plugin
+    // fixes even at `warn` severity, so the fix cannot be suppressed while keeping the
+    // rule, and `oxlint --fix` runs in the pre-commit hook. The 19 pre-existing sites were
+    // rewritten by hand instead.
+    "effect/noObjectParameters": "error",
+    "effect/noUnknownParameters": "error",
+    "effect/noUnknownTypeAliases": "error",
+    "effect/noUnsafeDictionaryType": "error",
+    "effect/noWidenThenAssert": "error"
   },
   "overrides": [
     {
-      "files": ["scripts/**", "packages/*/scripts/**"],
+      // Closed design system: Tailwind utilities must come from the tokens defined in
+      // apps/web/src/index.css. The restrict pattern targets arbitrary *values* on sizing
+      // and typography utilities; it deliberately allows arbitrary *variant selectors*
+      // ([&_svg]:, data-[state=open]:, group-data-[...]) that Base UI and shadcn require.
+      "files": ["apps/web/**/*.{ts,tsx}"],
       "rules": {
-        "no-console": "off"
+        "better-tailwindcss/no-conflicting-classes": "error",
+        "better-tailwindcss/no-deprecated-classes": "error",
+        "better-tailwindcss/no-duplicate-classes": "error",
+        "better-tailwindcss/no-restricted-classes": [
+          "error",
+          {
+            "restrict": [
+              "^(text|leading|tracking|w|h|min-w|min-h|max-w|max-h|p|px|py|pt|pr|pb|pl|m|mx|my|gap|rounded|z)-\\[[^\\]]+\\]$"
+            ]
+          }
+        ],
+        "better-tailwindcss/no-unknown-classes": [
+          "error",
+          {
+            "ignore": [
+              "^not-prose$",
+              "^marketing$",
+              "^toaster$",
+              "^grid-paper$",
+              "^band-deep$",
+              "^schematic-pulse$",
+              "^rise(-[0-9]+)?$",
+              "^(bg|text)-brand$"
+            ]
+          }
+        ]
       }
+    },
+    {
+      // Workspace packages expose their public API through src/index.ts on purpose.
+      "files": ["packages/*/src/index.ts"],
+      "rules": {
+        "oxc/no-barrel-file": "off"
+      }
+    },
+    {
+      // TanStack Router's createFileRoute wraps an inline component and exports the result,
+      // which Fast Refresh's only-export-components rule reads as mixing exports.
+      "files": ["apps/web/src/routes/**/*.{ts,tsx}", "apps/web/src/router.tsx"],
+      "rules": {
+        "react/only-export-components": "off"
+      }
+    },
+    {
+      "files": [
+        "**/test/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.stories.tsx",
+        "**/vitest.setup.ts"
+      ],
+      "rules": {
+        "@typescript-eslint/no-non-null-assertion": "off",
+        // async mocks (vi.fn(async () => ...)) satisfy Promise-typed interfaces without awaiting
+        "@typescript-eslint/require-await": "off",
+        "no-empty-function": "off",
+        // Tests and story play functions are inherently sequential step lists.
+        "no-await-in-loop": "off",
+        "no-console": "off",
+        "react-hooks/rules-of-hooks": "off",
+        "react/only-export-components": "off",
+        "vitest/require-mock-type-parameters": "off",
+        "vitest/no-conditional-expect": "off",
+        "vitest/expect-expect": [
+          "error",
+          {
+            "assertFunctionNames": [
+              "expect",
+              "expect*",
+              "assert*",
+              "screen.*",
+              "renderWith*"
+            ]
+          }
+        ],
+        // The vitest plugin only knows `it` / `test` as test blocks. The Effect guide says
+        // to use `it.effect` by default, and its assertions live inside the generator body,
+        // so without this every one of them reads as a standalone expect.
+        "vitest/no-standalone-expect": [
+          "error",
+          {
+            "additionalTestBlockFunctions": [
+              "it.effect",
+              "it.live",
+              "it.scoped",
+              "it.layer"
+            ]
+          }
+        ],
+        "effect/noTryCatch": "off",
+        "effect/noThrowStatement": "off",
+        "effect/noNewError": "off",
+        "effect/noNewPromise": "off",
+        "effect/noUnknownParameters": "off",
+        "effect/noUnsafeDictionaryType": "off"
+      },
+      "plugins": ["typescript", "vitest", "react"]
+    },
+    {
+      "files": [
+        "scripts/**",
+        "packages/*/scripts/**",
+        "infra/**",
+        "alchemy.run.ts",
+        "**/bun.build.ts",
+        "**/bun.watch.ts"
+      ],
+      "rules": {
+        "no-console": "off",
+        "effect/noTryCatch": "off",
+        "effect/noThrowStatement": "off",
+        "effect/noNewError": "off",
+        "effect/noUnknownParameters": "off",
+        "effect/noUnsafeDictionaryType": "off",
+        // Deployment, seeding and build tooling runs on Bun before any Worker and before
+        // any Effect runtime exists, so `Config` has nowhere to be read from. The Effect
+        // guidance scopes `Config` to application logic, and the noGlobals rule itself says
+        // platform adapters may switch it off. `process.env`, `process.argv`, `Bun.spawn`,
+        // `node:fs` and a top-level `await` for the process exit code are the right APIs here.
+        "effect/noGlobals": "off",
+        "effect/noNodeBuiltinImport": "off",
+        "effect/noAsyncFunction": "off",
+        // Alchemy provisions optional resources with `yield*` inside a conditional. The
+        // `let` + `if` alternative costs a mutable binding and an explicit annotation.
+        "effect/noTernary": "off"
+      }
+    },
+    {
+      "files": ["packages/db/src/testing.ts", "packages/db/scripts/**"],
+      "rules": {
+        "no-await-in-loop": "off"
+      }
+    },
+    {
+      // The Effect plugin targets Effect-native TypeScript. These three rules assume no
+      // JSX and no DOM: `noTernary` bans conditional rendering, `noAsyncFunction` bans the
+      // async event handlers and Testing Library helpers React needs, and `noGlobals` bans
+      // browser APIs the UI legitimately calls. The rest of the preset still applies here.
+      "files": ["apps/web/**"],
+      "rules": {
+        "effect/noTernary": "off",
+        "effect/noAsyncFunction": "off",
+        "effect/noGlobals": "off",
+        "effect/noTestLifecycleHooks": "off"
+      }
+    },
+    {
+      // Architecture boundary: D1 access belongs to the capabilities package. The
+      // Reference Application's UI reads through capability functions, never the database.
+      "files": ["apps/web/src/components/**", "apps/web/src/routes/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@b2b-saas-starter/db",
+                  "@b2b-saas-starter/db/*",
+                  "drizzle-orm",
+                  "drizzle-orm/*"
+                ],
+                "message": "UI code must not reach the database. Call a capability through runWorkspaceCapabilities or a server function instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Ambient declaration files cannot use top-level type imports without becoming
+      // modules, and augmenting workers-types' `interface Env {}` needs the interface
+      // form — which the two style rules below would otherwise reject.
+      "files": ["**/*.d.ts"],
+      "rules": {
+        "@typescript-eslint/consistent-type-imports": "off",
+        "@typescript-eslint/consistent-type-definitions": "off",
+        "@typescript-eslint/no-empty-object-type": "off"
+      }
+    },
+    {
+      // TanStack Router signals control flow by throwing: `throw notFound()` and
+      // `throw redirect()` are its documented API, and route loaders are Promise-typed,
+      // so they have no Effect error channel to fail into. Outside the route tree,
+      // every throw still needs a per-site justification.
+      "files": ["apps/web/src/routes/**/*.{ts,tsx}"],
+      "rules": {
+        "effect/noThrowStatement": "off"
+      }
+    },
+    {
+      // shadcn primitives forward htmlFor and children through a prop spread, so the
+      // control association is the caller's contract, not the primitive's.
+      "files": ["apps/web/src/components/ui/**"],
+      "rules": {
+        "jsx-a11y/label-has-associated-control": "off"
+      },
+      "plugins": ["jsx-a11y"]
+    },
+    {
+      // The wide-event logger's contract is arbitrary structured annotations: open
+      // dictionaries and `object` env sources are the type it is supposed to accept.
+      "files": ["packages/logger/src/**"],
+      "rules": {
+        "effect/noUnsafeDictionaryType": "off",
+        "effect/noObjectParameters": "off",
+        "effect/noUnknownParameters": "off"
+      }
+    },
+    {
+      // Build configs walk untyped third-party ASTs (mdast/rehype) and plugin option bags.
+      // They also run on Node at build time, outside any Worker and any Effect runtime,
+      // so `node:path` and friends are the correct APIs there.
+      "files": ["**/*.config.ts", "apps/web/src/lib/local-d1-state.ts"],
+      "rules": {
+        "effect/noUnsafeDictionaryType": "off",
+        "effect/noUnknownParameters": "off",
+        "effect/noNodeBuiltinImport": "off",
+        // drizzle.config.ts is loaded by drizzle-kit in its own Node process and reads
+        // credentials from process.env. There is no Effect runtime to read Config from.
+        "effect/noGlobals": "off",
+        "effect/noAsyncFunction": "off"
+      }
+    },
+    {
+      // MDX pipeline: rendered markdown is trusted repo content, and the component map
+      // loads renderers lazily on purpose.
+      "files": [
+        "apps/web/src/routes/docs.$category.$slug.tsx",
+        "apps/web/src/routes/blog.$slug.tsx",
+        "apps/web/src/components/mdx-components.ts",
+        "apps/web/src/components/mdx-mermaid.tsx"
+      ],
+      "rules": {
+        "react/no-danger": "off",
+        "effect/noDynamicImports": "off"
+      },
+      "plugins": ["react"]
     }
   ]
 }

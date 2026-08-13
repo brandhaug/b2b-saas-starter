@@ -1,67 +1,67 @@
 import { Layer } from 'effect'
-import { Database, layerFromD1 } from '@b2b-saas-starter/db'
+import { type Database, layerFromD1 } from '@b2b-saas-starter/db'
 
 // catalog
 import {
-  AdoptionReadiness,
+  type AdoptionReadiness,
   LiveAdoptionReadiness,
   SeedAdoptionReadiness
 } from './catalog/adoption-readiness.ts'
 import {
-  CatalogRefreshHistory,
+  type CatalogRefreshHistory,
   LiveCatalogRefreshHistory,
   SeedCatalogRefreshHistory
 } from './catalog/catalog-refresh-history.ts'
 import {
-  ImplementationReports,
+  type ImplementationReports,
   LiveImplementationReports,
   SeedImplementationReports
 } from './catalog/implementation-reports.ts'
 import {
   LiveStarterModuleCatalog,
   SeedStarterModuleCatalog,
-  StarterModuleCatalog
+  type StarterModuleCatalog
 } from './catalog/starter-module-catalog.ts'
 
 // developer-platform
 import {
-  ApiTokenRegistry,
+  type ApiTokenRegistry,
   LiveApiTokenRegistry,
   SeedApiTokenRegistry
 } from './developer-platform/api-token-registry.ts'
 import {
   LiveWebhookEndpoints,
   SeedWebhookEndpoints,
-  WebhookEndpoints
+  type WebhookEndpoints
 } from './developer-platform/webhook-endpoints.ts'
 import {
   LiveWebhookPublisher,
   SeedWebhookPublisher,
-  WebhookPublisher,
+  type WebhookPublisher,
   type WebhookQueueBinding
 } from './developer-platform/webhook-publisher.ts'
 
 // governance
 import {
-  AuditEventLog,
+  type AuditEventLog,
   LiveAuditEventLog,
   SeedAuditEventLog
 } from './governance/audit-event-log.ts'
 import {
   LiveWorkspaceMembership,
   SeedWorkspaceMembership,
-  WorkspaceMembership
+  type WorkspaceMembership
 } from './governance/workspace-membership.ts'
 
 // notifications
 import {
-  IntegrationSurfaces,
+  type IntegrationSurfaces,
   LiveIntegrationSurfaces,
   SeedIntegrationSurfaces
 } from './notifications/integration-surfaces.ts'
 import {
   LiveNotificationFeed,
-  NotificationFeed,
+  type NotificationFeed,
   SeedNotificationFeed
 } from './notifications/notification-feed.ts'
 
@@ -112,10 +112,10 @@ export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
 }
 
-export const makeLiveCapabilitiesLayer = (
+export function makeLiveCapabilitiesLayer(
   options: LiveCapabilitiesOptions = {}
-): Layer.Layer<CapabilityServices, never, Database> =>
-  Layer.mergeAll(
+): Layer.Layer<CapabilityServices, never, Database> {
+  return Layer.mergeAll(
     LiveAdoptionReadiness,
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LiveAuditEventLog,
@@ -128,13 +128,16 @@ export const makeLiveCapabilitiesLayer = (
     LiveWebhookPublisher(options.webhookQueue),
     LiveWorkspaceMembership
   )
+}
 
 /**
  * Exported at module level for `runtime.ts` only — not re-exported from the
  * package index. Consumers select layers through `selectCapabilitiesLayer` /
  * `selectWorkspaceLayer`.
  */
-export const makeLiveLayerFromD1 = (
+export function makeLiveLayerFromD1(
   d1: Parameters<typeof layerFromD1>[0],
   options?: LiveCapabilitiesOptions
-) => makeLiveCapabilitiesLayer(options).pipe(Layer.provide(layerFromD1(d1)))
+) {
+  return makeLiveCapabilitiesLayer(options).pipe(Layer.provide(layerFromD1(d1)))
+}

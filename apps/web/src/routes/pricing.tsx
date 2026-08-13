@@ -7,7 +7,13 @@ export const Route = createFileRoute('/pricing')({
   component: PricingPage
 })
 
-const plans = [
+type Plan = {
+  readonly name: string
+  readonly price: string
+  readonly description: string
+}
+
+const plans: readonly Plan[] = [
   {
     name: 'Starter',
     price: '$0',
@@ -23,7 +29,7 @@ const plans = [
     price: 'Custom',
     description: 'SAML, procurement, custom compliance, and support patterns.'
   }
-] as const
+]
 
 function PricingPage() {
   return (
