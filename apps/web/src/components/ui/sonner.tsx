@@ -16,12 +16,16 @@ const TOASTER_ICONS = {
   loading: <Loader2Icon className="size-4 animate-spin" />
 }
 
-const TOASTER_STYLE = {
+// Sonner is themed through CSS custom properties, which `CSSProperties` alone
+// cannot express.
+type CssVariableStyle = React.CSSProperties & Record<`--${string}`, string>
+
+const TOASTER_STYLE: CssVariableStyle = {
   '--normal-bg': 'var(--popover)',
   '--normal-text': 'var(--popover-foreground)',
   '--normal-border': 'var(--border)',
   '--border-radius': 'var(--radius)'
-} as React.CSSProperties
+}
 
 const TOAST_OPTIONS = {
   classNames: {
@@ -29,13 +33,19 @@ const TOAST_OPTIONS = {
   }
 }
 
+// next-themes types its active theme as a plain string, so it is narrowed to
+// Sonner's contract here rather than asserted onto it.
+function toToasterTheme(theme: string | undefined): NonNullable<ToasterProps['theme']> {
+  if (theme === 'light' || theme === 'dark') return theme
+  return 'system'
+}
+
 function Toaster({ ...props }: ToasterProps) {
   const { theme } = useTheme()
-  const resolvedTheme = theme ?? 'system'
 
   return (
     <Sonner
-      theme={resolvedTheme as NonNullable<ToasterProps['theme']>}
+      theme={toToasterTheme(theme)}
       className="toaster group"
       icons={TOASTER_ICONS}
       style={TOASTER_STYLE}

@@ -129,7 +129,10 @@ function SignInPage() {
               </form.Field>
 
               <form.Subscribe
-                selector={(state) => [state.canSubmit, state.isSubmitting] as const}
+                selector={(state): readonly [boolean, boolean] => [
+                  state.canSubmit,
+                  state.isSubmitting
+                ]}
               >
                 {([canSubmit, isSubmitting]) => (
                   <Button type="submit" disabled={!canSubmit}>

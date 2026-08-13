@@ -4,7 +4,7 @@ import {
   makeRateLimiter,
   type CloudflareRateLimit,
   type RateLimitInput as GenericRateLimitInput,
-  type RateLimiterShape as GenericRateLimiterShape
+  type RateLimiterInterface as GenericRateLimiterInterface
 } from '@b2b-saas-starter/rate-limit'
 
 // Thin config module over @b2b-saas-starter/rate-limit: this file owns the
@@ -24,9 +24,9 @@ type AuthRateLimitBucket = 'auth_read' | 'auth_write'
 
 export type RateLimitInput = GenericRateLimitInput<AuthRateLimitBucket>
 
-export type RateLimiterShape = GenericRateLimiterShape<AuthRateLimitBucket>
+export type RateLimiterInterface = GenericRateLimiterInterface<AuthRateLimitBucket>
 
-export class RateLimiter extends Context.Service<RateLimiter, RateLimiterShape>()(
+export class RateLimiter extends Context.Service<RateLimiter, RateLimiterInterface>()(
   '@b2b-saas-starter/web/RateLimiter'
 ) {}
 
@@ -35,20 +35,22 @@ const FALLBACK_LIMITS: Record<AuthRateLimitBucket, number> = {
   auth_write: 20
 }
 
-const pickBinding = (
+function pickBinding(
   env: RateLimitBindings,
   bucket: AuthRateLimitBucket
-): CloudflareRateLimit | undefined =>
-  bucket === 'auth_read' ? env.RATE_LIMITER_AUTH_READ : env.RATE_LIMITER_AUTH_WRITE
+): CloudflareRateLimit | undefined {
+  return bucket === 'auth_read'
+    ? env.RATE_LIMITER_AUTH_READ
+    : env.RATE_LIMITER_AUTH_WRITE
+}
 
-export const makeRateLimiterLayer = (
-  env: RateLimitBindings
-): Layer.Layer<RateLimiter> =>
-  Layer.succeed(RateLimiter)(
+export function makeRateLimiterLayer(env: RateLimitBindings): Layer.Layer<RateLimiter> {
+  return Layer.succeed(RateLimiter)(
     makeRateLimiter({
       binding: (bucket) => pickBinding(env, bucket),
       fallbackLimits: FALLBACK_LIMITS
     })
   )
+}
 
 export { clientKey }

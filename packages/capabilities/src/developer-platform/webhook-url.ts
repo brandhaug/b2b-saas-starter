@@ -16,8 +16,8 @@ export type WebhookUrlValidation =
 
 const IPV4_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
 
-const isPrivateIpv4 = (octets: readonly number[]): boolean => {
-  const [a, b] = octets as [number, number, number, number]
+function isPrivateIpv4(octets: readonly number[]): boolean {
+  const [a, b = 0] = octets
   if (a === 0) return true // "this network" (0.0.0.0/8)
   if (a === 10) return true // 10.0.0.0/8
   if (a === 127) return true // loopback (127.0.0.0/8)
@@ -27,19 +27,21 @@ const isPrivateIpv4 = (octets: readonly number[]): boolean => {
   return false
 }
 
-const checkIpv4Literal = (hostname: string): string | null => {
+const PRIVATE_RANGE_REASON =
+  'IP-literal hosts in private, loopback, or link-local ranges are not allowed'
+
+function checkIpv4Literal(hostname: string): string | null {
   const match = IPV4_PATTERN.exec(hostname)
   if (!match) return null
   const octets = match.slice(1).map(Number)
   if (octets.some((octet) => octet > 255)) {
     return 'hostname is not a valid IPv4 address'
   }
-  return isPrivateIpv4(octets)
-    ? 'IP-literal hosts in private, loopback, or link-local ranges are not allowed'
-    : null
+  if (isPrivateIpv4(octets)) return PRIVATE_RANGE_REASON
+  return null
 }
 
-const checkIpv6Literal = (hostname: string): string | null => {
+function checkIpv6Literal(hostname: string): string | null {
   // URL.hostname wraps IPv6 literals in brackets.
   const literal = hostname.slice(1, -1).toLowerCase()
   if (literal === '::1' || literal === '::') {
@@ -53,13 +55,13 @@ const checkIpv6Literal = (hostname: string): string | null => {
     return checkIpv4Literal(mappedDotted[1])
   }
   const mappedHex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(literal)
-  if (mappedHex) {
-    const high = Number.parseInt(mappedHex[1] as string, 16)
-    const low = Number.parseInt(mappedHex[2] as string, 16)
+  const [, highGroup, lowGroup] = mappedHex ?? []
+  if (highGroup !== undefined && lowGroup !== undefined) {
+    const high = Number.parseInt(highGroup, 16)
+    const low = Number.parseInt(lowGroup, 16)
     const octets = [high >> 8, high & 0xff, low >> 8, low & 0xff]
-    return isPrivateIpv4(octets)
-      ? 'IP-literal hosts in private, loopback, or link-local ranges are not allowed'
-      : null
+    if (isPrivateIpv4(octets)) return PRIVATE_RANGE_REASON
+    return null
   }
   const firstGroup = literal.split(':', 1)[0] ?? ''
   const prefix = Number.parseInt(firstGroup.padEnd(4, '0'), 16)
@@ -88,7 +90,7 @@ const checkIpv6Literal = (hostname: string): string | null => {
  * (resolving the hostname and pinning the connection to a vetted address) is
  * deliberately out of scope for the starter.
  */
-export const validateWebhookUrl = (raw: string): WebhookUrlValidation => {
+export function validateWebhookUrl(raw: string): WebhookUrlValidation {
   // `URL.parse` reports an unparseable URL as `null` instead of throwing, so
   // the whole guard stays a pure total function with no exception path.
   const url = URL.parse(raw)
@@ -110,7 +112,8 @@ export const validateWebhookUrl = (raw: string): WebhookUrlValidation => {
   }
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
     const reason = checkIpv6Literal(hostname)
-    return reason ? { valid: false, reason } : { valid: true }
+    if (reason) return { valid: false, reason }
+    return { valid: true }
   }
   const ipv4Reason = checkIpv4Literal(hostname)
   if (ipv4Reason) {

@@ -15,8 +15,15 @@ import { defineConfig } from 'vite'
 
 function remarkMermaid() {
   return (tree: { children: Array<Record<string, unknown>> }) => {
+    // mdast nodes arrive untyped from the MDX pipeline, so the child list is
+    // narrowed at runtime instead of asserted.
+    function childrenOf(
+      node: Record<string, unknown>
+    ): Array<Record<string, unknown>> | undefined {
+      return Array.isArray(node.children) ? node.children : undefined
+    }
     function visit(node: Record<string, unknown>) {
-      const children = node.children as Array<Record<string, unknown>> | undefined
+      const children = childrenOf(node)
       if (!children) return
       for (let i = 0; i < children.length; i++) {
         const child = children[i]

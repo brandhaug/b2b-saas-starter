@@ -23,11 +23,19 @@ import { cn } from '@/lib/utils'
 
 const STICKY_CLASSES = 'sticky left-0 z-10 bg-card'
 
-const SORT_STATE = {
-  asc: { label: ', currently ascending', aria: 'ascending' as const, glyph: '▲' },
-  desc: { label: ', currently descending', aria: 'descending' as const, glyph: '▼' },
-  false: { label: '', aria: 'none' as const, glyph: null as string | null }
-} as const
+type SortState = {
+  /** Appended to the sort button's accessible name. */
+  readonly label: string
+  /** The `aria-sort` value for the header cell. */
+  readonly aria: 'ascending' | 'descending' | 'none'
+  readonly glyph: string | null
+}
+
+const SORT_STATE: Record<'asc' | 'desc' | 'false', SortState> = {
+  asc: { label: ', currently ascending', aria: 'ascending', glyph: '▲' },
+  desc: { label: ', currently descending', aria: 'descending', glyph: '▼' },
+  false: { label: '', aria: 'none', glyph: null }
+}
 
 type DataTableProps<TData, TValue> = {
   readonly columns: readonly ColumnDef<TData, TValue>[]

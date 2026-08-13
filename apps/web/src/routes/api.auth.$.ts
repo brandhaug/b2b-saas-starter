@@ -9,8 +9,9 @@ import { authRuntime } from '@/lib/auth-runtime'
 import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
 import { recordAuthAudit } from '@/lib/server/auth-audit'
 
-const processEnv = (): object | undefined =>
-  typeof process === 'undefined' ? undefined : process.env
+function processEnv(): object | undefined {
+  return typeof process === 'undefined' ? undefined : process.env
+}
 
 async function handleAuth(request: Request): Promise<Response> {
   const bucket = request.method === 'POST' ? 'auth_write' : 'auth_read'

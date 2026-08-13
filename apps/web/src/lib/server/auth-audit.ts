@@ -11,11 +11,12 @@ import { runCapabilities } from '@/lib/capabilities'
  * sign-in attempts are recorded today. Cheap by design: `recordAuthAudit`
  * runs it before touching the response body.
  */
-export const isAuditedAuthExchange = (exchange: {
+export function isAuditedAuthExchange(exchange: {
   readonly method: string
   readonly pathname: string
-}): boolean =>
-  exchange.method === 'POST' && exchange.pathname.endsWith('/sign-in/email')
+}): boolean {
+  return exchange.method === 'POST' && exchange.pathname.endsWith('/sign-in/email')
+}
 
 /**
  * Pure mapping from an auth catchall exchange to the audit event it should
@@ -23,12 +24,12 @@ export const isAuditedAuthExchange = (exchange: {
  * the actor, failure records the attempt as a system event (workspaceId null
  * on both — sessions are not workspace-scoped).
  */
-export const signInAuditInput = (exchange: {
+export function signInAuditInput(exchange: {
   readonly method: string
   readonly pathname: string
   readonly status: number
   readonly userId: string | null
-}): RecordAuditEventInput | null => {
+}): RecordAuditEventInput | null {
   if (!isAuditedAuthExchange(exchange)) {
     return null
   }
@@ -56,25 +57,38 @@ export class AuthAuditWriteFailed extends Schema.TaggedErrorClass<AuthAuditWrite
   { reason: Schema.String }
 ) {}
 
-const failureReason = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause)
+function failureReason(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
+
+/**
+ * The only part of Better Auth's sign-in response this audit path reads. The
+ * response body is an untrusted boundary value, so it is decoded rather than
+ * asserted; a body that does not match becomes `AuthAuditBodyUnreadable`.
+ */
+const SignInResponseBody = Schema.Struct({
+  user: Schema.optionalKey(Schema.Struct({ id: Schema.optionalKey(Schema.String) }))
+})
+
+const decodeSignInResponseBody = Schema.decodeUnknownSync(SignInResponseBody)
 
 /** Reads the signed-in actor out of a successful sign-in response body. */
-const readActorUserId = (
+function readActorUserId(
   response: Response
-): Effect.Effect<string | null, AuthAuditBodyUnreadable> =>
-  Effect.tryPromise({
+): Effect.Effect<string | null, AuthAuditBodyUnreadable> {
+  return Effect.tryPromise({
     try: async () => {
-      const body = (await response.clone().json()) as { user?: { id?: string } }
+      const body = decodeSignInResponseBody(await response.clone().json())
       return body.user?.id ?? null
     },
     catch: (cause) => new AuthAuditBodyUnreadable({ reason: failureReason(cause) })
   })
+}
 
-const writeAuditEvent = (
+function writeAuditEvent(
   input: RecordAuditEventInput
-): Effect.Effect<void, AuthAuditWriteFailed> =>
-  Effect.tryPromise({
+): Effect.Effect<void, AuthAuditWriteFailed> {
+  return Effect.tryPromise({
     try: () =>
       runCapabilities(
         Effect.gen(function* () {
@@ -84,6 +98,7 @@ const writeAuditEvent = (
       ),
     catch: (cause) => new AuthAuditWriteFailed({ reason: failureReason(cause) })
   })
+}
 
 /**
  * Best-effort audit recording for the auth catchall: it never fails, so a D1
@@ -96,11 +111,11 @@ const writeAuditEvent = (
  * (`authAuditError` / `authAuditBodyError`) before the outcome is returned, so
  * a dropped write is always queryable.
  */
-export const recordAuthAudit = (
+export function recordAuthAudit(
   request: Request,
   response: Response
-): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> =>
-  Effect.gen(function* () {
+): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> {
+  return Effect.gen(function* () {
     const method = request.method
     const pathname = new URL(request.url).pathname
     if (!isAuditedAuthExchange({ method, pathname })) return 'skipped'
@@ -138,3 +153,4 @@ export const recordAuthAudit = (
     }
     return 'recorded'
   })
+}

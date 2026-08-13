@@ -53,6 +53,8 @@ export class RateLimited extends Schema.TaggedErrorClass<RateLimited>()(
   { httpApiStatus: 429 }
 ) {}
 
+// HttpApi reads these tuple element types to build each endpoint's error union.
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const WORKSPACE_ERRORS = [
   WorkspaceNotFound,
   InternalError,
@@ -62,6 +64,7 @@ const WORKSPACE_ERRORS = [
   CapabilityUnavailable
 ] as const
 
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const PROTECTED_ERRORS = [
   InternalError,
   Unauthorized,

@@ -29,7 +29,7 @@ export const AssistantReply = Schema.Struct({
 })
 export type AssistantReply = typeof AssistantReply.Type
 
-export type AssistantShape = {
+export type AssistantInterface = {
   readonly ask: (
     prompt: AssistantPrompt
   ) => Effect.Effect<AssistantReply, AssistantUnavailable>
@@ -37,17 +37,19 @@ export type AssistantShape = {
 
 export class AssistantService extends Context.Service<
   AssistantService,
-  AssistantShape
+  AssistantInterface
 >()('@b2b-saas-starter/ai/AssistantService') {}
 
 export const MockAssistantLayer = Layer.succeed(AssistantService)({
   ask: (prompt) =>
-    Effect.succeed({
-      answer: `Mock assistant: "${prompt.question}" for workspace ${prompt.workspaceSlug}. Configure WORKERS_AI_ENABLED=true or OPENAI_API_KEY to enable a real provider.`,
-      provider: 'mock' as const,
-      modelId: 'starter-mock',
-      usedTools: []
-    })
+    Effect.succeed(
+      AssistantReply.make({
+        answer: `Mock assistant: "${prompt.question}" for workspace ${prompt.workspaceSlug}. Configure WORKERS_AI_ENABLED=true or OPENAI_API_KEY to enable a real provider.`,
+        provider: 'mock',
+        modelId: 'starter-mock',
+        usedTools: []
+      })
+    )
 })
 
 export type WorkersAIBinding = {
@@ -57,11 +59,11 @@ export type WorkersAIBinding = {
   ) => Promise<{ readonly response?: string }>
 }
 
-export const makeWorkersAILayer = (
+export function makeWorkersAILayer(
   binding: WorkersAIBinding,
   modelId = '@cf/meta/llama-3.1-8b-instruct'
-) =>
-  Layer.succeed(AssistantService)({
+) {
+  return Layer.succeed(AssistantService)({
     ask: (prompt) =>
       Effect.gen(function* () {
         const result = yield* Effect.tryPromise({
@@ -77,20 +79,34 @@ export const makeWorkersAILayer = (
             new AssistantUnavailable({ reason: 'workers-ai: missing response' })
           )
         }
-        return {
+        return AssistantReply.make({
           answer: result.response,
-          provider: 'workers-ai' as const,
+          provider: 'workers-ai',
           modelId,
           usedTools: []
-        }
+        })
       })
   })
+}
 
 export type OpenAIConfig = {
   readonly apiKey: string
   readonly baseUrl?: string
   readonly modelId?: string
 }
+
+const OpenAIChatRequest = Schema.Struct({
+  model: Schema.String,
+  messages: Schema.Array(
+    Schema.Struct({
+      role: Schema.Literals(['system', 'user']),
+      content: Schema.String
+    })
+  )
+})
+
+/** Schema JSON codec for the request body — no hand-rolled `JSON.stringify`. */
+const encodeChatRequest = Schema.encodeSync(Schema.fromJsonString(OpenAIChatRequest))
 
 const OpenAIChatResponse = Schema.Struct({
   choices: Schema.Array(
@@ -109,24 +125,34 @@ const OpenAIChatResponse = Schema.Struct({
  * global `fetch` is confined to this one function and every caller wraps it in
  * `Effect.tryPromise` with a tagged `AssistantUnavailable` failure.
  */
-const postJson = (url: string, headers: Record<string, string>, body: string) =>
-  fetch(url, { method: 'POST', headers, body })
+function postJson(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+  signal: AbortSignal
+) {
+  // This package depends on `effect` only — there is no @effect/platform HttpClient to
+  // route through — and the whole outbound boundary is this one call, wrapped by
+  // `Effect.tryPromise` with a tagged `AssistantUnavailable` failure at every caller.
+  // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
+  return fetch(url, { method: 'POST', headers, body, signal })
+}
 
-export const makeOpenAILayer = (config: OpenAIConfig) =>
-  Layer.succeed(AssistantService)({
+export function makeOpenAILayer(config: OpenAIConfig) {
+  return Layer.succeed(AssistantService)({
     ask: (prompt) =>
       Effect.gen(function* () {
         const baseUrl = config.baseUrl ?? 'https://api.openai.com/v1'
         const modelId = config.modelId ?? 'gpt-4o-mini'
         const response = yield* Effect.tryPromise({
-          try: () =>
+          try: (signal) =>
             postJson(
               `${baseUrl}/chat/completions`,
               {
                 authorization: `Bearer ${config.apiKey}`,
                 'content-type': 'application/json'
               },
-              JSON.stringify({
+              encodeChatRequest({
                 model: modelId,
                 messages: [
                   {
@@ -135,7 +161,8 @@ export const makeOpenAILayer = (config: OpenAIConfig) =>
                   },
                   { role: 'user', content: prompt.question }
                 ]
-              })
+              }),
+              signal
             ),
           catch: (cause) =>
             new AssistantUnavailable({ reason: `openai: ${String(cause)}` })
@@ -162,14 +189,15 @@ export const makeOpenAILayer = (config: OpenAIConfig) =>
             new AssistantUnavailable({ reason: 'openai response: missing choice' })
           )
         }
-        return {
+        return AssistantReply.make({
           answer: firstChoice.message.content,
-          provider: 'openai-compatible' as const,
+          provider: 'openai-compatible',
           modelId,
           usedTools: []
-        }
+        })
       })
   })
+}
 
 export type ProviderEnv = {
   readonly WORKERS_AI_ENABLED?: string
@@ -179,9 +207,7 @@ export type ProviderEnv = {
   readonly AI?: WorkersAIBinding
 }
 
-export const selectAssistantLayer = (
-  env: ProviderEnv
-): Layer.Layer<AssistantService> => {
+export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantService> {
   if (env.WORKERS_AI_ENABLED === 'true' && env.AI) {
     return makeWorkersAILayer(env.AI)
   }
@@ -198,5 +224,6 @@ export const selectAssistantLayer = (
   return MockAssistantLayer
 }
 
-export const isAssistantConfigured = (env: ProviderEnv): boolean =>
-  Boolean((env.WORKERS_AI_ENABLED === 'true' && env.AI) || env.OPENAI_API_KEY)
+export function isAssistantConfigured(env: ProviderEnv): boolean {
+  return Boolean((env.WORKERS_AI_ENABLED === 'true' && env.AI) || env.OPENAI_API_KEY)
+}

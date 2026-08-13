@@ -9,7 +9,7 @@ import {
   ServerEnvSchema
 } from './server.ts'
 
-const statusFor = (env: Record<string, string | undefined>, moduleId: string) => {
+function statusFor(env: Record<string, string | undefined>, moduleId: string) {
   const status = moduleConfigStatus(readServerEnv(env)).find(
     (item) => item.moduleId === moduleId
   )
@@ -137,6 +137,10 @@ describe('redactedEnvStatus', () => {
     )
     const email = status.find((item) => item.moduleId === 'cloudflare-email')
     expect(email?.values).toBe('configured')
+    // The assertion IS about the raw serialization: no secret value may appear anywhere
+    // in the serialized status, whatever its shape. A Schema codec would only check the
+    // fields it declares, which is a strictly weaker redaction guarantee.
+    // oxlint-disable-next-line effect/noGlobals -- serialization is the thing under test
     expect(JSON.stringify(status)).not.toContain('no-reply@example.com')
   })
 })

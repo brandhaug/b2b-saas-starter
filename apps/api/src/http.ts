@@ -33,9 +33,7 @@ const PlatformLive = Layer.mergeAll(
   HttpPlatform.layer.pipe(Layer.provide(FileSystem.layerNoop({})))
 )
 
-const makeApiLayer = (
-  env: ApiEnv
-): Layer.Layer<never, never, HttpRouter.HttpRouter> => {
+function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRouter> {
   const fromAddress = emailFromAddress(env)
   // The dispatcher goes live only when both the binding and a sender exist;
   // omit the keys it should not see rather than passing undefined through.
@@ -74,17 +72,15 @@ const makeApiLayer = (
   )
 }
 
-export const buildWebHandler = (
-  env: ApiEnv
-): {
+export function buildWebHandler(env: ApiEnv): {
   readonly handler: (request: Request) => Promise<Response>
   readonly dispose: () => Promise<void>
-} => HttpRouter.toWebHandler(makeApiLayer(env), { disableLogger: true })
+} {
+  return HttpRouter.toWebHandler(makeApiLayer(env), { disableLogger: true })
+}
 
 let cached: ((request: Request) => Promise<Response>) | undefined
-export const getWebHandler = (
-  env: ApiEnv
-): ((request: Request) => Promise<Response>) => {
+export function getWebHandler(env: ApiEnv): (request: Request) => Promise<Response> {
   if (!cached) cached = buildWebHandler(env).handler
   return cached
 }

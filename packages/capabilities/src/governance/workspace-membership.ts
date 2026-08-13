@@ -12,7 +12,7 @@ export const WorkspaceWithMembership = Schema.Struct({
 })
 export type WorkspaceWithMembership = typeof WorkspaceWithMembership.Type
 
-export type WorkspaceMembershipShape = {
+export type WorkspaceMembershipInterface = {
   readonly listMembers: Effect.Effect<
     readonly Member[],
     CapabilityUnavailable,
@@ -31,20 +31,22 @@ export type WorkspaceMembershipShape = {
 
 export class WorkspaceMembership extends Context.Service<
   WorkspaceMembership,
-  WorkspaceMembershipShape
+  WorkspaceMembershipInterface
 >()('@b2b-saas-starter/capabilities/WorkspaceMembership') {}
 
-export const SeedWorkspaceMembership = (
+export function SeedWorkspaceMembership(
   members: readonly Member[],
   workspace: Workspace
-): Layer.Layer<WorkspaceMembership> =>
-  Layer.succeed(WorkspaceMembership)({
+): Layer.Layer<WorkspaceMembership> {
+  return Layer.succeed(WorkspaceMembership)({
     listMembers: Effect.succeed(members),
     listWorkspacesForUser: (userId) => {
       const member = members.find((candidate) => candidate.id === userId)
-      return Effect.succeed(member ? [{ workspace, member }] : [])
+      if (!member) return Effect.succeed([])
+      return Effect.succeed([{ workspace, member }])
     }
   })
+}
 
 export const LiveWorkspaceMembership: Layer.Layer<
   WorkspaceMembership,

@@ -1,4 +1,14 @@
-import { Effect, Layer, ManagedRuntime, Result, Schema, type Scope } from 'effect'
+import {
+  Clock,
+  DateTime,
+  Duration,
+  Effect,
+  Layer,
+  ManagedRuntime,
+  Result,
+  Schema,
+  type Scope
+} from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient } from 'effect/unstable/http'
 import {
   runCatalogRefresh,
@@ -27,11 +37,13 @@ type Env = Partial<ServerEnv> & {
 }
 
 // Module-aware env validation (ADR 0035).
-const starterEnv = (env: Env): StarterEnv => ({
-  DB: env.DB,
-  WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
-  moduleConfig: makeStarterEnvModuleConfig(env)
-})
+function starterEnv(env: Env): StarterEnv {
+  return {
+    DB: env.DB,
+    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
+    moduleConfig: makeStarterEnvModuleConfig(env)
+  }
+}
 
 /** Wire shape of queue messages — the schema is shared with the producer. */
 export type WebhookMessage = typeof WebhookQueueMessage.Type
@@ -59,7 +71,9 @@ const staticRuntime = ManagedRuntime.make(StaticLayer)
  * Redelivery backoff. Also used to derive the persisted `nextAttemptAt` so
  * the delivery row matches when Cloudflare will actually retry.
  */
-export const backoffSeconds = (attempts: number): number => Math.min(attempts, 6) * 30
+export function backoffSeconds(attempts: number): number {
+  return Math.min(attempts, 6) * 30
+}
 
 export type DeliveryDecision = 'delivered' | 'retry' | 'terminal'
 
@@ -68,7 +82,7 @@ export type DeliveryDecision = 'delivered' | 'retry' | 'terminal'
  * (network error or timeout) and is retryable. 4xx responses are permanent
  * failures except 408 (request timeout) and 429 (rate limited).
  */
-export const classifyResponseStatus = (status: number): DeliveryDecision => {
+export function classifyResponseStatus(status: number): DeliveryDecision {
   if (status >= 200 && status < 300) return 'delivered'
   if (status === 408 || status === 429) return 'retry'
   if (status >= 400 && status < 500) return 'terminal'
@@ -76,18 +90,48 @@ export const classifyResponseStatus = (status: number): DeliveryDecision => {
 }
 
 /** Persisted `webhookDeliveries.status` for a dispatch decision. */
-const deliveryStatus = (
+function deliveryStatus(
   decision: DeliveryDecision
-): 'delivered' | 'failed_permanent' | 'failed' => {
+): 'delivered' | 'failed_permanent' | 'failed' {
   if (decision === 'delivered') return 'delivered'
   if (decision === 'terminal') return 'failed_permanent'
   return 'failed'
 }
 
-const bytesToHex = (bytes: ArrayBuffer): string =>
-  Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join(
-    ''
-  )
+/** Queue action for a dispatch decision: only a retryable failure goes back. */
+function deliveryOutcome(decision: DeliveryDecision): DeliveryOutcome {
+  if (decision === 'retry') return 'retry'
+  return 'ack'
+}
+
+/** `0` stands for "no HTTP response at all", which is persisted as null. */
+function recordedResponseStatus(status: number): number | null {
+  if (status === 0) return null
+  return status
+}
+
+/**
+ * Persisted schedule for the next attempt, derived from the same backoff the
+ * queue retry uses. Terminal outcomes have no next attempt.
+ */
+function nextAttemptAt(
+  decision: DeliveryDecision,
+  now: DateTime.Utc,
+  attempts: number
+): string | null {
+  if (decision === 'retry') {
+    return DateTime.formatIso(
+      DateTime.addDuration(now, Duration.seconds(backoffSeconds(attempts)))
+    )
+  }
+  return null
+}
+
+function bytesToHex(bytes: ArrayBuffer): string {
+  return Array.from(new Uint8Array(bytes), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('')
+}
 
 /**
  * Stripe-style signature: HMAC-SHA256 over `"<timestamp>.<body>"` with the
@@ -95,37 +139,52 @@ const bytesToHex = (bytes: ArrayBuffer): string =>
  * makes captured deliveries non-replayable once the receiver enforces a
  * tolerance window.
  */
-export const computeWebhookSignature = async (
-  secret: string,
-  timestamp: number,
-  body: string
-): Promise<string> => {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  return bytesToHex(
-    await crypto.subtle.sign(
-      'HMAC',
-      key,
-      new TextEncoder().encode(`${timestamp}.${body}`)
+export const computeWebhookSignature = Effect.fn('Webhooks.computeSignature')(
+  function* (secret: string, timestamp: number, body: string) {
+    const key = yield* Effect.promise(() =>
+      crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      )
     )
-  )
-}
+    const signed = yield* Effect.promise(() =>
+      crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${timestamp}.${body}`))
+    )
+    return bytesToHex(signed)
+  }
+)
 
 /** Value of the `x-b2b-starter-signature` header. */
-export const signatureHeaderValue = (timestamp: number, signatureHex: string): string =>
-  `t=${timestamp},sha256=${signatureHex}`
-
-const newDeliveryId = (): string => {
-  const bytes = crypto.getRandomValues(new Uint8Array(8))
-  return `whd_${Date.now()}_${bytesToHex(bytes.buffer)}`
+export function signatureHeaderValue(timestamp: number, signatureHex: string): string {
+  return `t=${timestamp},sha256=${signatureHex}`
 }
 
-const refreshCatalog = (env: Env): Effect.Effect<void, CapabilityUnavailable> => {
+/**
+ * Delivery row id. The timestamp comes from `Clock` so the worker's notion of
+ * now stays swappable in tests; the random suffix comes from the Workers Web
+ * Crypto global, which is this runtime's only entropy source.
+ */
+const newDeliveryId: Effect.Effect<string> = Effect.gen(function* () {
+  const millis = yield* Clock.currentTimeMillis
+  // oxlint-disable-next-line effect/noGlobals -- Platform edge: Workers Web Crypto. Effect's `Crypto` service has no Cloudflare Workers layer, and building one here would only wrap this same global.
+  const bytes = crypto.getRandomValues(new Uint8Array(8))
+  return `whd_${millis}_${bytesToHex(bytes.buffer)}`
+})
+
+/** Body of a delivery POST, encoded through a JSON codec rather than a
+ * hand-rolled `JSON.stringify`: the signature is computed over exactly the
+ * bytes this codec produces. */
+const WebhookDeliveryBody = Schema.Struct({
+  deliveryId: Schema.String,
+  eventType: WebhookQueueMessage.fields.eventType,
+  payload: WebhookQueueMessage.fields.payload
+})
+const encodeDeliveryBody = Schema.encodeSync(Schema.fromJsonString(WebhookDeliveryBody))
+
+function refreshCatalog(env: Env): Effect.Effect<void, CapabilityUnavailable> {
   // `runCatalogRefresh` owns the "no refresh run goes unrecorded" sequence
   // (capture outcome, record ok/failed row with real duration, re-raise); this
   // handler only adds the env-selected layer and the wide-event scope.
@@ -141,10 +200,16 @@ const refreshCatalog = (env: Env): Effect.Effect<void, CapabilityUnavailable> =>
       service: 'background',
       event: 'catalog_refresh',
       env,
-      metadata: { source: env.DB ? 'live' : 'seed' }
+      metadata: { source: catalogSource(env) }
     },
     program
   )
+}
+
+/** Which catalog adapter the refresh ran against, for the wide event. */
+function catalogSource(env: Env): 'live' | 'seed' {
+  if (env.DB) return 'live'
+  return 'seed'
 }
 
 /**
@@ -154,15 +219,15 @@ const refreshCatalog = (env: Env): Effect.Effect<void, CapabilityUnavailable> =>
  * `WebhookEndpoints` / `HttpClient` layers; the queue handler wraps this with
  * the real layers and the wide-event scope (`deliverWebhook`).
  */
-export const processWebhookMessage = (
+export function processWebhookMessage(
   envelope: WebhookQueueEnvelope,
   traceId: string
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,
   WebhookEndpoints | HttpClient.HttpClient | Scope.Scope
-> =>
-  Effect.gen(function* () {
+> {
+  return Effect.gen(function* () {
     // Queue payloads are `unknown` at runtime — decode at the boundary. A
     // malformed message is terminal (redelivery can never fix its shape), but
     // there is no trusted endpointId to attach a delivery row to, so it is
@@ -174,7 +239,7 @@ export const processWebhookMessage = (
         outcome: 'failed_permanent',
         skipReason: 'malformed_message'
       })
-      return 'ack' as const
+      return 'ack' satisfies DeliveryOutcome
     }
     const message = decoded.success
     const attempts = envelope.attempts
@@ -193,7 +258,7 @@ export const processWebhookMessage = (
     )
     if (!target) {
       yield* annotateWide({ outcome: 'skipped', skipReason: 'not_dispatchable' })
-      return 'ack' as const
+      return 'ack' satisfies DeliveryOutcome
     }
     yield* annotateWide({ endpointUrl: target.url })
     // Re-check the destination at dispatch time — an endpoint created before
@@ -203,7 +268,7 @@ export const processWebhookMessage = (
     const urlCheck = validateWebhookUrl(target.url)
     if (!urlCheck.valid) {
       yield* webhooks.recordDeliveryAttempt({
-        id: newDeliveryId(),
+        id: yield* newDeliveryId,
         endpointId: target.id,
         workspaceId: message.workspaceId,
         eventType: message.eventType,
@@ -216,17 +281,20 @@ export const processWebhookMessage = (
         outcome: 'failed_permanent',
         skipReason: `invalid_url: ${urlCheck.reason}`
       })
-      return 'ack' as const
+      return 'ack' satisfies DeliveryOutcome
     }
-    const deliveryId = newDeliveryId()
-    const timestamp = Math.floor(Date.now() / 1000)
-    const body = JSON.stringify({
+    const deliveryId = yield* newDeliveryId
+    const now = yield* DateTime.now
+    const timestamp = Math.floor(DateTime.toEpochMillis(now) / 1000)
+    const body = encodeDeliveryBody({
       deliveryId,
       eventType: message.eventType,
       payload: message.payload
     })
-    const signature = yield* Effect.promise(() =>
-      computeWebhookSignature(target.signingSecret, timestamp, body)
+    const signature = yield* computeWebhookSignature(
+      target.signingSecret,
+      timestamp,
+      body
     )
     const client = yield* HttpClient.HttpClient
     const responseResult = yield* Effect.result(
@@ -246,9 +314,10 @@ export const processWebhookMessage = (
         // failure Result (responseStatus 0) and is retried.
         .pipe(Effect.timeout('10 seconds'))
     )
-    const responseStatus = Result.isSuccess(responseResult)
-      ? responseResult.success.status
-      : 0
+    const responseStatus = Result.match(responseResult, {
+      onSuccess: (response) => response.status,
+      onFailure: () => 0
+    })
     const decision = classifyResponseStatus(responseStatus)
     const status = deliveryStatus(decision)
     yield* webhooks.recordDeliveryAttempt({
@@ -260,20 +329,18 @@ export const processWebhookMessage = (
       eventType: message.eventType,
       status,
       attempts,
-      responseStatus: responseStatus === 0 ? null : responseStatus,
-      nextAttemptAt:
-        decision === 'retry'
-          ? new Date(Date.now() + backoffSeconds(attempts) * 1000).toISOString()
-          : null
+      responseStatus: recordedResponseStatus(responseStatus),
+      nextAttemptAt: nextAttemptAt(decision, now, attempts)
     })
     yield* annotateWide({ outcome: status, responseStatus })
-    return decision === 'retry' ? ('retry' as const) : ('ack' as const)
+    return deliveryOutcome(decision)
   })
+}
 
-const deliverWebhook = (
+function deliverWebhook(
   envelope: WebhookQueueEnvelope,
   env: Env
-): Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient> => {
+): Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient> {
   const traceId = newTraceId()
   // endpointId/eventType land on the wide event via `annotateWide` after the
   // boundary decode in `processWebhookMessage` — the raw body is untrusted
@@ -291,7 +358,7 @@ const deliverWebhook = (
     )
     // `_cause` is deliberately unused: the wide event above already logged the
     // failure cause on exit, and the queue needs an outcome, not an exception.
-  ).pipe(Effect.catchCause((_cause) => Effect.succeed('retry' as const)))
+  ).pipe(Effect.catchCause((_cause) => Effect.succeed<DeliveryOutcome>('retry')))
 }
 
 /**
@@ -302,10 +369,10 @@ const deliverWebhook = (
  * `processWebhookMessage`; `recordDeadLetter` wraps it with the real layers
  * and the wide-event scope.
  */
-export const processDeadLetterMessage = (
+export function processDeadLetterMessage(
   envelope: WebhookQueueEnvelope
-): Effect.Effect<void, CapabilityUnavailable, WebhookEndpoints | Scope.Scope> =>
-  Effect.gen(function* () {
+): Effect.Effect<void, CapabilityUnavailable, WebhookEndpoints | Scope.Scope> {
+  return Effect.gen(function* () {
     // Same boundary decode as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
     const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(envelope.body)
@@ -324,7 +391,7 @@ export const processDeadLetterMessage = (
     })
     const webhooks = yield* WebhookEndpoints
     yield* webhooks.recordDeliveryAttempt({
-      id: newDeliveryId(),
+      id: yield* newDeliveryId,
       endpointId: message.endpointId,
       workspaceId: message.workspaceId,
       eventType: message.eventType,
@@ -335,16 +402,17 @@ export const processDeadLetterMessage = (
     })
     yield* annotateWide({ outcome: 'dead_lettered' })
   })
+}
 
 /**
  * Dead-letter consumer entry: wraps `processDeadLetterMessage` with the real
  * capabilities layer and a wide event so operators can see (and replay)
  * exhausted deliveries.
  */
-const recordDeadLetter = (
+function recordDeadLetter(
   envelope: WebhookQueueEnvelope,
   env: Env
-): Effect.Effect<void> => {
+): Effect.Effect<void> {
   const program = processDeadLetterMessage(envelope).pipe(
     Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
   )
@@ -362,16 +430,18 @@ const recordDeadLetter = (
 }
 
 export default {
-  async scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
-    await staticRuntime.runPromise(refreshCatalog(env))
+  // Neither handler is `async`: the Workers runtime awaits the promise each
+  // one returns, and there is nothing to await before returning it.
+  scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
+    return staticRuntime.runPromise(refreshCatalog(env))
   },
 
   // Queue message bodies are untyped at runtime; `processWebhookMessage` and
   // `processDeadLetterMessage` decode the envelope at their boundary. The batch
   // runs concurrently as one Effect instead of a raw `Promise.all`.
-  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+  queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     if (batch.queue === DEAD_LETTER_QUEUE) {
-      await staticRuntime.runPromise(
+      return staticRuntime.runPromise(
         Effect.forEach(
           batch.messages,
           (message) =>
@@ -381,9 +451,8 @@ export default {
           { concurrency: 'unbounded', discard: true }
         )
       )
-      return
     }
-    await staticRuntime.runPromise(
+    return staticRuntime.runPromise(
       Effect.forEach(
         batch.messages,
         (message) =>

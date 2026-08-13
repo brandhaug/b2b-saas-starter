@@ -17,13 +17,14 @@ export type ApiEnv = RateLimitBindings &
     readonly EMAIL_FROM_ADDRESS?: string
   }
 
-export const emailFromAddress = (env: ApiEnv): string | undefined =>
-  env.CLOUDFLARE_EMAIL_FROM ?? env.EMAIL_FROM_ADDRESS
+export function emailFromAddress(env: ApiEnv): string | undefined {
+  return env.CLOUDFLARE_EMAIL_FROM ?? env.EMAIL_FROM_ADDRESS
+}
 
 // Only configured provider vars are copied across: an absent key leaves the
 // assistant in its mock/needs-config state, while a present-but-undefined key
 // would claim configuration that does not exist.
-export const providerEnv = (env: ApiEnv): ProviderEnv => {
+export function providerEnv(env: ApiEnv): ProviderEnv {
   const provider: { -readonly [K in keyof ProviderEnv]: ProviderEnv[K] } = {}
   if (env.AI) provider.AI = env.AI
   if (env.WORKERS_AI_ENABLED) provider.WORKERS_AI_ENABLED = env.WORKERS_AI_ENABLED
@@ -36,8 +37,10 @@ export const providerEnv = (env: ApiEnv): ProviderEnv => {
 // Module-aware env validation (ADR 0035): derive module config status from
 // this worker's real env so REST module/integration status reflects the
 // deployment instead of stored fixture state.
-export const starterEnv = (env: ApiEnv): StarterEnv => ({
-  DB: env.DB,
-  WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
-  moduleConfig: makeStarterEnvModuleConfig(env)
-})
+export function starterEnv(env: ApiEnv): StarterEnv {
+  return {
+    DB: env.DB,
+    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
+    moduleConfig: makeStarterEnvModuleConfig(env)
+  }
+}

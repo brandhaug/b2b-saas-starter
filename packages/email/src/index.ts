@@ -43,7 +43,7 @@ export class EmailSendError extends Schema.TaggedErrorClass<EmailSendError>()(
   { message: Schema.String, to: Schema.String, subject: Schema.String }
 ) {}
 
-export type EmailDispatcherShape = {
+export type EmailDispatcherInterface = {
   readonly send: (
     message: EmailMessage
   ) => Effect.Effect<EmailDeliveryResult, EmailRenderError | EmailSendError>
@@ -51,22 +51,29 @@ export type EmailDispatcherShape = {
 
 export class EmailDispatcher extends Context.Service<
   EmailDispatcher,
-  EmailDispatcherShape
+  EmailDispatcherInterface
 >()('@b2b-saas-starter/email/EmailDispatcher') {}
 
-const renderMessage = (
+function causeMessage(cause: unknown): string {
+  if (cause instanceof Error) return cause.message
+  return String(cause)
+}
+
+function renderMessage(
   message: EmailMessage
-): Effect.Effect<{ readonly html: string; readonly text: string }, EmailRenderError> =>
-  Effect.tryPromise({
-    try: async () => ({
-      html: await render(message.element),
-      text: await render(message.element, { plainText: true })
-    }),
-    catch: (cause) =>
-      new EmailRenderError({
-        message: cause instanceof Error ? cause.message : String(cause)
-      })
+): Effect.Effect<{ readonly html: string; readonly text: string }, EmailRenderError> {
+  return Effect.gen(function* () {
+    const html = yield* Effect.tryPromise({
+      try: () => render(message.element),
+      catch: (cause) => new EmailRenderError({ message: causeMessage(cause) })
+    })
+    const text = yield* Effect.tryPromise({
+      try: () => render(message.element, { plainText: true }),
+      catch: (cause) => new EmailRenderError({ message: causeMessage(cause) })
+    })
+    return { html, text }
   })
+}
 
 export const LogEmailDispatcherLayer: Layer.Layer<EmailDispatcher> = Layer.succeed(
   EmailDispatcher
@@ -79,19 +86,19 @@ export const LogEmailDispatcherLayer: Layer.Layer<EmailDispatcher> = Layer.succe
         to: message.to,
         subject: message.subject
       })
-      return {
-        mode: 'log' as const,
+      return EmailDeliveryResult.make({
+        mode: 'log',
         to: message.to,
         subject: message.subject
-      }
+      })
     })
 })
 
-export const makeCloudflareEmailDispatcherLayer = (
+export function makeCloudflareEmailDispatcherLayer(
   binding: SendEmailBinding,
   options?: { readonly defaultFrom?: string }
-): Layer.Layer<EmailDispatcher> =>
-  Layer.succeed(EmailDispatcher)({
+): Layer.Layer<EmailDispatcher> {
+  return Layer.succeed(EmailDispatcher)({
     send: (message) =>
       Effect.gen(function* () {
         const { html, text } = yield* renderMessage(message)
@@ -116,7 +123,7 @@ export const makeCloudflareEmailDispatcherLayer = (
             }),
           catch: (cause) =>
             new EmailSendError({
-              message: cause instanceof Error ? cause.message : String(cause),
+              message: causeMessage(cause),
               to: message.to,
               subject: message.subject
             })
@@ -126,20 +133,27 @@ export const makeCloudflareEmailDispatcherLayer = (
           to: message.to,
           subject: message.subject
         })
-        return {
-          mode: 'cloudflare-email' as const,
+        return EmailDeliveryResult.make({
+          mode: 'cloudflare-email',
           to: message.to,
           subject: message.subject
-        }
+        })
       })
   })
+}
 
-export const selectEmailDispatcherLayer = (env: {
+/**
+ * Cloudflare Email is an Optional Provider Module: without its binding and a
+ * sender address the starter still delivers, to the log, instead of failing.
+ */
+export function selectEmailDispatcherLayer(env: {
   readonly EMAIL?: SendEmailBinding
   readonly EMAIL_FROM_ADDRESS?: string
-}): Layer.Layer<EmailDispatcher> =>
-  env.EMAIL && env.EMAIL_FROM_ADDRESS
-    ? makeCloudflareEmailDispatcherLayer(env.EMAIL, {
-        defaultFrom: env.EMAIL_FROM_ADDRESS
-      })
-    : LogEmailDispatcherLayer
+}): Layer.Layer<EmailDispatcher> {
+  if (env.EMAIL && env.EMAIL_FROM_ADDRESS) {
+    return makeCloudflareEmailDispatcherLayer(env.EMAIL, {
+      defaultFrom: env.EMAIL_FROM_ADDRESS
+    })
+  }
+  return LogEmailDispatcherLayer
+}

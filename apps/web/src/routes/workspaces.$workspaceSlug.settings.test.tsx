@@ -111,10 +111,9 @@ describe('WorkspaceSettingsPage', () => {
     await renderPage()
     const switches = screen.getAllByRole('switch')
     expect(switches).toHaveLength(2)
-    const readyToggle = switches[0] as HTMLElement
-    const needsConfigToggle = switches[1] as HTMLElement
-    expect(readyToggle.getAttribute('aria-checked')).toBe('true')
-    expect(needsConfigToggle.getAttribute('aria-checked')).toBe('false')
+    const [readyToggle, needsConfigToggle] = switches
+    expect(readyToggle?.getAttribute('aria-checked')).toBe('true')
+    expect(needsConfigToggle?.getAttribute('aria-checked')).toBe('false')
     for (const toggle of switches) {
       // Base UI marks disabled controls with data-disabled.
       expect(toggle.hasAttribute('data-disabled')).toBe(true)

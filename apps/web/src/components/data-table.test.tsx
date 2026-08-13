@@ -50,19 +50,19 @@ describe('DataTable', () => {
     screen.getByText('Alpha')
     expect(screen.queryByText('Charlie')).toBeNull()
 
-    const previous = screen.getByRole('button', { name: 'Previous' })
-    const next = screen.getByRole('button', { name: 'Next' })
-    expect((previous as HTMLButtonElement).disabled).toBe(true)
+    const previous = screen.getByRole<HTMLButtonElement>('button', { name: 'Previous' })
+    const next = screen.getByRole<HTMLButtonElement>('button', { name: 'Next' })
+    expect(previous.disabled).toBe(true)
 
     fireEvent.click(next)
     screen.getByText(/Page 2 of 3/)
     screen.getByText('Charlie')
     expect(screen.queryByText('Alpha')).toBeNull()
-    expect((previous as HTMLButtonElement).disabled).toBe(false)
+    expect(previous.disabled).toBe(false)
 
     fireEvent.click(next)
     screen.getByText(/Page 3 of 3/)
-    expect((next as HTMLButtonElement).disabled).toBe(true)
+    expect(next.disabled).toBe(true)
   })
 
   it('hides pagination controls when everything fits on one page', () => {
@@ -76,10 +76,10 @@ describe('DataTable', () => {
 
     fireEvent.click(sortButton)
     let bodyRows = screen.getAllByRole('row').slice(1)
-    expect((bodyRows[0] as HTMLElement).textContent).toContain('Alpha')
+    expect(bodyRows[0]?.textContent).toContain('Alpha')
 
     fireEvent.click(sortButton)
     bodyRows = screen.getAllByRole('row').slice(1)
-    expect((bodyRows[0] as HTMLElement).textContent).toContain('Echo')
+    expect(bodyRows[0]?.textContent).toContain('Echo')
   })
 })

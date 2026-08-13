@@ -12,7 +12,7 @@ export const ReadinessPoint = Schema.Struct({
 })
 export type ReadinessPoint = typeof ReadinessPoint.Type
 
-export const computeReadinessScore = (states: readonly ModuleState[]): number => {
+export function computeReadinessScore(states: readonly ModuleState[]): number {
   if (states.length === 0) return 0
   const ready = states.filter((state) => state.status === 'ready').length
   return Math.round((ready / states.length) * 100)
@@ -24,16 +24,16 @@ export type ReadinessSnapshot = {
   readonly totalCount: number
 }
 
-export const projectReadiness = (states: readonly ModuleState[]): ReadinessSnapshot => {
+export function projectReadiness(states: readonly ModuleState[]): ReadinessSnapshot {
   const readyCount = states.filter((state) => state.status === 'ready').length
   return {
-    score: states.length === 0 ? 0 : Math.round((readyCount / states.length) * 100),
+    score: computeReadinessScore(states),
     readyCount,
     totalCount: states.length
   }
 }
 
-export type AdoptionReadinessShape = {
+export type AdoptionReadinessInterface = {
   readonly getTrend: Effect.Effect<
     readonly ReadinessPoint[],
     CapabilityUnavailable,
@@ -43,15 +43,16 @@ export type AdoptionReadinessShape = {
 
 export class AdoptionReadiness extends Context.Service<
   AdoptionReadiness,
-  AdoptionReadinessShape
+  AdoptionReadinessInterface
 >()('@b2b-saas-starter/capabilities/AdoptionReadiness') {}
 
-export const SeedAdoptionReadiness = (
+export function SeedAdoptionReadiness(
   seed: readonly ReadinessPoint[]
-): Layer.Layer<AdoptionReadiness> =>
-  Layer.succeed(AdoptionReadiness)({
+): Layer.Layer<AdoptionReadiness> {
+  return Layer.succeed(AdoptionReadiness)({
     getTrend: Effect.succeed(seed)
   })
+}
 
 export const LiveAdoptionReadiness: Layer.Layer<AdoptionReadiness, never, Database> =
   Layer.effect(AdoptionReadiness)(

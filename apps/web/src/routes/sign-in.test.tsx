@@ -73,8 +73,8 @@ describe('SignInPage', () => {
       target: { value: 'short' }
     })
     await screen.findByText('Password must be at least 8 characters')
-    const submit = screen.getByRole('button', { name: 'Continue' })
-    expect((submit as HTMLButtonElement).disabled).toBe(true)
+    const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Continue' })
+    expect(submit.disabled).toBe(true)
     expect(mocks.signInEmail).not.toHaveBeenCalled()
   })
 
@@ -122,8 +122,10 @@ describe('SignInPage', () => {
 
   it('keeps the GitHub button disabled until OAuth is configured', async () => {
     await renderPage()
-    const github = screen.getByRole('button', { name: 'Continue with GitHub' })
-    expect((github as HTMLButtonElement).disabled).toBe(true)
+    const github = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Continue with GitHub'
+    })
+    expect(github.disabled).toBe(true)
     screen.getByText('Configure GitHub OAuth secrets to enable.')
   })
 })

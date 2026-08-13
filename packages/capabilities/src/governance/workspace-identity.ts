@@ -20,6 +20,7 @@ import { orUnavailable } from '../internal/unavailable.ts'
  */
 
 export const WORKSPACE_ROLES = workspaceRoles
+// oxlint-disable-next-line effect/noAs -- `as const` on a literal tuple, not a type assertion: Schema.Literals needs the narrowed readonly tuple to derive the SystemRole union.
 export const SYSTEM_ROLES = ['admin', 'user'] as const
 
 export const WorkspaceRole = Schema.Literals(WORKSPACE_ROLES)
@@ -50,13 +51,21 @@ type MemberRow = {
   readonly user: typeof user.$inferSelect
 }
 
-export const toMember = (row: MemberRow): Member => ({
-  id: row.user.id,
-  name: row.user.name,
-  email: row.user.email,
-  role: row.member.role,
-  systemRole: row.user.role === 'admin' ? 'admin' : 'user'
-})
+/** Only the stored `admin` role grants the admin system role; everything else is a user. */
+function toSystemRole(role: string | null): SystemRole {
+  if (role === 'admin') return 'admin'
+  return 'user'
+}
+
+export function toMember(row: MemberRow): Member {
+  return {
+    id: row.user.id,
+    name: row.user.name,
+    email: row.user.email,
+    role: row.member.role,
+    systemRole: toSystemRole(row.user.role)
+  }
+}
 
 /**
  * Looks up a single member of a workspace by user id. Used by the
@@ -65,11 +74,11 @@ export const toMember = (row: MemberRow): Member => ({
  * authorization decision; the non-member failure policy lives in
  * `workspace-context.ts`.
  */
-export const findWorkspaceMember = (
+export function findWorkspaceMember(
   db: EffectDatabase,
   input: { readonly workspaceId: string; readonly userId: string }
-): Effect.Effect<Member | undefined, CapabilityUnavailable> =>
-  orUnavailable('workspace-membership')(
+): Effect.Effect<Member | undefined, CapabilityUnavailable> {
+  return orUnavailable('workspace-membership')(
     db
       .select({ member: workspaceMembers, user })
       .from(workspaceMembers)
@@ -81,4 +90,5 @@ export const findWorkspaceMember = (
         )
       )
       .limit(1)
-  ).pipe(Effect.map((rows) => (rows[0] ? toMember(rows[0]) : undefined)))
+  ).pipe(Effect.map((rows) => rows.map(toMember)[0]))
+}

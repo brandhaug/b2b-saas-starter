@@ -1,5 +1,5 @@
 import { Effect, Layer } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from '@effect/vitest'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import { SeedLayer } from '../layers.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
@@ -68,32 +68,31 @@ describe('validateWebhookUrl', () => {
 })
 
 describe('WebhookEndpoints.create URL validation', () => {
-  const createEndpoint = (url: string) =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const webhooks = yield* WebhookEndpoints
-        return yield* Effect.result(
-          webhooks.create({ url, events: ['module.enabled'] })
-        )
-      }).pipe(Effect.provide(seedWorkspaceLayer))
+  function createEndpoint(url: string) {
+    return Effect.gen(function* () {
+      const webhooks = yield* WebhookEndpoints
+      return yield* Effect.result(webhooks.create({ url, events: ['module.enabled'] }))
+    }).pipe(Effect.provide(seedWorkspaceLayer))
+  }
+
+  it.effect('creates endpoints for valid https URLs', () =>
+    Effect.gen(function* () {
+      const result = yield* createEndpoint('https://example.com/hooks')
+      expect(result._tag).toBe('Success')
+    })
+  )
+
+  it.effect('fails with InvalidWebhookUrl for unsafe URLs', () =>
+    Effect.forEach(
+      ['http://example.com/hooks', 'https://10.0.0.1/hooks', 'https://localhost/hooks'],
+      (url) =>
+        Effect.gen(function* () {
+          const result = yield* createEndpoint(url)
+          expect({ url, tag: result._tag }).toEqual({ url, tag: 'Failure' })
+          if (result._tag === 'Failure') {
+            expect(result.failure._tag).toBe('InvalidWebhookUrl')
+          }
+        })
     )
-
-  it('creates endpoints for valid https URLs', async () => {
-    const result = await createEndpoint('https://example.com/hooks')
-    expect(result._tag).toBe('Success')
-  })
-
-  it('fails with InvalidWebhookUrl for unsafe URLs', async () => {
-    for (const url of [
-      'http://example.com/hooks',
-      'https://10.0.0.1/hooks',
-      'https://localhost/hooks'
-    ]) {
-      const result = await createEndpoint(url)
-      expect({ url, tag: result._tag }).toEqual({ url, tag: 'Failure' })
-      if (result._tag === 'Failure') {
-        expect(result.failure._tag).toBe('InvalidWebhookUrl')
-      }
-    }
-  })
+  )
 })

@@ -87,7 +87,10 @@
     "no-unused-expressions": "error",
     "no-useless-constructor": "error",
     "@typescript-eslint/no-wrapper-object-types": "error",
-    "@typescript-eslint/prefer-as-const": "error",
+    // prefer-as-const is off because it contradicts `effect/noAs`. Given
+    // `const x: 'queued' = 'queued'`, prefer-as-const demands `as const`, and noAs then
+    // rejects the result. noAs is the rule with the stronger claim, so it wins.
+    "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/prefer-literal-enum-member": "error",
     "@typescript-eslint/prefer-namespace-keyword": "error",
     "@typescript-eslint/require-await": "error",
@@ -184,7 +187,14 @@
     "react/button-has-type": "error",
     "react/checked-requires-onchange-or-readonly": "error",
     "react/display-name": "error",
-    "react/function-component-definition": "error",
+    "react/function-component-definition": [
+      "error",
+      {
+        "namedComponents": "function-declaration",
+        "unnamedComponents": "arrow-function"
+      }
+    ],
+    "func-style": ["error", "declaration", { "allowArrowFunctions": false }],
     "react/iframe-missing-sandbox": "error",
     "react/jsx-boolean-value": "error",
     "react/jsx-curly-brace-presence": [
@@ -249,17 +259,29 @@
     "vitest/valid-describe-callback": "error",
     "vitest/valid-expect": "error",
 
-    // Effect discipline (oxlint-plugin-effect). The plugin's `recommended` preset is written
-    // for a pure Effect service codebase; noAs, noNullish, noTernary, noAsyncFunction,
-    // noGlobals and noShapeInSymbolNames are intentionally left off because they fight
-    // React, TanStack APIs, the platform edge, and this repo's `*Shape` naming.
-    "effect/noTryCatch": "error",
-    "effect/noThrowStatement": "error",
-    "effect/noNewPromise": "error",
-    "effect/noNewError": "error",
-    "effect/noEffectDo": "error",
-    "effect/noEffectBind": "error",
+    // Effect discipline (oxlint-plugin-effect), full `recommended` preset except the two
+    // rules noted below. The preset is written for Effect-native TypeScript, so the rules
+    // that assume no JSX and no DOM are switched off for `apps/web` in an override.
+    "effect/noAs": "error",
+    "effect/noAsyncFunction": "error",
     "effect/noDynamicImports": "error",
+    "effect/noEffectBind": "error",
+    "effect/noEffectDo": "error",
+    "effect/noGlobals": "error",
+    "effect/noNewError": "error",
+    "effect/noNewPromise": "error",
+    "effect/noNodeBuiltinImport": "error",
+    "effect/noShapeInSymbolNames": "error",
+    "effect/noTernary": "error",
+    "effect/noTestLifecycleHooks": "error",
+    "effect/noThrowStatement": "error",
+    "effect/noTryCatch": "error",
+    "effect/preferEffectFn": "error",
+    // noNullish stays off. It bans `null` and `undefined` outright, which contradicts the
+    // Effect v4 schema guidance this repo follows: `Schema.optionalKey` for absent keys,
+    // `Schema.optional` when explicit `undefined` is part of the contract, and
+    // `Schema.NullOr` / `UndefinedOr` / `NullishOr` when nullish values are part of the
+    // encoded contract. It is also unworkable against React and TanStack APIs.
     // anti-slop rules, vendored by oxlint-plugin-effect from dmmulroy/anti-slop
     "effect/noChainedTypeAssertions": "error",
     // noConditionalEmptyObjectSpread stays off. Its autofix rewrites
@@ -358,6 +380,20 @@
             ]
           }
         ],
+        // The vitest plugin only knows `it` / `test` as test blocks. The Effect guide says
+        // to use `it.effect` by default, and its assertions live inside the generator body,
+        // so without this every one of them reads as a standalone expect.
+        "vitest/no-standalone-expect": [
+          "error",
+          {
+            "additionalTestBlockFunctions": [
+              "it.effect",
+              "it.live",
+              "it.scoped",
+              "it.layer"
+            ]
+          }
+        ],
         "effect/noTryCatch": "off",
         "effect/noThrowStatement": "off",
         "effect/noNewError": "off",
@@ -382,13 +418,60 @@
         "effect/noThrowStatement": "off",
         "effect/noNewError": "off",
         "effect/noUnknownParameters": "off",
-        "effect/noUnsafeDictionaryType": "off"
+        "effect/noUnsafeDictionaryType": "off",
+        // Deployment, seeding and build tooling runs on Bun before any Worker and before
+        // any Effect runtime exists, so `Config` has nowhere to be read from. The Effect
+        // guidance scopes `Config` to application logic, and the noGlobals rule itself says
+        // platform adapters may switch it off. `process.env`, `process.argv`, `Bun.spawn`,
+        // `node:fs` and a top-level `await` for the process exit code are the right APIs here.
+        "effect/noGlobals": "off",
+        "effect/noNodeBuiltinImport": "off",
+        "effect/noAsyncFunction": "off",
+        // Alchemy provisions optional resources with `yield*` inside a conditional. The
+        // `let` + `if` alternative costs a mutable binding and an explicit annotation.
+        "effect/noTernary": "off"
       }
     },
     {
       "files": ["packages/db/src/testing.ts", "packages/db/scripts/**"],
       "rules": {
         "no-await-in-loop": "off"
+      }
+    },
+    {
+      // The Effect plugin targets Effect-native TypeScript. These three rules assume no
+      // JSX and no DOM: `noTernary` bans conditional rendering, `noAsyncFunction` bans the
+      // async event handlers and Testing Library helpers React needs, and `noGlobals` bans
+      // browser APIs the UI legitimately calls. The rest of the preset still applies here.
+      "files": ["apps/web/**"],
+      "rules": {
+        "effect/noTernary": "off",
+        "effect/noAsyncFunction": "off",
+        "effect/noGlobals": "off",
+        "effect/noTestLifecycleHooks": "off"
+      }
+    },
+    {
+      // Architecture boundary: D1 access belongs to the capabilities package. The
+      // Reference Application's UI reads through capability functions, never the database.
+      "files": ["apps/web/src/components/**", "apps/web/src/routes/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@b2b-saas-starter/db",
+                  "@b2b-saas-starter/db/*",
+                  "drizzle-orm",
+                  "drizzle-orm/*"
+                ],
+                "message": "UI code must not reach the database. Call a capability through runWorkspaceCapabilities or a server function instead."
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -433,10 +516,17 @@
     },
     {
       // Build configs walk untyped third-party ASTs (mdast/rehype) and plugin option bags.
-      "files": ["**/*.config.ts"],
+      // They also run on Node at build time, outside any Worker and any Effect runtime,
+      // so `node:path` and friends are the correct APIs there.
+      "files": ["**/*.config.ts", "apps/web/src/lib/local-d1-state.ts"],
       "rules": {
         "effect/noUnsafeDictionaryType": "off",
-        "effect/noUnknownParameters": "off"
+        "effect/noUnknownParameters": "off",
+        "effect/noNodeBuiltinImport": "off",
+        // drizzle.config.ts is loaded by drizzle-kit in its own Node process and reads
+        // credentials from process.env. There is no Effect runtime to read Config from.
+        "effect/noGlobals": "off",
+        "effect/noAsyncFunction": "off"
       }
     },
     {

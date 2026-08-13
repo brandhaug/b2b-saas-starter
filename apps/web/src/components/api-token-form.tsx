@@ -18,6 +18,11 @@ type ApiTokenValues = {
   scopes: readonly ApiTokenScope[]
 }
 
+const DEFAULT_TOKEN_VALUES: ApiTokenValues = {
+  name: '',
+  scopes: ['read']
+}
+
 function validateTokenName(value: string): string | undefined {
   if (value.trim().length === 0) return 'Token name is required'
   if (value.length > 80) return 'Token name must be under 80 characters'
@@ -34,10 +39,7 @@ export function ApiTokenForm({
   const [created, setCreated] = useState<CreatedApiToken | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const form = useForm({
-    defaultValues: {
-      name: '',
-      scopes: ['read'] as readonly ApiTokenScope[]
-    } satisfies ApiTokenValues,
+    defaultValues: DEFAULT_TOKEN_VALUES,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
       // The server function rejects when the capability fails. `Effect.tryPromise`
@@ -145,7 +147,10 @@ export function ApiTokenForm({
       </form.Field>
 
       <form.Subscribe
-        selector={(state) => [state.canSubmit, state.isSubmitting] as const}
+        selector={(state): readonly [boolean, boolean] => [
+          state.canSubmit,
+          state.isSubmitting
+        ]}
       >
         {([canSubmit, isSubmitting]) => (
           <Button type="submit" disabled={!canSubmit} className="justify-self-start">

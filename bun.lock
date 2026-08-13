@@ -55,6 +55,7 @@
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
         "@cloudflare/workers-types": "catalog:",
+        "@effect/vitest": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
         "wrangler": "catalog:",
@@ -71,6 +72,7 @@
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
         "@cloudflare/workers-types": "catalog:",
+        "@effect/vitest": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
         "wrangler": "catalog:",
@@ -159,6 +161,7 @@
       },
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
+        "@effect/vitest": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
@@ -199,6 +202,7 @@
       },
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
+        "@effect/vitest": "catalog:",
         "@vitest/coverage-v8": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
@@ -217,6 +221,7 @@
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
         "@cloudflare/workers-types": "catalog:",
+        "@effect/vitest": "catalog:",
         "drizzle-kit": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
@@ -233,6 +238,7 @@
       },
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
+        "@effect/vitest": "catalog:",
         "react-email": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
@@ -245,6 +251,7 @@
       },
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
+        "@effect/vitest": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
@@ -268,6 +275,7 @@
       },
       "devDependencies": {
         "@b2b-saas-starter/config": "workspace:*",
+        "@effect/vitest": "catalog:",
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
@@ -608,7 +616,7 @@
 
     "@effect/sql-d1": ["@effect/sql-d1@4.0.0-beta.93", "", { "dependencies": { "@cloudflare/workers-types": "^4.20260511.1" }, "peerDependencies": { "effect": "^4.0.0-beta.93" } }, "sha512-JpieuqCm71iUz3RT4wYBeBBVOblyZVk9o/sjv/xghOeZZdGmgcEQ2RGZjQOTiiAiuS3YuY3gcyXLugfLmdHrqA=="],
 
-    "@effect/vitest": ["@effect/vitest@4.0.0-beta.66", "", { "peerDependencies": { "effect": "^4.0.0-beta.66", "vitest": "^3.0.0 || ^4.0.0" } }, "sha512-UHPNtU0xXkKtNgyRQEh2c8jh4nIIm8Mzp3xc4j2ZdFU4nq5ZSySnpovjPMdoWbVClg1ki8UbpNGEZUfxEJo+6Q=="],
+    "@effect/vitest": ["@effect/vitest@4.0.0-beta.93", "", { "peerDependencies": { "effect": "^4.0.0-beta.93", "vitest": "^3.0.0 || ^4.0.0" } }, "sha512-gMAnZ9PiMeJMDED9s0jWgCOhc2JccrTCxowhur/KriImsHnHIRj4VG/vK0xLw0Axe4AkTWzXNdRsFrYOjBTl3A=="],
 
     "@emnapi/core": ["@emnapi/core@1.10.0", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.1", "tslib": "^2.4.0" } }, "sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw=="],
 
@@ -3179,6 +3187,8 @@
     "@vitest/mocker/estree-walker": ["estree-walker@3.0.3", "", { "dependencies": { "@types/estree": "^1.0.0" } }, "sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g=="],
 
     "accepts/mime-types": ["mime-types@2.1.35", "", { "dependencies": { "mime-db": "1.52.0" } }, "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw=="],
+
+    "alchemy/@effect/vitest": ["@effect/vitest@4.0.0-beta.66", "", { "peerDependencies": { "effect": "^4.0.0-beta.66", "vitest": "^3.0.0 || ^4.0.0" } }, "sha512-UHPNtU0xXkKtNgyRQEh2c8jh4nIIm8Mzp3xc4j2ZdFU4nq5ZSySnpovjPMdoWbVClg1ki8UbpNGEZUfxEJo+6Q=="],
 
     "alchemy/react": ["react@19.2.6", "", {}, "sha512-sfWGGfavi0xr8Pg0sVsyHMAOziVYKgPLNrS7ig+ivMNb3wbCBw3KxtflsGBAwD3gYQlE/AEZsTLgToRrSCjb0Q=="],
 

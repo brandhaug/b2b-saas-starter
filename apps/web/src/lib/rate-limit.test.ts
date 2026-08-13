@@ -2,23 +2,26 @@ import { Effect, type Scope } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { clientKey, makeRateLimiterLayer, RateLimiter } from './rate-limit'
 
-const request = (headers: Record<string, string>) =>
-  new Request('http://localhost:3071/api/auth/sign-in', { headers })
+function request(headers: Record<string, string>): Request {
+  return new Request('http://localhost:3071/api/auth/sign-in', { headers })
+}
 
 // `take` annotates the request's wide event, so it needs a Scope; tests
 // supply it with `Effect.scoped`.
-const runScoped = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> =>
-  Effect.runPromise(Effect.scoped(effect))
+function runScoped<A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> {
+  return Effect.runPromise(Effect.scoped(effect))
+}
 
 describe('rate limiter fallback (no Cloudflare bindings)', () => {
   it('enforces the auth_write limit across per-request layer rebuilds', async () => {
     // The auth route builds the layer on every request (api.auth.$.ts), so
     // this test rebuilds it per take — the fallback counters must survive.
-    const take = (key: string) =>
-      Effect.gen(function* () {
+    function take(key: string) {
+      return Effect.gen(function* () {
         const limiter = yield* RateLimiter
         return yield* limiter.take({ bucket: 'auth_write', key })
       }).pipe(Effect.provide(makeRateLimiterLayer({})))
+    }
 
     const key = `test-${Date.now()}-${Math.random()}`
     const outcomes: boolean[] = []

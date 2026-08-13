@@ -59,19 +59,22 @@ describe('classifyResponseStatus', () => {
 })
 
 describe('webhook signature', () => {
-  it('matches the fixed HMAC-SHA256 vector over "<timestamp>.<body>"', async () => {
-    const secret = 'whsec_test'
-    const timestamp = 1_700_000_000
-    const body =
-      '{"deliveryId":"whd_test","eventType":"demo.event","payload":{"hello":"world"}}'
-    const signature = await computeWebhookSignature(secret, timestamp, body)
-    expect(signature).toBe(
-      '869b9de1fa743616d6143977e0a770f55f7cfd874cba33d935c1bfb5b481f9b2'
-    )
-    expect(signatureHeaderValue(timestamp, signature)).toBe(
-      't=1700000000,sha256=869b9de1fa743616d6143977e0a770f55f7cfd874cba33d935c1bfb5b481f9b2'
-    )
-  })
+  it('matches the fixed HMAC-SHA256 vector over "<timestamp>.<body>"', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const secret = 'whsec_test'
+        const timestamp = 1_700_000_000
+        const body =
+          '{"deliveryId":"whd_test","eventType":"demo.event","payload":{"hello":"world"}}'
+        const signature = yield* computeWebhookSignature(secret, timestamp, body)
+        expect(signature).toBe(
+          '869b9de1fa743616d6143977e0a770f55f7cfd874cba33d935c1bfb5b481f9b2'
+        )
+        expect(signatureHeaderValue(timestamp, signature)).toBe(
+          't=1700000000,sha256=869b9de1fa743616d6143977e0a770f55f7cfd874cba33d935c1bfb5b481f9b2'
+        )
+      })
+    ))
 })
 
 const message: WebhookMessage = {
@@ -89,39 +92,47 @@ const target = {
 
 // Mirrors the Live workspace check: the target only resolves when the
 // message's workspaceId matches the endpoint's owning workspace (ws_1).
-const stubEndpoints = (
+function resolveTarget(
+  dispatchTarget: typeof target | null,
+  endpointId: string,
+  workspaceId: string
+): typeof target | null {
+  if (endpointId === dispatchTarget?.id && workspaceId === 'ws_1') return dispatchTarget
+  return null
+}
+
+function stubEndpoints(
   dispatchTarget: typeof target | null,
   recorded: WebhookDeliveryAttemptInput[]
-): Layer.Layer<WebhookEndpoints> =>
-  Layer.succeed(WebhookEndpoints)({
+): Layer.Layer<WebhookEndpoints> {
+  return Layer.succeed(WebhookEndpoints)({
     list: Effect.die('unused in delivery tests'),
     create: () => Effect.die('unused in delivery tests'),
     disable: () => Effect.die('unused in delivery tests'),
     rotateSecret: () => Effect.die('unused in delivery tests'),
     getDispatchTarget: (endpointId, workspaceId) =>
-      Effect.succeed(
-        endpointId === dispatchTarget?.id && workspaceId === 'ws_1'
-          ? dispatchTarget
-          : null
-      ),
+      Effect.succeed(resolveTarget(dispatchTarget, endpointId, workspaceId)),
     recordDeliveryAttempt: (input) =>
       Effect.sync(() => {
         recorded.push(input)
       })
   })
+}
 
 // Both consumers surface D1 outages as CapabilityUnavailable; the stubs never
 // fail, so the error channel is eliminated with orDie instead of a cast.
-const runScoped = <A>(
+function runScoped<A>(
   effect: Effect.Effect<A, CapabilityUnavailable, Scope.Scope>
-): Promise<A> => Effect.runPromise(Effect.scoped(Effect.orDie(effect)))
+): Effect.Effect<A> {
+  return Effect.scoped(Effect.orDie(effect))
+}
 
 describe('processWebhookMessage', () => {
-  const stubHttp = (
+  function stubHttp(
     status: number,
     captured: { request?: HttpClientRequest.HttpClientRequest } = {}
-  ): Layer.Layer<HttpClient.HttpClient> =>
-    Layer.succeed(HttpClient.HttpClient)(
+  ): Layer.Layer<HttpClient.HttpClient> {
+    return Layer.succeed(HttpClient.HttpClient)(
       HttpClient.make((request) => {
         captured.request = request
         return Effect.succeed(
@@ -129,13 +140,14 @@ describe('processWebhookMessage', () => {
         )
       })
     )
+  }
 
-  const run = (
+  function run(
     dispatchTarget: typeof target | null,
     status: number,
     attempts = 1,
     input: unknown = message
-  ) => {
+  ) {
     const recorded: WebhookDeliveryAttemptInput[] = []
     const captured: { request?: HttpClientRequest.HttpClientRequest } = {}
     return runScoped(
@@ -147,126 +159,162 @@ describe('processWebhookMessage', () => {
           )
         )
       )
-    ).then((outcome) => ({ outcome, recorded, captured }))
+    ).pipe(Effect.map((outcome) => ({ outcome, recorded, captured })))
   }
 
-  it('delivers on 2xx, signs the request, and persists a delivered row', async () => {
-    const { outcome, recorded, captured } = await run(target, 200)
-    expect(outcome).toBe('ack')
-    expect(recorded).toHaveLength(1)
-    expect(recorded[0]).toMatchObject({
-      endpointId: 'wh_1',
-      eventType: 'api_token.created',
-      status: 'delivered',
-      responseStatus: 200,
-      nextAttemptAt: null
-    })
-    const headers: Record<string, string | undefined> = captured.request?.headers ?? {}
-    expect(headers['x-b2b-starter-event']).toBe('api_token.created')
-    expect(headers['x-b2b-starter-signature']).toMatch(/^t=\d+,sha256=[0-9a-f]{64}$/)
-    expect(headers['x-trace-id']).toBe('trace-test')
-  })
+  it('delivers on 2xx, signs the request, and persists a delivered row', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded, captured } = yield* run(target, 200)
+        expect(outcome).toBe('ack')
+        expect(recorded).toHaveLength(1)
+        expect(recorded[0]).toMatchObject({
+          endpointId: 'wh_1',
+          eventType: 'api_token.created',
+          status: 'delivered',
+          responseStatus: 200,
+          nextAttemptAt: null
+        })
+        const headers: Record<string, string | undefined> =
+          captured.request?.headers ?? {}
+        expect(headers['x-b2b-starter-event']).toBe('api_token.created')
+        expect(headers['x-b2b-starter-signature']).toMatch(
+          /^t=\d+,sha256=[0-9a-f]{64}$/
+        )
+        expect(headers['x-trace-id']).toBe('trace-test')
+      })
+    ))
 
-  it('retries on 5xx and persists the backoff-aligned next attempt', async () => {
-    const { outcome, recorded } = await run(target, 500, 2)
-    expect(outcome).toBe('retry')
-    expect(recorded[0]).toMatchObject({ status: 'failed', responseStatus: 500 })
-    expect(recorded[0]?.nextAttemptAt).toBeTruthy()
-  })
+  it('retries on 5xx and persists the backoff-aligned next attempt', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded } = yield* run(target, 500, 2)
+        expect(outcome).toBe('retry')
+        expect(recorded[0]).toMatchObject({ status: 'failed', responseStatus: 500 })
+        expect(recorded[0]?.nextAttemptAt).toBeTruthy()
+      })
+    ))
 
-  it('acks a non-retryable 4xx as failed_permanent with the audit workspace id', async () => {
-    const { outcome, recorded } = await run(target, 404)
-    expect(outcome).toBe('ack')
-    expect(recorded[0]).toMatchObject({
-      status: 'failed_permanent',
-      responseStatus: 404,
-      nextAttemptAt: null,
-      // The Live capability scopes the batched audit event with this id.
-      workspaceId: 'ws_1'
-    })
-  })
+  it('acks a non-retryable 4xx as failed_permanent with the audit workspace id', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded } = yield* run(target, 404)
+        expect(outcome).toBe('ack')
+        expect(recorded[0]).toMatchObject({
+          status: 'failed_permanent',
+          responseStatus: 404,
+          nextAttemptAt: null,
+          // The Live capability scopes the batched audit event with this id.
+          workspaceId: 'ws_1'
+        })
+      })
+    ))
 
-  it('acks a disabled endpoint without recording an attempt', async () => {
-    const { outcome, recorded, captured } = await run(null, 200)
-    expect(outcome).toBe('ack')
-    expect(recorded).toHaveLength(0)
-    expect(captured.request).toBeUndefined()
-  })
+  it('acks a disabled endpoint without recording an attempt', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded, captured } = yield* run(null, 200)
+        expect(outcome).toBe('ack')
+        expect(recorded).toHaveLength(0)
+        expect(captured.request).toBeUndefined()
+      })
+    ))
 
-  it('acks a malformed queue message without dispatching or recording', async () => {
-    const { outcome, recorded, captured } = await run(target, 200, 1, {
-      endpointId: 42,
-      payload: {}
-    })
-    expect(outcome).toBe('ack')
-    expect(recorded).toHaveLength(0)
-    expect(captured.request).toBeUndefined()
-  })
+  it('acks a malformed queue message without dispatching or recording', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded, captured } = yield* run(target, 200, 1, {
+          endpointId: 42,
+          payload: {}
+        })
+        expect(outcome).toBe('ack')
+        expect(recorded).toHaveLength(0)
+        expect(captured.request).toBeUndefined()
+      })
+    ))
 
-  it('treats a message without a workspaceId as malformed (legacy in-flight shape)', async () => {
-    const { outcome, recorded, captured } = await run(target, 200, 1, {
-      endpointId: 'wh_1',
-      eventType: 'api_token.created',
-      payload: {}
-    })
-    expect(outcome).toBe('ack')
-    expect(recorded).toHaveLength(0)
-    expect(captured.request).toBeUndefined()
-  })
+  it('treats a message without a workspaceId as malformed (legacy in-flight shape)', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded, captured } = yield* run(target, 200, 1, {
+          endpointId: 'wh_1',
+          eventType: 'api_token.created',
+          payload: {}
+        })
+        expect(outcome).toBe('ack')
+        expect(recorded).toHaveLength(0)
+        expect(captured.request).toBeUndefined()
+      })
+    ))
 
-  it('acks a cross-workspace message without releasing the signing secret', async () => {
-    const { outcome, recorded, captured } = await run(target, 200, 1, {
-      ...message,
-      workspaceId: 'ws_other'
-    })
-    expect(outcome).toBe('ack')
-    expect(recorded).toHaveLength(0)
-    expect(captured.request).toBeUndefined()
-  })
+  it('acks a cross-workspace message without releasing the signing secret', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded, captured } = yield* run(target, 200, 1, {
+          ...message,
+          workspaceId: 'ws_other'
+        })
+        expect(outcome).toBe('ack')
+        expect(recorded).toHaveLength(0)
+        expect(captured.request).toBeUndefined()
+      })
+    ))
 
-  it('acks an SSRF-invalid target as failed_permanent without dispatching', async () => {
-    const { outcome, recorded, captured } = await run(
-      { ...target, url: 'https://127.0.0.1/hook' },
-      200
-    )
-    expect(outcome).toBe('ack')
-    expect(recorded[0]).toMatchObject({
-      status: 'failed_permanent',
-      responseStatus: null,
-      workspaceId: 'ws_1'
-    })
-    expect(captured.request).toBeUndefined()
-  })
+  it('acks an SSRF-invalid target as failed_permanent without dispatching', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded, captured } = yield* run(
+          { ...target, url: 'https://127.0.0.1/hook' },
+          200
+        )
+        expect(outcome).toBe('ack')
+        expect(recorded[0]).toMatchObject({
+          status: 'failed_permanent',
+          responseStatus: null,
+          workspaceId: 'ws_1'
+        })
+        expect(captured.request).toBeUndefined()
+      })
+    ))
 })
 
 describe('processDeadLetterMessage', () => {
-  const runDeadLetter = (input: unknown, attempts = 4) => {
+  function runDeadLetter(
+    input: unknown,
+    attempts = 4
+  ): Effect.Effect<WebhookDeliveryAttemptInput[]> {
     const recorded: WebhookDeliveryAttemptInput[] = []
     return runScoped(
       processDeadLetterMessage({ body: input, attempts }).pipe(
         Effect.provide(stubEndpoints(target, recorded))
       )
-    ).then(() => recorded)
+    ).pipe(Effect.map(() => recorded))
   }
 
-  it('records a dead_lettered row carrying the audit workspace id', async () => {
-    const recorded = await runDeadLetter(message)
-    expect(recorded).toHaveLength(1)
-    expect(recorded[0]).toMatchObject({
-      endpointId: 'wh_1',
-      workspaceId: 'ws_1',
-      eventType: 'api_token.created',
-      status: 'dead_lettered',
-      attempts: 4,
-      responseStatus: null,
-      nextAttemptAt: null
-    })
-  })
+  it('records a dead_lettered row carrying the audit workspace id', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const recorded = yield* runDeadLetter(message)
+        expect(recorded).toHaveLength(1)
+        expect(recorded[0]).toMatchObject({
+          endpointId: 'wh_1',
+          workspaceId: 'ws_1',
+          eventType: 'api_token.created',
+          status: 'dead_lettered',
+          attempts: 4,
+          responseStatus: null,
+          nextAttemptAt: null
+        })
+      })
+    ))
 
-  it('acks a malformed dead letter without recording', async () => {
-    const recorded = await runDeadLetter({ endpointId: 42 })
-    expect(recorded).toHaveLength(0)
-  })
+  it('acks a malformed dead letter without recording', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const recorded = yield* runDeadLetter({ endpointId: 42 })
+        expect(recorded).toHaveLength(0)
+      })
+    ))
 })
 
 describe('validateWebhookUrl (dispatch-time SSRF guard)', () => {

@@ -40,20 +40,42 @@ import {
 import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
 
-const clientKey = (request: HttpServerRequest.HttpServerRequest): string =>
-  request.headers['cf-connecting-ip'] ?? `unkeyed:${request.url}`
+/**
+ * Contract response literals. Each is declared with the literal type the
+ * `StarterApi` success schema pins down, so the value is *checked* against the
+ * contract instead of asserted with `as const`.
+ */
+const HEALTH_OK: { readonly status: 'ok' } = { status: 'ok' }
+const TOKEN_REVOKED: { readonly status: 'revoked' } = { status: 'revoked' }
+const INVITATION_QUEUED: { readonly status: 'queued' } = { status: 'queued' }
 
-const bearerToken = (request: HttpServerRequest.HttpServerRequest): string | null => {
+function clientKey(request: HttpServerRequest.HttpServerRequest): string {
+  return request.headers['cf-connecting-ip'] ?? `unkeyed:${request.url}`
+}
+
+function bearerToken(request: HttpServerRequest.HttpServerRequest): string | null {
   const header = request.headers.authorization
   if (!header?.startsWith('Bearer ')) return null
   return header.slice('Bearer '.length).trim()
 }
 
-const enforceRateLimit = (
+/**
+ * Origin the invitation link points back at. Empty when the request carried no
+ * `host` header, which keeps the accept URL relative rather than pointing at a
+ * fabricated host.
+ */
+function requestOrigin(request: HttpServerRequest.HttpServerRequest): string {
+  const host = request.headers.host
+  if (!host) return ''
+  const proto = request.headers['x-forwarded-proto'] ?? 'https'
+  return `${proto}://${host}`
+}
+
+function enforceRateLimit(
   request: HttpServerRequest.HttpServerRequest,
   bucket: RateLimitBucket
-): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> =>
-  Effect.gen(function* () {
+): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> {
+  return Effect.gen(function* () {
     const limiter = yield* RateLimiter
     const allowed = yield* limiter.take({ bucket, key: clientKey(request) })
     if (!allowed) {
@@ -61,8 +83,9 @@ const enforceRateLimit = (
       return yield* Effect.fail(new RateLimited({ bucket }))
     }
   })
+}
 
-const enforceScope = (
+function enforceScope(
   request: HttpServerRequest.HttpServerRequest,
   scope: ApiTokenScope,
   expectedWorkspaceSlug?: string
@@ -70,8 +93,8 @@ const enforceScope = (
   void,
   Unauthorized | AuthorizationDenied | CapabilityUnavailable,
   ApiTokenRegistry | Scope.Scope
-> =>
-  Effect.gen(function* () {
+> {
+  return Effect.gen(function* () {
     const token = bearerToken(request)
     if (!token) {
       yield* annotateWide({ outcome: 'missing_bearer_token' })
@@ -120,6 +143,7 @@ const enforceScope = (
       requiredScope: scope
     })
   })
+}
 
 /**
  * Extra wide-event fields a handler contributes on top of the envelope's
@@ -130,14 +154,14 @@ type RequestMetadata = {
   readonly workspaceSlug?: string
 }
 
-const observed = <A, E, R>(
+function observed<A, E, R>(
   env: ApiEnv,
   request: HttpServerRequest.HttpServerRequest,
   event: string,
   metadata: RequestMetadata,
   body: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, Exclude<R, Scope.Scope>> =>
-  withRequestScope(
+): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
+  return withRequestScope(
     {
       service: 'api',
       event: `request.${event}`,
@@ -147,12 +171,15 @@ const observed = <A, E, R>(
     },
     body.pipe(Effect.tap(() => annotateWide({ outcome: 'ok' })))
   )
+}
 
-const provideWorkspace = <A, E, R>(
+function provideWorkspace<A, E, R>(
   env: ApiEnv,
   slug: string,
   body: Effect.Effect<A, E, R>
-) => body.pipe(Effect.provide(selectWorkspaceLayer(starterEnv(env), slug)))
+) {
+  return body.pipe(Effect.provide(selectWorkspaceLayer(starterEnv(env), slug)))
+}
 
 /**
  * The webhook events this worker publishes, paired with the payload shape each
@@ -178,10 +205,10 @@ type PublishedWebhookEvent =
       readonly payload: { readonly workspaceSlug: string; readonly to: string }
     }
 
-const publishWebhookEvent = (
+function publishWebhookEvent(
   event: PublishedWebhookEvent
-): Effect.Effect<void, never, WebhookPublisher | WorkspaceContext | Scope.Scope> =>
-  Effect.gen(function* () {
+): Effect.Effect<void, never, WebhookPublisher | WorkspaceContext | Scope.Scope> {
+  return Effect.gen(function* () {
     const publisher = yield* WebhookPublisher
     const published = yield* Effect.result(publisher.publish(event))
     if (Result.isFailure(published)) {
@@ -191,24 +218,26 @@ const publishWebhookEvent = (
       })
     }
   })
+}
 
-export const healthGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
+export function healthGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
     handlers.handle('check', ({ request }) =>
-      observed(env, request, 'health', {}, Effect.succeed({ status: 'ok' as const }))
+      observed(env, request, 'health', {}, Effect.succeed(HEALTH_OK))
     )
   )
+}
 
-export const workspaceGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
-    const read = <A, E, R>(
+export function workspaceGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
+    function read<A, E, R>(
       event: string,
       scope: ApiTokenScope,
       slug: string,
       request: HttpServerRequest.HttpServerRequest,
       body: Effect.Effect<A, E, R>
-    ) =>
-      observed(
+    ) {
+      return observed(
         env,
         request,
         `workspace.${event}`,
@@ -219,6 +248,7 @@ export const workspaceGroup = (env: ApiEnv) =>
           return yield* provideWorkspace(env, slug, body)
         })
       )
+    }
 
     return handlers
       .handle('overview', ({ params, request }) =>
@@ -297,9 +327,10 @@ export const workspaceGroup = (env: ApiEnv) =>
         )
       )
   })
+}
 
-export const apiTokenGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'api-token-registry', (handlers) =>
+export function apiTokenGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'api-token-registry', (handlers) =>
     handlers
       .handle('create', ({ params, payload, request }) =>
         observed(
@@ -360,7 +391,7 @@ export const apiTokenGroup = (env: ApiEnv) =>
                 }
               })
             )
-            return { status: 'revoked' as const }
+            return TOKEN_REVOKED
           })
         )
       )
@@ -387,14 +418,15 @@ export const apiTokenGroup = (env: ApiEnv) =>
                 }
               })
             )
-            return { status: 'revoked' as const }
+            return TOKEN_REVOKED
           })
         )
       )
   )
+}
 
-export const webhookGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
+export function webhookGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
     handlers.handle('create', ({ params, payload, request }) =>
       observed(
         env,
@@ -434,9 +466,10 @@ export const webhookGroup = (env: ApiEnv) =>
       )
     )
   )
+}
 
-export const invitationGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'workspace-invitations', (handlers) =>
+export function invitationGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'workspace-invitations', (handlers) =>
     handlers.handle('send', ({ params, payload, request }) =>
       observed(
         env,
@@ -452,10 +485,7 @@ export const invitationGroup = (env: ApiEnv) =>
             Effect.gen(function* () {
               const ctx = yield* WorkspaceContext
               const dispatcher = yield* EmailDispatcher
-              const host = request.headers.host
-              const proto = request.headers['x-forwarded-proto'] ?? 'https'
-              const origin = host ? `${proto}://${host}` : ''
-              const inviteUrl = `${origin}/invitations/accept?workspace=${ctx.workspace.slug}`
+              const inviteUrl = `${requestOrigin(request)}/invitations/accept?workspace=${ctx.workspace.slug}`
               const delivery = yield* Effect.result(
                 dispatcher.send({
                   from: emailFromAddress(env) ?? 'noreply@example.com',
@@ -482,16 +512,17 @@ export const invitationGroup = (env: ApiEnv) =>
                 eventType: 'workspace_invitation.sent',
                 payload: { workspaceSlug: ctx.workspace.slug, to: payload.to }
               })
-              return { status: 'queued' as const, delivery: delivery.success }
+              return { ...INVITATION_QUEUED, delivery: delivery.success }
             })
           )
         })
       )
     )
   )
+}
 
-export const catalogGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'catalog', (handlers) =>
+export function catalogGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'catalog', (handlers) =>
     handlers
       .handle('modules', ({ request }) =>
         observed(
@@ -526,9 +557,10 @@ export const catalogGroup = (env: ApiEnv) =>
         )
       )
   )
+}
 
-export const assistantGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'assistant', (handlers) =>
+export function assistantGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'assistant', (handlers) =>
     handlers.handle('answer', ({ payload, request }) =>
       observed(
         env,
@@ -551,9 +583,10 @@ export const assistantGroup = (env: ApiEnv) =>
       )
     )
   )
+}
 
-export const mcpGroup = (env: ApiEnv) =>
-  HttpApiBuilder.group(StarterApi, 'mcp', (handlers) =>
+export function mcpGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'mcp', (handlers) =>
     handlers.handle('discover', ({ request }) =>
       observed(
         env,
@@ -572,3 +605,4 @@ export const mcpGroup = (env: ApiEnv) =>
       )
     )
   )
+}

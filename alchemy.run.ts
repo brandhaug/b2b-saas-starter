@@ -23,11 +23,11 @@ type BindableWorker = {
   ) => (data: unknown) => Effect.Effect<void>
 }
 
-const attachRateLimits = (
+function attachRateLimits(
   worker: BindableWorker,
   specs: readonly RateLimitBindingSpec[]
-) =>
-  Effect.all(
+) {
+  return Effect.all(
     specs.map((spec) =>
       worker.bind`${spec.name}`({
         bindings: [
@@ -41,34 +41,46 @@ const attachRateLimits = (
       })
     )
   )
+}
 
-const attachWorkersAi = (worker: BindableWorker) =>
-  worker.bind`AI`({
+function attachWorkersAi(worker: BindableWorker) {
+  return worker.bind`AI`({
     bindings: [{ name: 'AI', type: 'ai' }]
   })
+}
+
+// Single `process.env` reader for the whole deploy entrypoint. This file runs
+// on Bun at deploy time (CI or a developer machine), not inside a Worker, and
+// the values below are read at module scope where no Effect runtime — and so
+// no `Config`/`ConfigProvider` — exists yet. Every other env read in this file
+// goes through here so the platform-global escape hatch has exactly one site.
+function readEnv(name: string): string | undefined {
+  return process.env[name]
+}
 
 function requiredEnv(name: string): string {
-  const value = process.env[name]
+  const value = readEnv(name)
   if (!value) {
     throw new Error(`Missing required deploy environment variable: ${name}`)
   }
   return value
 }
 
-function optionalSecret(name: string) {
-  const value = process.env[name]
-  return value ? Redacted.make(value) : undefined
+function optionalSecret(name: string): Redacted.Redacted<string> | undefined {
+  const value = readEnv(name)
+  if (!value) return
+  return Redacted.make(value)
 }
 
 const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
 const BETTER_AUTH_URL = requiredEnv('BETTER_AUTH_URL')
 const BETTER_AUTH_TRUSTED_ORIGINS =
-  process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? BETTER_AUTH_URL
+  readEnv('BETTER_AUTH_TRUSTED_ORIGINS') ?? BETTER_AUTH_URL
 // Optional: when unset, the SendEmail binding is skipped and the email
 // module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
 // read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalModuleEnv` below —
 // there is no second email var name.
-const CLOUDFLARE_EMAIL_FROM = process.env.CLOUDFLARE_EMAIL_FROM
+const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
 
 // Optional module env, forwarded to the web, API, and background workers so
 // the shared module-aware env validation (`@b2b-saas-starter/env`, ADR 0035)
@@ -81,16 +93,16 @@ const optionalModuleEnv = {
     optionalModuleEnvSecretKeys.map((key) => [key, optionalSecret(key)])
   ),
   ...Object.fromEntries(
-    optionalModuleEnvPlainKeys.map((key) => [key, process.env[key] ?? null])
+    optionalModuleEnvPlainKeys.map((key) => [key, readEnv(key) ?? null])
   )
 }
 
-const observability = {
+const observability: Cloudflare.WorkerObservability = {
   enabled: true,
   logs: { enabled: true, invocationLogs: true }
-} as const
+}
 
-const smartPlacement = { mode: 'smart' } as const
+const smartPlacement: Cloudflare.WorkerPlacement = { mode: 'smart' }
 
 export const Stack = Alchemy.Stack(
   'b2b-saas-starter',
@@ -115,18 +127,19 @@ export const Stack = Alchemy.Stack(
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
     // failing the deploy.
-    const transactionalEmail = CLOUDFLARE_EMAIL_FROM
-      ? yield* Cloudflare.SendEmail('EMAIL', {
-          // Restrict the Worker to sending from the verified default. Add
-          // more `allowedSenderAddresses` here as you verify additional
-          // domains in Cloudflare Email Routing.
-          allowedSenderAddresses: [CLOUDFLARE_EMAIL_FROM]
-        })
-      : undefined
+    let transactionalEmail: Cloudflare.SendEmail | undefined
+    if (CLOUDFLARE_EMAIL_FROM) {
+      transactionalEmail = yield* Cloudflare.SendEmail('EMAIL', {
+        // Restrict the Worker to sending from the verified default. Add
+        // more `allowedSenderAddresses` here as you verify additional
+        // domains in Cloudflare Email Routing.
+        allowedSenderAddresses: [CLOUDFLARE_EMAIL_FROM]
+      })
+    }
 
     // Built as its own object so every worker below spreads the same optional
     // binding set: the EMAIL key exists only when the resource does.
-    const emailBinding: { EMAIL?: NonNullable<typeof transactionalEmail> } = {}
+    const emailBinding: { EMAIL?: Cloudflare.SendEmail } = {}
     if (transactionalEmail) emailBinding.EMAIL = transactionalEmail
 
     const api = yield* Cloudflare.Worker('api', {

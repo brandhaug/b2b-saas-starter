@@ -1,3 +1,5 @@
+// drizzle-kit loads this config in its own Node process, outside any Effect
+// runtime, so there is no ConfigProvider to read these credentials through.
 import { defineConfig } from 'drizzle-kit'
 
 export default defineConfig({

@@ -1,11 +1,18 @@
-import { Cause, Effect, Exit, Layer, Logger, Option, type Scope } from 'effect'
+import { Cause, Clock, Effect, Exit, Layer, Logger, Option, type Scope } from 'effect'
 
-const newTraceId = (): string => globalThis.crypto.randomUUID()
+function newTraceId(): string {
+  return globalThis.crypto.randomUUID()
+}
 
-const failureMetadata = (head: unknown): Record<string, unknown> => {
+function errorMessage(head: unknown): string {
+  if (head instanceof Error) return head.message
+  return String(head)
+}
+
+function failureMetadata(head: unknown): Record<string, unknown> {
   const base = {
     errorKind: 'fail',
-    error: head instanceof Error ? head.message : String(head)
+    error: errorMessage(head)
   }
   if (typeof head === 'object' && head !== null && '_tag' in head) {
     return { ...base, errorTag: head._tag }
@@ -13,7 +20,7 @@ const failureMetadata = (head: unknown): Record<string, unknown> => {
   return base
 }
 
-const causeMetadata = (cause: Cause.Cause<unknown>): Record<string, unknown> => {
+function causeMetadata(cause: Cause.Cause<unknown>): Record<string, unknown> {
   const failure = Cause.findErrorOption(cause)
   if (Option.isSome(failure)) {
     return failureMetadata(failure.value)
@@ -33,30 +40,40 @@ export type WideEventEnvironment = {
 
 export const TRACE_HEADER = 'x-trace-id'
 
-export const readTraceHeader = (request: Request): string | undefined =>
-  request.headers.get(TRACE_HEADER) ?? undefined
+export function readTraceHeader(request: Request): string | undefined {
+  return request.headers.get(TRACE_HEADER) ?? undefined
+}
 
-const pickString = (
+/**
+ * Read one own property of an untyped env bag as a non-empty string. The
+ * descriptor lookup keeps the own-property semantics without asserting a
+ * dictionary type onto the caller's `object`.
+ */
+function ownStringValue(source: object, key: string): string | undefined {
+  const value: unknown = Object.getOwnPropertyDescriptor(source, key)?.value
+  if (typeof value === 'string' && value.length > 0) return value
+  return undefined
+}
+
+function pickString(
   source: object | undefined,
   ...keys: readonly string[]
-): string | undefined => {
+): string | undefined {
   if (!source) return undefined
   for (const key of keys) {
-    const value = Object.prototype.hasOwnProperty.call(source, key)
-      ? (source as Record<string, unknown>)[key]
-      : undefined
-    if (typeof value === 'string' && value.length > 0) return value
+    const value = ownStringValue(source, key)
+    if (value !== undefined) return value
   }
   return undefined
 }
 
-export const readWideEventEnvironment = (
+export function readWideEventEnvironment(
   source: object | undefined,
   hints?: {
     readonly colo?: string | undefined
     readonly region?: string | undefined
   }
-): WideEventEnvironment => {
+): WideEventEnvironment {
   const commit = pickString(source, 'GIT_COMMIT_SHA', 'CF_VERSION_METADATA_ID')
   const version = pickString(source, 'SERVICE_VERSION', 'WORKERS_CI_BUILD_UUID')
   const region = hints?.colo ?? hints?.region ?? pickString(source, 'CF_REGION')
@@ -84,14 +101,22 @@ export type WideEventScopeOptions = {
   readonly metadata?: Record<string, unknown> | undefined
 }
 
-export const withRequestScope = <A, E, R>(
+/** The wide event's outcome fields: `ok`, or the failure classified by cause. */
+function outcomeMetadata(exit: Exit.Exit<unknown, unknown>): Record<string, unknown> {
+  if (Exit.isFailure(exit)) {
+    return { status: 'error', ...causeMetadata(exit.cause) }
+  }
+  return { status: 'ok' }
+}
+
+export function withRequestScope<A, E, R>(
   options: WideEventScopeOptions,
   body: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, Exclude<R, Scope.Scope>> => {
+): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
   const traceId = options.traceId ?? newTraceId()
   return Effect.scoped(
     Effect.gen(function* () {
-      const startedAt = Date.now()
+      const startedAt = yield* Clock.currentTimeMillis
       yield* Effect.annotateLogsScoped({
         service: options.service,
         traceId,
@@ -105,29 +130,27 @@ export const withRequestScope = <A, E, R>(
       // (finalizers are LIFO), which silently drops all handler-set context
       // from the event. onExit still fires on success, failure, and interrupt.
       return yield* body.pipe(
-        Effect.onExit((exit) => {
-          const outcome: Record<string, unknown> = Exit.isFailure(exit)
-            ? { status: 'error', ...causeMetadata(exit.cause) }
-            : { status: 'ok' }
-          return Effect.log(options.event, {
-            durationMs: Date.now() - startedAt,
-            ...outcome
+        Effect.onExit((exit) =>
+          Effect.gen(function* () {
+            const finishedAt = yield* Clock.currentTimeMillis
+            yield* Effect.log(options.event, {
+              durationMs: finishedAt - startedAt,
+              ...outcomeMetadata(exit)
+            })
           })
-        })
+        )
       )
     })
   )
 }
 
 /** Cloudflare colo hint from an incoming request's `cf` object, if present. */
-export const readCfColo = (request: Request): string | undefined => {
-  const cf = 'cf' in request ? (request as { cf?: unknown }).cf : undefined
-  return typeof cf === 'object' &&
-    cf !== null &&
-    'colo' in cf &&
-    typeof cf.colo === 'string'
-    ? (cf as { colo: string }).colo
-    : undefined
+export function readCfColo(request: Request): string | undefined {
+  if (!('cf' in request)) return undefined
+  const { cf } = request
+  if (typeof cf !== 'object' || cf === null) return undefined
+  if (!('colo' in cf) || typeof cf.colo !== 'string') return undefined
+  return cf.colo
 }
 
 export type HttpRequestScopeOptions = {
@@ -139,16 +162,22 @@ export type HttpRequestScopeOptions = {
   readonly metadata?: Record<string, unknown> | undefined
 }
 
+/** Region hints for the environment enrichment; absent when there is no colo. */
+function coloHint(colo: string | undefined): { readonly colo: string } | undefined {
+  if (colo === undefined) return undefined
+  return { colo }
+}
+
 /**
  * Wide-event envelope for an HTTP-triggered handler. Owns the whole recipe —
  * trace propagation from `x-trace-id`, environment enrichment (env + cf colo),
  * and `pathname`/`method` metadata — so every worker emits the same envelope
  * from one call instead of hand-assembling `withRequestScope` options.
  */
-export const withHttpRequestScope = <A, E, R>(
+export function withHttpRequestScope<A, E, R>(
   options: HttpRequestScopeOptions,
   body: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, Exclude<R, Scope.Scope>> => {
+): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
   const url = new URL(options.request.url)
   const colo = readCfColo(options.request)
   return withRequestScope(
@@ -156,7 +185,7 @@ export const withHttpRequestScope = <A, E, R>(
       service: options.service,
       event: options.event,
       traceId: readTraceHeader(options.request),
-      environment: readWideEventEnvironment(options.env, colo ? { colo } : undefined),
+      environment: readWideEventEnvironment(options.env, coloHint(colo)),
       metadata: {
         pathname: url.pathname,
         method: options.request.method,
@@ -182,11 +211,11 @@ export type TriggerScopeOptions = {
  * messages. Same contract as `withHttpRequestScope` minus the request-derived
  * fields.
  */
-export const withTriggerScope = <A, E, R>(
+export function withTriggerScope<A, E, R>(
   options: TriggerScopeOptions,
   body: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, Exclude<R, Scope.Scope>> =>
-  withRequestScope(
+): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
+  return withRequestScope(
     {
       service: options.service,
       event: options.event,
@@ -196,6 +225,7 @@ export const withTriggerScope = <A, E, R>(
     },
     body
   )
+}
 
 export const annotateWide: {
   (key: string, value: unknown): Effect.Effect<void, never, Scope.Scope>

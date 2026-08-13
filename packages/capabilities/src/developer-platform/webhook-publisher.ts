@@ -37,7 +37,7 @@ export type PublishWebhookEventInput = {
   readonly payload: unknown
 }
 
-export type WebhookPublisherShape = {
+export type WebhookPublisherInterface = {
   readonly publish: (
     input: PublishWebhookEventInput
   ) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
@@ -45,7 +45,7 @@ export type WebhookPublisherShape = {
 
 export class WebhookPublisher extends Context.Service<
   WebhookPublisher,
-  WebhookPublisherShape
+  WebhookPublisherInterface
 >()('@b2b-saas-starter/capabilities/WebhookPublisher') {}
 
 export const SeedWebhookPublisher: Layer.Layer<WebhookPublisher> = Layer.succeed(
@@ -56,10 +56,10 @@ export const SeedWebhookPublisher: Layer.Layer<WebhookPublisher> = Layer.succeed
 
 const unavailable = orUnavailable('webhook-publisher')
 
-export const LiveWebhookPublisher = (
+export function LiveWebhookPublisher(
   queue?: WebhookQueueBinding
-): Layer.Layer<WebhookPublisher, never, Database> =>
-  Layer.effect(WebhookPublisher)(
+): Layer.Layer<WebhookPublisher, never, Database> {
+  return Layer.effect(WebhookPublisher)(
     Effect.gen(function* () {
       const db = yield* Database
 
@@ -108,3 +108,4 @@ export const LiveWebhookPublisher = (
       }
     })
   )
+}

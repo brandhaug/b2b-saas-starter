@@ -22,12 +22,14 @@ const decodeModuleStatus = Schema.decodeUnknownOption(ModuleStatus)
  * parsed here at the row boundary. A status the catalog no longer knows about
  * reads as `disabled` instead of leaking a raw string into the wire contract.
  */
-const decodeModuleStatusOrDisabled = (stored: string): ModuleStatus => {
-  const decoded = decodeModuleStatus(stored)
-  return Option.isSome(decoded) ? decoded.value : 'disabled'
+function decodeModuleStatusOrDisabled(stored: string): ModuleStatus {
+  return Option.match(decodeModuleStatus(stored), {
+    onNone: (): ModuleStatus => 'disabled',
+    onSome: (status) => status
+  })
 }
 
-export type IntegrationSurfacesShape = {
+export type IntegrationSurfacesInterface = {
   readonly list: Effect.Effect<
     readonly IntegrationSurface[],
     CapabilityUnavailable,
@@ -37,15 +39,16 @@ export type IntegrationSurfacesShape = {
 
 export class IntegrationSurfaces extends Context.Service<
   IntegrationSurfaces,
-  IntegrationSurfacesShape
+  IntegrationSurfacesInterface
 >()('@b2b-saas-starter/capabilities/IntegrationSurfaces') {}
 
-export const SeedIntegrationSurfaces = (
+export function SeedIntegrationSurfaces(
   seed: readonly IntegrationSurface[]
-): Layer.Layer<IntegrationSurfaces> =>
-  Layer.succeed(IntegrationSurfaces)({
+): Layer.Layer<IntegrationSurfaces> {
+  return Layer.succeed(IntegrationSurfaces)({
     list: Effect.succeed(seed)
   })
+}
 
 export const LiveIntegrationSurfaces: Layer.Layer<
   IntegrationSurfaces,

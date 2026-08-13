@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import {
   Database,
@@ -44,7 +44,7 @@ export const StarterModuleWithState = Schema.Struct({
 })
 export type StarterModuleWithState = typeof StarterModuleWithState.Type
 
-export type StarterModuleCatalogShape = {
+export type StarterModuleCatalogInterface = {
   readonly listModules: Effect.Effect<
     readonly StarterModuleWithState[],
     CapabilityUnavailable,
@@ -58,16 +58,17 @@ export type StarterModuleCatalogShape = {
 
 export class StarterModuleCatalog extends Context.Service<
   StarterModuleCatalog,
-  StarterModuleCatalogShape
+  StarterModuleCatalogInterface
 >()('@b2b-saas-starter/capabilities/StarterModuleCatalog') {}
 
-export const SeedStarterModuleCatalog = (
+export function SeedStarterModuleCatalog(
   seed: readonly StarterModuleWithState[]
-): Layer.Layer<StarterModuleCatalog> =>
-  Layer.succeed(StarterModuleCatalog)({
+): Layer.Layer<StarterModuleCatalog> {
+  return Layer.succeed(StarterModuleCatalog)({
     listModules: Effect.succeed(seed),
     listAllModules: Effect.succeed(seed.map(({ state: _state, ...module }) => module))
   })
+}
 
 export const LiveStarterModuleCatalog: Layer.Layer<
   StarterModuleCatalog,
@@ -80,6 +81,9 @@ export const LiveStarterModuleCatalog: Layer.Layer<
     return {
       listModules: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
+        // A module the workspace has never touched has no state row; it reads
+        // as disabled as of now.
+        const readAt = DateTime.formatIso(yield* DateTime.now)
         const rows = yield* unavailable(
           db
             .select({ module: starterModules, state: workspaceModuleStates })
@@ -104,7 +108,7 @@ export const LiveStarterModuleCatalog: Layer.Layer<
             enabled: row.state?.enabled ?? false,
             status: row.state?.status ?? 'disabled',
             missingConfig: row.state?.missingConfig ?? [],
-            updatedAt: row.state?.updatedAt ?? new Date().toISOString()
+            updatedAt: row.state?.updatedAt ?? readAt
           }
         }))
       }),

@@ -49,7 +49,7 @@ export const Route = createFileRoute('/')({
 const GITHUB_URL =
   'https://github.com/brandhaug/full-stack-typescript-monorepo-starter-with-authentication'
 
-const BILL_OF_MATERIALS = [
+const BILL_OF_MATERIALS: readonly string[] = [
   'TanStack Start',
   'Effect v4',
   'Drizzle D1',
@@ -58,7 +58,7 @@ const BILL_OF_MATERIALS = [
   'Tailwind v4',
   'Cloudflare Workers',
   'Alchemy v2'
-] as const
+]
 
 const REST_SNIPPET = `curl -H "Authorization: Bearer bsk_live_xxx" \\
   https://api.example.com/workspaces/starter-lab/overview
@@ -76,7 +76,9 @@ const MCP_SNIPPET = `{
   "tools": []
 }`
 
-const CLOUDFLARE_RUNTIME = [
+type RuntimeRow = { readonly label: string; readonly value: string }
+
+const CLOUDFLARE_RUNTIME: readonly RuntimeRow[] = [
   { label: 'apps/web', value: 'Worker' },
   { label: 'apps/api', value: 'Worker' },
   { label: 'apps/background', value: 'Worker (cron + queue)' },
@@ -85,17 +87,16 @@ const CLOUDFLARE_RUNTIME = [
   { label: 'Outbound email', value: 'Email Service' },
   { label: 'Static assets', value: 'Worker Assets' },
   { label: 'Infrastructure', value: 'Alchemy v2' }
-] as const
+]
 
-const DISABLED_STATUS_META = {
+type StatusMeta = { readonly dot: string; readonly text: string }
+
+const DISABLED_STATUS_META: StatusMeta = {
   dot: 'border border-muted-foreground/70 bg-transparent',
   text: 'text-muted-foreground'
-} as const
+}
 
-const MODULE_STATUS_META: Record<
-  string,
-  { readonly dot: string; readonly text: string }
-> = {
+const MODULE_STATUS_META: Record<string, StatusMeta> = {
   ready: { dot: 'bg-primary', text: 'text-foreground' },
   'needs-config': { dot: 'bg-signal', text: 'text-signal-ink' },
   attention: { dot: 'bg-destructive', text: 'text-destructive' },

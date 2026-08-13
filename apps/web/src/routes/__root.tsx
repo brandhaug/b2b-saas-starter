@@ -15,12 +15,12 @@ import { Toaster } from '@/components/ui/sonner'
 import appCss from '../index.css?url'
 
 // Browser `theme-color` meta requires literal color values — cannot use CSS vars.
-const THEME_COLOR_DARK = '#1d1d1d' as const
-const THEME_COLOR_LIGHT = '#ffffff' as const
+const THEME_COLOR_DARK = '#1d1d1d'
+const THEME_COLOR_LIGHT = '#ffffff'
 
 // Named lazy loader: the devtools bundle must stay out of the production
 // graph, so the import is deferred behind this one binding.
-const loadRouterDevtools = async () => {
+async function loadRouterDevtools() {
   const devtools = await import('@tanstack/react-router-devtools')
   return { default: devtools.TanStackRouterDevtools }
 }

@@ -27,5 +27,8 @@ export const listNotificationsServerFn = createServerFn({ method: 'GET' })
     )
   })
 
-export const notificationsQueryKey = (workspaceSlug: string) =>
-  ['notifications', workspaceSlug] as const
+export function notificationsQueryKey(
+  workspaceSlug: string
+): readonly ['notifications', string] {
+  return ['notifications', workspaceSlug]
+}

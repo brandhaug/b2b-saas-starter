@@ -124,7 +124,7 @@ function SignOutButton() {
   )
   // The button is the platform edge: report the failure instead of letting it
   // escape as an unhandled rejection.
-  const runSignOut = async () => {
+  async function runSignOut() {
     const exit = await Effect.runPromiseExit(signOut)
     if (Exit.isFailure(exit)) {
       console.error(

@@ -11,11 +11,12 @@ import {
  * `recordAuthAudit` needs a Scope for its wide-event annotations — the auth
  * catchall supplies one via `withHttpRequestScope`, tests via `Effect.scoped`.
  */
-const runRecordAuthAudit = (
+function runRecordAuthAudit(
   request: Request,
   response: Response
-): Promise<AuthAuditOutcome> =>
-  Effect.runPromise(Effect.scoped(recordAuthAudit(request, response)))
+): Promise<AuthAuditOutcome> {
+  return Effect.runPromise(Effect.scoped(recordAuthAudit(request, response)))
+}
 
 vi.mock('@/lib/capabilities', () => ({
   runCapabilities: vi.fn().mockResolvedValue(undefined)

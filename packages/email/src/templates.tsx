@@ -14,6 +14,16 @@ import {
   Text
 } from '@react-email/components'
 
+/**
+ * A React Email template renders synchronously through `@react-email/render`,
+ * outside any Effect, so there is no Clock or DateTime to read the footer's
+ * copyright year from.
+ */
+function footerYear(): number {
+  // oxlint-disable-next-line effect/noGlobals -- no Effect context in a render function
+  return new Date().getFullYear()
+}
+
 type WorkspaceInvitationEmailProps = {
   readonly workspaceName: string
   readonly inviteUrl: string
@@ -64,7 +74,7 @@ export function WorkspaceInvitationEmail({
             </Text>
             <Hr className="border-solid border-gray-200 my-8" />
             <Text className="text-xs text-gray-500 m-0">
-              © {new Date().getFullYear()} B2B SaaS Starter
+              © {footerYear()} B2B SaaS Starter
             </Text>
           </Container>
         </Body>

@@ -25,6 +25,7 @@
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",

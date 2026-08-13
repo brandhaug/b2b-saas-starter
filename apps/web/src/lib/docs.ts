@@ -27,7 +27,7 @@ export const DOC_CATEGORIES = {
   'adoption-readiness': 'Adoption & reports',
   operations: 'Operations',
   governance: 'Governance'
-} as const
+}
 
 export type DocCategory = keyof typeof DOC_CATEGORIES
 

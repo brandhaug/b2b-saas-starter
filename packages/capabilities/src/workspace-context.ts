@@ -25,27 +25,29 @@ export type Actor = typeof Actor.Type
  */
 export type ActorRef = { readonly userId: string }
 
-const memberToActor = (member: Member): Actor => ({
-  userId: member.id,
-  role: member.role,
-  systemRole: member.systemRole
-})
+function memberToActor(member: Member): Actor {
+  return {
+    userId: member.id,
+    role: member.role,
+    systemRole: member.systemRole
+  }
+}
 
-export type WorkspaceContextShape = {
+export type WorkspaceContextInterface = {
   readonly workspace: Workspace
   readonly actor: Actor | null
 }
 
 export class WorkspaceContext extends Context.Service<
   WorkspaceContext,
-  WorkspaceContextShape
+  WorkspaceContextInterface
 >()('@b2b-saas-starter/capabilities/WorkspaceContext') {}
 
-export const liveWorkspaceContext = (
+export function liveWorkspaceContext(
   slug: string,
   actor?: ActorRef
-): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable, Database> =>
-  Layer.effect(WorkspaceContext)(
+): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable, Database> {
+  return Layer.effect(WorkspaceContext)(
     Effect.gen(function* () {
       const db = yield* Database
       const row = yield* orUnavailable('workspace-context')(
@@ -74,6 +76,7 @@ export const liveWorkspaceContext = (
       }
     })
   )
+}
 
 /**
  * Seed counterpart of `liveWorkspaceContext`, mirroring its semantics: the
@@ -84,14 +87,14 @@ export const liveWorkspaceContext = (
  * context. Tests that already hold a fully resolved `Actor` should use
  * `testWorkspaceContext` instead.
  */
-export const seedWorkspaceContext = (
+export function seedWorkspaceContext(
   seedWorkspace: Workspace,
   slug: string,
   actor?: ActorRef,
   members: readonly Member[] = []
-): Layer.Layer<WorkspaceContext, WorkspaceNotFound> =>
-  Layer.effect(WorkspaceContext)(
-    Effect.suspend((): Effect.Effect<WorkspaceContextShape, WorkspaceNotFound> => {
+): Layer.Layer<WorkspaceContext, WorkspaceNotFound> {
+  return Layer.effect(WorkspaceContext)(
+    Effect.suspend((): Effect.Effect<WorkspaceContextInterface, WorkspaceNotFound> => {
       if (slug !== seedWorkspace.slug) {
         return Effect.fail(new WorkspaceNotFound({ slug }))
       }
@@ -99,15 +102,18 @@ export const seedWorkspaceContext = (
         return Effect.succeed({ workspace: seedWorkspace, actor: null })
       }
       const member = members.find((candidate) => candidate.id === actor.userId)
-      return member
-        ? Effect.succeed({ workspace: seedWorkspace, actor: memberToActor(member) })
-        : Effect.fail(new WorkspaceNotFound({ slug }))
+      if (!member) {
+        return Effect.fail(new WorkspaceNotFound({ slug }))
+      }
+      return Effect.succeed({ workspace: seedWorkspace, actor: memberToActor(member) })
     })
   )
+}
 
 /** Test injection: a context built from already-resolved values, no membership checks. */
-export const testWorkspaceContext = (
+export function testWorkspaceContext(
   workspace: Workspace,
   actor: Actor | null = null
-): Layer.Layer<WorkspaceContext> =>
-  Layer.succeed(WorkspaceContext)({ workspace, actor })
+): Layer.Layer<WorkspaceContext> {
+  return Layer.succeed(WorkspaceContext)({ workspace, actor })
+}

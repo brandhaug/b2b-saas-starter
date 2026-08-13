@@ -112,10 +112,10 @@ export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
 }
 
-export const makeLiveCapabilitiesLayer = (
+export function makeLiveCapabilitiesLayer(
   options: LiveCapabilitiesOptions = {}
-): Layer.Layer<CapabilityServices, never, Database> =>
-  Layer.mergeAll(
+): Layer.Layer<CapabilityServices, never, Database> {
+  return Layer.mergeAll(
     LiveAdoptionReadiness,
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LiveAuditEventLog,
@@ -128,13 +128,16 @@ export const makeLiveCapabilitiesLayer = (
     LiveWebhookPublisher(options.webhookQueue),
     LiveWorkspaceMembership
   )
+}
 
 /**
  * Exported at module level for `runtime.ts` only — not re-exported from the
  * package index. Consumers select layers through `selectCapabilitiesLayer` /
  * `selectWorkspaceLayer`.
  */
-export const makeLiveLayerFromD1 = (
+export function makeLiveLayerFromD1(
   d1: Parameters<typeof layerFromD1>[0],
   options?: LiveCapabilitiesOptions
-) => makeLiveCapabilitiesLayer(options).pipe(Layer.provide(layerFromD1(d1)))
+) {
+  return makeLiveCapabilitiesLayer(options).pipe(Layer.provide(layerFromD1(d1)))
+}

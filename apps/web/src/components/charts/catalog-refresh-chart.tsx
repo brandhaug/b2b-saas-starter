@@ -38,8 +38,10 @@ export function CatalogRefreshChart({
             cursor={{ fill: 'var(--muted)' }}
             contentStyle={TOOLTIP_STYLE}
             formatter={(value, _name, item) => {
-              const status =
-                (item as { payload?: { status?: string } }).payload?.status ?? 'ok'
+              // recharts types the tooltip payload as `any`; naming the datum
+              // shape here is the contract this chart puts on it.
+              const datum: { readonly status?: string } | undefined = item.payload
+              const status = datum?.status ?? 'ok'
               return [`${String(value)}ms (${status})`, 'Duration']
             }}
           />

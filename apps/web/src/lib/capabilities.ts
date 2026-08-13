@@ -39,7 +39,7 @@ const starterEnv: StarterEnv = {
 // channel here: TanStack Router consumes `notFound()` as 404 control flow and a
 // rejected loader promise as the error-component signal. Every throw below is
 // that hand-off, not a swallowed failure.
-const rethrowCapabilityFailure = (cause: Cause.Cause<unknown>): never => {
+function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
   const failure = Cause.findErrorOption(cause)
   if (Option.isSome(failure)) {
     const error = failure.value
@@ -69,11 +69,11 @@ const rethrowCapabilityFailure = (cause: Cause.Cause<unknown>): never => {
  * - `CapabilityUnavailable` becomes `CapabilityUnavailableError` so the
  *   error component renders a degraded-state message.
  */
-export const runWorkspaceCapabilities = async <A, E>(
+export async function runWorkspaceCapabilities<A, E>(
   workspaceSlug: string,
   effect: Effect.Effect<A, E, CapabilityServices | WorkspaceContext>,
   actor?: ActorRef
-): Promise<A> => {
+): Promise<A> {
   const exit = await Effect.runPromiseExit(
     Effect.provide(effect, selectWorkspaceLayer(starterEnv, workspaceSlug, actor))
   )
@@ -88,9 +88,9 @@ export const runWorkspaceCapabilities = async <A, E>(
  * `WorkspaceContext`; `CapabilityUnavailable` maps to
  * `CapabilityUnavailableError` exactly like `runWorkspaceCapabilities`.
  */
-export const runCapabilities = async <A, E>(
+export async function runCapabilities<A, E>(
   effect: Effect.Effect<A, E, CapabilityServices>
-): Promise<A> => {
+): Promise<A> {
   const exit = await Effect.runPromiseExit(
     Effect.provide(effect, selectCapabilitiesLayer(starterEnv))
   )

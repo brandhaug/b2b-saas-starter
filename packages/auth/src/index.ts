@@ -11,7 +11,7 @@ import {
 import type { Database } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
 
-export type AuthConfigShape = {
+export type AuthConfigInterface = {
   readonly db: Database
   readonly secret: string
   readonly baseURL: string
@@ -22,9 +22,21 @@ export type AuthConfigShape = {
   } | null
 }
 
-export class AuthConfig extends Context.Service<AuthConfig, AuthConfigShape>()(
+export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
   '@b2b-saas-starter/auth/AuthConfig'
 ) {}
+
+/**
+ * Better Auth reads `socialProviders` as an open bag: the Example OAuth
+ * Provider key is present only when its credentials are configured, so an
+ * unconfigured starter gets an empty bag rather than a disabled provider.
+ */
+function socialProvidersFor(github: AuthConfigInterface['github']): {
+  github?: { clientId: string; clientSecret: string }
+} {
+  if (github === null) return {}
+  return { github }
+}
 
 /**
  * Kept as a plain function returning a single (non-union) object type: the
@@ -34,10 +46,8 @@ export class AuthConfig extends Context.Service<AuthConfig, AuthConfigShape>()(
  * union array in a function body, dropping plugin schema inference (the
  * admin plugin's `user.role` would vanish from `Session`).
  */
-export const makeAuthOptions = (options: AuthConfigShape) => {
-  const socialProviders: {
-    github?: { clientId: string; clientSecret: string }
-  } = options.github ? { github: options.github } : {}
+export function makeAuthOptions(options: AuthConfigInterface) {
+  const socialProviders = socialProvidersFor(options.github)
 
   return {
     secret: options.secret,

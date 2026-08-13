@@ -16,7 +16,7 @@ Run history for the background catalog refresh (the cron that re-evaluates Start
 
 - Table: `catalogRefreshRuns` (see [`@b2b-saas-starter/db`](../../../db/AGENTS.md)).
 - `summary` column is a JSON blob `{ modules, durationMs }`. Treat the JSON as the freeform extension point — adding fields here doesn't require a schema migration as long as the DTO stays stable.
-- `id` is generated via the shared `newCapabilityId('crr')` helper (`crr_${Date.now()}_${8-byte hex}`), so concurrent runs can't collide.
+- `id` is generated via the shared `newCapabilityId('crr')` helper (`crr_${Clock millis}_${8-byte hex}`), so concurrent runs can't collide. The helper is an effect, so `TestClock` controls the ids in tests.
 - `workspaceId` is always `null` — refreshes are global. Per-workspace catalog refreshes would need a column change here.
 
 ## Status & follow-ups
