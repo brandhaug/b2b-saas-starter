@@ -1,6 +1,6 @@
-import { Effect } from 'effect'
+import { Context, Effect, Layer } from 'effect'
+import { describe, expect, layer } from '@effect/vitest'
 import { count, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { provisionTestD1, type TestD1 } from './testing.ts'
 import { Database, layerFromD1, batch, DbBatchError } from './index.ts'
 import { apiTokens, notifications, starterModules, workspaces } from './schema.ts'
@@ -10,40 +10,39 @@ import { apiTokens, notifications, starterModules, workspaces } from './schema.t
 // layers cannot: migration SQL correctness, column mode round-trips,
 // cascade deletes, and batch atomicity.
 
-let test: TestD1
-let dbLayer: ReturnType<typeof layerFromD1>
+/** The raw binding, for the migration assertions that read `sqlite_master`. */
+class TestD1Binding extends Context.Service<
+  TestD1Binding,
+  { readonly d1: TestD1['d1'] }
+>()('@b2b-saas-starter/db/test/TestD1Binding') {}
 
-// getPlatformProxy boots a workerd process (~seconds) that the whole suite
-// shares and must dispose afterwards. Expressing that as a scoped Layer needs
-// `@effect/vitest`'s `it.layer(...)`, which this package does not depend on, so
-// vitest's own suite lifecycle owns the process instead.
-// oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
-beforeAll(
-  () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        test = yield* Effect.promise(() => provisionTestD1())
-        dbLayer = layerFromD1(test.d1)
-      })
-    ),
-  60_000
+/**
+ * getPlatformProxy boots a workerd process (~seconds) that the whole file
+ * shares. It is acquired once and released when the test layer's scope closes,
+ * so no test lifecycle hooks are needed.
+ */
+const TestDatabase = Layer.unwrap(
+  Effect.gen(function* () {
+    const provisioned = yield* Effect.acquireRelease(
+      Effect.promise(() => provisionTestD1()),
+      (testD1) => Effect.promise(() => testD1.dispose())
+    )
+    return Layer.merge(
+      layerFromD1(provisioned.d1),
+      Layer.succeed(TestD1Binding)({ d1: provisioned.d1 })
+    )
+  })
 )
-
-// oxlint-disable-next-line effect/noTestLifecycleHooks -- disposes the workerd process
-afterAll(() => test.dispose())
-
-function run<A, E>(effect: Effect.Effect<A, E, Database>) {
-  return Effect.runPromise(Effect.provide(effect, dbLayer))
-}
 
 const iso = '2026-07-03T09:00:00.000Z'
 
-describe('migrations', () => {
-  it('create every table the schema declares', () =>
-    Effect.runPromise(
+layer(TestDatabase, { timeout: '120 seconds' })('live d1', (it) => {
+  describe('migrations', () => {
+    it.effect('create every table the schema declares', () =>
       Effect.gen(function* () {
+        const { d1 } = yield* TestD1Binding
         const rows = yield* Effect.promise(() =>
-          test.d1
+          d1
             .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
             .all<{ name: string }>()
         )
@@ -72,12 +71,11 @@ describe('migrations', () => {
           expect(tables, `missing table ${table}`).toContain(table)
         }
       })
-    ))
-})
+    )
+  })
 
-describe('column modes over live D1', () => {
-  it('round-trips boolean-mode integers as JS booleans', () =>
-    run(
+  describe('column modes over live D1', () => {
+    it.effect('round-trips boolean-mode integers as JS booleans', () =>
       Effect.gen(function* () {
         const database = yield* Database
         yield* database.insert(starterModules).values({
@@ -94,10 +92,9 @@ describe('column modes over live D1', () => {
           .where(eq(starterModules.id, 'mod_bool_check'))
         expect(rows[0]?.optional).toBe(true)
       })
-    ))
+    )
 
-  it('round-trips JSON-mode text columns as parsed values', () =>
-    run(
+    it.effect('round-trips JSON-mode text columns as parsed values', () =>
       Effect.gen(function* () {
         const database = yield* Database
         yield* database.insert(workspaces).values({
@@ -122,12 +119,11 @@ describe('column modes over live D1', () => {
           .where(eq(apiTokens.id, 'tok_json_check'))
         expect(rows[0]?.scopes).toEqual(['read', 'write'])
       })
-    ))
-})
+    )
+  })
 
-describe('referential integrity over live D1', () => {
-  it('cascade-deletes workspace children when the workspace is removed', () =>
-    run(
+  describe('referential integrity over live D1', () => {
+    it.effect('cascade-deletes workspace children when the workspace is removed', () =>
       Effect.gen(function* () {
         const database = yield* Database
         yield* database.insert(workspaces).values({
@@ -167,12 +163,11 @@ describe('referential integrity over live D1', () => {
           notifications: 0
         })
       })
-    ))
-})
+    )
+  })
 
-describe('batch atomicity over live D1', () => {
-  it('rolls back every statement when one fails', () =>
-    run(
+  describe('batch atomicity over live D1', () => {
+    it.effect('rolls back every statement when one fails', () =>
       Effect.gen(function* () {
         const database = yield* Database
         yield* database.insert(workspaces).values({
@@ -209,5 +204,6 @@ describe('batch atomicity over live D1', () => {
         expect(error).toBeInstanceOf(DbBatchError)
         expect(rows).toHaveLength(0)
       })
-    ))
+    )
+  })
 })
