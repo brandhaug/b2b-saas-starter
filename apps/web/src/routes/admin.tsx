@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import type { ColumnDef } from '@tanstack/react-table'
 import { Effect } from 'effect'
-import { DataTable } from '@/components/data-table'
+import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +12,7 @@ import { AuditEventLog, type AuditEvent } from '@b2b-saas-starter/capabilities'
 
 // Column definitions are static — module scope keeps the cell renderers out of
 // the render body (they would remount every render) and drops a useMemo.
-const userColumns: ColumnDef<SystemUser>[] = [
+const userColumns: DataTableColumnDef<SystemUser>[] = [
   {
     accessorKey: 'name',
     header: 'Name',
@@ -29,7 +28,7 @@ const userColumns: ColumnDef<SystemUser>[] = [
   }
 ]
 
-const auditColumns: ColumnDef<AuditEvent>[] = [
+const auditColumns: DataTableColumnDef<AuditEvent>[] = [
   { accessorKey: 'eventType', header: 'Event', enableSorting: true },
   { accessorKey: 'targetType', header: 'Target', enableSorting: true },
   { accessorKey: 'actor', header: 'Actor', enableSorting: true },
