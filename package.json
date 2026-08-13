@@ -159,7 +159,7 @@
     "oxlint": "1.78.0",
     "oxlint-plugin-effect": "0.8.2",
     "oxlint-tsgolint": "7.0.2001",
-    "posthog-js": "1.396.6",
+    "posthog-js": "1.416.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-email": "6.6.6",
