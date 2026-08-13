@@ -21,5 +21,13 @@ export const env = {
   CLOUDFLARE_EMAIL_FROM: process.env.CLOUDFLARE_EMAIL_FROM,
   TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
   TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+  // Observability: with an OTLP endpoint set, `bun run dev` exports traces,
+  // metrics, and the canonical log records to a local collector exactly as a
+  // deployed worker does. Unset, the console JSON event is the whole story.
+  OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+  OTEL_EXPORTER_OTLP_HEADERS: process.env.OTEL_EXPORTER_OTLP_HEADERS,
+  SERVICE_VERSION: process.env.SERVICE_VERSION,
+  GIT_COMMIT_SHA: process.env.GIT_COMMIT_SHA,
+  ENVIRONMENT: process.env.ENVIRONMENT,
   DB: undefined
 }

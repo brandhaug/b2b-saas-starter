@@ -4,22 +4,22 @@ import { Effect } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { toHttpEffect } from 'effectful-better-auth'
 import { Auth } from '@b2b-saas-starter/auth'
-import { annotateWide, withHttpRequestScope } from '@b2b-saas-starter/logger'
+import { annotateWide } from '@b2b-saas-starter/logger'
 import { authRuntime } from '@/lib/auth-runtime'
+import { withWebRequestScope } from '@/lib/observability'
 import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
 import { recordAuthAudit } from '@/lib/server/auth-audit'
-
-function processEnv(): object | undefined {
-  return typeof process === 'undefined' ? undefined : process.env
-}
 
 async function handleAuth(request: Request): Promise<Response> {
   const bucket = request.method === 'POST' ? 'auth_write' : 'auth_read'
   const rateLimitLayer = makeRateLimiterLayer(env)
 
+  // The request scope (method, pathname, trace continuation, the canonical
+  // line) is already open — `src/start.ts` runs it for every server request.
+  // This adds the auth-specific span and folds its fields into that one event.
   return authRuntime.runPromise(
-    withHttpRequestScope(
-      { service: 'web', event: 'auth.request', request, env: processEnv() },
+    withWebRequestScope(
+      { event: 'auth.request', metadata: { bucket } },
       Effect.gen(function* () {
         const limiter = yield* RateLimiter
         const allowed = yield* limiter.take({

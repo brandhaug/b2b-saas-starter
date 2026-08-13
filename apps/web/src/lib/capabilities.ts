@@ -13,6 +13,7 @@ import {
 } from '@b2b-saas-starter/capabilities'
 import { makeStarterEnvModuleConfig } from '@b2b-saas-starter/env'
 import { CapabilityUnavailableError } from './capability-error'
+import { withWebRequestScope } from './observability'
 
 export type { CapabilityServices }
 export { CapabilityUnavailableError }
@@ -75,7 +76,13 @@ export async function runWorkspaceCapabilities<A, E>(
   actor?: ActorRef
 ): Promise<A> {
   const exit = await Effect.runPromiseExit(
-    Effect.provide(effect, selectWorkspaceLayer(starterEnv, workspaceSlug, actor))
+    withWebRequestScope(
+      {
+        event: 'capability.workspace',
+        metadata: { workspaceSlug, actorUserId: actor?.userId }
+      },
+      Effect.provide(effect, selectWorkspaceLayer(starterEnv, workspaceSlug, actor))
+    )
   )
   if (Exit.isSuccess(exit)) return exit.value
   return rethrowCapabilityFailure(exit.cause)
@@ -92,7 +99,10 @@ export async function runCapabilities<A, E>(
   effect: Effect.Effect<A, E, CapabilityServices>
 ): Promise<A> {
   const exit = await Effect.runPromiseExit(
-    Effect.provide(effect, selectCapabilitiesLayer(starterEnv))
+    withWebRequestScope(
+      { event: 'capability.global' },
+      Effect.provide(effect, selectCapabilitiesLayer(starterEnv))
+    )
   )
   if (Exit.isSuccess(exit)) return exit.value
   return rethrowCapabilityFailure(exit.cause)

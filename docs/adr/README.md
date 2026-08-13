@@ -42,6 +42,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 ## Observability, security, and configuration
 
 - [0007 — Wide event observability](./0007-wide-event-observability.md)
+- [0050 — OpenTelemetry export, scoped per invocation](./0050-opentelemetry-export-scoped-per-invocation.md)
 - [0030 — Sensitive surface rate limiting](./0030-sensitive-surface-rate-limiting.md)
 - [0031 — Env-gated Turnstile](./0031-env-gated-turnstile.md)
 - [0035 — Shared module-aware env validation](./0035-shared-module-aware-env-validation.md)

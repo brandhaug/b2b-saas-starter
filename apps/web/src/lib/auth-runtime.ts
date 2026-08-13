@@ -2,7 +2,6 @@ import { env } from 'cloudflare:workers'
 import { Layer, ManagedRuntime, Schema } from 'effect'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
 import { createDb } from '@b2b-saas-starter/db/client'
-import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 
 /**
  * Defect raised when something reaches for the D1 binding that the local
@@ -49,10 +48,12 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
 export const AuthLive = Auth.layer.pipe(Layer.provide(AuthConfigLive))
 
 /**
- * Per-isolate runtime for auth work: the Auth service (memoized by the
- * layer, so one better-auth instance per isolate) plus the wide-event
- * logger used by the /api/auth/$ handler.
+ * Per-isolate runtime for auth work: the Auth service, memoized by the layer
+ * so one better-auth instance serves the whole isolate.
+ *
+ * Observability is deliberately absent here. The loggers, tracer, and OTLP
+ * exporters belong to a single request (`src/lib/observability.ts`), and this
+ * runtime outlives every one of them; callers layer the request's telemetry on
+ * top with `withWebRequestScope`.
  */
-export const authRuntime = ManagedRuntime.make(
-  Layer.mergeAll(AuthLive, WideEventLoggerLive)
-)
+export const authRuntime = ManagedRuntime.make(AuthLive)

@@ -25,7 +25,12 @@ export const ServerEnvSchema = Schema.Struct({
   WORKERS_AI_ENABLED: optional,
   OPENAI_API_KEY: optional,
   OPENAI_BASE_URL: optional,
-  OPENAI_MODEL_ID: optional
+  OPENAI_MODEL_ID: optional,
+  OTEL_EXPORTER_OTLP_ENDPOINT: optional,
+  OTEL_EXPORTER_OTLP_HEADERS: optional,
+  SERVICE_VERSION: optional,
+  GIT_COMMIT_SHA: optional,
+  ENVIRONMENT: optional
 })
 
 export type ServerEnv = typeof ServerEnvSchema.Type
@@ -46,7 +51,8 @@ export const optionalModuleEnvSecretKeys = [
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'TURNSTILE_SECRET_KEY',
-  'OPENAI_API_KEY'
+  'OPENAI_API_KEY',
+  'OTEL_EXPORTER_OTLP_HEADERS'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
@@ -58,7 +64,11 @@ export const optionalModuleEnvPlainKeys = [
   'CLOUDFLARE_EMAIL_FROM',
   'WORKERS_AI_ENABLED',
   'OPENAI_BASE_URL',
-  'OPENAI_MODEL_ID'
+  'OPENAI_MODEL_ID',
+  'OTEL_EXPORTER_OTLP_ENDPOINT',
+  'SERVICE_VERSION',
+  'GIT_COMMIT_SHA',
+  'ENVIRONMENT'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
 export const optionalModuleEnvKeys: ReadonlyArray<keyof ServerEnv> = [
@@ -147,6 +157,36 @@ function aiStatus(env: ServerEnv): ModuleConfigStatus {
   }
 }
 
+/**
+ * Wide events and Cloudflare Workers Logs need no configuration, so what this
+ * module's status actually reports is where telemetry is *shipped*: the OTLP
+ * exporter is wired end to end (traces, metrics, and the canonical log records)
+ * and activates on `OTEL_EXPORTER_OTLP_ENDPOINT` alone. The Sentry and PostHog
+ * vars are still recognized as reserved activation hooks — present but not
+ * forwarded to any SDK — so they raise the module to env-present, never to
+ * configured. They are *independent* hooks (like `aiStatus` above, which
+ * activates on one of several vars), so either one alone means "present but
+ * unwired". `missing` keeps naming the OTLP endpoint even then: it lists what
+ * reaching `configured` needs, not what is absent from env.
+ */
+function observabilityStatus(env: ServerEnv): ModuleConfigStatus {
+  if (hasValue(env.OTEL_EXPORTER_OTLP_ENDPOINT)) {
+    return {
+      moduleId: 'observability',
+      configured: true,
+      envPresent: true,
+      missing: []
+    }
+  }
+  const reservedPresent = hasValue(env.SENTRY_DSN) || hasValue(env.POSTHOG_KEY)
+  return {
+    moduleId: 'observability',
+    configured: false,
+    envPresent: reservedPresent,
+    missing: ['OTEL_EXPORTER_OTLP_ENDPOINT']
+  }
+}
+
 export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[] {
   return [
     requiredKeysStatus(env, 'better-auth', ['BETTER_AUTH_SECRET', 'BETTER_AUTH_URL']),
@@ -157,9 +197,7 @@ export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[
     requiredKeysStatus(env, 'billing', ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'], {
       runtimeWired: false
     }),
-    requiredKeysStatus(env, 'observability', ['SENTRY_DSN', 'POSTHOG_KEY'], {
-      runtimeWired: false
-    }),
+    observabilityStatus(env),
     requiredKeysStatus(env, 'cloudflare-email', ['CLOUDFLARE_EMAIL_FROM']),
     requiredKeysStatus(env, 'turnstile', [
       'TURNSTILE_SITE_KEY',

@@ -507,7 +507,8 @@
     {
       // The wide-event logger's contract is arbitrary structured annotations: open
       // dictionaries and `object` env sources are the type it is supposed to accept.
-      "files": ["packages/logger/src/**"],
+      // `apps/web/src/lib/observability.ts` is the web half of that same seam.
+      "files": ["packages/logger/src/**", "apps/web/src/lib/observability.ts"],
       "rules": {
         "effect/noUnsafeDictionaryType": "off",
         "effect/noObjectParameters": "off",

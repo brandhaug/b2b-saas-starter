@@ -68,6 +68,10 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
   ).pipe(
     HttpRouter.provideRequest(capabilities),
     Layer.provide(PlatformLive),
+    // Only the always-on loggers belong to the per-isolate router layer. OTLP
+    // export is attached per request in `observed` (handlers.ts) — a Worker may
+    // not perform I/O for a request that already ended, so an exporter built
+    // here would stop flushing after the first request. See `makeOtlpLayer`.
     Layer.provide(WideEventLoggerLive)
   )
 }

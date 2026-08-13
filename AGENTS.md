@@ -13,6 +13,7 @@ See [CONTEXT.md](./CONTEXT.md) for canonical domain language, [ARCHITECTURE.md](
 | Background worker | [apps/background/AGENTS.md](apps/background/AGENTS.md)             |
 | Database          | [packages/db/AGENTS.md](packages/db/AGENTS.md)                     |
 | Capabilities      | [packages/capabilities/AGENTS.md](packages/capabilities/AGENTS.md) |
+| Observability     | [packages/logger/AGENTS.md](packages/logger/AGENTS.md)             |
 
 Capabilities are grouped into bounded-context folders under `packages/capabilities/src/`: `catalog/`, `developer-platform/`, `governance/`, `notifications/`. Each capability has a leaf intent node beside its source file — see the package node for the map and the "Where to put a new capability" rules.
 
