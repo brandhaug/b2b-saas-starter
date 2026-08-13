@@ -310,7 +310,7 @@
     "@fontsource-variable/geist": "5.2.9",
     "@fontsource-variable/geist-mono": "5.2.8",
     "@mdx-js/rollup": "3.1.1",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@playwright/test": "1.61.1",
     "@react-email/components": "1.0.12",
     "@react-email/preview-server": "5.2.10",
