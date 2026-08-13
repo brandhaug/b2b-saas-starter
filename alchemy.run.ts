@@ -16,37 +16,19 @@ import {
   optionalModuleEnvSecretKeys
 } from './packages/env/src/server.ts'
 
-type BindableWorker = {
-  readonly bind: (
-    template: TemplateStringsArray,
-    ...args: unknown[]
-  ) => (data: unknown) => Effect.Effect<void>
-}
-
-function attachRateLimits(
-  worker: BindableWorker,
-  specs: readonly RateLimitBindingSpec[]
-) {
-  return Effect.all(
-    specs.map((spec) =>
-      worker.bind`${spec.name}`({
-        bindings: [
-          {
-            name: spec.name,
-            type: 'ratelimit',
-            namespaceId: spec.namespaceId,
-            simple: { limit: spec.limit, period: spec.period }
-          }
-        ]
+// Rate limits are Worker-only bindings with no backing cloud resource, so
+// they are declared inline on the Worker's `env` rather than provisioned as
+// their own resources. The `env` key is the binding name the Worker reads.
+function rateLimitBindings(specs: readonly RateLimitBindingSpec[]) {
+  return Object.fromEntries(
+    specs.map((spec) => [
+      spec.name,
+      Cloudflare.Workers.RateLimit(spec.name, {
+        namespaceId: spec.namespaceId,
+        simple: { limit: spec.limit, period: spec.period }
       })
-    )
+    ])
   )
-}
-
-function attachWorkersAi(worker: BindableWorker) {
-  return worker.bind`AI`({
-    bindings: [{ name: 'AI', type: 'ai' }]
-  })
 }
 
 // Single `process.env` reader for the whole deploy entrypoint. This file runs
@@ -72,6 +54,19 @@ function optionalSecret(name: string): Redacted.Redacted<string> | undefined {
   return Redacted.make(value)
 }
 
+// Set secrets only. An unset optional secret contributes no binding at all,
+// so the module reports needs-config instead of failing the deploy.
+function presentSecretEntries(
+  names: readonly string[]
+): [string, Redacted.Redacted<string>][] {
+  const entries: [string, Redacted.Redacted<string>][] = []
+  for (const name of names) {
+    const secret = optionalSecret(name)
+    if (secret) entries.push([name, secret])
+  }
+  return entries
+}
+
 const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
 const BETTER_AUTH_URL = requiredEnv('BETTER_AUTH_URL')
 const BETTER_AUTH_TRUSTED_ORIGINS =
@@ -89,9 +84,7 @@ const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
 // the secret-vs-plain split) live in `packages/env/src/server.ts` next to the
 // schema — adding a var there is the ONE place to edit.
 const optionalModuleEnv = {
-  ...Object.fromEntries(
-    optionalModuleEnvSecretKeys.map((key) => [key, optionalSecret(key)])
-  ),
+  ...Object.fromEntries(presentSecretEntries(optionalModuleEnvSecretKeys)),
   ...Object.fromEntries(
     optionalModuleEnvPlainKeys.map((key) => [key, readEnv(key) ?? null])
   )
@@ -111,25 +104,25 @@ export const Stack = Alchemy.Stack(
     state: Cloudflare.state()
   },
   Effect.gen(function* () {
-    const db = yield* Cloudflare.D1Database('b2b-saas-starter-db', {
+    const db = yield* Cloudflare.D1.Database('b2b-saas-starter-db', {
       name: 'b2b-saas-starter',
       migrationsDir: './packages/db/migrations'
     })
 
-    const webhookDeadLetterQueue = yield* Cloudflare.Queue('webhook-queue-dlq', {
+    const webhookDeadLetterQueue = yield* Cloudflare.Queues.Queue('webhook-queue-dlq', {
       name: webhookDeadLetterQueueName
     })
 
-    const webhookQueue = yield* Cloudflare.Queue('webhook-queue', {
+    const webhookQueue = yield* Cloudflare.Queues.Queue('webhook-queue', {
       name: webhookQueueName
     })
 
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
     // failing the deploy.
-    let transactionalEmail: Cloudflare.SendEmail | undefined
+    let transactionalEmail: Cloudflare.Email.SendEmail | undefined
     if (CLOUDFLARE_EMAIL_FROM) {
-      transactionalEmail = yield* Cloudflare.SendEmail('EMAIL', {
+      transactionalEmail = yield* Cloudflare.Email.SendEmail('EMAIL', {
         // Restrict the Worker to sending from the verified default. Add
         // more `allowedSenderAddresses` here as you verify additional
         // domains in Cloudflare Email Routing.
@@ -139,44 +132,42 @@ export const Stack = Alchemy.Stack(
 
     // Built as its own object so every worker below spreads the same optional
     // binding set: the EMAIL key exists only when the resource does.
-    const emailBinding: { EMAIL?: Cloudflare.SendEmail } = {}
+    const emailBinding: { EMAIL?: Cloudflare.Email.SendEmail } = {}
     if (transactionalEmail) emailBinding.EMAIL = transactionalEmail
 
     const api = yield* Cloudflare.Worker('api', {
       name: 'b2b-saas-starter-api',
       main: './apps/api/src/index.ts',
-      bindings: {
+      env: {
         DB: db,
         // Producer only — the background worker consumes; the API worker
         // enqueues webhook events after audit-worthy mutations.
         WEBHOOK_QUEUE: webhookQueue,
-        ...emailBinding
+        AI: Cloudflare.Workers.AI('AI'),
+        ...rateLimitBindings(apiRateLimits),
+        ...emailBinding,
+        ...optionalModuleEnv
       },
-      env: optionalModuleEnv,
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
     })
-
-    yield* attachWorkersAi(api)
-
-    yield* attachRateLimits(api, apiRateLimits)
 
     const background = yield* Cloudflare.Worker('background', {
       name: 'b2b-saas-starter-background',
       main: './apps/background/src/index.ts',
-      bindings: {
+      env: {
         DB: db,
         WEBHOOK_QUEUE: webhookQueue,
-        ...emailBinding
+        ...emailBinding,
+        ...optionalModuleEnv
       },
-      env: optionalModuleEnv,
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
     })
 
-    yield* Cloudflare.QueueConsumer('webhook-consumer', {
+    yield* Cloudflare.Queues.Consumer('webhook-consumer', {
       queueId: webhookQueue.queueId,
       scriptName: background.workerName,
       deadLetterQueue: webhookDeadLetterQueue.queueName,
@@ -185,20 +176,19 @@ export const Stack = Alchemy.Stack(
 
     // Dead-letter consumer: the background worker records terminal
     // `dead_lettered` delivery rows for messages that exhausted maxRetries.
-    yield* Cloudflare.QueueConsumer('webhook-dlq-consumer', {
+    yield* Cloudflare.Queues.Consumer('webhook-dlq-consumer', {
       queueId: webhookDeadLetterQueue.queueId,
       scriptName: background.workerName,
       settings: webhookDlqConsumerSettings
     })
 
-    const web = yield* Cloudflare.Vite('web', {
+    const web = yield* Cloudflare.Website.Vite('web', {
       name: 'b2b-saas-starter-web',
       rootDir: './apps/web',
-      bindings: {
-        DB: db,
-        ...emailBinding
-      },
       env: {
+        DB: db,
+        ...rateLimitBindings(webRateLimits),
+        ...emailBinding,
         ...optionalModuleEnv,
         BETTER_AUTH_SECRET,
         BETTER_AUTH_URL,
@@ -209,8 +199,6 @@ export const Stack = Alchemy.Stack(
       },
       observability
     })
-
-    yield* attachRateLimits(web, webRateLimits)
 
     return {
       api,
