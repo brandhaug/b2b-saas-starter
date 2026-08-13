@@ -9,7 +9,7 @@ import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
  * workers shim does not provide. Tagged so the wide-event logger reports
  * `errorTag` instead of an opaque message.
  */
-export class MissingD1Binding extends Schema.TaggedErrorClass<MissingD1Binding>()(
+export class MissingD1Binding extends Schema.TaggedError<MissingD1Binding>()(
   'MissingD1Binding',
   { property: Schema.String }
 ) {}

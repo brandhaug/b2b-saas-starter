@@ -35,19 +35,19 @@ import {
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities'
 
-export class InternalError extends Schema.TaggedErrorClass<InternalError>()(
+export class InternalError extends Schema.TaggedError<InternalError>()(
   'InternalError',
   { traceId: Schema.String },
   { httpApiStatus: 500 }
 ) {}
 
-export class Unauthorized extends Schema.TaggedErrorClass<Unauthorized>()(
+export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   'Unauthorized',
   { message: Schema.String },
   { httpApiStatus: 401 }
 ) {}
 
-export class RateLimited extends Schema.TaggedErrorClass<RateLimited>()(
+export class RateLimited extends Schema.TaggedError<RateLimited>()(
   'RateLimited',
   { bucket: Schema.String },
   { httpApiStatus: 429 }
