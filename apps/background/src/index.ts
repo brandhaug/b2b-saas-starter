@@ -358,10 +358,7 @@ const recordDeadLetter = (
     },
     program
     // Always ack dead letters — failing here would loop the DLQ.
-  ).pipe(
-    // oxlint-disable-next-line automation/no-silent-error-swallow -- the cause is not lost: withTriggerScope logs it on exit (status: error + cause metadata) before this handler runs; the DLQ must still ack.
-    Effect.catchCause((_cause) => Effect.void)
-  )
+  ).pipe(Effect.catchCause((_cause) => Effect.void))
 }
 
 export default {

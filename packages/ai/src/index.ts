@@ -110,7 +110,6 @@ const OpenAIChatResponse = Schema.Struct({
  * `Effect.tryPromise` with a tagged `AssistantUnavailable` failure.
  */
 const postJson = (url: string, headers: Record<string, string>, body: string) =>
-  // oxlint-disable-next-line automation/no-direct-fetch -- named platform adapter; the only fetch in the package, wrapped by Effect.tryPromise below
   fetch(url, { method: 'POST', headers, body })
 
 export const makeOpenAILayer = (config: OpenAIConfig) =>

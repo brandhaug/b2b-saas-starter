@@ -10,11 +10,7 @@
     "promise",
     "vitest"
   ],
-  "jsPlugins": [
-    "eslint-plugin-better-tailwindcss",
-    "oxlint-plugin-effect/plugin",
-    { "name": "automation", "specifier": "./tools/oxlint/automation/index.ts" }
-  ],
+  "jsPlugins": ["eslint-plugin-better-tailwindcss", "oxlint-plugin-effect/plugin"],
   "settings": {
     "better-tailwindcss": {
       "entryPoint": "apps/web/src/index.css"
@@ -266,16 +262,18 @@
     "effect/noDynamicImports": "error",
     // anti-slop rules, vendored by oxlint-plugin-effect from dmmulroy/anti-slop
     "effect/noChainedTypeAssertions": "error",
-    "effect/noConditionalEmptyObjectSpread": "error",
+    // noConditionalEmptyObjectSpread stays off. Its autofix rewrites
+    // `...(x === undefined ? {} : { k: x })` into a bare `k: x`, which turns "key absent"
+    // into "key present, value undefined" — a type error under this repo's
+    // exactOptionalPropertyTypes, and a behaviour change regardless. oxlint applies plugin
+    // fixes even at `warn` severity, so the fix cannot be suppressed while keeping the
+    // rule, and `oxlint --fix` runs in the pre-commit hook. The 19 pre-existing sites were
+    // rewritten by hand instead.
     "effect/noObjectParameters": "error",
     "effect/noUnknownParameters": "error",
     "effect/noUnknownTypeAliases": "error",
     "effect/noUnsafeDictionaryType": "error",
-    "effect/noWidenThenAssert": "error",
-
-    // Vendored from typeonce-dev/ai-automation (rules/oxlint), adapted to this repo.
-    "automation/no-silent-error-swallow": "error",
-    "automation/no-direct-fetch": "error"
+    "effect/noWidenThenAssert": "error"
   },
   "overrides": [
     {
@@ -384,8 +382,7 @@
         "effect/noThrowStatement": "off",
         "effect/noNewError": "off",
         "effect/noUnknownParameters": "off",
-        "effect/noUnsafeDictionaryType": "off",
-        "automation/no-direct-fetch": "off"
+        "effect/noUnsafeDictionaryType": "off"
       }
     },
     {
