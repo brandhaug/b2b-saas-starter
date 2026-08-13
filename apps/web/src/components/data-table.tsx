@@ -1,13 +1,23 @@
 import { useState } from 'react'
 import {
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  createFilteredRowModel,
+  createPaginatedRowModel,
+  createSortedRowModel,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
+  globalFilteringFeature,
+  rowPaginationFeature,
+  rowSortingFeature,
+  sortFn_alphanumeric,
+  sortFn_datetime,
+  sortFn_text,
+  tableFeatures,
+  useTable,
+  type CellData,
   type ColumnDef,
-  type SortingState,
-  useReactTable
+  type RowData,
+  type SortingState
 } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +33,35 @@ import { cn } from '@/lib/utils'
 
 const STICKY_CLASSES = 'sticky left-0 z-10 bg-card'
 
+// v9 registers features explicitly (prerequisites before their slots). The
+// registered `sortFns` are the ones `sortFn: 'auto'` can resolve for a column.
+const dataTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  filteredRowModel: createFilteredRowModel(),
+  globalFilteringFeature,
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+  sortFns: {
+    alphanumeric: sortFn_alphanumeric,
+    datetime: sortFn_datetime,
+    text: sortFn_text
+  },
+  rowPaginationFeature,
+  paginatedRowModel: createPaginatedRowModel(),
+  // `row.getVisibleCells()` lives on this feature.
+  columnVisibilityFeature
+})
+
+/** The feature set every `DataTable` column definition is typed against. */
+export type DataTableFeatures = typeof dataTableFeatures
+
+/** `ColumnDef` bound to `DataTable`'s feature set — use it in consumers. */
+export type DataTableColumnDef<TData extends RowData> = ColumnDef<
+  DataTableFeatures,
+  TData,
+  CellData
+>
+
 type SortState = {
   /** Appended to the sort button's accessible name. */
   readonly label: string
@@ -37,8 +76,8 @@ const SORT_STATE: Record<'asc' | 'desc' | 'false', SortState> = {
   false: { label: '', aria: 'none', glyph: null }
 }
 
-type DataTableProps<TData, TValue> = {
-  readonly columns: readonly ColumnDef<TData, TValue>[]
+type DataTableProps<TData extends RowData> = {
+  readonly columns: readonly DataTableColumnDef<TData>[]
   readonly data: readonly TData[]
   readonly filterPlaceholder?: string
   readonly filterColumnId?: string
@@ -46,28 +85,25 @@ type DataTableProps<TData, TValue> = {
   readonly emptyMessage?: string
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData>({
   columns,
   data,
   filterPlaceholder,
   filterColumnId,
   pageSize = 10,
   emptyMessage = 'No results.'
-}: DataTableProps<TData, TValue>) {
+}: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
 
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: [...data],
     columns: [...columns],
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize } }
+    initialState: { pagination: { pageIndex: 0, pageSize } }
   })
 
   const filteredCount = table.getFilteredRowModel().rows.length
@@ -154,7 +190,7 @@ export function DataTable<TData, TValue>({
       {filteredCount > pageSize ? (
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>
-            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            Page {table.state.pagination.pageIndex + 1} of {table.getPageCount()}
             {' · '}
             {filteredCount} rows
           </span>

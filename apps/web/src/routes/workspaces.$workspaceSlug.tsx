@@ -1,13 +1,12 @@
 import { useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import type { ColumnDef } from '@tanstack/react-table'
 import { AdoptionTrendChart } from '@/components/charts/adoption-trend-chart'
 import { CatalogRefreshChart } from '@/components/charts/catalog-refresh-chart'
 import { LiveNotifications } from '@/components/live-notifications'
 import { RoutePending } from '@/components/route-pending'
 import { ModuleStatusChart } from '@/components/charts/module-status-chart'
 import { WebhookSuccessChart } from '@/components/charts/webhook-success-chart'
-import { DataTable } from '@/components/data-table'
+import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,7 +24,7 @@ type ModuleRow = {
 
 // Column definitions are static — module scope keeps the cell renderers out of
 // the render body (they would remount every render) and drops a useMemo.
-const moduleColumns: ColumnDef<ModuleRow>[] = [
+const moduleColumns: DataTableColumnDef<ModuleRow>[] = [
   {
     accessorKey: 'name',
     header: 'Module',

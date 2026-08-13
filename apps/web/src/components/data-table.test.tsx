@@ -1,14 +1,13 @@
-import type { ColumnDef } from '@tanstack/react-table'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { DataTable } from './data-table'
+import { DataTable, type DataTableColumnDef } from './data-table'
 
 type Row = {
   readonly name: string
   readonly category: string
 }
 
-const columns: ColumnDef<Row>[] = [
+const columns: DataTableColumnDef<Row>[] = [
   { accessorKey: 'name', header: 'Name', enableSorting: true },
   { accessorKey: 'category', header: 'Category', enableSorting: false }
 ]
