@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Effect } from 'effect'
@@ -12,6 +11,31 @@ import { listSystemUsersServerFn, type SystemUser } from '@/lib/server/admin'
 import { requireAdmin } from '@/lib/server/auth'
 import { AuditEventLog, type AuditEvent } from '@b2b-saas-starter/capabilities'
 
+// Column definitions are static — module scope keeps the cell renderers out of
+// the render body (they would remount every render) and drops a useMemo.
+const userColumns: ColumnDef<SystemUser>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Name',
+    enableSorting: true,
+    meta: { sticky: true }
+  },
+  { accessorKey: 'email', header: 'Email', enableSorting: true },
+  {
+    accessorKey: 'role',
+    header: 'System role',
+    enableSorting: true,
+    cell: ({ row }) => <Badge variant="secondary">{row.original.role}</Badge>
+  }
+]
+
+const auditColumns: ColumnDef<AuditEvent>[] = [
+  { accessorKey: 'eventType', header: 'Event', enableSorting: true },
+  { accessorKey: 'targetType', header: 'Target', enableSorting: true },
+  { accessorKey: 'actor', header: 'Actor', enableSorting: true },
+  { accessorKey: 'createdAt', header: 'Created', enableSorting: true }
+]
+
 export const Route = createFileRoute('/admin')({
   // requireAdmin gates on the Better Auth admin role (non-admins get a 404).
   // /admin keeps its own gate instead of joining the /workspaces layout —
@@ -23,17 +47,19 @@ export const Route = createFileRoute('/admin')({
   // System-level reads only — no workspace is borrowed: users come from the
   // Better Auth admin plugin, audit events from the global log via the
   // non-workspace capabilities runner.
+  // Both reads are started before either is awaited, so they still overlap.
+  // They are not combined with an Effect combinator on purpose: `runCapabilities`
+  // rejects with the router's own control-flow values (notFound(),
+  // CapabilityUnavailableError) and wrapping it would bury them in a defect.
   loader: async () => {
-    const [users, events] = await Promise.all([
-      listSystemUsersServerFn(),
-      runCapabilities(
-        Effect.gen(function* () {
-          const log = yield* AuditEventLog
-          return yield* log.listGlobal
-        })
-      )
-    ])
-    return { users, events }
+    const usersRead = listSystemUsersServerFn()
+    const eventsRead = runCapabilities(
+      Effect.gen(function* () {
+        const log = yield* AuditEventLog
+        return yield* log.listGlobal
+      })
+    )
+    return { users: await usersRead, events: await eventsRead }
   },
   pendingComponent: RoutePending,
   component: AdminPage
@@ -41,35 +67,6 @@ export const Route = createFileRoute('/admin')({
 
 function AdminPage() {
   const { users, events } = Route.useLoaderData()
-
-  const userColumns = useMemo<ColumnDef<SystemUser>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: 'Name',
-        enableSorting: true,
-        meta: { sticky: true }
-      },
-      { accessorKey: 'email', header: 'Email', enableSorting: true },
-      {
-        accessorKey: 'role',
-        header: 'System role',
-        enableSorting: true,
-        cell: ({ row }) => <Badge variant="secondary">{row.original.role}</Badge>
-      }
-    ],
-    []
-  )
-
-  const auditColumns = useMemo<ColumnDef<AuditEvent>[]>(
-    () => [
-      { accessorKey: 'eventType', header: 'Event', enableSorting: true },
-      { accessorKey: 'targetType', header: 'Target', enableSorting: true },
-      { accessorKey: 'actor', header: 'Actor', enableSorting: true },
-      { accessorKey: 'createdAt', header: 'Created', enableSorting: true }
-    ],
-    []
-  )
 
   return (
     <WorkspaceShell

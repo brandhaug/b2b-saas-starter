@@ -1,67 +1,67 @@
 import { Layer } from 'effect'
-import { Database, layerFromD1 } from '@b2b-saas-starter/db'
+import { type Database, layerFromD1 } from '@b2b-saas-starter/db'
 
 // catalog
 import {
-  AdoptionReadiness,
+  type AdoptionReadiness,
   LiveAdoptionReadiness,
   SeedAdoptionReadiness
 } from './catalog/adoption-readiness.ts'
 import {
-  CatalogRefreshHistory,
+  type CatalogRefreshHistory,
   LiveCatalogRefreshHistory,
   SeedCatalogRefreshHistory
 } from './catalog/catalog-refresh-history.ts'
 import {
-  ImplementationReports,
+  type ImplementationReports,
   LiveImplementationReports,
   SeedImplementationReports
 } from './catalog/implementation-reports.ts'
 import {
   LiveStarterModuleCatalog,
   SeedStarterModuleCatalog,
-  StarterModuleCatalog
+  type StarterModuleCatalog
 } from './catalog/starter-module-catalog.ts'
 
 // developer-platform
 import {
-  ApiTokenRegistry,
+  type ApiTokenRegistry,
   LiveApiTokenRegistry,
   SeedApiTokenRegistry
 } from './developer-platform/api-token-registry.ts'
 import {
   LiveWebhookEndpoints,
   SeedWebhookEndpoints,
-  WebhookEndpoints
+  type WebhookEndpoints
 } from './developer-platform/webhook-endpoints.ts'
 import {
   LiveWebhookPublisher,
   SeedWebhookPublisher,
-  WebhookPublisher,
+  type WebhookPublisher,
   type WebhookQueueBinding
 } from './developer-platform/webhook-publisher.ts'
 
 // governance
 import {
-  AuditEventLog,
+  type AuditEventLog,
   LiveAuditEventLog,
   SeedAuditEventLog
 } from './governance/audit-event-log.ts'
 import {
   LiveWorkspaceMembership,
   SeedWorkspaceMembership,
-  WorkspaceMembership
+  type WorkspaceMembership
 } from './governance/workspace-membership.ts'
 
 // notifications
 import {
-  IntegrationSurfaces,
+  type IntegrationSurfaces,
   LiveIntegrationSurfaces,
   SeedIntegrationSurfaces
 } from './notifications/integration-surfaces.ts'
 import {
   LiveNotificationFeed,
-  NotificationFeed,
+  type NotificationFeed,
   SeedNotificationFeed
 } from './notifications/notification-feed.ts'
 

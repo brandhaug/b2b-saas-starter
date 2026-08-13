@@ -14,7 +14,7 @@ import {
   Text
 } from '@react-email/components'
 
-interface WorkspaceInvitationEmailProps {
+type WorkspaceInvitationEmailProps = {
   readonly workspaceName: string
   readonly inviteUrl: string
 }

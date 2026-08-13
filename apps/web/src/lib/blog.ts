@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 
 import type { MdxComponentProps } from '@/components/mdx-link'
 
-interface BlogFrontmatter {
+type BlogFrontmatter = {
   readonly title: string
   readonly description: string
   readonly date: string
@@ -10,7 +10,7 @@ interface BlogFrontmatter {
   readonly tags: readonly string[]
 }
 
-interface BlogPost {
+type BlogPost = {
   readonly slug: string
   readonly frontmatter: BlogFrontmatter
   readonly Component: ComponentType<MdxComponentProps>

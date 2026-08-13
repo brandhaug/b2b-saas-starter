@@ -23,7 +23,7 @@ import {
 import { cn } from '@/lib/utils'
 
 declare module '@tanstack/react-table' {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line typescript/consistent-type-definitions -- module augmentation only merges into an interface; a type alias is a duplicate identifier
   interface ColumnMeta<TData extends RowData, TValue> {
     readonly sticky?: boolean
   }
@@ -74,7 +74,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="grid gap-3">
-      {filterColumnId !== undefined ? (
+      {filterColumnId === undefined ? null : (
         <Input
           value={globalFilter}
           onChange={(event) => setGlobalFilter(event.target.value)}
@@ -82,7 +82,7 @@ export function DataTable<TData, TValue>({
           className="max-w-xs"
           aria-label={filterPlaceholder ?? 'Filter rows'}
         />
-      ) : null}
+      )}
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
@@ -95,27 +95,29 @@ export function DataTable<TData, TValue>({
                   typeof headerDef === 'string' ? headerDef : header.column.id
                 const sortState = SORT_STATE[sortDir === false ? 'false' : sortDir]
                 const isSticky = header.column.columnDef.meta?.sticky === true
+                // Placeholder headers (spanned group cells) render nothing, so
+                // they never get the sort button either.
+                const label = header.isPlaceholder
+                  ? null
+                  : flexRender(header.column.columnDef.header, header.getContext())
                 return (
                   <TableHead
                     key={header.id}
                     aria-sort={canSort ? sortState.aria : undefined}
                     className={cn(isSticky && STICKY_CLASSES)}
                   >
-                    {canSort && !header.isPlaceholder ? (
+                    {canSort && label !== null ? (
                       <button
                         type="button"
                         onClick={header.column.getToggleSortingHandler()}
                         aria-label={`Sort by ${columnTitle}${sortState.label}`}
                         className="flex items-center gap-1 text-left text-sm font-medium hover:underline"
                       >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                        {label}
                         {sortState.glyph}
                       </button>
-                    ) : header.isPlaceholder ? null : (
-                      flexRender(header.column.columnDef.header, header.getContext())
+                    ) : (
+                      label
                     )}
                   </TableHead>
                 )

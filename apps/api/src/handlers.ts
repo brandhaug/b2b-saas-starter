@@ -10,16 +10,19 @@ import {
 } from '@b2b-saas-starter/api'
 import {
   ApiTokenRegistry,
+  type ApiToken,
   type ApiTokenScope,
   AuditEventLog,
   AuthorizationDenied,
-  CapabilityUnavailable,
+  type CapabilityUnavailable,
   CatalogRefreshHistory,
+  type CreateWebhookEndpointInput,
   ImplementationReports,
   IntegrationSurfaces,
   NotificationFeed,
   selectWorkspaceLayer,
   StarterModuleCatalog,
+  type WebhookEndpoint,
   WebhookEndpoints,
   WebhookPublisher,
   workspaceOverview,
@@ -118,11 +121,20 @@ const enforceScope = (
     })
   })
 
+/**
+ * Extra wide-event fields a handler contributes on top of the envelope's
+ * `pathname`/`method`. Workspace routes name the slug they resolved; the
+ * account-wide routes have nothing to add.
+ */
+type RequestMetadata = {
+  readonly workspaceSlug?: string
+}
+
 const observed = <A, E, R>(
   env: ApiEnv,
   request: HttpServerRequest.HttpServerRequest,
   event: string,
-  metadata: Record<string, unknown>,
+  metadata: RequestMetadata,
   body: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> =>
   withRequestScope(
@@ -142,13 +154,36 @@ const provideWorkspace = <A, E, R>(
   body: Effect.Effect<A, E, R>
 ) => body.pipe(Effect.provide(selectWorkspaceLayer(starterEnv(env), slug)))
 
+/**
+ * The webhook events this worker publishes, paired with the payload shape each
+ * one carries. The queue wire schema types `payload` as unknown because it is
+ * event-specific; this union is where the shapes actually published from here
+ * are pinned down, so a handler cannot enqueue an unintended body.
+ */
+type PublishedWebhookEvent =
+  | {
+      readonly eventType: 'api_token.created'
+      readonly payload: Omit<ApiToken, 'lastUsedAt'>
+    }
+  | {
+      readonly eventType: 'api_token.revoked'
+      readonly payload: { readonly tokenId: string }
+    }
+  | {
+      readonly eventType: 'webhook_endpoint.created'
+      readonly payload: WebhookEndpoint
+    }
+  | {
+      readonly eventType: 'workspace_invitation.sent'
+      readonly payload: { readonly workspaceSlug: string; readonly to: string }
+    }
+
 const publishWebhookEvent = (
-  eventType: string,
-  payload: unknown
+  event: PublishedWebhookEvent
 ): Effect.Effect<void, never, WebhookPublisher | WorkspaceContext | Scope.Scope> =>
   Effect.gen(function* () {
     const publisher = yield* WebhookPublisher
-    const published = yield* Effect.result(publisher.publish({ eventType, payload }))
+    const published = yield* Effect.result(publisher.publish(event))
     if (Result.isFailure(published)) {
       yield* annotateWide({
         webhookPublish: 'failed',
@@ -284,12 +319,15 @@ export const apiTokenGroup = (env: ApiEnv) =>
                   name: payload.name,
                   scopes: payload.scopes
                 })
-                yield* publishWebhookEvent('api_token.created', {
-                  id: next.id,
-                  name: next.name,
-                  prefix: next.prefix,
-                  scopes: next.scopes,
-                  createdAt: next.createdAt
+                yield* publishWebhookEvent({
+                  eventType: 'api_token.created',
+                  payload: {
+                    id: next.id,
+                    name: next.name,
+                    prefix: next.prefix,
+                    scopes: next.scopes,
+                    createdAt: next.createdAt
+                  }
                 })
                 return next
               })
@@ -315,8 +353,9 @@ export const apiTokenGroup = (env: ApiEnv) =>
                 const tokens = yield* ApiTokenRegistry
                 const revoked = yield* tokens.revoke({ tokenId: params.tokenId })
                 if (revoked) {
-                  yield* publishWebhookEvent('api_token.revoked', {
-                    tokenId: params.tokenId
+                  yield* publishWebhookEvent({
+                    eventType: 'api_token.revoked',
+                    payload: { tokenId: params.tokenId }
                   })
                 }
               })
@@ -341,8 +380,9 @@ export const apiTokenGroup = (env: ApiEnv) =>
                 const tokens = yield* ApiTokenRegistry
                 const revoked = yield* tokens.revoke({ tokenId: params.tokenId })
                 if (revoked) {
-                  yield* publishWebhookEvent('api_token.revoked', {
-                    tokenId: params.tokenId
+                  yield* publishWebhookEvent({
+                    eventType: 'api_token.revoked',
+                    payload: { tokenId: params.tokenId }
                   })
                 }
               })
@@ -369,14 +409,22 @@ export const webhookGroup = (env: ApiEnv) =>
             params.slug,
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
-              const endpoint = yield* webhooks.create({
-                url: payload.url,
-                events: payload.events,
-                ...(payload.description !== undefined
-                  ? { description: payload.description }
-                  : {})
+              // `description` is optional in the contract and in the
+              // capability input: set the key only when the client sent one,
+              // instead of passing an explicit undefined.
+              const createInput: {
+                -readonly [
+                  K in keyof CreateWebhookEndpointInput
+                ]: CreateWebhookEndpointInput[K]
+              } = { url: payload.url, events: payload.events }
+              if (payload.description !== undefined) {
+                createInput.description = payload.description
+              }
+              const endpoint = yield* webhooks.create(createInput)
+              yield* publishWebhookEvent({
+                eventType: 'webhook_endpoint.created',
+                payload: endpoint
               })
-              yield* publishWebhookEvent('webhook_endpoint.created', endpoint)
               return endpoint
             })
           )
@@ -430,9 +478,9 @@ export const invitationGroup = (env: ApiEnv) =>
                   })
                 )
               }
-              yield* publishWebhookEvent('workspace_invitation.sent', {
-                workspaceSlug: ctx.workspace.slug,
-                to: payload.to
+              yield* publishWebhookEvent({
+                eventType: 'workspace_invitation.sent',
+                payload: { workspaceSlug: ctx.workspace.slug, to: payload.to }
               })
               return { status: 'queued' as const, delivery: delivery.success }
             })

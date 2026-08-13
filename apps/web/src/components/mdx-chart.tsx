@@ -27,6 +27,13 @@ const TOOLTIP_STYLE = {
 }
 const LEGEND_STYLE = { fontSize: 11 }
 
+/**
+ * One row of a chart series authored in MDX content. Keys are the column names
+ * referenced by `xKey`/`nameKey` and by the series keys; values are either the
+ * category label or the measure (`null` leaves a gap in a line).
+ */
+type MdxChartDatum = Record<string, string | number | null>
+
 type SeriesKey = {
   readonly key: string
   readonly color?: string
@@ -34,7 +41,7 @@ type SeriesKey = {
 }
 
 type MdxLineChartProps = {
-  readonly data: readonly Record<string, unknown>[]
+  readonly data: readonly MdxChartDatum[]
   readonly xKey: string
   readonly lines: readonly SeriesKey[]
   readonly height?: number
@@ -70,7 +77,7 @@ export function MdxLineChart({ data, xKey, lines, height = 300 }: MdxLineChartPr
 }
 
 type MdxBarChartProps = {
-  readonly data: readonly Record<string, unknown>[]
+  readonly data: readonly MdxChartDatum[]
   readonly xKey: string
   readonly bars: readonly SeriesKey[]
   readonly height?: number
@@ -102,7 +109,7 @@ export function MdxBarChart({ data, xKey, bars, height = 300 }: MdxBarChartProps
 }
 
 type MdxPieChartProps = {
-  readonly data: readonly Record<string, unknown>[]
+  readonly data: readonly MdxChartDatum[]
   readonly nameKey: string
   readonly valueKey: string
   readonly height?: number

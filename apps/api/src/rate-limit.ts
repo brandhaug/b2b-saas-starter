@@ -48,16 +48,21 @@ const pickBinding = (
   bucket: RateLimitBucket
 ): CloudflareRateLimit | undefined => {
   switch (bucket) {
-    case 'rest_read':
+    case 'rest_read': {
       return env.RATE_LIMITER_REST
-    case 'rest_write':
+    }
+    case 'rest_write': {
       return env.RATE_LIMITER_REST_WRITE
-    case 'invitations':
+    }
+    case 'invitations': {
       return env.RATE_LIMITER_INVITATIONS
-    case 'assistant':
+    }
+    case 'assistant': {
       return env.RATE_LIMITER_ASSISTANT
-    case 'mcp':
+    }
+    case 'mcp': {
       return env.RATE_LIMITER_MCP
+    }
   }
 }
 

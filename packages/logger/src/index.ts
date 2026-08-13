@@ -1,19 +1,22 @@
-import { Cause, Effect, Exit, Layer, Logger, Option, Scope } from 'effect'
+import { Cause, Effect, Exit, Layer, Logger, Option, type Scope } from 'effect'
 
-const newTraceId = (): string =>
-  globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 14)
+const newTraceId = (): string => globalThis.crypto.randomUUID()
+
+const failureMetadata = (head: unknown): Record<string, unknown> => {
+  const base = {
+    errorKind: 'fail',
+    error: head instanceof Error ? head.message : String(head)
+  }
+  if (typeof head === 'object' && head !== null && '_tag' in head) {
+    return { ...base, errorTag: head._tag }
+  }
+  return base
+}
 
 const causeMetadata = (cause: Cause.Cause<unknown>): Record<string, unknown> => {
   const failure = Cause.findErrorOption(cause)
   if (Option.isSome(failure)) {
-    const head = failure.value
-    return {
-      errorKind: 'fail',
-      error: head instanceof Error ? head.message : String(head),
-      ...(typeof head === 'object' && head !== null && '_tag' in head
-        ? { errorTag: head._tag }
-        : {})
-    }
+    return failureMetadata(failure.value)
   }
   if (Cause.hasInterruptsOnly(cause)) {
     return { errorKind: 'interrupt' }
@@ -58,12 +61,19 @@ export const readWideEventEnvironment = (
   const version = pickString(source, 'SERVICE_VERSION', 'WORKERS_CI_BUILD_UUID')
   const region = hints?.colo ?? hints?.region ?? pickString(source, 'CF_REGION')
   const environment = pickString(source, 'ENVIRONMENT', 'NODE_ENV')
-  return {
-    ...(commit ? { commitHash: commit } : {}),
-    ...(version ? { serviceVersion: version } : {}),
-    ...(region ? { region } : {}),
-    ...(environment ? { environment } : {})
-  }
+  // Built by assignment so absent fields stay absent (no `key: undefined`),
+  // which keeps the emitted wide event free of empty columns.
+  const resolved: {
+    commitHash?: string
+    serviceVersion?: string
+    region?: string
+    environment?: string
+  } = {}
+  if (commit) resolved.commitHash = commit
+  if (version) resolved.serviceVersion = version
+  if (region) resolved.region = region
+  if (environment) resolved.environment = environment
+  return resolved
 }
 
 export type WideEventScopeOptions = {
@@ -85,8 +95,8 @@ export const withRequestScope = <A, E, R>(
       yield* Effect.annotateLogsScoped({
         service: options.service,
         traceId,
-        ...(options.environment ?? {}),
-        ...(options.metadata ?? {})
+        ...options.environment,
+        ...options.metadata
       })
       // Emit the canonical wide event via onExit (not addFinalizer) so it runs
       // while the scope's annotations are still active — including those added
@@ -95,13 +105,15 @@ export const withRequestScope = <A, E, R>(
       // (finalizers are LIFO), which silently drops all handler-set context
       // from the event. onExit still fires on success, failure, and interrupt.
       return yield* body.pipe(
-        Effect.onExit((exit) =>
-          Effect.log(options.event, {
-            status: Exit.isSuccess(exit) ? 'ok' : 'error',
+        Effect.onExit((exit) => {
+          const outcome: Record<string, unknown> = Exit.isFailure(exit)
+            ? { status: 'error', ...causeMetadata(exit.cause) }
+            : { status: 'ok' }
+          return Effect.log(options.event, {
             durationMs: Date.now() - startedAt,
-            ...(Exit.isFailure(exit) ? causeMetadata(exit.cause) : {})
+            ...outcome
           })
-        )
+        })
       )
     })
   )
@@ -113,7 +125,7 @@ export const readCfColo = (request: Request): string | undefined => {
   return typeof cf === 'object' &&
     cf !== null &&
     'colo' in cf &&
-    typeof (cf as { colo: unknown }).colo === 'string'
+    typeof cf.colo === 'string'
     ? (cf as { colo: string }).colo
     : undefined
 }
@@ -148,7 +160,7 @@ export const withHttpRequestScope = <A, E, R>(
       metadata: {
         pathname: url.pathname,
         method: options.request.method,
-        ...(options.metadata ?? {})
+        ...options.metadata
       }
     },
     body

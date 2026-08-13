@@ -33,9 +33,11 @@ const provisionLocalD1 = async (): Promise<D1Database | undefined> => {
 // Vite can re-evaluate this module across SSR module-graph invalidations;
 // keep a single workerd proxy per dev-server process.
 const globalKey = Symbol.for('b2b-saas-starter.local-d1')
-type GlobalWithLocalD1 = typeof globalThis & {
-  [globalKey]?: Promise<D1Database | undefined>
-}
+// `globalKey` is a plain `symbol`, so the computed key becomes a symbol index
+// signature — which cannot carry `?`. The value type spells out `| undefined`
+// instead, so the first-run miss below stays visible to the type checker.
+type GlobalWithLocalD1 = typeof globalThis &
+  Record<symbol, Promise<D1Database | undefined> | undefined>
 const globalWithLocalD1 = globalThis as GlobalWithLocalD1
 globalWithLocalD1[globalKey] ??= provisionLocalD1()
 

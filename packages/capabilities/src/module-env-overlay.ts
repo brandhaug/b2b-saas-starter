@@ -39,8 +39,11 @@ const integrationProviderEnvIds: Record<string, string> = {
 
 // missing env → needs-config; env present but the runtime isn't wired yet
 // (e.g. billing) → attention; fully configured → ready.
-const envDerivedStatus = (status: ModuleEnvStatus): ModuleStatus =>
-  !status.envPresent ? 'needs-config' : status.configured ? 'ready' : 'attention'
+const envDerivedStatus = (status: ModuleEnvStatus): ModuleStatus => {
+  if (!status.envPresent) return 'needs-config'
+  if (!status.configured) return 'attention'
+  return 'ready'
+}
 
 const moduleEnvOverlay = (
   statuses: readonly ModuleEnvStatus[]

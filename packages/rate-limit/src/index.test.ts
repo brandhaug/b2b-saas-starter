@@ -19,7 +19,7 @@ const config = (
 // `take` annotates the request's wide event, so it needs a Scope; tests
 // supply it with `Effect.scoped`.
 const runScoped = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> =>
-  Effect.runPromise(Effect.scoped(effect) as Effect.Effect<A, E>)
+  Effect.runPromise(Effect.scoped(effect))
 
 const uniqueKey = () => `test-${Date.now()}-${Math.random()}`
 

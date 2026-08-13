@@ -2,8 +2,7 @@ import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
 import '@fontsource-variable/archivo/standard.css'
 import type { QueryClient } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import {
   createRootRouteWithContext,
   HeadContent,
@@ -19,22 +18,25 @@ import appCss from '../index.css?url'
 const THEME_COLOR_DARK = '#1d1d1d' as const
 const THEME_COLOR_LIGHT = '#ffffff' as const
 
+// Named lazy loader: the devtools bundle must stay out of the production
+// graph, so the import is deferred behind this one binding.
+const loadRouterDevtools = async () => {
+  const devtools = await import('@tanstack/react-router-devtools')
+  return { default: devtools.TanStackRouterDevtools }
+}
+
 const TanStackRouterDevtools = import.meta.env.DEV
-  ? lazy(() =>
-      import('@tanstack/react-router-devtools').then((mod) => ({
-        default: mod.TanStackRouterDevtools
-      }))
-    )
+  ? lazy(loadRouterDevtools)
   : () => null
 
-interface RouterAppContext {
+type RouterAppContext = {
   queryClient: QueryClient
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
-      { charSet: 'utf-8' },
+      { charSet: 'utf8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'B2B SaaS Starter' },
       {

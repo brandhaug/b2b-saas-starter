@@ -9,7 +9,7 @@ import {
   type CapabilityUnavailable,
   type StarterEnv
 } from '@b2b-saas-starter/capabilities'
-import { makeStarterEnvModuleConfig } from '@b2b-saas-starter/env'
+import { makeStarterEnvModuleConfig, type ServerEnv } from '@b2b-saas-starter/env'
 import {
   annotateWide,
   newTraceId,
@@ -18,7 +18,10 @@ import {
   withTriggerScope
 } from '@b2b-saas-starter/logger'
 
-type Env = {
+// Bindings plus the optional module env Alchemy forwards to this worker under
+// its canonical names — the same shape `ApiEnv` describes for apps/api, so the
+// module-aware env validation below reads real deployment values.
+type Env = Partial<ServerEnv> & {
   readonly DB?: D1Database
   readonly WEBHOOK_QUEUE?: Queue
 }
@@ -32,6 +35,17 @@ const starterEnv = (env: Env): StarterEnv => ({
 
 /** Wire shape of queue messages — the schema is shared with the producer. */
 export type WebhookMessage = typeof WebhookQueueMessage.Type
+
+/**
+ * Structural subset of a Cloudflare queue `Message`: the untrusted body plus
+ * the attempt count. Both consumers take the envelope rather than a bare body
+ * so the boundary decode stays inside the wide-event scope that reports a
+ * malformed message, and tests can hand them a plain object.
+ */
+export type WebhookQueueEnvelope = {
+  readonly body: unknown
+  readonly attempts: number
+}
 
 export type DeliveryOutcome = 'ack' | 'retry'
 
@@ -59,6 +73,15 @@ export const classifyResponseStatus = (status: number): DeliveryDecision => {
   if (status === 408 || status === 429) return 'retry'
   if (status >= 400 && status < 500) return 'terminal'
   return 'retry'
+}
+
+/** Persisted `webhookDeliveries.status` for a dispatch decision. */
+const deliveryStatus = (
+  decision: DeliveryDecision
+): 'delivered' | 'failed_permanent' | 'failed' => {
+  if (decision === 'delivered') return 'delivered'
+  if (decision === 'terminal') return 'failed_permanent'
+  return 'failed'
 }
 
 const bytesToHex = (bytes: ArrayBuffer): string =>
@@ -132,8 +155,7 @@ const refreshCatalog = (env: Env): Effect.Effect<void, CapabilityUnavailable> =>
  * the real layers and the wide-event scope (`deliverWebhook`).
  */
 export const processWebhookMessage = (
-  input: unknown,
-  attempts: number,
+  envelope: WebhookQueueEnvelope,
   traceId: string
 ): Effect.Effect<
   DeliveryOutcome,
@@ -146,7 +168,7 @@ export const processWebhookMessage = (
     // there is no trusted endpointId to attach a delivery row to, so it is
     // recorded on the wide event only and acked — mirroring how permanent
     // delivery failures ack instead of retrying forever.
-    const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(input)
+    const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(envelope.body)
     if (Result.isFailure(decoded)) {
       yield* annotateWide({
         outcome: 'failed_permanent',
@@ -155,6 +177,7 @@ export const processWebhookMessage = (
       return 'ack' as const
     }
     const message = decoded.success
+    const attempts = envelope.attempts
     yield* annotateWide({
       endpointId: message.endpointId,
       workspaceId: message.workspaceId,
@@ -227,12 +250,7 @@ export const processWebhookMessage = (
       ? responseResult.success.status
       : 0
     const decision = classifyResponseStatus(responseStatus)
-    const status =
-      decision === 'delivered'
-        ? ('delivered' as const)
-        : decision === 'terminal'
-          ? ('failed_permanent' as const)
-          : ('failed' as const)
+    const status = deliveryStatus(decision)
     yield* webhooks.recordDeliveryAttempt({
       id: deliveryId,
       endpointId: target.id,
@@ -253,8 +271,7 @@ export const processWebhookMessage = (
   })
 
 const deliverWebhook = (
-  message: unknown,
-  attempts: number,
+  envelope: WebhookQueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient> => {
   const traceId = newTraceId()
@@ -267,12 +284,14 @@ const deliverWebhook = (
       event: 'webhook_delivery',
       traceId,
       env,
-      metadata: { attempts }
+      metadata: { attempts: envelope.attempts }
     },
-    processWebhookMessage(message, attempts, traceId).pipe(
+    processWebhookMessage(envelope, traceId).pipe(
       Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
     )
-  ).pipe(Effect.catchCause(() => Effect.succeed('retry' as const)))
+    // `_cause` is deliberately unused: the wide event above already logged the
+    // failure cause on exit, and the queue needs an outcome, not an exception.
+  ).pipe(Effect.catchCause((_cause) => Effect.succeed('retry' as const)))
 }
 
 /**
@@ -284,13 +303,12 @@ const deliverWebhook = (
  * and the wide-event scope.
  */
 export const processDeadLetterMessage = (
-  input: unknown,
-  attempts: number
+  envelope: WebhookQueueEnvelope
 ): Effect.Effect<void, CapabilityUnavailable, WebhookEndpoints | Scope.Scope> =>
   Effect.gen(function* () {
     // Same boundary decode as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
-    const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(input)
+    const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(envelope.body)
     if (Result.isFailure(decoded)) {
       yield* annotateWide({
         outcome: 'dead_lettered',
@@ -311,7 +329,7 @@ export const processDeadLetterMessage = (
       workspaceId: message.workspaceId,
       eventType: message.eventType,
       status: 'dead_lettered',
-      attempts,
+      attempts: envelope.attempts,
       responseStatus: null,
       nextAttemptAt: null
     })
@@ -324,11 +342,10 @@ export const processDeadLetterMessage = (
  * exhausted deliveries.
  */
 const recordDeadLetter = (
-  input: unknown,
-  attempts: number,
+  envelope: WebhookQueueEnvelope,
   env: Env
 ): Effect.Effect<void> => {
-  const program = processDeadLetterMessage(input, attempts).pipe(
+  const program = processDeadLetterMessage(envelope).pipe(
     Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
   )
 
@@ -337,11 +354,14 @@ const recordDeadLetter = (
       service: 'background',
       event: 'webhook_dead_letter',
       env,
-      metadata: { attempts }
+      metadata: { attempts: envelope.attempts }
     },
     program
     // Always ack dead letters — failing here would loop the DLQ.
-  ).pipe(Effect.catchCause(() => Effect.void))
+  ).pipe(
+    // oxlint-disable-next-line automation/no-silent-error-swallow -- the cause is not lost: withTriggerScope logs it on exit (status: error + cause metadata) before this handler runs; the DLQ must still ack.
+    Effect.catchCause((_cause) => Effect.void)
+  )
 }
 
 export default {
@@ -350,30 +370,39 @@ export default {
   },
 
   // Queue message bodies are untyped at runtime; `processWebhookMessage` and
-  // `recordDeadLetter` decode them at their boundary.
+  // `processDeadLetterMessage` decode the envelope at their boundary. The batch
+  // runs concurrently as one Effect instead of a raw `Promise.all`.
   async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     if (batch.queue === DEAD_LETTER_QUEUE) {
-      await Promise.all(
-        batch.messages.map(async (message) => {
-          await staticRuntime.runPromise(
-            recordDeadLetter(message.body, message.attempts, env)
-          )
-          message.ack()
-        })
+      await staticRuntime.runPromise(
+        Effect.forEach(
+          batch.messages,
+          (message) =>
+            recordDeadLetter(message, env).pipe(
+              Effect.tap(() => Effect.sync(() => message.ack()))
+            ),
+          { concurrency: 'unbounded', discard: true }
+        )
       )
       return
     }
-    await Promise.all(
-      batch.messages.map(async (message) => {
-        const outcome = await staticRuntime.runPromise(
-          deliverWebhook(message.body, message.attempts, env)
-        )
-        if (outcome === 'ack') {
-          message.ack()
-        } else {
-          message.retry({ delaySeconds: backoffSeconds(message.attempts) })
-        }
-      })
+    await staticRuntime.runPromise(
+      Effect.forEach(
+        batch.messages,
+        (message) =>
+          deliverWebhook(message, env).pipe(
+            Effect.flatMap((outcome) =>
+              Effect.sync(() => {
+                if (outcome === 'ack') {
+                  message.ack()
+                } else {
+                  message.retry({ delaySeconds: backoffSeconds(message.attempts) })
+                }
+              })
+            )
+          ),
+        { concurrency: 'unbounded', discard: true }
+      )
     )
   }
 }

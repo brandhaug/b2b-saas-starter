@@ -8,7 +8,7 @@ const request = (headers: Record<string, string>) =>
 // `take` annotates the request's wide event, so it needs a Scope; tests
 // supply it with `Effect.scoped`.
 const runScoped = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> =>
-  Effect.runPromise(Effect.scoped(effect) as Effect.Effect<A, E>)
+  Effect.runPromise(Effect.scoped(effect))
 
 describe('rate limiter fallback (no Cloudflare bindings)', () => {
   it('enforces the auth_write limit across per-request layer rebuilds', async () => {

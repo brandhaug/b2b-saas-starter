@@ -4,15 +4,22 @@
 // adding a var to `ServerEnvSchema` updates this file automatically.
 
 // Optional module env (ADR 0035) — read by `makeStarterEnvModuleConfig` in
-// `src/lib/capabilities.ts` to derive module config status. Inline `import()`
-// types keep this file an ambient declaration (no top-level imports).
-interface WebWorkerEnv extends Readonly<import('@b2b-saas-starter/env').ServerEnv> {
+// `src/lib/capabilities.ts` to derive module config status.
+//
+// Inline `import()` types are load-bearing: a single top-level `import type`
+// turns this file into a module, and the global `Env` / `Cloudflare.Env`
+// declarations below then stop reaching the `env` binding from
+// `cloudflare:workers`. Wrapping them in `declare global` does not rescue it
+// either — global type ALIASES do not apply, so both declarations below must
+// stay interfaces. `.oxlintrc.json` exempts `**/*.d.ts` from the two style
+// rules that would otherwise reject this shape.
+type WebWorkerEnv = {
   // Optional so the local workers shim (no D1) satisfies the same type;
   // consumers must handle the missing binding (Seed layer fallback).
   readonly DB?: D1Database
   readonly RATE_LIMITER_AUTH_READ?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   readonly RATE_LIMITER_AUTH_WRITE?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
-}
+} & Readonly<import('@b2b-saas-starter/env').ServerEnv>
 
 // `env` from `cloudflare:workers` is typed as `Cloudflare.Env`
 // (@cloudflare/workers-types uses `export = CloudflareWorkersModule`, so a

@@ -47,7 +47,11 @@ describe('validateWebhookUrl', () => {
       'https://[fe80::1]/',
       'https://[::ffff:10.0.0.1]/'
     ]) {
-      expect(validateWebhookUrl(url).valid, url).toBe(false)
+      // The url rides in the asserted value so a failure names the offender.
+      expect({ url, valid: validateWebhookUrl(url).valid }).toEqual({
+        url,
+        valid: false
+      })
     }
   })
 
@@ -86,7 +90,7 @@ describe('WebhookEndpoints.create URL validation', () => {
       'https://localhost/hooks'
     ]) {
       const result = await createEndpoint(url)
-      expect(result._tag, url).toBe('Failure')
+      expect({ url, tag: result._tag }).toEqual({ url, tag: 'Failure' })
       if (result._tag === 'Failure') {
         expect(result.failure._tag).toBe('InvalidWebhookUrl')
       }

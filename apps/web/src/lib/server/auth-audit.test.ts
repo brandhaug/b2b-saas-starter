@@ -1,5 +1,21 @@
+import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
-import { isAuditedAuthExchange, recordAuthAudit, signInAuditInput } from './auth-audit'
+import {
+  isAuditedAuthExchange,
+  recordAuthAudit,
+  signInAuditInput,
+  type AuthAuditOutcome
+} from './auth-audit'
+
+/**
+ * `recordAuthAudit` needs a Scope for its wide-event annotations — the auth
+ * catchall supplies one via `withHttpRequestScope`, tests via `Effect.scoped`.
+ */
+const runRecordAuthAudit = (
+  request: Request,
+  response: Response
+): Promise<AuthAuditOutcome> =>
+  Effect.runPromise(Effect.scoped(recordAuthAudit(request, response)))
 
 vi.mock('@/lib/capabilities', () => ({
   runCapabilities: vi.fn().mockResolvedValue(undefined)
@@ -86,7 +102,7 @@ describe('recordAuthAudit', () => {
     const response = new Response(JSON.stringify({ ok: true }), { status: 200 })
     const clone = vi.spyOn(response, 'clone')
     const json = vi.spyOn(response, 'json')
-    await expect(recordAuthAudit(request, response)).resolves.toBe('skipped')
+    await expect(runRecordAuthAudit(request, response)).resolves.toBe('skipped')
     expect(clone).not.toHaveBeenCalled()
     expect(json).not.toHaveBeenCalled()
   })
@@ -99,7 +115,7 @@ describe('recordAuthAudit', () => {
       status: 200
     })
     const clone = vi.spyOn(response, 'clone')
-    await expect(recordAuthAudit(request, response)).resolves.toBe('recorded')
+    await expect(runRecordAuthAudit(request, response)).resolves.toBe('recorded')
     expect(clone).toHaveBeenCalledTimes(1)
   })
 
@@ -112,6 +128,6 @@ describe('recordAuthAudit', () => {
     const response = new Response(JSON.stringify({ user: { id: 'usr_demo' } }), {
       status: 200
     })
-    await expect(recordAuthAudit(request, response)).resolves.toBe('dropped')
+    await expect(runRecordAuthAudit(request, response)).resolves.toBe('dropped')
   })
 })

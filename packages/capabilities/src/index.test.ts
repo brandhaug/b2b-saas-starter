@@ -244,40 +244,75 @@ describe('module env status overlay', () => {
 
 type ExecutedQuery = { readonly sql: string; readonly params: readonly unknown[] }
 
+/** The D1 binding type `layerFromD1` accepts — derived, never re-declared. */
+type D1Binding = Parameters<typeof layerFromD1>[0]
+type D1Statement = ReturnType<D1Binding['prepare']>
+
+/** Empty-but-well-formed D1 result metadata for statements that match no row. */
+const noRowsMeta = {
+  duration: 0,
+  size_after: 0,
+  rows_read: 0,
+  rows_written: 0,
+  last_row_id: 0,
+  changed_db: false,
+  changes: 0
+}
+
 // Minimal fake D1 binding: records every executed statement and batch, and
 // returns empty result sets. Enough to observe the SQL the Live layers run
-// without standing up a real database.
+// without standing up a real database. Members the effect-d1 driver never
+// calls on this path (sessions, exec, dump) reject instead of pretending.
 const makeFakeD1 = () => {
   const executed: ExecutedQuery[] = []
   const batches: ExecutedQuery[][] = []
-  const prepare = (sql: string) => {
-    const statement = (params: readonly unknown[]) => ({
-      sql,
-      params,
-      bind: (...next: readonly unknown[]) => statement(next),
-      all: async () => {
+  // A prepared statement is handed back to the driver as a `D1PreparedStatement`,
+  // so the query it carries is remembered here rather than on the object.
+  const queryOf = new WeakMap<D1Statement, ExecutedQuery>()
+  const record = (query: ExecutedQuery) => {
+    executed.push(query)
+    return { results: [], success: true as const, meta: noRowsMeta }
+  }
+  const prepare = (sql: string): D1Statement => {
+    const statement = (params: readonly unknown[]): D1Statement => {
+      function raw(options: { columnNames: true }): Promise<[string[]]>
+      function raw(options?: { columnNames?: false }): Promise<unknown[][]>
+      async function raw(options?: {
+        columnNames?: boolean
+      }): Promise<[string[]] | unknown[][]> {
         executed.push({ sql, params })
-        return { results: [] }
-      },
-      raw: async () => {
-        executed.push({ sql, params })
-        return []
+        return options?.columnNames === true ? [[]] : []
       }
-    })
+      const prepared: D1Statement = {
+        bind: (...next: readonly unknown[]) => statement(next),
+        first: async () => null,
+        run: async () => record({ sql, params }),
+        all: async () => record({ sql, params }),
+        raw
+      }
+      queryOf.set(prepared, { sql, params })
+      return prepared
+    }
     return statement([])
   }
-  const binding = {
+  const binding: D1Binding = {
     prepare,
-    batch: async (statements: readonly ExecutedQuery[]) => {
-      batches.push(statements.map(({ sql, params }) => ({ sql, params })))
+    batch: async (statements) => {
+      batches.push(
+        statements.flatMap((statement) => {
+          const query = queryOf.get(statement)
+          return query === undefined ? [] : [query]
+        })
+      )
       return []
-    }
+    },
+    exec: async () => ({ count: 0, duration: 0 }),
+    withSession: () => {
+      throw new Error('fake D1: these tests never open a session')
+    },
+    dump: async () => new ArrayBuffer(0)
   }
-  return {
-    binding: binding as unknown as Parameters<typeof layerFromD1>[0],
-    executed,
-    batches
-  }
+  return { binding, executed, batches }
 }
 
 describe('webhook endpoint workspace scoping', () => {
@@ -383,7 +418,7 @@ describe('bearer verification write throttling', () => {
     expect(shouldBumpLastUsedAt(new Date(now).toISOString(), now)).toBe(false)
     expect(
       shouldBumpLastUsedAt(
-        new Date(now - LAST_USED_WRITE_INTERVAL_MS + 1_000).toISOString(),
+        new Date(now - LAST_USED_WRITE_INTERVAL_MS + 1000).toISOString(),
         now
       )
     ).toBe(false)

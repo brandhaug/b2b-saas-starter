@@ -34,16 +34,25 @@ const starterEnv: StarterEnv = {
   moduleConfig: makeStarterEnvModuleConfig({ ...cloudflareEnv })
 }
 
+// The Effect → TanStack boundary. Loaders and server functions are Promise
+// returning by contract, so a capability failure has to leave the Effect error
+// channel here: TanStack Router consumes `notFound()` as 404 control flow and a
+// rejected loader promise as the error-component signal. Every throw below is
+// that hand-off, not a swallowed failure.
 const rethrowCapabilityFailure = (cause: Cause.Cause<unknown>): never => {
   const failure = Cause.findErrorOption(cause)
   if (Option.isSome(failure)) {
     const error = failure.value
+    // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API
     if (error instanceof WorkspaceNotFound) throw notFound()
     if (error instanceof CapabilityUnavailable) {
+      // oxlint-disable-next-line effect/noThrowStatement -- rejects the loader promise so router.tsx's defaultErrorComponent renders the degraded state
       throw new CapabilityUnavailableError(error.capability, error.reason)
     }
+    // oxlint-disable-next-line effect/noThrowStatement -- re-raises the original typed failure across the Promise boundary
     throw error
   }
+  // oxlint-disable-next-line effect/noThrowStatement -- re-raises a defect across the Promise boundary
   throw Cause.squash(cause)
 }
 

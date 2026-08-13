@@ -1,6 +1,12 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { desc, eq } from 'drizzle-orm'
-import { auditEvents, Database, user, type BatchStatement } from '@b2b-saas-starter/db'
+import {
+  auditEvents,
+  Database,
+  user,
+  type BatchStatement,
+  type JsonObject
+} from '@b2b-saas-starter/db'
 import type { CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -21,7 +27,12 @@ export type RecordAuditEventInput = {
   readonly eventType: string
   readonly targetType: string
   readonly targetId?: string | null
-  readonly metadata?: Record<string, unknown>
+  /**
+   * Per-event-type detail (token name + scopes, webhook url + events, delivery
+   * attempts). Heterogeneous by design, but JSON — it is stored verbatim in the
+   * `audit_events.metadata` JSON column.
+   */
+  readonly metadata?: JsonObject
 }
 
 export type AuditEventLogShape = {

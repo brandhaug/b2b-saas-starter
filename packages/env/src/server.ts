@@ -74,8 +74,16 @@ export type ModuleConfigStatus = {
 const hasValue = (value: string | undefined): boolean =>
   typeof value === 'string' && value.length > 0
 
+/**
+ * The raw env bag handed to a worker, as far as this boundary is concerned:
+ * every schema var may be absent. Bindings (D1, queues, rate limiters) ride
+ * along on the same object and are simply extra properties here — they are
+ * never read, and every value that is read goes through the schema below.
+ */
+export type RawEnvSource = Partial<ServerEnv>
+
 export function readServerEnv(
-  source: Record<string, unknown>,
+  source: RawEnvSource,
   options?: { readonly mode?: 'local' | 'strict' }
 ): ServerEnv {
   const localDefaults: Partial<ServerEnv> =
@@ -143,14 +151,22 @@ export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[
  * var-name remaps are needed.
  */
 export function makeStarterEnvModuleConfig(
-  env: Record<string, unknown>
+  env: RawEnvSource
 ): readonly ModuleConfigStatus[] {
   return moduleConfigStatus(readServerEnv(env))
+}
+
+type RedactedValueSummary = 'configured' | 'env-present' | 'missing'
+
+const summarizeValues = (status: ModuleConfigStatus): RedactedValueSummary => {
+  if (status.configured) return 'configured'
+  if (status.envPresent) return 'env-present'
+  return 'missing'
 }
 
 export function redactedEnvStatus(env: ServerEnv) {
   return moduleConfigStatus(env).map((item) => ({
     ...item,
-    values: item.configured ? 'configured' : item.envPresent ? 'env-present' : 'missing'
+    values: summarizeValues(item)
   }))
 }

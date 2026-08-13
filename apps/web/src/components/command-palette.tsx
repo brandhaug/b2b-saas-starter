@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { SearchIcon } from 'lucide-react'
 import { publicLinks } from '@/lib/content'
@@ -99,7 +98,7 @@ export function SearchButton() {
         >
           <SearchIcon className="size-4" />
           <span className="flex-1 text-left">Search...</span>
-          <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+          <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-3xs">
             {isMac ? '⌘K' : 'Ctrl K'}
           </kbd>
         </button>

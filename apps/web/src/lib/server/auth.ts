@@ -25,6 +25,7 @@ const getSessionServerFn = createServerFn({ method: 'GET' }).handler(readSession
 export async function requireSession(redirectTo: string): Promise<Session> {
   const session = await getSessionServerFn()
   if (!session) {
+    // oxlint-disable-next-line effect/noThrowStatement -- `throw redirect()` is TanStack Router's navigation control-flow API
     throw redirect({ to: '/sign-in', search: { redirect: redirectTo } })
   }
   return session
@@ -39,6 +40,7 @@ export async function requireSession(redirectTo: string): Promise<Session> {
 export async function requireAdmin(redirectTo: string): Promise<Session> {
   const session = await requireSession(redirectTo)
   if (session.user.role !== 'admin') {
+    // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API
     throw notFound()
   }
   return session
@@ -69,6 +71,7 @@ export class UnauthorizedError extends Error {
 export async function requireRequestSession(): Promise<Session> {
   const session = await readSession()
   if (!session) {
+    // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
     throw new UnauthorizedError()
   }
   return session

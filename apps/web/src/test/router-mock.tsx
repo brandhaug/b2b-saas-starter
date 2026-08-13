@@ -24,7 +24,7 @@ const interpolate = (to: string, params?: Record<string, string>) =>
       )
     : to
 
-const Link = ({
+function Link({
   to,
   params,
   children,
@@ -36,11 +36,13 @@ const Link = ({
   readonly children?: ReactNode
   readonly className?: string
   readonly onClick?: () => void
-}) => (
-  <a href={interpolate(to, params)} className={className} onClick={onClick}>
-    {children}
-  </a>
-)
+}) {
+  return (
+    <a href={interpolate(to, params)} className={className} onClick={onClick}>
+      {children}
+    </a>
+  )
+}
 
 export const routerMock = (overrides: {
   /** Result of `importOriginal()`; spread first so untouched exports survive. */

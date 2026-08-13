@@ -55,9 +55,11 @@ function SignInPage() {
 
   return (
     <PublicLayout>
+      {/* `flex-1` fills the space PublicLayout's `min-h-dvh flex-col` leaves
+          between the header and its `mt-auto` footer — no hardcoded chrome height. */}
       <main
         id="main-content"
-        className="mx-auto grid min-h-[calc(100dvh-8rem)] w-full max-w-md place-items-center px-4 py-12"
+        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
       >
         <Card className="w-full">
           <CardHeader>
@@ -82,7 +84,7 @@ function SignInPage() {
                   onChange: ({ value }) => {
                     if (value.length === 0) return 'Email is required'
                     if (!value.includes('@')) return 'Enter a valid email'
-                    return undefined
+                    return
                   }
                 }}
               >
@@ -152,11 +154,11 @@ function SignInPage() {
             </p>
             <p className="text-xs text-muted-foreground">
               Seeded a local database? Sign in with{' '}
-              <code className="rounded bg-muted px-1 py-0.5">
+              <code className="rounded-sm bg-muted px-1 py-0.5">
                 {DEMO_CREDENTIALS.email}
               </code>{' '}
               /{' '}
-              <code className="rounded bg-muted px-1 py-0.5">
+              <code className="rounded-sm bg-muted px-1 py-0.5">
                 {DEMO_CREDENTIALS.password}
               </code>
               .

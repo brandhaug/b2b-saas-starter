@@ -146,8 +146,8 @@ const memberRows = (fixture: Fixture): readonly string[] =>
       name: member.name,
       role: member.systemRole,
       emailVerified: true,
-      createdAt: 1778918400,
-      updatedAt: 1778918400
+      createdAt: 1_778_918_400,
+      updatedAt: 1_778_918_400
     }),
     insert(workspaceMembers, {
       workspaceId: fixture.workspace.id,
@@ -169,8 +169,8 @@ const demoUserRows = (
     name: demoUserIdentity.name,
     role: demoUserIdentity.systemRole,
     emailVerified: true,
-    createdAt: 1778918400,
-    updatedAt: 1778918400
+    createdAt: 1_778_918_400,
+    updatedAt: 1_778_918_400
   }),
   insert(account, {
     id: 'acc_demo_credential',
@@ -178,8 +178,8 @@ const demoUserRows = (
     providerId: 'credential',
     userId: demoUserIdentity.id,
     password: demoPasswordHash,
-    createdAt: 1778918400,
-    updatedAt: 1778918400
+    createdAt: 1_778_918_400,
+    updatedAt: 1_778_918_400
   }),
   insert(workspaceMembers, {
     workspaceId: fixture.workspace.id,

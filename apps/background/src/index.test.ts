@@ -61,7 +61,7 @@ describe('classifyResponseStatus', () => {
 describe('webhook signature', () => {
   it('matches the fixed HMAC-SHA256 vector over "<timestamp>.<body>"', async () => {
     const secret = 'whsec_test'
-    const timestamp = 1700000000
+    const timestamp = 1_700_000_000
     const body =
       '{"deliveryId":"whd_test","eventType":"demo.event","payload":{"hello":"world"}}'
     const signature = await computeWebhookSignature(secret, timestamp, body)
@@ -139,7 +139,7 @@ describe('processWebhookMessage', () => {
     const recorded: WebhookDeliveryAttemptInput[] = []
     const captured: { request?: HttpClientRequest.HttpClientRequest } = {}
     return runScoped(
-      processWebhookMessage(input, attempts, 'trace-test').pipe(
+      processWebhookMessage({ body: input, attempts }, 'trace-test').pipe(
         Effect.provide(
           Layer.mergeAll(
             stubEndpoints(dispatchTarget, recorded),
@@ -243,7 +243,7 @@ describe('processDeadLetterMessage', () => {
   const runDeadLetter = (input: unknown, attempts = 4) => {
     const recorded: WebhookDeliveryAttemptInput[] = []
     return runScoped(
-      processDeadLetterMessage(input, attempts).pipe(
+      processDeadLetterMessage({ body: input, attempts }).pipe(
         Effect.provide(stubEndpoints(target, recorded))
       )
     ).then(() => recorded)
@@ -288,7 +288,7 @@ describe('validateWebhookUrl (dispatch-time SSRF guard)', () => {
   })
 
   it('rejects private, loopback, and link-local IP literals', () => {
-    for (const url of [
+    const urls = [
       'https://10.0.0.1/hooks',
       'https://172.16.0.1/hooks',
       'https://192.168.1.5/hooks',
@@ -299,9 +299,10 @@ describe('validateWebhookUrl (dispatch-time SSRF guard)', () => {
       'https://[fc00::1]/hooks',
       'https://[fd12:3456::1]/hooks',
       'https://[fe80::1]/hooks'
-    ]) {
-      expect(validateWebhookUrl(url).valid, url).toBe(false)
-    }
+    ]
+    // Asserting the accepted set (instead of per-URL with a message argument)
+    // still names every URL that wrongly passed the guard in the diff.
+    expect(urls.filter((url) => validateWebhookUrl(url).valid)).toEqual([])
   })
 
   it('rejects localhost and single-label hostnames', () => {

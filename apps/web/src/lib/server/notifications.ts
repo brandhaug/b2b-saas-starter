@@ -8,10 +8,13 @@ const ListNotificationsInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString
 })
 
+// The schema decoder IS the boundary contract: passing it as the validator
+// keeps the untyped wire value inside `decodeUnknownSync` and hands the handler
+// the decoded domain type.
 const decodeInput = Schema.decodeUnknownSync(ListNotificationsInput)
 
 export const listNotificationsServerFn = createServerFn({ method: 'GET' })
-  .validator((input: unknown) => decodeInput(input))
+  .validator((input) => decodeInput(input))
   .handler(async ({ data }) => {
     const session = await requireRequestSession()
     return runWorkspaceCapabilities(

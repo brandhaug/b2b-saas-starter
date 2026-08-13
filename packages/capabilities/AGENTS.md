@@ -22,7 +22,7 @@ Capabilities are grouped by bounded context so the package can grow without flat
 src/
 ├── catalog/            – starter modules, refresh history, adoption readiness, implementation reports
 ├── developer-platform/ – API tokens, webhook endpoints
-├── governance/         – audit events, workspace membership
+├── governance/         – audit events, workspace membership, workspace identity types
 ├── notifications/      – notification feed, integration surfaces
 ├── internal/           – shared crypto / id helpers
 ├── errors.ts           – shared typed errors
@@ -54,6 +54,8 @@ Each capability gets a leaf intent node alongside its source file. Read it befor
 | governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`                | read-only (incl. cross-workspace `listWorkspacesForUser`)       |
 | notifications      | [`integration-surfaces`](src/notifications/integration-surfaces.AGENTS.md)  | `integrationConnections`, `workspaces`                  | read-only                                                       |
 | notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                           | read-only                                                       |
+
+`governance/workspace-identity.ts` is not a capability: it owns the workspace identity vocabulary (`WORKSPACE_ROLES`, `SYSTEM_ROLES`, `Workspace`, `Member`, `toMember`, `findWorkspaceMember`) so `workspace-context.ts` and `governance/workspace-membership.ts` no longer import each other. `workspace-membership.ts` depends on `WorkspaceContext` for its member reads, so the shared types and the member lookup live below both. Import identity types from this module, not from the membership capability.
 
 Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect), and `AuthorizationDenied` (403 — raised by `verifyBearerToken`). Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
 

@@ -23,6 +23,45 @@ type ModuleRow = {
   readonly missingConfig: string
 }
 
+// Column definitions are static — module scope keeps the cell renderers out of
+// the render body (they would remount every render) and drops a useMemo.
+const moduleColumns: ColumnDef<ModuleRow>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Module',
+    enableSorting: true,
+    meta: { sticky: true },
+    cell: ({ row }) => (
+      <div>
+        <div className="font-medium">{row.original.name}</div>
+        <div className="max-w-md text-xs text-muted-foreground">
+          {row.original.summary}
+        </div>
+      </div>
+    )
+  },
+  { accessorKey: 'category', header: 'Category', enableSorting: true },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    enableSorting: true,
+    cell: ({ row }) => (
+      <Badge variant={row.original.status === 'ready' ? 'default' : 'secondary'}>
+        {row.original.status}
+      </Badge>
+    )
+  },
+  {
+    accessorKey: 'missingConfig',
+    header: 'Missing config',
+    cell: ({ row }) => (
+      <span className="text-xs text-muted-foreground">
+        {row.original.missingConfig}
+      </span>
+    )
+  }
+]
+
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
 export const Route = createFileRoute('/workspaces/$workspaceSlug')({
@@ -61,46 +100,6 @@ function WorkspaceDashboardPage() {
         missingConfig: module.state.missingConfig.join(', ') || 'None'
       })),
     [modules]
-  )
-
-  const moduleColumns = useMemo<ColumnDef<ModuleRow>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: 'Module',
-        enableSorting: true,
-        meta: { sticky: true },
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.name}</div>
-            <div className="max-w-md text-xs text-muted-foreground">
-              {row.original.summary}
-            </div>
-          </div>
-        )
-      },
-      { accessorKey: 'category', header: 'Category', enableSorting: true },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        enableSorting: true,
-        cell: ({ row }) => (
-          <Badge variant={row.original.status === 'ready' ? 'default' : 'secondary'}>
-            {row.original.status}
-          </Badge>
-        )
-      },
-      {
-        accessorKey: 'missingConfig',
-        header: 'Missing config',
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.original.missingConfig}
-          </span>
-        )
-      }
-    ],
-    []
   )
 
   return (

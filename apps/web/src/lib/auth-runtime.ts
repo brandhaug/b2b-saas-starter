@@ -1,17 +1,30 @@
 import { env } from 'cloudflare:workers'
-import { Layer, ManagedRuntime } from 'effect'
+import { Layer, ManagedRuntime, Schema } from 'effect'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
 import { createDb } from '@b2b-saas-starter/db/client'
 import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 
+/**
+ * Defect raised when something reaches for the D1 binding that the local
+ * workers shim does not provide. Tagged so the wide-event logger reports
+ * `errorTag` instead of an opaque message.
+ */
+export class MissingD1Binding extends Schema.TaggedErrorClass<MissingD1Binding>()(
+  'MissingD1Binding',
+  { property: Schema.String }
+) {}
+
 // Under the local workers shim there is no D1 binding. Auth stays importable
 // (getSession without a cookie never queries), and any query that does run
-// fails with a descriptive error instead of a deep drizzle TypeError.
+// fails with a descriptive defect instead of a deep drizzle TypeError. A Proxy
+// trap has no Effect error channel of its own — throwing is the only way it can
+// signal, and the throw surfaces as a defect in whichever Effect touches it.
 const missingD1 = new Proxy(
   {},
   {
-    get() {
-      throw new Error('D1 binding is unavailable in the local workers shim')
+    get(_target, property) {
+      // oxlint-disable-next-line effect/noThrowStatement -- a Proxy get trap can only signal by throwing; the value surfaces as an Effect defect upstream
+      throw new MissingD1Binding({ property: String(property) })
     }
   }
 ) as D1Database

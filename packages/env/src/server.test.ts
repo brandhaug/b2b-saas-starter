@@ -25,7 +25,9 @@ describe('readServerEnv', () => {
   })
 
   it('fails fast in strict mode when required baseline vars are missing', () => {
-    expect(() => readServerEnv({}, { mode: 'strict' })).toThrow()
+    // The schema names the first missing baseline var, so a strict-mode boot
+    // failure says which var to set instead of failing opaquely.
+    expect(() => readServerEnv({}, { mode: 'strict' })).toThrow(/BETTER_AUTH_SECRET/)
   })
 
   it('prefers real values over local defaults', () => {
@@ -34,11 +36,13 @@ describe('readServerEnv', () => {
   })
 
   it('accepts a raw worker env: bindings and unknown keys are ignored', () => {
-    const env = readServerEnv({
+    // Shaped like a real worker env — bindings beside the vars.
+    const workerEnv = {
       DB: { fake: 'd1-binding' },
       RATE_LIMITER_REST: { limit: () => Promise.resolve({ success: true }) },
       CLOUDFLARE_EMAIL_FROM: 'no-reply@example.com'
-    })
+    }
+    const env = readServerEnv(workerEnv)
     expect(env.CLOUDFLARE_EMAIL_FROM).toBe('no-reply@example.com')
     expect('DB' in env).toBe(false)
   })

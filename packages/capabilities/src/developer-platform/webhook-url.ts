@@ -66,10 +66,10 @@ const checkIpv6Literal = (hostname: string): string | null => {
   if (Number.isNaN(prefix)) {
     return 'hostname is not a valid IPv6 address'
   }
-  if (prefix >= 0xfc00 && prefix <= 0xfdff) {
+  if (prefix >= 0xfc_00 && prefix <= 0xfd_ff) {
     return 'IPv6 unique-local addresses (fc00::/7) are not allowed'
   }
-  if (prefix >= 0xfe80 && prefix <= 0xfebf) {
+  if (prefix >= 0xfe_80 && prefix <= 0xfe_bf) {
     return 'IPv6 link-local addresses (fe80::/10) are not allowed'
   }
   return null
@@ -89,10 +89,10 @@ const checkIpv6Literal = (hostname: string): string | null => {
  * deliberately out of scope for the starter.
  */
 export const validateWebhookUrl = (raw: string): WebhookUrlValidation => {
-  let url: URL
-  try {
-    url = new URL(raw)
-  } catch {
+  // `URL.parse` reports an unparseable URL as `null` instead of throwing, so
+  // the whole guard stays a pure total function with no exception path.
+  const url = URL.parse(raw)
+  if (url === null) {
     return { valid: false, reason: 'not a valid absolute URL' }
   }
   if (url.protocol !== 'https:') {

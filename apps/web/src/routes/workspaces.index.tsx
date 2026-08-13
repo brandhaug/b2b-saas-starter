@@ -32,7 +32,7 @@ function WorkspacesPage() {
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 Your account is not a member of any workspace. Run{' '}
-                <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                <code className="rounded-sm bg-muted px-1 py-0.5 text-xs">
                   bun run db:seed
                 </code>{' '}
                 and sign in with the demo credentials, or ask a workspace owner to add

@@ -1,11 +1,10 @@
-import type { ComponentType } from 'react'
-import { Suspense } from 'react'
+import { Suspense, type ComponentType } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mountRoute } from '@/test/router-mock'
 
 const mocks = vi.hoisted(() => ({
-  search: { value: {} as { redirect?: string } },
+  search: { value: {} },
   historyPush: vi.fn(),
   navigate: vi.fn(),
   signInEmail: vi.fn()

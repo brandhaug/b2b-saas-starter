@@ -1,8 +1,9 @@
-import { Effect } from 'effect'
+import { Effect, Result, Schema, type Scope } from 'effect'
 import {
   AuditEventLog,
   type RecordAuditEventInput
 } from '@b2b-saas-starter/capabilities'
+import { annotateWide } from '@b2b-saas-starter/logger'
 import { runCapabilities } from '@/lib/capabilities'
 
 /**
@@ -43,40 +44,97 @@ export const signInAuditInput = (exchange: {
 
 export type AuthAuditOutcome = 'skipped' | 'recorded' | 'dropped'
 
+/** A 2xx auth response whose body did not parse as JSON. */
+export class AuthAuditBodyUnreadable extends Schema.TaggedErrorClass<AuthAuditBodyUnreadable>()(
+  'AuthAuditBodyUnreadable',
+  { reason: Schema.String }
+) {}
+
+/** The audit write itself failed (D1 hiccup, layer unavailable). */
+export class AuthAuditWriteFailed extends Schema.TaggedErrorClass<AuthAuditWriteFailed>()(
+  'AuthAuditWriteFailed',
+  { reason: Schema.String }
+) {}
+
+const failureReason = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause)
+
+/** Reads the signed-in actor out of a successful sign-in response body. */
+const readActorUserId = (
+  response: Response
+): Effect.Effect<string | null, AuthAuditBodyUnreadable> =>
+  Effect.tryPromise({
+    try: async () => {
+      const body = (await response.clone().json()) as { user?: { id?: string } }
+      return body.user?.id ?? null
+    },
+    catch: (cause) => new AuthAuditBodyUnreadable({ reason: failureReason(cause) })
+  })
+
+const writeAuditEvent = (
+  input: RecordAuditEventInput
+): Effect.Effect<void, AuthAuditWriteFailed> =>
+  Effect.tryPromise({
+    try: () =>
+      runCapabilities(
+        Effect.gen(function* () {
+          const audit = yield* AuditEventLog
+          yield* audit.record(input)
+        })
+      ),
+    catch: (cause) => new AuthAuditWriteFailed({ reason: failureReason(cause) })
+  })
+
 /**
- * Best-effort audit recording for the auth catchall: never throws, so a D1
+ * Best-effort audit recording for the auth catchall: it never fails, so a D1
  * hiccup can't fail a sign-in that Better Auth already accepted. Under the
- * Seed layer (no DB binding) `record` is a no-op by design. Returns the
- * outcome so the caller's wide event can surface a dropped audit write.
+ * Seed layer (no DB binding) `record` is a no-op by design.
+ *
+ * "Best effort" applies to the auth response, not to the failure itself — an
+ * audit path must never drop a failure silently. Both failure modes are
+ * captured as tagged errors and annotated onto the caller's wide event
+ * (`authAuditError` / `authAuditBodyError`) before the outcome is returned, so
+ * a dropped write is always queryable.
  */
-export const recordAuthAudit = async (
+export const recordAuthAudit = (
   request: Request,
   response: Response
-): Promise<AuthAuditOutcome> => {
-  const method = request.method
-  const pathname = new URL(request.url).pathname
-  if (!isAuditedAuthExchange({ method, pathname })) return 'skipped'
-  let userId: string | null = null
-  if (response.ok) {
-    try {
-      const body = (await response.clone().json()) as { user?: { id?: string } }
-      userId = body.user?.id ?? null
-    } catch {
-      // Non-JSON success body — record the event without an actor.
+): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> =>
+  Effect.gen(function* () {
+    const method = request.method
+    const pathname = new URL(request.url).pathname
+    if (!isAuditedAuthExchange({ method, pathname })) return 'skipped'
+
+    let userId: string | null = null
+    if (response.ok) {
+      const actor = yield* Effect.result(readActorUserId(response))
+      if (Result.isFailure(actor)) {
+        // A 2xx sign-in with a non-JSON body is unexpected. The event is still
+        // recorded, unattributed, and the reason lands on the wide event.
+        yield* annotateWide({
+          authAuditBodyError: actor.failure.reason,
+          authAuditBodyErrorTag: actor.failure._tag
+        })
+      } else {
+        userId = actor.success
+      }
     }
-  }
-  const input = signInAuditInput({ method, pathname, status: response.status, userId })
-  if (!input) return 'skipped'
-  try {
-    await runCapabilities(
-      Effect.gen(function* () {
-        const audit = yield* AuditEventLog
-        yield* audit.record(input)
+
+    const input = signInAuditInput({
+      method,
+      pathname,
+      status: response.status,
+      userId
+    })
+    if (!input) return 'skipped'
+
+    const written = yield* Effect.result(writeAuditEvent(input))
+    if (Result.isFailure(written)) {
+      yield* annotateWide({
+        authAuditError: written.failure.reason,
+        authAuditErrorTag: written.failure._tag
       })
-    )
+      return 'dropped'
+    }
     return 'recorded'
-  } catch {
-    // Best-effort: the caller annotates the wide event with the drop.
-    return 'dropped'
-  }
-}
+  })

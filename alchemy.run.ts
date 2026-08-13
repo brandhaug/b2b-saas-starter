@@ -124,6 +124,11 @@ export const Stack = Alchemy.Stack(
         })
       : undefined
 
+    // Built as its own object so every worker below spreads the same optional
+    // binding set: the EMAIL key exists only when the resource does.
+    const emailBinding: { EMAIL?: NonNullable<typeof transactionalEmail> } = {}
+    if (transactionalEmail) emailBinding.EMAIL = transactionalEmail
+
     const api = yield* Cloudflare.Worker('api', {
       name: 'b2b-saas-starter-api',
       main: './apps/api/src/index.ts',
@@ -132,7 +137,7 @@ export const Stack = Alchemy.Stack(
         // Producer only — the background worker consumes; the API worker
         // enqueues webhook events after audit-worthy mutations.
         WEBHOOK_QUEUE: webhookQueue,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        ...emailBinding
       },
       env: optionalModuleEnv,
       compatibility: { date: '2026-05-16' },
@@ -150,7 +155,7 @@ export const Stack = Alchemy.Stack(
       bindings: {
         DB: db,
         WEBHOOK_QUEUE: webhookQueue,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        ...emailBinding
       },
       env: optionalModuleEnv,
       compatibility: { date: '2026-05-16' },
@@ -178,7 +183,7 @@ export const Stack = Alchemy.Stack(
       rootDir: './apps/web',
       bindings: {
         DB: db,
-        ...(transactionalEmail ? { EMAIL: transactionalEmail } : {})
+        ...emailBinding
       },
       env: {
         ...optionalModuleEnv,

@@ -20,13 +20,18 @@ export type ApiEnv = RateLimitBindings &
 export const emailFromAddress = (env: ApiEnv): string | undefined =>
   env.CLOUDFLARE_EMAIL_FROM ?? env.EMAIL_FROM_ADDRESS
 
-export const providerEnv = (env: ApiEnv): ProviderEnv => ({
-  ...(env.AI ? { AI: env.AI } : {}),
-  ...(env.WORKERS_AI_ENABLED ? { WORKERS_AI_ENABLED: env.WORKERS_AI_ENABLED } : {}),
-  ...(env.OPENAI_API_KEY ? { OPENAI_API_KEY: env.OPENAI_API_KEY } : {}),
-  ...(env.OPENAI_BASE_URL ? { OPENAI_BASE_URL: env.OPENAI_BASE_URL } : {}),
-  ...(env.OPENAI_MODEL_ID ? { OPENAI_MODEL_ID: env.OPENAI_MODEL_ID } : {})
-})
+// Only configured provider vars are copied across: an absent key leaves the
+// assistant in its mock/needs-config state, while a present-but-undefined key
+// would claim configuration that does not exist.
+export const providerEnv = (env: ApiEnv): ProviderEnv => {
+  const provider: { -readonly [K in keyof ProviderEnv]: ProviderEnv[K] } = {}
+  if (env.AI) provider.AI = env.AI
+  if (env.WORKERS_AI_ENABLED) provider.WORKERS_AI_ENABLED = env.WORKERS_AI_ENABLED
+  if (env.OPENAI_API_KEY) provider.OPENAI_API_KEY = env.OPENAI_API_KEY
+  if (env.OPENAI_BASE_URL) provider.OPENAI_BASE_URL = env.OPENAI_BASE_URL
+  if (env.OPENAI_MODEL_ID) provider.OPENAI_MODEL_ID = env.OPENAI_MODEL_ID
+  return provider
+}
 
 // Module-aware env validation (ADR 0035): derive module config status from
 // this worker's real env so REST module/integration status reflects the

@@ -43,7 +43,7 @@ export const webhookConsumerSettings: QueueConsumerSettings = {
   batchSize: 25,
   maxConcurrency: 4,
   maxRetries: 6,
-  maxWaitTimeMs: 5_000,
+  maxWaitTimeMs: 5000,
   retryDelay: 30
 }
 
@@ -53,5 +53,5 @@ export const webhookDlqConsumerSettings: QueueConsumerSettings = {
   batchSize: 25,
   maxConcurrency: 1,
   maxRetries: 1,
-  maxWaitTimeMs: 5_000
+  maxWaitTimeMs: 5000
 }

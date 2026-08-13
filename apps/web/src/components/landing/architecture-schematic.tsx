@@ -12,7 +12,7 @@ export function ArchitectureSchematic() {
       viewBox="0 0 560 460"
       role="img"
       aria-label="Schematic of the starter architecture: browser, REST and MCP clients, and cron triggers flow into the web, api, and background Workers, through the shared capabilities package, to D1, Queues, and Email."
-      className="w-full min-w-[540px]"
+      className="w-full min-w-135"
     >
       <title>Request topology of the B2B SaaS Starter</title>
 
@@ -79,7 +79,7 @@ export function ArchitectureSchematic() {
           y="189"
           textAnchor="middle"
           dominantBaseline="central"
-          className="fill-primary font-mono text-[10px]"
+          className="fill-primary font-mono text-3xs"
         >
           packages/capabilities
         </text>
@@ -137,7 +137,7 @@ export function ArchitectureSchematic() {
         <text
           x="344"
           y="417"
-          className="fill-muted-foreground text-[8px]"
+          className="fill-muted-foreground text-4xs"
           dominantBaseline="middle"
         >
           B2B-SAAS-STARTER · REQUEST TOPOLOGY
@@ -145,7 +145,7 @@ export function ArchitectureSchematic() {
         <text
           x="344"
           y="437"
-          className="fill-muted-foreground text-[8px]"
+          className="fill-muted-foreground text-4xs"
           dominantBaseline="middle"
         >
           CLOUDFLARE-FIRST · ALCHEMY v2 · SHEET 1/1
@@ -180,7 +180,7 @@ function ClientNode({
         y={y + 18}
         textAnchor="middle"
         dominantBaseline="central"
-        className="fill-muted-foreground font-mono text-[10px]"
+        className="fill-muted-foreground font-mono text-3xs"
       >
         {label}
       </text>
@@ -215,14 +215,14 @@ function WorkerNode({
       <text
         x={x + 12}
         y={y + h / 2 - 7}
-        className="fill-foreground font-mono text-[11px] font-medium"
+        className="fill-foreground font-mono text-2xs font-medium"
       >
         {label}
       </text>
       <text
         x={x + 12}
         y={y + h / 2 + 9}
-        className="fill-muted-foreground font-mono text-[8.5px]"
+        className="fill-muted-foreground font-mono text-4xs"
       >
         {sub}
       </text>
@@ -254,7 +254,7 @@ function InfraNode({
         y={y + 20}
         textAnchor="middle"
         dominantBaseline="central"
-        className="fill-foreground font-mono text-[10px]"
+        className="fill-foreground font-mono text-3xs"
       >
         {label}
       </text>

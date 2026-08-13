@@ -1,4 +1,4 @@
-import { Effect, type Scope } from 'effect'
+import { Effect, Schema, type Scope } from 'effect'
 import { annotateWide } from '@b2b-saas-starter/logger'
 
 // Cloudflare Rate Limiting binding shape (subset). The actual bindings are
@@ -10,6 +10,16 @@ export type CloudflareRateLimit = {
     readonly success: boolean
   }>
 }
+
+/**
+ * The Cloudflare ratelimit binding call rejected (transient platform error).
+ * Never reaches callers — `take` degrades to the in-memory fallback — but the
+ * reason is carried this far so it can be put on the request's wide event.
+ */
+export class RateLimitBindingFailure extends Schema.TaggedErrorClass<RateLimitBindingFailure>()(
+  'RateLimitBindingFailure',
+  { reason: Schema.String }
+) {}
 
 export type RateLimitInput<Bucket extends string> = {
   readonly bucket: Bucket
@@ -65,14 +75,22 @@ export const makeRateLimiter = <Bucket extends string>(
     Effect.gen(function* () {
       const binding = config.binding(input.bucket)
       if (binding) {
-        const outcome = yield* Effect.promise(async () => {
-          try {
-            return await binding.limit({ key: input.key })
-          } catch {
-            return null
-          }
-        })
-        if (outcome) return outcome.success
+        const attempt = yield* Effect.result(
+          Effect.tryPromise({
+            try: () => binding.limit({ key: input.key }),
+            catch: (cause) =>
+              new RateLimitBindingFailure({
+                reason: cause instanceof Error ? cause.message : String(cause)
+              })
+          })
+        )
+        if (attempt._tag === 'Success') {
+          const outcome = attempt.success
+          return outcome.success
+        }
+        // Carry the binding's own failure reason onto the wide event before
+        // degrading — the fallback must never hide why the binding failed.
+        yield* annotateWide({ rateLimitBindingError: attempt.failure.reason })
       }
       // Falling back to the per-isolate in-memory map — either the binding
       // is missing (local dev, tests) or its call failed (transient

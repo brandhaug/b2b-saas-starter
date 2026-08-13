@@ -27,7 +27,9 @@ export function LiveNotifications({
     initialData: fallback
   })
 
-  const notifications = data ?? fallback
+  // `initialData` makes the query's data non-nullable — the fallback is the
+  // first render's value, so there is no undefined state to guard.
+  const notifications = data
 
   return (
     <Card>
@@ -40,7 +42,10 @@ export function LiveNotifications({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => refetch()}
+          onClick={() => {
+            // The query surfaces refetch failures through `error` below.
+            void refetch()
+          }}
           disabled={isFetching}
           aria-label="Refresh notifications"
         >

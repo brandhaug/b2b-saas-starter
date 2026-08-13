@@ -9,7 +9,7 @@ const program = runCatalogRefresh.pipe(
   Effect.tap((count) =>
     Effect.sync(() => {
       process.stdout.write(
-        JSON.stringify(
+        `${JSON.stringify(
           {
             status: 'ok',
             modules: count,
@@ -17,7 +17,7 @@ const program = runCatalogRefresh.pipe(
           },
           null,
           2
-        ) + '\n'
+        )}\n`
       )
     })
   )

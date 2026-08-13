@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
+import { Cause, Effect, Exit, Option } from 'effect'
 import {
   API_TOKEN_SCOPES,
   type ApiTokenScope,
@@ -10,9 +11,17 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
 
+const CREATE_TOKEN_FAILED = 'Failed to create token'
+
 type ApiTokenValues = {
   name: string
   scopes: readonly ApiTokenScope[]
+}
+
+function validateTokenName(value: string): string | undefined {
+  if (value.trim().length === 0) return 'Token name is required'
+  if (value.length > 80) return 'Token name must be under 80 characters'
+  return
 }
 
 export function ApiTokenForm({
@@ -31,22 +40,33 @@ export function ApiTokenForm({
     } satisfies ApiTokenValues,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      try {
-        const token = await createApiTokenServerFn({
-          data: {
-            workspaceSlug,
-            name: value.name,
-            scopes: value.scopes
-          }
+      // The server function rejects when the capability fails. `Effect.tryPromise`
+      // moves that rejection into the error channel as a display message, so the
+      // failure path is a value instead of a try/catch.
+      const exit = await Effect.runPromiseExit(
+        Effect.tryPromise({
+          try: () =>
+            createApiTokenServerFn({
+              data: {
+                workspaceSlug,
+                name: value.name,
+                scopes: value.scopes
+              }
+            }),
+          catch: (cause) =>
+            cause instanceof Error ? cause.message : CREATE_TOKEN_FAILED
         })
-        setCreated(token)
-        onCreated?.(token)
-        form.reset()
-      } catch (error) {
+      )
+
+      if (Exit.isFailure(exit)) {
         setSubmitError(
-          error instanceof Error ? error.message : 'Failed to create token'
+          Option.getOrElse(Cause.findErrorOption(exit.cause), () => CREATE_TOKEN_FAILED)
         )
+        return
       }
+      setCreated(exit.value)
+      onCreated?.(exit.value)
+      form.reset()
     }
   })
 
@@ -61,14 +81,7 @@ export function ApiTokenForm({
     >
       <form.Field
         name="name"
-        validators={{
-          onChange: ({ value }) =>
-            value.trim().length === 0
-              ? 'Token name is required'
-              : value.length > 80
-                ? 'Token name must be under 80 characters'
-                : undefined
-        }}
+        validators={{ onChange: ({ value }) => validateTokenName(value) }}
       >
         {(field) => (
           <FormTextField
@@ -108,10 +121,10 @@ export function ApiTokenForm({
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(next) => {
-                          const isChecked = next === true
+                          const isChecked = next
                           field.handleChange(
                             isChecked
-                              ? Array.from(new Set([...field.state.value, scope]))
+                              ? [...new Set([...field.state.value, scope])]
                               : field.state.value.filter((item) => item !== scope)
                           )
                         }}

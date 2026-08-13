@@ -18,10 +18,8 @@ import {
   WebhookEndpoints,
   type WebhookEndpoint
 } from './developer-platform/webhook-endpoints.ts'
-import {
-  WorkspaceMembership,
-  type Workspace
-} from './governance/workspace-membership.ts'
+import type { Workspace } from './governance/workspace-identity.ts'
+import { WorkspaceMembership } from './governance/workspace-membership.ts'
 import {
   NotificationFeed,
   type Notification

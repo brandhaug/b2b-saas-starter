@@ -39,7 +39,7 @@ export function CatalogRefreshChart({
             contentStyle={TOOLTIP_STYLE}
             formatter={(value, _name, item) => {
               const status =
-                (item as { payload?: { status?: string } })?.payload?.status ?? 'ok'
+                (item as { payload?: { status?: string } }).payload?.status ?? 'ok'
               return [`${String(value)}ms (${status})`, 'Duration']
             }}
           />

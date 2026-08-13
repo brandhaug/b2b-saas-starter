@@ -1,0 +1,9 @@
+// Fixtures hold deliberate violations. A nested config replaces the root
+// config for this directory, so the repository-wide oxlint run (and the
+// pre-commit hook) stays quiet about them. The tests lint these files with
+// their own config instead.
+{
+  "plugins": [],
+  "categories": { "correctness": "off" },
+  "rules": {}
+}

@@ -15,10 +15,13 @@ const CreateApiTokenInput = Schema.Struct({
   scopes: Schema.NonEmptyArray(ApiTokenScope)
 })
 
+// The schema decoder IS the boundary contract: passing it as the validator
+// keeps the untyped wire value inside `decodeUnknownSync` and hands the handler
+// the decoded domain type.
 const decodeInput = Schema.decodeUnknownSync(CreateApiTokenInput)
 
 export const createApiTokenServerFn = createServerFn({ method: 'POST' })
-  .validator((input: unknown) => decodeInput(input))
+  .validator((input) => decodeInput(input))
   .handler(async ({ data }): Promise<CreatedApiToken> => {
     const session = await requireRequestSession()
     return runWorkspaceCapabilities(

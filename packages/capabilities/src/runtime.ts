@@ -13,7 +13,7 @@ import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
 import {
   liveWorkspaceContext,
   seedWorkspaceContext,
-  WorkspaceContext,
+  type WorkspaceContext,
   type ActorRef
 } from './workspace-context.ts'
 import type { CapabilityUnavailable, WorkspaceNotFound } from './errors.ts'

@@ -17,7 +17,7 @@ export type AssistantProvider = typeof AssistantProvider.Type
 
 export const AssistantPrompt = Schema.Struct({
   workspaceSlug: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100)),
-  question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2_000))
+  question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000))
 })
 export type AssistantPrompt = typeof AssistantPrompt.Type
 
@@ -63,23 +63,26 @@ export const makeWorkersAILayer = (
 ) =>
   Layer.succeed(AssistantService)({
     ask: (prompt) =>
-      Effect.tryPromise({
-        try: async () => {
-          const result = await binding.run(modelId, {
-            prompt: `Workspace: ${prompt.workspaceSlug}\nQuestion: ${prompt.question}\nAnswer:`
-          })
-          if (!result.response) {
-            throw new Error('missing response')
-          }
-          return {
-            answer: result.response,
-            provider: 'workers-ai' as const,
-            modelId,
-            usedTools: []
-          }
-        },
-        catch: (cause) =>
-          new AssistantUnavailable({ reason: `workers-ai: ${String(cause)}` })
+      Effect.gen(function* () {
+        const result = yield* Effect.tryPromise({
+          try: () =>
+            binding.run(modelId, {
+              prompt: `Workspace: ${prompt.workspaceSlug}\nQuestion: ${prompt.question}\nAnswer:`
+            }),
+          catch: (cause) =>
+            new AssistantUnavailable({ reason: `workers-ai: ${String(cause)}` })
+        })
+        if (!result.response) {
+          return yield* Effect.fail(
+            new AssistantUnavailable({ reason: 'workers-ai: missing response' })
+          )
+        }
+        return {
+          answer: result.response,
+          provider: 'workers-ai' as const,
+          modelId,
+          usedTools: []
+        }
       })
   })
 
@@ -99,21 +102,32 @@ const OpenAIChatResponse = Schema.Struct({
   ).check(Schema.isMinLength(1))
 })
 
+/**
+ * The single platform adapter in this package: one outbound HTTP POST against
+ * an OpenAI-compatible endpoint. `packages/ai` deliberately depends on `effect`
+ * only, so there is no `@effect/platform` HttpClient to route through; the
+ * global `fetch` is confined to this one function and every caller wraps it in
+ * `Effect.tryPromise` with a tagged `AssistantUnavailable` failure.
+ */
+const postJson = (url: string, headers: Record<string, string>, body: string) =>
+  // oxlint-disable-next-line automation/no-direct-fetch -- named platform adapter; the only fetch in the package, wrapped by Effect.tryPromise below
+  fetch(url, { method: 'POST', headers, body })
+
 export const makeOpenAILayer = (config: OpenAIConfig) =>
   Layer.succeed(AssistantService)({
     ask: (prompt) =>
       Effect.gen(function* () {
         const baseUrl = config.baseUrl ?? 'https://api.openai.com/v1'
         const modelId = config.modelId ?? 'gpt-4o-mini'
-        const raw = yield* Effect.tryPromise({
-          try: async () => {
-            const response = await fetch(`${baseUrl}/chat/completions`, {
-              method: 'POST',
-              headers: {
+        const response = yield* Effect.tryPromise({
+          try: () =>
+            postJson(
+              `${baseUrl}/chat/completions`,
+              {
                 authorization: `Bearer ${config.apiKey}`,
                 'content-type': 'application/json'
               },
-              body: JSON.stringify({
+              JSON.stringify({
                 model: modelId,
                 messages: [
                   {
@@ -123,10 +137,17 @@ export const makeOpenAILayer = (config: OpenAIConfig) =>
                   { role: 'user', content: prompt.question }
                 ]
               })
-            })
-            if (!response.ok) throw new Error(`openai status ${response.status}`)
-            return (await response.json()) as unknown
-          },
+            ),
+          catch: (cause) =>
+            new AssistantUnavailable({ reason: `openai: ${String(cause)}` })
+        })
+        if (!response.ok) {
+          return yield* Effect.fail(
+            new AssistantUnavailable({ reason: `openai: status ${response.status}` })
+          )
+        }
+        const raw: unknown = yield* Effect.tryPromise({
+          try: () => response.json(),
           catch: (cause) =>
             new AssistantUnavailable({ reason: `openai: ${String(cause)}` })
         })
@@ -166,11 +187,14 @@ export const selectAssistantLayer = (
     return makeWorkersAILayer(env.AI)
   }
   if (env.OPENAI_API_KEY) {
-    return makeOpenAILayer({
-      apiKey: env.OPENAI_API_KEY,
-      ...(env.OPENAI_BASE_URL ? { baseUrl: env.OPENAI_BASE_URL } : {}),
-      ...(env.OPENAI_MODEL_ID ? { modelId: env.OPENAI_MODEL_ID } : {})
-    })
+    // Assigned only when set so the layer's own defaults (api.openai.com,
+    // gpt-4o-mini) still apply for absent vars.
+    const config: { apiKey: string; baseUrl?: string; modelId?: string } = {
+      apiKey: env.OPENAI_API_KEY
+    }
+    if (env.OPENAI_BASE_URL) config.baseUrl = env.OPENAI_BASE_URL
+    if (env.OPENAI_MODEL_ID) config.modelId = env.OPENAI_MODEL_ID
+    return makeOpenAILayer(config)
   }
   return MockAssistantLayer
 }

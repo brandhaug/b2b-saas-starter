@@ -4,7 +4,9 @@ import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import { resolve } from 'node:path'
-import rehypePrettyCode from 'rehype-pretty-code'
+// Named export rather than the identical default, so the local name matches
+// what the package exports.
+import { rehypePrettyCode } from 'rehype-pretty-code'
 import rehypeSlug from 'rehype-slug'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'

@@ -6,10 +6,10 @@ import { orUnavailable } from './internal/unavailable.ts'
 import {
   findWorkspaceMember,
   SystemRole,
-  Workspace,
+  type Workspace,
   WorkspaceRole,
   type Member
-} from './governance/workspace-membership.ts'
+} from './governance/workspace-identity.ts'
 
 export const Actor = Schema.Struct({
   userId: Schema.String,

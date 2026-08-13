@@ -4,7 +4,10 @@ import { HttpApiBuilder, HttpApiScalar } from 'effect/unstable/httpapi'
 import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { StarterApi } from '@b2b-saas-starter/api'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities'
-import { selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
+import {
+  selectEmailDispatcherLayer,
+  type SendEmailBinding
+} from '@b2b-saas-starter/email'
 import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import {
@@ -34,13 +37,15 @@ const makeApiLayer = (
   env: ApiEnv
 ): Layer.Layer<never, never, HttpRouter.HttpRouter> => {
   const fromAddress = emailFromAddress(env)
+  // The dispatcher goes live only when both the binding and a sender exist;
+  // omit the keys it should not see rather than passing undefined through.
+  const emailEnv: { EMAIL?: SendEmailBinding; EMAIL_FROM_ADDRESS?: string } = {}
+  if (env.EMAIL) emailEnv.EMAIL = env.EMAIL
+  if (fromAddress) emailEnv.EMAIL_FROM_ADDRESS = fromAddress
   const capabilities = Layer.mergeAll(
     selectCapabilitiesLayer(starterEnv(env)),
     selectAssistantLayer(providerEnv(env)),
-    selectEmailDispatcherLayer({
-      ...(env.EMAIL ? { EMAIL: env.EMAIL } : {}),
-      ...(fromAddress ? { EMAIL_FROM_ADDRESS: fromAddress } : {})
-    }),
+    selectEmailDispatcherLayer(emailEnv),
     makeRateLimiterLayer(env)
   )
 

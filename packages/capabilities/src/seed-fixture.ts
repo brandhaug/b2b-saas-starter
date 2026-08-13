@@ -7,7 +7,7 @@ import type { IntegrationSurface } from './notifications/integration-surfaces.ts
 import type { Notification } from './notifications/notification-feed.ts'
 import type { StarterModuleWithState } from './catalog/starter-module-catalog.ts'
 import type { WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
-import type { Member, Workspace } from './governance/workspace-membership.ts'
+import type { Member, Workspace } from './governance/workspace-identity.ts'
 
 const now = '2026-05-16T09:00:00.000Z'
 
