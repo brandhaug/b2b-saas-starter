@@ -57,7 +57,7 @@ Each capability gets a leaf intent node alongside its source file. Read it befor
 
 `governance/workspace-identity.ts` is not a capability: it owns the workspace identity vocabulary (`WORKSPACE_ROLES`, `SYSTEM_ROLES`, `Workspace`, `Member`, `toMember`, `findWorkspaceMember`) so `workspace-context.ts` and `governance/workspace-membership.ts` no longer import each other. `workspace-membership.ts` depends on `WorkspaceContext` for its member reads, so the shared types and the member lookup live below both. Import identity types from this module, not from the membership capability.
 
-Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect), and `AuthorizationDenied` (403 — raised by `verifyBearerToken`). Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
+Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404) and `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect). `AuthorizationDenied` (403 — raised by `verifyBearerToken`) is **declared in [`@b2b-saas-starter/authz`](../authz/AGENTS.md)** and re-exported from `errors.ts`, so this package and the guard raise one class. Never redeclare it here. Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
 
 ## Where to put a new capability
 

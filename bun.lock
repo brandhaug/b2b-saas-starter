@@ -193,9 +193,25 @@
         "vitest": "catalog:",
       },
     },
+    "packages/authz": {
+      "name": "@b2b-saas-starter/authz",
+      "dependencies": {
+        "@b2b-saas-starter/db": "workspace:*",
+        "@b2b-saas-starter/logger": "workspace:*",
+        "better-auth": "catalog:",
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@b2b-saas-starter/config": "workspace:*",
+        "@effect/vitest": "catalog:",
+        "typescript": "catalog:",
+        "vitest": "catalog:",
+      },
+    },
     "packages/capabilities": {
       "name": "@b2b-saas-starter/capabilities",
       "dependencies": {
+        "@b2b-saas-starter/authz": "workspace:*",
         "@b2b-saas-starter/db": "workspace:*",
         "@b2b-saas-starter/logger": "workspace:*",
         "drizzle-orm": "catalog:",
@@ -445,6 +461,8 @@
     "@b2b-saas-starter/api": ["@b2b-saas-starter/api@workspace:packages/api"],
 
     "@b2b-saas-starter/auth": ["@b2b-saas-starter/auth@workspace:packages/auth"],
+
+    "@b2b-saas-starter/authz": ["@b2b-saas-starter/authz@workspace:packages/authz"],
 
     "@b2b-saas-starter/capabilities": ["@b2b-saas-starter/capabilities@workspace:packages/capabilities"],
 
