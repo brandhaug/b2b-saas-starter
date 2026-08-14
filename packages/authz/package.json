@@ -1,5 +1,5 @@
 {
-  "name": "@b2b-saas-starter/capabilities",
+  "name": "@b2b-saas-starter/authz",
   "private": true,
   "type": "module",
   "exports": {
@@ -8,19 +8,17 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@b2b-saas-starter/authz": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
-    "drizzle-orm": "catalog:",
+    "better-auth": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
     "@effect/vitest": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
