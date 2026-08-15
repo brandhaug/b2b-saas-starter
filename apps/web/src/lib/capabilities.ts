@@ -1,7 +1,8 @@
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { notFound } from '@tanstack/react-router'
-import { Cause, Effect, Exit, Option } from 'effect'
+import { Cause, Effect, Exit, Option, type Scope } from 'effect'
 import {
+  AuthorizationDenied,
   CapabilityUnavailable,
   selectCapabilitiesLayer,
   selectWorkspaceLayer,
@@ -12,11 +13,11 @@ import {
   type WorkspaceContext
 } from '@b2b-saas-starter/capabilities'
 import { makeStarterEnvModuleConfig } from '@b2b-saas-starter/env'
-import { CapabilityUnavailableError } from './capability-error'
+import { CapabilityUnavailableError, ForbiddenError } from './capability-error'
 import { withWebRequestScope } from './observability'
 
 export type { CapabilityServices }
-export { CapabilityUnavailableError }
+export { CapabilityUnavailableError, ForbiddenError }
 
 // Real Worker bindings (same import as `server-context.ts`). In production the
 // D1 binding exists and activates the Live layer; under the local dev shim
@@ -50,6 +51,10 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
       // oxlint-disable-next-line effect/noThrowStatement -- rejects the loader promise so router.tsx's defaultErrorComponent renders the degraded state
       throw new CapabilityUnavailableError(error.capability, error.reason)
     }
+    if (error instanceof AuthorizationDenied) {
+      // oxlint-disable-next-line effect/noThrowStatement -- carries the 403 across the Promise boundary with a message the calling form can display
+      throw new ForbiddenError(error.reason)
+    }
     // oxlint-disable-next-line effect/noThrowStatement -- re-raises the original typed failure across the Promise boundary
     throw error
   }
@@ -69,10 +74,16 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
  *   404 component.
  * - `CapabilityUnavailable` becomes `CapabilityUnavailableError` so the
  *   error component renders a degraded-state message.
+ * - `AuthorizationDenied` — raised by `requireWorkspacePermission` inside the
+ *   effect — becomes `ForbiddenError`, whose message the calling form shows.
+ *
+ * `Scope.Scope` is allowed in the effect's requirements because the request
+ * scope supplies it: that is how the guard annotates the request's wide event
+ * on denial.
  */
 export async function runWorkspaceCapabilities<A, E>(
   workspaceSlug: string,
-  effect: Effect.Effect<A, E, CapabilityServices | WorkspaceContext>,
+  effect: Effect.Effect<A, E, CapabilityServices | WorkspaceContext | Scope.Scope>,
   actor?: ActorRef
 ): Promise<A> {
   const exit = await Effect.runPromiseExit(

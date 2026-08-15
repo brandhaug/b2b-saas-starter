@@ -77,11 +77,17 @@ const readScopeStatements = {
 
 export const readScopeRole = accessControl.newRole(readScopeStatements)
 
-/** The read set plus the mutations a machine client is trusted with. */
+/**
+ * The read set plus the mutations a machine client is trusted with.
+ *
+ * `apiToken: ['create']` is deliberately absent. Minting is the one mutation
+ * that would let a token escalate itself — a `write` token allowed to create
+ * tokens could issue an `admin` one — so it stays with the owner set, where
+ * `admin` scope already reaches it.
+ */
 export const writeScopeRole = accessControl.newRole({
   ...readScopeStatements,
   invitation: ['create'],
-  apiToken: ['list', 'create'],
   webhook: ['list', 'create'],
   module: ['read', 'update']
 })

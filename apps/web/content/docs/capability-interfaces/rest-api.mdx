@@ -30,7 +30,7 @@ The same schemas feed the OpenAPI document. A typed client can be generated from
 
 ## Authentication
 
-Public REST clients authenticate with a workspace-scoped API Token in the `Authorization: Bearer …` header. The worker's `authorize()` step calls `ApiTokenRegistry.verifyBearerToken(token, requiredScope)` — missing header returns HTTP 401, invalid or insufficient token returns HTTP 403. Browser sessions are not accepted on the public API surface; cookies are an internal contract for the web Worker only.
+Public REST clients authenticate with a workspace-scoped API Token in the `Authorization: Bearer …` header. The worker calls `ApiTokenRegistry.verifyBearerToken(token)` and then checks the route's permission against the token's scopes — a missing header or an unknown token returns HTTP 401, a token without the permission returns HTTP 403. Browser sessions are not accepted on the public API surface; cookies are an internal contract for the web Worker only.
 
 ## Rate limiting
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { Effect, Schema } from 'effect'
-import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities'
+import { SEED_API_TOKEN, SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities'
 import type { ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 
@@ -34,6 +34,7 @@ const McpDiscoveryBody = Schema.Struct({ name: Schema.String })
 const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
 const bearer = { authorization: `Bearer ${SEED_API_TOKEN}` }
+const readOnlyBearer = { authorization: `Bearer ${SEED_READONLY_API_TOKEN}` }
 
 function handlerFor(env: ApiEnv): (request: Request) => Promise<Response> {
   return buildWebHandler(env).handler
@@ -128,6 +129,44 @@ describe('contract-served routes', () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const res = yield* send(get('/workspaces/does-not-exist/overview', bearer))
+        expect(res.status).toBe(403)
+        expect((yield* jsonBody(res, ErrorBody))._tag).toBe('AuthorizationDenied')
+      })
+    ))
+
+  test('a read-only token may read the workspace', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(get('/workspaces/starter-lab/overview', readOnlyBearer))
+        expect(res.status).toBe(200)
+      })
+    ))
+
+  test('a read-only token cannot mint an api token', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          post(
+            '/workspaces/starter-lab/api-tokens',
+            { name: 'CI token', scopes: ['read'] },
+            readOnlyBearer
+          )
+        )
+        expect(res.status).toBe(403)
+        expect((yield* jsonBody(res, ErrorBody))._tag).toBe('AuthorizationDenied')
+      })
+    ))
+
+  test('a read-only token cannot create a webhook endpoint', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          post(
+            '/workspaces/starter-lab/webhooks',
+            { url: 'https://hooks.example.com/x', events: ['api_token.created'] },
+            readOnlyBearer
+          )
+        )
         expect(res.status).toBe(403)
         expect((yield* jsonBody(res, ErrorBody))._tag).toBe('AuthorizationDenied')
       })

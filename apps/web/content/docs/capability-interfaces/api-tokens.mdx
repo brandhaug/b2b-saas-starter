@@ -14,11 +14,13 @@ A workspace admin creates a token from the workspace settings UI, which calls `P
 
 ## Scopes
 
-Scopes are coarse on purpose: `read`, `write`, and `admin`. The API Worker's `enforceScope(request, scope)` guard (`apps/api/src/handlers.ts`) parses the `Authorization: Bearer …` header, calls `ApiTokenRegistry.verifyBearerToken(token, requiredScope)`, and rejects the request — HTTP 401 when the header is missing, HTTP 403 when the token is invalid or under-scoped. Each handler applies the guard with the route's required scope. The MCP discovery endpoint at `/mcp` requires a `read`-scoped token like the REST reads; per-tool scope enforcement will follow once tool dispatch is wired.
+Scopes are coarse on purpose: `read`, `write`, and `admin`. Each scope maps to a set of permissions in `@b2b-saas-starter/authz`, so a scope and a workspace role are answered by the same `authorize()` call.
+
+The API Worker's `enforcePermission(request, permission)` guard (`apps/api/src/handlers.ts`) parses the `Authorization: Bearer …` header, calls `ApiTokenRegistry.verifyBearerToken(token)` to authenticate, then checks the route's permission against the token's scopes. A missing header or an unknown token is HTTP 401; a token that may not do what it asked is HTTP 403. Handlers name the permission — `{ apiToken: ['create'] }` — never a scope. Minting a token needs the `admin` scope: `write` deliberately cannot create tokens, because a `write` token allowed to mint could issue an `admin` one. The MCP discovery endpoint at `/mcp` needs only workspace read access; per-tool permissions will follow once tool dispatch is wired.
 
 ## Revocation
 
-Revocation is immediate. `ApiTokenRegistry.revoke` stamps `revokedAt` on the row and `verifyBearerToken` filters `isNull(revokedAt)` — subsequent requests get HTTP 403 (HTTP 401 is reserved for missing bearer header). Revocation also writes an `api_token.revoked` Audit Event via `AuditEventLog.record`; user-facing Notification emission on revocation is not yet wired.
+Revocation is immediate. `ApiTokenRegistry.revoke` stamps `revokedAt` on the row and `verifyBearerToken` filters `isNull(revokedAt)` — subsequent requests get HTTP 401, the same answer as any unknown token. Revocation also writes an `api_token.revoked` Audit Event via `AuditEventLog.record`; user-facing Notification emission on revocation is not yet wired.
 
 ## What tokens are not
 

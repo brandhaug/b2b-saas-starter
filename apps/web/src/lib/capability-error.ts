@@ -24,3 +24,23 @@ export class CapabilityUnavailableError extends Error {
     this.name = CAPABILITY_UNAVAILABLE_ERROR_NAME
   }
 }
+
+/** Companion discriminant for the 403 case, on the same `name`-only rules. */
+export const FORBIDDEN_ERROR_NAME = 'ForbiddenError'
+
+/**
+ * Thrown when the signed-in actor's workspace role does not cover the action.
+ * `AuthorizationDenied` carries a machine reason and no message, and only
+ * `name`/`message` survive the boundary — so the explanation has to be built
+ * here, where the calling form reads it.
+ */
+export class ForbiddenError extends Error {
+  constructor(reason: string) {
+    super(
+      reason === 'no_principal'
+        ? 'You are not signed in to this workspace — sign in again and retry.'
+        : 'You do not have permission to do this in this workspace. Ask a workspace owner or admin.'
+    )
+    this.name = FORBIDDEN_ERROR_NAME
+  }
+}

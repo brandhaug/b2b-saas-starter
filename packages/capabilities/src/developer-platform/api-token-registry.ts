@@ -82,9 +82,15 @@ export type ApiTokenRegistryInterface = {
   readonly revoke: (
     input: RevokeApiTokenInput
   ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
+  /**
+   * Authenticates a bearer token: which token is this, whose workspace does it
+   * belong to, and what scopes does it carry. It does **not** judge whether
+   * those scopes cover the request — that is one `authorize()` decision made by
+   * `requirePermission` at the route boundary, so there is no second
+   * permission implementation to keep in step.
+   */
   readonly verifyBearerToken: (
-    token: string,
-    requiredScope: ApiTokenScope
+    token: string
   ) => Effect.Effect<VerifiedApiToken, AuthorizationDenied | CapabilityUnavailable>
 }
 
@@ -94,11 +100,19 @@ export class ApiTokenRegistry extends Context.Service<
 >()('@b2b-saas-starter/capabilities/ApiTokenRegistry') {}
 
 /**
- * The only bearer token the Seed layer accepts. Documented fixture credential
- * for local development and tests — everything else fails with
- * `AuthorizationDenied`, matching the Live layer's behavior for unknown tokens.
+ * The full-power bearer token the Seed layer accepts. Documented fixture
+ * credential for local development and tests — it carries every scope.
  */
 export const SEED_API_TOKEN = 'bsk_seed_0000000000000000'
+
+/**
+ * A second fixture token carrying the `read` scope only. It exists so the
+ * denial half of the permission matrix is reachable without a live D1: with
+ * one all-powerful fixture token, no Seed-backed test could ever observe a
+ * 403. Anything other than these two fails with `AuthorizationDenied`,
+ * matching the Live layer's behavior for unknown tokens.
+ */
+export const SEED_READONLY_API_TOKEN = 'bsk_seed_readonly000000'
 
 /**
  * Minimum interval between `lastUsedAt` writes. `verifyBearerToken` runs on
@@ -114,6 +128,12 @@ export function shouldBumpLastUsedAt(lastUsedAt: string | null, now: number): bo
   const parsed = Date.parse(lastUsedAt)
   if (Number.isNaN(parsed)) return true
   return now - parsed >= LAST_USED_WRITE_INTERVAL_MS
+}
+
+/** The fixture tokens the Seed layer accepts, and the scopes each one carries. */
+const SEED_TOKEN_SCOPES: Record<string, readonly ApiTokenScope[] | undefined> = {
+  [SEED_API_TOKEN]: API_TOKEN_SCOPES,
+  [SEED_READONLY_API_TOKEN]: ['read']
 }
 
 export function SeedApiTokenRegistry(
@@ -135,17 +155,18 @@ export function SeedApiTokenRegistry(
       }
     }),
     revoke: () => Effect.succeed(true),
-    verifyBearerToken: (token, _requiredScope) => {
-      // The seed token carries all scopes, so `insufficient_scope` is
-      // unreachable here — every failure is an unknown token.
-      if (token !== SEED_API_TOKEN) {
+    verifyBearerToken: (token) => {
+      // Authentication only: an unknown token is the single failure. Whether
+      // the reported scopes cover the request is decided at the route boundary.
+      const scopes = SEED_TOKEN_SCOPES[token]
+      if (!scopes) {
         return Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
       }
       return Effect.succeed({
         id: seed[0]?.id ?? 'tok_seed',
         workspaceId: 'wrk_starter',
         workspaceSlug: 'starter-lab',
-        scopes: API_TOKEN_SCOPES
+        scopes
       })
     }
   })
@@ -284,7 +305,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
           )
           return true
         }),
-      verifyBearerToken: (token, requiredScope) =>
+      verifyBearerToken: (token) =>
         Effect.gen(function* () {
           const tokenHash = yield* Effect.promise(() => hashApiToken(token))
           const row = yield* unavailable(
@@ -297,16 +318,12 @@ export const LiveApiTokenRegistry: Layer.Layer<
               )
               .limit(1)
           ).pipe(Effect.map((rows) => rows[0]))
-          // Unknown/revoked token and known-token-without-scope fail with
-          // distinct reasons so the API worker can answer 401 vs 403.
+          // An unknown or revoked token is the only failure here, and the API
+          // worker answers it 401. A known token that may not do what it asked
+          // is a separate 403 raised by `requirePermission` at the boundary.
           if (!row) {
             return yield* Effect.fail(
               new AuthorizationDenied({ reason: 'invalid_token' })
-            )
-          }
-          if (!row.token.scopes.includes(requiredScope)) {
-            return yield* Effect.fail(
-              new AuthorizationDenied({ reason: 'insufficient_scope' })
             )
           }
           // Bump `lastUsedAt` at most once per LAST_USED_WRITE_INTERVAL_MS.
