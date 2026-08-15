@@ -7,6 +7,7 @@ import {
 } from '@b2b-saas-starter/capabilities'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
+import { requireWorkspacePermission } from './authorize'
 
 // All input constraints live in the schema — no imperative re-validation.
 const CreateApiTokenInput = Schema.Struct({
@@ -27,6 +28,8 @@ export const createApiTokenServerFn = createServerFn({ method: 'POST' })
     return runWorkspaceCapabilities(
       data.workspaceSlug,
       Effect.gen(function* () {
+        // The session gate above proves who is asking; this proves they may.
+        yield* requireWorkspacePermission({ apiToken: ['create'] })
         const tokens = yield* ApiTokenRegistry
         return yield* tokens.create({
           name: data.name,

@@ -80,13 +80,7 @@ const GRANTS: readonly {
   {
     name: 'write scope',
     principal: tokenPrincipal(['write']),
-    granted: [
-      ...READ_ONLY,
-      'invitation:create',
-      'apiToken:create',
-      'webhook:create',
-      'module:update'
-    ]
+    granted: [...READ_ONLY, 'invitation:create', 'webhook:create', 'module:update']
   },
   { name: 'admin scope', principal: tokenPrincipal(['admin']), granted: EVERY_LABEL }
 ]
@@ -133,6 +127,21 @@ describe('token scopes', () => {
     const token = tokenPrincipal(['read', 'write'])
     expect(authorize(token, { module: ['update'] }).success).toBe(true)
     expect(authorize(token, { module: ['read'] }).success).toBe(true)
+  })
+
+  it('cannot mint a token from the write scope', () => {
+    // Minting is how a token would escalate itself: a `write` token allowed to
+    // create tokens could issue an `admin` one. Only owner-level principals
+    // mint, so a token holding `write` may list tokens and nothing more.
+    expect(authorize(tokenPrincipal(['write']), { apiToken: ['create'] }).success).toBe(
+      false
+    )
+    expect(authorize(tokenPrincipal(['write']), { apiToken: ['list'] }).success).toBe(
+      true
+    )
+    expect(authorize(tokenPrincipal(['admin']), { apiToken: ['create'] }).success).toBe(
+      true
+    )
   })
 
   it('denies a token holding no scopes', () => {

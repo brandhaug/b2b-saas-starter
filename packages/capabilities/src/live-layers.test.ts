@@ -182,22 +182,14 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           'live-lab',
           Effect.gen(function* () {
             const registry = yield* ApiTokenRegistry
-            return yield* registry.verifyBearerToken(created.token, 'read')
+            return yield* registry.verifyBearerToken(created.token)
           })
         )
         expect(verified.workspaceSlug).toBe('live-lab')
+        // Verification reports the token's own scopes and stops there. It no
+        // longer judges them: `admin` is absent from this list, and saying so
+        // is the whole of its answer.
         expect(verified.scopes).toEqual(['read', 'write'])
-
-        const insufficientScope = yield* inWorkspace(
-          'live-lab',
-          Effect.gen(function* () {
-            const registry = yield* ApiTokenRegistry
-            return yield* Effect.flip(
-              registry.verifyBearerToken(created.token, 'admin')
-            )
-          })
-        )
-        expect(insufficientScope.reason).toBe('insufficient_scope')
 
         const listed = yield* inWorkspace(
           'live-lab',
@@ -228,7 +220,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           'live-lab',
           Effect.gen(function* () {
             const registry = yield* ApiTokenRegistry
-            return yield* Effect.flip(registry.verifyBearerToken(created.token, 'read'))
+            return yield* Effect.flip(registry.verifyBearerToken(created.token))
           })
         )
         expect(afterRevoke.reason).toBe('invalid_token')

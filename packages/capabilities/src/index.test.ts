@@ -11,6 +11,7 @@ import {
   LAST_USED_WRITE_INTERVAL_MS,
   LiveApiTokenRegistry,
   SEED_API_TOKEN,
+  SEED_READONLY_API_TOKEN,
   shouldBumpLastUsedAt
 } from './developer-platform/api-token-registry.ts'
 import {
@@ -113,7 +114,7 @@ describe('seed bearer token verification', () => {
   function verify(token: string) {
     return Effect.gen(function* () {
       const registry = yield* ApiTokenRegistry
-      return yield* registry.verifyBearerToken(token, 'read')
+      return yield* registry.verifyBearerToken(token)
     }).pipe(Effect.provide(SeedLayer))
   }
 
@@ -123,6 +124,17 @@ describe('seed bearer token verification', () => {
       expect(verified.workspaceSlug).toBe('starter-lab')
       expect(verified.scopes).toContain('read')
       expect(verified.scopes).toContain('admin')
+    })
+  )
+
+  // Verification answers "which token is this", never "may it do this" — the
+  // narrow fixture proves the reported scopes are the token's own, not a
+  // judgement about the request.
+  it.effect('reports the read-only fixture token as read-only', () =>
+    Effect.gen(function* () {
+      const verified = yield* verify(SEED_READONLY_API_TOKEN)
+      expect(verified.workspaceSlug).toBe('starter-lab')
+      expect(verified.scopes).toEqual(['read'])
     })
   )
 
@@ -448,9 +460,7 @@ describe('bearer verification write throttling', () => {
 
     return Effect.gen(function* () {
       const registry = yield* ApiTokenRegistry
-      const error = yield* Effect.flip(
-        registry.verifyBearerToken('bsk_live_unknown', 'read')
-      )
+      const error = yield* Effect.flip(registry.verifyBearerToken('bsk_live_unknown'))
       expect(error._tag).toBe('AuthorizationDenied')
       expect('reason' in error && error.reason).toBe('invalid_token')
       // Exactly the lookup ran — no lastUsedAt UPDATE, no audit insert.

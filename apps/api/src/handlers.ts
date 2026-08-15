@@ -9,9 +9,13 @@ import {
   Unauthorized
 } from '@b2b-saas-starter/api'
 import {
+  requirePermission,
+  tokenPrincipal,
+  type PermissionRequest
+} from '@b2b-saas-starter/authz'
+import {
   ApiTokenRegistry,
   type ApiToken,
-  type ApiTokenScope,
   AuditEventLog,
   AuthorizationDenied,
   type CapabilityUnavailable,
@@ -87,9 +91,16 @@ function enforceRateLimit(
   })
 }
 
-function enforceScope(
+/**
+ * The worker's enforcement point: authenticate the bearer token, confine it to
+ * its own workspace, then ask the one `authorize()` path whether it may do what
+ * it asked. Endpoints name a *permission* (`{ apiToken: ['create'] }`), not a
+ * token scope — the scope-to-permission mapping lives in `@b2b-saas-starter/authz`,
+ * so a session in the web app and a bearer token here reach the same decision.
+ */
+function enforcePermission(
   request: HttpServerRequest.HttpServerRequest,
-  scope: ApiTokenScope,
+  permission: PermissionRequest,
   expectedWorkspaceSlug?: string
 ): Effect.Effect<
   void,
@@ -104,7 +115,7 @@ function enforceScope(
     }
 
     const registry = yield* ApiTokenRegistry
-    const verified = yield* Effect.result(registry.verifyBearerToken(token, scope))
+    const verified = yield* Effect.result(registry.verifyBearerToken(token))
     if (Result.isFailure(verified)) {
       const failure = verified.failure
       if (failure._tag === 'CapabilityUnavailable') {
@@ -115,12 +126,10 @@ function enforceScope(
         })
         return yield* Effect.fail(failure)
       }
-      if (failure.reason === 'invalid_token') {
-        yield* annotateWide({ outcome: 'unauthorized', authReason: failure.reason })
-        return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
-      }
-      yield* annotateWide({ outcome: 'forbidden', authReason: failure.reason })
-      return yield* Effect.fail(new AuthorizationDenied({ reason: failure.reason }))
+      // Verification only ever fails for an unknown or revoked token, which is
+      // an authentication failure: 401, not 403.
+      yield* annotateWide({ outcome: 'unauthorized', authReason: failure.reason })
+      return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
     }
 
     if (
@@ -141,9 +150,10 @@ function enforceScope(
       tokenId: verified.success.id,
       workspaceId: verified.success.workspaceId,
       tokenWorkspaceSlug: verified.success.workspaceSlug,
-      tokenScopes: verified.success.scopes,
-      requiredScope: scope
+      tokenScopes: verified.success.scopes
     })
+
+    yield* requirePermission(tokenPrincipal(verified.success.scopes), permission)
   })
 }
 
@@ -239,7 +249,7 @@ export function workspaceGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
     function read<A, E, R>(
       event: string,
-      scope: ApiTokenScope,
+      permission: PermissionRequest,
       slug: string,
       request: HttpServerRequest.HttpServerRequest,
       body: Effect.Effect<A, E, R>
@@ -251,88 +261,101 @@ export function workspaceGroup(env: ApiEnv) {
         { workspaceSlug: slug },
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'rest_read')
-          yield* enforceScope(request, scope, slug)
+          yield* enforcePermission(request, permission, slug)
           return yield* provideWorkspace(env, slug, body)
         })
       )
     }
 
-    return handlers
-      .handle('overview', ({ params, request }) =>
-        read('overview', 'read', params.slug, request, workspaceOverview)
-      )
-      .handle('modules', ({ params, request }) =>
-        read(
-          'modules',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(StarterModuleCatalog, (catalog) => catalog.listModules)
+    return (
+      handlers
+        .handle('overview', ({ params, request }) =>
+          read(
+            'overview',
+            { module: ['read'] },
+            params.slug,
+            request,
+            workspaceOverview
+          )
         )
-      )
-      .handle('members', ({ params, request }) =>
-        read(
-          'members',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(WorkspaceMembership, (membership) => membership.listMembers)
+        .handle('modules', ({ params, request }) =>
+          read(
+            'modules',
+            { module: ['read'] },
+            params.slug,
+            request,
+            Effect.flatMap(StarterModuleCatalog, (catalog) => catalog.listModules)
+          )
         )
-      )
-      .handle('notifications', ({ params, request }) =>
-        read(
-          'notifications',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(NotificationFeed, (feed) => feed.list)
+        // Listing members exposes who holds which role, which is what `ac:read`
+        // names. The plugin's `member` statement covers mutations only — it has
+        // no `read` action.
+        .handle('members', ({ params, request }) =>
+          read(
+            'members',
+            { ac: ['read'] },
+            params.slug,
+            request,
+            Effect.flatMap(WorkspaceMembership, (membership) => membership.listMembers)
+          )
         )
-      )
-      .handle('api-tokens', ({ params, request }) =>
-        read(
-          'api-tokens',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
+        .handle('notifications', ({ params, request }) =>
+          read(
+            'notifications',
+            { notification: ['read'] },
+            params.slug,
+            request,
+            Effect.flatMap(NotificationFeed, (feed) => feed.list)
+          )
         )
-      )
-      .handle('webhooks', ({ params, request }) =>
-        read(
-          'webhooks',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
+        .handle('api-tokens', ({ params, request }) =>
+          read(
+            'api-tokens',
+            { apiToken: ['list'] },
+            params.slug,
+            request,
+            Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
+          )
         )
-      )
-      .handle('integrations', ({ params, request }) =>
-        read(
-          'integrations',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(IntegrationSurfaces, (integrations) => integrations.list)
+        .handle('webhooks', ({ params, request }) =>
+          read(
+            'webhooks',
+            { webhook: ['list'] },
+            params.slug,
+            request,
+            Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
+          )
         )
-      )
-      .handle('reports', ({ params, request }) =>
-        read(
-          'reports',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(ImplementationReports, (reports) => reports.list)
+        .handle('integrations', ({ params, request }) =>
+          read(
+            'integrations',
+            { integration: ['read'] },
+            params.slug,
+            request,
+            Effect.flatMap(IntegrationSurfaces, (integrations) => integrations.list)
+          )
         )
-      )
-      .handle('audit-events', ({ params, request }) =>
-        read(
-          'audit-events',
-          'read',
-          params.slug,
-          request,
-          Effect.flatMap(AuditEventLog, (log) => log.list)
+        // Implementation reports describe module adoption, so they read as module
+        // content rather than a resource of their own.
+        .handle('reports', ({ params, request }) =>
+          read(
+            'reports',
+            { module: ['read'] },
+            params.slug,
+            request,
+            Effect.flatMap(ImplementationReports, (reports) => reports.list)
+          )
         )
-      )
+        .handle('audit-events', ({ params, request }) =>
+          read(
+            'audit-events',
+            { auditLog: ['read'] },
+            params.slug,
+            request,
+            Effect.flatMap(AuditEventLog, (log) => log.list)
+          )
+        )
+    )
   })
 }
 
@@ -347,7 +370,7 @@ export function apiTokenGroup(env: ApiEnv) {
           { workspaceSlug: params.slug },
           Effect.gen(function* () {
             yield* enforceRateLimit(request, 'rest_write')
-            yield* enforceScope(request, 'admin', params.slug)
+            yield* enforcePermission(request, { apiToken: ['create'] }, params.slug)
             const created = yield* provideWorkspace(
               env,
               params.slug,
@@ -383,7 +406,7 @@ export function apiTokenGroup(env: ApiEnv) {
           { workspaceSlug: params.slug },
           Effect.gen(function* () {
             yield* enforceRateLimit(request, 'rest_write')
-            yield* enforceScope(request, 'admin', params.slug)
+            yield* enforcePermission(request, { apiToken: ['revoke'] }, params.slug)
             yield* provideWorkspace(
               env,
               params.slug,
@@ -410,7 +433,7 @@ export function apiTokenGroup(env: ApiEnv) {
           { workspaceSlug: params.slug },
           Effect.gen(function* () {
             yield* enforceRateLimit(request, 'rest_write')
-            yield* enforceScope(request, 'admin', params.slug)
+            yield* enforcePermission(request, { apiToken: ['revoke'] }, params.slug)
             yield* provideWorkspace(
               env,
               params.slug,
@@ -442,7 +465,7 @@ export function webhookGroup(env: ApiEnv) {
         { workspaceSlug: params.slug },
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'rest_write')
-          yield* enforceScope(request, 'write', params.slug)
+          yield* enforcePermission(request, { webhook: ['create'] }, params.slug)
           const created = yield* provideWorkspace(
             env,
             params.slug,
@@ -485,7 +508,7 @@ export function invitationGroup(env: ApiEnv) {
         { workspaceSlug: params.slug },
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'invitations')
-          yield* enforceScope(request, 'admin', params.slug)
+          yield* enforcePermission(request, { invitation: ['create'] }, params.slug)
           return yield* provideWorkspace(
             env,
             params.slug,
@@ -542,7 +565,7 @@ export function catalogGroup(env: ApiEnv) {
           {},
           Effect.gen(function* () {
             yield* enforceRateLimit(request, 'rest_read')
-            yield* enforceScope(request, 'read')
+            yield* enforcePermission(request, { module: ['read'] })
             return yield* Effect.flatMap(
               StarterModuleCatalog,
               (catalog) => catalog.listAllModules
@@ -558,7 +581,7 @@ export function catalogGroup(env: ApiEnv) {
           {},
           Effect.gen(function* () {
             yield* enforceRateLimit(request, 'rest_read')
-            yield* enforceScope(request, 'read')
+            yield* enforcePermission(request, { module: ['read'] })
             return yield* Effect.flatMap(
               CatalogRefreshHistory,
               (history) => history.listRecent
@@ -579,7 +602,7 @@ export function assistantGroup(env: ApiEnv) {
         {},
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'assistant')
-          yield* enforceScope(request, 'read')
+          yield* enforcePermission(request, { module: ['read'] })
           const service = yield* AssistantService
           const reply = yield* service.ask(payload)
           return {
@@ -605,7 +628,7 @@ export function mcpGroup(env: ApiEnv) {
         {},
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'mcp')
-          yield* enforceScope(request, 'read')
+          yield* enforcePermission(request, { module: ['read'] })
           return {
             name: 'b2b-saas-starter-mcp',
             resources: ['workspace://starter-lab/overview'],

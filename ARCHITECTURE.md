@@ -84,7 +84,7 @@ The auth surface spans three layers: browser session auth (Better Auth), Worker-
 
 - **Storage:** [`apiTokens`](./packages/db/src/schema.ts) holds `tokenHash` (never the plaintext), JSON `scopes` array, `revokedAt`, `lastUsedAt`, and `createdByUserId`. Soft-revocation via timestamp; the registry filters `isNull(revokedAt)`.
 - **Scopes:** `read | write | admin` — single source of truth in [`packages/capabilities/src/developer-platform/api-token-registry.ts`](./packages/capabilities/src/developer-platform/api-token-registry.ts) (`ApiTokenScope` schema).
-- **Issuance / verification:** `ApiTokenRegistry` exposes `list`, `create`, `revoke`, and `verifyBearerToken`. The API worker parses `Authorization: Bearer …`, enforces per-route scopes, and records token lifecycle audit events. Workspace REST endpoints also use per-bucket Cloudflare `RateLimit` bindings (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, etc.) keyed by `cf-connecting-ip`.
+- **Issuance / verification:** `ApiTokenRegistry` exposes `list`, `create`, `revoke`, and `verifyBearerToken`. The API worker parses `Authorization: Bearer …`, authenticates the token, checks the route's permission against the token's scopes, and records token lifecycle audit events. Workspace REST endpoints also use per-bucket Cloudflare `RateLimit` bindings (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, etc.) keyed by `cf-connecting-ip`.
 
 ### CORS & trusted origins
 
@@ -96,7 +96,9 @@ The auth surface spans three layers: browser session auth (Better Auth), Worker-
 
 - **Workspace roles:** `owner | admin | member` — held in `workspace_members.role`.
 - **System roles:** `admin | user` — held in `user.role`, surfaced via Better Auth's `admin()` plugin.
-- **Status:** modeled in schema and exposed through [`WorkspaceMembership`](./packages/capabilities/src/governance/workspace-membership.ts), but **no route-level enforcement yet**. Web server functions and API endpoints don't gate on role; add middleware before shipping multi-tenant.
+- **Permissions:** [`@b2b-saas-starter/authz`](./packages/authz/AGENTS.md) owns the statement set, the static role table, the API-token scope mapping, and the `requirePermission` guard. Sessions and bearer tokens reach one `authorize()` decision.
+- **Enforcement points:** `requireWorkspacePermission` (`apps/web/src/lib/server/authorize.ts`) for session-backed server functions, and `enforcePermission` (`apps/api/src/handlers.ts`) for bearer-token routes. Each endpoint names the permission it needs (`{ apiToken: ['create'] }`), never a role or a scope. Denials are `AuthorizationDenied` (403); the web boundary re-raises them as `ForbiddenError` so the calling form can show a message.
+- **No system-admin bypass:** `user.role === 'admin'` is a separate axis and confers nothing inside a workspace. The `/admin` surface keeps its own gate.
 
 ### Audit log
 

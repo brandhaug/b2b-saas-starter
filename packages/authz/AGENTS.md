@@ -36,11 +36,13 @@ Four concepts, in dependency order:
 
 `member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away.
 
-| Token scope | Gets                                                                                  |
-| ----------- | ------------------------------------------------------------------------------------- |
-| `read`      | every `list` and `read` action                                                        |
-| `write`     | `read` plus `apiToken:create`, `webhook:create`, `module:update`, `invitation:create` |
-| `admin`     | the `owner` set, shared by reference                                                  |
+| Token scope | Gets                                                               |
+| ----------- | ------------------------------------------------------------------ |
+| `read`      | every `list` and `read` action                                     |
+| `write`     | `read` plus `webhook:create`, `module:update`, `invitation:create` |
+| `admin`     | the `owner` set, shared by reference                               |
+
+`apiToken:create` is deliberately **not** in the `write` set. Minting is the one mutation that lets a token escalate itself: a `write` token allowed to create tokens could issue an `admin` one. It stays with the owner set, which `admin` scope reaches.
 
 The `read` scope is wider than the `member` role — it can read the audit log. That is intended: a token is minted by an owner or admin, so it carries the minter's trust, not the reader's.
 
@@ -48,22 +50,28 @@ The full matrix is asserted permission by permission in `src/index.test.ts`, and
 
 ## Using the guard
 
+Neither app calls the guard raw. Each wraps it once, so a route names a permission and nothing else:
+
+- `enforcePermission(request, permission, expectedWorkspaceSlug?)` — `apps/api/src/handlers.ts`. Authenticates the bearer token via `ApiTokenRegistry.verifyBearerToken`, confines it to its own workspace, then calls the guard with `tokenPrincipal(verified.scopes)`.
+- `requireWorkspacePermission(permission)` — `apps/web/src/lib/server/authorize.ts`. Reads `WorkspaceContext.actor` and calls the guard with `memberPrincipal(actor.role)`, or `null` when the context resolved no actor.
+
 ```ts
 Effect.gen(function* () {
-  // apps/api handler — the principal comes from the verified bearer token
-  yield* requirePermission(tokenPrincipal(verified.scopes), { apiToken: ['create'] })
+  // apps/api handler
+  yield* enforcePermission(request, { apiToken: ['create'] }, params.slug)
 
-  // apps/web server function — the principal comes from WorkspaceContext.actor
-  yield* requirePermission(memberPrincipal(ctx.actor.role), { auditLog: ['read'] })
+  // apps/web server function, inside the effect handed to runWorkspaceCapabilities
+  yield* requireWorkspacePermission({ apiToken: ['create'] })
 })
 ```
 
-It composes beside `enforceRateLimit` and `enforceScope` (`apps/api/src/handlers.ts`) and requires only a `Scope`, which it uses to annotate the request's wide event on denial (`outcome: 'forbidden'`, `authReason`, `permission`).
+The guard composes beside `enforceRateLimit` (`apps/api/src/handlers.ts`) and requires only a `Scope`, which it uses to annotate the request's wide event on denial (`outcome: 'forbidden'`, `authReason`, `permission`). The web app's request scope supplies that `Scope` through `runWorkspaceCapabilities`.
 
 ## Anti-patterns
 
 - Don't check a role name by hand (`if (actor.role === 'owner')`). Ask for the permission; the role table is the only place the mapping lives.
-- Don't add an authorization check inside a capability. Capabilities do not check authorization — the guard, the `WorkspaceContext` layer, and `ApiTokenRegistry.verifyBearerToken` do. See [`../capabilities/AGENTS.md`](../capabilities/AGENTS.md).
+- Don't add an authorization check inside a capability. Capabilities do not check authorization — the guard and the `WorkspaceContext` layer do. `ApiTokenRegistry.verifyBearerToken` authenticates a bearer token and stops there; it does not judge the scopes it reports. See [`../capabilities/AGENTS.md`](../capabilities/AGENTS.md).
+- Don't hand a route a scope where it means a permission. `enforcePermission(request, 'admin', slug)` cannot exist: the scope-to-permission mapping is the role table's job, and duplicating it at a call site is the second implementation invariant 2 forbids.
 - Don't grant a system admin (`user.role === 'admin'`) anything here. That is a separate axis and confers nothing inside a workspace.
 - Don't reach for `dynamicAccessControl` or `teams`. Both are switched off; static roles are enough for a starter.
 
