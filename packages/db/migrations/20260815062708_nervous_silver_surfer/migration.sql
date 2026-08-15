@@ -20,7 +20,7 @@ CREATE TABLE `api_tokens` (
 	`workspace_id` text NOT NULL,
 	`name` text NOT NULL,
 	`token_prefix` text NOT NULL,
-	`token_hash` text NOT NULL,
+	`token_hash` text NOT NULL UNIQUE,
 	`scopes` text NOT NULL,
 	`last_used_at` text,
 	`revoked_at` text,
@@ -106,6 +106,7 @@ CREATE TABLE `session` (
 	`userAgent` text,
 	`userId` text NOT NULL,
 	`impersonatedBy` text,
+	`activeOrganizationId` text,
 	CONSTRAINT `fk_session_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
@@ -161,7 +162,6 @@ CREATE TABLE `webhook_endpoints` (
 	`url` text NOT NULL,
 	`description` text,
 	`signing_secret` text NOT NULL,
-	`signing_secret_hash` text NOT NULL,
 	`enabled` integer DEFAULT true NOT NULL,
 	`events` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -170,26 +170,25 @@ CREATE TABLE `webhook_endpoints` (
 --> statement-breakpoint
 CREATE TABLE `workspace_invitations` (
 	`id` text PRIMARY KEY,
-	`workspace_id` text NOT NULL,
+	`workspaceId` text NOT NULL,
 	`email` text NOT NULL,
-	`role` text NOT NULL,
-	`token_hash` text NOT NULL,
-	`expires_at` text NOT NULL,
-	`accepted_at` text,
-	`created_at` text NOT NULL,
-	`created_by_user_id` text,
-	CONSTRAINT `fk_workspace_invitations_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE,
-	CONSTRAINT `fk_workspace_invitations_created_by_user_id_user_id_fk` FOREIGN KEY (`created_by_user_id`) REFERENCES `user`(`id`)
+	`role` text,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`expiresAt` integer NOT NULL,
+	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
+	`inviterId` text NOT NULL,
+	CONSTRAINT `fk_workspace_invitations_workspaceId_workspaces_id_fk` FOREIGN KEY (`workspaceId`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE,
+	CONSTRAINT `fk_workspace_invitations_inviterId_user_id_fk` FOREIGN KEY (`inviterId`) REFERENCES `user`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
 CREATE TABLE `workspace_members` (
-	`workspace_id` text NOT NULL,
-	`user_id` text NOT NULL,
-	`role` text NOT NULL,
-	`created_at` text NOT NULL,
-	CONSTRAINT `workspace_members_pk` PRIMARY KEY(`workspace_id`, `user_id`),
-	CONSTRAINT `fk_workspace_members_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE,
-	CONSTRAINT `fk_workspace_members_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+	`id` text PRIMARY KEY,
+	`workspaceId` text NOT NULL,
+	`userId` text NOT NULL,
+	`role` text DEFAULT 'member' NOT NULL,
+	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
+	CONSTRAINT `fk_workspace_members_workspaceId_workspaces_id_fk` FOREIGN KEY (`workspaceId`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE,
+	CONSTRAINT `fk_workspace_members_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
 CREATE TABLE `workspace_module_states` (
@@ -206,14 +205,30 @@ CREATE TABLE `workspace_module_states` (
 --> statement-breakpoint
 CREATE TABLE `workspaces` (
 	`id` text PRIMARY KEY,
-	`slug` text NOT NULL UNIQUE,
 	`name` text NOT NULL,
-	`plan_id` text DEFAULT 'starter' NOT NULL,
-	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL
+	`slug` text NOT NULL UNIQUE,
+	`logo` text,
+	`metadata` text,
+	`planId` text DEFAULT 'starter' NOT NULL,
+	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
+	`updatedAt` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `account_user_id_idx` ON `account` (`userId`);--> statement-breakpoint
+CREATE INDEX `api_tokens_workspace_id_idx` ON `api_tokens` (`workspace_id`);--> statement-breakpoint
+CREATE INDEX `api_tokens_created_by_user_id_idx` ON `api_tokens` (`created_by_user_id`);--> statement-breakpoint
+CREATE INDEX `audit_events_workspace_created_at_idx` ON `audit_events` (`workspace_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `audit_events_actor_user_id_idx` ON `audit_events` (`actor_user_id`);--> statement-breakpoint
+CREATE INDEX `implementation_reports_workspace_id_idx` ON `implementation_reports` (`workspace_id`);--> statement-breakpoint
+CREATE INDEX `integration_connections_workspace_id_idx` ON `integration_connections` (`workspace_id`);--> statement-breakpoint
+CREATE INDEX `notifications_workspace_id_idx` ON `notifications` (`workspace_id`);--> statement-breakpoint
+CREATE INDEX `report_schedules_workspace_id_idx` ON `report_schedules` (`workspace_id`);--> statement-breakpoint
 CREATE INDEX `session_user_id_idx` ON `session` (`userId`);--> statement-breakpoint
 CREATE INDEX `verification_identifier_idx` ON `verification` (`identifier`);--> statement-breakpoint
-CREATE INDEX `workspace_members_user_idx` ON `workspace_members` (`user_id`);
+CREATE INDEX `webhook_deliveries_endpoint_id_idx` ON `webhook_deliveries` (`endpoint_id`);--> statement-breakpoint
+CREATE INDEX `webhook_endpoints_workspace_id_idx` ON `webhook_endpoints` (`workspace_id`);--> statement-breakpoint
+CREATE INDEX `workspace_invitations_workspace_id_idx` ON `workspace_invitations` (`workspaceId`);--> statement-breakpoint
+CREATE INDEX `workspace_invitations_email_idx` ON `workspace_invitations` (`email`);--> statement-breakpoint
+CREATE INDEX `workspace_invitations_inviter_id_idx` ON `workspace_invitations` (`inviterId`);--> statement-breakpoint
+CREATE UNIQUE INDEX `workspace_members_workspace_id_user_id_idx` ON `workspace_members` (`workspaceId`,`userId`);--> statement-breakpoint
+CREATE INDEX `workspace_members_user_idx` ON `workspace_members` (`userId`);

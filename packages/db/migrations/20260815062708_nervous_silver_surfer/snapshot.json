@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "cc29e823-6d9d-45ef-843d-f0d46a11daf3",
+  "id": "5c377e06-dbdd-44e8-a74b-c747fac7f134",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
@@ -802,6 +802,16 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
+      "name": "activeOrganizationId",
+      "entityType": "columns",
+      "table": "session"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
       "name": "id",
       "entityType": "columns",
       "table": "starter_modules"
@@ -1177,16 +1187,6 @@
       "table": "webhook_endpoints"
     },
     {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "signing_secret_hash",
-      "entityType": "columns",
-      "table": "webhook_endpoints"
-    },
-    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -1232,7 +1232,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "workspace_id",
+      "name": "workspaceId",
       "entityType": "columns",
       "table": "workspace_invitations"
     },
@@ -1248,7 +1248,7 @@
     },
     {
       "type": "text",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -1260,9 +1260,29 @@
       "type": "text",
       "notNull": true,
       "autoincrement": false,
+      "default": "'pending'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "workspace_invitations"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "token_hash",
+      "name": "expiresAt",
+      "entityType": "columns",
+      "table": "workspace_invitations"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "createdAt",
       "entityType": "columns",
       "table": "workspace_invitations"
     },
@@ -1272,7 +1292,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "expires_at",
+      "name": "inviterId",
       "entityType": "columns",
       "table": "workspace_invitations"
     },
@@ -1282,37 +1302,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "accepted_at",
-      "entityType": "columns",
-      "table": "workspace_invitations"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "table": "workspace_invitations"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "created_by_user_id",
-      "entityType": "columns",
-      "table": "workspace_invitations"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "workspace_id",
+      "name": "id",
       "entityType": "columns",
       "table": "workspace_members"
     },
@@ -1322,7 +1312,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "user_id",
+      "name": "workspaceId",
       "entityType": "columns",
       "table": "workspace_members"
     },
@@ -1331,18 +1321,28 @@
       "notNull": true,
       "autoincrement": false,
       "default": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "workspace_members"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'member'",
       "generated": null,
       "name": "role",
       "entityType": "columns",
       "table": "workspace_members"
     },
     {
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "(unixepoch())",
       "generated": null,
-      "name": "created_at",
+      "name": "createdAt",
       "entityType": "columns",
       "table": "workspace_members"
     },
@@ -1422,7 +1422,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "slug",
+      "name": "name",
       "entityType": "columns",
       "table": "workspaces"
     },
@@ -1432,7 +1432,27 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "name",
+      "name": "slug",
+      "entityType": "columns",
+      "table": "workspaces"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "logo",
+      "entityType": "columns",
+      "table": "workspaces"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "metadata",
       "entityType": "columns",
       "table": "workspaces"
     },
@@ -1442,27 +1462,27 @@
       "autoincrement": false,
       "default": "'starter'",
       "generated": null,
-      "name": "plan_id",
+      "name": "planId",
       "entityType": "columns",
       "table": "workspaces"
     },
     {
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "(unixepoch())",
       "generated": null,
-      "name": "created_at",
+      "name": "createdAt",
       "entityType": "columns",
       "table": "workspaces"
     },
     {
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "(unixepoch())",
       "generated": null,
-      "name": "updated_at",
+      "name": "updatedAt",
       "entityType": "columns",
       "table": "workspaces"
     },
@@ -1621,46 +1641,46 @@
       "table": "webhook_endpoints"
     },
     {
-      "columns": ["workspace_id"],
+      "columns": ["workspaceId"],
       "tableTo": "workspaces",
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_workspace_invitations_workspace_id_workspaces_id_fk",
+      "name": "fk_workspace_invitations_workspaceId_workspaces_id_fk",
       "entityType": "fks",
       "table": "workspace_invitations"
     },
     {
-      "columns": ["created_by_user_id"],
+      "columns": ["inviterId"],
       "tableTo": "user",
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_workspace_invitations_created_by_user_id_user_id_fk",
+      "name": "fk_workspace_invitations_inviterId_user_id_fk",
       "entityType": "fks",
       "table": "workspace_invitations"
     },
     {
-      "columns": ["workspace_id"],
+      "columns": ["workspaceId"],
       "tableTo": "workspaces",
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_workspace_members_workspace_id_workspaces_id_fk",
+      "name": "fk_workspace_members_workspaceId_workspaces_id_fk",
       "entityType": "fks",
       "table": "workspace_members"
     },
     {
-      "columns": ["user_id"],
+      "columns": ["userId"],
       "tableTo": "user",
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_workspace_members_user_id_user_id_fk",
+      "name": "fk_workspace_members_userId_user_id_fk",
       "entityType": "fks",
       "table": "workspace_members"
     },
@@ -1685,13 +1705,6 @@
       "name": "fk_workspace_module_states_module_id_starter_modules_id_fk",
       "entityType": "fks",
       "table": "workspace_module_states"
-    },
-    {
-      "columns": ["workspace_id", "user_id"],
-      "nameExplicit": false,
-      "name": "workspace_members_pk",
-      "entityType": "pks",
-      "table": "workspace_members"
     },
     {
       "columns": ["workspace_id", "module_id"],
@@ -1808,6 +1821,13 @@
     {
       "columns": ["id"],
       "nameExplicit": false,
+      "name": "workspace_members_pk",
+      "table": "workspace_members",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
       "name": "workspaces_pk",
       "table": "workspaces",
       "entityType": "pks"
@@ -1825,6 +1845,122 @@
       "name": "account_user_id_idx",
       "entityType": "indexes",
       "table": "account"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspace_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "api_tokens_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "api_tokens"
+    },
+    {
+      "columns": [
+        {
+          "value": "created_by_user_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "api_tokens_created_by_user_id_idx",
+      "entityType": "indexes",
+      "table": "api_tokens"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspace_id",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "audit_events_workspace_created_at_idx",
+      "entityType": "indexes",
+      "table": "audit_events"
+    },
+    {
+      "columns": [
+        {
+          "value": "actor_user_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "audit_events_actor_user_id_idx",
+      "entityType": "indexes",
+      "table": "audit_events"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspace_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "implementation_reports_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "implementation_reports"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspace_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "integration_connections_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "integration_connections"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspace_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "notifications_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "notifications"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspace_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "report_schedules_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "report_schedules"
     },
     {
       "columns": [
@@ -1857,7 +1993,95 @@
     {
       "columns": [
         {
-          "value": "user_id",
+          "value": "endpoint_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "webhook_deliveries_endpoint_id_idx",
+      "entityType": "indexes",
+      "table": "webhook_deliveries"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspace_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "webhook_endpoints_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "webhook_endpoints"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspaceId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workspace_invitations_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "workspace_invitations"
+    },
+    {
+      "columns": [
+        {
+          "value": "email",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workspace_invitations_email_idx",
+      "entityType": "indexes",
+      "table": "workspace_invitations"
+    },
+    {
+      "columns": [
+        {
+          "value": "inviterId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workspace_invitations_inviter_id_idx",
+      "entityType": "indexes",
+      "table": "workspace_invitations"
+    },
+    {
+      "columns": [
+        {
+          "value": "workspaceId",
+          "isExpression": false
+        },
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "workspace_members_workspace_id_user_id_idx",
+      "entityType": "indexes",
+      "table": "workspace_members"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
           "isExpression": false
         }
       ],
@@ -1867,6 +2091,13 @@
       "name": "workspace_members_user_idx",
       "entityType": "indexes",
       "table": "workspace_members"
+    },
+    {
+      "columns": ["token_hash"],
+      "nameExplicit": false,
+      "name": "api_tokens_token_hash_unique",
+      "entityType": "uniques",
+      "table": "api_tokens"
     },
     {
       "columns": ["token"],

@@ -43,27 +43,18 @@ const insertFixtureRows = Effect.gen(function* () {
     { id: 'usr_owner', email: 'owner@live.test', name: 'Owner One' },
     { id: 'usr_outsider', email: 'outsider@live.test', name: 'Outsider' }
   ])
+  // `workspaces` and `workspace_members` are owned by the organization plugin:
+  // their timestamps default to epoch integers, and a member row carries a
+  // surrogate id rather than a composite key.
   yield* db.insert(workspaces).values([
-    {
-      id: 'wrk_live',
-      slug: 'live-lab',
-      name: 'Live Lab',
-      createdAt: iso,
-      updatedAt: iso
-    },
-    {
-      id: 'wrk_other',
-      slug: 'other-lab',
-      name: 'Other Lab',
-      createdAt: iso,
-      updatedAt: iso
-    }
+    { id: 'wrk_live', slug: 'live-lab', name: 'Live Lab' },
+    { id: 'wrk_other', slug: 'other-lab', name: 'Other Lab' }
   ])
   yield* db.insert(workspaceMembers).values({
+    id: 'mem_live_owner',
     workspaceId: 'wrk_live',
     userId: 'usr_owner',
-    role: 'owner',
-    createdAt: iso
+    role: 'owner'
   })
   yield* db.insert(starterModules).values({
     id: 'mod_live',
