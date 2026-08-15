@@ -83,6 +83,15 @@ function insert<T extends Table>(
 const now = '2026-05-16T09:00:00.000Z'
 const workspaceSlug = 'starter-lab'
 
+/**
+ * Membership rows now carry a surrogate id (the organization plugin addresses
+ * members by it). The seed runs `INSERT OR REPLACE`, so the id has to be
+ * derived, not random, or a re-seed would stack duplicate rows.
+ */
+function membershipId(userId: string): string {
+  return `mem_${userId}`
+}
+
 const collectFixture = Effect.gen(function* () {
   const membership = yield* WorkspaceMembership
   const catalog = yield* StarterModuleCatalog
@@ -137,8 +146,10 @@ function workspaceRows(fixture: Fixture): readonly string[] {
       slug: fixture.workspace.slug,
       name: fixture.workspace.name,
       planId: fixture.workspace.planId,
-      createdAt: now,
-      updatedAt: now
+      // Plugin-owned table: epoch integers, so the value has to be a Date.
+      // `now` stays an ISO string for the starter's own text columns.
+      createdAt: new Date(now),
+      updatedAt: new Date(now)
     })
   ]
 }
@@ -155,10 +166,11 @@ function memberRows(fixture: Fixture): readonly string[] {
       updatedAt: 1_778_918_400
     }),
     insert(workspaceMembers, {
+      id: membershipId(member.id),
       workspaceId: fixture.workspace.id,
       userId: member.id,
       role: member.role,
-      createdAt: now
+      createdAt: new Date(now)
     })
   ])
 }
@@ -186,10 +198,11 @@ function demoUserRows(fixture: Fixture, demoPasswordHash: string): readonly stri
       updatedAt: 1_778_918_400
     }),
     insert(workspaceMembers, {
+      id: membershipId(demoUserIdentity.id),
       workspaceId: fixture.workspace.id,
       userId: demoUserIdentity.id,
       role: demoUserIdentity.role,
-      createdAt: now
+      createdAt: new Date(now)
     })
   ]
 }

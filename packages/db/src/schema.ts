@@ -5,11 +5,24 @@ import {
   primaryKey,
   sqliteTable,
   text,
+  uniqueIndex,
   type AnySQLiteColumn
 } from 'drizzle-orm/sqlite-core'
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const workspaceRoles = ['owner', 'admin', 'member'] as const
+/**
+ * The Better Auth organization plugin's invitation state machine. `canceled`
+ * carries the plugin's single-`l` spelling — the value is written by the
+ * plugin, so the enum must match it byte for byte.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const invitationStatuses = [
+  'pending',
+  'accepted',
+  'rejected',
+  'canceled'
+] as const
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const moduleStatuses = [
   'ready',
@@ -64,11 +77,15 @@ function id() {
   return text('id').primaryKey()
 }
 
+function authCreatedAt() {
+  return integer('createdAt', { mode: 'timestamp' })
+    .default(sql`(unixepoch())`)
+    .notNull()
+}
+
 function authTimestamps() {
   return {
-    createdAt: integer('createdAt', { mode: 'timestamp' })
-      .default(sql`(unixepoch())`)
-      .notNull(),
+    createdAt: authCreatedAt(),
     updatedAt: integer('updatedAt', { mode: 'timestamp' })
       .default(sql`(unixepoch())`)
       .notNull()
@@ -83,8 +100,14 @@ function isoUpdatedAt() {
   return text('updated_at').notNull()
 }
 
-function workspaceRef() {
-  return text('workspace_id')
+/**
+ * The three workspace tables are owned by the organization plugin, so their
+ * columns follow Better Auth's camelCase field names (`workspaceId`) rather
+ * than the starter's snake_case. Everything else still points at
+ * `workspace_id` — hence the parameter.
+ */
+function workspaceRef(column = 'workspace_id') {
+  return text(column)
     .notNull()
     .references(() => workspaces.id, { onDelete: 'cascade' })
 }
@@ -124,7 +147,13 @@ export const session = sqliteTable(
     userId: text('userId')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    impersonatedBy: text('impersonatedBy')
+    impersonatedBy: text('impersonatedBy'),
+    // The organization plugin declares this field on `session` unconditionally
+    // — there is no config that switches it off — so the column must exist or
+    // every plugin write against `session` fails. Whether the starter *reads*
+    // it is ticket 03's call; slug-per-request resolution means it probably
+    // will not.
+    activeOrganizationId: text('activeOrganizationId')
   },
   (table) => [index('session_user_id_idx').on(table.userId)]
 )
@@ -166,27 +195,51 @@ export const verification = sqliteTable(
   (table) => [index('verification_identifier_idx').on(table.identifier)]
 )
 
+// The three tables below are owned by Better Auth's `organization` plugin.
+// The plugin's `organization`, `member`, and `invitation` models are remapped
+// onto the starter's `workspace` vocabulary with `modelName` (see
+// `packages/auth`), so the domain word never changes but the *shape* is the
+// plugin's: its field names, its epoch-integer dates, its surrogate `id` keys.
+// Add a column here only by adding an `additionalFields` entry on the plugin
+// too — a column the plugin does not know about is invisible to its endpoints.
+
 export const workspaces = sqliteTable('workspaces', {
   id: id(),
-  slug: text('slug').unique().notNull(),
   name: text('name').notNull(),
-  planId: text('plan_id').default('starter').notNull(),
-  createdAt: isoCreatedAt(),
-  updatedAt: isoUpdatedAt()
+  slug: text('slug').unique().notNull(),
+  logo: text('logo'),
+  // Plugin-owned free-form bag. The plugin JSON-stringifies on write and parses
+  // on read itself, so this stays plain `text` — `mode: 'json'` would encode a
+  // second time. The starter's own fields are `additionalFields` below, not
+  // entries in here.
+  metadata: text('metadata'),
+  // additionalFields: typed, queryable, defaulted — `planId` is part of the
+  // public `Workspace` DTO, so it does not belong in `metadata`.
+  planId: text('planId').default('starter').notNull(),
+  ...authTimestamps()
 })
 
 export const workspaceMembers = sqliteTable(
   'workspace_members',
   {
-    workspaceId: workspaceRef(),
-    userId: text('user_id')
+    // The plugin addresses members by a surrogate id (`removeMember`,
+    // `updateMemberRole`), so the old composite primary key becomes the unique
+    // index below. One membership per user per workspace still holds.
+    id: id(),
+    workspaceId: workspaceRef('workspaceId'),
+    userId: text('userId')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    role: text('role', { enum: workspaceRoles }).notNull(),
-    createdAt: isoCreatedAt()
+    role: text('role', { enum: workspaceRoles }).default('member').notNull(),
+    createdAt: authCreatedAt()
   },
   (table) => [
-    primaryKey({ columns: [table.workspaceId, table.userId] }),
+    // Replaces the old primary key. Covers plain workspaceId lookups too
+    // (leftmost prefix), so the plugin's index on that column is satisfied.
+    uniqueIndex('workspace_members_workspace_id_user_id_idx').on(
+      table.workspaceId,
+      table.userId
+    ),
     index('workspace_members_user_idx').on(table.userId)
   ]
 )
@@ -195,18 +248,22 @@ export const workspaceInvitations = sqliteTable(
   'workspace_invitations',
   {
     id: id(),
-    workspaceId: workspaceRef(),
+    workspaceId: workspaceRef('workspaceId'),
     email: text('email').notNull(),
-    role: text('role', { enum: workspaceRoles }).notNull(),
-    tokenHash: text('token_hash').notNull(),
-    expiresAt: text('expires_at').notNull(),
-    acceptedAt: text('accepted_at'),
-    createdAt: isoCreatedAt(),
-    createdByUserId: text('created_by_user_id').references(() => user.id)
+    // Optional in the plugin's schema: an invitation may carry no role and
+    // fall back to the plugin's default on accept.
+    role: text('role', { enum: workspaceRoles }),
+    status: text('status', { enum: invitationStatuses }).default('pending').notNull(),
+    expiresAt: integer('expiresAt', { mode: 'timestamp' }).notNull(),
+    createdAt: authCreatedAt(),
+    inviterId: text('inviterId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' })
   },
   (table) => [
     workspaceIdIndex('workspace_invitations', table.workspaceId),
-    index('workspace_invitations_created_by_user_id_idx').on(table.createdByUserId)
+    index('workspace_invitations_email_idx').on(table.email),
+    index('workspace_invitations_inviter_id_idx').on(table.inviterId)
   ]
 )
 
