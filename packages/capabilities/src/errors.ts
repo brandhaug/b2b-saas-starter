@@ -19,3 +19,15 @@ export class CapabilityUnavailable extends Schema.TaggedErrorClass<CapabilityUna
   { capability: Schema.String, reason: Schema.String },
   { httpApiStatus: 503 }
 ) {}
+
+/**
+ * A membership change the workspace refuses: an unknown user, a user who is
+ * not a member, a role the plugin will not accept. The request was answerable
+ * and the answer is no — distinct from `CapabilityUnavailable`, which says the
+ * store is unreachable and the caller should retry.
+ */
+export class MembershipChangeRejected extends Schema.TaggedErrorClass<MembershipChangeRejected>()(
+  'MembershipChangeRejected',
+  { reason: Schema.String },
+  { httpApiStatus: 409 }
+) {}

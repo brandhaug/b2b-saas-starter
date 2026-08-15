@@ -50,6 +50,7 @@ import {
 import {
   LiveWorkspaceMembership,
   SeedWorkspaceMembership,
+  type WorkspaceMemberBinding,
   type WorkspaceMembership
 } from './governance/workspace-membership.ts'
 
@@ -110,6 +111,12 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
+  /**
+   * Adapter onto the organization plugin's member endpoints. Absent, membership
+   * reads still work and mutations fail `CapabilityUnavailable` — the same
+   * provider-light posture `webhookQueue` takes (CLAUDE.md rule 3).
+   */
+  readonly memberBinding?: WorkspaceMemberBinding | undefined
 }
 
 export function makeLiveCapabilitiesLayer(
@@ -126,7 +133,9 @@ export function makeLiveCapabilitiesLayer(
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
     LiveWebhookPublisher(options.webhookQueue),
-    LiveWorkspaceMembership
+    LiveWorkspaceMembership(options.memberBinding).pipe(
+      Layer.provide(LiveAuditEventLog)
+    )
   )
 }
 

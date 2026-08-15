@@ -1,6 +1,7 @@
 import { Layer } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import type { WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
+import type { WorkspaceMemberBinding } from './governance/workspace-membership.ts'
 import {
   makeLiveCapabilitiesLayer,
   makeLiveLayerFromD1,
@@ -31,13 +32,25 @@ export type StarterEnv = {
    * state — a module with unset env vars shows needs-config (ADR 0035).
    */
   readonly moduleConfig?: readonly ModuleEnvStatus[] | undefined
+  /**
+   * Adapter onto the organization plugin's member endpoints, supplied by the
+   * app because two of the three endpoints need the request's session headers
+   * and only the app holds them. Not a worker binding like the fields above —
+   * it rides here so one `StarterEnv` still selects the whole layer.
+   *
+   * Absent, membership reads work and mutations fail `CapabilityUnavailable`.
+   */
+  readonly memberBinding?: WorkspaceMemberBinding | undefined
 }
 
 export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
   if (env.DB === undefined) {
     return withModuleEnvStatus(SeedLayer, env.moduleConfig)
   }
-  const live = makeLiveLayerFromD1(env.DB, { webhookQueue: env.WEBHOOK_QUEUE })
+  const live = makeLiveLayerFromD1(env.DB, {
+    webhookQueue: env.WEBHOOK_QUEUE,
+    memberBinding: env.memberBinding
+  })
   return withModuleEnvStatus(live, env.moduleConfig)
 }
 
@@ -59,7 +72,10 @@ export function selectWorkspaceLayer(
     return withModuleEnvStatus(seeded, env.moduleConfig)
   }
   const live = Layer.mergeAll(
-    makeLiveCapabilitiesLayer({ webhookQueue: env.WEBHOOK_QUEUE }),
+    makeLiveCapabilitiesLayer({
+      webhookQueue: env.WEBHOOK_QUEUE,
+      memberBinding: env.memberBinding
+    }),
     liveWorkspaceContext(slug, actor)
   ).pipe(Layer.provide(layerFromD1(env.DB)))
   return withModuleEnvStatus(live, env.moduleConfig)

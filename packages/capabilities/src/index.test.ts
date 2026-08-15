@@ -25,6 +25,7 @@ import {
   SeedNotificationFeed
 } from './notifications/notification-feed.ts'
 import { testWorkspaceContext, type Actor } from './workspace-context.ts'
+import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
 import {
   listWorkspacesForUser,
   workspaceDashboard,
@@ -399,6 +400,20 @@ describe('workspace list projection', () => {
       expect(items).toEqual([])
     }).pipe(Effect.provide(SeedLayer))
   )
+})
+
+// The Live half of this same list runs in live-layers.test.ts. Two adapters,
+// one contract — capabilities invariant 4.
+describe('seed workspace membership contract', () => {
+  const cases = workspaceMembershipContractCases(
+    { member: 'usr_martin', newcomer: 'usr_newcomer', stranger: 'usr_stranger' },
+    expect
+  )
+  for (const contractCase of cases) {
+    it.effect(contractCase.name, () =>
+      contractCase.assert.pipe(Effect.provide(seedWorkspaceLayer))
+    )
+  }
 })
 
 describe('bearer verification write throttling', () => {
