@@ -90,7 +90,10 @@ const settingsSummary = {
   ],
   apiTokenCount: 3,
   webhookCount: 1,
-  unreadCount: 2
+  unreadCount: 2,
+  // The invitation panel renders from the same projection; an empty list is the
+  // state a fresh workspace is in.
+  invitations: []
 }
 
 describe('WorkspaceSettingsPage', () => {

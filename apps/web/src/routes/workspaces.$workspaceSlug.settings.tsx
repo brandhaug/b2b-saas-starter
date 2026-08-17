@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ApiTokenForm } from '@/components/api-token-form'
+import { InvitationPanel } from '@/components/invitation-panel'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +23,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
 
 function WorkspaceSettingsPage() {
   const { workspaceSlug } = Route.useParams()
-  const { modules, apiTokenCount, webhookCount, unreadCount } = Route.useLoaderData()
+  const { modules, apiTokenCount, webhookCount, unreadCount, invitations } =
+    Route.useLoaderData()
 
   return (
     <WorkspaceShell
@@ -74,6 +76,17 @@ function WorkspaceSettingsPage() {
                 hashed and audited.
               </p>
               <ApiTokenForm workspaceSlug={workspaceSlug} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Members</Label>
+              <p className="text-sm text-muted-foreground">
+                Invite someone by email. They join once they open the link and accept —
+                the invitation carries the role chosen here.
+              </p>
+              <InvitationPanel
+                workspaceSlug={workspaceSlug}
+                invitations={invitations}
+              />
             </div>
             <div className="grid gap-2">
               <Label>Outbound webhooks</Label>

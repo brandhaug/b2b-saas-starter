@@ -1,6 +1,7 @@
 import { Layer } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import type { WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
+import type { WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
 import type { WorkspaceMemberBinding } from './governance/workspace-membership.ts'
 import {
   makeLiveCapabilitiesLayer,
@@ -41,6 +42,14 @@ export type StarterEnv = {
    * Absent, membership reads work and mutations fail `CapabilityUnavailable`.
    */
   readonly memberBinding?: WorkspaceMemberBinding | undefined
+  /**
+   * Adapter onto the organization plugin's invitation endpoints. Every one of
+   * them is `requireHeaders: true`, so unlike `memberBinding` there is no
+   * headerless half — the app must supply this or invitations stay read-only.
+   *
+   * Absent, invitation reads work and mutations fail `CapabilityUnavailable`.
+   */
+  readonly invitationBinding?: WorkspaceInvitationBinding | undefined
 }
 
 export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
@@ -49,7 +58,8 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
   }
   const live = makeLiveLayerFromD1(env.DB, {
     webhookQueue: env.WEBHOOK_QUEUE,
-    memberBinding: env.memberBinding
+    memberBinding: env.memberBinding,
+    invitationBinding: env.invitationBinding
   })
   return withModuleEnvStatus(live, env.moduleConfig)
 }
@@ -74,7 +84,8 @@ export function selectWorkspaceLayer(
   const live = Layer.mergeAll(
     makeLiveCapabilitiesLayer({
       webhookQueue: env.WEBHOOK_QUEUE,
-      memberBinding: env.memberBinding
+      memberBinding: env.memberBinding,
+      invitationBinding: env.invitationBinding
     }),
     liveWorkspaceContext(slug, actor)
   ).pipe(Layer.provide(layerFromD1(env.DB)))
