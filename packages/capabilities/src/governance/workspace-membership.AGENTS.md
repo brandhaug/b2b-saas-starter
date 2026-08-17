@@ -34,7 +34,7 @@ The Live adapter classifies a binding rejection by the thrown value's `statusCod
 - Tables: `workspaces`, `workspaceMembers`, `user`.
 - Writes do not touch these tables directly — they go through the binding, and the adapter's plugin call does the write.
 - `listMembers` joins `workspaceMembers` to `user` on `userId`; rows where the user has been deleted are dropped by the inner join. Switch to a left join + tombstone display if you need to surface "removed user" entries. `listWorkspacesForUser` additionally joins `workspaces` for the workspace DTO.
-- The Seed layer takes the fixture workspace alongside the members (`SeedWorkspaceMembership(members, workspace)`) so `listWorkspacesForUser` has a workspace to return for fixture members.
+- The Seed layer takes the fixture workspace alongside a `SeedRoster` (`SeedWorkspaceMembership(roster, workspace)`) so `listWorkspacesForUser` has a workspace to return for fixture members. The roster is a `Ref` built by the caller — `layers.ts` builds one and hands it to this capability _and_ to `SeedWorkspaceInvitations`, because accepting an invitation adds a member and two independent `Ref`s would let the two seed adapters disagree about who is one.
 - `WorkspaceContext` is the single workspace-resolution point, so every workspace capability sees the same `WorkspaceNotFound` shape.
 
 ## Seed / Live parity
@@ -50,7 +50,7 @@ Membership writes and their audit rows can diverge. D1 rejects an explicit `BEGI
 ## Status & follow-ups
 
 - `requireRole(slug, userId, role)` never shipped and is not wanted: authorization is `requirePermission` in [`@b2b-saas-starter/authz`](../../../authz/AGENTS.md), asked by permission rather than by role name.
-- Surface invitation state (pending vs. accepted) when invites ship — `Member` will need a `pending` field or a separate `listInvitations` method.
+- Invitations shipped as a separate capability rather than a `pending` field on `Member` — see [`workspace-invitations`](workspace-invitations.AGENTS.md). Accepting one is what adds a member, so that capability writes to the same `SeedRoster` this one reads. A combined "people" view would still want the two merged.
 - No app calls the mutations yet, so no adapter is wired into `StarterEnv.memberBinding`. Until one is, mutations answer `CapabilityUnavailable`.
 
 ## Anti-patterns

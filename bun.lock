@@ -86,6 +86,7 @@
         "@b2b-saas-starter/authz": "workspace:*",
         "@b2b-saas-starter/capabilities": "workspace:*",
         "@b2b-saas-starter/db": "workspace:*",
+        "@b2b-saas-starter/email": "workspace:*",
         "@b2b-saas-starter/env": "workspace:*",
         "@b2b-saas-starter/logger": "workspace:*",
         "@b2b-saas-starter/rate-limit": "workspace:*",

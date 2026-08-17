@@ -23,6 +23,7 @@ import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
+import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
 import { Route as WorkspacesWorkspaceSlugRouteImport } from './routes/workspaces.$workspaceSlug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
@@ -99,6 +100,11 @@ const HelpIndexRoute = HelpIndexRouteImport.update({
   path: '/help/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
+  id: '/invitations/accept',
+  path: '/invitations/accept',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkspacesIndexRoute = WorkspacesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog/': typeof BlogIndexRoute
   '/docs/': typeof DocsIndexRoute
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/terms': typeof TermsRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog': typeof BlogIndexRoute
   '/docs': typeof DocsIndexRoute
@@ -179,6 +187,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog/': typeof BlogIndexRoute
   '/docs/': typeof DocsIndexRoute
@@ -202,6 +211,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/workspaces'
     | '/blog/$slug'
+    | '/invitations/accept'
     | '/workspaces/$workspaceSlug'
     | '/blog/'
     | '/docs/'
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/terms'
     | '/blog/$slug'
+    | '/invitations/accept'
     | '/workspaces/$workspaceSlug'
     | '/blog'
     | '/docs'
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/workspaces'
     | '/blog/$slug'
+    | '/invitations/accept'
     | '/workspaces/$workspaceSlug'
     | '/blog/'
     | '/docs/'
@@ -264,6 +276,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   WorkspacesRoute: typeof WorkspacesRouteWithChildren
   BlogSlugRoute: typeof BlogSlugRoute
+  InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   BlogIndexRoute: typeof BlogIndexRoute
   HelpIndexRoute: typeof HelpIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -369,6 +382,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HelpIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invitations/accept': {
+      id: '/invitations/accept'
+      path: '/invitations/accept'
+      fullPath: '/invitations/accept'
+      preLoaderRoute: typeof InvitationsAcceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workspaces/': {
       id: '/workspaces/'
       path: '/'
@@ -459,6 +479,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   WorkspacesRoute: WorkspacesRouteWithChildren,
   BlogSlugRoute: BlogSlugRoute,
+  InvitationsAcceptRoute: InvitationsAcceptRoute,
   BlogIndexRoute: BlogIndexRoute,
   HelpIndexRoute: HelpIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

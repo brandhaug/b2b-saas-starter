@@ -10,6 +10,7 @@ import {
   user,
   webhookDeliveries,
   webhookEndpoints,
+  workspaceInvitations,
   workspaceMembers,
   workspaceModuleStates,
   workspaces
@@ -26,6 +27,15 @@ import {
   type WorkspaceMemberBinding
 } from './governance/workspace-membership.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
+import {
+  WorkspaceInvitations,
+  type WorkspaceInvitationBinding
+} from './governance/workspace-invitations.ts'
+import {
+  CONTRACT_EXPIRED_AT,
+  CONTRACT_UNEXPIRED_AT,
+  workspaceInvitationsContractCases
+} from './governance/workspace-invitations.contract.ts'
 import { StarterModuleCatalog } from './catalog/starter-module-catalog.ts'
 import {
   CatalogRefreshHistory,
@@ -55,7 +65,14 @@ const insertFixtureRows = Effect.gen(function* () {
     // adds and removes them.
     { id: 'usr_joiner', email: 'joiner@live.test', name: 'Joiner' },
     { id: 'usr_mover', email: 'mover@live.test', name: 'Mover' },
-    { id: 'usr_audited', email: 'audited@live.test', name: 'Audited' }
+    { id: 'usr_audited', email: 'audited@live.test', name: 'Audited' },
+    // The invitation contract invites this address and then accepts as this
+    // user — a real row, because accepting joins `workspace_members` to `user`.
+    {
+      id: 'usr_accepter',
+      email: 'accepter@live-invite.test',
+      name: 'Accepter'
+    }
   ])
   // `workspaces` and `workspace_members` are owned by the organization plugin:
   // their timestamps default to epoch integers, and a member row carries a
@@ -86,6 +103,21 @@ const insertFixtureRows = Effect.gen(function* () {
     missingConfig: [],
     updatedAt: iso
   })
+  // Already past its expiry when the suite starts: the invitation contract
+  // needs one, and no case can age an invitation from inside the interface.
+  yield* db.insert(workspaceInvitations).values({
+    id: 'inv_live_expired',
+    workspaceId: 'wrk_live',
+    email: 'expired@live-invite.test',
+    role: 'member',
+    status: 'pending',
+    // `workspace_invitations.expiresAt` is `mode: 'timestamp'`, so drizzle wants
+    // a `Date`. The value is a fixed literal, not a reading of the clock, so
+    // there is nothing here for `Clock` to control.
+    // oxlint-disable-next-line effect/noGlobals -- fixed literal date, not a clock read; drizzle's timestamp mode requires a Date instance
+    expiresAt: new Date(CONTRACT_EXPIRED_AT),
+    inviterId: 'usr_owner'
+  })
   // The endpoint the webhook delivery-attempt suite records attempts against.
   yield* db.insert(webhookEndpoints).values({
     id: 'wh_live',
@@ -114,17 +146,27 @@ const TestDatabase = Layer.unwrap(
   })
 )
 
-/** Runs an effect against the live capability layers of one workspace. */
+/**
+ * Runs an effect against the live capability layers of one workspace. The
+ * plugin-backed bindings ride in a bag rather than as trailing positionals:
+ * a suite that needs only the invitation one would otherwise pass a hole.
+ */
 function inWorkspace<A, E>(
   slug: string,
   effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices>,
   actor?: { readonly userId: string },
-  memberBinding?: WorkspaceMemberBinding
+  bindings?: {
+    readonly memberBinding?: WorkspaceMemberBinding
+    readonly invitationBinding?: WorkspaceInvitationBinding
+  }
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database> {
   return Effect.provide(
     effect,
     Layer.merge(
-      makeLiveCapabilitiesLayer({ memberBinding }),
+      makeLiveCapabilitiesLayer({
+        memberBinding: bindings?.memberBinding,
+        invitationBinding: bindings?.invitationBinding
+      }),
       liveWorkspaceContext(slug, actor)
     )
   )
@@ -372,7 +414,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
             })
           }),
           { userId: 'usr_owner' },
-          binding
+          { memberBinding: binding }
         )
 
         // The binding is called with the workspace resolved from context, never
@@ -407,7 +449,14 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
         function run<A, E>(
           effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices>
         ) {
-          return inWorkspace('live-lab', effect, { userId: 'usr_owner' }, binding)
+          return inWorkspace(
+            'live-lab',
+            effect,
+            { userId: 'usr_owner' },
+            {
+              memberBinding: binding
+            }
+          )
         }
 
         yield* run(
@@ -478,7 +527,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
               return yield* membership.removeMember({ userId: 'usr_outsider' })
             }),
             { userId: 'usr_owner' },
-            binding
+            { memberBinding: binding }
           )
         )
         expect(error).toBeInstanceOf(MembershipChangeRejected)
@@ -525,11 +574,181 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
             'live-lab',
             contractCase.assert,
             { userId: 'usr_owner' },
-            binding
+            { memberBinding: binding }
           )
         })
       )
     }
+  })
+
+  // A stand-in for the organization plugin's invitation endpoints, on the same
+  // terms as `fakeMemberBinding`: the plugin's own behaviour belongs to
+  // packages/auth, and what these own is the capability's half — that it calls
+  // the binding with the resolved workspace, reads the row back, and audits it.
+  // The plugin mints a fresh id per invitation, and so must this: one address
+  // may be invited, have it settled, and be invited again. The counter is
+  // shared across binding instances because the rows they write are — every
+  // case in this file writes to the same D1.
+  let mintedInvitations = 0
+
+  function fakeInvitationBinding(db: EffectDatabase) {
+    const calls: unknown[] = []
+    const binding: WorkspaceInvitationBinding = {
+      create: (input) => {
+        calls.push(input)
+        mintedInvitations += 1
+        return Effect.runPromise(
+          db.insert(workspaceInvitations).values({
+            id: `inv_live_${mintedInvitations}`,
+            workspaceId: input.workspaceId,
+            email: input.email,
+            role: input.role,
+            status: 'pending',
+            // A literal well ahead of the suite's TestClock rather than a clock
+            // read: the capability reads expiry back off the row, and these
+            // invitations are all meant to be acceptable.
+            // oxlint-disable-next-line effect/noGlobals -- fixed literal date, not a clock read; drizzle's timestamp mode requires a Date instance
+            expiresAt: new Date(CONTRACT_UNEXPIRED_AT),
+            inviterId: 'usr_owner'
+          })
+        )
+      },
+      cancel: (input) => {
+        calls.push(input)
+        return Effect.runPromise(
+          db
+            .update(workspaceInvitations)
+            .set({ status: 'canceled' })
+            .where(eq(workspaceInvitations.id, input.invitationId))
+        )
+      },
+      // The real plugin settles the invitation and creates the member row in
+      // one call, so the stand-in must do both or the capability would look
+      // like it accepted an invitation that made nobody a member.
+      accept: (input) => {
+        calls.push(input)
+        return Effect.runPromise(
+          Effect.gen(function* () {
+            const rows = yield* db
+              .select()
+              .from(workspaceInvitations)
+              .where(eq(workspaceInvitations.id, input.invitationId))
+              .limit(1)
+            const invitation = rows[0]
+            if (!invitation) return
+            yield* db
+              .update(workspaceInvitations)
+              .set({ status: 'accepted' })
+              .where(eq(workspaceInvitations.id, input.invitationId))
+            yield* db.insert(workspaceMembers).values({
+              id: `mem_${invitation.id}`,
+              workspaceId: invitation.workspaceId,
+              userId: 'usr_accepter',
+              role: invitation.role ?? 'member'
+            })
+          })
+        )
+      }
+    }
+    return { binding, calls }
+  }
+
+  // The Seed half of this same list runs in index.test.ts.
+  describe('live workspace invitations contract', () => {
+    const cases = workspaceInvitationsContractCases(
+      {
+        emailFor: (slot) => `${slot}@live-invite.test`,
+        accepter: { userId: 'usr_accepter', email: 'accepter@live-invite.test' },
+        expired: {
+          invitationId: 'inv_live_expired',
+          email: 'expired@live-invite.test'
+        }
+      },
+      expect
+    )
+    for (const contractCase of cases) {
+      it.effect(contractCase.name, () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          // The cases clean up after themselves via `removeMember`, so the
+          // member binding is needed alongside the invitation one.
+          const { binding: invitationBinding } = fakeInvitationBinding(db)
+          const { binding: memberBinding } = fakeMemberBinding(db)
+          yield* inWorkspace(
+            'live-lab',
+            contractCase.assert,
+            { userId: 'usr_owner' },
+            {
+              invitationBinding,
+              memberBinding
+            }
+          )
+        })
+      )
+    }
+  })
+
+  describe('live workspace invitation mutations', () => {
+    it.effect('creates through the binding, reads it back, and audits it', () =>
+      Effect.gen(function* () {
+        const db = yield* Database
+        const { binding, calls } = fakeInvitationBinding(db)
+        const created = yield* inWorkspace(
+          'live-lab',
+          Effect.gen(function* () {
+            const invitations = yield* WorkspaceInvitations
+            return yield* invitations.create({
+              email: 'audited@live-invite.test',
+              role: 'admin'
+            })
+          }),
+          { userId: 'usr_owner' },
+          { invitationBinding: binding }
+        )
+
+        // Called with the workspace resolved from context, never a slug.
+        expect(calls).toEqual([
+          {
+            workspaceId: 'wrk_live',
+            email: 'audited@live-invite.test',
+            role: 'admin'
+          }
+        ])
+        expect(created.role).toBe('admin')
+        expect(created.status).toBe('pending')
+
+        const events = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(AuditEventLog, (audit) => audit.list),
+          { userId: 'usr_owner' }
+        )
+        expect(events.map((event) => event.eventType)).toContain(
+          'workspace_invitation.sent'
+        )
+      })
+    )
+
+    it.effect('fails as unavailable when no binding is configured', () =>
+      Effect.gen(function* () {
+        const error = yield* Effect.flip(
+          inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              const invitations = yield* WorkspaceInvitations
+              return yield* invitations.create({
+                email: 'unbound@live-invite.test',
+                role: 'member'
+              })
+            }),
+            { userId: 'usr_owner' }
+          )
+        )
+        expect(error).toBeInstanceOf(CapabilityUnavailable)
+        expect(error instanceof CapabilityUnavailable && error.reason).toBe(
+          'no_invitation_binding'
+        )
+      })
+    )
   })
 
   describe('live workspace membership projection', () => {

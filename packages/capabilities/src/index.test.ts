@@ -4,7 +4,12 @@ import { layerFromD1 } from '@b2b-saas-starter/db'
 import { computeReadinessScore } from './catalog/adoption-readiness.ts'
 import { runCatalogRefresh } from './catalog/catalog-refresh-history.ts'
 import { SeedLayer } from './layers.ts'
-import { seedWorkspaceRecord } from './seed-fixture.ts'
+import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
+import { SeedWorkspaceInvitations } from './governance/workspace-invitations.ts'
+import {
+  makeSeedRoster,
+  SeedWorkspaceMembership
+} from './governance/workspace-membership.ts'
 import { StarterModuleCatalog } from './catalog/starter-module-catalog.ts'
 import {
   ApiTokenRegistry,
@@ -27,6 +32,10 @@ import {
 } from './notifications/notification-feed.ts'
 import { testWorkspaceContext, type Actor } from './workspace-context.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
+import {
+  CONTRACT_EXPIRED_AT,
+  workspaceInvitationsContractCases
+} from './governance/workspace-invitations.contract.ts'
 import {
   listWorkspacesForUser,
   workspaceDashboard,
@@ -424,6 +433,56 @@ describe('seed workspace membership contract', () => {
   for (const contractCase of cases) {
     it.effect(contractCase.name, () =>
       contractCase.assert.pipe(Effect.provide(seedWorkspaceLayer))
+    )
+  }
+})
+
+// The Live half of this same list runs in live-layers.test.ts.
+describe('seed workspace invitations contract', () => {
+  const accepter = { userId: 'usr_accepter', email: 'accepter@seed-invite.test' }
+  const expired = {
+    invitationId: 'inv_seed_expired',
+    email: 'expired@seed-invite.test'
+  }
+
+  // Built here rather than reusing `seedWorkspaceLayer`, because the cases need
+  // an already-expired invitation and the demo fixture should not carry one.
+  // Membership and invitations share a roster for the same reason `layers.ts`
+  // gives them one: accepting adds a member.
+  const invitationLayer = Layer.unwrap(
+    Effect.gen(function* () {
+      const roster = yield* makeSeedRoster(seedMembers)
+      return Layer.mergeAll(
+        SeedWorkspaceInvitations({
+          roster,
+          workspace: seedWorkspaceRecord,
+          seed: [
+            {
+              id: expired.invitationId,
+              email: expired.email,
+              role: 'member',
+              status: 'pending',
+              expiresAt: CONTRACT_EXPIRED_AT
+            }
+          ]
+        }),
+        SeedWorkspaceMembership(roster, seedWorkspaceRecord),
+        testWorkspaceContext(seedWorkspaceRecord)
+      )
+    })
+  )
+
+  const cases = workspaceInvitationsContractCases(
+    {
+      emailFor: (slot) => `${slot}@seed-invite.test`,
+      accepter,
+      expired
+    },
+    expect
+  )
+  for (const contractCase of cases) {
+    it.effect(contractCase.name, () =>
+      contractCase.assert.pipe(Effect.provide(invitationLayer))
     )
   }
 })

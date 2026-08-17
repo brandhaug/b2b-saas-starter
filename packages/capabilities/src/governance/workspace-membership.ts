@@ -71,11 +71,24 @@ export class WorkspaceMembership extends Context.Service<
 >()('@b2b-saas-starter/capabilities/WorkspaceMembership') {}
 
 /**
+ * The fixture's member roster. Held as a `Ref` and passed in rather than built
+ * inside `SeedWorkspaceMembership`, because accepting an invitation adds a
+ * member: `SeedWorkspaceInvitations` writes to the same roster this capability
+ * reads, and two independent `Ref`s would let the seed adapters disagree about
+ * who is a member. Live has no such seam — the plugin owns both writes.
+ */
+export type SeedRoster = Ref.Ref<readonly Member[]>
+
+export function makeSeedRoster(members: readonly Member[]): Effect.Effect<SeedRoster> {
+  return Ref.make<readonly Member[]>(members)
+}
+
+/**
  * Fails the way the Live adapter fails for a user with no membership, so the
  * shared contract in `workspace-membership.contract.ts` holds on both sides.
  */
 function requireMember(
-  roster: Ref.Ref<readonly Member[]>,
+  roster: SeedRoster,
   userId: string
 ): Effect.Effect<Member, MembershipChangeRejected> {
   return Ref.get(roster).pipe(
@@ -90,64 +103,60 @@ function requireMember(
 }
 
 /**
- * In-memory membership, never Better Auth. The roster lives in a `Ref` built
- * per layer construction, so a mutation is observable within the request or
- * test that made it and no state leaks into the next one.
+ * In-memory membership, never Better Auth. The roster is built per layer
+ * construction (see `makeSeedRoster`), so a mutation is observable within the
+ * request or test that made it and no state leaks into the next one.
  */
 export function SeedWorkspaceMembership(
-  members: readonly Member[],
+  roster: SeedRoster,
   workspace: Workspace
 ): Layer.Layer<WorkspaceMembership> {
-  return Layer.effect(WorkspaceMembership)(
-    Effect.gen(function* () {
-      const roster = yield* Ref.make<readonly Member[]>(members)
-
-      return {
-        listMembers: Ref.get(roster),
-        listWorkspacesForUser: (userId) =>
-          Ref.get(roster).pipe(
-            Effect.map((current) => {
-              const member = current.find((candidate) => candidate.id === userId)
-              if (!member) return []
-              return [{ workspace, member }]
-            })
-          ),
-        addMember: (input) =>
-          Effect.gen(function* () {
-            // No `user` table to join, so the fixture fabricates the identity
-            // fields the way `SeedApiTokenRegistry.create` fabricates a token.
-            const added: Member = {
-              id: input.userId,
-              name: input.userId,
-              email: `${input.userId}@seed.local`,
-              role: input.role,
-              systemRole: 'user'
-            }
-            yield* Ref.update(roster, (current) => [...current, added])
-            return added
-          }),
-        removeMember: (input) =>
-          Effect.gen(function* () {
-            yield* requireMember(roster, input.userId)
-            yield* Ref.update(roster, (current) =>
-              current.filter((candidate) => candidate.id !== input.userId)
-            )
-          }),
-        changeRole: (input) =>
-          Effect.gen(function* () {
-            const member = yield* requireMember(roster, input.userId)
-            const promoted: Member = { ...member, role: input.role }
-            yield* Ref.update(roster, (current) =>
-              current.map((candidate) => {
-                if (candidate.id === input.userId) return promoted
-                return candidate
-              })
-            )
-            return promoted
+  // `Layer.succeed`, not `Layer.effect`: the roster is built by the caller now
+  // (so invitations can share it), leaving nothing effectful to do here.
+  return Layer.succeed(WorkspaceMembership)({
+    listMembers: Ref.get(roster),
+    listWorkspacesForUser: (userId) =>
+      Ref.get(roster).pipe(
+        Effect.map((current) => {
+          const member = current.find((candidate) => candidate.id === userId)
+          if (!member) return []
+          return [{ workspace, member }]
+        })
+      ),
+    addMember: (input) =>
+      Effect.gen(function* () {
+        // No `user` table to join, so the fixture fabricates the identity
+        // fields the way `SeedApiTokenRegistry.create` fabricates a token.
+        const added: Member = {
+          id: input.userId,
+          name: input.userId,
+          email: `${input.userId}@seed.local`,
+          role: input.role,
+          systemRole: 'user'
+        }
+        yield* Ref.update(roster, (current) => [...current, added])
+        return added
+      }),
+    removeMember: (input) =>
+      Effect.gen(function* () {
+        yield* requireMember(roster, input.userId)
+        yield* Ref.update(roster, (current) =>
+          current.filter((candidate) => candidate.id !== input.userId)
+        )
+      }),
+    changeRole: (input) =>
+      Effect.gen(function* () {
+        const member = yield* requireMember(roster, input.userId)
+        const promoted: Member = { ...member, role: input.role }
+        yield* Ref.update(roster, (current) =>
+          current.map((candidate) => {
+            if (candidate.id === input.userId) return promoted
+            return candidate
           })
-      }
-    })
-  )
+        )
+        return promoted
+      })
+  })
 }
 
 /**

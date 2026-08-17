@@ -19,6 +19,10 @@ import {
   type WebhookEndpoint
 } from './developer-platform/webhook-endpoints.ts'
 import type { Workspace } from './governance/workspace-identity.ts'
+import {
+  WorkspaceInvitations,
+  type Invitation
+} from './governance/workspace-invitations.ts'
 import { WorkspaceMembership } from './governance/workspace-membership.ts'
 import {
   NotificationFeed,
@@ -191,6 +195,12 @@ export type WorkspaceSettingsSummaryProjection = {
   readonly apiTokenCount: number
   readonly webhookCount: number
   readonly unreadCount: number
+  /**
+   * Every invitation of the workspace, not just the pending ones: the settings
+   * page shows what happened to each, and a page that silently dropped the
+   * cancelled ones would look like the cancel button did nothing.
+   */
+  readonly invitations: readonly Invitation[]
 }
 
 /** The counts and module list the workspace settings page renders. */
@@ -202,19 +212,22 @@ export const workspaceSettingsSummary: Effect.Effect<
   | ApiTokenRegistry
   | WebhookEndpoints
   | NotificationFeed
+  | WorkspaceInvitations
 > = Effect.gen(function* () {
   const catalog = yield* StarterModuleCatalog
   const tokens = yield* ApiTokenRegistry
   const webhooks = yield* WebhookEndpoints
   const feed = yield* NotificationFeed
-  const [modules, apiTokens, endpoints, unreadCount] = yield* Effect.all(
-    [catalog.listModules, tokens.list, webhooks.list, feed.unreadCount],
+  const invites = yield* WorkspaceInvitations
+  const [modules, apiTokens, endpoints, unreadCount, invitations] = yield* Effect.all(
+    [catalog.listModules, tokens.list, webhooks.list, feed.unreadCount, invites.list],
     { concurrency: 'unbounded' }
   )
   return {
     modules,
     apiTokenCount: apiTokens.length,
     webhookCount: endpoints.length,
-    unreadCount
+    unreadCount,
+    invitations
   }
 })

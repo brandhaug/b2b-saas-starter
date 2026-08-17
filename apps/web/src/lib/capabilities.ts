@@ -19,6 +19,18 @@ import { withWebRequestScope } from './observability'
 export type { CapabilityServices }
 export { CapabilityUnavailableError, ForbiddenError }
 
+/**
+ * Plugin-backed write adapters a caller supplies for the duration of one call.
+ *
+ * They are not part of the module-level `starterEnv` below, and deliberately so:
+ * an adapter has to reach `packages/auth`, this module is bundled for the
+ * browser as well as the worker, and a module-level adapter would pull the whole
+ * Better Auth server instance into the client bundle. Server functions — which
+ * only ever run on the server — pass one in when they need a mutation. See
+ * `server/invitation-binding.ts`.
+ */
+export type CapabilityBindings = Pick<StarterEnv, 'memberBinding' | 'invitationBinding'>
+
 // Real Worker bindings (same import as `server-context.ts`). In production the
 // D1 binding exists and activates the Live layer; under the local dev shim
 // (`cloudflare-workers-shim.ts`) `DB` is undefined and the in-memory Seed
@@ -84,7 +96,8 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
 export async function runWorkspaceCapabilities<A, E>(
   workspaceSlug: string,
   effect: Effect.Effect<A, E, CapabilityServices | WorkspaceContext | Scope.Scope>,
-  actor?: ActorRef
+  actor?: ActorRef,
+  bindings?: CapabilityBindings
 ): Promise<A> {
   const exit = await Effect.runPromiseExit(
     withWebRequestScope(
@@ -92,7 +105,10 @@ export async function runWorkspaceCapabilities<A, E>(
         event: 'capability.workspace',
         metadata: { workspaceSlug, actorUserId: actor?.userId }
       },
-      Effect.provide(effect, selectWorkspaceLayer(starterEnv, workspaceSlug, actor))
+      Effect.provide(
+        effect,
+        selectWorkspaceLayer({ ...starterEnv, ...bindings }, workspaceSlug, actor)
+      )
     )
   )
   if (Exit.isSuccess(exit)) return exit.value
@@ -107,12 +123,13 @@ export async function runWorkspaceCapabilities<A, E>(
  * `CapabilityUnavailableError` exactly like `runWorkspaceCapabilities`.
  */
 export async function runCapabilities<A, E>(
-  effect: Effect.Effect<A, E, CapabilityServices>
+  effect: Effect.Effect<A, E, CapabilityServices>,
+  bindings?: CapabilityBindings
 ): Promise<A> {
   const exit = await Effect.runPromiseExit(
     withWebRequestScope(
       { event: 'capability.global' },
-      Effect.provide(effect, selectCapabilitiesLayer(starterEnv))
+      Effect.provide(effect, selectCapabilitiesLayer({ ...starterEnv, ...bindings }))
     )
   )
   if (Exit.isSuccess(exit)) return exit.value

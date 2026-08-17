@@ -1,4 +1,4 @@
-import { Layer } from 'effect'
+import { Effect, Layer } from 'effect'
 import { type Database, layerFromD1 } from '@b2b-saas-starter/db'
 
 // catalog
@@ -48,7 +48,14 @@ import {
   SeedAuditEventLog
 } from './governance/audit-event-log.ts'
 import {
+  LiveWorkspaceInvitations,
+  SeedWorkspaceInvitations,
+  type WorkspaceInvitationBinding,
+  type WorkspaceInvitations
+} from './governance/workspace-invitations.ts'
+import {
   LiveWorkspaceMembership,
+  makeSeedRoster,
   SeedWorkspaceMembership,
   type WorkspaceMemberBinding,
   type WorkspaceMembership
@@ -91,9 +98,26 @@ export type CapabilityServices =
   | StarterModuleCatalog
   | WebhookEndpoints
   | WebhookPublisher
+  | WorkspaceInvitations
   | WorkspaceMembership
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
+
+/**
+ * Membership and invitations share one fixture roster, because accepting an
+ * invitation adds a member: built independently, the two adapters would
+ * disagree about who is in the workspace. Live needs no equivalent — the
+ * plugin owns both writes, and both read back from the same tables.
+ */
+const SeedGovernance = Layer.unwrap(
+  Effect.gen(function* () {
+    const roster = yield* makeSeedRoster(seedMembers)
+    return Layer.merge(
+      SeedWorkspaceInvitations({ roster, workspace: seedWorkspaceRecord }),
+      SeedWorkspaceMembership(roster, seedWorkspaceRecord)
+    )
+  })
+)
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedAdoptionReadiness(seedReadinessTrend),
@@ -106,7 +130,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
-  SeedWorkspaceMembership(seedMembers, seedWorkspaceRecord)
+  SeedGovernance
 )
 
 export type LiveCapabilitiesOptions = {
@@ -117,6 +141,11 @@ export type LiveCapabilitiesOptions = {
    * provider-light posture `webhookQueue` takes (CLAUDE.md rule 3).
    */
   readonly memberBinding?: WorkspaceMemberBinding | undefined
+  /**
+   * Adapter onto the organization plugin's invitation endpoints. Absent,
+   * invitation reads still work and mutations fail `CapabilityUnavailable`.
+   */
+  readonly invitationBinding?: WorkspaceInvitationBinding | undefined
 }
 
 export function makeLiveCapabilitiesLayer(
@@ -133,6 +162,9 @@ export function makeLiveCapabilitiesLayer(
     LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
     LiveWebhookPublisher(options.webhookQueue),
+    LiveWorkspaceInvitations(options.invitationBinding).pipe(
+      Layer.provide(LiveAuditEventLog)
+    ),
     LiveWorkspaceMembership(options.memberBinding).pipe(
       Layer.provide(LiveAuditEventLog)
     )
