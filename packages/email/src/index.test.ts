@@ -32,8 +32,8 @@ describe('EmailDispatcher', () => {
     ))
 
   it('renders both html and text, then forwards to the binding', () => {
-    const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<unknown>>(() =>
-      Promise.resolve(undefined)
+    const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<void>>(() =>
+      Promise.resolve()
     )
     const binding: SendEmailBinding = { send }
 

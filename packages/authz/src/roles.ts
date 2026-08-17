@@ -1,6 +1,6 @@
-import type { Role, Statements } from 'better-auth/plugins/access'
+import { type Role, type Statements } from 'better-auth/plugins/access'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
-import type { ApiTokenScopeValue, workspaceRoles } from '@b2b-saas-starter/db'
+import { type ApiTokenScopeValue, type workspaceRoles } from '@b2b-saas-starter/db'
 import {
   accessControl,
   starterResources,
@@ -53,11 +53,11 @@ export const memberRole = accessControl.newRole({
   integration: ['read']
 })
 
-export const workspaceRoleAccess: Record<WorkspaceRole, StarterRole> = {
+export const workspaceRoleAccess = {
   owner: ownerRole,
   admin: adminRole,
   member: memberRole
-}
+} satisfies Record<WorkspaceRole, StarterRole>
 
 /**
  * Every `list` and `read` action. Wider than the `member` role — an API token
@@ -98,8 +98,8 @@ export const writeScopeRole = accessControl.newRole({
  */
 export const adminScopeRole = ownerRole
 
-export const apiTokenScopeAccess: Record<ApiTokenScope, StarterRole> = {
+export const apiTokenScopeAccess = {
   read: readScopeRole,
   write: writeScopeRole,
   admin: adminScopeRole
-}
+} satisfies Record<ApiTokenScope, StarterRole>

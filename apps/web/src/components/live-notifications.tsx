@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { BellIcon, RefreshCwIcon } from 'lucide-react'
-import type { Notification as CapabilityNotification } from '@b2b-saas-starter/capabilities'
+import { type Notification as CapabilityNotification } from '@b2b-saas-starter/capabilities'
 import {
   listNotificationsServerFn,
   notificationsQueryKey
@@ -14,16 +14,27 @@ export type NotificationPreview = Pick<
   'id' | 'title' | 'message' | 'read'
 >
 
+/**
+ * The one server call this card makes, as a port. Injected rather than imported
+ * at the call site so a test drives the card with a real function of this shape
+ * instead of replacing the module it lives in.
+ */
+export type ListNotifications = (input: {
+  readonly data: { readonly workspaceSlug: string }
+}) => Promise<readonly NotificationPreview[]>
+
 export function LiveNotifications({
   workspaceSlug,
-  fallback
+  fallback,
+  listNotifications = listNotificationsServerFn
 }: {
   readonly workspaceSlug: string
   readonly fallback: readonly NotificationPreview[]
+  readonly listNotifications?: ListNotifications
 }) {
   const { data, error, isFetching, refetch } = useQuery({
     queryKey: notificationsQueryKey(workspaceSlug),
-    queryFn: () => listNotificationsServerFn({ data: { workspaceSlug } }),
+    queryFn: () => listNotifications({ data: { workspaceSlug } }),
     initialData: fallback
   })
 

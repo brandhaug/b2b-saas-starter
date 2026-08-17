@@ -29,8 +29,8 @@ import {
   workspaceModuleStates,
   workspaces
 } from '@b2b-saas-starter/db'
-import { getTableColumns, getTableName, type Table } from 'drizzle-orm'
-import { Effect } from 'effect'
+import { getColumns, getTableName, type Table } from 'drizzle-orm'
+import { Effect, Option, Schema } from 'effect'
 import { hashPassword } from 'better-auth/crypto'
 
 // Demo credential account so the authenticated area is reachable after
@@ -47,20 +47,28 @@ import { hashPassword } from 'better-auth/crypto'
 // executed through `wrangler d1 execute`.
 const DEMO_USER_PASSWORD = 'demo-starter-password'
 
+// mapToDriverValue only yields string | number | null for this schema; parse
+// for that rather than probing, so anything else fails loudly here instead of
+// silently serializing as '[object Object]'.
+const decodeDriverNumber = Schema.decodeUnknownOption(Schema.Number)
+const decodeDriverString = Schema.decodeUnknownOption(Schema.String)
+
 function quote(value: unknown): string {
   if (value === null) return 'NULL'
-  if (typeof value === 'number') return String(value)
-  if (typeof value !== 'string') {
-    // mapToDriverValue only yields string | number | null for this schema;
-    // anything else would silently serialize as '[object Object]'.
-    throw new Error(`unsupported driver value type: ${typeof value}`)
+  const asNumber = decodeDriverNumber(value)
+  if (Option.isSome(asNumber)) return String(asNumber.value)
+  const asString = decodeDriverString(value)
+  if (Option.isNone(asString)) {
+    // JSON rather than `String(value)`: an object would stringify to
+    // '[object Object]' and the message would name nothing useful.
+    throw new TypeError(`unsupported driver value: ${JSON.stringify(value)}`)
   }
-  return `'${value.replaceAll("'", "''")}'`
+  return `'${asString.value.replaceAll("'", "''")}'`
 }
 
 // Insert statements are derived from the Drizzle schema: rows are keyed by the
 // table's TS property names (a typo is a compile error), the SQL table and
-// column names come from `getTableName`/`getTableColumns`, and values pass
+// column names come from `getTableName`/`getColumns`, and values pass
 // through each column's `mapToDriverValue` (JSON stringify, boolean → 0/1) —
 // so a schema rename breaks the seed loudly at compile time instead of
 // drifting silently against `packages/db`.
@@ -68,7 +76,7 @@ function insert<T extends Table>(
   table: T,
   row: { readonly [K in keyof T['_']['columns']]?: unknown }
 ): string {
-  const columns = getTableColumns(table)
+  const columns = getColumns(table)
   const entries: [string, string][] = Object.entries(row).map(([key, value]) => {
     const column = columns[key]
     if (column === undefined) {
@@ -100,7 +108,7 @@ const collectFixture = Effect.gen(function* () {
   const integrations = yield* IntegrationSurfaces
   const reports = yield* ImplementationReports
   const audit = yield* AuditEventLog
-  const notifications = yield* NotificationFeed
+  const notificationFeed = yield* NotificationFeed
   const refresh = yield* CatalogRefreshHistory
   const ctx = yield* WorkspaceContext
   return {
@@ -112,7 +120,7 @@ const collectFixture = Effect.gen(function* () {
     integrations: yield* integrations.list,
     reports: yield* reports.list,
     auditEvents: yield* audit.listGlobal,
-    notifications: yield* notifications.list,
+    notifications: yield* notificationFeed.list,
     refreshRuns: yield* refresh.listRecent
   }
 })

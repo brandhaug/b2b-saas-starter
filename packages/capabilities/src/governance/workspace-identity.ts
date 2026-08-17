@@ -6,7 +6,7 @@ import {
   workspaceRoles,
   type EffectDatabase
 } from '@b2b-saas-starter/db'
-import type { CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 
 /**

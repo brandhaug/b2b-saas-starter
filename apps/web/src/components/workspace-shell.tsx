@@ -25,12 +25,29 @@ import { authClient } from '@/lib/auth-client'
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
 
+/**
+ * Ending the session, as a port. Injected rather than reaching for the
+ * `authClient` singleton at the call site so a test drives sign-out with a real
+ * function of this shape instead of replacing `@/lib/auth-client` — which is a
+ * Better Auth client with plugins attached, not something worth re-creating.
+ */
+export type SignOut = () => Promise<void>
+
+/**
+ * Hoisted to module scope rather than written inline as a default: a new
+ * function expression per render would be a fresh prop value every time.
+ */
+async function signOutWithAuthClient(): Promise<void> {
+  await authClient.signOut()
+}
+
 export function WorkspaceShell({
   children,
   title,
   description,
   unreadCount,
-  workspaceSlug
+  workspaceSlug,
+  signOut = signOutWithAuthClient
 }: {
   readonly children: ReactNode
   readonly title: string
@@ -46,6 +63,7 @@ export function WorkspaceShell({
    * instead of borrowing a workspace.
    */
   readonly workspaceSlug: string | null
+  readonly signOut?: SignOut
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   return (
@@ -96,7 +114,7 @@ export function WorkspaceShell({
             </Badge>
           )}
           <ThemeToggle />
-          <SignOutButton />
+          <SignOutButton signOut={signOut} />
         </header>
         <main id="main-content" className="px-4 py-6 sm:px-6">
           {children}
@@ -106,16 +124,16 @@ export function WorkspaceShell({
   )
 }
 
-function SignOutButton() {
+function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
   // `Effect.tryPromise` keeps the Better Auth rejection in the error channel;
   // `Effect.ensuring` re-enables the button either way, so a failed sign-out
   // can be retried instead of leaving the header stuck.
-  const signOut = Effect.ensuring(
+  const endSession = Effect.ensuring(
     Effect.tryPromise({
       try: async () => {
-        await authClient.signOut()
+        await signOut()
         await router.navigate({ to: '/sign-in' })
       },
       catch: (cause) => (cause instanceof Error ? cause.message : SIGN_OUT_FAILED)
@@ -125,7 +143,7 @@ function SignOutButton() {
   // The button is the platform edge: report the failure instead of letting it
   // escape as an unhandled rejection.
   async function runSignOut() {
-    const exit = await Effect.runPromiseExit(signOut)
+    const exit = await Effect.runPromiseExit(endSession)
     if (Exit.isFailure(exit)) {
       console.error(
         'Sign-out failed',

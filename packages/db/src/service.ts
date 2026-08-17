@@ -1,7 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import * as D1Client from '@effect/sql-d1/D1Client'
 import * as SQLiteD1Drizzle from 'drizzle-orm/effect-d1'
-import type { Query } from 'drizzle-orm'
+import { type Query } from 'drizzle-orm'
 
 export type EffectDatabase = SQLiteD1Drizzle.EffectSQLiteD1Database & {
   readonly $client: D1Client.D1Client

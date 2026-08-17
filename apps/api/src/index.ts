@@ -1,4 +1,4 @@
-import type { ApiEnv } from './env.ts'
+import { type ApiEnv } from './env.ts'
 import { getWebHandler } from './http.ts'
 
 // The worker serves the `StarterApi` HttpApi contract directly: routing,

@@ -30,10 +30,10 @@ export class RateLimiter extends Context.Service<RateLimiter, RateLimiterInterfa
   '@b2b-saas-starter/web/RateLimiter'
 ) {}
 
-const FALLBACK_LIMITS: Record<AuthRateLimitBucket, number> = {
+const FALLBACK_LIMITS = {
   auth_read: 60,
   auth_write: 20
-}
+} satisfies Record<AuthRateLimitBucket, number>
 
 function pickBinding(
   env: RateLimitBindings,

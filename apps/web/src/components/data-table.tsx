@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Option, Schema } from 'effect'
 import {
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -70,11 +71,13 @@ type SortState = {
   readonly glyph: string | null
 }
 
-const SORT_STATE: Record<'asc' | 'desc' | 'false', SortState> = {
+const decodeHeaderTitle = Schema.decodeUnknownOption(Schema.String)
+
+const SORT_STATE = {
   asc: { label: ', currently ascending', aria: 'ascending', glyph: '▲' },
   desc: { label: ', currently descending', aria: 'descending', glyph: '▼' },
   false: { label: '', aria: 'none', glyph: null }
-}
+} satisfies Record<'asc' | 'desc' | 'false', SortState>
 
 type DataTableProps<TData extends RowData> = {
   readonly columns: readonly DataTableColumnDef<TData>[]
@@ -126,9 +129,14 @@ export function DataTable<TData extends RowData>({
               {group.headers.map((header) => {
                 const canSort = header.column.getCanSort()
                 const sortDir = header.column.getIsSorted()
-                const headerDef = header.column.columnDef.header
-                const columnTitle =
-                  typeof headerDef === 'string' ? headerDef : header.column.id
+                // A column's header is either a plain title or a render
+                // function; only the first can label the sort button, so decode
+                // for it and fall back to the column id.
+                const headerTitle = decodeHeaderTitle(header.column.columnDef.header)
+                const columnTitle = Option.getOrElse(
+                  headerTitle,
+                  () => header.column.id
+                )
                 const sortState = SORT_STATE[sortDir === false ? 'false' : sortDir]
                 const isSticky = header.column.columnDef.meta?.sticky === true
                 // Placeholder headers (spanned group cells) render nothing, so

@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react-vite'
+import { type Meta, type StoryObj } from '@storybook/react-vite'
 import { ApiTokenForm } from './api-token-form'
 
 const meta = {

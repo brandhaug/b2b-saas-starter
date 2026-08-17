@@ -1,6 +1,6 @@
 import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
-import type { Service } from 'effectful-better-auth'
+import { type Service } from 'effectful-better-auth'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createDb, type Database } from '@b2b-saas-starter/db/client'
 import { user, workspaceInvitations, workspaces } from '@b2b-saas-starter/db/schema'

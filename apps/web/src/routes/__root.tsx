@@ -1,7 +1,7 @@
 import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
 import '@fontsource-variable/archivo/standard.css'
-import type { QueryClient } from '@tanstack/react-query'
+import { type QueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, type ReactNode } from 'react'
 import {
   createRootRouteWithContext,

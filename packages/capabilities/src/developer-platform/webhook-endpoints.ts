@@ -7,7 +7,7 @@ import {
   webhookEndpoints
 } from '@b2b-saas-starter/db'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import type { CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -64,17 +64,18 @@ export type WebhookDeliveryAttemptInput = {
  * out of the governance log. Naming follows the `auth.sign_in` /
  * `auth.sign_in_failed` convention from the web app's auth audit.
  */
-export const terminalDeliveryAuditEventType: Partial<
-  Record<WebhookDeliveryStatus, string>
-> = {
-  failed_permanent: 'webhook.delivery_failed',
-  dead_lettered: 'webhook.delivery_dead_lettered'
-}
+export const terminalDeliveryAuditEventType = new Map<WebhookDeliveryStatus, string>([
+  ['failed_permanent', 'webhook.delivery_failed'],
+  ['dead_lettered', 'webhook.delivery_dead_lettered']
+])
 
 export type CreateWebhookEndpointInput = {
   readonly url: string
   readonly events: readonly string[]
-  readonly description?: string
+  // `| undefined` on purpose: callers read `description` off an optional request
+  // field, and both adapters treat an absent key and an explicit `undefined` the
+  // same way. Without it every caller has to hand-build the input key by key.
+  readonly description?: string | undefined
   readonly actorUserId?: string
 }
 
@@ -394,7 +395,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           nextAttemptAt: input.nextAttemptAt ?? null,
           responseStatus: input.responseStatus ?? null
         })
-        const auditEventType = terminalDeliveryAuditEventType[input.status]
+        const auditEventType = terminalDeliveryAuditEventType.get(input.status)
         if (auditEventType === undefined) {
           return yield* unavailable(deliveryInsert).pipe(Effect.asVoid)
         }

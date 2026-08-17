@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CreatedApiToken } from '@b2b-saas-starter/capabilities'
-import { ApiTokenForm } from './api-token-form'
+import { type CreatedApiToken } from '@b2b-saas-starter/capabilities'
+import { ApiTokenForm, type CreateApiToken } from './api-token-form'
 
 const createdToken: CreatedApiToken = {
   id: 'tok_test',
@@ -13,29 +13,31 @@ const createdToken: CreatedApiToken = {
   token: 'bsk_live_secret_value'
 }
 
-const createApiTokenServerFn = vi.fn()
+// The form's own `createToken` port, handed in as a prop. A real function of
+// the declared shape, so the module under test is the one that ships.
+const createToken = vi.fn<CreateApiToken>()
 
-vi.mock('@/lib/server/api-tokens', () => ({
-  createApiTokenServerFn: (input: unknown) => createApiTokenServerFn(input)
-}))
+function renderForm() {
+  return render(<ApiTokenForm workspaceSlug="starter-lab" createToken={createToken} />)
+}
 
 describe('ApiTokenForm', () => {
   beforeEach(() => {
-    createApiTokenServerFn.mockReset()
-    createApiTokenServerFn.mockResolvedValue(createdToken)
+    createToken.mockReset()
+    createToken.mockResolvedValue(createdToken)
   })
 
   it('shows a validation error for an empty token name', async () => {
-    render(<ApiTokenForm workspaceSlug="starter-lab" />)
+    renderForm()
     const input = screen.getByLabelText('Token name')
     fireEvent.change(input, { target: { value: 'x' } })
     fireEvent.change(input, { target: { value: '' } })
     await screen.findByText('Token name is required')
-    expect(createApiTokenServerFn).not.toHaveBeenCalled()
+    expect(createToken).not.toHaveBeenCalled()
   })
 
   it('shows a validation error when the name exceeds 80 characters', async () => {
-    render(<ApiTokenForm workspaceSlug="starter-lab" />)
+    renderForm()
     fireEvent.change(screen.getByLabelText('Token name'), {
       target: { value: 'a'.repeat(81) }
     })
@@ -43,7 +45,7 @@ describe('ApiTokenForm', () => {
   })
 
   it('requires at least one scope', async () => {
-    render(<ApiTokenForm workspaceSlug="starter-lab" />)
+    renderForm()
     // "read" is checked by default — uncheck it.
     const [readCheckbox] = screen.getAllByRole('checkbox')
     expect(readCheckbox).toBeDefined()
@@ -52,22 +54,22 @@ describe('ApiTokenForm', () => {
   })
 
   it('submits valid input and reveals the created token once', async () => {
-    render(<ApiTokenForm workspaceSlug="starter-lab" />)
+    renderForm()
     fireEvent.change(screen.getByLabelText('Token name'), {
       target: { value: 'CI token' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create token' }))
 
-    await waitFor(() => expect(createApiTokenServerFn).toHaveBeenCalledTimes(1))
-    expect(createApiTokenServerFn).toHaveBeenCalledWith({
+    await waitFor(() => expect(createToken).toHaveBeenCalledTimes(1))
+    expect(createToken).toHaveBeenCalledWith({
       data: { workspaceSlug: 'starter-lab', name: 'CI token', scopes: ['read'] }
     })
     await screen.findByText('bsk_live_secret_value')
   })
 
   it('surfaces server errors from the server function', async () => {
-    createApiTokenServerFn.mockRejectedValueOnce(new Error('nope'))
-    render(<ApiTokenForm workspaceSlug="starter-lab" />)
+    createToken.mockRejectedValueOnce(new Error('nope'))
+    renderForm()
     fireEvent.change(screen.getByLabelText('Token name'), {
       target: { value: 'CI token' }
     })

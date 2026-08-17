@@ -9,7 +9,11 @@ import { runWorkspaceCapabilities } from '@/lib/capabilities'
 import { optionalProviderModules } from '@/lib/content'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { getAllDocs } from '@/lib/docs'
-import { StarterModuleCatalog, WorkspaceContext } from '@b2b-saas-starter/capabilities'
+import {
+  StarterModuleCatalog,
+  WorkspaceContext,
+  type ModuleStatus
+} from '@b2b-saas-starter/capabilities'
 
 export const Route = createFileRoute('/')({
   // Public showcase: no actor — a trusted server-side read of the demo
@@ -96,12 +100,14 @@ const DISABLED_STATUS_META: StatusMeta = {
   text: 'text-muted-foreground'
 }
 
-const MODULE_STATUS_META: Record<string, StatusMeta> = {
+// Keyed by `ModuleStatus` rather than `string`: the catalog's status union is
+// closed, so adding a status to it fails here instead of silently falling back.
+const MODULE_STATUS_META = {
   ready: { dot: 'bg-primary', text: 'text-foreground' },
   'needs-config': { dot: 'bg-signal', text: 'text-signal-ink' },
   attention: { dot: 'bg-destructive', text: 'text-destructive' },
   disabled: DISABLED_STATUS_META
-}
+} satisfies Record<ModuleStatus, StatusMeta>
 
 const RECENT_POSTS = getAllPosts().slice(0, 3)
 const RECENT_DOCS = getAllDocs().slice(0, 4)
@@ -200,8 +206,7 @@ function HomePage() {
             </thead>
             <tbody>
               {modules.map((module, index) => {
-                const meta =
-                  MODULE_STATUS_META[module.state.status] ?? DISABLED_STATUS_META
+                const meta = MODULE_STATUS_META[module.state.status]
                 return (
                   <tr
                     key={module.id}

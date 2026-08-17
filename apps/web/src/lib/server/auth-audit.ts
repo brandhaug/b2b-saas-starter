@@ -1,6 +1,7 @@
 import { Effect, Result, Schema, type Scope } from 'effect'
 import {
   AuditEventLog,
+  type CapabilityUnavailable,
   type RecordAuditEventInput
 } from '@b2b-saas-starter/capabilities'
 import { annotateWide } from '@b2b-saas-starter/logger'
@@ -85,12 +86,23 @@ function readActorUserId(
   })
 }
 
+/**
+ * How this module reaches the capability layer, as a port. Injected rather than
+ * imported at the call site so a test drives the audit path with a real function
+ * of this shape instead of replacing `@/lib/capabilities` — which would also
+ * take `runWorkspaceCapabilities` and the error mapping down with it.
+ */
+export type RunAuditCapabilities = (
+  effect: Effect.Effect<void, CapabilityUnavailable, AuditEventLog>
+) => Promise<void>
+
 function writeAuditEvent(
-  input: RecordAuditEventInput
+  input: RecordAuditEventInput,
+  run: RunAuditCapabilities
 ): Effect.Effect<void, AuthAuditWriteFailed> {
   return Effect.tryPromise({
     try: () =>
-      runCapabilities(
+      run(
         Effect.gen(function* () {
           const audit = yield* AuditEventLog
           yield* audit.record(input)
@@ -113,7 +125,8 @@ function writeAuditEvent(
  */
 export function recordAuthAudit(
   request: Request,
-  response: Response
+  response: Response,
+  run: RunAuditCapabilities = runCapabilities
 ): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> {
   return Effect.gen(function* () {
     const method = request.method
@@ -143,7 +156,7 @@ export function recordAuthAudit(
     })
     if (!input) return 'skipped'
 
-    const written = yield* Effect.result(writeAuditEvent(input))
+    const written = yield* Effect.result(writeAuditEvent(input, run))
     if (Result.isFailure(written)) {
       yield* annotateWide({
         authAuditError: written.failure.reason,

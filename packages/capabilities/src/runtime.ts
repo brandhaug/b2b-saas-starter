@@ -1,8 +1,8 @@
 import { Layer } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
-import type { WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
-import type { WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
-import type { WorkspaceMemberBinding } from './governance/workspace-membership.ts'
+import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
+import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
+import { type WorkspaceMemberBinding } from './governance/workspace-membership.ts'
 import {
   makeLiveCapabilitiesLayer,
   makeLiveLayerFromD1,
@@ -18,7 +18,7 @@ import {
   type WorkspaceContext,
   type ActorRef
 } from './workspace-context.ts'
-import type { CapabilityUnavailable, WorkspaceNotFound } from './errors.ts'
+import { type CapabilityUnavailable, type WorkspaceNotFound } from './errors.ts'
 
 type D1Binding = Parameters<typeof layerFromD1>[0]
 

@@ -1,5 +1,5 @@
-import type { CSSProperties } from 'react'
-import type { Margin } from 'recharts'
+import { type CSSProperties } from 'react'
+import { type Margin } from 'recharts'
 
 /** The only tick-text attributes these charts set. */
 type AxisTickStyle = {

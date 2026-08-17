@@ -10,7 +10,7 @@ import {
   type Session as InferredSession
 } from 'effectful-better-auth'
 import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz'
-import type { Database } from '@b2b-saas-starter/db/client'
+import { type Database } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
 
 export type AuthConfigInterface = {
@@ -33,9 +33,18 @@ export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>
  * Provider key is present only when its credentials are configured, so an
  * unconfigured starter gets an empty bag rather than a disabled provider.
  */
-function socialProvidersFor(github: AuthConfigInterface['github']): {
+/**
+ * Better Auth's `socialProviders` bag as this starter fills it: the GitHub key
+ * exists only when its credentials are configured, so the type is the open bag
+ * Better Auth reads rather than a provider that is present but disabled.
+ */
+type StarterSocialProviders = {
   github?: { clientId: string; clientSecret: string }
-} {
+}
+
+function socialProvidersFor(
+  github: AuthConfigInterface['github']
+): StarterSocialProviders {
   if (github === null) return {}
   return { github }
 }

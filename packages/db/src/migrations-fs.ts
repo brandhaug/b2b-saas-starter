@@ -16,7 +16,7 @@ export function listMigrations(): Array<{ name: string; sql: string }> {
   return readdirSync(migrationsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .sort()
+    .toSorted()
     .map((name) => ({
       name,
       sql: readFileSync(join(migrationsDir, name, 'migration.sql'), 'utf8')

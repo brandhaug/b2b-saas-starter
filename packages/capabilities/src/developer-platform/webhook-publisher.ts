@@ -2,7 +2,7 @@ import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { Database, webhookEndpoints } from '@b2b-saas-starter/db'
 import { currentTraceparent } from '@b2b-saas-starter/logger'
-import type { CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
@@ -29,14 +29,19 @@ export type WebhookQueueMessage = typeof WebhookQueueMessage.Type
 
 /**
  * Structural subset of Cloudflare's `Queue` binding so this package does not
- * depend on `@cloudflare/workers-types`. Results may resolve to anything
- * (workers-types returns `QueueSendResponse`); they are discarded.
+ * depend on `@cloudflare/workers-types`.
+ *
+ * Resolving to `void`: the real binding resolves a `QueueSendResponse`, but this
+ * package neither reads it nor wants it in the port's contract — enqueueing
+ * either happened or rejected, and that is the whole signal the publisher acts
+ * on. No worker env types its queue as workers-types' `Queue`; they all declare
+ * this port, so nothing is assigned across the two shapes.
  */
 export type WebhookQueueBinding = {
-  readonly send: (message: WebhookQueueMessage) => Promise<unknown>
+  readonly send: (message: WebhookQueueMessage) => Promise<void>
   readonly sendBatch: (
     messages: Iterable<{ readonly body: WebhookQueueMessage }>
-  ) => Promise<unknown>
+  ) => Promise<void>
 }
 
 export type PublishWebhookEventInput = {

@@ -11,8 +11,7 @@ import {
 import {
   EmailDispatcher,
   selectEmailDispatcherLayer,
-  WorkspaceInvitationEmail,
-  type SendEmailBinding
+  WorkspaceInvitationEmail
 } from '@b2b-saas-starter/email'
 import { annotateWide } from '@b2b-saas-starter/logger'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
@@ -65,12 +64,10 @@ const decodeAccept = Schema.decodeUnknownSync(AcceptInvitationInput)
  * end to end locally and in tests without an email provider (CLAUDE.md rule 3).
  */
 function emailDispatcherLayer() {
-  const emailEnv: { EMAIL?: SendEmailBinding; EMAIL_FROM_ADDRESS?: string } = {}
-  if (cloudflareEnv.EMAIL) emailEnv.EMAIL = cloudflareEnv.EMAIL
-  if (cloudflareEnv.CLOUDFLARE_EMAIL_FROM) {
-    emailEnv.EMAIL_FROM_ADDRESS = cloudflareEnv.CLOUDFLARE_EMAIL_FROM
-  }
-  return selectEmailDispatcherLayer(emailEnv)
+  return selectEmailDispatcherLayer({
+    EMAIL: cloudflareEnv.EMAIL,
+    EMAIL_FROM_ADDRESS: cloudflareEnv.CLOUDFLARE_EMAIL_FROM
+  })
 }
 
 /**

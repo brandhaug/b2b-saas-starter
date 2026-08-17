@@ -1,49 +1,20 @@
-import { Suspense, type ComponentType } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mountRoute } from '@/test/router-mock'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderWithRouter } from '@/test/router-harness'
+import { SignInPage, type SignInWithEmail } from './sign-in'
 
-const mocks = vi.hoisted(() => ({
-  search: { value: {} },
-  historyPush: vi.fn(),
-  navigate: vi.fn(),
-  signInEmail: vi.fn()
-}))
+// The page's own `signIn` port, handed in as a prop. The router is real, so the
+// redirect assertions read the resulting location instead of asking whether a
+// `history.push` double was called.
+const signIn = vi.fn<SignInWithEmail>()
 
-vi.mock('@tanstack/react-router', async (importOriginal) => {
-  const { routerMock } = await import('@/test/router-mock')
-  return routerMock({
-    actual: await importOriginal<Record<string, unknown>>(),
-    routeHooks: { useSearch: () => mocks.search.value },
-    useRouter: () => ({
-      history: { push: mocks.historyPush },
-      navigate: mocks.navigate
-    }),
-    useNavigate: () => mocks.navigate
-  })
-})
-
-vi.mock('@/lib/auth-client', () => ({
-  authClient: {
-    signIn: { email: (input: unknown) => mocks.signInEmail(input) }
-  }
-}))
-
-import { Route } from './sign-in'
-
-let SignInPage: ComponentType
-
-beforeAll(async () => {
-  SignInPage = await mountRoute(Route)
-})
-
-async function renderPage() {
-  render(
-    <Suspense fallback={null}>
-      <SignInPage />
-    </Suspense>
+async function renderPage(redirect?: string) {
+  const rendered = await renderWithRouter(
+    <SignInPage {...(redirect === undefined ? {} : { redirect })} signIn={signIn} />,
+    { path: '/sign-in', destinations: ['/workspaces', '/workspaces/starter-lab'] }
   )
   await screen.findByLabelText('Email')
+  return rendered
 }
 
 function fillValidCredentials() {
@@ -57,10 +28,8 @@ function fillValidCredentials() {
 
 describe('SignInPage', () => {
   beforeEach(() => {
-    mocks.search.value = {}
-    mocks.historyPush.mockReset()
-    mocks.signInEmail.mockReset()
-    mocks.signInEmail.mockResolvedValue({ error: null })
+    signIn.mockReset()
+    signIn.mockResolvedValue({ error: null })
   })
 
   it('shows validation errors and disables submit for invalid input', async () => {
@@ -75,49 +44,45 @@ describe('SignInPage', () => {
     await screen.findByText('Password must be at least 8 characters')
     const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Continue' })
     expect(submit.disabled).toBe(true)
-    expect(mocks.signInEmail).not.toHaveBeenCalled()
+    expect(signIn).not.toHaveBeenCalled()
   })
 
   it('submits credentials and redirects to /workspaces by default', async () => {
-    await renderPage()
+    const { router } = await renderPage()
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    await waitFor(() => expect(mocks.signInEmail).toHaveBeenCalledTimes(1))
-    expect(mocks.signInEmail).toHaveBeenCalledWith({
+    await waitFor(() => expect(signIn).toHaveBeenCalledTimes(1))
+    expect(signIn).toHaveBeenCalledWith({
       email: 'demo@starter.local',
       password: 'demo-password-1'
     })
-    await waitFor(() => expect(mocks.historyPush).toHaveBeenCalledWith('/workspaces'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/workspaces'))
   })
 
   it('honours a same-origin redirect search param', async () => {
-    mocks.search.value = { redirect: '/workspaces/starter-lab' }
-    await renderPage()
+    const { router } = await renderPage('/workspaces/starter-lab')
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     await waitFor(() =>
-      expect(mocks.historyPush).toHaveBeenCalledWith('/workspaces/starter-lab')
+      expect(router.state.location.pathname).toBe('/workspaces/starter-lab')
     )
   })
 
   it('falls back to /workspaces for unsafe redirect targets', async () => {
-    mocks.search.value = { redirect: '//evil.example.com/phish' }
-    await renderPage()
+    const { router } = await renderPage('//evil.example.com/phish')
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    await waitFor(() => expect(mocks.historyPush).toHaveBeenCalledWith('/workspaces'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/workspaces'))
   })
 
   it('surfaces sign-in errors and does not navigate', async () => {
-    mocks.signInEmail.mockResolvedValueOnce({
-      error: { message: 'Invalid email or password' }
-    })
-    await renderPage()
+    signIn.mockResolvedValueOnce({ error: { message: 'Invalid email or password' } })
+    const { router } = await renderPage()
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Invalid email or password')
-    expect(mocks.historyPush).not.toHaveBeenCalled()
+    expect(router.state.location.pathname).toBe('/sign-in')
   })
 
   it('keeps the GitHub button disabled until OAuth is configured', async () => {

@@ -70,8 +70,16 @@ function withInvocationExporters<A, E, R>(
   return Effect.provide(effect, makeOtlpLayer('web', cloudflareEnv), { local: true })
 }
 
-function currentTelemetry(): RequestTelemetry | undefined {
-  const request = currentRequest()
+/**
+ * How this module finds the in-flight request, as a port. Injected rather than
+ * imported at the call site so a test drives the join with a real lookup of this
+ * shape instead of replacing `./request-context` — the ambient request is the
+ * one input these functions read from outside their arguments.
+ */
+export type CurrentRequest = () => Request | undefined
+
+function currentTelemetry(lookupRequest: CurrentRequest): RequestTelemetry | undefined {
+  const request = lookupRequest()
   if (!request) return undefined
   return registry.get(request)
 }
@@ -84,6 +92,17 @@ export type WebRequestScopeOptions = {
 }
 
 /**
+ * The wide-event annotations this app adds to a request scope. `serverFnId` is
+ * assigned only when the request is a server-function call: the bag is spread
+ * into the annotations, so a key set to `undefined` would show up as an empty
+ * column on the emitted event.
+ */
+type WebRequestMetadata = {
+  handlerType: string
+  serverFnId?: string
+}
+
+/**
  * Wraps one web request in the single wide-event scope every nested run joins.
  * Called only from the global request middleware.
  *
@@ -93,10 +112,11 @@ export type WebRequestScopeOptions = {
  */
 export function runWebRequestScope(
   options: WebRequestScopeOptions,
-  next: () => Promise<Response>
+  next: () => Promise<Response>,
+  lookupRequest: CurrentRequest = currentRequest
 ): Promise<Response> {
-  const metadata: Record<string, unknown> = { handlerType: options.handlerType }
-  if (options.serverFnId) metadata['serverFnId'] = options.serverFnId
+  const metadata: WebRequestMetadata = { handlerType: options.handlerType }
+  if (options.serverFnId) metadata.serverFnId = options.serverFnId
   return loggerRuntime
     .runPromiseExit(
       withInvocationExporters(
@@ -108,7 +128,7 @@ export function runWebRequestScope(
             env: cloudflareEnv,
             metadata
           },
-          registerAndRun(options.request, next)
+          registerAndRun(options.request, next, lookupRequest)
         )
       )
     )
@@ -117,7 +137,8 @@ export function runWebRequestScope(
 
 function registerAndRun(
   request: Request,
-  next: () => Promise<Response>
+  next: () => Promise<Response>,
+  lookupRequest: CurrentRequest
 ): Effect.Effect<Response, unknown, Scope.Scope> {
   return Effect.gen(function* () {
     const span = yield* Effect.currentParentSpan
@@ -130,7 +151,7 @@ function registerAndRun(
     // The middleware and the loaders may see different `Request` instances
     // (Start re-wraps the request as it flows through the handler chain), so
     // register the ambient one too when it differs.
-    const ambient = currentRequest()
+    const ambient = lookupRequest()
     if (ambient && ambient !== request) registry.set(ambient, telemetry)
     const response = yield* runNext(next)
     yield* annotateWide({ statusCode: response.status })
@@ -150,12 +171,13 @@ function runNext(next: () => Promise<Response>): Effect.Effect<Response, unknown
 
 function settle(exit: Exit.Exit<Response, unknown>): Response {
   if (Exit.isSuccess(exit)) return exit.value
+  // The handler's own failure where there is one, the squashed cause otherwise.
+  // Inlined rather than a helper: the value is whatever the handler failed with,
+  // so naming a return type for it would only be `unknown` under another name.
   // oxlint-disable-next-line effect/noThrowStatement -- re-raises the handler's original rejection across the Promise boundary TanStack Start owns
-  throw squash(exit.cause)
-}
-
-function squash(cause: Cause.Cause<unknown>): unknown {
-  return Option.getOrElse(Cause.findErrorOption(cause), () => Cause.squash(cause))
+  throw Option.getOrElse(Cause.findErrorOption(exit.cause), () =>
+    Cause.squash(exit.cause)
+  )
 }
 
 export type NestedScopeOptions = {
@@ -174,10 +196,11 @@ export type NestedScopeOptions = {
  */
 export function withWebRequestScope<A, E, R>(
   options: NestedScopeOptions,
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
+  lookupRequest: CurrentRequest = currentRequest
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
   return Effect.suspend(() => {
-    const telemetry = currentTelemetry()
+    const telemetry = currentTelemetry(lookupRequest)
     if (!telemetry) return standalone(options, effect)
     return nested(telemetry, options, effect)
   })

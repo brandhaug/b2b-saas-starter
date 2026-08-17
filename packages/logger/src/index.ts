@@ -8,6 +8,7 @@ import {
   Logger,
   Metric,
   Option,
+  Schema,
   type Scope,
   type Tracer
 } from 'effect'
@@ -17,6 +18,19 @@ import { Otlp } from 'effect/unstable/observability'
 function newTraceId(): string {
   return globalThis.crypto.randomUUID()
 }
+
+/**
+ * The three untyped values this module reads, decoded rather than probed. Every
+ * one arrives from outside the type system — a `Cause`'s failure value, a
+ * worker env bag, Cloudflare's `cf` object — so each gets a schema naming the
+ * shape it must have, and callers branch on the decoded value.
+ */
+const TaggedFailure = Schema.Struct({ _tag: Schema.String })
+const CfProperties = Schema.Struct({ colo: Schema.String })
+
+const decodeTaggedFailure = Schema.decodeUnknownOption(TaggedFailure)
+const decodeCfProperties = Schema.decodeUnknownOption(CfProperties)
+const decodeString = Schema.decodeUnknownOption(Schema.String)
 
 function errorMessage(head: unknown): string {
   if (head instanceof Error) return head.message
@@ -39,10 +53,9 @@ function failureMetadata(head: unknown): WideEventFailure {
     errorKind: 'fail',
     error: errorMessage(head)
   }
-  if (typeof head === 'object' && head !== null && '_tag' in head) {
-    return { ...base, errorTag: head._tag }
-  }
-  return base
+  const tagged = decodeTaggedFailure(head)
+  if (Option.isNone(tagged)) return base
+  return { ...base, errorTag: tagged.value._tag }
 }
 
 function causeMetadata(cause: Cause.Cause<unknown>): WideEventFailure {
@@ -63,6 +76,16 @@ export type WideEventEnvironment = {
   readonly environment?: string | undefined
 }
 
+/**
+ * The write-side view of {@link WideEventEnvironment}. `readWideEventEnvironment`
+ * fills it key by key so an unset var stays an absent key rather than an
+ * explicit `undefined`, which `exactOptionalPropertyTypes` treats as a present
+ * value and the emitted event would show as an empty column.
+ */
+type MutableWideEventEnvironment = {
+  -readonly [K in keyof WideEventEnvironment]: WideEventEnvironment[K]
+}
+
 export const TRACE_HEADER = 'x-trace-id'
 
 export function readTraceHeader(request: Request): string | undefined {
@@ -76,8 +99,9 @@ export function readTraceHeader(request: Request): string | undefined {
  */
 function ownStringValue(source: object, key: string): string | undefined {
   const value: unknown = Object.getOwnPropertyDescriptor(source, key)?.value
-  if (typeof value === 'string' && value.length > 0) return value
-  return undefined
+  const decoded = decodeString(value)
+  if (Option.isNone(decoded) || decoded.value.length === 0) return undefined
+  return decoded.value
 }
 
 function pickString(
@@ -105,12 +129,7 @@ export function readWideEventEnvironment(
   const environment = pickString(source, 'ENVIRONMENT', 'NODE_ENV')
   // Built by assignment so absent fields stay absent (no `key: undefined`),
   // which keeps the emitted wide event free of empty columns.
-  const resolved: {
-    commitHash?: string
-    serviceVersion?: string
-    region?: string
-    environment?: string
-  } = {}
+  const resolved: MutableWideEventEnvironment = {}
   if (commit) resolved.commitHash = commit
   if (version) resolved.serviceVersion = version
   if (region) resolved.region = region
@@ -301,10 +320,9 @@ function emitWideEvent(
 /** Cloudflare colo hint from an incoming request's `cf` object, if present. */
 export function readCfColo(request: Request): string | undefined {
   if (!('cf' in request)) return undefined
-  const { cf } = request
-  if (typeof cf !== 'object' || cf === null) return undefined
-  if (!('colo' in cf) || typeof cf.colo !== 'string') return undefined
-  return cf.colo
+  const cf = decodeCfProperties(request.cf)
+  if (Option.isNone(cf)) return undefined
+  return cf.value.colo
 }
 
 export type HttpRequestScopeOptions = {
@@ -447,15 +465,28 @@ function otlpHeaders(value: string | undefined): Record<string, string> | undefi
   return Object.fromEntries(entries)
 }
 
+/**
+ * The three OTel resource attributes this starter sets, by their semantic-
+ * convention names. A closed shape rather than an attribute bag: the deployment
+ * identity the wide event carries is a fixed set, and the two optional keys are
+ * assigned only when their env var is present.
+ */
+type OtelResourceAttributes = {
+  'cloud.provider': string
+  'deployment.environment.name'?: string
+  'vcs.ref.head.revision'?: string
+}
+
 /** OTel resource attributes, from the same env fields the wide event reads. */
-function resourceAttributes(env: ObservabilityEnv): Record<string, unknown> {
+function resourceAttributes(env: ObservabilityEnv): OtelResourceAttributes {
   const environment = readWideEventEnvironment(env)
-  const attributes: Record<string, unknown> = { 'cloud.provider': 'cloudflare' }
+  const attributes: OtelResourceAttributes = { 'cloud.provider': 'cloudflare' }
   if (environment.environment) {
     attributes['deployment.environment.name'] = environment.environment
   }
-  if (environment.commitHash)
+  if (environment.commitHash) {
     attributes['vcs.ref.head.revision'] = environment.commitHash
+  }
   return attributes
 }
 

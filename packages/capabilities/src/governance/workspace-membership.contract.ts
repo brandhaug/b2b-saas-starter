@@ -1,6 +1,7 @@
-import { Cause, Effect, Exit, Option } from 'effect'
-import type { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
-import type { WorkspaceContext } from '../workspace-context.ts'
+import { Effect } from 'effect'
+import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
+import { failureTag } from '../internal/failure-tag.ts'
+import { type WorkspaceContext } from '../workspace-context.ts'
 import { WorkspaceMembership } from './workspace-membership.ts'
 
 /**
@@ -35,21 +36,6 @@ export type MembershipContractCase = {
 }
 
 /**
- * The failing tag of an exit, or `undefined` if it succeeded. Asserted through
- * `Exit` rather than `Effect.flip`, which would move the success type into the
- * error channel and widen every case's signature.
- */
-function failureTag(outcome: Exit.Exit<unknown, unknown>): string | undefined {
-  if (Exit.isSuccess(outcome)) return undefined
-  const error = Cause.findErrorOption(outcome.cause)
-  if (Option.isNone(error)) return undefined
-  const value = error.value
-  if (typeof value === 'object' && value !== null && '_tag' in value) {
-    return String(value._tag)
-  }
-  return undefined
-}
-
 /**
  * The slice of vitest's `expect` these cases use. Narrow on purpose: the cases
  * run under two different test harnesses, and a case that reaches for more of

@@ -84,7 +84,7 @@ export type ModuleConfigStatus = {
 }
 
 function hasValue(value: string | undefined): boolean {
-  return typeof value === 'string' && value.length > 0
+  return value !== undefined && value.length > 0
 }
 
 /**

@@ -3,7 +3,11 @@
     "target": "ES2022",
     "ignoreDeprecations": "6.0",
     "useDefineForClassFields": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // lib is ES2023 while target stays ES2022: the non-mutating array methods
+    // (`toSorted`, `toReversed`, `with`) that `unicorn/no-array-sort` steers to are ES2023,
+    // and every runtime the starter targets — Workers, Bun, and the browsers shadcn/Base UI
+    // support — has shipped them since 2023.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,

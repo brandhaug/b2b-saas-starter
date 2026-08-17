@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/react-vite'
+import { type Meta, type StoryObj } from '@storybook/react-vite'
 import { BellIcon } from 'lucide-react'
-import type { NotificationPreview } from './live-notifications'
+import { type NotificationPreview } from './live-notifications'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 

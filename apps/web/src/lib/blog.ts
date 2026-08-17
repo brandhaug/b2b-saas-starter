@@ -1,6 +1,6 @@
-import type { ComponentType } from 'react'
+import { type ComponentType } from 'react'
 
-import type { MdxComponentProps } from '@/components/mdx-link'
+import { type MdxComponentProps } from '@/components/mdx-link'
 
 type BlogFrontmatter = {
   readonly title: string
@@ -31,7 +31,7 @@ const ALL_POSTS: readonly BlogPost[] = Object.entries(modules)
     frontmatter: mod.frontmatter,
     Component: mod.default
   }))
-  .sort(
+  .toSorted(
     (a, b) =>
       new Date(b.frontmatter.date).getTime() - new Date(a.frontmatter.date).getTime()
   )
