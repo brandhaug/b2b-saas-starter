@@ -17,7 +17,8 @@ import {
   WebhookEndpoints,
   WebhookQueueMessage,
   type CapabilityUnavailable,
-  type StarterEnv
+  type StarterEnv,
+  type WebhookQueueBinding
 } from '@b2b-saas-starter/capabilities'
 import { makeStarterEnvModuleConfig, type ServerEnv } from '@b2b-saas-starter/env'
 import {
@@ -35,7 +36,10 @@ import {
 // module-aware env validation below reads real deployment values.
 type Env = Partial<ServerEnv> & {
   readonly DB?: D1Database
-  readonly WEBHOOK_QUEUE?: Queue
+  // The producer port, not workers-types' `Queue`: this worker only forwards
+  // the binding to `starterEnv`, and every other worker declares it the same
+  // way, so one structural shape describes the queue across all three.
+  readonly WEBHOOK_QUEUE?: WebhookQueueBinding
 }
 
 // Module-aware env validation (ADR 0035).

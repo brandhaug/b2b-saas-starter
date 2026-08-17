@@ -25,10 +25,13 @@ type Captured = {
  * `formatStructured` so the assertions below read the real shape — message,
  * level, annotation bag, cause — instead of a hand-rebuilt one.
  */
-function collector(): {
+/** A logger layer plus the array it appends every structured record to. */
+type Collector = {
   readonly layer: Layer.Layer<never>
   readonly records: Captured[]
-} {
+}
+
+function collector(): Collector {
   const records: Captured[] = []
   const logger = Logger.map(Logger.formatStructured, (structured) => {
     records.push({
@@ -80,7 +83,7 @@ describe('withRequestScope', () => {
         workspaceId: 'ws_1',
         plan: 'pro'
       })
-      expect(typeof record.annotations['durationMs']).toBe('number')
+      expect(record.annotations['durationMs']).toEqual(expect.any(Number))
     }).pipe(Effect.provide(layer))
   })
 
@@ -165,14 +168,14 @@ describe('withRequestScope', () => {
       )
       // A counter and a duration histogram per outcome: ok and error never
       // collapse into one series.
-      expect(series.map((metric) => metric.id).sort()).toEqual([
+      expect(series.map((metric) => metric.id).toSorted()).toEqual([
         'starter.request.duration',
         'starter.request.duration',
         'starter.requests',
         'starter.requests'
       ])
       expect(
-        series.map((metric) => String(metric.attributes?.['status'])).sort()
+        series.map((metric) => String(metric.attributes?.['status'])).toSorted()
       ).toEqual(['error', 'error', 'ok', 'ok'])
     }).pipe(Effect.provide(layer))
   })

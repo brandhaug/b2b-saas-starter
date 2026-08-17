@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+import { type ComponentProps } from 'react'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 

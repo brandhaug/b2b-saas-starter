@@ -1,7 +1,7 @@
 import { Effect, Result, Schema } from 'effect'
 import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
-import type { WorkspaceInvitationBinding } from '@b2b-saas-starter/capabilities'
-import type { Service } from 'effectful-better-auth'
+import { type WorkspaceInvitationBinding } from '@b2b-saas-starter/capabilities'
+import { type Service } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
 import { currentRequest } from '../request-context'
 
@@ -48,7 +48,7 @@ class MissingRequestHeaders extends Schema.TaggedErrorClass<MissingRequestHeader
  */
 async function runBinding<A>(
   build: (auth: AuthService, headers: Headers) => Effect.Effect<A, unknown, never>
-): Promise<A> {
+): Promise<void> {
   const request = currentRequest()
   if (!request) {
     // oxlint-disable-next-line effect/noThrowStatement -- rejects the promise the WorkspaceInvitationBinding port returns; there is no Effect error channel on this side of it
@@ -62,7 +62,6 @@ async function runBinding<A>(
     // oxlint-disable-next-line effect/noThrowStatement -- same boundary: the capability classifies this value by its statusCode, so it must arrive as the rejection
     throw result.failure
   }
-  return result.success
 }
 
 export const webInvitationBinding: WorkspaceInvitationBinding = {

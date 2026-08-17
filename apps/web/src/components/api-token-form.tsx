@@ -29,12 +29,28 @@ function validateTokenName(value: string): string | undefined {
   return
 }
 
+/**
+ * The one server call this form makes, as a port. Injected rather than imported
+ * at the call site so a test drives the form with a real function of this shape
+ * instead of replacing the module it lives in. The default is the production
+ * server function, so every caller but a test passes nothing.
+ */
+export type CreateApiToken = (input: {
+  readonly data: {
+    readonly workspaceSlug: string
+    readonly name: string
+    readonly scopes: readonly ApiTokenScope[]
+  }
+}) => Promise<CreatedApiToken>
+
 export function ApiTokenForm({
   workspaceSlug,
-  onCreated
+  onCreated,
+  createToken = createApiTokenServerFn
 }: {
   readonly workspaceSlug: string
   readonly onCreated?: (token: CreatedApiToken) => void
+  readonly createToken?: CreateApiToken
 }) {
   const [created, setCreated] = useState<CreatedApiToken | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -48,7 +64,7 @@ export function ApiTokenForm({
       const exit = await Effect.runPromiseExit(
         Effect.tryPromise({
           try: () =>
-            createApiTokenServerFn({
+            createToken({
               data: {
                 workspaceSlug,
                 name: value.name,

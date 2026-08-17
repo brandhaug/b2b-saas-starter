@@ -1,6 +1,6 @@
-import type { ComponentType } from 'react'
+import { type ComponentType } from 'react'
 
-import type { MdxComponentProps } from '@/components/mdx-link'
+import { type MdxComponentProps } from '@/components/mdx-link'
 
 type DocFrontmatter = {
   readonly title: string
@@ -32,7 +32,7 @@ export const DOC_CATEGORIES = {
 export type DocCategory = keyof typeof DOC_CATEGORIES
 
 export function isDocCategory(value: string): value is DocCategory {
-  return Object.prototype.hasOwnProperty.call(DOC_CATEGORIES, value)
+  return Object.hasOwn(DOC_CATEGORIES, value)
 }
 
 export const DOC_CATEGORY_ORDER: readonly DocCategory[] = [
@@ -51,7 +51,10 @@ const modules = import.meta.glob<{
   frontmatter: DocFrontmatter
 }>('../../content/docs/**/*.mdx', { eager: true })
 
-function parsePath(path: string): { category: string; slug: string } {
+/** The two path segments a docs module's file path encodes. */
+type DocPath = { category: string; slug: string }
+
+function parsePath(path: string): DocPath {
   const relative = path.replace('../../content/docs/', '').replace('.mdx', '')
   const parts = relative.split('/')
   return { category: parts[0] ?? '', slug: parts[parts.length - 1] ?? '' }
@@ -67,7 +70,7 @@ const ALL_DOCS: readonly DocArticle[] = Object.entries(modules)
       Component: mod.default
     }
   })
-  .sort((a, b) => a.frontmatter.order - b.frontmatter.order)
+  .toSorted((a, b) => a.frontmatter.order - b.frontmatter.order)
 
 const DOCS_BY_CATEGORY = new Map<string, readonly DocArticle[]>()
 const DOCS_BY_KEY = new Map<string, DocArticle>()
@@ -91,10 +94,13 @@ export function getDocBySlug(category: string, slug: string): DocArticle | undef
   return DOCS_BY_KEY.get(`${category}/${slug}`)
 }
 
-export function getAdjacentDocs(
-  category: string,
-  slug: string
-): { readonly prev: DocArticle | null; readonly next: DocArticle | null } {
+/** Previous/next neighbours within a category, `null` at either end. */
+export type AdjacentDocs = {
+  readonly prev: DocArticle | null
+  readonly next: DocArticle | null
+}
+
+export function getAdjacentDocs(category: string, slug: string): AdjacentDocs {
   const list = DOCS_BY_CATEGORY.get(category)
   const index = DOC_INDEX_IN_CATEGORY.get(`${category}/${slug}`)
   if (!list || index === undefined) return { prev: null, next: null }

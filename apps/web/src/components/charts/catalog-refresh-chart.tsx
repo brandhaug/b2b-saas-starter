@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
-import type { CatalogRefreshRun } from '@b2b-saas-starter/capabilities'
+import { type CatalogRefreshRun } from '@b2b-saas-starter/capabilities'
 import { AXIS_TICK, CHART_MARGIN, TOOLTIP_STYLE } from '../chart-defaults'
 
 export function CatalogRefreshChart({

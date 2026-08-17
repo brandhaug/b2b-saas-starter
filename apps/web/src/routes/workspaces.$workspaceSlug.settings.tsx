@@ -1,14 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ApiTokenForm } from '@/components/api-token-form'
+import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
 import { InvitationPanel } from '@/components/invitation-panel'
 import { RoutePending } from '@/components/route-pending'
-import { WorkspaceShell } from '@/components/workspace-shell'
+import { WorkspaceShell, type SignOut } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { runWorkspaceCapabilities } from '@/lib/capabilities'
-import { workspaceSettingsSummary } from '@b2b-saas-starter/capabilities'
+import {
+  workspaceSettingsSummary,
+  type WorkspaceSettingsSummaryProjection
+} from '@b2b-saas-starter/capabilities'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
@@ -18,17 +21,44 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceSettingsPage
+  component: WorkspaceSettingsRoute
 })
 
-function WorkspaceSettingsPage() {
+/**
+ * The route's thin wrapper: reads the params and loader data the router
+ * resolved, and hands them to the page. Keeping the two apart is what lets the
+ * page be rendered from a test with plain props — no route tree, no loader, and
+ * no mocked router.
+ */
+function WorkspaceSettingsRoute() {
   const { workspaceSlug } = Route.useParams()
-  const { modules, apiTokenCount, webhookCount, unreadCount, invitations } =
-    Route.useLoaderData()
+  const data = Route.useLoaderData()
+  return <WorkspaceSettingsPage workspaceSlug={workspaceSlug} data={data} />
+}
+
+export function WorkspaceSettingsPage({
+  workspaceSlug,
+  data,
+  ports
+}: {
+  readonly workspaceSlug: string
+  readonly data: WorkspaceSettingsSummaryProjection
+  /**
+   * The server calls this page's children make, forwarded so a test supplies
+   * them instead of replacing the modules they live in. Omitted everywhere but
+   * a test, where each child falls back to its production default.
+   */
+  readonly ports?: {
+    readonly createToken?: CreateApiToken
+    readonly signOut?: SignOut
+  }
+}) {
+  const { modules, apiTokenCount, webhookCount, unreadCount, invitations } = data
 
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
+      {...(ports?.signOut === undefined ? {} : { signOut: ports.signOut })}
       title="Workspace settings"
       description="Module toggles, provider readiness, report schedule, API tokens, and webhook configuration."
       unreadCount={unreadCount}
@@ -75,7 +105,12 @@ function WorkspaceSettingsPage() {
                 {apiTokenCount} workspace-scoped tokens are seeded. New tokens should be
                 hashed and audited.
               </p>
-              <ApiTokenForm workspaceSlug={workspaceSlug} />
+              <ApiTokenForm
+                workspaceSlug={workspaceSlug}
+                {...(ports?.createToken === undefined
+                  ? {}
+                  : { createToken: ports.createToken })}
+              />
             </div>
             <div className="grid gap-2">
               <Label>Members</Label>

@@ -95,6 +95,13 @@ export type OpenAIConfig = {
   readonly modelId?: string
 }
 
+/**
+ * The write-side view of {@link OpenAIConfig}, for building the config key by
+ * key. An unset var must leave its key absent rather than set it to `undefined`,
+ * so the layer's own defaults still apply.
+ */
+type MutableOpenAIConfig = { -readonly [K in keyof OpenAIConfig]: OpenAIConfig[K] }
+
 const OpenAIChatRequest = Schema.Struct({
   model: Schema.String,
   messages: Schema.Array(
@@ -214,9 +221,7 @@ export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantSer
   if (env.OPENAI_API_KEY) {
     // Assigned only when set so the layer's own defaults (api.openai.com,
     // gpt-4o-mini) still apply for absent vars.
-    const config: { apiKey: string; baseUrl?: string; modelId?: string } = {
-      apiKey: env.OPENAI_API_KEY
-    }
+    const config: MutableOpenAIConfig = { apiKey: env.OPENAI_API_KEY }
     if (env.OPENAI_BASE_URL) config.baseUrl = env.OPENAI_BASE_URL
     if (env.OPENAI_MODEL_ID) config.modelId = env.OPENAI_MODEL_ID
     return makeOpenAILayer(config)

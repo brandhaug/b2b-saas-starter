@@ -10,7 +10,7 @@
 // oxlint-disable effect/noNodeBuiltinImport -- wrangler needs a filesystem config path
 import { join } from 'node:path'
 import { Effect } from 'effect'
-import type { D1Database } from '@cloudflare/workers-types'
+import { type D1Database } from '@cloudflare/workers-types'
 import { getPlatformProxy } from 'wrangler'
 import { listMigrations } from './migrations-fs.ts'
 

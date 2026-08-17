@@ -8,15 +8,18 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
-import type { ModuleStatus, ModuleStatusCount } from '@b2b-saas-starter/capabilities'
+import {
+  type ModuleStatus,
+  type ModuleStatusCount
+} from '@b2b-saas-starter/capabilities'
 import { AXIS_TICK, TOOLTIP_STYLE } from '../chart-defaults'
 
-const STATUS_COLORS: Record<ModuleStatus, string> = {
+const STATUS_COLORS = {
   ready: 'var(--chart-1)',
   'needs-config': 'var(--chart-3)',
   attention: 'var(--destructive)',
   disabled: 'var(--muted-foreground)'
-}
+} satisfies Record<ModuleStatus, string>
 
 // Tallying happens in the `workspaceDashboard` projection
 // (`countModuleStatuses`) — this component only renders.

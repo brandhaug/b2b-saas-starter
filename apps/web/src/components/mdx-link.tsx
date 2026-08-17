@@ -1,5 +1,5 @@
-import type { AnchorHTMLAttributes } from 'react'
-import type { MDXComponents } from 'mdx/types'
+import { type AnchorHTMLAttributes } from 'react'
+import { type MDXComponents } from 'mdx/types'
 
 import { Link } from '@tanstack/react-router'
 

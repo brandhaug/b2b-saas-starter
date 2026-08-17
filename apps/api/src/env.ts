@@ -1,8 +1,11 @@
-import type { ProviderEnv, WorkersAIBinding } from '@b2b-saas-starter/ai'
+import { type ProviderEnv, type WorkersAIBinding } from '@b2b-saas-starter/ai'
 import { makeStarterEnvModuleConfig, type ServerEnv } from '@b2b-saas-starter/env'
-import type { StarterEnv, WebhookQueueBinding } from '@b2b-saas-starter/capabilities'
-import type { SendEmailBinding } from '@b2b-saas-starter/email'
-import type { RateLimitBindings } from './rate-limit.ts'
+import {
+  type StarterEnv,
+  type WebhookQueueBinding
+} from '@b2b-saas-starter/capabilities'
+import { type SendEmailBinding } from '@b2b-saas-starter/email'
+import { type RateLimitBindings } from './rate-limit.ts'
 
 // The worker's Cloudflare bindings + redacted env. Shared by the handler
 // layers, the web-handler assembly, and the fetch entrypoint.

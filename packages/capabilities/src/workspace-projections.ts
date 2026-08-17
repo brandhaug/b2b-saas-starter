@@ -18,7 +18,7 @@ import {
   WebhookEndpoints,
   type WebhookEndpoint
 } from './developer-platform/webhook-endpoints.ts'
-import type { Workspace } from './governance/workspace-identity.ts'
+import { type Workspace } from './governance/workspace-identity.ts'
 import {
   WorkspaceInvitations,
   type Invitation
@@ -28,7 +28,7 @@ import {
   NotificationFeed,
   type Notification
 } from './notifications/notification-feed.ts'
-import type { CapabilityUnavailable } from './errors.ts'
+import { type CapabilityUnavailable } from './errors.ts'
 import { WorkspaceContext } from './workspace-context.ts'
 
 /**

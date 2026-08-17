@@ -130,11 +130,16 @@ export function shouldBumpLastUsedAt(lastUsedAt: string | null, now: number): bo
   return now - parsed >= LAST_USED_WRITE_INTERVAL_MS
 }
 
-/** The fixture tokens the Seed layer accepts, and the scopes each one carries. */
-const SEED_TOKEN_SCOPES: Record<string, readonly ApiTokenScope[] | undefined> = {
-  [SEED_API_TOKEN]: API_TOKEN_SCOPES,
-  [SEED_READONLY_API_TOKEN]: ['read']
-}
+/**
+ * The fixture tokens the Seed layer accepts, and the scopes each one carries.
+ * A Map because the lookup key is a bearer token off the wire: an unknown one
+ * is the expected case, and `Map#get` reports it as `undefined` without an
+ * index signature claiming every string is a fixture token.
+ */
+const SEED_TOKEN_SCOPES = new Map<string, readonly ApiTokenScope[]>([
+  [SEED_API_TOKEN, API_TOKEN_SCOPES],
+  [SEED_READONLY_API_TOKEN, ['read']]
+])
 
 export function SeedApiTokenRegistry(
   seed: readonly ApiToken[]
@@ -158,7 +163,7 @@ export function SeedApiTokenRegistry(
     verifyBearerToken: (token) => {
       // Authentication only: an unknown token is the single failure. Whether
       // the reported scopes cover the request is decided at the route boundary.
-      const scopes = SEED_TOKEN_SCOPES[token]
+      const scopes = SEED_TOKEN_SCOPES.get(token)
       if (!scopes) {
         return Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
       }

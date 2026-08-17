@@ -13,7 +13,10 @@ const observabilityMiddleware = createMiddleware({ type: 'request' }).server(
   ({ request, next, handlerType, serverFnMeta }) =>
     runWebRequestScope(
       { request, handlerType, serverFnId: serverFnMeta?.name },
-      async () => (await next()).response
+      async () => {
+        const result = await next()
+        return result.response
+      }
     )
 )
 

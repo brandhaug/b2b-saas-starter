@@ -1,5 +1,5 @@
 import { Effect, Result, type Scope } from 'effect'
-import type { HttpServerRequest } from 'effect/unstable/http'
+import { type HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import {
@@ -20,7 +20,6 @@ import {
   AuthorizationDenied,
   type CapabilityUnavailable,
   CatalogRefreshHistory,
-  type CreateWebhookEndpointInput,
   ImplementationReports,
   IntegrationSurfaces,
   NotificationFeed,
@@ -51,9 +50,9 @@ import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
  * `StarterApi` success schema pins down, so the value is *checked* against the
  * contract instead of asserted with `as const`.
  */
-const HEALTH_OK: { readonly status: 'ok' } = { status: 'ok' }
-const TOKEN_REVOKED: { readonly status: 'revoked' } = { status: 'revoked' }
-const INVITATION_QUEUED: { readonly status: 'queued' } = { status: 'queued' }
+const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
+const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
+const INVITATION_QUEUED = { status: 'queued' } satisfies { readonly status: 'queued' }
 
 function clientKey(request: HttpServerRequest.HttpServerRequest): string {
   return request.headers['cf-connecting-ip'] ?? `unkeyed:${request.url}`
@@ -471,18 +470,11 @@ export function webhookGroup(env: ApiEnv) {
             params.slug,
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
-              // `description` is optional in the contract and in the
-              // capability input: set the key only when the client sent one,
-              // instead of passing an explicit undefined.
-              const createInput: {
-                -readonly [
-                  K in keyof CreateWebhookEndpointInput
-                ]: CreateWebhookEndpointInput[K]
-              } = { url: payload.url, events: payload.events }
-              if (payload.description !== undefined) {
-                createInput.description = payload.description
-              }
-              const endpoint = yield* webhooks.create(createInput)
+              const endpoint = yield* webhooks.create({
+                url: payload.url,
+                events: payload.events,
+                description: payload.description
+              })
               yield* publishWebhookEvent({
                 eventType: 'webhook_endpoint.created',
                 payload: endpoint

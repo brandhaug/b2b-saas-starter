@@ -1,6 +1,6 @@
-import type {
-  AuthorizeResponse,
-  RoleAuthorizeRequest
+import {
+  type AuthorizeResponse,
+  type RoleAuthorizeRequest
 } from 'better-auth/plugins/access'
 import {
   apiTokenScopeAccess,
@@ -8,7 +8,7 @@ import {
   type ApiTokenScope,
   type WorkspaceRole
 } from './roles.ts'
-import type { StarterStatements } from './statements.ts'
+import { type StarterStatements } from './statements.ts'
 
 /**
  * The pure half of the guard: who is asking, what they are asking for, and the

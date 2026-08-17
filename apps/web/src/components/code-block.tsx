@@ -22,6 +22,7 @@ export function CodeBlock({
         </span>
       </div>
       <pre className="overflow-x-auto p-3 text-xs leading-relaxed text-foreground">
+        {/* oxlint-disable-next-line better-tailwindcss/no-concatenated-classes -- `language-*` is the syntax-highlighter's hook class, not a Tailwind utility, so Tailwind has nothing to purge */}
         <code className={`language-${language}`}>{code}</code>
       </pre>
     </div>

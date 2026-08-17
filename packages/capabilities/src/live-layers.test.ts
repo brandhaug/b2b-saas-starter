@@ -372,27 +372,33 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
       addMember: (input) => {
         calls.push(input)
         return Effect.runPromise(
-          db.insert(workspaceMembers).values({
-            id: `mem_${input.userId}`,
-            workspaceId: input.workspaceId,
-            userId: input.userId,
-            role: input.role
-          })
+          Effect.asVoid(
+            db.insert(workspaceMembers).values({
+              id: `mem_${input.userId}`,
+              workspaceId: input.workspaceId,
+              userId: input.userId,
+              role: input.role
+            })
+          )
         )
       },
       removeMember: (input) => {
         calls.push(input)
         return Effect.runPromise(
-          db.delete(workspaceMembers).where(eq(workspaceMembers.id, input.memberId))
+          Effect.asVoid(
+            db.delete(workspaceMembers).where(eq(workspaceMembers.id, input.memberId))
+          )
         )
       },
       changeRole: (input) => {
         calls.push(input)
         return Effect.runPromise(
-          db
-            .update(workspaceMembers)
-            .set({ role: input.role })
-            .where(eq(workspaceMembers.id, input.memberId))
+          Effect.asVoid(
+            db
+              .update(workspaceMembers)
+              .set({ role: input.role })
+              .where(eq(workspaceMembers.id, input.memberId))
+          )
         )
       }
     }
@@ -598,28 +604,32 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
         calls.push(input)
         mintedInvitations += 1
         return Effect.runPromise(
-          db.insert(workspaceInvitations).values({
-            id: `inv_live_${mintedInvitations}`,
-            workspaceId: input.workspaceId,
-            email: input.email,
-            role: input.role,
-            status: 'pending',
-            // A literal well ahead of the suite's TestClock rather than a clock
-            // read: the capability reads expiry back off the row, and these
-            // invitations are all meant to be acceptable.
-            // oxlint-disable-next-line effect/noGlobals -- fixed literal date, not a clock read; drizzle's timestamp mode requires a Date instance
-            expiresAt: new Date(CONTRACT_UNEXPIRED_AT),
-            inviterId: 'usr_owner'
-          })
+          Effect.asVoid(
+            db.insert(workspaceInvitations).values({
+              id: `inv_live_${mintedInvitations}`,
+              workspaceId: input.workspaceId,
+              email: input.email,
+              role: input.role,
+              status: 'pending',
+              // A literal well ahead of the suite's TestClock rather than a clock
+              // read: the capability reads expiry back off the row, and these
+              // invitations are all meant to be acceptable.
+              // oxlint-disable-next-line effect/noGlobals -- fixed literal date, not a clock read; drizzle's timestamp mode requires a Date instance
+              expiresAt: new Date(CONTRACT_UNEXPIRED_AT),
+              inviterId: 'usr_owner'
+            })
+          )
         )
       },
       cancel: (input) => {
         calls.push(input)
         return Effect.runPromise(
-          db
-            .update(workspaceInvitations)
-            .set({ status: 'canceled' })
-            .where(eq(workspaceInvitations.id, input.invitationId))
+          Effect.asVoid(
+            db
+              .update(workspaceInvitations)
+              .set({ status: 'canceled' })
+              .where(eq(workspaceInvitations.id, input.invitationId))
+          )
         )
       },
       // The real plugin settles the invitation and creates the member row in

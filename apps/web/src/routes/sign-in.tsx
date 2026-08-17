@@ -19,7 +19,7 @@ const decodeSearch = Schema.decodeUnknownSync(SignInSearch)
 
 export const Route = createFileRoute('/sign-in')({
   validateSearch: (search) => decodeSearch(search),
-  component: SignInPage
+  component: SignInRoute
 })
 
 type SignInValues = {
@@ -27,8 +27,43 @@ type SignInValues = {
   password: string
 }
 
-function SignInPage() {
+/**
+ * Credential sign-in, as a port. Injected rather than reaching for the
+ * `authClient` singleton at the call site so a test drives the form with a real
+ * function of this shape instead of replacing `@/lib/auth-client`.
+ */
+export type SignInWithEmail = (input: {
+  readonly email: string
+  readonly password: string
+}) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
+
+/**
+ * The route's thin wrapper: reads the search param the router validated and
+ * hands it to the page. Keeping the two apart is what lets the page be rendered
+ * from a test with plain props, no route tree and no mocked router.
+ */
+function SignInRoute() {
   const { redirect } = Route.useSearch()
+  return <SignInPage redirect={redirect} />
+}
+
+/**
+ * Hoisted to module scope rather than written inline as a default: a new
+ * function expression per render would be a fresh prop value every time.
+ */
+function signInWithAuthClient(
+  input: Parameters<SignInWithEmail>[0]
+): ReturnType<SignInWithEmail> {
+  return authClient.signIn.email(input)
+}
+
+export function SignInPage({
+  redirect,
+  signIn = signInWithAuthClient
+}: {
+  readonly redirect?: string | undefined
+  readonly signIn?: SignInWithEmail
+}) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
   // Hydration signal for e2e: interacting before React hydrates falls through
@@ -41,7 +76,7 @@ function SignInPage() {
     defaultValues: { email: '', password: '' } satisfies SignInValues,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      const result = await authClient.signIn.email({
+      const result = await signIn({
         email: value.email,
         password: value.password
       })

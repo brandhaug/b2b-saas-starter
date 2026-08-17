@@ -12,7 +12,7 @@
 // import server helpers that reach `cloudflare:workers`), so everything
 // Node-only stays behind the `import.meta.env.SSR` guard as dynamic imports —
 // on the client this module evaluates to the base shim with `DB` undefined.
-import type { D1Database } from '@cloudflare/workers-types'
+import { type D1Database } from '@cloudflare/workers-types'
 import { env as baseEnv } from './cloudflare-workers-shim.ts'
 
 // How long the workerd proxy gets to boot. This module is awaited at the top

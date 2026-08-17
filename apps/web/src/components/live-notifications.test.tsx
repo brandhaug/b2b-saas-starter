@@ -1,20 +1,16 @@
-import type { ReactElement } from 'react'
+import { type ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  LiveNotifications,
+  type ListNotifications,
+  type NotificationPreview
+} from './live-notifications'
 
-const mocks = vi.hoisted(() => ({
-  listNotifications: vi.fn()
-}))
-
-vi.mock('@/lib/server/notifications', () => ({
-  listNotificationsServerFn: (input: unknown) => mocks.listNotifications(input),
-  notificationsQueryKey: (
-    workspaceSlug: string
-  ): readonly ['notifications', string] => ['notifications', workspaceSlug]
-}))
-
-import { LiveNotifications, type NotificationPreview } from './live-notifications'
+// The card's own `listNotifications` port, handed in as a prop. A real function
+// of the declared shape, so the module under test is the one that ships.
+const listNotifications = vi.fn<ListNotifications>()
 
 const fallback: readonly NotificationPreview[] = [
   { id: 'n1', title: 'Webhook delivered', message: 'Delivery succeeded.', read: false },
@@ -28,16 +24,24 @@ function renderWithClient(ui: ReactElement) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
 }
 
+function renderCard(cardFallback: readonly NotificationPreview[]) {
+  return renderWithClient(
+    <LiveNotifications
+      workspaceSlug="starter-lab"
+      fallback={cardFallback}
+      listNotifications={listNotifications}
+    />
+  )
+}
+
 describe('LiveNotifications', () => {
   beforeEach(() => {
-    mocks.listNotifications.mockReset()
+    listNotifications.mockReset()
   })
 
   it('renders fallback notifications while a refresh is in flight', () => {
-    mocks.listNotifications.mockReturnValue(new Promise(() => {}))
-    renderWithClient(
-      <LiveNotifications workspaceSlug="starter-lab" fallback={fallback} />
-    )
+    listNotifications.mockReturnValue(new Promise(() => {}))
+    renderCard(fallback)
     screen.getByText('Webhook delivered')
     screen.getByText('Catalog refreshed')
     // Only the unread notification gets the "New" badge.
@@ -45,13 +49,13 @@ describe('LiveNotifications', () => {
   })
 
   it('shows the caught-up empty state when there are no notifications', () => {
-    mocks.listNotifications.mockReturnValue(new Promise(() => {}))
-    renderWithClient(<LiveNotifications workspaceSlug="starter-lab" fallback={[]} />)
+    listNotifications.mockReturnValue(new Promise(() => {}))
+    renderCard([])
     screen.getByText(/all caught up/)
   })
 
   it('fetches notifications for the workspace and renders the server data', async () => {
-    mocks.listNotifications.mockResolvedValue([
+    listNotifications.mockResolvedValue([
       {
         id: 'n3',
         title: 'New module ready',
@@ -59,21 +63,17 @@ describe('LiveNotifications', () => {
         read: false
       }
     ])
-    renderWithClient(
-      <LiveNotifications workspaceSlug="starter-lab" fallback={fallback} />
-    )
+    renderCard(fallback)
     await screen.findByText('New module ready')
-    expect(mocks.listNotifications).toHaveBeenCalledWith({
+    expect(listNotifications).toHaveBeenCalledWith({
       data: { workspaceSlug: 'starter-lab' }
     })
     expect(screen.queryByText('Webhook delivered')).toBeNull()
   })
 
   it('keeps the fallback visible and shows an alert when the refresh fails', async () => {
-    mocks.listNotifications.mockRejectedValue(new Error('Session expired'))
-    renderWithClient(
-      <LiveNotifications workspaceSlug="starter-lab" fallback={fallback} />
-    )
+    listNotifications.mockRejectedValue(new Error('Session expired'))
+    renderCard(fallback)
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Session expired')
     screen.getByText('Webhook delivered')

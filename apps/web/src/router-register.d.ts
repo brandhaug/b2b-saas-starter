@@ -5,7 +5,7 @@
 //
 // The top-level import is load-bearing: it makes this file a module, which is what
 // makes the block below augment `@tanstack/react-router` instead of replacing it.
-import type { getRouter } from './router'
+import  { type getRouter } from './router'
 
 declare module '@tanstack/react-router' {
   interface Register {

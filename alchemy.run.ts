@@ -23,6 +23,14 @@ type BindableWorker = {
   ) => (data: unknown) => Effect.Effect<void>
 }
 
+/**
+ * The EMAIL binding, spread into every worker. Built as its own object so the
+ * key is absent — not `undefined` — when the transactional email resource was
+ * not provisioned, since a worker with `EMAIL: undefined` is a different
+ * deployment shape than a worker with no EMAIL binding at all.
+ */
+type OptionalEmailBinding = { EMAIL?: Cloudflare.SendEmail }
+
 function attachRateLimits(
   worker: BindableWorker,
   specs: readonly RateLimitBindingSpec[]
@@ -139,7 +147,7 @@ export const Stack = Alchemy.Stack(
 
     // Built as its own object so every worker below spreads the same optional
     // binding set: the EMAIL key exists only when the resource does.
-    const emailBinding: { EMAIL?: Cloudflare.SendEmail } = {}
+    const emailBinding: OptionalEmailBinding = {}
     if (transactionalEmail) emailBinding.EMAIL = transactionalEmail
 
     const api = yield* Cloudflare.Worker('api', {

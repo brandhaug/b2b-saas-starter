@@ -10,7 +10,17 @@
     "promise",
     "vitest"
   ],
-  "jsPlugins": ["eslint-plugin-better-tailwindcss", "oxlint-plugin-effect/plugin"],
+  "jsPlugins": [
+    "eslint-plugin-better-tailwindcss",
+    "oxlint-plugin-effect/plugin",
+    {
+      "name": "anti-slop",
+      // ultracite bundles the anti-slop plugin (upstream is copy-the-source, not
+      // published to npm). plugin.mjs is not in ultracite's exports map, so the
+      // specifier has to be a path.
+      "specifier": "./node_modules/ultracite/config/oxlint/anti-slop/plugin.mjs"
+    }
+  ],
   "settings": {
     "better-tailwindcss": {
       "entryPoint": "apps/web/src/index.css"
@@ -55,6 +65,36 @@
     "no-var": "error",
     "prefer-object-spread": "error",
     "preserve-caught-error": "error",
+    "block-scoped-var": "error",
+    "guard-for-in": "error",
+    "no-case-declarations": "error",
+    "no-constructor-return": "error",
+    "no-empty": "error",
+    "no-extend-native": "error",
+    "no-fallthrough": "error",
+    "no-implied-eval": "error",
+    "no-labels": "error",
+    "no-loop-func": "error",
+    "no-multi-str": "error",
+    "no-new-func": "error",
+    "no-new-wrappers": "error",
+    "no-object-constructor": "error",
+    "no-proto": "error",
+    "no-prototype-builtins": "error",
+    "no-regex-spaces": "error",
+    "no-return-assign": "error",
+    "no-script-url": "error",
+    "no-shadow": "error",
+    "no-unmodified-loop-condition": "error",
+    "no-unreachable-loop": "error",
+    "no-useless-call": "error",
+    "prefer-object-has-own": "error",
+    "prefer-regex-literals": "error",
+    // `multi-line` only: a brace-less body on its own line is a footgun, because oxfmt breaks
+    // a long single-line `if` at printWidth without adding braces. One-line `if (x) return y`
+    // stays legal.
+    "curly": ["error", "multi-line"],
+    "no-unexpected-multiline": "off",
     "no-else-return": ["error", { "allowElseIf": false }],
     "no-lonely-if": "error",
     "no-nested-ternary": "error",
@@ -139,6 +179,13 @@
     "@typescript-eslint/no-unnecessary-boolean-literal-compare": "error",
     "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
     "@typescript-eslint/no-unnecessary-template-expression": "error",
+    "@typescript-eslint/no-deprecated": "error",
+    // `ignoreArrowShorthand` is required: without it every `onClick={() => setX(1)}` is a
+    // violation, which is idiomatic React, not a confusing void expression.
+    "@typescript-eslint/no-confusing-void-expression": [
+      "error",
+      { "ignoreArrowShorthand": true }
+    ],
 
     "unicorn/catch-error-name": "error",
     "unicorn/consistent-existence-index-check": "error",
@@ -183,6 +230,44 @@
     "unicorn/require-array-join-separator": "error",
     "unicorn/switch-case-braces": "error",
     "unicorn/text-encoding-identifier-case": "error",
+    "unicorn/consistent-date-clone": "error",
+    "unicorn/consistent-empty-array-spread": "error",
+    "unicorn/error-message": "error",
+    "unicorn/no-accessor-recursion": "error",
+    "unicorn/no-array-fill-with-reference-type": "error",
+    // no-array-method-this-argument stays off. It matches any `X.map(a, b)` /
+    // `X.forEach(a, b)` call and reads the second argument as `thisArg`. Effect's
+    // data-first signatures (`Effect.map(self, f)`, `Effect.forEach(self, f)`,
+    // `Logger.map(self, f)`) have exactly that shape, so every one of them is flagged.
+    "unicorn/no-array-method-this-argument": "off",
+    "unicorn/no-array-sort": "error",
+    "unicorn/no-await-expression-member": "error",
+    "unicorn/no-confusing-array-with": "error",
+    "unicorn/no-document-cookie": "error",
+    "unicorn/no-instanceof-array": "error",
+    "unicorn/no-length-as-slice-end": "error",
+    "unicorn/no-magic-array-flat-depth": "error",
+    "unicorn/no-negation-in-equality-check": "error",
+    "unicorn/no-object-as-default-parameter": "error",
+    "unicorn/no-unnecessary-array-splice-count": "error",
+    "unicorn/no-unnecessary-await": "error",
+    "unicorn/no-unnecessary-slice-end": "error",
+    "unicorn/no-unreadable-array-destructuring": "error",
+    "unicorn/no-useless-length-check": "error",
+    "unicorn/prefer-blob-reading-methods": "error",
+    "unicorn/prefer-classlist-toggle": "error",
+    "unicorn/prefer-dom-node-text-content": "error",
+    "unicorn/prefer-event-target": "error",
+    "unicorn/prefer-keyboard-event-key": "error",
+    "unicorn/prefer-math-min-max": "error",
+    "unicorn/prefer-modern-dom-apis": "error",
+    "unicorn/prefer-modern-math-apis": "error",
+    "unicorn/prefer-set-size": "error",
+    "unicorn/prefer-structured-clone": "error",
+    "unicorn/prefer-type-error": "error",
+    "unicorn/require-number-to-fixed-digits-argument": "error",
+    "unicorn/require-post-message-target-origin": "error",
+    "unicorn/throw-new-error": "error",
 
     "react/button-has-type": "error",
     "react/checked-requires-onchange-or-readonly": "error",
@@ -210,7 +295,27 @@
     "react/self-closing-comp": "error",
     "react/style-prop-object": "error",
     "react/void-dom-elements-no-children": "error",
+    "react/hook-use-state": "error",
+    "react/jsx-key": "error",
+    "react/jsx-no-comment-textnodes": "error",
+    "react/jsx-no-duplicate-props": "error",
+    "react/jsx-no-script-url": "error",
+    "react/jsx-no-target-blank": "error",
+    "react/jsx-no-undef": "error",
+    "react/jsx-pascal-case": "error",
+    "react/no-children-prop": "error",
+    "react/no-clone-element": "error",
+    "react/no-danger-with-children": "error",
+    "react/no-direct-mutation-state": "error",
+    "react/no-find-dom-node": "error",
+    "react/no-is-mounted": "error",
+    "react/no-object-type-as-default-prop": "error",
+    "react/no-render-return-value": "error",
+    "react/no-string-refs": "error",
+    "react/no-this-in-sfc": "error",
+    "react/no-unknown-property": "error",
     "react-hooks/exhaustive-deps": "error",
+    "react-hooks/rules-of-hooks": "error",
 
     "jsx-a11y/alt-text": "error",
     "jsx-a11y/anchor-has-content": "error",
@@ -229,35 +334,93 @@
     "jsx-a11y/role-has-required-aria-props": "error",
     "jsx-a11y/role-supports-aria-props": "error",
     "jsx-a11y/tabindex-no-positive": "error",
+    "jsx-a11y/anchor-is-valid": "error",
+    "jsx-a11y/aria-activedescendant-has-tabindex": "error",
+    "jsx-a11y/aria-unsupported-elements": "error",
+    "jsx-a11y/autocomplete-valid": "error",
+    "jsx-a11y/lang": "error",
+    "jsx-a11y/mouse-events-have-key-events": "error",
+    "jsx-a11y/no-access-key": "error",
+    "jsx-a11y/no-aria-hidden-on-focusable": "error",
+    "jsx-a11y/no-distracting-elements": "error",
+    "jsx-a11y/no-interactive-element-to-noninteractive-role": "error",
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": "error",
+    "jsx-a11y/no-noninteractive-tabindex": "error",
+    "jsx-a11y/scope": "error",
 
+    // Matches the `inline-type-imports` fixStyle on consistent-type-imports above, so both
+    // halves of the type-import style are enforced instead of only what the fixer emits.
+    "import/consistent-type-specifier-style": ["error", "prefer-inline"],
+    "import/no-absolute-path": "error",
     "import/no-cycle": "error",
     "import/no-duplicates": "error",
+    "import/no-empty-named-blocks": "error",
+    "import/no-mutable-exports": "error",
     "import/no-named-as-default": "error",
     "import/no-self-import": "error",
 
     "oxc/approx-constant": "error",
+    "oxc/bad-array-method-on-arguments": "error",
+    "oxc/bad-bitwise-operator": "error",
+    "oxc/bad-char-at-comparison": "error",
+    "oxc/bad-comparison-sequence": "error",
+    "oxc/bad-match-all-arg": "error",
+    "oxc/bad-min-max-func": "error",
+    "oxc/bad-object-literal-comparison": "error",
+    "oxc/bad-replace-all-arg": "error",
+    "oxc/branches-sharing-code": "error",
+    "oxc/const-comparisons": "error",
+    "oxc/double-comparisons": "error",
+    "oxc/erasing-op": "error",
     "oxc/misrefactored-assign-op": "error",
+    "oxc/missing-throw": "error",
     "oxc/no-accumulating-spread": "error",
+    "oxc/no-async-endpoint-handlers": "error",
     "oxc/no-barrel-file": "error",
+    "oxc/number-arg-out-of-range": "error",
+    "oxc/only-used-in-recursion": "error",
+    "oxc/uninvoked-array-callback": "error",
 
     "promise/always-return": "error",
+    "promise/no-callback-in-promise": "error",
     "promise/no-multiple-resolved": "error",
+    "promise/no-nesting": "error",
     "promise/no-new-statics": "error",
+    "promise/no-promise-in-callback": "error",
     "promise/no-return-wrap": "error",
     "promise/param-names": "error",
     "promise/prefer-catch": "error",
+    "promise/spec-only": "error",
     "promise/valid-params": "error",
 
+    "vitest/consistent-vitest-vi": "error",
+    "vitest/hoisted-apis-on-top": "error",
+    "vitest/no-alias-methods": "error",
     "vitest/no-commented-out-tests": "error",
+    "vitest/no-conditional-tests": "error",
     "vitest/no-disabled-tests": "error",
+    "vitest/no-duplicate-hooks": "error",
     "vitest/no-focused-tests": "error",
     "vitest/no-identical-title": "error",
+    "vitest/no-import-node-test": "error",
     "vitest/no-standalone-expect": "error",
+    "vitest/no-test-prefixes": "error",
+    "vitest/no-test-return-statement": "error",
+    "vitest/no-unneeded-async-expect-function": "error",
     "vitest/padding-around-test-blocks": "error",
+    "vitest/prefer-comparison-matcher": "error",
+    "vitest/prefer-each": "error",
+    "vitest/prefer-equality-matcher": "error",
+    "vitest/prefer-hooks-in-order": "error",
+    "vitest/prefer-hooks-on-top": "error",
+    "vitest/prefer-spy-on": "error",
+    "vitest/prefer-to-be-object": "error",
+    "vitest/prefer-to-contain": "error",
     "vitest/prefer-to-have-length": "error",
     "vitest/require-to-throw-message": "error",
     "vitest/valid-describe-callback": "error",
     "vitest/valid-expect": "error",
+    "vitest/valid-expect-in-promise": "error",
 
     // Effect discipline (oxlint-plugin-effect), full `recommended` preset except the two
     // rules noted below. The preset is written for Effect-native TypeScript, so the rules
@@ -271,7 +434,6 @@
     "effect/noNewError": "error",
     "effect/noNewPromise": "error",
     "effect/noNodeBuiltinImport": "error",
-    "effect/noShapeInSymbolNames": "error",
     "effect/noTernary": "error",
     "effect/noTestLifecycleHooks": "error",
     "effect/noThrowStatement": "error",
@@ -282,20 +444,34 @@
     // `Schema.optional` when explicit `undefined` is part of the contract, and
     // `Schema.NullOr` / `UndefinedOr` / `NullishOr` when nullish values are part of the
     // encoded contract. It is also unworkable against React and TanStack APIs.
-    // anti-slop rules, vendored by oxlint-plugin-effect from dmmulroy/anti-slop
-    "effect/noChainedTypeAssertions": "error",
-    // noConditionalEmptyObjectSpread stays off. Its autofix rewrites
+
+    // anti-slop (upstream dmmulroy/anti-slop, vendored by ultracite). This is the same rule
+    // family oxlint-plugin-effect re-exports under `effect/no*`, but the upstream plugin
+    // carries five rules the Effect plugin does not: no-known-value-widening,
+    // no-module-mocking, no-reflect-apply, no-reflect-get, no-runtime-typeof,
+    // no-unknown-returns, and require-safety-comment-for-type-assertion. The `effect/`
+    // duplicates are switched off so a violation is reported once.
+    "anti-slop/no-chained-type-assertions": "error",
+    // On, and currently clean — but treat its autofix with suspicion. It rewrites
     // `...(x === undefined ? {} : { k: x })` into a bare `k: x`, which turns "key absent"
-    // into "key present, value undefined" — a type error under this repo's
+    // into "key present, value undefined": a type error under this repo's
     // exactOptionalPropertyTypes, and a behaviour change regardless. oxlint applies plugin
-    // fixes even at `warn` severity, so the fix cannot be suppressed while keeping the
-    // rule, and `oxlint --fix` runs in the pre-commit hook. The 19 pre-existing sites were
-    // rewritten by hand instead.
-    "effect/noObjectParameters": "error",
-    "effect/noUnknownParameters": "error",
-    "effect/noUnknownTypeAliases": "error",
-    "effect/noUnsafeDictionaryType": "error",
-    "effect/noWidenThenAssert": "error"
+    // fixes even at `warn`, and `oxlint --fix` runs in the pre-commit hook, so if this ever
+    // fires, fix the site by hand and check the diff rather than accepting the fixer's.
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error"
   },
   "overrides": [
     {
@@ -305,6 +481,7 @@
       // ([&_svg]:, data-[state=open]:, group-data-[...]) that Base UI and shadcn require.
       "files": ["apps/web/**/*.{ts,tsx}"],
       "rules": {
+        "better-tailwindcss/no-concatenated-classes": "error",
         "better-tailwindcss/no-conflicting-classes": "error",
         "better-tailwindcss/no-deprecated-classes": "error",
         "better-tailwindcss/no-duplicate-classes": "error",
@@ -341,6 +518,26 @@
       }
     },
     {
+      // No React outside apps/web. rules-of-hooks matches on the `use*` name alone, so
+      // Effect's `Effect.useSpan` reads as a hook called from a non-component.
+      "files": ["packages/**", "apps/api/**", "apps/background/**", "infra/**"],
+      "rules": {
+        "react-hooks/rules-of-hooks": "off"
+      }
+    },
+    {
+      // recharts deprecated `Cell` in 3.x and removes it in 4.0; the replacement is a
+      // `shape` render prop on each series. Migrating changes how bars and slices are
+      // drawn, so it is its own change with its own visual review — not a lint fix.
+      "files": [
+        "apps/web/src/components/mdx-chart.tsx",
+        "apps/web/src/components/charts/**"
+      ],
+      "rules": {
+        "@typescript-eslint/no-deprecated": "off"
+      }
+    },
+    {
       // TanStack Router's createFileRoute wraps an inline component and exports the result,
       // which Fast Refresh's only-export-components rule reads as mixing exports.
       "files": ["apps/web/src/routes/**/*.{ts,tsx}", "apps/web/src/router.tsx"],
@@ -364,6 +561,13 @@
         // Tests and story play functions are inherently sequential step lists.
         "no-await-in-loop": "off",
         "no-console": "off",
+        // Redirect-hardening tests feed `javascript:` URLs to `safeRedirect` on purpose;
+        // the string under test is the attack, not a link the test renders.
+        "no-script-url": "off",
+        // Test doubles implement whole third-party interfaces (the fake `D1Database` in
+        // `packages/capabilities` has to supply `dump`), so a deprecated member is part of
+        // the shape being faked, not a call the starter makes.
+        "@typescript-eslint/no-deprecated": "off",
         "react-hooks/rules-of-hooks": "off",
         "react/only-export-components": "off",
         "vitest/require-mock-type-parameters": "off",
@@ -398,8 +602,8 @@
         "effect/noThrowStatement": "off",
         "effect/noNewError": "off",
         "effect/noNewPromise": "off",
-        "effect/noUnknownParameters": "off",
-        "effect/noUnsafeDictionaryType": "off"
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off"
       },
       "plugins": ["typescript", "vitest", "react"]
     },
@@ -417,8 +621,8 @@
         "effect/noTryCatch": "off",
         "effect/noThrowStatement": "off",
         "effect/noNewError": "off",
-        "effect/noUnknownParameters": "off",
-        "effect/noUnsafeDictionaryType": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
         // Deployment, seeding and build tooling runs on Bun before any Worker and before
         // any Effect runtime exists, so `Config` has nowhere to be read from. The Effect
         // guidance scopes `Config` to application logic, and the noGlobals rule itself says
@@ -510,9 +714,9 @@
       // `apps/web/src/lib/observability.ts` is the web half of that same seam.
       "files": ["packages/logger/src/**", "apps/web/src/lib/observability.ts"],
       "rules": {
-        "effect/noUnsafeDictionaryType": "off",
-        "effect/noObjectParameters": "off",
-        "effect/noUnknownParameters": "off"
+        "anti-slop/no-unsafe-dictionary-type": "off",
+        "anti-slop/no-object-parameters": "off",
+        "anti-slop/no-unknown-parameters": "off"
       }
     },
     {
@@ -521,8 +725,8 @@
       // so `node:path` and friends are the correct APIs there.
       "files": ["**/*.config.ts", "apps/web/src/lib/local-d1-state.ts"],
       "rules": {
-        "effect/noUnsafeDictionaryType": "off",
-        "effect/noUnknownParameters": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+        "anti-slop/no-unknown-parameters": "off",
         "effect/noNodeBuiltinImport": "off",
         // drizzle.config.ts is loaded by drizzle-kit in its own Node process and reads
         // credentials from process.env. There is no Effect runtime to read Config from.

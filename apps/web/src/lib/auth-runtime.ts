@@ -18,6 +18,9 @@ export class MissingD1Binding extends Schema.TaggedErrorClass<MissingD1Binding>(
 // fails with a descriptive defect instead of a deep drizzle TypeError. A Proxy
 // trap has no Effect error channel of its own — throwing is the only way it can
 // signal, and the throw surfaces as a defect in whichever Effect touches it.
+// SAFETY: no property of this value is ever read successfully — the `get` trap throws on
+// every access — so nothing downstream can observe the difference between it and a real
+// D1Database. The assertion only satisfies the binding's declared type.
 // oxlint-disable-next-line effect/noAs -- a Proxy sentinel has no structural D1Database to decode from; every property access throws MissingD1Binding by design
 const missingD1 = new Proxy(
   {},

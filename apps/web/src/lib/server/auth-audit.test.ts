@@ -1,11 +1,19 @@
 import { Effect } from 'effect'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   isAuditedAuthExchange,
   recordAuthAudit,
   signInAuditInput,
-  type AuthAuditOutcome
+  type AuthAuditOutcome,
+  type RunAuditCapabilities
 } from './auth-audit'
+
+/**
+ * The capability runner `recordAuthAudit` writes through, handed in as its third
+ * argument. Resolving means the audit row was written; rejecting is the D1
+ * outage the "dropped" case asserts on.
+ */
+const runCapabilities = vi.fn<RunAuditCapabilities>()
 
 /**
  * `recordAuthAudit` needs a Scope for its wide-event annotations — the auth
@@ -15,12 +23,15 @@ function runRecordAuthAudit(
   request: Request,
   response: Response
 ): Promise<AuthAuditOutcome> {
-  return Effect.runPromise(Effect.scoped(recordAuthAudit(request, response)))
+  return Effect.runPromise(
+    Effect.scoped(recordAuthAudit(request, response, runCapabilities))
+  )
 }
 
-vi.mock('@/lib/capabilities', () => ({
-  runCapabilities: vi.fn().mockResolvedValue(undefined)
-}))
+beforeEach(() => {
+  runCapabilities.mockReset()
+  runCapabilities.mockResolvedValue(undefined)
+})
 
 describe('isAuditedAuthExchange', () => {
   it('accepts only POST credential sign-in exchanges', () => {
@@ -121,8 +132,7 @@ describe('recordAuthAudit', () => {
   })
 
   it('reports a dropped write instead of throwing when the audit fails', async () => {
-    const { runCapabilities } = await import('@/lib/capabilities')
-    vi.mocked(runCapabilities).mockRejectedValueOnce(new Error('d1 down'))
+    runCapabilities.mockRejectedValueOnce(new Error('d1 down'))
     const request = new Request('http://localhost/api/auth/sign-in/email', {
       method: 'POST'
     })

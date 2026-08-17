@@ -1,7 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, count, desc, eq, isNull, or } from 'drizzle-orm'
 import { Database, notifications } from '@b2b-saas-starter/db'
-import type { CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
 

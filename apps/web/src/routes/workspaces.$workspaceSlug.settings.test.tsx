@@ -1,61 +1,18 @@
-import { Suspense, type ComponentType } from 'react'
-import { render, screen } from '@testing-library/react'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mountRoute } from '@/test/router-mock'
+import { screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { type WorkspaceSettingsSummaryProjection } from '@b2b-saas-starter/capabilities'
+import { renderWithRouter } from '@/test/router-harness'
+import { type CreateApiToken } from '@/components/api-token-form'
+import { type SignOut } from '@/components/workspace-shell'
+import { WorkspaceSettingsPage } from './workspaces.$workspaceSlug.settings'
 
-const mocks = vi.hoisted(() => ({
-  loaderData: { value: {} },
-  params: { value: { workspaceSlug: 'starter-lab' } },
-  navigate: vi.fn(),
-  signOut: vi.fn(),
-  createApiToken: vi.fn()
-}))
+// The page takes its params and loader projection as props, so the test renders
+// it directly under a real router: no route tree, no loader, and no mocked
+// module. The two server calls its children make arrive as ports.
+const createToken = vi.fn<CreateApiToken>()
+const signOut = vi.fn<SignOut>()
 
-vi.mock('@tanstack/react-router', async (importOriginal) => {
-  const { routerMock } = await import('@/test/router-mock')
-  return routerMock({
-    actual: await importOriginal<Record<string, unknown>>(),
-    routeHooks: {
-      useParams: () => mocks.params.value,
-      useLoaderData: () => mocks.loaderData.value
-    },
-    useRouter: () => ({ navigate: mocks.navigate }),
-    useNavigate: () => mocks.navigate,
-    useParams: () => mocks.params.value
-  })
-})
-
-vi.mock('@/lib/capabilities', () => ({
-  runWorkspaceCapabilities: vi.fn(),
-  runCapabilities: vi.fn()
-}))
-
-vi.mock('@/lib/auth-client', () => ({
-  authClient: { signOut: () => mocks.signOut() }
-}))
-
-vi.mock('@/lib/server/api-tokens', () => ({
-  createApiTokenServerFn: (input: unknown) => mocks.createApiToken(input)
-}))
-
-import { Route } from './workspaces.$workspaceSlug.settings'
-
-let SettingsPage: ComponentType
-
-beforeAll(async () => {
-  SettingsPage = await mountRoute(Route)
-})
-
-async function renderPage() {
-  render(
-    <Suspense fallback={null}>
-      <SettingsPage />
-    </Suspense>
-  )
-  await screen.findByRole('heading', { name: 'Workspace settings' })
-}
-
-const settingsSummary = {
+const settingsSummary: WorkspaceSettingsSummaryProjection = {
   modules: [
     {
       id: 'effect-v4',
@@ -96,12 +53,20 @@ const settingsSummary = {
   invitations: []
 }
 
-describe('WorkspaceSettingsPage', () => {
-  beforeEach(() => {
-    mocks.loaderData.value = settingsSummary
-    mocks.params.value = { workspaceSlug: 'starter-lab' }
-  })
+async function renderPage() {
+  const rendered = await renderWithRouter(
+    <WorkspaceSettingsPage
+      workspaceSlug="starter-lab"
+      data={settingsSummary}
+      ports={{ createToken, signOut }}
+    />,
+    { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
+  )
+  await screen.findByRole('heading', { name: 'Workspace settings' })
+  return rendered
+}
 
+describe('WorkspaceSettingsPage', () => {
   it('renders each module with its status badge, including needs-config', async () => {
     await renderPage()
     screen.getByText('Effect v4')

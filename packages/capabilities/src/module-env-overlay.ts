@@ -4,7 +4,7 @@ import {
   type ModuleStatus
 } from './catalog/starter-module-catalog.ts'
 import { IntegrationSurfaces } from './notifications/integration-surfaces.ts'
-import type { CapabilityServices } from './layers.ts'
+import { type CapabilityServices } from './layers.ts'
 
 /**
  * Env-derived configuration status for one optional module, as produced by
@@ -24,18 +24,22 @@ export type ModuleEnvStatus = {
 // a rename on either side is a visible one-line change). Env module ids with
 // no entry here or below (e.g. 'ai', which has no catalog module or
 // integration surface yet) are ignored by the overlay.
-const catalogModuleEnvIds: Record<string, string> = {
-  'better-auth': 'better-auth',
-  'cloudflare-email': 'cloudflare-email',
-  observability: 'observability'
-}
+//
+// Maps rather than object literals: both are looked up by a runtime id that may
+// have no mapping, and `Map#get` returns that absence as `undefined` instead of
+// needing an index signature that claims every string is a key.
+const catalogModuleEnvIds = new Map([
+  ['better-auth', 'better-auth'],
+  ['cloudflare-email', 'cloudflare-email'],
+  ['observability', 'observability']
+])
 
 // integration surface provider → env module id.
-const integrationProviderEnvIds: Record<string, string> = {
-  github: 'github-oauth',
-  stripe: 'billing',
-  turnstile: 'turnstile'
-}
+const integrationProviderEnvIds = new Map([
+  ['github', 'github-oauth'],
+  ['stripe', 'billing'],
+  ['turnstile', 'turnstile']
+])
 
 // missing env → needs-config; env present but the runtime isn't wired yet
 // (e.g. billing) → attention; fully configured → ready.
@@ -60,7 +64,9 @@ function moduleEnvOverlay(
         ...base,
         listModules: Effect.map(base.listModules, (modules) =>
           modules.map((module) => {
-            const status = byEnvModuleId.get(catalogModuleEnvIds[module.id] ?? '')
+            const envModuleId = catalogModuleEnvIds.get(module.id)
+            if (envModuleId === undefined) return module
+            const status = byEnvModuleId.get(envModuleId)
             if (status === undefined) return module
             return {
               ...module,
@@ -81,9 +87,9 @@ function moduleEnvOverlay(
       return {
         list: Effect.map(base.list, (surfaces) =>
           surfaces.map((surface) => {
-            const status = byEnvModuleId.get(
-              integrationProviderEnvIds[surface.provider] ?? ''
-            )
+            const envModuleId = integrationProviderEnvIds.get(surface.provider)
+            if (envModuleId === undefined) return surface
+            const status = byEnvModuleId.get(envModuleId)
             if (status === undefined) return surface
             if (!status.envPresent) {
               return {

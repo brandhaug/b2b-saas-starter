@@ -119,6 +119,13 @@ function stubEndpoints(
   })
 }
 
+/**
+ * Out-parameter for the stub HTTP client: the delivery request it saw, so a
+ * test can assert on the signed headers and body. Absent until a request is
+ * actually dispatched.
+ */
+type CapturedRequest = { request?: HttpClientRequest.HttpClientRequest }
+
 // Both consumers surface D1 outages as CapabilityUnavailable; the stubs never
 // fail, so the error channel is eliminated with orDie instead of a cast.
 function runScoped<A>(
@@ -130,7 +137,7 @@ function runScoped<A>(
 describe('processWebhookMessage', () => {
   function stubHttp(
     status: number,
-    captured: { request?: HttpClientRequest.HttpClientRequest } = {}
+    captured: CapturedRequest = {}
   ): Layer.Layer<HttpClient.HttpClient> {
     return Layer.succeed(HttpClient.HttpClient)(
       HttpClient.make((request) => {
@@ -149,7 +156,7 @@ describe('processWebhookMessage', () => {
     input: unknown = message
   ) {
     const recorded: WebhookDeliveryAttemptInput[] = []
-    const captured: { request?: HttpClientRequest.HttpClientRequest } = {}
+    const captured: CapturedRequest = {}
     return runScoped(
       processWebhookMessage({ body: input, attempts }, 'trace-test').pipe(
         Effect.provide(

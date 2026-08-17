@@ -12,8 +12,9 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
+import { readPluginBindingFailure } from './plugin-binding-failure.ts'
 import { WorkspaceRole, type Member, type Workspace } from './workspace-identity.ts'
-import type { SeedRoster } from './workspace-membership.ts'
+import { type SeedRoster } from './workspace-membership.ts'
 
 export const InvitationStatus = Schema.Literals(invitationStatuses)
 export type InvitationStatus = typeof InvitationStatus.Type
@@ -141,13 +142,13 @@ export type WorkspaceInvitationBinding = {
     readonly workspaceId: string
     readonly email: string
     readonly role: WorkspaceRole
-  }) => Promise<unknown>
-  readonly cancel: (input: { readonly invitationId: string }) => Promise<unknown>
+  }) => Promise<void>
+  readonly cancel: (input: { readonly invitationId: string }) => Promise<void>
   /**
    * Takes no user: the plugin reads the accepting user from the session the
    * app's adapter supplies, and refuses an invitation addressed elsewhere.
    */
-  readonly accept: (input: { readonly invitationId: string }) => Promise<unknown>
+  readonly accept: (input: { readonly invitationId: string }) => Promise<void>
 }
 
 const noBinding = new CapabilityUnavailable({
@@ -165,26 +166,14 @@ const noBinding = new CapabilityUnavailable({
 function classifyBindingFailure(
   cause: unknown
 ): CapabilityUnavailable | MembershipChangeRejected {
-  const status = statusCodeOf(cause)
-  if (typeof status === 'number' && status >= 400 && status < 500) {
-    return new MembershipChangeRejected({ reason: messageOf(cause) })
+  const failure = readPluginBindingFailure(cause)
+  if (failure.refusedByWorkspace) {
+    return new MembershipChangeRejected({ reason: failure.reason })
   }
   return new CapabilityUnavailable({
     capability: 'workspace-invitations',
-    reason: messageOf(cause)
+    reason: failure.reason
   })
-}
-
-/** Better Auth's `APIError` carries a numeric `statusCode`; a network blow-up does not. */
-function statusCodeOf(cause: unknown): unknown {
-  if (typeof cause !== 'object' || cause === null) return undefined
-  if (!('statusCode' in cause)) return undefined
-  return cause.statusCode
-}
-
-function messageOf(cause: unknown): string {
-  if (cause instanceof Error) return cause.message
-  return String(cause)
 }
 
 /** How long a fixture invitation stays pending — the plugin's own 48 hours. */
@@ -373,8 +362,8 @@ export function LiveWorkspaceInvitations(
 
       const unavailable = orUnavailable('workspace-invitations')
 
-      const callBinding = Effect.fnUntraced(function* <A>(
-        call: (bound: WorkspaceInvitationBinding) => Promise<A>
+      const callBinding = Effect.fnUntraced(function* (
+        call: (bound: WorkspaceInvitationBinding) => Promise<void>
       ) {
         if (!binding) return yield* Effect.fail(noBinding)
         return yield* Effect.tryPromise({

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { Effect, Schema } from 'effect'
 import { SEED_API_TOKEN, SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities'
-import type { ApiEnv } from './env.ts'
+import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 
 // Response bodies are decoded at the boundary rather than cast: a contract

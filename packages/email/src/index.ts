@@ -1,6 +1,6 @@
 import { render } from '@react-email/render'
 import { Context, Effect, Layer, Schema } from 'effect'
-import type { ReactElement } from 'react'
+import { type ReactElement } from 'react'
 
 export * from './templates.tsx'
 
@@ -29,8 +29,15 @@ export type SendEmailBuilderArgs = {
   readonly html?: string
 }
 
+/**
+ * Structural subset of Cloudflare's `SendEmail` binding. Resolving to `void`:
+ * the real binding resolves an `EmailSendResult` that this package never reads —
+ * a send either resolved or rejected, and `EmailSendError` carries the latter.
+ * Worker envs declare this port rather than workers-types' `SendEmail`, so the
+ * two shapes are never assigned across.
+ */
 export type SendEmailBinding = {
-  readonly send: (message: SendEmailBuilderArgs) => Promise<unknown>
+  readonly send: (message: SendEmailBuilderArgs) => Promise<void>
 }
 
 export class EmailRenderError extends Schema.TaggedErrorClass<EmailRenderError>()(
@@ -143,13 +150,23 @@ export function makeCloudflareEmailDispatcherLayer(
 }
 
 /**
+ * What the dispatcher selector reads off a worker env. Both keys accept an
+ * explicit `undefined` so callers can pass their bindings straight through
+ * rather than each hand-building a bag that omits the absent keys — the
+ * selector's own check is what decides whether the provider goes live.
+ */
+export type EmailDispatcherEnv = {
+  readonly EMAIL?: SendEmailBinding | undefined
+  readonly EMAIL_FROM_ADDRESS?: string | undefined
+}
+
+/**
  * Cloudflare Email is an Optional Provider Module: without its binding and a
  * sender address the starter still delivers, to the log, instead of failing.
  */
-export function selectEmailDispatcherLayer(env: {
-  readonly EMAIL?: SendEmailBinding
-  readonly EMAIL_FROM_ADDRESS?: string
-}): Layer.Layer<EmailDispatcher> {
+export function selectEmailDispatcherLayer(
+  env: EmailDispatcherEnv
+): Layer.Layer<EmailDispatcher> {
   if (env.EMAIL && env.EMAIL_FROM_ADDRESS) {
     return makeCloudflareEmailDispatcherLayer(env.EMAIL, {
       defaultFrom: env.EMAIL_FROM_ADDRESS

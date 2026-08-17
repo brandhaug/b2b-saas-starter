@@ -2,7 +2,7 @@ import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { Database, integrationConnections } from '@b2b-saas-starter/db'
 import { ModuleStatus } from '../catalog/starter-module-catalog.ts'
-import type { CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 

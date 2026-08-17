@@ -5,7 +5,7 @@ import {
   catalogRefreshRuns,
   type CatalogRefreshSummary
 } from '@b2b-saas-starter/db'
-import type { CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { StarterModuleCatalog } from './starter-module-catalog.ts'

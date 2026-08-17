@@ -1,4 +1,4 @@
-import type { ComponentType, SVGProps } from 'react'
+import { type ComponentType, type SVGProps } from 'react'
 import { Activity, BarChart3, CreditCard, Mail } from 'lucide-react'
 import { GithubIcon } from '@/components/icons/github'
 

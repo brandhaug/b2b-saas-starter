@@ -10,7 +10,8 @@ export function MdxMermaid({ chart }: { readonly chart: string }) {
     const cancelled = { current: false }
 
     async function renderChart() {
-      const mermaid = (await import('mermaid')).default
+      const mermaidModule = await import('mermaid')
+      const mermaid = mermaidModule.default
       const isDark = document.documentElement.classList.contains('dark')
 
       mermaid.initialize({

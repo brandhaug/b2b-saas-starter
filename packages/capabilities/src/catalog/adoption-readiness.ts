@@ -1,8 +1,8 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { Database, workspaceModuleStates } from '@b2b-saas-starter/db'
-import type { ModuleState } from './starter-module-catalog.ts'
-import type { CapabilityUnavailable } from '../errors.ts'
+import { type ModuleState } from './starter-module-catalog.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 

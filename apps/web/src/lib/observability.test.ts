@@ -2,21 +2,22 @@ import { Effect, Schema } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { annotateWide } from '@b2b-saas-starter/logger'
 
+import { runWebRequestScope, withWebRequestScope } from './observability'
+
 /**
  * The ambient request is the one input these functions read from outside their
- * arguments, so it is the one thing the tests set. `src/lib/request-context.ts`
- * exists as its own module for exactly this: mock the lookup, keep everything
- * else — the real runtime, the real loggers, the real spans — in play.
+ * arguments, so it is the one thing the tests set. Both entry points take the
+ * lookup as their last argument (`CurrentRequest`), so this is a real function
+ * of the shape they expect and everything else — the real runtime, the real
+ * loggers, the real spans — stays in play.
  */
 type AmbientRequest = { request: Request | undefined }
 
-const ambient = vi.hoisted((): AmbientRequest => ({ request: undefined }))
+const ambient: AmbientRequest = { request: undefined }
 
-vi.mock('./request-context', () => ({
-  currentRequest: () => ambient.request
-}))
-
-const { runWebRequestScope, withWebRequestScope } = await import('./observability')
+function lookupRequest(): Request | undefined {
+  return ambient.request
+}
 
 // The captured line is decoded rather than cast: the assertions below are about
 // the shape `Logger.consoleJson` actually prints, so a shape change should fail
@@ -78,14 +79,20 @@ describe('runWebRequestScope', () => {
         await Effect.runPromise(
           withWebRequestScope(
             { event: 'capability.workspace', metadata: { workspaceSlug: 'acme' } },
-            annotateWide({ readinessScore: 42 })
+            annotateWide({ readinessScore: 42 }),
+            lookupRequest
           )
         )
         await Effect.runPromiseExit(
-          withWebRequestScope({ event: 'capability.global' }, Effect.fail('nope'))
+          withWebRequestScope(
+            { event: 'capability.global' },
+            Effect.fail('nope'),
+            lookupRequest
+          )
         )
         return new Response('ok', { status: 201 })
-      }
+      },
+      lookupRequest
     )
 
     expect(response.status).toBe(201)
@@ -122,10 +129,15 @@ describe('runWebRequestScope', () => {
       { request: registered, handlerType: 'router' },
       async () => {
         await Effect.runPromise(
-          withWebRequestScope({ event: 'capability.global' }, Effect.void)
+          withWebRequestScope(
+            { event: 'capability.global' },
+            Effect.void,
+            lookupRequest
+          )
         )
         return new Response(null, { status: 204 })
-      }
+      },
+      lookupRequest
     )
 
     const record = only()
@@ -146,7 +158,8 @@ describe('withWebRequestScope', () => {
     await Effect.runPromise(
       withWebRequestScope(
         { event: 'capability.global', metadata: { workspaceSlug: 'acme' } },
-        Effect.void
+        Effect.void,
+        lookupRequest
       )
     )
 

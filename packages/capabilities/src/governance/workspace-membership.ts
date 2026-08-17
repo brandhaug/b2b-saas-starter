@@ -5,6 +5,7 @@ import { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
+import { readPluginBindingFailure } from './plugin-binding-failure.ts'
 import {
   findWorkspaceMember,
   Member,
@@ -174,22 +175,26 @@ export function SeedWorkspaceMembership(
  * Promise-returning on purpose: an Effect-shaped port would have to name the
  * plugin's error type, which is exactly the leak this avoids. Rejections are
  * classified by `classifyBindingFailure` below.
+ *
+ * Resolving to `void`, not to the plugin's response: the capability re-reads the
+ * member from D1 after every call, because the plugin's own response shape is
+ * not this package's contract. Handing the raw response back would leak it.
  */
 export type WorkspaceMemberBinding = {
   readonly addMember: (input: {
     readonly workspaceId: string
     readonly userId: string
     readonly role: WorkspaceRole
-  }) => Promise<unknown>
+  }) => Promise<void>
   readonly removeMember: (input: {
     readonly workspaceId: string
     readonly memberId: string
-  }) => Promise<unknown>
+  }) => Promise<void>
   readonly changeRole: (input: {
     readonly workspaceId: string
     readonly memberId: string
     readonly role: WorkspaceRole
-  }) => Promise<unknown>
+  }) => Promise<void>
 }
 
 const noBinding = new CapabilityUnavailable({
@@ -198,35 +203,23 @@ const noBinding = new CapabilityUnavailable({
 })
 
 /**
- * A 4xx from the plugin means the workspace refused the change — an unknown
- * user, a role it will not accept. Anything else (5xx, a thrown TypeError, a
- * dropped connection) is the store failing, which is what
- * `CapabilityUnavailable` means. Getting this backwards tells a caller to
- * retry a request that can never succeed.
+ * A refusal from the plugin means the workspace declined the change — an
+ * unknown user, a role it will not accept. Anything else (a dropped connection,
+ * a thrown TypeError) is the store failing, which is what
+ * `CapabilityUnavailable` means. `readPluginBindingFailure` owns that reading;
+ * `workspace-invitations.ts` classifies its own binding through the same call.
  */
 function classifyBindingFailure(
   cause: unknown
 ): CapabilityUnavailable | MembershipChangeRejected {
-  const status = statusCodeOf(cause)
-  if (typeof status === 'number' && status >= 400 && status < 500) {
-    return new MembershipChangeRejected({ reason: messageOf(cause) })
+  const failure = readPluginBindingFailure(cause)
+  if (failure.refusedByWorkspace) {
+    return new MembershipChangeRejected({ reason: failure.reason })
   }
   return new CapabilityUnavailable({
     capability: 'workspace-membership',
-    reason: messageOf(cause)
+    reason: failure.reason
   })
-}
-
-/** Better Auth's `APIError` carries a numeric `statusCode`; a network blow-up does not. */
-function statusCodeOf(cause: unknown): unknown {
-  if (typeof cause !== 'object' || cause === null) return undefined
-  if (!('statusCode' in cause)) return undefined
-  return cause.statusCode
-}
-
-function messageOf(cause: unknown): string {
-  if (cause instanceof Error) return cause.message
-  return String(cause)
 }
 
 export function LiveWorkspaceMembership(
@@ -283,8 +276,8 @@ export function LiveWorkspaceMembership(
         return member
       })
 
-      const callBinding = Effect.fnUntraced(function* <A>(
-        call: (bound: WorkspaceMemberBinding) => Promise<A>
+      const callBinding = Effect.fnUntraced(function* (
+        call: (bound: WorkspaceMemberBinding) => Promise<void>
       ) {
         if (!binding) return yield* Effect.fail(noBinding)
         return yield* Effect.tryPromise({
