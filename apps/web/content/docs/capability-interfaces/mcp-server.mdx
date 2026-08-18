@@ -18,7 +18,7 @@ Tool handlers will wrap the same Effect services that REST routes wrap — `Star
 
 ## Authentication
 
-The `/mcp` route accepts the same workspace-scoped API Tokens as REST: `Authorization: Bearer …` with the `read` scope, parsed and verified by `enforceScope()` in `apps/api/src/handlers.ts`. Per-tool scope checks will reuse the same `ApiTokenScope` values once tool dispatch lands. There is no separate MCP credential surface.
+The `/mcp` route accepts the same workspace-scoped API Tokens as REST: `Authorization: Bearer …`, authenticated and then checked by `enforcePermission(request, { module: ['read'] })` in `apps/api/src/handlers.ts`. Like every other endpoint it names a permission rather than a scope — the scope-to-permission mapping lives once, in `@b2b-saas-starter/authz`'s role table, so a `read` token satisfies discovery today. Per-tool checks will name their own permissions once tool dispatch lands. There is no separate MCP credential surface.
 
 ## Why one set of capabilities
 

@@ -33,6 +33,16 @@ Sign in at `/sign-in` with these credentials once the database is migrated and s
 
 Schema changes: edit `packages/db/src/schema.ts`, then `bun run db:generate` to emit a migration.
 
+If migrating reports nothing to do but the app disagrees with the schema, your local database predates the squashed baseline (the Better Auth `organization` plugin adoption rewrote the three workspace tables and replaced three migrations with one — see [ADR 0051](./adr/0051-workspace-membership-on-better-auth-organization-plugin.md)). Drop the local state and rebuild:
+
+```bash
+rm -rf packages/db/.wrangler/state/v3/d1
+bun run db:migrate:local
+bun run db:seed
+```
+
+Restart `bun run dev` afterwards so the dev shim re-attaches the binding.
+
 `db:migrate:local` / `db:migrate:remote` run `packages/db/scripts/migrate.ts`, which applies drizzle-kit's folder-style migrations (`packages/db/migrations/<timestamp_name>/migration.sql`) through `wrangler d1 execute` and records them in a `d1_migrations` table so re-runs skip already-applied migrations. (Wrangler's own `d1 migrations apply` only understands flat `*.sql` files, so it cannot be used here.)
 
 For remote migrations (`bun run db:generate` against remote metadata and `bun run db:migrate:remote`), set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_D1_TOKEN` in `.env` — see `packages/db/drizzle.config.ts`.
