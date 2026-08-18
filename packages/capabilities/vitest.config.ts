@@ -10,10 +10,10 @@ export default defineConfig({
       // Ratchet, not target: set just below current coverage so CI fails on
       // decay. Raise alongside new tests; never lower to make a build pass.
       thresholds: {
-        lines: 75,
-        statements: 75,
-        functions: 65,
-        branches: 60
+        lines: 86,
+        statements: 85,
+        functions: 82,
+        branches: 74
       }
     }
   }
