@@ -13,7 +13,8 @@ The auth module is a Starter Module wired through Better Auth. The Local Auth Pa
 - Email/password authentication with sessions in D1
 - Username plugin (for friendlier display names)
 - Admin plugin (System Admin role) — registered with `adminRoles: ['admin']`
-- TanStack Start cookie bridge via the `tanstackStartCookies()` plugin
+- Organization plugin, remapped onto the starter's Workspace vocabulary — it backs Members, Invitations, and Workspace Roles (ADR 0051). Teams and runtime-defined roles are switched off
+- TanStack Start cookie bridge via the `tanstackStartCookies()` plugin, registered last so other plugins' cookies reach the framework
 - Better Auth React client (`authClient`) for current user and current session; workspace membership loads from the `WorkspaceMembership` capability in route loaders
 - Skip-to-content and accessible form patterns on the sign-in page
 
@@ -26,7 +27,7 @@ Each provider is an Optional Provider Module. Missing config does not block loca
 
 ## Sessions
 
-Sessions are handled by Better Auth with the `tanstackStartCookies()` plugin: signed HTTP-only cookies, signed with `BETTER_AUTH_SECRET`, scoped per Better Auth's defaults. Trusted origins come from `BETTER_AUTH_TRUSTED_ORIGINS` (or fall back to `BETTER_AUTH_URL`). Workspace-aware session payloads and a workspace-switching refresh flow are intentional next steps, not yet wired.
+Sessions are handled by Better Auth with the `tanstackStartCookies()` plugin: signed HTTP-only cookies, signed with `BETTER_AUTH_SECRET`, scoped per Better Auth's defaults. Trusted origins come from `BETTER_AUTH_TRUSTED_ORIGINS` (or fall back to `BETTER_AUTH_URL`). The session deliberately does not carry an active workspace: the organization plugin writes `session.activeOrganizationId` and nothing reads it, because the workspace is resolved from the slug in the URL. Two sources of truth for "which workspace" is how a user ends up looking at one workspace's URL and another's data.
 
 ## System Admin
 

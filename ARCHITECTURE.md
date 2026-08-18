@@ -43,7 +43,11 @@ Drizzle ORM schema for one shared Cloudflare D1 database. Includes Better Auth/a
 
 ### `packages/auth`
 
-Better Auth factory with email/password, username, GitHub OAuth readiness, TanStack Start cookies, and admin plugin support.
+Better Auth factory with email/password, username, GitHub OAuth readiness, TanStack Start cookies, and the `admin()` and `organization()` plugins. The organization plugin backs workspace membership and invitations, remapped onto the starter's `workspace` vocabulary — ADR 0051, details in [`packages/auth/AGENTS.md`](./packages/auth/AGENTS.md).
+
+### `packages/authz`
+
+Statements, static roles, the API-token scope mapping, and the `requirePermission` guard. Pure — no database, no auth instance — so it sits below both `auth` and `capabilities` and neither of those two imports the other. See [`packages/authz/AGENTS.md`](./packages/authz/AGENTS.md).
 
 ### `packages/email`
 
@@ -70,13 +74,13 @@ React Email templates and Cloudflare Email Service sending boundary. Outbound em
 
 ## Security
 
-The auth surface spans three layers: browser session auth (Better Auth), Worker-to-Worker API tokens (scoped), and infrastructure-level allowlists (CORS + trusted origins). Several pieces are scaffolded but not yet enforced — flagged below.
+The auth surface spans three layers: browser session auth (Better Auth), Worker-to-Worker API tokens (scoped), and infrastructure-level allowlists (CORS + trusted origins). Authentication and authorization are separate concerns here — who is asking is settled at the request boundary, and whether they may is settled by the guard described under [Authorization model](#authorization-model).
 
 ### Browser auth — Better Auth
 
 - **Library:** Better Auth, factory in [`packages/auth`](./packages/auth).
-- **Plugins:** email/password, `username()`, `admin()` (system role `admin`), `tanstackStartCookies()`. GitHub OAuth is conditionally registered when `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` are set.
-- **Adapter:** Drizzle SQLite over the shared D1. Schema tables: `user`, `session`, `account`, `verification` in [`packages/db/src/schema.ts`](./packages/db/src/schema.ts).
+- **Plugins:** email/password, `username()`, `admin()` (system role `admin`), `organization()` (workspace membership and invitations, ADR 0051), `tanstackStartCookies()` — which must stay last so other plugins' cookies reach the framework store. GitHub OAuth is conditionally registered when `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` are set.
+- **Adapter:** Drizzle SQLite over the shared D1, using the promise-based client (`packages/db/src/client.ts`) — `drizzleAdapter` cannot take the Effect-native `Database` service. Better Auth owns seven tables in [`packages/db/src/schema.ts`](./packages/db/src/schema.ts): `user`, `session`, `account`, `verification`, plus `workspaces`, `workspace_members`, and `workspace_invitations`, which the organization plugin reaches through `modelName` overrides. Those three carry the plugin's shape — camelCase columns, epoch-integer dates, surrogate `id` keys — so a new column there needs a matching `additionalFields` entry.
 - **Cookies:** session cookie bridged through `tanstackStartCookies()`; Better Auth signs with `BETTER_AUTH_SECRET`.
 - **Catchall route:** [`apps/web/src/routes/api.auth.$.ts`](./apps/web/src/routes/api.auth.$.ts) dispatches every `/api/auth/*` request to Better Auth. Rate limits are enforced through the Cloudflare `RateLimit` bindings `RATE_LIMITER_AUTH_WRITE` (POST 20 req/min) and `RATE_LIMITER_AUTH_READ` (GET 60 req/min), keyed by `cf-connecting-ip`. See [`apps/web/src/lib/rate-limit.ts`](./apps/web/src/lib/rate-limit.ts) — the per-isolate `HashMap` brake remains as a fallback for local dev.
 
@@ -94,16 +98,19 @@ The auth surface spans three layers: browser session auth (Better Auth), Worker-
 
 ### Authorization model
 
-- **Workspace roles:** `owner | admin | member` — held in `workspace_members.role`.
+- **Workspace roles:** `owner | admin | member` — held in `workspace_members.role`, a table Better Auth's organization plugin owns and writes (ADR 0051). Membership mutations go through the plugin's endpoints via a structural binding the app supplies; reads go direct through Drizzle so dashboard projections can join member data without an HTTP hop.
 - **System roles:** `admin | user` — held in `user.role`, surfaced via Better Auth's `admin()` plugin.
 - **Permissions:** [`@b2b-saas-starter/authz`](./packages/authz/AGENTS.md) owns the statement set, the static role table, the API-token scope mapping, and the `requirePermission` guard. Sessions and bearer tokens reach one `authorize()` decision.
 - **Enforcement points:** `requireWorkspacePermission` (`apps/web/src/lib/server/authorize.ts`) for session-backed server functions, and `enforcePermission` (`apps/api/src/handlers.ts`) for bearer-token routes. Each endpoint names the permission it needs (`{ apiToken: ['create'] }`), never a role or a scope. Denials are `AuthorizationDenied` (403); the web boundary re-raises them as `ForbiddenError` so the calling form can show a message.
 - **No system-admin bypass:** `user.role === 'admin'` is a separate axis and confers nothing inside a workspace. The `/admin` surface keeps its own gate.
+- **Still open:** loaders do not call the guard, so the UI can still offer a member an action they will be refused (issue #67). The API worker cannot reach the plugin's session-bound endpoints — `removeMember`, `updateMemberRole`, and every invitation endpoint are `requireHeaders: true`, and a bearer token is no session (issue #64).
+- **Decision record:** [ADR 0051](./docs/adr/0051-workspace-membership-on-better-auth-organization-plugin.md) — why the plugin, why the naming override, and where enforcement lives.
 
 ### Audit log
 
 - **Schema:** [`auditEvents`](./packages/db/src/schema.ts) — `eventType`, `targetType`, `actorUserId`, `metadata` JSON.
-- **Capability:** [`AuditEventLog`](./packages/capabilities/src/governance/audit-event-log.ts) exposes `list`, `listGlobal`, and `record(input)`. API-token lifecycle and webhook endpoint mutations already write audit events. Before production, add producers for sign-in failures, member role changes, billing actions, and system-admin actions.
+- **Capability:** [`AuditEventLog`](./packages/capabilities/src/governance/audit-event-log.ts) exposes `list`, `listGlobal`, and `record(input)`. API-token lifecycle, webhook endpoint mutations, membership changes (`workspace_member.added` / `.removed` / `.role_changed`) and invitation lifecycle (`workspace_invitation.sent` / `.canceled` / `.accepted`) all write audit events. Before production, add producers for sign-in failures, billing actions, and system-admin actions.
+- **Atomicity:** most mutating capabilities commit the row and its audit event together via `batch(db, …)`. The plugin-backed membership and invitation writes cannot — the write is an HTTP call and D1 rejects an explicit `BEGIN` — so those two audit events can diverge from their write. Accepted trade, recorded in ADR 0051.
 
 ### Secret matrix
 
