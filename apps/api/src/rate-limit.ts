@@ -15,17 +15,11 @@ import {
 export type RateLimitBindings = {
   readonly RATE_LIMITER_REST?: CloudflareRateLimit
   readonly RATE_LIMITER_REST_WRITE?: CloudflareRateLimit
-  readonly RATE_LIMITER_INVITATIONS?: CloudflareRateLimit
   readonly RATE_LIMITER_ASSISTANT?: CloudflareRateLimit
   readonly RATE_LIMITER_MCP?: CloudflareRateLimit
 }
 
-export type RateLimitBucket =
-  | 'rest_read'
-  | 'rest_write'
-  | 'invitations'
-  | 'assistant'
-  | 'mcp'
+export type RateLimitBucket = 'rest_read' | 'rest_write' | 'assistant' | 'mcp'
 
 export type RateLimitInput = GenericRateLimitInput<RateLimitBucket>
 
@@ -38,7 +32,6 @@ export class RateLimiter extends Context.Service<RateLimiter, RateLimiterInterfa
 const FALLBACK_LIMITS = {
   rest_read: 60,
   rest_write: 20,
-  invitations: 10,
   assistant: 20,
   mcp: 30
 } satisfies Record<RateLimitBucket, number>
@@ -53,9 +46,6 @@ function pickBinding(
     }
     case 'rest_write': {
       return env.RATE_LIMITER_REST_WRITE
-    }
-    case 'invitations': {
-      return env.RATE_LIMITER_INVITATIONS
     }
     case 'assistant': {
       return env.RATE_LIMITER_ASSISTANT

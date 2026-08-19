@@ -67,7 +67,7 @@ Invitation writes and their audit rows can diverge, for the reason recorded on [
 
 ## Status & follow-ups
 
-- **`apps/api` cannot create invitations.** Every invitation endpoint the plugin exposes is `requireHeaders: true`, and `createInvitation` additionally requires the caller to be a member holding `invitation:create`. The API worker authenticates with a bearer token and has no session, so its `invitations.send` endpoint still emails without persisting. Issue #64 owns the question; nothing here needs changing when it is answered — the worker just has to supply an adapter.
+- **`apps/api` creates no invitations, by decision.** Every invitation endpoint the plugin exposes is `requireHeaders: true`, and `createInvitation` additionally requires the caller to be a member holding `invitation:create`. The API worker authenticates with a bearer token and has no session. Issue #64 settled this: the worker does not get a session, and its `invitations.send` endpoint was removed rather than left emailing a link no recipient could accept. `apps/web` is the only supplier of an invitation adapter. Nothing in this capability changes — the port is still open to a second app if the session question is ever reopened.
 - `Member` still carries no `pending` flag. The invitation list is a separate read, which suits the settings page; a combined "people" view would want them merged.
 - Rejecting an invitation is not exposed. The plugin has `rejectInvitation`; no starter surface asks for it yet, and the accept page's "Not now" simply navigates away.
 

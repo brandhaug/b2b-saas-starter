@@ -2,12 +2,7 @@ import { Effect, Result, type Scope } from 'effect'
 import { type HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
-import {
-  InternalError,
-  RateLimited,
-  StarterApi,
-  Unauthorized
-} from '@b2b-saas-starter/api'
+import { RateLimited, StarterApi, Unauthorized } from '@b2b-saas-starter/api'
 import {
   requirePermission,
   tokenPrincipal,
@@ -29,20 +24,18 @@ import {
   WebhookEndpoints,
   WebhookPublisher,
   workspaceOverview,
-  WorkspaceContext,
+  type WorkspaceContext,
   WorkspaceMembership
 } from '@b2b-saas-starter/capabilities'
-import { EmailDispatcher, WorkspaceInvitationEmail } from '@b2b-saas-starter/email'
 import {
   annotateWide,
-  currentTraceId,
   makeOtlpLayer,
   parentSpanFromHeaders,
   readWideEventEnvironment,
   TRACE_HEADER,
   withRequestScope
 } from '@b2b-saas-starter/logger'
-import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
+import { providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
 
 /**
@@ -52,7 +45,6 @@ import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
  */
 const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
-const INVITATION_QUEUED = { status: 'queued' } satisfies { readonly status: 'queued' }
 
 function clientKey(request: HttpServerRequest.HttpServerRequest): string {
   return request.headers['cf-connecting-ip'] ?? `unkeyed:${request.url}`
@@ -62,18 +54,6 @@ function bearerToken(request: HttpServerRequest.HttpServerRequest): string | nul
   const header = request.headers.authorization
   if (!header?.startsWith('Bearer ')) return null
   return header.slice('Bearer '.length).trim()
-}
-
-/**
- * Origin the invitation link points back at. Empty when the request carried no
- * `host` header, which keeps the accept URL relative rather than pointing at a
- * fabricated host.
- */
-function requestOrigin(request: HttpServerRequest.HttpServerRequest): string {
-  const host = request.headers.host
-  if (!host) return ''
-  const proto = request.headers['x-forwarded-proto'] ?? 'https'
-  return `${proto}://${host}`
 }
 
 function enforceRateLimit(
@@ -215,10 +195,6 @@ type PublishedWebhookEvent =
   | {
       readonly eventType: 'webhook_endpoint.created'
       readonly payload: WebhookEndpoint
-    }
-  | {
-      readonly eventType: 'workspace_invitation.sent'
-      readonly payload: { readonly workspaceSlug: string; readonly to: string }
     }
 
 function publishWebhookEvent(
@@ -484,62 +460,6 @@ export function webhookGroup(env: ApiEnv) {
           )
           yield* annotateWide({ webhookEndpointId: created.id })
           return created
-        })
-      )
-    )
-  )
-}
-
-export function invitationGroup(env: ApiEnv) {
-  return HttpApiBuilder.group(StarterApi, 'workspace-invitations', (handlers) =>
-    handlers.handle('send', ({ params, payload, request }) =>
-      observed(
-        env,
-        request,
-        'invitations.send',
-        { workspaceSlug: params.slug },
-        Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'invitations')
-          yield* enforcePermission(request, { invitation: ['create'] }, params.slug)
-          return yield* provideWorkspace(
-            env,
-            params.slug,
-            Effect.gen(function* () {
-              const ctx = yield* WorkspaceContext
-              const dispatcher = yield* EmailDispatcher
-              const inviteUrl = `${requestOrigin(request)}/invitations/accept?workspace=${ctx.workspace.slug}`
-              const delivery = yield* Effect.result(
-                dispatcher.send({
-                  from: emailFromAddress(env) ?? 'noreply@example.com',
-                  to: payload.to,
-                  subject: `You are invited to ${ctx.workspace.name}`,
-                  element: WorkspaceInvitationEmail({
-                    workspaceName: ctx.workspace.name,
-                    inviteUrl
-                  })
-                })
-              )
-              if (Result.isFailure(delivery)) {
-                yield* annotateWide({
-                  outcome: 'invitation_send_failed',
-                  emailError: delivery.failure.message
-                })
-                // The id handed to the caller is the one the wide event and the
-                // exported trace carry, so a support ticket quoting it lands on
-                // the right request.
-                return yield* Effect.fail(
-                  new InternalError({
-                    traceId: request.headers[TRACE_HEADER] ?? (yield* currentTraceId)
-                  })
-                )
-              }
-              yield* publishWebhookEvent({
-                eventType: 'workspace_invitation.sent',
-                payload: { workspaceSlug: ctx.workspace.slug, to: payload.to }
-              })
-              return { ...INVITATION_QUEUED, delivery: delivery.success }
-            })
-          )
         })
       )
     )

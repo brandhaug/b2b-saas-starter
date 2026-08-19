@@ -34,7 +34,7 @@ Public REST clients authenticate with a workspace-scoped API Token in the `Autho
 
 ## Rate limiting
 
-Each route declares a Cloudflare RateLimit bucket — `rest_read`, `rest_write`, `invitations`, `assistant`, `mcp` — and the worker calls `binding.limit({ key: clientKey(request) })` before running the handler, falling back to an in-isolate brake when the bindings are absent.
+Each route declares a Cloudflare RateLimit bucket — `rest_read`, `rest_write`, `assistant`, `mcp` — and the worker calls `binding.limit({ key: clientKey(request) })` before running the handler, falling back to an in-isolate brake when the bindings are absent.
 
 ## Error model
 
