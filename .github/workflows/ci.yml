@@ -6,6 +6,11 @@ on:
     branches: [master]
   workflow_dispatch:
 
+# Untrusted PR dependencies run in these jobs, so the default write token
+# would be theirs too. Only checkout needs the token, and only to read.
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest

@@ -4,6 +4,8 @@
   "maxOpenPrs": 20,
   "concurrency": 10,
   "packageManager": "bun",
+  "minReleaseAgeDays": 3,
+  "autoMerge": { "enabled": true, "mergeMethod": "squash" },
   "groups": [
     { "name": "react", "patterns": ["react", "react-dom"] },
     {
