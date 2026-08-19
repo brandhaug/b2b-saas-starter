@@ -7,6 +7,7 @@ import { RoutePending } from '@/components/route-pending'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { causeMessage } from '@/lib/cause-message'
 import { requireSession } from '@/lib/server/auth'
 import {
   acceptInvitationServerFn,
@@ -105,7 +106,7 @@ function PendingInvitation({
       Effect.tryPromise({
         try: () =>
           acceptInvitationServerFn({ data: { invitationId: preview.invitationId } }),
-        catch: (cause) => (cause instanceof Error ? cause.message : ACCEPT_FAILED)
+        catch: (cause) => causeMessage(cause, ACCEPT_FAILED)
       })
     )
     if (Exit.isFailure(exit)) {

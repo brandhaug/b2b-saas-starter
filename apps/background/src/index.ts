@@ -55,6 +55,12 @@ function starterEnv(env: Env): StarterEnv {
 export type WebhookMessage = typeof WebhookQueueMessage.Type
 
 /**
+ * One compiled codec for the three boundary decodes below: both consumers and
+ * the trace-continuation helper read the same untrusted queue body.
+ */
+const decodeWebhookQueueMessage = Schema.decodeUnknownResult(WebhookQueueMessage)
+
+/**
  * Structural subset of a Cloudflare queue `Message`: the untrusted body plus
  * the attempt count. Both consumers take the envelope rather than a bare body
  * so the boundary decode stays inside the wide-event scope that reports a
@@ -101,7 +107,7 @@ function runInvocation<A, E>(
  * consumers use; an undecodable message simply starts its own trace.
  */
 function queueParentSpan(envelope: WebhookQueueEnvelope) {
-  const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(envelope.body)
+  const decoded = decodeWebhookQueueMessage(envelope.body)
   return Result.match(decoded, {
     onFailure: () => undefined,
     onSuccess: (message) => parentSpanFromHeaders({ traceparent: message.traceparent })
@@ -274,7 +280,7 @@ export function processWebhookMessage(
     // there is no trusted endpointId to attach a delivery row to, so it is
     // recorded on the wide event only and acked — mirroring how permanent
     // delivery failures ack instead of retrying forever.
-    const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(envelope.body)
+    const decoded = decodeWebhookQueueMessage(envelope.body)
     if (Result.isFailure(decoded)) {
       yield* annotateWide({
         outcome: 'failed_permanent',
@@ -419,7 +425,7 @@ export function processDeadLetterMessage(
   return Effect.gen(function* () {
     // Same boundary decode as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
-    const decoded = Schema.decodeUnknownResult(WebhookQueueMessage)(envelope.body)
+    const decoded = decodeWebhookQueueMessage(envelope.body)
     if (Result.isFailure(decoded)) {
       yield* annotateWide({
         outcome: 'dead_lettered',

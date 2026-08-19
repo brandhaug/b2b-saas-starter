@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import { SeedLayer } from '../layers.ts'
@@ -89,7 +89,7 @@ describe('WebhookEndpoints.create URL validation', () => {
         Effect.gen(function* () {
           const result = yield* createEndpoint(url)
           expect({ url, tag: result._tag }).toEqual({ url, tag: 'Failure' })
-          if (result._tag === 'Failure') {
+          if (Result.isFailure(result)) {
             expect(result.failure._tag).toBe('InvalidWebhookUrl')
           }
         })

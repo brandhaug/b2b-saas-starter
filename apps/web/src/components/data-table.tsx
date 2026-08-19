@@ -151,15 +151,15 @@ export function DataTable<TData extends RowData>({
                     className={cn(isSticky && STICKY_CLASSES)}
                   >
                     {canSort && label !== null ? (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={header.column.getToggleSortingHandler()}
                         aria-label={`Sort by ${columnTitle}${sortState.label}`}
-                        className="flex items-center gap-1 text-left text-sm font-medium hover:underline"
                       >
                         {label}
                         {sortState.glyph}
-                      </button>
+                      </Button>
                     ) : (
                       label
                     )}

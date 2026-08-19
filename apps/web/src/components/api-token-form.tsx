@@ -9,6 +9,8 @@ import {
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { causeMessage } from '@/lib/cause-message'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
 
 const CREATE_TOKEN_FAILED = 'Failed to create token'
@@ -71,8 +73,7 @@ export function ApiTokenForm({
                 scopes: value.scopes
               }
             }),
-          catch: (cause) =>
-            cause instanceof Error ? cause.message : CREATE_TOKEN_FAILED
+          catch: (cause) => causeMessage(cause, CREATE_TOKEN_FAILED)
         })
       )
 
@@ -135,7 +136,7 @@ export function ApiTokenForm({
                 {API_TOKEN_SCOPES.map((scope) => {
                   const checked = field.state.value.includes(scope)
                   return (
-                    <label key={scope} className="flex items-center gap-2 text-sm">
+                    <Label key={scope} className="text-sm">
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(next) => {
@@ -148,7 +149,7 @@ export function ApiTokenForm({
                         }}
                       />
                       <span>{scope}</span>
-                    </label>
+                    </Label>
                   )
                 })}
               </div>

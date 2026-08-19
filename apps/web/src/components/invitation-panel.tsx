@@ -10,6 +10,9 @@ import {
 import { FormTextField } from '@/components/form-text-field'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { causeMessage } from '@/lib/cause-message'
 import {
   cancelInvitationServerFn,
   sendInvitationServerFn,
@@ -70,7 +73,7 @@ export function InvitationPanel({
             sendInvitationServerFn({
               data: { workspaceSlug, email: value.email, role: value.role }
             }),
-          catch: (cause) => (cause instanceof Error ? cause.message : SEND_FAILED)
+          catch: (cause) => causeMessage(cause, SEND_FAILED)
         })
       )
       if (Exit.isFailure(exit)) {
@@ -93,7 +96,7 @@ export function InvitationPanel({
     const exit = await Effect.runPromiseExit(
       Effect.tryPromise({
         try: () => cancelInvitationServerFn({ data: { workspaceSlug, invitationId } }),
-        catch: (cause) => (cause instanceof Error ? cause.message : CANCEL_FAILED)
+        catch: (cause) => causeMessage(cause, CANCEL_FAILED)
       })
     )
     setCancelling(null)
@@ -137,20 +140,19 @@ export function InvitationPanel({
           {(field) => (
             <fieldset className="grid gap-2">
               <legend className="text-sm font-medium leading-none">Role</legend>
-              <div className="flex flex-wrap gap-3">
+              <RadioGroup
+                name={field.name}
+                value={field.state.value}
+                onValueChange={(role) => field.handleChange(role)}
+                className="flex flex-wrap gap-3"
+              >
                 {WORKSPACE_ROLES.map((role) => (
-                  <label key={role} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name={field.name}
-                      value={role}
-                      checked={field.state.value === role}
-                      onChange={() => field.handleChange(role)}
-                    />
+                  <Label key={role} className="text-sm">
+                    <RadioGroupItem value={role} />
                     <span>{role}</span>
-                  </label>
+                  </Label>
                 ))}
-              </div>
+              </RadioGroup>
             </fieldset>
           )}
         </form.Field>

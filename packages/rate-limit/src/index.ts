@@ -1,4 +1,4 @@
-import { Clock, Effect, Schema, type Scope } from 'effect'
+import { Clock, Effect, Result, Schema, type Scope } from 'effect'
 import { annotateWide } from '@b2b-saas-starter/logger'
 
 // Cloudflare Rate Limiting binding shape (subset). The actual bindings are
@@ -100,7 +100,7 @@ export function makeRateLimiter<Bucket extends string>(
                 new RateLimitBindingFailure({ reason: bindingFailureReason(cause) })
             })
           )
-          if (attempt._tag === 'Success') {
+          if (Result.isSuccess(attempt)) {
             const outcome = attempt.success
             return outcome.success
           }

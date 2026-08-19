@@ -290,6 +290,20 @@
         "vitest": "catalog:",
       },
     },
+    "packages/oxlint-plugin": {
+      "name": "@b2b-saas-starter/oxlint-plugin",
+      "dependencies": {
+        "@oxlint/plugins": "catalog:",
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@b2b-saas-starter/config": "workspace:*",
+        "bun-types": "catalog:",
+        "oxlint": "catalog:",
+        "typescript": "catalog:",
+        "vitest": "catalog:",
+      },
+    },
     "packages/rate-limit": {
       "name": "@b2b-saas-starter/rate-limit",
       "dependencies": {
@@ -337,6 +351,7 @@
     "@fontsource-variable/geist-mono": "5.3.0",
     "@mdx-js/rollup": "3.1.1",
     "@modelcontextprotocol/sdk": "1.30.0",
+    "@oxlint/plugins": "1.78.0",
     "@playwright/test": "1.62.1",
     "@react-email/components": "1.0.12",
     "@react-email/preview-server": "5.2.10",
@@ -483,6 +498,8 @@
     "@b2b-saas-starter/infra": ["@b2b-saas-starter/infra@workspace:infra"],
 
     "@b2b-saas-starter/logger": ["@b2b-saas-starter/logger@workspace:packages/logger"],
+
+    "@b2b-saas-starter/oxlint-plugin": ["@b2b-saas-starter/oxlint-plugin@workspace:packages/oxlint-plugin"],
 
     "@b2b-saas-starter/rate-limit": ["@b2b-saas-starter/rate-limit@workspace:packages/rate-limit"],
 

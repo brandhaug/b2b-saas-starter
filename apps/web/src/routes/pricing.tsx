@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/public-layout'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const Route = createFileRoute('/pricing')({
@@ -50,13 +51,9 @@ function PricingPage() {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <p className="text-sm text-muted-foreground">{plan.description}</p>
-                <button
-                  type="button"
-                  disabled
-                  className="h-9 rounded-md border border-border text-sm text-muted-foreground"
-                >
+                <Button variant="outline" size="lg" disabled>
                   Get started
-                </button>
+                </Button>
                 <p className="text-xs text-muted-foreground">
                   Available once a billing provider is configured.
                 </p>

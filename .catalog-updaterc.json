@@ -23,7 +23,7 @@
       "patterns": ["tailwindcss", "@tailwindcss/*", "tailwind-merge", "tw-animate-css"]
     },
     { "name": "vite", "patterns": ["vite", "@vitejs/*"] },
-    { "name": "oxc", "patterns": ["oxlint*", "oxfmt"] },
+    { "name": "oxc", "patterns": ["oxlint*", "oxfmt", "@oxlint/*"] },
     { "name": "testing-library", "patterns": ["@testing-library/*"] },
     { "name": "zod", "patterns": ["zod"] },
     {

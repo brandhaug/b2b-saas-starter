@@ -15,9 +15,19 @@ export function layerFromDb(db: EffectDatabase): Layer.Layer<Database> {
   return Layer.succeed(Database)(db)
 }
 
+/**
+ * The `orDie` is what lets this return `Layer.Layer<Database>` with no error
+ * channel. Building a drizzle client over a D1 binding that already exists fails
+ * only on a broken install, and there is nothing to degrade to at this level:
+ * runtime query failures are caught above by `orUnavailable`, which is where the
+ * starter's degraded states come from. Widening the signature instead would push a
+ * `SqlError` onto every consumer of the database layer for a case none of them can
+ * act on.
+ */
 export function layerFromD1(d1: D1Client.D1ClientConfig['db']): Layer.Layer<Database> {
   return Layer.effect(Database)(SQLiteD1Drizzle.makeWithDefaults({})).pipe(
     Layer.provide(D1Client.layer({ db: d1 })),
+    // oxlint-disable-next-line starter/no-effect-escape-hatch -- see the note above
     Layer.orDie
   )
 }

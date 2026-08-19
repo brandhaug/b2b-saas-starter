@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { SearchIcon } from 'lucide-react'
 import { publicLinks } from '@/lib/content'
+import { Button } from '@/components/ui/button'
 import {
   CommandDialog,
   CommandEmpty,
@@ -90,18 +91,18 @@ export function SearchButton() {
   return (
     <CommandPaletteContext.Consumer>
       {(value) => (
-        <button
-          type="button"
+        <Button
+          variant="outline"
           onClick={() => value?.setOpen(true)}
           aria-label="Search"
-          className="hidden h-9 w-56 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground transition-colors hover:text-foreground md:flex"
+          className="hidden h-9 w-56 gap-2 rounded-md px-3 text-sm text-muted-foreground md:flex"
         >
           <SearchIcon className="size-4" />
           <span className="flex-1 text-left">Search...</span>
           <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-3xs">
             {isMac ? '⌘K' : 'Ctrl K'}
           </kbd>
-        </button>
+        </Button>
       )}
     </CommandPaletteContext.Consumer>
   )

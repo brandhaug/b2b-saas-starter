@@ -28,6 +28,10 @@ export const CatalogRefreshSummarySchema = Schema.Struct({
   durationMs: Schema.Number
 })
 
+const decodeCatalogRefreshSummary = Schema.decodeUnknownOption(
+  CatalogRefreshSummarySchema
+)
+
 export type CatalogRefreshHistoryInterface = {
   readonly listRecent: Effect.Effect<
     readonly CatalogRefreshRun[],
@@ -121,7 +125,7 @@ function refreshStatus(status: string): CatalogRefreshStatus {
 function toCatalogRefreshRun(
   row: typeof catalogRefreshRuns.$inferSelect
 ): CatalogRefreshRun {
-  const summary = Schema.decodeUnknownOption(CatalogRefreshSummarySchema)(row.summary)
+  const summary = decodeCatalogRefreshSummary(row.summary)
   const counts = Option.match(summary, {
     onNone: () => ({ modules: 0, durationMs: 0 }),
     onSome: (decoded) => ({
