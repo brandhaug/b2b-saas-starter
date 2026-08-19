@@ -4,15 +4,13 @@ import { HttpApiBuilder, HttpApiScalar } from 'effect/unstable/httpapi'
 import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { StarterApi } from '@b2b-saas-starter/api'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities'
-import { selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
-import { emailFromAddress, providerEnv, starterEnv, type ApiEnv } from './env.ts'
+import { providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import {
   apiTokenGroup,
   assistantGroup,
   catalogGroup,
   healthGroup,
-  invitationGroup,
   mcpGroup,
   webhookGroup,
   workspaceGroup
@@ -31,13 +29,9 @@ const PlatformLive = Layer.mergeAll(
 )
 
 function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRouter> {
-  // The dispatcher goes live only when both the binding and a sender exist;
-  // `selectEmailDispatcherLayer` makes that call, so pass both through as-is.
-  const emailEnv = { EMAIL: env.EMAIL, EMAIL_FROM_ADDRESS: emailFromAddress(env) }
   const capabilities = Layer.mergeAll(
     selectCapabilitiesLayer(starterEnv(env)),
     selectAssistantLayer(providerEnv(env)),
-    selectEmailDispatcherLayer(emailEnv),
     makeRateLimiterLayer(env)
   )
 
@@ -46,7 +40,6 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     workspaceGroup(env),
     apiTokenGroup(env),
     webhookGroup(env),
-    invitationGroup(env),
     catalogGroup(env),
     assistantGroup(env),
     mcpGroup(env)

@@ -191,27 +191,6 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
   })
 )
 
-export const SendInvitationPayload = Schema.Struct({
-  to: Schema.String.check(
-    Schema.isMinLength(3),
-    Schema.isMaxLength(320),
-    Schema.isPattern(/^[^\s@]+@[^\s@]+$/)
-  )
-})
-export type SendInvitationPayload = typeof SendInvitationPayload.Type
-
-export const InvitationApi = HttpApiGroup.make('workspace-invitations').add(
-  HttpApiEndpoint.post('send', '/workspaces/:slug/invitations', {
-    params: SlugParams,
-    payload: SendInvitationPayload,
-    success: Schema.Struct({
-      status: Schema.Literal('queued'),
-      delivery: Schema.Unknown
-    }).pipe(HttpApiSchema.status(202)),
-    error: WORKSPACE_ERRORS
-  })
-)
-
 export const CatalogApi = HttpApiGroup.make('catalog')
   .add(
     HttpApiEndpoint.get('modules', '/catalog/modules', {
@@ -268,7 +247,6 @@ export const StarterApi = HttpApi.make('b2b-saas-starter')
   .add(WorkspaceApi)
   .add(ApiTokenApi)
   .add(WebhookApi)
-  .add(InvitationApi)
   .add(CatalogApi)
   .add(AssistantApi)
   .add(McpApi)

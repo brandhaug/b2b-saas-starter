@@ -47,12 +47,6 @@
         "simple": { "limit": 20, "period": 60 }
       },
       {
-        "name": "RATE_LIMITER_INVITATIONS",
-        "type": "ratelimit",
-        "namespace_id": "1003",
-        "simple": { "limit": 10, "period": 60 }
-      },
-      {
         "name": "RATE_LIMITER_ASSISTANT",
         "type": "ratelimit",
         "namespace_id": "1004",

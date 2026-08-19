@@ -4,7 +4,6 @@ import {
   type StarterEnv,
   type WebhookQueueBinding
 } from '@b2b-saas-starter/capabilities'
-import { type SendEmailBinding } from '@b2b-saas-starter/email'
 import { type RateLimitBindings } from './rate-limit.ts'
 
 // The worker's Cloudflare bindings + redacted env. Shared by the handler
@@ -13,16 +12,14 @@ export type ApiEnv = RateLimitBindings &
   Partial<ServerEnv> & {
     readonly DB?: D1Database
     readonly AI?: WorkersAIBinding
-    readonly EMAIL?: SendEmailBinding
     readonly WEBHOOK_QUEUE?: WebhookQueueBinding
+    /**
+     * Read only by module-config readiness (ADR 0035), which reports the
+     * `cloudflare-email` module from it. This worker sends no email of its own
+     * — see the intent node.
+     */
     readonly CLOUDFLARE_EMAIL_FROM?: string
-    /** Back-compat/local alias; deployments forward CLOUDFLARE_EMAIL_FROM. */
-    readonly EMAIL_FROM_ADDRESS?: string
   }
-
-export function emailFromAddress(env: ApiEnv): string | undefined {
-  return env.CLOUDFLARE_EMAIL_FROM ?? env.EMAIL_FROM_ADDRESS
-}
 
 // Only configured provider vars are copied across: an absent key leaves the
 // assistant in its mock/needs-config state, while a present-but-undefined key

@@ -15,7 +15,6 @@ export type RateLimitBindingSpec = {
 export const apiRateLimits: readonly RateLimitBindingSpec[] = [
   { name: 'RATE_LIMITER_REST', namespaceId: '1001', limit: 60, period: 60 },
   { name: 'RATE_LIMITER_REST_WRITE', namespaceId: '1002', limit: 20, period: 60 },
-  { name: 'RATE_LIMITER_INVITATIONS', namespaceId: '1003', limit: 10, period: 60 },
   { name: 'RATE_LIMITER_ASSISTANT', namespaceId: '1004', limit: 20, period: 60 },
   { name: 'RATE_LIMITER_MCP', namespaceId: '1005', limit: 30, period: 60 }
 ]

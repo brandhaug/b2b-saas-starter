@@ -92,6 +92,9 @@ describe('contract-served routes', () => {
         expect(doc.paths['/workspaces/{slug}/overview']).toBeDefined()
         expect(doc.paths['/workspaces/{slug}/webhooks']).toBeDefined()
         expect(doc.paths['/health']).toBeDefined()
+        // The published contract must not advertise a surface the worker cannot
+        // serve. See the 404 test below and issue #64.
+        expect(doc.paths['/workspaces/{slug}/invitations']).toBeUndefined()
       })
     ))
 
@@ -232,13 +235,21 @@ describe('contract-served routes', () => {
       })
     ))
 
-  test('POST invitations validates email through the contract schema', () =>
+  // Issue #64: the worker has no session to offer Better Auth's organization
+  // plugin, so it cannot persist an invitation. The endpoint used to email a
+  // link carrying no invitation id, which no recipient could ever accept, so
+  // the route is gone rather than left emailing a dead link.
+  test('POST invitations is not served: the worker cannot persist one', () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const res = yield* send(
-          post('/workspaces/starter-lab/invitations', { to: 'not-an-email' }, bearer)
+          post(
+            '/workspaces/starter-lab/invitations',
+            { to: 'invitee@example.com' },
+            bearer
+          )
         )
-        expect(res.status).toBe(400)
+        expect(res.status).toBe(404)
       })
     ))
 
