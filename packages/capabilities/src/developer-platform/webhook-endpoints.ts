@@ -309,6 +309,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
           url: row.url,
           enabled: row.enabled,
           events: row.events,
+          // `sql<number>` is an unchecked claim about what the driver hands back, not a
+          // guarantee, so the coercion stays as runtime defence for the SUM column.
+          // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- see above
           successRate: deliverySuccessRate(row.total, Number(row.delivered))
         }))
       }),

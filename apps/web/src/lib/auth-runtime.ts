@@ -21,7 +21,7 @@ export class MissingD1Binding extends Schema.TaggedErrorClass<MissingD1Binding>(
 // SAFETY: no property of this value is ever read successfully — the `get` trap throws on
 // every access — so nothing downstream can observe the difference between it and a real
 // D1Database. The assertion only satisfies the binding's declared type.
-// oxlint-disable-next-line effect/noAs -- a Proxy sentinel has no structural D1Database to decode from; every property access throws MissingD1Binding by design
+// oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- a Proxy sentinel has no structural D1Database to decode from, and narrowing the empty target is the point; every property access throws MissingD1Binding by design
 const missingD1 = new Proxy(
   {},
   {

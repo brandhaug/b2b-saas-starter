@@ -6,6 +6,7 @@ import {
 } from '@b2b-saas-starter/capabilities'
 import { annotateWide } from '@b2b-saas-starter/logger'
 import { runCapabilities } from '@/lib/capabilities'
+import { causeMessage } from '@/lib/cause-message'
 
 /**
  * Whether an auth catchall exchange is audit-worthy at all. Only credential
@@ -58,9 +59,11 @@ export class AuthAuditWriteFailed extends Schema.TaggedErrorClass<AuthAuditWrite
   { reason: Schema.String }
 ) {}
 
-function failureReason(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
-}
+// Reasons for the two tagged errors below when the thrown value carries no
+// message of its own. Each names the step that failed, so a reason column with
+// one of these strings still says where the audit path gave up.
+const BODY_UNREADABLE_REASON = 'sign-in response body could not be read'
+const WRITE_FAILED_REASON = 'audit event could not be written'
 
 /**
  * The only part of Better Auth's sign-in response this audit path reads. The
@@ -82,7 +85,10 @@ function readActorUserId(
       const body = decodeSignInResponseBody(await response.clone().json())
       return body.user?.id ?? null
     },
-    catch: (cause) => new AuthAuditBodyUnreadable({ reason: failureReason(cause) })
+    catch: (cause) =>
+      new AuthAuditBodyUnreadable({
+        reason: causeMessage(cause, BODY_UNREADABLE_REASON)
+      })
   })
 }
 
@@ -108,7 +114,8 @@ function writeAuditEvent(
           yield* audit.record(input)
         })
       ),
-    catch: (cause) => new AuthAuditWriteFailed({ reason: failureReason(cause) })
+    catch: (cause) =>
+      new AuthAuditWriteFailed({ reason: causeMessage(cause, WRITE_FAILED_REASON) })
   })
 }
 

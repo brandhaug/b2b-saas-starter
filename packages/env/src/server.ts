@@ -35,6 +35,9 @@ export const ServerEnvSchema = Schema.Struct({
 
 export type ServerEnv = typeof ServerEnvSchema.Type
 
+/** Compiled once at module scope — `readServerEnv` runs per worker invocation. */
+const decodeServerEnv = Schema.decodeUnknownSync(ServerEnvSchema)
+
 /** Every env var the schema declares — derived from the schema, never hand-mirrored. */
 export const serverEnvKeys: ReadonlyArray<keyof ServerEnv> = Record.keys(
   ServerEnvSchema.fields
@@ -118,7 +121,7 @@ export function readServerEnv(
   const picked = Object.fromEntries(
     serverEnvKeys.map((key) => [key, source[key] ?? localDefaults[key]])
   )
-  return Schema.decodeUnknownSync(ServerEnvSchema)(picked)
+  return decodeServerEnv(picked)
 }
 
 /** An Optional Provider Module is configured once every var it requires has a value. */
@@ -219,7 +222,11 @@ export function makeStarterEnvModuleConfig(
   return moduleConfigStatus(readServerEnv(env))
 }
 
-type RedactedValueSummary = 'configured' | 'env-present' | 'missing'
+export type RedactedValueSummary = 'configured' | 'env-present' | 'missing'
+
+export type RedactedModuleConfigStatus = ModuleConfigStatus & {
+  readonly values: RedactedValueSummary
+}
 
 function summarizeValues(status: ModuleConfigStatus): RedactedValueSummary {
   if (status.configured) return 'configured'
@@ -227,9 +234,20 @@ function summarizeValues(status: ModuleConfigStatus): RedactedValueSummary {
   return 'missing'
 }
 
-export function redactedEnvStatus(env: ServerEnv) {
+/**
+ * The fields are listed one by one rather than spread. `ModuleConfigStatus` is a
+ * closed four-field record, so naming them costs nothing and keeps the redacted
+ * shape an explicit allow-list: a future field cannot reach a status endpoint
+ * just because it was added upstream.
+ */
+export function redactedEnvStatus(
+  env: ServerEnv
+): readonly RedactedModuleConfigStatus[] {
   return moduleConfigStatus(env).map((item) => ({
-    ...item,
+    moduleId: item.moduleId,
+    configured: item.configured,
+    envPresent: item.envPresent,
+    missing: item.missing,
     values: summarizeValues(item)
   }))
 }

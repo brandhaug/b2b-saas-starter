@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { BellIcon, RefreshCwIcon } from 'lucide-react'
 import { type Notification as CapabilityNotification } from '@b2b-saas-starter/capabilities'
+import { causeMessage } from '@/lib/cause-message'
 import {
   listNotificationsServerFn,
   notificationsQueryKey
@@ -8,6 +9,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
+const REFRESH_FAILED = 'Could not refresh notifications.'
 
 export type NotificationPreview = Pick<
   CapabilityNotification,
@@ -66,9 +69,7 @@ export function LiveNotifications({
       <CardContent className="grid gap-3">
         {error ? (
           <p className="text-xs text-destructive" role="alert">
-            {error instanceof Error
-              ? error.message
-              : 'Could not refresh notifications.'}
+            {causeMessage(error, REFRESH_FAILED)}
           </p>
         ) : null}
         {notifications.length === 0 ? (

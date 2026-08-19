@@ -22,6 +22,7 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet'
 import { authClient } from '@/lib/auth-client'
+import { causeMessage } from '@/lib/cause-message'
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
 
@@ -136,7 +137,7 @@ function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
         await signOut()
         await router.navigate({ to: '/sign-in' })
       },
-      catch: (cause) => (cause instanceof Error ? cause.message : SIGN_OUT_FAILED)
+      catch: (cause) => causeMessage(cause, SIGN_OUT_FAILED)
     }),
     Effect.sync(() => setSigningOut(false))
   )

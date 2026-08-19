@@ -63,36 +63,36 @@ export function SeedNotificationFeed(
   })
 }
 
+function toNotification(row: typeof notifications.$inferSelect): Notification {
+  return {
+    id: row.id,
+    title: row.title,
+    message: row.message,
+    createdAt: row.createdAt,
+    read: row.readAt !== null
+  }
+}
+
+// Broadcast rows (userId IS NULL) are visible to everyone in the workspace;
+// user-targeted rows only to that actor. Without an actor in context, only
+// broadcast rows are visible.
+function visibilityFilter(workspaceId: string, actor: Actor | null) {
+  const workspaceScope = eq(notifications.workspaceId, workspaceId)
+  if (actor === null) {
+    return and(workspaceScope, isNull(notifications.userId))
+  }
+  return and(
+    workspaceScope,
+    or(isNull(notifications.userId), eq(notifications.userId, actor.userId))
+  )
+}
+
 const unavailable = orUnavailable('notification-feed')
 
 export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database> =
   Layer.effect(NotificationFeed)(
     Effect.gen(function* () {
       const db = yield* Database
-
-      function toNotification(row: typeof notifications.$inferSelect): Notification {
-        return {
-          id: row.id,
-          title: row.title,
-          message: row.message,
-          createdAt: row.createdAt,
-          read: row.readAt !== null
-        }
-      }
-
-      // Broadcast rows (userId IS NULL) are visible to everyone in the
-      // workspace; user-targeted rows only to that actor. Without an actor in
-      // context, only broadcast rows are visible.
-      function visibilityFilter(workspaceId: string, actor: Actor | null) {
-        const workspaceScope = eq(notifications.workspaceId, workspaceId)
-        if (actor === null) {
-          return and(workspaceScope, isNull(notifications.userId))
-        }
-        return and(
-          workspaceScope,
-          or(isNull(notifications.userId), eq(notifications.userId, actor.userId))
-        )
-      }
 
       return {
         list: Effect.gen(function* () {

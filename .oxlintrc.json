@@ -19,6 +19,12 @@
       // published to npm). plugin.mjs is not in ultracite's exports map, so the
       // specifier has to be a path.
       "specifier": "./node_modules/ultracite/config/oxlint/anti-slop/plugin.mjs"
+    },
+    {
+      "name": "starter",
+      // The repo's own rules (ADR 0052). Not published, so it loads from source;
+      // oxlint reads a TypeScript plugin entry directly.
+      "specifier": "./packages/oxlint-plugin/src/index.ts"
     }
   ],
   "settings": {
@@ -27,7 +33,14 @@
     }
   },
   "categories": {
-    "correctness": "error"
+    "correctness": "error",
+    // `suspicious` and `perf` are clean once the four rules below are tuned: the
+    // JSX-transform relic is off, Effect's `_tag` and CSS side-effect imports are
+    // allow-listed, and `consistent-function-scoping` is relaxed only in tests and
+    // config files. `pedantic` stays off. It is 87 `max-lines-per-function` hits on
+    // test bodies plus `max-dependencies`, neither of which we want to police.
+    "suspicious": "error",
+    "perf": "error"
   },
   "env": {
     "browser": true,
@@ -53,6 +66,9 @@
     "object-shorthand": "error",
     "radix": "error",
     "no-label-var": "error",
+    // `_tag` is Effect's discriminant on tagged errors and Schema unions, so it shows
+    // up wherever we match on a failure. Every other dangling underscore is noise.
+    "no-underscore-dangle": ["error", { "allow": ["_tag"] }],
     "no-self-compare": "error",
     "no-template-curly-in-string": "error",
     "default-case-last": "error",
@@ -180,6 +196,17 @@
     "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
     "@typescript-eslint/no-unnecessary-template-expression": "error",
     "@typescript-eslint/no-deprecated": "error",
+    // consistent-return is off: "return a message, or fall through to undefined" is the
+    // shape every validator in the repo uses, because that is the contract TanStack Form
+    // wants (`validateEmail`, `validateTokenName`, the inline `onChange` validators) and
+    // what `optionalSecret` in alchemy.run.ts needs. The rule would demand an explicit
+    // `return undefined` on eleven such functions and buy nothing.
+    "@typescript-eslint/consistent-return": "off",
+    // no-unnecessary-type-arguments is off: it fights Effect's convention of spelling out
+    // the channels. `Effect.Effect<A, unknown, never>` and `Effect.context<never>()` say
+    // "no requirements" to the reader; collapsing them to the defaults makes an Effect
+    // signature harder to read, not easier.
+    "@typescript-eslint/no-unnecessary-type-arguments": "off",
     // `ignoreArrowShorthand` is required: without it every `onClick={() => setX(1)}` is a
     // violation, which is idiomatic React, not a confusing void expression.
     "@typescript-eslint/no-confusing-void-expression": [
@@ -194,7 +221,10 @@
     "unicorn/no-abusive-eslint-disable": "error",
     "unicorn/no-await-in-promise-methods": "error",
     "unicorn/no-empty-file": "error",
-    "unicorn/no-instanceof-builtins": "error",
+    // strict, not the default loose strategy: loose skips `Error` itself, which is the
+    // one builtin the repo used to probe by hand in a dozen places. The normalizers that
+    // legitimately do it are exempted per file below.
+    "unicorn/no-instanceof-builtins": ["error", { "strategy": "strict" }],
     "unicorn/no-invalid-fetch-options": "error",
     "unicorn/no-invalid-remove-event-listener": "error",
     "unicorn/no-negated-condition": "error",
@@ -293,6 +323,32 @@
     "react/no-unstable-nested-components": "error",
     "react/only-export-components": "error",
     "react/self-closing-comp": "error",
+    // DESIGN.md's component contract, enforced instead of described: a hand-rolled
+    // `<button>` loses the focus ring, the disabled treatment, and the size scale that
+    // `buttonVariants` encodes, and a bare `<label>` loses the peer-disabled wiring.
+    // `table` is deliberately absent. `ui/table.tsx` encodes workspace data-table
+    // styling (fixed `text-xs`, `p-2` cells, an overflow wrapper), and the marketing
+    // manifest table on the landing page overrides nearly all of it, so pointing that
+    // surface at the primitive would mean fighting it cell by cell.
+    "react/forbid-elements": [
+      "error",
+      {
+        "forbid": [
+          {
+            "element": "button",
+            "message": "Use <Button> from @/components/ui/button, or add a variant to buttonVariants if none fits."
+          },
+          {
+            "element": "input",
+            "message": "Use <Input> from @/components/ui/input, or the matching Base UI primitive wrapper in @/components/ui."
+          },
+          {
+            "element": "label",
+            "message": "Use <Label> from @/components/ui/label so peer-disabled and field wiring stay consistent."
+          }
+        ]
+      }
+    ],
     "react/style-prop-object": "error",
     "react/void-dom-elements-no-children": "error",
     "react/hook-use-state": "error",
@@ -314,6 +370,8 @@
     "react/no-string-refs": "error",
     "react/no-this-in-sfc": "error",
     "react/no-unknown-property": "error",
+    // Automatic JSX runtime, so React is never in scope by hand (851 would-be reports).
+    "react-in-jsx-scope": "off",
     "react-hooks/exhaustive-deps": "error",
     "react-hooks/rules-of-hooks": "error",
 
@@ -358,6 +416,10 @@
     "import/no-mutable-exports": "error",
     "import/no-named-as-default": "error",
     "import/no-self-import": "error",
+    // Stylesheet imports are the framework's documented way to pull in Tailwind and
+    // the font faces (`__root.tsx`, `router.tsx`); every other side-effect import is
+    // still a mistake worth reporting.
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }],
 
     "oxc/approx-constant": "error",
     "oxc/bad-array-method-on-arguments": "error",
@@ -471,7 +533,19 @@
     "anti-slop/no-unknown-type-aliases": "error",
     "anti-slop/no-unsafe-dictionary-type": "error",
     "anti-slop/no-widen-then-assert": "error",
-    "anti-slop/require-safety-comment-for-type-assertion": "error"
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
+
+    // @b2b-saas-starter/oxlint-plugin. See packages/oxlint-plugin/AGENTS.md for what
+    // each rule catches and why it is not already covered by effect/* or anti-slop/*.
+    "starter/no-effect-escape-hatch": "error",
+    "starter/no-effect-internal-tags": "error",
+    "starter/no-inline-schema-compile": "error",
+    "starter/no-interface-merge-outside-dts": "error",
+    "starter/no-mismatched-augmentation-context": "error",
+    "starter/no-schema-class": "error",
+    "starter/no-unknown-error-message": "error",
+    "starter/no-unsupported-effect-api": "error",
+    "starter/prefer-effect-predicate": "error"
   },
   "overrides": [
     {
@@ -558,6 +632,12 @@
         // async mocks (vi.fn(async () => ...)) satisfy Promise-typed interfaces without awaiting
         "@typescript-eslint/require-await": "off",
         "no-empty-function": "off",
+        // Row builders and request helpers belong beside the cases they serve. Hoisting
+        // them to module scope to save an allocation per test is the wrong trade.
+        "unicorn/consistent-function-scoping": "off",
+        // A test that asserts on a defect has to produce one, so `orDie` and `die` are
+        // the subject rather than an escape hatch.
+        "starter/no-effect-escape-hatch": "off",
         // Tests and story play functions are inherently sequential step lists.
         "no-await-in-loop": "off",
         "no-console": "off",
@@ -679,6 +759,50 @@
       }
     },
     {
+      // The typed boundaries. Each of these turns an unknown rejection into its
+      // package's tagged error, which is the one place the `instanceof Error` probe and
+      // the `String(cause)` fallback belong. `packages/logger` is absent on purpose: its
+      // helper takes `head`, so neither rule reaches it. `apps/web` reads a failure
+      // through `lib/cause-message.ts`, whose parameter is `thrown` for the same reason.
+      "files": [
+        "packages/ai/src/index.ts",
+        "packages/db/src/service.ts",
+        "packages/email/src/index.ts",
+        "packages/rate-limit/src/index.ts",
+        "packages/capabilities/src/internal/unavailable.ts",
+        "packages/capabilities/src/governance/plugin-binding-failure.ts",
+        "apps/web/src/lib/cause-message.ts",
+        "packages/logger/src/index.ts"
+      ],
+      "rules": {
+        "starter/no-unknown-error-message": "off",
+        "unicorn/no-instanceof-builtins": "off"
+      }
+    },
+    {
+      // TanStack Router hands `defaultErrorComponent` a real `Error`: the router
+      // boundary already narrowed it, and `capability-error.ts` explains why `name` and
+      // `message` are the only two fields that survive the SSR serialization. So this is
+      // a typed read, not a probe of an unknown.
+      "files": ["apps/web/src/router.tsx"],
+      "rules": {
+        "starter/no-unknown-error-message": "off"
+      }
+    },
+    {
+      // The lint plugin is tooling, not application code. Its test harness spawns the
+      // real oxlint binary and writes fixtures to a temp directory, which needs
+      // `node:child_process` and `node:fs`, and the two vitest rules cannot see through
+      // its generic `it()` wrapper to the assertion inside. Everything under `src/` is
+      // held to the normal rules.
+      "files": ["packages/oxlint-plugin/test/**"],
+      "rules": {
+        "effect/noNodeBuiltinImport": "off",
+        "vitest/expect-expect": "off",
+        "vitest/valid-title": "off"
+      }
+    },
+    {
       // Ambient declaration files cannot use top-level type imports without becoming
       // modules, and augmenting workers-types' `interface Env {}` needs the interface
       // form — which the two style rules below would otherwise reject.
@@ -704,6 +828,9 @@
       // control association is the caller's contract, not the primitive's.
       "files": ["apps/web/src/components/ui/**"],
       "rules": {
+        // This directory is where the forbidden elements are legitimately rendered:
+        // every primitive is a thin wrapper over the raw tag it replaces.
+        "react/forbid-elements": "off",
         "jsx-a11y/label-has-associated-control": "off"
       },
       "plugins": ["jsx-a11y"]
@@ -725,6 +852,8 @@
       // so `node:path` and friends are the correct APIs there.
       "files": ["**/*.config.ts", "apps/web/src/lib/local-d1-state.ts"],
       "rules": {
+        // Build-config helpers read better next to the plugin option they feed.
+        "unicorn/consistent-function-scoping": "off",
         "anti-slop/no-unsafe-dictionary-type": "off",
         "anti-slop/no-unknown-parameters": "off",
         "effect/noNodeBuiltinImport": "off",

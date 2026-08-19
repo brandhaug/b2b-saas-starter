@@ -75,6 +75,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 
 - [0012 — Focused Playwright coverage](./0012-focused-playwright-coverage.md)
 - [0017 — Deterministic seed workspace](./0017-deterministic-seed-workspace.md)
+- [0052 — Repo-local oxlint plugin for starter conventions](./0052-repo-local-oxlint-plugin.md)
 
 ## Deferred by default
 

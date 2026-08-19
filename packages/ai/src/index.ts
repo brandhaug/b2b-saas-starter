@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
 
 export class AssistantUnavailable extends Schema.TaggedErrorClass<AssistantUnavailable>()(
   'AssistantUnavailable',
@@ -125,6 +125,8 @@ const OpenAIChatResponse = Schema.Struct({
   ).check(Schema.isMinLength(1))
 })
 
+const decodeOpenAIChatResponse = Schema.decodeUnknownOption(OpenAIChatResponse)
+
 /**
  * The single platform adapter in this package: one outbound HTTP POST against
  * an OpenAI-compatible endpoint. `packages/ai` deliberately depends on `effect`
@@ -184,8 +186,8 @@ export function makeOpenAILayer(config: OpenAIConfig) {
           catch: (cause) =>
             new AssistantUnavailable({ reason: `openai: ${String(cause)}` })
         })
-        const body = Schema.decodeUnknownOption(OpenAIChatResponse)(raw)
-        if (body._tag === 'None') {
+        const body = decodeOpenAIChatResponse(raw)
+        if (Option.isNone(body)) {
           return yield* Effect.fail(
             new AssistantUnavailable({ reason: 'openai response: invalid shape' })
           )
