@@ -15,3 +15,14 @@ export const DEMO_CREDENTIALS = {
   email: 'demo@starter.local',
   password: 'demo-starter-password'
 } satisfies { readonly email: string; readonly password: string }
+
+/**
+ * Second seeded credential, a plain `member` of the same workspace. It exists
+ * so the role-gated UI is visible by hand: the demo account above is an owner
+ * and sees every section, so nothing about permissions shows up when signed in
+ * as it. Same password on purpose.
+ */
+export const DEMO_MEMBER_CREDENTIALS = {
+  email: 'engineer@example.com',
+  password: 'demo-starter-password'
+} satisfies { readonly email: string; readonly password: string }

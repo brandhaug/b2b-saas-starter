@@ -8,7 +8,11 @@ import { PublicLayout } from '@/components/public-layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
-import { DEMO_CREDENTIALS, DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
+import {
+  DEMO_CREDENTIALS,
+  DEMO_MEMBER_CREDENTIALS,
+  DEMO_WORKSPACE_SLUG
+} from '@/lib/demo-workspace'
 import { safeRedirect } from '@/lib/utils'
 
 const SignInSearch = Schema.Struct({
@@ -198,6 +202,17 @@ export function SignInPage({
               /{' '}
               <code className="rounded-sm bg-muted px-1 py-0.5">
                 {DEMO_CREDENTIALS.password}
+              </code>
+              .
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Or as a plain member, to see the role-gated view:{' '}
+              <code className="rounded-sm bg-muted px-1 py-0.5">
+                {DEMO_MEMBER_CREDENTIALS.email}
+              </code>{' '}
+              /{' '}
+              <code className="rounded-sm bg-muted px-1 py-0.5">
+                {DEMO_MEMBER_CREDENTIALS.password}
               </code>
               .
             </p>

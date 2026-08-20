@@ -2,6 +2,7 @@ import {
   ApiTokenRegistry,
   AuditEventLog,
   CatalogRefreshHistory,
+  demoMemberIdentity,
   demoUserIdentity,
   hashApiToken,
   ImplementationReports,
@@ -183,6 +184,25 @@ function memberRows(fixture: Fixture): readonly string[] {
   ])
 }
 
+/**
+ * Credential account for the seeded plain `member` (`memberRows` already
+ * created its user and membership rows). It shares the demo password: the point
+ * is to make the role-gated UI reachable by hand, not to model two secrets.
+ */
+function demoMemberRows(demoPasswordHash: string): readonly string[] {
+  return [
+    insert(account, {
+      id: 'acc_member_credential',
+      accountId: demoMemberIdentity.id,
+      providerId: 'credential',
+      userId: demoMemberIdentity.id,
+      password: demoPasswordHash,
+      createdAt: 1_778_918_400,
+      updatedAt: 1_778_918_400
+    })
+  ]
+}
+
 // Demo sign-in: system admin (`role: 'admin'` — Better Auth admin plugin)
 // and a member of the seed workspace so the membership gate passes.
 function demoUserRows(fixture: Fixture, demoPasswordHash: string): readonly string[] {
@@ -351,6 +371,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...workspaceRows(fixture),
     ...memberRows(fixture),
     ...demoUserRows(fixture, hashes.demoPassword),
+    ...demoMemberRows(hashes.demoPassword),
     ...moduleRows(fixture),
     ...integrationRows(fixture),
     ...tokenRows(fixture, hashes.tokens),

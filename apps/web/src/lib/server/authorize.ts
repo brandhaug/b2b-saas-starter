@@ -1,5 +1,6 @@
 import { Effect, type Scope } from 'effect'
 import {
+  authorize,
   memberPrincipal,
   requirePermission,
   type AuthorizationDenied,
@@ -30,5 +31,31 @@ export function requireWorkspacePermission(
       ctx.actor ? memberPrincipal(ctx.actor.role) : null,
       permission
     )
+  })
+}
+
+/**
+ * The read counterpart of the guard: runs `effect` only if the actor may, and
+ * yields `null` when they may not.
+ *
+ * A denied *action* is an error the caller must see, which is what
+ * `requireWorkspacePermission` raises. A denied *read* is not — the page still
+ * renders, minus the segment. Returning `null` instead of failing is what lets
+ * one loader assemble a payload whose shape follows the actor's permissions, so
+ * a member's serialized loader data never carries the numbers the matrix denies
+ * them. Hiding the section in the component alone would still ship them.
+ *
+ * The decision comes from the same pure `authorize()` the guard uses, so there
+ * is no second permission path. No actor is a denial, like the guard.
+ */
+export function whenPermitted<A, E, R>(
+  permission: PermissionRequest,
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A | null, E, R | WorkspaceContext> {
+  return Effect.gen(function* () {
+    const ctx = yield* WorkspaceContext
+    if (!ctx.actor) return null
+    if (!authorize(memberPrincipal(ctx.actor.role), permission).success) return null
+    return yield* effect
   })
 }

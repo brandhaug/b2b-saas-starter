@@ -23,11 +23,14 @@ bun run db:migrate:local   # apply migrations to the local D1
 bun run db:seed            # deterministic seed workspace (starter-lab)
 ```
 
-Seeding also creates a demo credential account so the authenticated area is reachable:
+Seeding also creates two credential accounts so the authenticated area is reachable:
 
-| Email                | Password                | Roles                                         |
-| -------------------- | ----------------------- | --------------------------------------------- |
-| `demo@starter.local` | `demo-starter-password` | System admin (`/admin`) + `starter-lab` owner |
+| Email                  | Password                | Roles                                         |
+| ---------------------- | ----------------------- | --------------------------------------------- |
+| `demo@starter.local`   | `demo-starter-password` | System admin (`/admin`) + `starter-lab` owner |
+| `engineer@example.com` | `demo-starter-password` | `starter-lab` member                          |
+
+The member account exists to make the role-gated UI visible: signed in as it, the settings page shows module state only — no API-token form, no invitations, no webhook count — and the dashboard drops the webhook delivery card, because the loader never reads what the role cannot see. The owner account shows all of it.
 
 Sign in at `/sign-in` with these credentials once the database is migrated and seeded. The dev server detects the persisted local D1 on startup and attaches it as the `DB` binding (see `apps/web/src/lib/cloudflare-workers-shim-dev.ts`), so credential sign-in and the Live capability layers work locally. Without a migrated database the shim leaves `DB` unset and the app runs provider-light on the in-memory seed layer. Restart `bun run dev` after the first migrate + seed so the binding attaches.
 

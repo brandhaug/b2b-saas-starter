@@ -113,7 +113,6 @@ describe('workspace read projections', () => {
         expect(dashboard.unreadCount).toBe(
           dashboard.notifications.filter((notification) => !notification.read).length
         )
-        expect(dashboard.webhooks.length).toBeGreaterThan(0)
         expect(dashboard.refreshRuns.length).toBeGreaterThan(0)
       }).pipe(Effect.provide(seedWorkspaceLayer))
   )

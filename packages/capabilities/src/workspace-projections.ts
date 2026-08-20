@@ -13,16 +13,7 @@ import {
   type ModuleStatus,
   type StarterModuleWithState
 } from './catalog/starter-module-catalog.ts'
-import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
-import {
-  WebhookEndpoints,
-  type WebhookEndpoint
-} from './developer-platform/webhook-endpoints.ts'
 import { type Workspace } from './governance/workspace-identity.ts'
-import {
-  WorkspaceInvitations,
-  type Invitation
-} from './governance/workspace-invitations.ts'
 import { WorkspaceMembership } from './governance/workspace-membership.ts'
 import {
   NotificationFeed,
@@ -99,14 +90,23 @@ export const workspaceOverview: Effect.Effect<
 })
 
 export type WorkspaceDashboardProjection = WorkspaceOverviewProjection & {
-  readonly webhooks: readonly WebhookEndpoint[]
   readonly refreshRuns: readonly CatalogRefreshRun[]
   readonly readyCount: number
   readonly unreadCount: number
   readonly moduleStatusCounts: readonly ModuleStatusCount[]
 }
 
-/** Everything the workspace dashboard renders, aggregates pre-computed. */
+/**
+ * Everything the workspace dashboard renders under one permission, aggregates
+ * pre-computed. `module:read` covers all of it.
+ *
+ * Webhook endpoints are deliberately NOT here: `webhook:list` is a separate
+ * permission a `member` does not hold, and a projection cannot check
+ * authorization (see this package's intent node). The caller reads them as its
+ * own segment and drops the segment when the actor may not have it — see
+ * `apps/web/src/lib/server/workspace-dashboard.ts`. Folding them back in would
+ * mean the read runs for every actor and the numbers ship in the page payload.
+ */
 export const workspaceDashboard: Effect.Effect<
   WorkspaceDashboardProjection,
   CapabilityUnavailable,
@@ -114,18 +114,15 @@ export const workspaceDashboard: Effect.Effect<
   | StarterModuleCatalog
   | NotificationFeed
   | AdoptionReadiness
-  | WebhookEndpoints
   | CatalogRefreshHistory
 > = Effect.gen(function* () {
-  const webhooks = yield* WebhookEndpoints
   const refreshHistory = yield* CatalogRefreshHistory
-  const [overview, endpoints, refreshRuns] = yield* Effect.all(
-    [workspaceOverview, webhooks.list, refreshHistory.listRecent],
+  const [overview, refreshRuns] = yield* Effect.all(
+    [workspaceOverview, refreshHistory.listRecent],
     { concurrency: 'unbounded' }
   )
   return {
     ...overview,
-    webhooks: endpoints,
     refreshRuns,
     readyCount: projectReadiness(overview.modules.map((module) => module.state))
       .readyCount,
@@ -189,45 +186,3 @@ export function listWorkspacesForUser(
     )
   })
 }
-
-export type WorkspaceSettingsSummaryProjection = {
-  readonly modules: readonly StarterModuleWithState[]
-  readonly apiTokenCount: number
-  readonly webhookCount: number
-  readonly unreadCount: number
-  /**
-   * Every invitation of the workspace, not just the pending ones: the settings
-   * page shows what happened to each, and a page that silently dropped the
-   * cancelled ones would look like the cancel button did nothing.
-   */
-  readonly invitations: readonly Invitation[]
-}
-
-/** The counts and module list the workspace settings page renders. */
-export const workspaceSettingsSummary: Effect.Effect<
-  WorkspaceSettingsSummaryProjection,
-  CapabilityUnavailable,
-  | WorkspaceContext
-  | StarterModuleCatalog
-  | ApiTokenRegistry
-  | WebhookEndpoints
-  | NotificationFeed
-  | WorkspaceInvitations
-> = Effect.gen(function* () {
-  const catalog = yield* StarterModuleCatalog
-  const tokens = yield* ApiTokenRegistry
-  const webhooks = yield* WebhookEndpoints
-  const feed = yield* NotificationFeed
-  const invites = yield* WorkspaceInvitations
-  const [modules, apiTokens, endpoints, unreadCount, invitations] = yield* Effect.all(
-    [catalog.listModules, tokens.list, webhooks.list, feed.unreadCount, invites.list],
-    { concurrency: 'unbounded' }
-  )
-  return {
-    modules,
-    apiTokenCount: apiTokens.length,
-    webhookCount: endpoints.length,
-    unreadCount,
-    invitations
-  }
-})
