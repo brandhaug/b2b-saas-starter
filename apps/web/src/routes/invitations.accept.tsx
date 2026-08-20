@@ -14,6 +14,7 @@ import {
   invitationPreviewServerFn,
   type InvitationPreview
 } from '@/lib/server/invitations'
+import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities'
 
 const ACCEPT_FAILED = 'Could not accept the invitation'
 
@@ -22,9 +23,9 @@ const ACCEPT_FAILED = 'Could not accept the invitation'
 // the visitor must already be a member of, and the whole point of an invitation
 // is that they are not one yet.
 // `invitation` is optional so an older link still renders the unusable-invitation
-// notice instead of a search-validation error. `apps/api`'s `invitations.send`
-// emails `?workspace=<slug>`, which never carried an id and cannot until that
-// endpoint can persist an invitation (issue #64).
+// notice instead of a search-validation error: the API worker used to email
+// `?workspace=<slug>`, which carried no id, and issue #64 removed that endpoint
+// rather than leave it sending a link nobody could accept.
 const AcceptSearch = Schema.Struct({
   invitation: Schema.optional(Schema.String)
 })
@@ -50,18 +51,46 @@ export const Route = createFileRoute('/invitations/accept')({
     return invitationPreviewServerFn({ data: { invitationId: deps.invitation } })
   },
   pendingComponent: RoutePending,
-  component: AcceptInvitationPage
+  component: AcceptInvitationRoute
 })
 
-function AcceptInvitationPage() {
-  const preview = Route.useLoaderData()
+/**
+ * Reads the loader payload and supplies the real accept call. The page itself
+ * takes both as props, so a test renders it without a router loader or a
+ * session.
+ */
+function AcceptInvitationRoute() {
+  return (
+    <AcceptInvitationPage
+      preview={Route.useLoaderData()}
+      accept={acceptInvitationServerFn}
+    />
+  )
+}
 
+/**
+ * The one server call this page makes, as a port. The route passes
+ * `acceptInvitationServerFn`; a test passes a double, which is what lets the
+ * page's two outcomes — joined, or refused with a reason — be asserted without
+ * a session (`invitations.accept.test.tsx`).
+ */
+export type AcceptInvitation = (input: {
+  readonly data: { readonly invitationId: string }
+}) => Promise<AcceptedInvitation>
+
+export function AcceptInvitationPage({
+  preview,
+  accept
+}: {
+  readonly preview: InvitationPreview
+  readonly accept: AcceptInvitation
+}) {
   // One opaque outcome for every unusable invitation — see `InvitationPreview`.
   if (preview.state === 'unavailable') return <UnusableInvitation />
   // Split rather than branching inside one component: the accept handler is a
   // closure, and a closure defined after an early return does not inherit the
   // narrowing that return produced.
-  return <PendingInvitation preview={preview} />
+  return <PendingInvitation preview={preview} accept={accept} />
 }
 
 function UnusableInvitation() {
@@ -91,9 +120,11 @@ function UnusableInvitation() {
 }
 
 function PendingInvitation({
-  preview
+  preview,
+  accept: acceptInvitation
 }: {
   readonly preview: Extract<InvitationPreview, { readonly state: 'pending' }>
+  readonly accept: AcceptInvitation
 }) {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
@@ -104,8 +135,7 @@ function PendingInvitation({
     setError(null)
     const exit = await Effect.runPromiseExit(
       Effect.tryPromise({
-        try: () =>
-          acceptInvitationServerFn({ data: { invitationId: preview.invitationId } }),
+        try: () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
         catch: (cause) => causeMessage(cause, ACCEPT_FAILED)
       })
     )

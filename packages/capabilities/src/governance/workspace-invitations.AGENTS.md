@@ -31,7 +31,7 @@ This is not a hole in the authorization model. The invitation **is** the authori
 - `WorkspaceInvitations.accept({ invitationId, userId, email })` — adds the member and audits `workspace_invitation.accepted`. **No `WorkspaceContext`.** `email` is the accepting user's own address, checked against the invitation; `userId` is the audit actor.
 - `WorkspaceInvitationBinding` — the write port: `create`, `cancel`, `accept`, all promise-returning. Supplied via `StarterEnv.invitationBinding` / `LiveCapabilitiesOptions.invitationBinding`.
 
-`find` discloses the invited address to whoever holds the id. That is the capability being honest; deciding what to _show_ belongs to the caller. `invitationPreviewServerFn` (`apps/web/src/lib/server/invitations.ts`) reveals the workspace only once the signed-in address matches, and collapses every other outcome into one opaque answer.
+`find` discloses the invited address to whoever holds the id. That is the capability being honest; deciding what to _show_ belongs to the caller. `invitationPreview` (`apps/web/src/lib/server/invitations.ts`) reveals the workspace only once the signed-in address matches, and collapses every other outcome into one opaque answer. It is an exported effect taking the viewer's address as an argument, so that rule is asserted directly against a seeded fixture rather than through a session.
 
 ## Errors
 

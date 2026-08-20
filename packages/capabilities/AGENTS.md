@@ -62,6 +62,8 @@ Each capability gets a leaf intent node alongside its source file. Read it befor
 
 Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect), and `MembershipChangeRejected` (409 — a membership change the workspace refuses, as against a store it cannot reach). `AuthorizationDenied` (403 — raised by `verifyBearerToken` for an unknown token, and by `requirePermission` for a denied one) is **declared in [`@b2b-saas-starter/authz`](../authz/AGENTS.md)** and re-exported from `errors.ts`, so this package and the guard raise one class. Never redeclare it here. Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
 
+`readPluginBindingFailure` (`governance/plugin-binding-failure.ts`) is exported from the barrel as well. It is how a rejected plugin-binding call is classified — 4xx means the workspace refused, anything else means the store is unreachable — and the app that writes a binding needs it to assert its own rejections land on the right side (`apps/web/src/lib/server/invitation-binding.test.ts`).
+
 ## Where to put a new capability
 
 1. Pick the bounded context that already owns the closest concept; only add a new folder when you genuinely have a new context.

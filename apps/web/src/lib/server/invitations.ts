@@ -1,12 +1,16 @@
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Option, Result, Schema } from 'effect'
+import { Effect, Option, Result, Schema, type Scope } from 'effect'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz'
 import {
   WORKSPACE_ROLES,
   WorkspaceContext,
   WorkspaceInvitations,
   type AcceptedInvitation,
-  type Invitation
+  type CapabilityUnavailable,
+  type Invitation,
+  type MembershipChangeRejected,
+  type WorkspaceRole
 } from '@b2b-saas-starter/capabilities'
 import {
   EmailDispatcher,
@@ -21,15 +25,23 @@ import { requireWorkspacePermission } from './authorize'
 import { webInvitationBinding } from './invitation-binding'
 
 /**
- * The workspace-invitation mutations, as server functions.
+ * The workspace-invitation mutations, as capability effects plus the server
+ * functions that run them.
  *
  * Sending and cancelling are ordinary workspace mutations: session gate, then
  * `requireWorkspacePermission`, then the capability. **Accepting is not** — see
- * `acceptInvitationServerFn` for why it cannot be.
+ * `acceptInvitation` for why it cannot be.
  *
- * All three pass `webInvitationBinding`, because every invitation endpoint the
- * organization plugin exposes needs the request's session and only this app has
- * one (the API worker's half is ticket #64).
+ * Each effect is exported beside its server function, and takes the actor's
+ * address, the request origin and the email dispatcher as inputs rather than
+ * reading them: that is what makes the permission gates, the non-disclosure
+ * rule and the email-failure fallback testable without a session or an auth
+ * runtime (`invitations.test.ts`). The server functions hold the session gate
+ * and the wiring, nothing else.
+ *
+ * All three mutations pass `webInvitationBinding`, because every invitation
+ * endpoint the organization plugin exposes needs the request's session and only
+ * this app has one (issue #64 settled that the API worker cannot).
  */
 
 // All input constraints live in the schema — no imperative re-validation.
@@ -59,9 +71,10 @@ const decodeCancel = Schema.decodeUnknownSync(CancelInvitationInput)
 const decodeAccept = Schema.decodeUnknownSync(AcceptInvitationInput)
 
 /**
- * Provider-light by the same selector the API worker uses: with no `EMAIL`
- * binding configured this is the logging dispatcher, so the invite flow works
- * end to end locally and in tests without an email provider (CLAUDE.md rule 3).
+ * Provider-light by the same selector the API worker used to use: with no
+ * `EMAIL` binding configured this is the logging dispatcher, so the invite flow
+ * works end to end locally and in tests without an email provider (CLAUDE.md
+ * rule 3).
  */
 function emailDispatcherLayer() {
   return selectEmailDispatcherLayer({
@@ -73,7 +86,7 @@ function emailDispatcherLayer() {
 /**
  * Absolute origin of the in-flight request, so the emailed link is clickable.
  * Empty when there is no request, which keeps the URL relative rather than
- * pointing at a fabricated host — the same choice `apps/api` makes.
+ * pointing at a fabricated host.
  */
 function requestOrigin(): string {
   const request = currentRequest()
@@ -93,51 +106,83 @@ export type SentInvitation = {
   readonly inviteUrl: string
 }
 
+export function sendInvitation(input: {
+  readonly email: string
+  readonly role: WorkspaceRole
+  /** Absolute origin for the emailed link; empty keeps the link relative. */
+  readonly origin: string
+}): Effect.Effect<
+  SentInvitation,
+  AuthorizationDenied | CapabilityUnavailable | MembershipChangeRejected,
+  Scope.Scope | WorkspaceContext | WorkspaceInvitations | EmailDispatcher
+> {
+  return Effect.gen(function* () {
+    // The session gate in the server function proves who is asking; this proves
+    // they may.
+    yield* requireWorkspacePermission({ invitation: ['create'] })
+    const ctx = yield* WorkspaceContext
+    const invitations = yield* WorkspaceInvitations
+    const invitation = yield* invitations.create({
+      email: input.email,
+      role: input.role
+    })
+
+    // The link carries the invitation id, because that is what the accept path
+    // is keyed by. The old `?workspace=<slug>` form could not identify which
+    // invitation was being accepted.
+    const inviteUrl = `${input.origin}/invitations/accept?invitation=${invitation.id}`
+    const dispatcher = yield* EmailDispatcher
+    const delivery = yield* Effect.result(
+      dispatcher.send({
+        from: '',
+        to: input.email,
+        subject: `You are invited to ${ctx.workspace.name}`,
+        element: WorkspaceInvitationEmail({
+          workspaceName: ctx.workspace.name,
+          inviteUrl
+        })
+      })
+    )
+    if (Result.isFailure(delivery)) {
+      yield* annotateWide({
+        outcome: 'invitation_email_failed',
+        emailError: delivery.failure.message
+      })
+      return { invitation, delivered: false, inviteUrl }
+    }
+    return { invitation, delivered: true, inviteUrl }
+  })
+}
+
 export const sendInvitationServerFn = createServerFn({ method: 'POST' })
   .validator((input) => decodeSend(input))
   .handler(async ({ data }): Promise<SentInvitation> => {
     const session = await requireRequestSession()
     return runWorkspaceCapabilities(
       data.workspaceSlug,
-      Effect.gen(function* () {
-        // The session gate above proves who is asking; this proves they may.
-        yield* requireWorkspacePermission({ invitation: ['create'] })
-        const ctx = yield* WorkspaceContext
-        const invitations = yield* WorkspaceInvitations
-        const invitation = yield* invitations.create({
-          email: data.email,
-          role: data.role
-        })
-
-        // The link carries the invitation id, because that is what the accept
-        // path is keyed by. The old `?workspace=<slug>` form could not identify
-        // which invitation was being accepted.
-        const inviteUrl = `${requestOrigin()}/invitations/accept?invitation=${invitation.id}`
-        const dispatcher = yield* EmailDispatcher
-        const delivery = yield* Effect.result(
-          dispatcher.send({
-            from: '',
-            to: data.email,
-            subject: `You are invited to ${ctx.workspace.name}`,
-            element: WorkspaceInvitationEmail({
-              workspaceName: ctx.workspace.name,
-              inviteUrl
-            })
-          })
-        )
-        if (Result.isFailure(delivery)) {
-          yield* annotateWide({
-            outcome: 'invitation_email_failed',
-            emailError: delivery.failure.message
-          })
-          return { invitation, delivered: false, inviteUrl }
-        }
-        return { invitation, delivered: true, inviteUrl }
+      sendInvitation({
+        email: data.email,
+        role: data.role,
+        origin: requestOrigin()
       }).pipe(Effect.provide(emailDispatcherLayer())),
       { userId: session.user.id },
       { invitationBinding: webInvitationBinding }
     )
   })
+
+export function cancelInvitation(input: {
+  readonly invitationId: string
+}): Effect.Effect<
+  void,
+  AuthorizationDenied | CapabilityUnavailable | MembershipChangeRejected,
+  Scope.Scope | WorkspaceContext | WorkspaceInvitations
+> {
+  return Effect.gen(function* () {
+    yield* requireWorkspacePermission({ invitation: ['cancel'] })
+    const invitations = yield* WorkspaceInvitations
+    yield* invitations.cancel({ invitationId: input.invitationId })
+  })
+}
 
 export const cancelInvitationServerFn = createServerFn({ method: 'POST' })
   .validator((input) => decodeCancel(input))
@@ -145,11 +190,7 @@ export const cancelInvitationServerFn = createServerFn({ method: 'POST' })
     const session = await requireRequestSession()
     return runWorkspaceCapabilities(
       data.workspaceSlug,
-      Effect.gen(function* () {
-        yield* requireWorkspacePermission({ invitation: ['cancel'] })
-        const invitations = yield* WorkspaceInvitations
-        yield* invitations.cancel({ invitationId: data.invitationId })
-      }),
+      cancelInvitation({ invitationId: data.invitationId }),
       { userId: session.user.id },
       { invitationBinding: webInvitationBinding }
     )
@@ -178,27 +219,38 @@ export type InvitationPreview =
 
 const UNAVAILABLE: InvitationPreview = { state: 'unavailable' }
 
+export function invitationPreview(input: {
+  readonly invitationId: string
+  /** The signed-in address. Only its own invitation is ever described to it. */
+  readonly viewerEmail: string
+}): Effect.Effect<InvitationPreview, CapabilityUnavailable, WorkspaceInvitations> {
+  return Effect.gen(function* () {
+    const invitations = yield* WorkspaceInvitations
+    const found = yield* invitations.find(input.invitationId)
+    if (Option.isNone(found)) return UNAVAILABLE
+    const invitation = found.value
+    if (invitation.status !== 'pending') return UNAVAILABLE
+    if (invitation.email.toLowerCase() !== input.viewerEmail.toLowerCase()) {
+      return UNAVAILABLE
+    }
+    return {
+      state: 'pending',
+      invitationId: invitation.id,
+      workspaceName: invitation.workspaceName,
+      workspaceSlug: invitation.workspaceSlug,
+      role: invitation.role
+    }
+  })
+}
+
 export const invitationPreviewServerFn = createServerFn({ method: 'GET' })
   .validator((input) => decodeAccept(input))
   .handler(async ({ data }): Promise<InvitationPreview> => {
     const session = await requireRequestSession()
     return runCapabilities(
-      Effect.gen(function* () {
-        const invitations = yield* WorkspaceInvitations
-        const found = yield* invitations.find(data.invitationId)
-        if (Option.isNone(found)) return UNAVAILABLE
-        const invitation = found.value
-        if (invitation.status !== 'pending') return UNAVAILABLE
-        if (invitation.email.toLowerCase() !== session.user.email.toLowerCase()) {
-          return UNAVAILABLE
-        }
-        return {
-          state: 'pending',
-          invitationId: invitation.id,
-          workspaceName: invitation.workspaceName,
-          workspaceSlug: invitation.workspaceSlug,
-          role: invitation.role
-        }
+      invitationPreview({
+        invitationId: data.invitationId,
+        viewerEmail: session.user.email
       })
     )
   })
@@ -217,18 +269,33 @@ export const invitationPreviewServerFn = createServerFn({ method: 'GET' })
  * The session is still required — an anonymous visitor has no address to match
  * against the invitation.
  */
+export function acceptInvitation(input: {
+  readonly invitationId: string
+  readonly userId: string
+  readonly email: string
+}): Effect.Effect<
+  AcceptedInvitation,
+  CapabilityUnavailable | MembershipChangeRejected,
+  WorkspaceInvitations
+> {
+  return Effect.flatMap(WorkspaceInvitations, (invitations) =>
+    invitations.accept({
+      invitationId: input.invitationId,
+      userId: input.userId,
+      email: input.email
+    })
+  )
+}
+
 export const acceptInvitationServerFn = createServerFn({ method: 'POST' })
   .validator((input) => decodeAccept(input))
   .handler(async ({ data }): Promise<AcceptedInvitation> => {
     const session = await requireRequestSession()
     return runCapabilities(
-      Effect.gen(function* () {
-        const invitations = yield* WorkspaceInvitations
-        return yield* invitations.accept({
-          invitationId: data.invitationId,
-          userId: session.user.id,
-          email: session.user.email
-        })
+      acceptInvitation({
+        invitationId: data.invitationId,
+        userId: session.user.id,
+        email: session.user.email
       }),
       { invitationBinding: webInvitationBinding }
     )
