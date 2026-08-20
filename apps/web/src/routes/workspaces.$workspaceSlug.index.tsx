@@ -2,7 +2,10 @@ import { useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { AdoptionTrendChart } from '@/components/charts/adoption-trend-chart'
 import { CatalogRefreshChart } from '@/components/charts/catalog-refresh-chart'
-import { LiveNotifications } from '@/components/live-notifications'
+import {
+  LiveNotifications,
+  type ListNotifications
+} from '@/components/live-notifications'
 import { RoutePending } from '@/components/route-pending'
 import { ModuleStatusChart } from '@/components/charts/module-status-chart'
 import { WebhookSuccessChart } from '@/components/charts/webhook-success-chart'
@@ -10,8 +13,10 @@ import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { runWorkspaceCapabilities } from '@/lib/capabilities'
-import { workspaceDashboard } from '@b2b-saas-starter/capabilities'
+import {
+  loadWorkspaceDashboard,
+  type WorkspaceDashboardPayload
+} from '@/lib/server/workspace-dashboard'
 
 type ModuleRow = {
   readonly id: string
@@ -63,18 +68,36 @@ const moduleColumns: DataTableColumnDef<ModuleRow>[] = [
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
-export const Route = createFileRoute('/workspaces/$workspaceSlug')({
-  // Shared read projection — the REST `overview` endpoint serves the same
-  // composition, so app and Capability Interface views cannot drift.
+export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
+  // The `workspaceDashboard` projection — shared with the REST `overview`
+  // endpoint so app and Capability Interface views cannot drift — plus the
+  // webhook segment, which the loader drops for an actor without
+  // `webhook:list`.
   loader: ({ params, context }) =>
-    runWorkspaceCapabilities(params.workspaceSlug, workspaceDashboard, {
+    loadWorkspaceDashboard({
+      workspaceSlug: params.workspaceSlug,
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceDashboardPage
+  component: WorkspaceDashboardRoute
 })
 
-function WorkspaceDashboardPage() {
+/**
+ * The route's thin wrapper, matching the settings route: the page takes its
+ * params and payload as props so a test renders it without a route tree.
+ */
+function WorkspaceDashboardRoute() {
+  return <WorkspaceDashboardPage data={Route.useLoaderData()} />
+}
+
+export function WorkspaceDashboardPage({
+  data,
+  ports
+}: {
+  readonly data: WorkspaceDashboardPayload
+  /** The one server call this page's children make, forwarded for tests. */
+  readonly ports?: { readonly listNotifications?: ListNotifications }
+}) {
   const {
     workspace,
     modules,
@@ -86,7 +109,7 @@ function WorkspaceDashboardPage() {
     readyCount,
     unreadCount,
     moduleStatusCounts
-  } = Route.useLoaderData()
+  } = data
 
   const moduleRows = useMemo<readonly ModuleRow[]>(
     () =>
@@ -133,7 +156,13 @@ function WorkspaceDashboardPage() {
         </Card>
 
         <div className="grid gap-6">
-          <LiveNotifications workspaceSlug={workspace.slug} fallback={notifications} />
+          <LiveNotifications
+            workspaceSlug={workspace.slug}
+            fallback={notifications}
+            {...(ports?.listNotifications === undefined
+              ? {}
+              : { listNotifications: ports.listNotifications })}
+          />
           <Card>
             <CardHeader>
               <CardTitle>Readiness trend</CardTitle>
@@ -150,14 +179,18 @@ function WorkspaceDashboardPage() {
               <ModuleStatusChart data={moduleStatusCounts} />
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Webhook delivery</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <WebhookSuccessChart webhooks={webhooks} />
-            </CardContent>
-          </Card>
+          {/* `null` means the actor holds no `webhook:list`, so the loader never
+              read the endpoints — there is nothing to chart and nothing to hide. */}
+          {webhooks === null ? null : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Webhook delivery</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WebhookSuccessChart webhooks={webhooks} />
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Catalog refresh history</CardTitle>

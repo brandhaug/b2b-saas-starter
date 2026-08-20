@@ -33,6 +33,20 @@ export const demoUserIdentity: Member = {
   systemRole: 'admin'
 }
 
+/**
+ * The plain `member` of the seed workspace, named because the seed script gives
+ * it a credential account too: signing in as it is how the role-gated UI (the
+ * hidden API-token and webhook sections) is visible in local dev and e2e. The
+ * demo user is an owner and therefore shows none of it.
+ */
+export const demoMemberIdentity: Member = {
+  id: 'usr_dev',
+  name: 'Product Engineer',
+  email: 'engineer@example.com',
+  role: 'member',
+  systemRole: 'user'
+}
+
 export const seedMembers: readonly Member[] = [
   demoUserIdentity,
   {
@@ -49,13 +63,7 @@ export const seedMembers: readonly Member[] = [
     role: 'admin',
     systemRole: 'user'
   },
-  {
-    id: 'usr_dev',
-    name: 'Product Engineer',
-    email: 'engineer@example.com',
-    role: 'member',
-    systemRole: 'user'
-  }
+  demoMemberIdentity
 ]
 
 export const seedStarterModules: readonly StarterModuleWithState[] = [

@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { type WorkspaceSettingsSummaryProjection } from '@b2b-saas-starter/capabilities'
+import { type WorkspaceSettingsPayload } from '@/lib/server/workspace-settings'
 import { renderWithRouter } from '@/test/router-harness'
 import { type CreateApiToken } from '@/components/api-token-form'
 import { type SignOut } from '@/components/workspace-shell'
@@ -12,7 +12,8 @@ import { WorkspaceSettingsPage } from './workspaces.$workspaceSlug.settings'
 const createToken = vi.fn<CreateApiToken>()
 const signOut = vi.fn<SignOut>()
 
-const settingsSummary: WorkspaceSettingsSummaryProjection = {
+const settingsSummary: WorkspaceSettingsPayload = {
+  viewer: { role: 'owner' },
   modules: [
     {
       id: 'effect-v4',
@@ -53,11 +54,23 @@ const settingsSummary: WorkspaceSettingsSummaryProjection = {
   invitations: []
 }
 
-async function renderPage() {
+/**
+ * What a `member` receives from the loader: the segments the matrix denies are
+ * `null`, because the server never read them (see loadWorkspaceSettings).
+ */
+const memberSettings: WorkspaceSettingsPayload = {
+  ...settingsSummary,
+  viewer: { role: 'member' },
+  apiTokenCount: null,
+  webhookCount: null,
+  invitations: null
+}
+
+async function renderPage(data: WorkspaceSettingsPayload = settingsSummary) {
   const rendered = await renderWithRouter(
     <WorkspaceSettingsPage
       workspaceSlug="starter-lab"
-      data={settingsSummary}
+      data={data}
       ports={{ createToken, signOut }}
     />,
     { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
@@ -100,5 +113,28 @@ describe('WorkspaceSettingsPage', () => {
     await renderPage()
     screen.getByLabelText('Token name')
     screen.getByRole('button', { name: 'Create token' })
+  })
+})
+
+describe('WorkspaceSettingsPage as a member', () => {
+  it('does not render the api token section', async () => {
+    await renderPage(memberSettings)
+    expect(screen.queryByText('API tokens')).toBeNull()
+    expect(screen.queryByLabelText('Token name')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create token' })).toBeNull()
+  })
+
+  it('does not render the members or webhook sections', async () => {
+    await renderPage(memberSettings)
+    expect(screen.queryByText('Members')).toBeNull()
+    expect(screen.queryByLabelText('Email')).toBeNull()
+    expect(screen.queryByText('Outbound webhooks')).toBeNull()
+  })
+
+  it('still renders module state, with a reason the toggles are read-only', async () => {
+    await renderPage(memberSettings)
+    screen.getByText('Effect v4')
+    expect(screen.getAllByRole('switch')).toHaveLength(2)
+    screen.getByText('Your role cannot change module state.')
   })
 })

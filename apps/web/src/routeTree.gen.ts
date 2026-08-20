@@ -25,9 +25,9 @@ import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
-import { Route as WorkspacesWorkspaceSlugRouteImport } from './routes/workspaces.$workspaceSlug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as DocsCategorySlugRouteImport } from './routes/docs.$category.$slug'
+import { Route as WorkspacesWorkspaceSlugIndexRouteImport } from './routes/workspaces.$workspaceSlug.index'
 import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/workspaces.$workspaceSlug.settings'
 
 const IndexRoute = IndexRouteImport.update({
@@ -110,11 +110,6 @@ const WorkspacesIndexRoute = WorkspacesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => WorkspacesRoute,
 } as any)
-const WorkspacesWorkspaceSlugRoute = WorkspacesWorkspaceSlugRouteImport.update({
-  id: '/$workspaceSlug',
-  path: '/$workspaceSlug',
-  getParentRoute: () => WorkspacesRoute,
-} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -125,11 +120,17 @@ const DocsCategorySlugRoute = DocsCategorySlugRouteImport.update({
   path: '/$category/$slug',
   getParentRoute: () => DocsRoute,
 } as any)
+const WorkspacesWorkspaceSlugIndexRoute =
+  WorkspacesWorkspaceSlugIndexRouteImport.update({
+    id: '/$workspaceSlug/',
+    path: '/$workspaceSlug/',
+    getParentRoute: () => WorkspacesRoute,
+  } as any)
 const WorkspacesWorkspaceSlugSettingsRoute =
   WorkspacesWorkspaceSlugSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
+    id: '/$workspaceSlug/settings',
+    path: '/$workspaceSlug/settings',
+    getParentRoute: () => WorkspacesRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -145,7 +146,6 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog/': typeof BlogIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/help/': typeof HelpIndexRoute
@@ -153,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -165,7 +166,6 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog': typeof BlogIndexRoute
   '/docs': typeof DocsIndexRoute
   '/help': typeof HelpIndexRoute
@@ -173,6 +173,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -188,7 +189,6 @@ export interface FileRoutesById {
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/blog/': typeof BlogIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/help/': typeof HelpIndexRoute
@@ -196,6 +196,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -212,7 +213,6 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/blog/$slug'
     | '/invitations/accept'
-    | '/workspaces/$workspaceSlug'
     | '/blog/'
     | '/docs/'
     | '/help/'
@@ -220,6 +220,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -232,7 +233,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/blog/$slug'
     | '/invitations/accept'
-    | '/workspaces/$workspaceSlug'
     | '/blog'
     | '/docs'
     | '/help'
@@ -240,6 +240,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug'
   id:
     | '__root__'
     | '/'
@@ -254,7 +255,6 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/blog/$slug'
     | '/invitations/accept'
-    | '/workspaces/$workspaceSlug'
     | '/blog/'
     | '/docs/'
     | '/help/'
@@ -262,6 +262,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -396,13 +397,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesIndexRouteImport
       parentRoute: typeof WorkspacesRoute
     }
-    '/workspaces/$workspaceSlug': {
-      id: '/workspaces/$workspaceSlug'
-      path: '/$workspaceSlug'
-      fullPath: '/workspaces/$workspaceSlug'
-      preLoaderRoute: typeof WorkspacesWorkspaceSlugRouteImport
-      parentRoute: typeof WorkspacesRoute
-    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -417,12 +411,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsCategorySlugRouteImport
       parentRoute: typeof DocsRoute
     }
+    '/workspaces/$workspaceSlug/': {
+      id: '/workspaces/$workspaceSlug/'
+      path: '/$workspaceSlug'
+      fullPath: '/workspaces/$workspaceSlug/'
+      preLoaderRoute: typeof WorkspacesWorkspaceSlugIndexRouteImport
+      parentRoute: typeof WorkspacesRoute
+    }
     '/workspaces/$workspaceSlug/settings': {
       id: '/workspaces/$workspaceSlug/settings'
-      path: '/settings'
+      path: '/$workspaceSlug/settings'
       fullPath: '/workspaces/$workspaceSlug/settings'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugSettingsRouteImport
-      parentRoute: typeof WorkspacesWorkspaceSlugRoute
+      parentRoute: typeof WorkspacesRoute
     }
   }
 }
@@ -439,28 +440,16 @@ const DocsRouteChildren: DocsRouteChildren = {
 
 const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 
-interface WorkspacesWorkspaceSlugRouteChildren {
-  WorkspacesWorkspaceSlugSettingsRoute: typeof WorkspacesWorkspaceSlugSettingsRoute
-}
-
-const WorkspacesWorkspaceSlugRouteChildren: WorkspacesWorkspaceSlugRouteChildren =
-  {
-    WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
-  }
-
-const WorkspacesWorkspaceSlugRouteWithChildren =
-  WorkspacesWorkspaceSlugRoute._addFileChildren(
-    WorkspacesWorkspaceSlugRouteChildren,
-  )
-
 interface WorkspacesRouteChildren {
-  WorkspacesWorkspaceSlugRoute: typeof WorkspacesWorkspaceSlugRouteWithChildren
   WorkspacesIndexRoute: typeof WorkspacesIndexRoute
+  WorkspacesWorkspaceSlugSettingsRoute: typeof WorkspacesWorkspaceSlugSettingsRoute
+  WorkspacesWorkspaceSlugIndexRoute: typeof WorkspacesWorkspaceSlugIndexRoute
 }
 
 const WorkspacesRouteChildren: WorkspacesRouteChildren = {
-  WorkspacesWorkspaceSlugRoute: WorkspacesWorkspaceSlugRouteWithChildren,
   WorkspacesIndexRoute: WorkspacesIndexRoute,
+  WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
+  WorkspacesWorkspaceSlugIndexRoute: WorkspacesWorkspaceSlugIndexRoute,
 }
 
 const WorkspacesRouteWithChildren = WorkspacesRoute._addFileChildren(

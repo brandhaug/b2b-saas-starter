@@ -35,4 +35,8 @@ export {
 } from './layers.ts'
 export * from './module-env-overlay.ts'
 export * from './runtime.ts'
-export { demoUserIdentity, seedWorkspaceRecord } from './seed-fixture.ts'
+export {
+  demoMemberIdentity,
+  demoUserIdentity,
+  seedWorkspaceRecord
+} from './seed-fixture.ts'
