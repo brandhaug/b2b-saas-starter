@@ -25,7 +25,7 @@ A starter repository for shipping a B2B SaaS on Cloudflare's platform without ma
 
 ## Quick Start
 
-Requires [Bun](https://bun.sh) >= 1.3.3.
+Requires [Bun](https://bun.sh) >= 1.4.0.
 
 ```bash
 bun install
