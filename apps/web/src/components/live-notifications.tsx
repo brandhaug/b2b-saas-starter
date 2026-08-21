@@ -47,7 +47,7 @@ export function LiveNotifications({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <BellIcon className="size-4" />
           Notifications
@@ -75,7 +75,7 @@ export function LiveNotifications({
         {notifications.length === 0 ? (
           <div className="rounded-md border border-dashed border-border p-4 text-center">
             <p className="text-sm text-muted-foreground">
-              You're all caught up — no notifications yet.
+              You're all caught up: no notifications yet.
             </p>
           </div>
         ) : null}

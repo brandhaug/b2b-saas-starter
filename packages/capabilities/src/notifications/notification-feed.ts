@@ -36,12 +36,11 @@ export class NotificationFeed extends Context.Service<
   NotificationFeedInterface
 >()('@b2b-saas-starter/capabilities/NotificationFeed') {}
 
-function visibleToActor(notification: SeedNotification, actor: Actor | null): boolean {
-  return (
-    notification.userId === undefined ||
-    notification.userId === null ||
-    notification.userId === actor?.userId
-  )
+function visibleToActor(
+  userId: SeedNotification['userId'],
+  actor: Actor | null
+): boolean {
+  return userId === undefined || userId === null || userId === actor?.userId
 }
 
 export function SeedNotificationFeed(
@@ -50,14 +49,18 @@ export function SeedNotificationFeed(
   return Layer.succeed(NotificationFeed)({
     list: Effect.gen(function* () {
       const ctx = yield* WorkspaceContext
-      return seed
-        .filter((notification) => visibleToActor(notification, ctx.actor))
-        .map(({ userId: _userId, ...notification }) => notification)
+      const visible: Array<Omit<SeedNotification, 'userId'>> = []
+      for (const entry of seed) {
+        const { userId, ...notification } = entry
+        if (visibleToActor(userId, ctx.actor)) visible.push(notification)
+      }
+      return visible
     }),
     unreadCount: Effect.gen(function* () {
       const ctx = yield* WorkspaceContext
       return seed.filter(
-        (notification) => !notification.read && visibleToActor(notification, ctx.actor)
+        (notification) =>
+          !notification.read && visibleToActor(notification.userId, ctx.actor)
       ).length
     })
   })

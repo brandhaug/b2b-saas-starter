@@ -128,8 +128,8 @@ function CommandDialog({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50" />
-        <DialogPrimitive.Popup className="bg-background ring-foreground/10 data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 fixed top-[20%] left-1/2 z-50 w-full max-w-dialog-inset -translate-x-1/2 overflow-hidden rounded-none ring-1 duration-100 sm:max-w-lg">
+        <DialogPrimitive.Backdrop className="data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:motion-safe:fade-out-0 data-open:motion-safe:fade-in-0 bg-black/10 animation-duration-100 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50" />
+        <DialogPrimitive.Popup className="bg-background ring-foreground/10 data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:motion-safe:fade-out-0 data-open:motion-safe:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 fixed top-[20%] left-1/2 z-50 w-full max-w-dialog-inset -translate-x-1/2 overflow-hidden rounded-none ring-1 animation-duration-100 sm:max-w-lg">
           <Command
             className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group]]:px-2"
             {...props}

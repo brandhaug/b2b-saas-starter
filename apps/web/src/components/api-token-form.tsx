@@ -179,7 +179,7 @@ export function ApiTokenForm({
       {created ? (
         <div className="grid gap-1 rounded-md border border-border bg-muted/40 p-3 text-xs">
           <p className="font-medium">
-            Token created — copy it now, it will not be shown again.
+            Token created. Copy it now, it will not be shown again.
           </p>
           <code className="break-all">{created.token}</code>
         </div>

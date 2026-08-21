@@ -36,6 +36,7 @@ const UNUSABLE: InvitationPreview = { state: 'unavailable' }
 
 export const Route = createFileRoute('/invitations/accept')({
   validateSearch: (search) => decodeSearch(search),
+  loaderDeps: ({ search }) => ({ invitation: search.invitation }),
   // Its own gate: /workspaces owns the subtree gate and this route is not in it.
   // Anonymous visitors sign in first — an invitation is addressed to an email
   // address, so there is nothing to match until we know who is asking.
@@ -43,7 +44,6 @@ export const Route = createFileRoute('/invitations/accept')({
     const session = await requireSession(location.href)
     return { session }
   },
-  loaderDeps: ({ search }) => ({ invitation: search.invitation }),
   // `async` so the no-id branch returns a resolved promise without reaching for
   // a Promise constructor; the loader contract is promise-returning either way.
   loader: async ({ deps }) => {
@@ -133,21 +133,27 @@ function PendingInvitation({
   async function accept() {
     setSubmitting(true)
     setError(null)
-    const exit = await Effect.runPromiseExit(
-      Effect.tryPromise({
-        try: () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
-        catch: (cause) => causeMessage(cause, ACCEPT_FAILED)
+    // oxlint-disable-next-line effect/noTryCatch -- an event handler resetting a loading flag, not Effect control flow: `finally` clears the flag on rejection too, so a failed accept never leaves the button disabled forever.
+    try {
+      const exit = await Effect.runPromiseExit(
+        Effect.tryPromise({
+          try: () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
+          catch: (cause) => causeMessage(cause, ACCEPT_FAILED)
+        })
+      )
+      if (Exit.isFailure(exit)) {
+        setError(
+          Option.getOrElse(Cause.findErrorOption(exit.cause), () => ACCEPT_FAILED)
+        )
+        return
+      }
+      await router.navigate({
+        to: '/workspaces/$workspaceSlug',
+        params: { workspaceSlug: exit.value.workspaceSlug }
       })
-    )
-    if (Exit.isFailure(exit)) {
+    } finally {
       setSubmitting(false)
-      setError(Option.getOrElse(Cause.findErrorOption(exit.cause), () => ACCEPT_FAILED))
-      return
     }
-    await router.navigate({
-      to: '/workspaces/$workspaceSlug',
-      params: { workspaceSlug: exit.value.workspaceSlug }
-    })
   }
 
   return (

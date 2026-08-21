@@ -175,7 +175,7 @@ export function InvitationPanel({
             <p className="font-medium">
               {sent.delivered
                 ? `Invitation sent to ${sent.invitation.email}.`
-                : `Invitation created for ${sent.invitation.email}, but the email could not be sent — share this link instead.`}
+                : `Invitation created for ${sent.invitation.email}, but the email could not be sent; share this link instead.`}
             </p>
             <code className="break-all">{sent.inviteUrl}</code>
           </div>

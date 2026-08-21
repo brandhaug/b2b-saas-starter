@@ -12,6 +12,7 @@ import {
   CommandList
 } from '@/components/ui/command'
 import { CommandPaletteContext } from '@/lib/command-palette-context'
+import { useClientValue } from '@/lib/client-only-value'
 
 export function CommandPaletteProvider({ children }: { readonly children: ReactNode }) {
   const [open, setOpen] = useState(false)
@@ -36,7 +37,7 @@ export function CommandPaletteProvider({ children }: { readonly children: ReactN
     <CommandPaletteContext value={{ open, setOpen }}>
       {children}
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Search docs, pages, and actions..." />
+        <CommandInput placeholder="Search docs, pages, and actions…" />
         <CommandList>
           <CommandEmpty>No result found.</CommandEmpty>
           <CommandGroup heading="Public pages">
@@ -81,12 +82,15 @@ export function CommandPaletteProvider({ children }: { readonly children: ReactN
   )
 }
 
-export function SearchButton() {
-  const [isMac, setIsMac] = useState(true)
+// `navigator.platform` is a browser-only fact that never changes, so it is
+// read through `useClientValue` (client snapshot reads the platform, server
+// snapshot keeps the ⌘K default) rather than a mount effect flipping state.
+function isMacPlatform(): boolean {
+  return navigator.platform.toUpperCase().includes('MAC')
+}
 
-  useEffect(() => {
-    setIsMac(navigator.platform.toUpperCase().includes('MAC'))
-  }, [])
+export function SearchButton() {
+  const isMac = useClientValue(isMacPlatform, true)
 
   return (
     <CommandPaletteContext.Consumer>
@@ -98,7 +102,7 @@ export function SearchButton() {
           className="hidden h-9 w-56 gap-2 rounded-md px-3 text-sm text-muted-foreground md:flex"
         >
           <SearchIcon className="size-4" />
-          <span className="flex-1 text-left">Search...</span>
+          <span className="flex-1 text-left">Search…</span>
           <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-3xs">
             {isMac ? '⌘K' : 'Ctrl K'}
           </kbd>
