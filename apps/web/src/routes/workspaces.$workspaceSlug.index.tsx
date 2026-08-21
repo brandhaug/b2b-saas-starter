@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { AdoptionTrendChart } from '@/components/charts/adoption-trend-chart'
 import { CatalogRefreshChart } from '@/components/charts/catalog-refresh-chart'
@@ -111,18 +110,14 @@ export function WorkspaceDashboardPage({
     moduleStatusCounts
   } = data
 
-  const moduleRows = useMemo<readonly ModuleRow[]>(
-    () =>
-      modules.map((module) => ({
-        id: module.id,
-        name: module.name,
-        summary: module.summary,
-        category: module.category,
-        status: module.state.status,
-        missingConfig: module.state.missingConfig.join(', ') || 'None'
-      })),
-    [modules]
-  )
+  const moduleRows: readonly ModuleRow[] = modules.map((module) => ({
+    id: module.id,
+    name: module.name,
+    summary: module.summary,
+    category: module.category,
+    status: module.state.status,
+    missingConfig: module.state.missingConfig.join(', ') || 'None'
+  }))
 
   return (
     <WorkspaceShell
@@ -133,7 +128,7 @@ export function WorkspaceDashboardPage({
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div className="grid gap-1">
               <CardTitle>Starter modules</CardTitle>
               <p className="text-xs text-muted-foreground">

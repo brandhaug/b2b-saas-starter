@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+// oxlint-disable-next-line react-doctor/prefer-dynamic-import -- TanStack Start's autoCodeSplitting (default on) puts this module in the dashboard route's chunk, so recharts never loads outside this route. Lazy-loading inside the page would trade an SSR'd card flash for bytes on the app's main screen.
 import {
   Bar,
   BarChart,
@@ -17,14 +17,10 @@ export function WebhookSuccessChart({
 }: {
   readonly webhooks: readonly WebhookEndpoint[]
 }) {
-  const data = useMemo(
-    () =>
-      webhooks.map((endpoint) => ({
-        label: new URL(endpoint.url).host,
-        successRate: endpoint.successRate
-      })),
-    [webhooks]
-  )
+  const data = webhooks.map((endpoint) => ({
+    label: new URL(endpoint.url).host,
+    successRate: endpoint.successRate
+  }))
 
   if (webhooks.length === 0) {
     return (

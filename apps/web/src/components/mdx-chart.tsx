@@ -1,3 +1,4 @@
+// oxlint-disable-next-line react-doctor/prefer-dynamic-import -- this module is already loaded on demand: mdx-components.ts wraps every export in React.lazy(() => import('@/components/mdx-chart')). The rule scans only this file, so it cannot see the lazy consumer.
 import {
   Bar,
   BarChart,

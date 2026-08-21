@@ -65,6 +65,7 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-plugin-effect": "catalog:",
+    "oxlint-plugin-react-doctor": "catalog:",
     "oxlint-tsgolint": "catalog:",
     "shadcn": "catalog:",
     "storybook": "catalog:",
@@ -80,6 +81,9 @@
     "brace-expansion": "5.0.9",
     "fast-uri": "3.1.5",
     "hono": "4.12.27",
+    "hono@<4.12.34": "4.12.34",
+    "hono@>=3.8.0 <4.12.34": "4.12.34",
+    "hono@>=4.12.0 <4.12.34": "4.12.34",
     "ip-address": "10.5.0",
     "js-yaml": "4.3.1",
     "nanoid": "3.3.18",
@@ -89,10 +93,7 @@
     "socket.io-parser": "4.2.7",
     "undici": "7.29.0",
     "vite": "8.1.3",
-    "ws": "8.21.0",
-    "hono@<4.12.34": "4.12.34",
-    "hono@>=3.8.0 <4.12.34": "4.12.34",
-    "hono@>=4.12.0 <4.12.34": "4.12.34"
+    "ws": "8.21.0"
   },
   "engines": {
     "bun": ">=1.3.14"
@@ -163,6 +164,7 @@
     "oxfmt": "0.63.0",
     "oxlint": "1.78.0",
     "oxlint-plugin-effect": "0.8.2",
+    "oxlint-plugin-react-doctor": "0.9.12",
     "oxlint-tsgolint": "7.0.2001",
     "posthog-js": "1.417.4",
     "react": "19.2.8",

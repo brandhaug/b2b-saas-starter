@@ -21,17 +21,41 @@ import { env as baseEnv } from './cloudflare-workers-shim.ts'
 // the e2e run reports only that the URL never answered.
 const PROXY_BOOT_TIMEOUT_MS = 30_000
 
+// The dynamic imports stay lazy loaders bound to descriptive names (they are
+// also conditional: only the SSR path reaches them), hoisted so each is
+// declared once instead of re-created per call.
+function loadNodePath() {
+  return import('node:path')
+}
+
+function loadLocalD1State() {
+  return import('./local-d1-state.ts')
+}
+
+function loadWrangler() {
+  return import('wrangler')
+}
+
+function loadNodeTimers() {
+  return import('node:timers/promises')
+}
+
 async function provisionLocalD1(): Promise<D1Database | undefined> {
   if (!import.meta.env.SSR) return undefined
-  const { join } = await import('node:path')
-  const { dbPackageDir, hasLocalD1State, localD1PersistPath } =
-    await import('./local-d1-state.ts')
-  if (!hasLocalD1State()) return undefined
-  const { getPlatformProxy } = await import('wrangler')
-  const { setTimeout: delay } = await import('node:timers/promises')
+  // oxlint-disable-next-line effect/noNewPromise -- platform boundary: this module is awaited before any Effect runtime exists, same as the Promise.race below
+  const [{ join }, localD1State] = await Promise.all([
+    loadNodePath(),
+    loadLocalD1State()
+  ])
+  if (!localD1State.hasLocalD1State()) return undefined
+  // oxlint-disable-next-line effect/noNewPromise -- platform boundary: this module is awaited before any Effect runtime exists, same as the Promise.race below
+  const [{ getPlatformProxy }, { setTimeout: delay }] = await Promise.all([
+    loadWrangler(),
+    loadNodeTimers()
+  ])
   const pending = getPlatformProxy<{ DB: D1Database }>({
-    configPath: join(dbPackageDir, 'wrangler.jsonc'),
-    persist: { path: localD1PersistPath }
+    configPath: join(localD1State.dbPackageDir, 'wrangler.jsonc'),
+    persist: { path: localD1State.localD1PersistPath }
   })
   // The deadline is aborted as soon as the race settles, so a dev server that
   // booted normally does not hold an idle timer for the rest of the window.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Schema } from 'effect'
@@ -8,6 +8,7 @@ import { PublicLayout } from '@/components/public-layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
+import { useHydrated } from '@/lib/client-only-value'
 import {
   DEMO_CREDENTIALS,
   DEMO_MEMBER_CREDENTIALS,
@@ -72,10 +73,9 @@ export function SignInPage({
   const [submitError, setSubmitError] = useState<string | null>(null)
   // Hydration signal for e2e: interacting before React hydrates falls through
   // to a native GET submit, so the smoke test waits for this attribute.
-  const [hydrated, setHydrated] = useState(false)
-  useEffect(() => {
-    setHydrated(true)
-  }, [])
+  // `useHydrated` flips it after hydration with no effect-setState round trip,
+  // so the first paint cannot flash the pre-hydration value.
+  const hydrated = useHydrated()
   const form = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
     onSubmit: async ({ value }) => {
