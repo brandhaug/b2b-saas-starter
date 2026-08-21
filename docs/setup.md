@@ -2,7 +2,7 @@
 
 ## Local development
 
-Requires [Bun](https://bun.sh) >= 1.3.3.
+Requires [Bun](https://bun.sh) >= 1.4.0.
 
 ```bash
 git clone git@github.com:brandhaug/b2b-saas-starter.git
