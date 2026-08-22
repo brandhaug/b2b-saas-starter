@@ -1,24 +1,24 @@
 ---
 title: Sentry and PostHog
-description: Two Optional Provider Modules for error monitoring and product analytics.
+description: Env-gated error monitoring and product analytics.
 category: integrations
 order: 30
 tags: [sentry, posthog, observability]
 ---
 
-Sentry and PostHog are Optional Provider Modules. They share the same env-gated activation pattern as Stripe and Cloudflare Email.
+Sentry and PostHog are optional, env-gated providers: they activate when their environment variables exist and stay absent when they do not.
 
-Telemetry export itself does not depend on either of them: setting `OTEL_EXPORTER_OTLP_ENDPOINT` ships traces, metrics, and the canonical log records to any OTLP collector, which is the supported path today. See the [observability module](/docs/starter-modules/observability).
+Telemetry export does not depend on either of them: setting `OTEL_EXPORTER_OTLP_ENDPOINT` ships traces, metrics, and the canonical log records to any OTLP collector, which is the supported path today.
 
 ## Sentry
 
-`SENTRY_DSN` is an optional field in `packages/env/src/server.ts`'s schema. Setting it alone — with no `POSTHOG_KEY` — is enough to raise the observability module to `env-present`. No Worker-side Sentry SDK is initialized — the wiring point is reserved. Tagged-error → Sentry mapping and Alchemy source-map upload are explicit non-goals for the first slice.
+`SENTRY_DSN` is an optional field in `packages/env/src/server.ts`'s schema. No Worker-side Sentry SDK is initialized — the wiring point is reserved. Tagged-error → Sentry mapping and Alchemy source-map upload are explicit non-goals for the first slice.
 
 ## PostHog
 
-`POSTHOG_KEY` (and optionally `POSTHOG_HOST`) behaves the same way: it alone also raises the module to `env-present`. The PostHog browser SDK is not initialized in `apps/web`; the env gate is in place so the module can activate without a code change once init is added.
+`POSTHOG_KEY` (and optionally `POSTHOG_HOST`) behaves the same way. The PostHog browser SDK is not initialized in `apps/web`; the env gate is in place so init can be added without a code change.
 
-Neither var, alone or together, ever raises the module to `configured` — no Sentry or PostHog SDK is wired to receive the data. Only `OTEL_EXPORTER_OTLP_ENDPOINT` does that, since the OTLP path is live end to end (see the [observability module](/docs/starter-modules/observability)). Until that var is set, it stays in the module's `missing` list even after `SENTRY_DSN` or `POSTHOG_KEY` has already made the module `env-present`.
+Neither var activates anything today — no Sentry or PostHog SDK is wired to receive the data. Only `OTEL_EXPORTER_OTLP_ENDPOINT` produces live telemetry end to end.
 
 ## Local development
 

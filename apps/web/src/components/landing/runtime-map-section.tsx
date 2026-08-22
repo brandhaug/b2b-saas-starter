@@ -3,7 +3,7 @@ type RuntimeRow = { readonly label: string; readonly value: string }
 const CLOUDFLARE_RUNTIME: readonly RuntimeRow[] = [
   { label: 'apps/web', value: 'Worker' },
   { label: 'apps/api', value: 'Worker' },
-  { label: 'apps/background', value: 'Worker (cron + queue)' },
+  { label: 'apps/background', value: 'Worker (queue consumer)' },
   { label: 'Database', value: 'D1' },
   { label: 'Outbound webhooks', value: 'Queues' },
   { label: 'Outbound email', value: 'Email Service' },

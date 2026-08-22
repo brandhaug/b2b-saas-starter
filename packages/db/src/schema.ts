@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import {
   index,
   integer,
-  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -22,13 +21,6 @@ export const invitationStatuses = [
   'accepted',
   'rejected',
   'canceled'
-] as const
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-export const moduleStatuses = [
-  'ready',
-  'needs-config',
-  'disabled',
-  'attention'
 ] as const
 /**
  * What a `mode: 'json'` text column can hold: exactly what
@@ -52,22 +44,6 @@ export type JsonObject = Readonly<Record<string, JsonValue>>
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const apiTokenScopes = ['read', 'write', 'admin'] as const
 export type ApiTokenScopeValue = (typeof apiTokenScopes)[number]
-export type CatalogRefreshSummary = {
-  readonly modules: number
-  readonly durationMs: number
-}
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-export const providerKinds = [
-  'github',
-  'stripe',
-  'sentry',
-  'posthog',
-  'turnstile',
-  'workers-ai',
-  'openai-compatible',
-  'cloudflare-email'
-] as const
-
 // Shared column helpers. Two timestamp dialects coexist by design: Better Auth
 // tables store epoch-seconds in integer columns (its plugin contract), starter
 // tables store ISO strings in text columns — see AGENTS.md before normalizing.
@@ -94,10 +70,6 @@ function authTimestamps() {
 
 function isoCreatedAt() {
   return text('created_at').notNull()
-}
-
-function isoUpdatedAt() {
-  return text('updated_at').notNull()
 }
 
 /**
@@ -267,47 +239,6 @@ export const workspaceInvitations = sqliteTable(
   ]
 )
 
-export const starterModules = sqliteTable('starter_modules', {
-  id: id(),
-  name: text('name').notNull(),
-  summary: text('summary').notNull(),
-  category: text('category').notNull(),
-  docsPath: text('docs_path').notNull(),
-  optional: integer('optional', { mode: 'boolean' }).default(false).notNull()
-})
-
-export const workspaceModuleStates = sqliteTable(
-  'workspace_module_states',
-  {
-    workspaceId: workspaceRef(),
-    moduleId: text('module_id')
-      .notNull()
-      .references(() => starterModules.id, { onDelete: 'cascade' }),
-    status: text('status', { enum: moduleStatuses }).notNull(),
-    enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
-    missingConfig: text('missing_config', { mode: 'json' })
-      .$type<readonly string[]>()
-      .default(sql`'[]'`)
-      .notNull(),
-    updatedAt: isoUpdatedAt()
-  },
-  (table) => [primaryKey({ columns: [table.workspaceId, table.moduleId] })]
-)
-
-export const integrationConnections = sqliteTable(
-  'integration_connections',
-  {
-    id: id(),
-    workspaceId: workspaceRef(),
-    provider: text('provider', { enum: providerKinds }).notNull(),
-    displayName: text('display_name').notNull(),
-    status: text('status').notNull(),
-    connectedAt: text('connected_at'),
-    lastCheckedAt: text('last_checked_at')
-  },
-  (table) => [workspaceIdIndex('integration_connections', table.workspaceId)]
-)
-
 export const apiTokens = sqliteTable(
   'api_tokens',
   {
@@ -364,34 +295,6 @@ export const webhookDeliveries = sqliteTable(
   (table) => [index('webhook_deliveries_endpoint_id_idx').on(table.endpointId)]
 )
 
-export const implementationReports = sqliteTable(
-  'implementation_reports',
-  {
-    id: id(),
-    workspaceId: workspaceRef(),
-    title: text('title').notNull(),
-    status: text('status').notNull(),
-    summary: text('summary').notNull(),
-    createdAt: isoCreatedAt()
-  },
-  (table) => [workspaceIdIndex('implementation_reports', table.workspaceId)]
-)
-
-export const reportSchedules = sqliteTable(
-  'report_schedules',
-  {
-    id: id(),
-    workspaceId: workspaceRef(),
-    frequency: text('frequency').notNull(),
-    enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
-    recipients: text('recipients', { mode: 'json' })
-      .$type<readonly string[]>()
-      .notNull(),
-    updatedAt: isoUpdatedAt()
-  },
-  (table) => [workspaceIdIndex('report_schedules', table.workspaceId)]
-)
-
 export const notifications = sqliteTable(
   'notifications',
   {
@@ -431,12 +334,3 @@ export const auditEvents = sqliteTable(
     index('audit_events_actor_user_id_idx').on(table.actorUserId)
   ]
 )
-
-export const catalogRefreshRuns = sqliteTable('catalog_refresh_runs', {
-  id: id(),
-  workspaceId: workspaceRefNullable(),
-  status: text('status').notNull(),
-  startedAt: text('started_at').notNull(),
-  completedAt: text('completed_at'),
-  summary: text('summary', { mode: 'json' }).$type<CatalogRefreshSummary>().notNull()
-})

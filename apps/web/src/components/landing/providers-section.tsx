@@ -9,8 +9,8 @@ function ProvidersSection() {
             Every provider is optional.
           </h2>
           <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
-            Stripe, Sentry, PostHog, Email, and GitHub OAuth ship with real routes,
-            models, and settings that stay inactive until their env vars exist. Local
+            Stripe, Sentry, PostHog, Cloudflare Email, and Turnstile ship with real
+            integrations that stay inactive until their env vars exist. Local
             development never blocks on a provider account.
           </p>
         </div>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Schema } from 'effect'
-import { GitBranchIcon, KeyRoundIcon } from 'lucide-react'
+import { KeyRoundIcon } from 'lucide-react'
 import { FormTextField } from '@/components/form-text-field'
 import { PublicLayout } from '@/components/public-layout'
 import { Button } from '@/components/ui/button'
@@ -104,7 +104,7 @@ export function SignInPage({
           <CardHeader>
             <CardTitle>Sign in</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Sign in with email and password, or use GitHub when configured.
+              Sign in with your email and password.
             </p>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -197,13 +197,6 @@ export function SignInPage({
                 </p>
               ) : null}
             </form>
-            <Button type="button" variant="outline" disabled>
-              <GitBranchIcon className="size-4" />
-              Continue with GitHub
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Configure GitHub OAuth secrets to enable.
-            </p>
             <p className="text-xs text-muted-foreground">
               Seeded a local database? Sign in with{' '}
               <code className="rounded-sm bg-muted px-1 py-0.5">

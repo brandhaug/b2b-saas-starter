@@ -28,8 +28,7 @@ External clients hit the API Worker. Internal UI hits its own server functions. 
 
 ## Background Worker (`apps/background`)
 
-- Cron trigger for Catalog Refresh at `0 6 * * *` (daily 06:00 UTC)
 - Queue consumer for outbound Webhook Endpoint delivery: queue `b2b-saas-starter-webhooks` with `maxRetries: 6`, `batchSize: 25`, `maxConcurrency: 4`, `retryDelay: 30s`, and dead-letter queue `b2b-saas-starter-webhooks-dlq`. Failures call `message.retry({ delaySeconds })` so Cloudflare schedules the next attempt.
-- Wide-event emission for every cron tick and delivery attempt via `packages/logger`
+- Wide-event emission for every delivery attempt via `packages/logger`
 
 The background Worker writes delivery attempt history to D1 through `WebhookEndpoints.recordDeliveryAttempt`. Terminal outcomes are audited: `failed_permanent` and `dead_lettered` statuses batch an audit event (`webhook.delivery_failed` / `webhook.delivery_dead_lettered`) with the attempt row inside the same D1 batch, scoped by the workspace id from the queue message.

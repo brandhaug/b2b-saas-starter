@@ -17,19 +17,12 @@ import {
   AuditEvent,
   AuthorizationDenied,
   CapabilityUnavailable,
-  CatalogRefreshRun,
   CreatedApiTokenSchema,
   CreateApiTokenPayload,
   CreateWebhookEndpointPayload,
-  ImplementationReport,
-  IntegrationSurface,
   InvalidWebhookUrl,
   Member,
-  ModuleStatus,
   Notification,
-  ReadinessPoint,
-  StarterModule,
-  StarterModuleWithState,
   WebhookEndpoint,
   Workspace,
   WorkspaceNotFound
@@ -77,10 +70,7 @@ export const SlugParams = Schema.Struct({ slug: Schema.String })
 
 export const WorkspaceOverviewDto = Schema.Struct({
   workspace: Workspace,
-  readinessScore: Schema.Number,
-  modules: Schema.Array(StarterModuleWithState),
-  notifications: Schema.Array(Notification),
-  readinessTrend: Schema.Array(ReadinessPoint)
+  notifications: Schema.Array(Notification)
 })
 export type WorkspaceOverviewDto = typeof WorkspaceOverviewDto.Type
 
@@ -95,13 +85,6 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
     HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
       params: SlugParams,
       success: WorkspaceOverviewDto,
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('modules', '/workspaces/:slug/modules', {
-      params: SlugParams,
-      success: Schema.Array(StarterModuleWithState),
       error: WORKSPACE_ERRORS
     })
   )
@@ -130,20 +113,6 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
     HttpApiEndpoint.get('webhooks', '/workspaces/:slug/webhooks', {
       params: SlugParams,
       success: Schema.Array(WebhookEndpoint),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('integrations', '/workspaces/:slug/integrations', {
-      params: SlugParams,
-      success: Schema.Array(IntegrationSurface),
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('reports', '/workspaces/:slug/reports', {
-      params: SlugParams,
-      success: Schema.Array(ImplementationReport),
       error: WORKSPACE_ERRORS
     })
   )
@@ -191,20 +160,6 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
   })
 )
 
-export const CatalogApi = HttpApiGroup.make('catalog')
-  .add(
-    HttpApiEndpoint.get('modules', '/catalog/modules', {
-      success: Schema.Array(StarterModule),
-      error: PROTECTED_ERRORS
-    })
-  )
-  .add(
-    HttpApiEndpoint.get('refresh-history', '/catalog/refresh-history', {
-      success: Schema.Array(CatalogRefreshRun),
-      error: PROTECTED_ERRORS
-    })
-  )
-
 export const AssistantApi = HttpApiGroup.make('assistant').add(
   HttpApiEndpoint.post('answer', '/assistant/answer', {
     payload: AssistantPrompt,
@@ -240,14 +195,11 @@ export const McpApi = HttpApiGroup.make('mcp').add(
   })
 )
 
-export const ModuleStatusDto = ModuleStatus
-
 export const StarterApi = HttpApi.make('b2b-saas-starter')
   .add(HealthApi)
   .add(WorkspaceApi)
   .add(ApiTokenApi)
   .add(WebhookApi)
-  .add(CatalogApi)
   .add(AssistantApi)
   .add(McpApi)
   .annotateMerge(

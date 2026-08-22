@@ -67,14 +67,14 @@ describe('requireWorkspacePermission', () => {
   })
 
   it('still lets a member read the workspace content', async () => {
-    expect(await decide(actor('member'), { module: ['read'] })).toBe('allowed')
     expect(await decide(actor('member'), { notification: ['read'] })).toBe('allowed')
+    expect(await decide(actor('member'), { ac: ['read'] })).toBe('allowed')
   })
 
   it('fails closed when the context resolved no actor', async () => {
     // A trusted read (the public showcase loader) omits the actor entirely.
     // Reaching the guard without one means nothing was proved, so it denies.
-    expect(await decide(null, { module: ['read'] })).toBe('no_principal')
+    expect(await decide(null, { notification: ['read'] })).toBe('no_principal')
   })
 
   it('grants a system admin nothing inside the workspace', async () => {

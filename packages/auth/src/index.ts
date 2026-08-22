@@ -39,37 +39,12 @@ export type AuthConfigInterface = {
   readonly secret: string
   readonly baseURL: string
   readonly trustedOrigins: readonly string[]
-  readonly github: {
-    readonly clientId: string
-    readonly clientSecret: string
-  } | null
   readonly emails: AuthEmailSender
 }
 
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
   '@b2b-saas-starter/auth/AuthConfig'
 ) {}
-
-/**
- * Better Auth reads `socialProviders` as an open bag: the Example OAuth
- * Provider key is present only when its credentials are configured, so an
- * unconfigured starter gets an empty bag rather than a disabled provider.
- */
-/**
- * Better Auth's `socialProviders` bag as this starter fills it: the GitHub key
- * exists only when its credentials are configured, so the type is the open bag
- * Better Auth reads rather than a provider that is present but disabled.
- */
-type StarterSocialProviders = {
-  github?: { clientId: string; clientSecret: string }
-}
-
-function socialProvidersFor(
-  github: AuthConfigInterface['github']
-): StarterSocialProviders {
-  if (github === null) return {}
-  return { github }
-}
 
 /**
  * Kept as a plain function returning a single (non-union) object type: the
@@ -80,8 +55,6 @@ function socialProvidersFor(
  * admin plugin's `user.role` would vanish from `Session`).
  */
 export function makeAuthOptions(options: AuthConfigInterface) {
-  const socialProviders = socialProvidersFor(options.github)
-
   return {
     secret: options.secret,
     baseURL: options.baseURL,
@@ -141,7 +114,6 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         await options.emails.sendEmailVerification({ email: user.email, url })
       }
     },
-    socialProviders,
     plugins: plugins(
       username(),
       admin({

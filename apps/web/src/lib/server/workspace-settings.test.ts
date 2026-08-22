@@ -18,7 +18,6 @@ describe('loadWorkspaceSettings', () => {
       userId: OWNER
     })
     expect(payload.viewer).toEqual({ role: 'owner' })
-    expect(payload.modules.length).toBeGreaterThan(0)
     expect(payload.apiTokenCount).toBeTypeOf('number')
     expect(payload.webhookCount).toBeTypeOf('number')
     expect(payload.invitations).toBeInstanceOf(Array)
@@ -30,8 +29,6 @@ describe('loadWorkspaceSettings', () => {
       userId: MEMBER
     })
     expect(payload.viewer).toEqual({ role: 'member' })
-    // Granted by the matrix: module:read and notification:read.
-    expect(payload.modules.length).toBeGreaterThan(0)
     expect(payload.unreadCount).toBeTypeOf('number')
     // Denied by the matrix — and denied server-side, so the numbers never
     // reach the serialized loader payload at all.

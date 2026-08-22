@@ -6,7 +6,7 @@ order: 20
 tags: [mcp, ai, tools]
 ---
 
-The MCP server is the second Capability Interface. It is intended to expose the same workspace, Starter Module, Adoption Readiness, audit, and webhook operations as REST — but shaped as MCP tools and resources.
+The MCP server is the second Capability Interface. It is intended to expose the same workspace, audit, notification, and webhook operations as REST — but shaped as MCP tools and resources.
 
 ## Today's surface
 
@@ -14,11 +14,11 @@ The API Worker exposes `GET /mcp`, which returns a static discovery document wit
 
 ## Planned tools and resources
 
-Tool handlers will wrap the same Effect services that REST routes wrap — `StarterModuleCatalog`, `AdoptionReadiness`, `ImplementationReports`, and friends from `@b2b-saas-starter/capabilities`. Their inputs and outputs will be derived from the same Effect Schemas the REST endpoints use, so the contract stays in one place.
+Tool handlers will wrap the same Effect services that REST routes wrap — `NotificationFeed`, `WebhookEndpoints`, and friends from `@b2b-saas-starter/capabilities`. Their inputs and outputs will be derived from the same Effect Schemas the REST endpoints use, so the contract stays in one place.
 
 ## Authentication
 
-The `/mcp` route accepts the same workspace-scoped API Tokens as REST: `Authorization: Bearer …`, authenticated and then checked by `enforcePermission(request, { module: ['read'] })` in `apps/api/src/handlers.ts`. Like every other endpoint it names a permission rather than a scope — the scope-to-permission mapping lives once, in `@b2b-saas-starter/authz`'s role table, so a `read` token satisfies discovery today. Per-tool checks will name their own permissions once tool dispatch lands. There is no separate MCP credential surface.
+The `/mcp` route accepts the same workspace-scoped API Tokens as REST: `Authorization: Bearer …`, authenticated and then checked by `enforcePermission(request, { notification: ['read'] })` in `apps/api/src/handlers.ts`. Like every other endpoint it names a permission rather than a scope — the scope-to-permission mapping lives once, in `@b2b-saas-starter/authz`'s role table, so a `read` token satisfies discovery today. Per-tool checks will name their own permissions once tool dispatch lands. There is no separate MCP credential surface.
 
 ## Why one set of capabilities
 

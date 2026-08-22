@@ -11,7 +11,6 @@ import {
 } from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient } from 'effect/unstable/http'
 import {
-  runCatalogRefresh,
   selectCapabilitiesLayer,
   validateWebhookUrl,
   WebhookEndpoints,
@@ -20,7 +19,7 @@ import {
   type StarterEnv,
   type WebhookQueueBinding
 } from '@b2b-saas-starter/capabilities'
-import { makeStarterEnvModuleConfig, type ServerEnv } from '@b2b-saas-starter/env'
+import { type ServerEnv } from '@b2b-saas-starter/env'
 import {
   annotateWide,
   currentTraceId,
@@ -31,9 +30,7 @@ import {
   withTriggerScope
 } from '@b2b-saas-starter/logger'
 
-// Bindings plus the optional module env Alchemy forwards to this worker under
-// its canonical names — the same shape `ApiEnv` describes for apps/api, so the
-// module-aware env validation below reads real deployment values.
+// Bindings plus optional env. The same shape `ApiEnv` describes for apps/api.
 type Env = Partial<ServerEnv> & {
   readonly DB?: D1Database
   // The producer port, not workers-types' `Queue`: this worker only forwards
@@ -42,12 +39,10 @@ type Env = Partial<ServerEnv> & {
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding
 }
 
-// Module-aware env validation (ADR 0035).
 function starterEnv(env: Env): StarterEnv {
   return {
     DB: env.DB,
-    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
-    moduleConfig: makeStarterEnvModuleConfig(env)
+    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE
   }
 }
 
@@ -230,34 +225,6 @@ const WebhookDeliveryBody = Schema.Struct({
   payload: WebhookQueueMessage.fields.payload
 })
 const encodeDeliveryBody = Schema.encodeSync(Schema.fromJsonString(WebhookDeliveryBody))
-
-function refreshCatalog(env: Env): Effect.Effect<void, CapabilityUnavailable> {
-  // `runCatalogRefresh` owns the "no refresh run goes unrecorded" sequence
-  // (capture outcome, record ok/failed row with real duration, re-raise); this
-  // handler only adds the env-selected layer and the wide-event scope.
-  const program = runCatalogRefresh.pipe(
-    Effect.tap((moduleCount) => annotateWide({ moduleCount })),
-    Effect.tapError(() => annotateWide({ outcome: 'failed' })),
-    Effect.asVoid,
-    Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
-  )
-
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'catalog_refresh',
-      env,
-      metadata: { source: catalogSource(env) }
-    },
-    program
-  )
-}
-
-/** Which catalog adapter the refresh ran against, for the wide event. */
-function catalogSource(env: Env): 'live' | 'seed' {
-  if (env.DB) return 'live'
-  return 'seed'
-}
 
 /**
  * Delivers one webhook message: resolve the dispatch target, re-check the
@@ -481,11 +448,8 @@ function recordDeadLetter(
 }
 
 export default {
-  // Neither handler is `async`: the Workers runtime awaits the promise each
-  // one returns, and there is nothing to await before returning it.
-  scheduled(_event: ScheduledEvent, env: Env): Promise<void> {
-    return runInvocation(env, refreshCatalog(env))
-  },
+  // The handler is not `async`: the Workers runtime awaits the promise it
+  // returns, and there is nothing to await before returning it.
 
   // Queue message bodies are untyped at runtime; `processWebhookMessage` and
   // `processDeadLetterMessage` decode the envelope at their boundary. The batch

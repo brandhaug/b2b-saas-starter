@@ -9,7 +9,6 @@ import { providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import {
   apiTokenGroup,
   assistantGroup,
-  catalogGroup,
   healthGroup,
   mcpGroup,
   webhookGroup,
@@ -40,7 +39,6 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     workspaceGroup(env),
     apiTokenGroup(env),
     webhookGroup(env),
-    catalogGroup(env),
     assistantGroup(env),
     mcpGroup(env)
   )

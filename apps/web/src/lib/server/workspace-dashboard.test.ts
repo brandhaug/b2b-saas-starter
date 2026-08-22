@@ -20,9 +20,7 @@ describe('loadWorkspaceDashboard', () => {
     })
     expect(payload.viewer).toEqual({ role: 'member' })
     expect(payload.webhooks).toBeNull()
-    // The rest of the dashboard is module:read and notification:read, both of
-    // which a member holds.
-    expect(payload.modules.length).toBeGreaterThan(0)
-    expect(payload.refreshRuns.length).toBeGreaterThan(0)
+    // The rest of the dashboard is notification:read, which a member holds.
+    expect(payload.notifications.length).toBeGreaterThan(0)
   })
 })

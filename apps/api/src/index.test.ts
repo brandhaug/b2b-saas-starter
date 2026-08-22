@@ -14,7 +14,7 @@ const OpenApiBody = Schema.Struct({
 })
 const OverviewBody = Schema.Struct({
   workspace: Schema.Struct({ slug: Schema.String }),
-  modules: Schema.Array(Schema.Unknown)
+  notifications: Schema.Array(Schema.Unknown)
 })
 const CreatedTokenBody = Schema.Struct({
   token: Schema.String,
@@ -147,7 +147,7 @@ describe('contract-served routes', () => {
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, OverviewBody)
         expect(body.workspace.slug).toBe('starter-lab')
-        expect(Array.isArray(body.modules)).toBe(true)
+        expect(Array.isArray(body.notifications)).toBe(true)
       })
     ))
 

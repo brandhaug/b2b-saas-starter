@@ -12,7 +12,6 @@ import {
   type StarterEnv,
   type WorkspaceContext
 } from '@b2b-saas-starter/capabilities'
-import { makeStarterEnvModuleConfig } from '@b2b-saas-starter/env'
 import { CapabilityUnavailableError, ForbiddenError } from './capability-error'
 import { withWebRequestScope } from './observability'
 
@@ -36,16 +35,8 @@ export type CapabilityBindings = Pick<StarterEnv, 'memberBinding' | 'invitationB
 // (`cloudflare-workers-shim.ts`) `DB` is undefined and the in-memory Seed
 // layer keeps the app working provider-light (CLAUDE.md rule 3).
 //
-// `moduleConfig` runs the module-aware env validation (ADR 0035) over the
-// worker's real env: optional modules with unset vars surface as
-// needs-config in the workspace UI instead of trusting stored fixture state.
-// `makeStarterEnvModuleConfig` never throws in local mode, so an empty env
-// still boots.
 const starterEnv: StarterEnv = {
-  DB: cloudflareEnv.DB,
-  // Spread: `Env` is an interface (no implicit index signature), so it is not
-  // directly assignable to the `Record<string, unknown>` parameter.
-  moduleConfig: makeStarterEnvModuleConfig({ ...cloudflareEnv })
+  DB: cloudflareEnv.DB
 }
 
 // The Effect → TanStack boundary. Loaders and server functions are Promise

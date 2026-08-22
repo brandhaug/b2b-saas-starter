@@ -1,8 +1,6 @@
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { layerFromD1 } from '@b2b-saas-starter/db'
-import { computeReadinessScore } from './catalog/adoption-readiness.ts'
-import { runCatalogRefresh } from './catalog/catalog-refresh-history.ts'
 import { SeedLayer } from './layers.ts'
 import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.ts'
@@ -10,7 +8,6 @@ import {
   makeSeedRoster,
   SeedWorkspaceMembership
 } from './governance/workspace-membership.ts'
-import { StarterModuleCatalog } from './catalog/starter-module-catalog.ts'
 import {
   ApiTokenRegistry,
   LAST_USED_WRITE_INTERVAL_MS,
@@ -23,8 +20,7 @@ import {
   LiveWebhookEndpoints,
   WebhookEndpoints
 } from './developer-platform/webhook-endpoints.ts'
-import { IntegrationSurfaces } from './notifications/integration-surfaces.ts'
-import { selectWorkspaceLayer } from './runtime.ts'
+import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
 import { LiveAuditEventLog } from './governance/audit-event-log.ts'
 import {
   NotificationFeed,
@@ -48,14 +44,6 @@ const seedWorkspaceLayer = Layer.merge(
 )
 
 describe('starter capabilities', () => {
-  it.effect('exposes seed starter modules through the catalog interface', () =>
-    Effect.gen(function* () {
-      const catalog = yield* StarterModuleCatalog
-      const modules = yield* catalog.listModules
-      expect(modules.length).toBeGreaterThan(5)
-    }).pipe(Effect.provide(seedWorkspaceLayer))
-  )
-
   it.effect('counts unread notifications through the feed interface', () =>
     Effect.gen(function* () {
       const feed = yield* NotificationFeed
@@ -63,26 +51,28 @@ describe('starter capabilities', () => {
       expect(unread).toBeGreaterThan(0)
     }).pipe(Effect.provide(seedWorkspaceLayer))
   )
+})
 
-  it('derives readiness from module state', () => {
-    const score = computeReadinessScore([
-      {
-        moduleId: 'a',
-        enabled: true,
-        status: 'ready',
-        missingConfig: [],
-        updatedAt: ''
-      },
-      {
-        moduleId: 'b',
-        enabled: true,
-        status: 'needs-config',
-        missingConfig: [],
-        updatedAt: ''
-      }
-    ])
-    expect(score).toBe(50)
-  })
+describe('layer selection without D1', () => {
+  it.effect('selects the seed layer for an identity-keyed read', () =>
+    Effect.gen(function* () {
+      const items = yield* listWorkspacesForUser('usr_martin')
+      expect(items.map((item) => item.workspace.slug)).toContain('starter-lab')
+    }).pipe(Effect.provide(selectCapabilitiesLayer({})))
+  )
+
+  it.effect('selects the seed workspace layer with fixture membership', () =>
+    Effect.gen(function* () {
+      const notifications = yield* Effect.flatMap(NotificationFeed, (feed) => feed.list)
+      expect(notifications.length).toBeGreaterThan(0)
+    }).pipe(
+      Effect.provide(
+        selectWorkspaceLayer({}, seedWorkspaceRecord.slug, {
+          userId: 'usr_demo'
+        })
+      )
+    )
+  )
 })
 
 describe('workspace read projections', () => {
@@ -90,10 +80,7 @@ describe('workspace read projections', () => {
     Effect.gen(function* () {
       const overview = yield* workspaceOverview
       expect(overview.workspace.slug).toBe('starter-lab')
-      expect(overview.modules.length).toBeGreaterThan(5)
-      expect(overview.readinessScore).toBe(
-        computeReadinessScore(overview.modules.map((module) => module.state))
-      )
+      expect(overview.notifications.length).toBeGreaterThan(0)
     }).pipe(Effect.provide(seedWorkspaceLayer))
   )
 
@@ -102,18 +89,9 @@ describe('workspace read projections', () => {
     () =>
       Effect.gen(function* () {
         const dashboard = yield* workspaceDashboard
-        const statusTotal = dashboard.moduleStatusCounts.reduce(
-          (sum, entry) => sum + entry.count,
-          0
-        )
-        expect(statusTotal).toBe(dashboard.modules.length)
-        expect(dashboard.readyCount).toBe(
-          dashboard.modules.filter((module) => module.state.status === 'ready').length
-        )
         expect(dashboard.unreadCount).toBe(
           dashboard.notifications.filter((notification) => !notification.read).length
         )
-        expect(dashboard.refreshRuns.length).toBeGreaterThan(0)
       }).pipe(Effect.provide(seedWorkspaceLayer))
   )
 })
@@ -193,72 +171,6 @@ describe('notification feed actor scoping', () => {
       expect(list.map((notification) => notification.id)).toEqual(['not_broadcast'])
       expect(unread).toBe(1)
     }).pipe(Effect.provide(feedFor()))
-  )
-})
-
-describe('module env status overlay', () => {
-  const layer = selectWorkspaceLayer(
-    {
-      moduleConfig: [
-        { moduleId: 'better-auth', configured: true, envPresent: true, missing: [] },
-        {
-          moduleId: 'cloudflare-email',
-          configured: false,
-          envPresent: false,
-          missing: ['CLOUDFLARE_EMAIL_FROM']
-        },
-        // env present but the runtime isn't wired yet (runtimeWired: false)
-        { moduleId: 'billing', configured: false, envPresent: true, missing: [] },
-        {
-          moduleId: 'github-oauth',
-          configured: false,
-          envPresent: false,
-          missing: ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET']
-        }
-      ]
-    },
-    seedWorkspaceRecord.slug
-  )
-
-  it.effect('overrides fixture module state with env-derived status', () =>
-    Effect.gen(function* () {
-      const catalog = yield* StarterModuleCatalog
-      const modules = yield* catalog.listModules
-      const byId = new Map(modules.map((module) => [module.id, module.state]))
-      // Seed fixture says needs-config; env says fully configured.
-      expect(byId.get('better-auth')?.status).toBe('ready')
-      expect(byId.get('better-auth')?.missingConfig).toEqual([])
-      // Env is missing → needs-config with the redacted var names.
-      expect(byId.get('cloudflare-email')?.status).toBe('needs-config')
-      expect(byId.get('cloudflare-email')?.missingConfig).toEqual([
-        'CLOUDFLARE_EMAIL_FROM'
-      ])
-      // No env mapping → fixture state passes through untouched.
-      expect(byId.get('tanstack-start')?.status).toBe('ready')
-    }).pipe(Effect.provide(layer))
-  )
-
-  it.effect('overrides integration surface status with env-derived status', () =>
-    Effect.gen(function* () {
-      const integrations = yield* IntegrationSurfaces
-      const surfaces = yield* integrations.list
-      const byProvider = new Map(surfaces.map((surface) => [surface.provider, surface]))
-      // billing env present but not runtime-wired → attention, not ready.
-      expect(byProvider.get('stripe')?.status).toBe('attention')
-      expect(byProvider.get('github')?.status).toBe('needs-config')
-      expect(byProvider.get('github')?.summary).toContain('GITHUB_CLIENT_ID')
-      // turnstile has no env status in this run → fixture value retained.
-      expect(byProvider.get('turnstile')?.status).toBe('disabled')
-    }).pipe(Effect.provide(layer))
-  )
-
-  it.effect('leaves fixture state untouched when no env information is passed', () =>
-    Effect.gen(function* () {
-      const catalog = yield* StarterModuleCatalog
-      const modules = yield* catalog.listModules
-      const betterAuth = modules.find((module) => module.id === 'better-auth')
-      expect(betterAuth?.state.status).toBe('needs-config')
-    }).pipe(Effect.provide(selectWorkspaceLayer({}, seedWorkspaceRecord.slug)))
   )
 })
 
@@ -392,15 +304,6 @@ describe('webhook endpoint workspace scoping', () => {
   })
 })
 
-describe('catalog refresh run recording', () => {
-  it.effect('records a run and resolves the module count', () =>
-    Effect.gen(function* () {
-      const count = yield* runCatalogRefresh
-      expect(count).toBeGreaterThan(5)
-    }).pipe(Effect.provide(SeedLayer))
-  )
-})
-
 describe('workspace list projection', () => {
   it.effect('lists the seed workspace with counts for a member', () =>
     Effect.gen(function* () {
@@ -408,7 +311,6 @@ describe('workspace list projection', () => {
       expect(items).toHaveLength(1)
       const item = items[0]
       expect(item?.workspace.slug).toBe('starter-lab')
-      expect(item?.moduleCount).toBeGreaterThan(5)
       expect(item?.memberCount).toBe(4)
       expect(item?.notificationCount).toBeGreaterThan(0)
     }).pipe(Effect.provide(SeedLayer))

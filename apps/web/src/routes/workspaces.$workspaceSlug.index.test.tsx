@@ -26,7 +26,7 @@ async function renderDashboard(data: WorkspaceDashboardPayload) {
       destinations: ['/workspaces/starter-lab/settings']
     }
   )
-  await screen.findByText('Starter modules')
+  await screen.findByText('Notifications')
   return rendered
 }
 
@@ -44,6 +44,6 @@ describe('WorkspaceDashboardPage', () => {
     )
     expect(screen.queryByText('Webhook delivery')).toBeNull()
     // The rest of the dashboard still renders.
-    screen.getByText('Readiness trend')
+    screen.getByText('Notifications')
   })
 })

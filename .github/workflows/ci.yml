@@ -62,8 +62,3 @@ jobs:
           BETTER_AUTH_TRUSTED_ORIGINS: ${{ secrets.BETTER_AUTH_TRUSTED_ORIGINS }}
           # Optional — the SendEmail binding is skipped when unset (alchemy.run.ts).
           CLOUDFLARE_EMAIL_FROM: ${{ secrets.CLOUDFLARE_EMAIL_FROM }}
-          # GitHub Actions forbids secret names starting with GITHUB_, so the
-          # repo secrets are named GH_OAUTH_* and mapped to the env var names
-          # alchemy.run.ts reads.
-          GITHUB_CLIENT_ID: ${{ secrets.GH_OAUTH_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GH_OAUTH_CLIENT_SECRET }}

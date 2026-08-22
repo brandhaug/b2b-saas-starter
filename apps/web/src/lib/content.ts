@@ -1,6 +1,5 @@
 import { type ComponentType, type SVGProps } from 'react'
-import { Activity, BarChart3, CreditCard, Mail } from 'lucide-react'
-import { GithubIcon } from '@/components/icons/github'
+import { Activity, BarChart3, CreditCard, Mail, ShieldCheck } from 'lucide-react'
 
 /** `to` stays a literal union so TanStack Router still type-checks the links. */
 type PublicLink = {
@@ -48,10 +47,10 @@ export const optionalProviderModules: readonly OptionalProviderModule[] = [
     icon: Mail
   },
   {
-    id: 'github-oauth',
-    name: 'GitHub OAuth',
-    role: 'Example OAuth Provider',
-    icon: GithubIcon
+    id: 'turnstile',
+    name: 'Turnstile',
+    role: 'Bot protection on public forms',
+    icon: ShieldCheck
   }
 ]
 
@@ -69,14 +68,14 @@ export const faqItems: readonly FaqItem[] = [
       'Effect gives us typed errors, dependency injection, and HTTP API contracts shared between the API Worker, MCP discovery, and the web app. Capabilities are written once and reused across REST, MCP, server functions, and background jobs — no duplicated business logic.'
   },
   {
-    question: 'How do I add a new starter module?',
+    question: 'How do I add a new capability?',
     answer:
-      'Add the capability in packages/capabilities, register it in the starter module catalog, surface it on the workspace dashboard, and (optionally) expose it through REST and MCP. The module-state pattern handles disabled, needs-config, and ready transitions for you.'
+      'Add the capability in packages/capabilities, wire its Seed/Live layers, surface it on a workspace route, and (optionally) expose it through REST and MCP. The Seed/Live contract keeps tests and production on one interface.'
   },
   {
     question: 'Do I need to configure every provider to run locally?',
     answer:
-      'No. Stripe, Sentry, PostHog, Turnstile, Cloudflare Email, GitHub OAuth, and the AI providers are env-gated. Missing keys keep the module in a needs-config state — the app still boots and the rest of the surface stays usable.'
+      'No. Stripe, Sentry, PostHog, Turnstile, Cloudflare Email, and the AI providers are env-gated. Missing keys leave those providers disabled — the app still boots and the rest of the surface stays usable.'
   },
   {
     question: 'How does deployment work?',

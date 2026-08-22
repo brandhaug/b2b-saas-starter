@@ -40,10 +40,9 @@ const PERMISSIONS = [
   { label: 'webhook:disable', request: { webhook: ['disable'] } },
   { label: 'webhook:rotateSecret', request: { webhook: ['rotateSecret'] } },
   { label: 'auditLog:read', request: { auditLog: ['read'] } },
-  { label: 'module:read', request: { module: ['read'] } },
-  { label: 'module:update', request: { module: ['update'] } },
   { label: 'notification:read', request: { notification: ['read'] } },
-  { label: 'integration:read', request: { integration: ['read'] } }
+  { label: 'assistant:read', request: { assistant: ['read'] } },
+  { label: 'mcp:read', request: { mcp: ['read'] } }
 ] satisfies readonly Permission[]
 
 const EVERY_LABEL = PERMISSIONS.map((permission) => permission.label)
@@ -54,9 +53,9 @@ const READ_ONLY = [
   'apiToken:list',
   'webhook:list',
   'auditLog:read',
-  'module:read',
   'notification:read',
-  'integration:read'
+  'assistant:read',
+  'mcp:read'
 ]
 
 const GRANTS: readonly {
@@ -74,13 +73,13 @@ const GRANTS: readonly {
   {
     name: 'member role',
     principal: memberPrincipal('member'),
-    granted: ['ac:read', 'module:read', 'notification:read', 'integration:read']
+    granted: ['ac:read', 'notification:read', 'assistant:read', 'mcp:read']
   },
   { name: 'read scope', principal: tokenPrincipal(['read']), granted: READ_ONLY },
   {
     name: 'write scope',
     principal: tokenPrincipal(['write']),
-    granted: [...READ_ONLY, 'invitation:create', 'webhook:create', 'module:update']
+    granted: [...READ_ONLY, 'invitation:create', 'webhook:create']
   },
   { name: 'admin scope', principal: tokenPrincipal(['admin']), granted: EVERY_LABEL }
 ]
@@ -125,8 +124,8 @@ describe('member denials', () => {
 describe('token scopes', () => {
   it('grants a permission covered by any one of the held scopes', () => {
     const token = tokenPrincipal(['read', 'write'])
-    expect(authorize(token, { module: ['update'] }).success).toBe(true)
-    expect(authorize(token, { module: ['read'] }).success).toBe(true)
+    expect(authorize(token, { webhook: ['create'] }).success).toBe(true)
+    expect(authorize(token, { auditLog: ['read'] }).success).toBe(true)
   })
 
   it('cannot mint a token from the write scope', () => {
@@ -145,7 +144,7 @@ describe('token scopes', () => {
   })
 
   it('denies a token holding no scopes', () => {
-    expect(authorize(tokenPrincipal([]), { module: ['read'] }).success).toBe(false)
+    expect(authorize(tokenPrincipal([]), { auditLog: ['read'] }).success).toBe(false)
   })
 
   it('denies a request whose actions are not all covered', () => {
@@ -175,7 +174,7 @@ describe('requirePermission', () => {
   it.effect('denies an unresolved principal instead of passing it through', () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        Effect.scoped(requirePermission(null, { module: ['read'] }))
+        Effect.scoped(requirePermission(null, { auditLog: ['read'] }))
       )
       expect(error.reason).toBe('no_principal')
     })

@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Workspace-scoped notification stream: catalog-refresh failures, webhook-delivery anomalies, integration auth expirations, and human-authored announcements. Powers the bell icon and the notification panel in the workspace shell. Read-only today — notifications are inserted by background jobs and the seed fixture; there is no in-product authoring path.
+Workspace-scoped notification stream: webhook-delivery anomalies and human-authored announcements. Powers the bell icon and the notification panel in the workspace shell. Read-only today — notifications are inserted by background jobs and the seed fixture; there is no in-product authoring path.
 
 ## Public surface
 

@@ -53,7 +53,7 @@ export const Mixed: Story = {
       {
         id: 'n1',
         title: 'Catalog refreshed',
-        message: 'Background job updated 14 modules at 09:12.',
+        message: 'Background job retried 14 deliveries at 09:12.',
         read: false
       },
       {
@@ -65,7 +65,7 @@ export const Mixed: Story = {
       {
         id: 'n3',
         title: 'Weekly report ready',
-        message: "This week's readiness report is available for review.",
+        message: "This week's delivery report is available for review.",
         read: true
       }
     ]

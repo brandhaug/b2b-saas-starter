@@ -1,28 +1,6 @@
 import { Effect, Layer } from 'effect'
 import { type Database, layerFromD1 } from '@b2b-saas-starter/db'
 
-// catalog
-import {
-  type AdoptionReadiness,
-  LiveAdoptionReadiness,
-  SeedAdoptionReadiness
-} from './catalog/adoption-readiness.ts'
-import {
-  type CatalogRefreshHistory,
-  LiveCatalogRefreshHistory,
-  SeedCatalogRefreshHistory
-} from './catalog/catalog-refresh-history.ts'
-import {
-  type ImplementationReports,
-  LiveImplementationReports,
-  SeedImplementationReports
-} from './catalog/implementation-reports.ts'
-import {
-  LiveStarterModuleCatalog,
-  SeedStarterModuleCatalog,
-  type StarterModuleCatalog
-} from './catalog/starter-module-catalog.ts'
-
 // developer-platform
 import {
   type ApiTokenRegistry,
@@ -63,11 +41,6 @@ import {
 
 // notifications
 import {
-  type IntegrationSurfaces,
-  LiveIntegrationSurfaces,
-  SeedIntegrationSurfaces
-} from './notifications/integration-surfaces.ts'
-import {
   LiveNotificationFeed,
   type NotificationFeed,
   SeedNotificationFeed
@@ -76,26 +49,16 @@ import {
 import {
   seedApiTokens,
   seedAuditEvents,
-  seedCatalogRefreshHistory,
-  seedImplementationReports,
-  seedIntegrationSurfaces,
   seedMembers,
   seedNotifications,
-  seedReadinessTrend,
-  seedStarterModules,
   seedWebhookEndpoints,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
 
 export type CapabilityServices =
-  | AdoptionReadiness
   | ApiTokenRegistry
   | AuditEventLog
-  | CatalogRefreshHistory
-  | ImplementationReports
-  | IntegrationSurfaces
   | NotificationFeed
-  | StarterModuleCatalog
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceInvitations
@@ -120,14 +83,9 @@ const SeedGovernance = Layer.unwrap(
 )
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
-  SeedAdoptionReadiness(seedReadinessTrend),
   SeedApiTokenRegistry(seedApiTokens),
   SeedAuditEventLog(seedAuditEvents),
-  SeedCatalogRefreshHistory(seedCatalogRefreshHistory),
-  SeedImplementationReports(seedImplementationReports),
-  SeedIntegrationSurfaces(seedIntegrationSurfaces),
   SeedNotificationFeed(seedNotifications),
-  SeedStarterModuleCatalog(seedStarterModules),
   SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
   SeedGovernance
@@ -152,14 +110,9 @@ export function makeLiveCapabilitiesLayer(
   options: LiveCapabilitiesOptions = {}
 ): Layer.Layer<CapabilityServices, never, Database> {
   return Layer.mergeAll(
-    LiveAdoptionReadiness,
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LiveAuditEventLog,
-    LiveCatalogRefreshHistory,
-    LiveImplementationReports,
-    LiveIntegrationSurfaces,
     LiveNotificationFeed,
-    LiveStarterModuleCatalog,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
     LiveWebhookPublisher(options.webhookQueue),
     LiveWorkspaceInvitations(options.invitationBinding).pipe(

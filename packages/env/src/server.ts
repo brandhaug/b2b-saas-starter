@@ -2,7 +2,7 @@ import { Record, Schema } from 'effect'
 
 const optional = Schema.optional(Schema.String)
 
-// Single source of truth for server env vars (ADR 0035). Add a new var HERE
+// Single source of truth for server env vars. Add a new var HERE
 // (and, when alchemy should forward it to deployed workers, to exactly one of
 // the optional-module key lists below) — everything else derives from the
 // schema: `readServerEnv` picks these keys, `alchemy.run.ts` builds its
@@ -12,8 +12,6 @@ export const ServerEnvSchema = Schema.Struct({
   BETTER_AUTH_SECRET: Schema.String,
   BETTER_AUTH_URL: Schema.String,
   BETTER_AUTH_TRUSTED_ORIGINS: optional,
-  GITHUB_CLIENT_ID: optional,
-  GITHUB_CLIENT_SECRET: optional,
   STRIPE_SECRET_KEY: optional,
   STRIPE_WEBHOOK_SECRET: optional,
   SENTRY_DSN: optional,
@@ -43,14 +41,12 @@ export const serverEnvKeys: ReadonlyArray<keyof ServerEnv> = Record.keys(
   ServerEnvSchema.fields
 )
 
-// Optional module env forwarded by alchemy to all three workers. Secret keys
+// Optional provider env forwarded by alchemy to all three workers. Secret keys
 // are wrapped in `Redacted` at deploy time; plain keys are forwarded as-is.
 // `satisfies` pins both lists to schema keys, so a typo or a var that was
 // removed from the schema is a compile error.
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvSecretKeys = [
-  'GITHUB_CLIENT_ID',
-  'GITHUB_CLIENT_SECRET',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'TURNSTILE_SECRET_KEY',
@@ -78,13 +74,6 @@ export const optionalModuleEnvKeys: ReadonlyArray<keyof ServerEnv> = [
   ...optionalModuleEnvSecretKeys,
   ...optionalModuleEnvPlainKeys
 ]
-
-export type ModuleConfigStatus = {
-  readonly moduleId: string
-  readonly configured: boolean
-  readonly envPresent: boolean
-  readonly missing: readonly string[]
-}
 
 function hasValue(value: string | undefined): boolean {
   return value !== undefined && value.length > 0
@@ -122,104 +111,6 @@ export function readServerEnv(
     serverEnvKeys.map((key) => [key, source[key] ?? localDefaults[key]])
   )
   return decodeServerEnv(picked)
-}
-
-/** An Optional Provider Module is configured once every var it requires has a value. */
-function requiredKeysStatus(
-  env: ServerEnv,
-  moduleId: string,
-  required: readonly (keyof ServerEnv)[],
-  options?: { readonly runtimeWired?: boolean }
-): ModuleConfigStatus {
-  const missing = required.filter((key) => !hasValue(env[key]))
-  const envPresent = missing.length === 0
-  return {
-    moduleId,
-    configured: envPresent && (options?.runtimeWired ?? true),
-    envPresent,
-    missing
-  }
-}
-
-/**
- * The AI provider activates on EITHER Workers AI (flag) or an
- * OpenAI-compatible key (`packages/ai`), so its status is an OR of the two
- * instead of the all-required pattern above. `missing` lists both var names
- * to say "configure one of these" (names only, never values).
- */
-function aiStatus(env: ServerEnv): ModuleConfigStatus {
-  const envPresent = env.WORKERS_AI_ENABLED === 'true' || hasValue(env.OPENAI_API_KEY)
-  if (envPresent) {
-    return { moduleId: 'ai', configured: true, envPresent: true, missing: [] }
-  }
-  return {
-    moduleId: 'ai',
-    configured: false,
-    envPresent: false,
-    missing: ['WORKERS_AI_ENABLED', 'OPENAI_API_KEY']
-  }
-}
-
-/**
- * Wide events and Cloudflare Workers Logs need no configuration, so what this
- * module's status actually reports is where telemetry is *shipped*: the OTLP
- * exporter is wired end to end (traces, metrics, and the canonical log records)
- * and activates on `OTEL_EXPORTER_OTLP_ENDPOINT` alone. The Sentry and PostHog
- * vars are still recognized as reserved activation hooks — present but not
- * forwarded to any SDK — so they raise the module to env-present, never to
- * configured. They are *independent* hooks (like `aiStatus` above, which
- * activates on one of several vars), so either one alone means "present but
- * unwired". `missing` keeps naming the OTLP endpoint even then: it lists what
- * reaching `configured` needs, not what is absent from env.
- */
-function observabilityStatus(env: ServerEnv): ModuleConfigStatus {
-  if (hasValue(env.OTEL_EXPORTER_OTLP_ENDPOINT)) {
-    return {
-      moduleId: 'observability',
-      configured: true,
-      envPresent: true,
-      missing: []
-    }
-  }
-  const reservedPresent = hasValue(env.SENTRY_DSN) || hasValue(env.POSTHOG_KEY)
-  return {
-    moduleId: 'observability',
-    configured: false,
-    envPresent: reservedPresent,
-    missing: ['OTEL_EXPORTER_OTLP_ENDPOINT']
-  }
-}
-
-export function moduleConfigStatus(env: ServerEnv): readonly ModuleConfigStatus[] {
-  return [
-    requiredKeysStatus(env, 'better-auth', ['BETTER_AUTH_SECRET', 'BETTER_AUTH_URL']),
-    requiredKeysStatus(env, 'github-oauth', [
-      'GITHUB_CLIENT_ID',
-      'GITHUB_CLIENT_SECRET'
-    ]),
-    requiredKeysStatus(env, 'billing', ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'], {
-      runtimeWired: false
-    }),
-    observabilityStatus(env),
-    requiredKeysStatus(env, 'cloudflare-email', ['CLOUDFLARE_EMAIL_FROM']),
-    requiredKeysStatus(env, 'turnstile', [
-      'TURNSTILE_SITE_KEY',
-      'TURNSTILE_SECRET_KEY'
-    ]),
-    aiStatus(env)
-  ]
-}
-
-/**
- * The full ADR 0035 recipe for a worker: validate the raw worker env and
- * derive module config status from it. Callers pass their `env` object
- * directly — bindings and other non-schema keys are ignored, so no casts or
- * var-name remaps are needed.
- */
-export function makeStarterEnvModuleConfig(
-  env: RawEnvSource
-): readonly ModuleConfigStatus[] {
-  return moduleConfigStatus(readServerEnv(env))
 }
 
 /**
@@ -294,34 +185,4 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
   }
 
   return { mode, problems }
-}
-
-export type RedactedValueSummary = 'configured' | 'env-present' | 'missing'
-
-export type RedactedModuleConfigStatus = ModuleConfigStatus & {
-  readonly values: RedactedValueSummary
-}
-
-function summarizeValues(status: ModuleConfigStatus): RedactedValueSummary {
-  if (status.configured) return 'configured'
-  if (status.envPresent) return 'env-present'
-  return 'missing'
-}
-
-/**
- * The fields are listed one by one rather than spread. `ModuleConfigStatus` is a
- * closed four-field record, so naming them costs nothing and keeps the redacted
- * shape an explicit allow-list: a future field cannot reach a status endpoint
- * just because it was added upstream.
- */
-export function redactedEnvStatus(
-  env: ServerEnv
-): readonly RedactedModuleConfigStatus[] {
-  return moduleConfigStatus(env).map((item) => ({
-    moduleId: item.moduleId,
-    configured: item.configured,
-    envPresent: item.envPresent,
-    missing: item.missing,
-    values: summarizeValues(item)
-  }))
 }

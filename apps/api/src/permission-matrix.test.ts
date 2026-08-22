@@ -69,19 +69,13 @@ type GatedOperation = {
 const SLUG = 'starter-lab'
 
 const MATRIX: readonly GatedOperation[] = [
-  // The nine workspace reads, all through the `read(event, permission, slug, ...)`
+  // The workspace reads, all through the `read(event, permission, slug, ...)`
   // helper in `workspaceGroup`.
   {
     operation: 'GET /workspaces/{slug}/overview',
-    permission: 'module:read',
+    permission: 'notification:read',
     expected: 200,
     request: makeRequest('GET', `/workspaces/${SLUG}/overview`)
-  },
-  {
-    operation: 'GET /workspaces/{slug}/modules',
-    permission: 'module:read',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/modules`)
   },
   // Listing members exposes who holds which role, which is `ac:read` — the
   // plugin's `member` statement has no read action at all.
@@ -110,18 +104,6 @@ const MATRIX: readonly GatedOperation[] = [
     permission: 'webhook:list',
     expected: 200,
     request: makeRequest('GET', `/workspaces/${SLUG}/webhooks`)
-  },
-  {
-    operation: 'GET /workspaces/{slug}/integrations',
-    permission: 'integration:read',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/integrations`)
-  },
-  {
-    operation: 'GET /workspaces/{slug}/reports',
-    permission: 'module:read',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/reports`)
   },
   {
     operation: 'GET /workspaces/{slug}/audit-events',
@@ -165,23 +147,10 @@ const MATRIX: readonly GatedOperation[] = [
     })
   },
 
-  // The account-wide surfaces. None has a statement of its own — all four fold
-  // into `module:read`, which is the decision this half of the matrix records.
-  {
-    operation: 'GET /catalog/modules',
-    permission: 'module:read',
-    expected: 200,
-    request: makeRequest('GET', '/catalog/modules')
-  },
-  {
-    operation: 'GET /catalog/refresh-history',
-    permission: 'module:read',
-    expected: 200,
-    request: makeRequest('GET', '/catalog/refresh-history')
-  },
+  // The assistant and MCP surfaces each carry their own statement now.
   {
     operation: 'POST /assistant/answer',
-    permission: 'module:read',
+    permission: 'assistant:read',
     expected: 200,
     request: makeRequest('POST', '/assistant/answer', {
       workspaceSlug: SLUG,
@@ -190,7 +159,7 @@ const MATRIX: readonly GatedOperation[] = [
   },
   {
     operation: 'GET /mcp',
-    permission: 'module:read',
+    permission: 'mcp:read',
     expected: 200,
     request: makeRequest('GET', '/mcp')
   }

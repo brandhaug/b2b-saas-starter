@@ -56,7 +56,7 @@ export function WorkspaceInvitationEmail({
             </Heading>
             <Text className="text-base text-gray-700 mt-4">
               You have been invited to a B2B SaaS Starter workspace. Accept the
-              invitation to review modules, readiness, reports, and settings.
+              invitation to review reports, tokens, and settings.
             </Text>
             <Section className="mt-6">
               <Button

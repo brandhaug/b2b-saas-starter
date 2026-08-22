@@ -1,16 +1,12 @@
 import {
   ApiTokenRegistry,
   AuditEventLog,
-  CatalogRefreshHistory,
   demoMemberIdentity,
   demoUserIdentity,
   hashApiToken,
-  ImplementationReports,
-  IntegrationSurfaces,
   NotificationFeed,
   SEED_API_TOKEN,
   selectWorkspaceLayer,
-  StarterModuleCatalog,
   WebhookEndpoints,
   WorkspaceContext,
   WorkspaceMembership
@@ -19,15 +15,10 @@ import {
   account,
   apiTokens,
   auditEvents,
-  catalogRefreshRuns,
-  implementationReports,
-  integrationConnections,
   notifications,
-  starterModules,
   user,
   webhookEndpoints,
   workspaceMembers,
-  workspaceModuleStates,
   workspaces
 } from '@b2b-saas-starter/db'
 import { getColumns, getTableName, type Table } from 'drizzle-orm'
@@ -103,26 +94,18 @@ function membershipId(userId: string): string {
 
 const collectFixture = Effect.gen(function* () {
   const membership = yield* WorkspaceMembership
-  const catalog = yield* StarterModuleCatalog
   const tokens = yield* ApiTokenRegistry
   const webhooks = yield* WebhookEndpoints
-  const integrations = yield* IntegrationSurfaces
-  const reports = yield* ImplementationReports
   const audit = yield* AuditEventLog
   const notificationFeed = yield* NotificationFeed
-  const refresh = yield* CatalogRefreshHistory
   const ctx = yield* WorkspaceContext
   return {
     workspace: ctx.workspace,
     members: yield* membership.listMembers,
-    modules: yield* catalog.listModules,
     tokens: yield* tokens.list,
     webhooks: yield* webhooks.list,
-    integrations: yield* integrations.list,
-    reports: yield* reports.list,
     auditEvents: yield* audit.listGlobal,
-    notifications: yield* notificationFeed.list,
-    refreshRuns: yield* refresh.listRecent
+    notifications: yield* notificationFeed.list
   }
 })
 
@@ -235,41 +218,6 @@ function demoUserRows(fixture: Fixture, demoPasswordHash: string): readonly stri
   ]
 }
 
-function moduleRows(fixture: Fixture): readonly string[] {
-  return fixture.modules.flatMap((module) => [
-    insert(starterModules, {
-      id: module.id,
-      name: module.name,
-      summary: module.summary,
-      category: module.category,
-      docsPath: module.docsPath,
-      optional: module.optional
-    }),
-    insert(workspaceModuleStates, {
-      workspaceId: fixture.workspace.id,
-      moduleId: module.id,
-      status: module.state.status,
-      enabled: module.state.enabled,
-      missingConfig: module.state.missingConfig,
-      updatedAt: module.state.updatedAt
-    })
-  ])
-}
-
-function integrationRows(fixture: Fixture): readonly string[] {
-  return fixture.integrations.map((integration) =>
-    insert(integrationConnections, {
-      id: integration.id,
-      workspaceId: fixture.workspace.id,
-      provider: integration.provider,
-      displayName: integration.displayName,
-      status: integration.status,
-      connectedAt: null,
-      lastCheckedAt: now
-    })
-  )
-}
-
 function tokenRows(
   fixture: Fixture,
   tokenHashes: readonly string[]
@@ -301,19 +249,6 @@ function webhookRows(fixture: Fixture): readonly string[] {
       enabled: endpoint.enabled,
       events: endpoint.events,
       createdAt: now
-    })
-  )
-}
-
-function reportRows(fixture: Fixture): readonly string[] {
-  return fixture.reports.map((report) =>
-    insert(implementationReports, {
-      id: report.id,
-      workspaceId: fixture.workspace.id,
-      title: report.title,
-      status: report.status,
-      summary: report.summary,
-      createdAt: report.createdAt
     })
   )
 }
@@ -352,19 +287,6 @@ function notificationRows(fixture: Fixture): readonly string[] {
   )
 }
 
-function refreshRunRows(fixture: Fixture): readonly string[] {
-  return fixture.refreshRuns.map((run) =>
-    insert(catalogRefreshRuns, {
-      id: run.id,
-      workspaceId: fixture.workspace.id,
-      status: run.status,
-      startedAt: run.startedAt,
-      completedAt: run.startedAt,
-      summary: { modules: run.modules, durationMs: run.durationMs }
-    })
-  )
-}
-
 function buildStatements(fixture: Fixture, hashes: Hashes): string {
   return `${[
     'PRAGMA foreign_keys = ON;',
@@ -372,14 +294,10 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...memberRows(fixture),
     ...demoUserRows(fixture, hashes.demoPassword),
     ...demoMemberRows(hashes.demoPassword),
-    ...moduleRows(fixture),
-    ...integrationRows(fixture),
     ...tokenRows(fixture, hashes.tokens),
     ...webhookRows(fixture),
-    ...reportRows(fixture),
     ...auditRows(fixture),
-    ...notificationRows(fixture),
-    ...refreshRunRows(fixture)
+    ...notificationRows(fixture)
   ].join('\n')}\n`
 }
 

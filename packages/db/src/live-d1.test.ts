@@ -6,7 +6,6 @@ import { Database, layerFromD1, batch, DbBatchError } from './index.ts'
 import {
   apiTokens,
   notifications,
-  starterModules,
   user,
   workspaceInvitations,
   workspaceMembers,
@@ -72,17 +71,11 @@ describe('migrations', () => {
           'workspaces',
           'workspace_members',
           'workspace_invitations',
-          'starter_modules',
-          'workspace_module_states',
-          'integration_connections',
           'api_tokens',
           'webhook_endpoints',
           'webhook_deliveries',
-          'implementation_reports',
-          'report_schedules',
           'notifications',
-          'audit_events',
-          'catalog_refresh_runs'
+          'audit_events'
         ]
         for (const table of expected) {
           expect(tables, `missing table ${table}`).toContain(table)
@@ -142,26 +135,6 @@ describe('migrations', () => {
 })
 
 describe('column modes over live D1', () => {
-  it('round-trips boolean-mode integers as JS booleans', () =>
-    run(
-      Effect.gen(function* () {
-        const database = yield* Database
-        yield* database.insert(starterModules).values({
-          id: 'mod_bool_check',
-          name: 'Boolean check',
-          summary: 'boolean round-trip',
-          category: 'test',
-          docsPath: '/docs/test',
-          optional: true
-        })
-        const rows = yield* database
-          .select()
-          .from(starterModules)
-          .where(eq(starterModules.id, 'mod_bool_check'))
-        expect(rows[0]?.optional).toBe(true)
-      })
-    ))
-
   it('round-trips JSON-mode text columns as parsed values', () =>
     run(
       Effect.gen(function* () {

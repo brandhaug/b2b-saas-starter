@@ -11,7 +11,7 @@ export function ArchitectureSchematic() {
     <svg
       viewBox="0 0 560 460"
       role="img"
-      aria-label="Schematic of the starter architecture: browser, REST and MCP clients, and cron triggers flow into the web, api, and background Workers, through the shared capabilities package, to D1, Queues, and Email."
+      aria-label="Schematic of the starter architecture: browser, REST and MCP clients, and queue jobs flow into the web, api, and background Workers, through the shared capabilities package, to D1, Queues, and Email."
       className="w-full min-w-135"
     >
       <title>Request topology of the B2B SaaS Starter</title>
@@ -34,8 +34,8 @@ export function ArchitectureSchematic() {
       <defs>
         <path id="route-browser-d1" d="M128 66 H411 V80 H470" />
         <path id="route-rest-d1" d="M128 146 H411 V80 H470" />
-        <path id="route-cron-queues" d="M128 312 H411 V200 H470" />
-        <path id="route-cron-email" d="M128 312 H411 V300 H470" />
+        <path id="route-queue-webhooks" d="M128 312 H411 V200 H470" />
+        <path id="route-queue-email" d="M128 312 H411 V300 H470" />
       </defs>
 
       {/* clients (external world: dashed) */}
@@ -43,7 +43,7 @@ export function ArchitectureSchematic() {
         <ClientNode x={16} y={48} label="browser" />
         <ClientNode x={16} y={128} label="curl / SDK" />
         <ClientNode x={16} y={188} label="MCP client" />
-        <ClientNode x={16} y={294} label="cron · queue" />
+        <ClientNode x={16} y={294} label="queue jobs" />
       </g>
 
       {/* workers */}
@@ -60,7 +60,7 @@ export function ArchitectureSchematic() {
         y={286}
         h={52}
         label="apps/background"
-        sub="Worker · cron + queue"
+        sub="Worker · queue consumer"
       />
 
       {/* capabilities spine */}
@@ -105,8 +105,8 @@ export function ArchitectureSchematic() {
       <g className="schematic-pulse">
         <Pulse href="#route-browser-d1" dur="4s" begin="0s" />
         <Pulse href="#route-rest-d1" dur="4.6s" begin="1.4s" />
-        <Pulse href="#route-cron-queues" dur="5.2s" begin="2.6s" />
-        <Pulse href="#route-cron-email" dur="5.8s" begin="3.8s" />
+        <Pulse href="#route-queue-webhooks" dur="5.2s" begin="2.6s" />
+        <Pulse href="#route-queue-email" dur="5.8s" begin="3.8s" />
       </g>
 
       {/* registration marks */}

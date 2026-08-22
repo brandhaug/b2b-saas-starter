@@ -1,6 +1,6 @@
 # B2B SaaS Starter
 
-Cloudflare-first B2B SaaS starter. The public site showcases the repository itself; the authenticated app is a reference implementation for workspaces, starter modules, readiness, integrations, API/MCP, email, reports, webhooks, audit, and admin.
+Cloudflare-first B2B SaaS starter. The public site showcases the repository itself; the authenticated app is a reference implementation for workspaces, members/RBAC, API/MCP, email, webhooks, notifications, audit, and admin.
 
 See [CONTEXT.md](./CONTEXT.md) for canonical domain language, [ARCHITECTURE.md](./ARCHITECTURE.md) for the system map and security model, and [DESIGN.md](./DESIGN.md) for the visual identity — design tokens, typography, and component contracts. Decisions live in [docs/adr](./docs/adr).
 
@@ -18,7 +18,7 @@ See [CONTEXT.md](./CONTEXT.md) for canonical domain language, [ARCHITECTURE.md](
 | Observability     | [packages/logger/AGENTS.md](packages/logger/AGENTS.md)               |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md) |
 
-Capabilities are grouped into bounded-context folders under `packages/capabilities/src/`: `catalog/`, `developer-platform/`, `governance/`, `notifications/`. Each capability has a leaf intent node beside its source file — see the package node for the map and the "Where to put a new capability" rules.
+Capabilities are grouped into bounded-context folders under `packages/capabilities/src/`: `developer-platform/`, `governance/`, `notifications/`. Each capability has a leaf intent node beside its source file — see the package node for the map and the "Where to put a new capability" rules.
 
 ## Setup
 
@@ -40,7 +40,7 @@ bun run test
 
 1. Use Effect v4 typed errors, services, schemas, and HTTP API contracts for application behavior.
 2. Use `packages/capabilities` for business use cases; route handlers and UI components should not duplicate behavior.
-3. Keep local development provider-light. Optional modules must show disabled or needs-config states instead of failing the app.
+3. Keep local development provider-light. Optional providers must stay inactive when their env vars are unset instead of failing the app.
 4. Use Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, and Alchemy.
 5. Keep Contributor's visual patterns but do not import Contributor's developer-productivity domain language.
 6. Keep Hexwardens' architecture discipline but do not copy game, PWA, realtime, or Durable Object requirements without a starter use case.
