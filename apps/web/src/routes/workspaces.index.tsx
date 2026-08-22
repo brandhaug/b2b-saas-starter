@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { CreateWorkspaceForm } from '@/components/create-workspace-form'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
 import { PublicLayout } from '@/components/public-layout'
 import { RoutePending } from '@/components/route-pending'
@@ -18,6 +19,7 @@ export const Route = createFileRoute('/workspaces/')({
 function WorkspacesPage() {
   const workspaces = Route.useLoaderData()
   const session = Route.useRouteContext().session
+  const navigate = useNavigate()
 
   return (
     <PublicLayout>
@@ -38,15 +40,20 @@ function WorkspacesPage() {
             <CardHeader>
               <CardTitle>No workspaces yet</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid gap-5">
+              {/* Creating is the way in: the creator becomes the workspace's
+                  first owner, so a fresh account never needs a seed script or
+                  an existing owner to let them in. */}
               <p className="text-sm text-muted-foreground">
-                Your account is not a member of any workspace. Run{' '}
-                <code className="rounded-sm bg-muted px-1 py-0.5 text-xs">
-                  bun run db:seed
-                </code>{' '}
-                and sign in with the demo credentials, or ask a workspace owner to add
-                you.
+                Your account is not a member of any workspace. Create one below and
+                you will be its first owner, or ask a workspace owner to add you.
               </p>
+              <CreateWorkspaceForm
+                userId={session.user.id}
+                onCreated={(workspace) =>
+                  void navigate({ to: '/workspaces/$workspaceSlug', params: { workspaceSlug: workspace.slug } })
+                }
+              />
             </CardContent>
           </Card>
         ) : (

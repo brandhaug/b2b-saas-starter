@@ -38,6 +38,12 @@ import {
   type WorkspaceMemberBinding,
   type WorkspaceMembership
 } from './governance/workspace-membership.ts'
+import {
+  LiveWorkspaceLifecycle,
+  SeedWorkspaceLifecycle,
+  type WorkspaceLifecycle,
+  type WorkspaceLifecycleBinding
+} from './governance/workspace-lifecycle.ts'
 
 // notifications
 import {
@@ -62,6 +68,7 @@ export type CapabilityServices =
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceInvitations
+  | WorkspaceLifecycle
   | WorkspaceMembership
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
@@ -75,9 +82,10 @@ export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 const SeedGovernance = Layer.unwrap(
   Effect.gen(function* () {
     const roster = yield* makeSeedRoster(seedMembers)
-    return Layer.merge(
+    return Layer.mergeAll(
       SeedWorkspaceInvitations({ roster, workspace: seedWorkspaceRecord }),
-      SeedWorkspaceMembership(roster, seedWorkspaceRecord)
+      SeedWorkspaceMembership(roster, seedWorkspaceRecord),
+      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord })
     )
   })
 )
@@ -104,6 +112,15 @@ export type LiveCapabilitiesOptions = {
    * invitation reads still work and mutations fail `CapabilityUnavailable`.
    */
   readonly invitationBinding?: WorkspaceInvitationBinding | undefined
+  /**
+   * Adapter onto the organization plugin's workspace lifecycle endpoints
+   * (create, rename, delete). Only create runs headerless; the other two need
+   * the request's session headers, so the app supplies this per call.
+   *
+   * Absent, workspace reads work and lifecycle mutations fail
+   * `CapabilityUnavailable`.
+   */
+  readonly lifecycleBinding?: WorkspaceLifecycleBinding | undefined
 }
 
 export function makeLiveCapabilitiesLayer(
@@ -119,6 +136,9 @@ export function makeLiveCapabilitiesLayer(
       Layer.provide(LiveAuditEventLog)
     ),
     LiveWorkspaceMembership(options.memberBinding).pipe(
+      Layer.provide(LiveAuditEventLog)
+    ),
+    LiveWorkspaceLifecycle(options.lifecycleBinding).pipe(
       Layer.provide(LiveAuditEventLog)
     )
   )

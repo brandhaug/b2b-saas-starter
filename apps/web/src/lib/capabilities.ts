@@ -28,7 +28,10 @@ export { CapabilityUnavailableError, ForbiddenError }
  * only ever run on the server — pass one in when they need a mutation. See
  * `server/invitation-binding.ts`.
  */
-export type CapabilityBindings = Pick<StarterEnv, 'memberBinding' | 'invitationBinding'>
+export type CapabilityBindings = Pick<
+  StarterEnv,
+  'memberBinding' | 'invitationBinding' | 'lifecycleBinding'
+>
 
 // Real Worker bindings (same import as `server-context.ts`). In production the
 // D1 binding exists and activates the Live layer; under the local dev shim

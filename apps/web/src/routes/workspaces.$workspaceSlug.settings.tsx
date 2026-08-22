@@ -3,6 +3,11 @@ import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
 import { InvitationPanel } from '@/components/invitation-panel'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell, type SignOut } from '@/components/workspace-shell'
+import {
+  WorkspaceGeneralSettings,
+  type DeleteWorkspace,
+  type RenameWorkspace
+} from '@/components/workspace-general-settings'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { viewerCan } from '@/lib/permissions'
@@ -53,12 +58,16 @@ export function WorkspaceSettingsPage({
   readonly ports?: {
     readonly createToken?: CreateApiToken
     readonly signOut?: SignOut
+    readonly renameWorkspace?: RenameWorkspace
+    readonly deleteWorkspace?: DeleteWorkspace
   }
 }) {
-  const { viewer, apiTokenCount, webhookCount, unreadCount, invitations } = data
+  const { viewer, workspaceName, apiTokenCount, webhookCount, unreadCount, invitations } = data
   // A `null` segment is the server's answer that this actor may not read it.
   const canCreateApiToken = viewerCan(viewer, { apiToken: ['create'] })
   const canInvite = viewerCan(viewer, { invitation: ['create'] })
+  const canRename = viewerCan(viewer, { organization: ['update'] })
+  const canDelete = viewerCan(viewer, { organization: ['delete'] })
 
   return (
     <WorkspaceShell
@@ -69,6 +78,36 @@ export function WorkspaceSettingsPage({
       unreadCount={unreadCount}
     >
       <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Workspace</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-5">
+            {/* Rename and delete are gated per action, not per page: an admin
+                may rename but never delete, a member sees neither. The server
+                functions enforce the same statements. */}
+            {canRename || canDelete ? (
+              <WorkspaceGeneralSettings
+                workspaceSlug={workspaceSlug}
+                currentName={workspaceName}
+                canRename={canRename}
+                canDelete={canDelete}
+                {...(ports === undefined
+                  ? {}
+                  : {
+                      ports: {
+                        rename: ports.renameWorkspace,
+                        remove: ports.deleteWorkspace
+                      }
+                    })}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Your role cannot change or delete the workspace.
+              </p>
+            )}
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle>Operational settings</CardTitle>

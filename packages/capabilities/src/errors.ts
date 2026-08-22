@@ -31,3 +31,17 @@ export class MembershipChangeRejected extends Schema.TaggedErrorClass<Membership
   { reason: Schema.String },
   { httpApiStatus: 409 }
 ) {}
+
+/**
+ * A workspace-lifecycle change the plugin refuses: a slug already taken, a
+ * rename the session may not make. Same reading as
+ * `MembershipChangeRejected` — the request was answerable and the answer is
+ * no — but it names the workspace itself rather than one of its members,
+ * because the two fail for different reasons and callers word their errors
+ * accordingly.
+ */
+export class WorkspaceChangeRejected extends Schema.TaggedErrorClass<WorkspaceChangeRejected>()(
+  'WorkspaceChangeRejected',
+  { reason: Schema.String },
+  { httpApiStatus: 409 }
+) {}
