@@ -101,7 +101,7 @@
   "packageManager": "bun@1.4.0",
   "catalog": {
     "@base-ui/react": "1.7.0",
-    "@cloudflare/vite-plugin": "1.52.1",
+    "@cloudflare/vite-plugin": "1.53.0",
     "@cloudflare/workers-types": "5.20260818.1",
     "@effect/atom-react": "4.0.0-beta.93",
     "@effect/language-service": "0.86.4",
