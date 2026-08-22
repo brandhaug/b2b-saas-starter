@@ -2,42 +2,39 @@ import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Schema } from 'effect'
-import { GitBranchIcon, KeyRoundIcon } from 'lucide-react'
+import { UserPlusIcon } from 'lucide-react'
 import { FormTextField } from '@/components/form-text-field'
 import { PublicLayout } from '@/components/public-layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
-import {
-  DEMO_CREDENTIALS,
-  DEMO_MEMBER_CREDENTIALS,
-  DEMO_WORKSPACE_SLUG
-} from '@/lib/demo-workspace'
 import { safeRedirect } from '@/lib/utils'
 
-const SignInSearch = Schema.Struct({
+const SignUpSearch = Schema.Struct({
   redirect: Schema.optional(Schema.String)
 })
 
-const decodeSearch = Schema.decodeUnknownSync(SignInSearch)
+const decodeSearch = Schema.decodeUnknownSync(SignUpSearch)
 
-export const Route = createFileRoute('/sign-in')({
+export const Route = createFileRoute('/sign-up')({
   validateSearch: (search) => decodeSearch(search),
-  component: SignInRoute
+  component: SignUpRoute
 })
 
-type SignInValues = {
+type SignUpValues = {
+  name: string
   email: string
   password: string
 }
 
 /**
- * Credential sign-in, as a port. Injected rather than reaching for the
- * `authClient` singleton at the call site so a test drives the form with a real
- * function of this shape instead of replacing `@/lib/auth-client`.
+ * Account registration, as a port. Injected rather than reaching for the
+ * `authClient` singleton at the call site so a test drives the form with a
+ * real function of this shape instead of replacing `@/lib/auth-client`.
  */
-export type SignInWithEmail = (input: {
+export type SignUpWithEmail = (input: {
+  readonly name: string
   readonly email: string
   readonly password: string
 }) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
@@ -47,64 +44,75 @@ export type SignInWithEmail = (input: {
  * hands it to the page. Keeping the two apart is what lets the page be rendered
  * from a test with plain props, no route tree and no mocked router.
  */
-function SignInRoute() {
+function SignUpRoute() {
   const { redirect } = Route.useSearch()
-  return <SignInPage redirect={redirect} />
+  return <SignUpPage redirect={redirect} />
 }
 
 /**
  * Hoisted to module scope rather than written inline as a default: a new
  * function expression per render would be a fresh prop value every time.
+ *
+ * `callbackURL` is where Better Auth's verification redirect lands after the
+ * emailed token is exchanged — the default ('/') would verify silently and
+ * drop the user on the marketing homepage. Turnstile protection of this form
+ * is a later wave; the seam is this one client call.
  */
-function signInWithAuthClient(
-  input: Parameters<SignInWithEmail>[0]
-): ReturnType<SignInWithEmail> {
-  return authClient.signIn.email(input)
+function signUpWithAuthClient(
+  input: Parameters<SignUpWithEmail>[0]
+): ReturnType<SignUpWithEmail> {
+  return authClient.signUp.email({
+    name: input.name,
+    email: input.email,
+    password: input.password,
+    callbackURL: `${window.location.origin}/verify-email`
+  })
 }
 
-export function SignInPage({
+export function SignUpPage({
   redirect,
-  signIn = signInWithAuthClient
+  signUp = signUpWithAuthClient
 }: {
   readonly redirect?: string | undefined
-  readonly signIn?: SignInWithEmail
+  readonly signUp?: SignUpWithEmail
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
   // Hydration signal for e2e: interacting before React hydrates falls through
-  // to a native GET submit, so the smoke test waits for this attribute.
-  // `useHydrated` flips it after hydration with no effect-setState round trip,
-  // so the first paint cannot flash the pre-hydration value.
+  // to a native GET submit, so a smoke test waits for this attribute.
   const hydrated = useHydrated()
   const form = useForm({
-    defaultValues: { email: '', password: '' } satisfies SignInValues,
+    defaultValues: { name: '', email: '', password: '' } satisfies SignUpValues,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      const result = await signIn({
+      const result = await signUp({
+        name: value.name,
         email: value.email,
         password: value.password
       })
       if (result.error) {
-        setSubmitError(result.error.message ?? 'Sign-in failed')
+        setSubmitError(result.error.message ?? 'Sign-up failed')
         return
       }
+      // Registration signs the user in (auto sign-in) and emails a
+      // verification link; the unverified banner on /workspaces carries the
+      // rest of the story.
       router.history.push(safeRedirect(redirect))
     }
   })
 
   return (
     <PublicLayout>
-      {/* `flex-1` fills the space PublicLayout's `min-h-dvh flex-col` leaves
-          between the header and its `mt-auto` footer — no hardcoded chrome height. */}
       <main
         id="main-content"
         className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
       >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>Sign in</CardTitle>
+            <CardTitle>Create your account</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Sign in with email and password, or use GitHub when configured.
+              Sign up with email and password to run the starter on your own account. A
+              verification email follows.
             </p>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -117,6 +125,29 @@ export function SignInPage({
               }}
               className="grid gap-4"
             >
+              <form.Field
+                name="name"
+                validators={{
+                  onChange: ({ value }) =>
+                    value.trim().length === 0 ? 'Name is required' : undefined
+                }}
+              >
+                {(field) => (
+                  <FormTextField
+                    name={field.name}
+                    label="Name"
+                    type="text"
+                    placeholder="Ada Lovelace"
+                    autoComplete="name"
+                    value={field.state.value}
+                    errors={field.state.meta.errors}
+                    onBlur={field.handleBlur}
+                    onChange={field.handleChange}
+                    required
+                  />
+                )}
+              </form.Field>
+
               <form.Field
                 name="email"
                 validators={{
@@ -157,7 +188,7 @@ export function SignInPage({
                     name={field.name}
                     label="Password"
                     type="password"
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                     value={field.state.value}
                     errors={field.state.meta.errors}
                     onBlur={field.handleBlur}
@@ -175,21 +206,11 @@ export function SignInPage({
               >
                 {([canSubmit, isSubmitting]) => (
                   <Button type="submit" disabled={!canSubmit}>
-                    <KeyRoundIcon className="size-4" />
-                    {isSubmitting ? 'Signing in…' : 'Continue'}
+                    <UserPlusIcon className="size-4" />
+                    {isSubmitting ? 'Creating account…' : 'Create account'}
                   </Button>
                 )}
               </form.Subscribe>
-
-              <p className="text-right">
-                <Link
-                  to="/forgot-password"
-                  search={{}}
-                  className="text-sm text-primary underline underline-offset-4"
-                >
-                  Forgot your password?
-                </Link>
-              </p>
 
               {submitError ? (
                 <p className="text-xs text-destructive" role="alert">
@@ -197,50 +218,10 @@ export function SignInPage({
                 </p>
               ) : null}
             </form>
-            <Button type="button" variant="outline" disabled>
-              <GitBranchIcon className="size-4" />
-              Continue with GitHub
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Configure GitHub OAuth secrets to enable.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Seeded a local database? Sign in with{' '}
-              <code className="rounded-sm bg-muted px-1 py-0.5">
-                {DEMO_CREDENTIALS.email}
-              </code>{' '}
-              /{' '}
-              <code className="rounded-sm bg-muted px-1 py-0.5">
-                {DEMO_CREDENTIALS.password}
-              </code>
-              .
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Or as a plain member, to see the role-gated view:{' '}
-              <code className="rounded-sm bg-muted px-1 py-0.5">
-                {DEMO_MEMBER_CREDENTIALS.email}
-              </code>{' '}
-              /{' '}
-              <code className="rounded-sm bg-muted px-1 py-0.5">
-                {DEMO_MEMBER_CREDENTIALS.password}
-              </code>
-              .
-            </p>
-            <Link
-              to="/workspaces/$workspaceSlug"
-              params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
-              className="text-center text-sm text-primary underline underline-offset-4"
-            >
-              Open seeded workspace instead
-            </Link>
             <p className="text-center text-sm text-muted-foreground">
-              No account yet?{' '}
-              <Link
-                to="/sign-up"
-                search={{}}
-                className="text-primary underline underline-offset-4"
-              >
-                Create one
+              Already have an account?{' '}
+              <Link to="/sign-in" className="text-primary underline underline-offset-4">
+                Sign in
               </Link>
             </p>
           </CardContent>

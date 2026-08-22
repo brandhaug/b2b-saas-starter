@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers'
 import { Layer, ManagedRuntime, Schema } from 'effect'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
 import { createDb } from '@b2b-saas-starter/db/client'
+import { makeAuthEmailSender } from './server/auth-emails'
 
 /**
  * Defect raised when something reaches for the D1 binding that the local
@@ -45,7 +46,11 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
   github:
     env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
       ? { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET }
-      : null
+      : null,
+  // The lifecycle-email adapter (reset + verification), built on the same
+  // provider-light dispatcher selector as the invitation flow: log mode when
+  // no `EMAIL` binding is configured, so the flows stay demoable locally.
+  emails: makeAuthEmailSender()
 }))
 
 export const AuthLive = Auth.layer.pipe(Layer.provide(AuthConfigLive))

@@ -26,6 +26,36 @@ test('unauthenticated workspace visit redirects to sign-in', async ({ page }) =>
   )
 })
 
+test('sign-in page offers the account lifecycle affordances', async ({ page }) => {
+  await page.goto('/sign-in')
+  await expect(
+    page.getByRole('link', { name: 'Forgot your password?' })
+  ).toHaveAttribute('href', '/forgot-password')
+  await page.getByRole('link', { name: 'Create one' }).click()
+  await page.waitForURL(/\/sign-up/)
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
+})
+
+test('forgot-password page renders the request form', async ({ page }) => {
+  await page.goto('/forgot-password')
+  await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible()
+  await expect(page.getByLabel('Email')).toBeVisible()
+})
+
+test('reset-password page shows the opaque failure state without a token', async ({
+  page
+}) => {
+  await page.goto('/reset-password')
+  await expect(
+    page.getByRole('heading', { name: 'This link cannot be used' })
+  ).toBeVisible()
+})
+
+test('verify-email page reports success without an error param', async ({ page }) => {
+  await page.goto('/verify-email')
+  await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible()
+})
+
 test('seeded demo user signs in and reaches the workspace dashboard', async ({
   page
 }) => {

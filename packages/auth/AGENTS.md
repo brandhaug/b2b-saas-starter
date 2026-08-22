@@ -7,9 +7,20 @@ The Better Auth instance and nothing else. This package owns the options object,
 Two runtime exports carry everything:
 
 - `Auth` — an `effectful-better-auth` service providing `{ api, instance }`. `api` is the effectful endpoint proxy (endpoints fail `BetterAuthApiError`); `instance` is the raw Better Auth object for `handler` / `asResponse` needs. The layer requires `AuthConfig`.
-- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, github }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding.
+- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, github, emails }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port (below).
 
 `Session` and `SessionUserRole` are the inferred session types. `SessionUserRole` exists as a **compile-time guard**: widening the plugin array drops every plugin-added field from `Session` while the endpoints keep working, a break no runtime test can see because the data is still there. Indexing the type is the assertion.
+
+## Account lifecycle emails
+
+Password reset and email verification are configured here and sent through the `AuthEmailSender` port — `{ sendPasswordReset, sendEmailVerification }`, plain async functions of `{ email, url }`. Better Auth invokes its callbacks outside any Effect (no Clock, no services), and the siblings rule forbids importing `packages/email` from here, so the port carries both constraints. The app supplies the adapter (`apps/web/src/lib/server/auth-emails.ts`), built on the `EmailDispatcher` with its log-mode fallback.
+
+Configuration decisions, stated in code:
+
+- `sendOnSignUp: true` — the verification email rides sign-up; there is no UI reason to demand a second hop.
+- `autoSignInAfterVerification: true` — the link clicker gets a session: proving mailbox control is the honest reward, not an escalation.
+- `revokeSessionsOnPasswordReset: true` — the sessions that preceded a reset are exactly what the reset exists to distrust.
+- `requireEmailVerification` stays **off**: local dev sends to the log, where nobody could read a gating email; the unverified state surfaces as an app banner instead.
 
 ## Position in the dependency graph
 

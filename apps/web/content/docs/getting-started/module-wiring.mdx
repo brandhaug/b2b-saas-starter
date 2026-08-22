@@ -45,7 +45,7 @@ Create an OAuth app under GitHub → Settings → Developer settings → OAuth A
 
 ## Cloudflare Email
 
-Transactional email through Cloudflare Email Service. React Email templates live in `packages/email`; the wired consumer is the workspace invitation send path in the Reference Application (`apps/web/src/lib/server/invitations.ts`). The API Worker has no email consumer — it cannot persist an invitation, so it serves no invitation endpoint.
+Transactional email through Cloudflare Email Service. React Email templates live in `packages/email`; the wired consumers are the workspace invitation send path (`apps/web/src/lib/server/invitations.ts`) and the account lifecycle emails — password reset and verification (`apps/web/src/lib/server/auth-emails.ts`, the `AuthEmailSender` adapter for Better Auth). The API Worker has no email consumer — it cannot persist an invitation, so it serves no invitation endpoint.
 
 | Variable                | Value                                                             |
 | ----------------------- | ----------------------------------------------------------------- |
