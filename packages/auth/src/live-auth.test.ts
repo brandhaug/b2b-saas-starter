@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createDb, type Database } from '@b2b-saas-starter/db/client'
 import { user, workspaceInvitations, workspaces } from '@b2b-saas-starter/db/schema'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
-import { Auth, AuthConfig, type AuthOptions } from './index.ts'
+import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
 
 // The organization plugin is only observable through a real database: its
 // `modelName` overrides, its `additionalFields`, and its role table all resolve
@@ -19,6 +19,25 @@ type AuthService = Service<AuthOptions>
 let testD1: TestD1
 let db: Database
 let authLayer: Layer.Layer<AuthService>
+
+// The lifecycle-email port, capturing what Better Auth hands it instead of
+// sending: these tests assert on the URLs and the calls, not on delivery.
+const sentEmails: {
+  readonly kind: 'reset' | 'verification'
+  readonly email: string
+  readonly url: string
+}[] = []
+
+const capturingEmailSender: AuthEmailSender = {
+  sendPasswordReset: ({ email, url }) => {
+    sentEmails.push({ kind: 'reset', email, url })
+    return Promise.resolve()
+  },
+  sendEmailVerification: ({ email, url }) => {
+    sentEmails.push({ kind: 'verification', email, url })
+    return Promise.resolve()
+  }
+}
 
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
@@ -34,7 +53,8 @@ beforeAll(
               secret: 'test-secret-at-least-32-characters-long',
               baseURL: 'http://localhost:3071',
               trustedOrigins: [],
-              github: null
+              github: null,
+              emails: capturingEmailSender
             }))
           )
         )
@@ -239,6 +259,178 @@ describe('organization plugin', () => {
         expect(endpoints).toContain('createOrganization')
         expect(endpoints).not.toContain('createTeam')
         expect(endpoints).not.toContain('setActiveTeam')
+      })
+    ))
+})
+
+describe('account lifecycle email flows', () => {
+  it('sends a verification email on sign-up and verifies through the token hop', () =>
+    run(
+      Effect.gen(function* () {
+        const email = 'newbie@lifecycle.test'
+        const auth = yield* Auth.Tag
+        const before = sentEmails.length
+
+        const signUp = yield* Effect.promise(() =>
+          auth.instance.api.signUpEmail({
+            body: {
+              name: 'Newbie',
+              email,
+              password: 'correct-horse-battery-staple',
+              callbackURL: 'http://localhost:3071/verify-email'
+            }
+          })
+        )
+        expect(signUp.user.emailVerified).toBe(false)
+
+        const sent = sentEmails
+          .slice(before)
+          .filter((entry) => entry.kind === 'verification')
+        expect(sent).toHaveLength(1)
+        const url = sent[0]?.url ?? ''
+        // The link points at the auth handler's token-exchange route with our
+        // landing page as the callback — not straight at the app route.
+        expect(url).toContain('http://localhost:3071/api/auth/verify-email?token=')
+        expect(url).toContain(encodeURIComponent('http://localhost:3071/verify-email'))
+
+        const response = yield* Effect.promise(() =>
+          auth.instance.handler(new Request(url))
+        )
+        expect(response.status).toBe(302)
+        expect(response.headers.get('location')).toBe(
+          'http://localhost:3071/verify-email'
+        )
+        // autoSignInAfterVerification: the hop sets a session cookie.
+        expect(response.headers.get('set-cookie')).toContain('better-auth')
+
+        const rows = yield* Effect.promise(() =>
+          db.select().from(user).where(eq(user.email, email))
+        )
+        expect(rows[0]?.emailVerified).toBe(true)
+      })
+    ))
+
+  it('rejects a bad verification token by redirecting with an error param', () =>
+    run(
+      Effect.gen(function* () {
+        const auth = yield* Auth.Tag
+        const response = yield* Effect.promise(() =>
+          auth.instance.handler(
+            new Request(
+              `http://localhost:3071/api/auth/verify-email?token=not-a-real-token&callbackURL=${encodeURIComponent('http://localhost:3071/verify-email')}`
+            )
+          )
+        )
+        expect(response.status).toBe(302)
+        const location = response.headers.get('location') ?? ''
+        expect(new URL(location).searchParams.get('error')).toBeTruthy()
+      })
+    ))
+
+  it('round-trips a password reset: request, hop, set, old sessions revoked', () =>
+    run(
+      Effect.gen(function* () {
+        const email = 'resetter@lifecycle.test'
+        const auth = yield* Auth.Tag
+
+        // The sign-up auto sign-in creates the session the reset must revoke.
+        const { headers } = yield* Effect.promise(() =>
+          auth.instance.api.signUpEmail({
+            body: {
+              name: 'Resetter',
+              email,
+              password: 'correct-horse-battery-staple'
+            },
+            returnHeaders: true
+          })
+        )
+        const before = sentEmails.length
+
+        const requested = yield* Effect.promise(() =>
+          auth.instance.api.requestPasswordReset({
+            body: { email, redirectTo: 'http://localhost:3071/reset-password' }
+          })
+        )
+        expect(requested.status).toBe(true)
+
+        const resetEmail = sentEmails
+          .slice(before)
+          .find((entry) => entry.kind === 'reset')
+        const resetUrl = resetEmail?.url ?? ''
+        expect(resetUrl).toContain('http://localhost:3071/api/auth/reset-password/')
+        const token = resetUrl.split('/reset-password/')[1]?.split('?')[0] ?? ''
+        expect(token).not.toBe('')
+
+        // The token-exchange hop validates the token and forwards it.
+        const hop = yield* Effect.promise(() =>
+          auth.instance.handler(new Request(resetUrl))
+        )
+        expect(hop.status).toBe(302)
+        const forwarded = new URL(hop.headers.get('location') ?? '')
+        expect(forwarded.pathname).toBe('/reset-password')
+        expect(forwarded.searchParams.get('token')).toBe(token)
+
+        const reset = yield* Effect.promise(() =>
+          auth.instance.api.resetPassword({
+            body: { newPassword: 'fresh-horse-battery-staple', token }
+          })
+        )
+        expect(reset.status).toBe(true)
+
+        // The pre-reset session cookie no longer opens a session
+        // (revokeSessionsOnPasswordReset). The endpoint's no-session answer
+        // is 200 with a `null` body, so the body is the assertion.
+        const stale = yield* Effect.promise(() =>
+          auth.instance.handler(
+            new Request('http://localhost:3071/api/auth/get-session', {
+              headers: { cookie: headers.get('set-cookie') ?? '' }
+            })
+          )
+        )
+        expect(stale.status).toBe(200)
+        const staleBody = yield* Effect.promise(() => stale.json())
+        expect(staleBody).toBeNull()
+
+        // The old password is gone; the new one signs in.
+        const oldAttempt: { readonly ok: boolean; readonly error?: unknown } =
+          yield* Effect.promise(() =>
+            auth.instance.api
+              .signInEmail({
+                body: { email, password: 'correct-horse-battery-staple' }
+              })
+              .then(
+                () => ({ ok: true }),
+                (error: unknown) => ({ ok: false, error })
+              )
+          )
+        expect(oldAttempt.ok).toBe(false)
+
+        const fresh = yield* Effect.promise(() =>
+          auth.instance.api.signInEmail({
+            body: { email, password: 'fresh-horse-battery-staple' }
+          })
+        )
+        expect(fresh.user.email).toBe(email)
+      })
+    ))
+
+  it('answers unknown-email reset requests identically and sends nothing', () =>
+    run(
+      Effect.gen(function* () {
+        const auth = yield* Auth.Tag
+        const before = sentEmails.length
+
+        const requested = yield* Effect.promise(() =>
+          auth.instance.api.requestPasswordReset({
+            body: {
+              email: 'ghost@lifecycle.test',
+              redirectTo: 'http://localhost:3071/reset-password'
+            }
+          })
+        )
+        expect(requested.status).toBe(true)
+        expect(requested.message).toContain('If this email exists')
+        expect(sentEmails.slice(before)).toHaveLength(0)
       })
     ))
 })

@@ -11,12 +11,19 @@ The auth module is a Starter Module wired through Better Auth. The Local Auth Pa
 ## What ships ready
 
 - Email/password authentication with sessions in D1
+- Public sign-up (`/sign-up`) — registration with auto sign-in
+- Password reset: forgot-password form (`/forgot-password`), single-use one-hour token, reset page (`/reset-password`), and session revocation on success (`revokeSessionsOnPasswordReset`)
+- Email verification: sent on sign-up (`sendOnSignUp`), verified through the `/api/auth/verify-email` token hop, landing on `/verify-email`; the unverified state surfaces as a banner on `/workspaces` with a resend action. Verification is encouraged, not enforced — `requireEmailVerification` stays off so provider-light local dev (log-mode email) never locks the sign-in it cannot unblock
 - Username plugin (for friendlier display names)
 - Admin plugin (System Admin role) — registered with `adminRoles: ['admin']`
 - Organization plugin, remapped onto the starter's Workspace vocabulary — it backs Members, Invitations, and Workspace Roles (ADR 0051). Teams and runtime-defined roles are switched off
 - TanStack Start cookie bridge via the `tanstackStartCookies()` plugin, registered last so other plugins' cookies reach the framework
 - Better Auth React client (`authClient`) for current user and current session; workspace membership loads from the `WorkspaceMembership` capability in route loaders
 - Skip-to-content and accessible form patterns on the sign-in page
+
+## Lifecycle emails
+
+Password-reset and verification emails flow through the same React Email dispatcher as invitations. `packages/auth` declares an `AuthEmailSender` port (it cannot import the sibling `email` package); `apps/web/src/lib/server/auth-emails.ts` supplies the adapter, so the flows work in log mode with zero providers. The emailed links point at the auth handler's own token-exchange routes, which validate and redirect to the app pages — see the [Email module](/docs/starter-modules/email) for the template inventory.
 
 ## What activates when configured
 

@@ -17,7 +17,7 @@ The email module is an Optional Provider Module: it has production wiring throug
 
 ## Template inventory
 
-The starter ships a workspace invitation template (`WorkspaceInvitationEmail`) built with the React Email Tailwind component and `pixelBasedPreset`, with `PreviewProps` for the local preview server. Add new templates alongside it in `packages/email/src/templates.tsx` (or split into `src/templates/*.tsx` if the library grows) and export them from `@b2b-saas-starter/email`.
+The starter ships three templates in `packages/email/src/templates.tsx`, each built with the React Email Tailwind component and `pixelBasedPreset`, with `PreviewProps` for the local preview server: the workspace invitation (`WorkspaceInvitationEmail`), the password reset (`PasswordResetEmail`), and the email verification (`EmailVerificationEmail`). Add new templates alongside them (or split into `src/templates/*.tsx` if the library grows) and export them from `@b2b-saas-starter/email`.
 
 ## Local development
 

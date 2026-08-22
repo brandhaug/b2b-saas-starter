@@ -13,6 +13,27 @@ import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz'
 import { type Database } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
 
+/**
+ * The account-lifecycle emails Better Auth sends (password reset, email
+ * verification), as a structural port: Better Auth invokes its callbacks
+ * outside any Effect, so they cannot depend on Effect services directly, and
+ * this package must not import the sibling `email` package (ADR 0051's rule
+ * runs in both directions). The app supplies the adapter
+ * (`apps/web/src/lib/server/auth-emails.ts`), built on the `EmailDispatcher`
+ * with its log-mode fallback — so an unconfigured starter still "sends" to the
+ * log and the flows work end to end locally.
+ */
+export type AuthEmailSender = {
+  readonly sendPasswordReset: (input: {
+    readonly email: string
+    readonly url: string
+  }) => Promise<void>
+  readonly sendEmailVerification: (input: {
+    readonly email: string
+    readonly url: string
+  }) => Promise<void>
+}
+
 export type AuthConfigInterface = {
   readonly db: Database
   readonly secret: string
@@ -22,6 +43,7 @@ export type AuthConfigInterface = {
     readonly clientId: string
     readonly clientSecret: string
   } | null
+  readonly emails: AuthEmailSender
 }
 
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
@@ -69,7 +91,55 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       schema
     }),
     emailAndPassword: {
-      enabled: true
+      enabled: true,
+      // `requireEmailVerification` stays off on purpose: local dev sends to
+      // the log, where nobody can read the verification email, and a gate the
+      // local path cannot pass would break the provider-light rule. The
+      // unverified state is surfaced in the app instead (banner + resend).
+      // A reset password is an account-takeover response primitive: once it
+      // succeeds, the sessions that preceded it are exactly what the reset
+      // exists to distrust.
+      revokeSessionsOnPasswordReset: true,
+      // Better Auth owns the token flow (single-use, one hour, stored in the
+      // `verification` table); this callback only turns it into an email via
+      // the port above. It runs outside any Effect — no Clock, no services —
+      // which is why the port is a plain async function. The parameter type
+      // is written out (not inferred) because this object literal is built
+      // standalone: `makeAuthOptions` returns it before Better Auth's own
+      // contextual types can apply, so the callback signature is on us.
+      // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth callback contract: plain async, outside any Effect; this file is the platform adapter
+      sendResetPassword: async ({
+        user,
+        url
+      }: {
+        readonly user: { readonly email: string }
+        readonly url: string
+      }) => {
+        // oxlint-disable-next-line effect/noAsyncFunction -- forwards to the plain-function port below, not Effect work
+        await options.emails.sendPasswordReset({ email: user.email, url })
+      }
+    },
+    emailVerification: {
+      // The link clicker gets a session: verification proves control of the
+      // mailbox, so signing the user in on the spot is the honest reward, not
+      // a privilege escalation. Without it, an already-signed-in user still
+      // gets their refreshed session cookie (the endpoint always sets one).
+      autoSignInAfterVerification: true,
+      // The verification email rides sign-up itself. The alternative —
+      // requiring the user to ask for it afterwards — is an extra hop the
+      // starter has no UI reason to demand.
+      sendOnSignUp: true,
+      // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth callback contract: plain async, outside any Effect; this file is the platform adapter
+      sendVerificationEmail: async ({
+        user,
+        url
+      }: {
+        readonly user: { readonly email: string }
+        readonly url: string
+      }) => {
+        // oxlint-disable-next-line effect/noAsyncFunction -- forwards to the plain-function port above, not Effect work
+        await options.emails.sendEmailVerification({ email: user.email, url })
+      }
     },
     socialProviders,
     plugins: plugins(

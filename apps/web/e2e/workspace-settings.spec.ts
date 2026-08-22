@@ -9,8 +9,8 @@ async function signIn(page: Page, email: string, redirect: string): Promise<void
   // Interacting before React hydrates falls through to a native GET submit; the
   // sign-in form flips data-hydrated in an effect (see smoke.spec.ts).
   await page.locator('form[data-hydrated="true"]').waitFor()
-  await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Password').fill('demo-starter-password')
+  await page.getByLabel('Email', { exact: true }).fill(email)
+  await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL((url) => url.pathname === redirect)
 }
