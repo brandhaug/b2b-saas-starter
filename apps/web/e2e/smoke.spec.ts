@@ -39,7 +39,7 @@ test('sign-in page offers the account lifecycle affordances', async ({ page }) =
 test('forgot-password page renders the request form', async ({ page }) => {
   await page.goto('/forgot-password')
   await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible()
-  await expect(page.getByLabel('Email')).toBeVisible()
+  await expect(page.getByLabel('Email', { exact: true })).toBeVisible()
 })
 
 test('reset-password page shows the opaque failure state without a token', async ({
@@ -68,8 +68,8 @@ test('seeded demo user signs in and reaches the workspace dashboard', async ({
   // (the dev server transforms modules on first hit, so hydration lags the
   // DOM). The sign-in form flips data-hydrated in an effect — wait for it.
   await page.locator('form[data-hydrated="true"]').waitFor()
-  await page.getByLabel('Email').fill('demo@starter.local')
-  await page.getByLabel('Password').fill('demo-starter-password')
+  await page.getByLabel('Email', { exact: true }).fill('demo@starter.local')
+  await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL(/\/workspaces\/starter-lab/)
   // The seeded dashboard renders real capability data, not the auth screen.
