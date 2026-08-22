@@ -28,9 +28,9 @@ function HeroSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
               The hard parts, already wired.
             </h1>
             <p className="rise rise-3 mt-6 text-pretty text-lg text-muted-foreground">
-              Workspaces, auth, REST + MCP, webhooks, email, billing wiring, audit, and
-              reports, typed end-to-end and proven by a working reference app. It boots
-              locally with zero provider secrets.
+              Workspaces, auth, REST + MCP, webhooks, email, audit, and admin, typed
+              end-to-end and proven by a working reference app. It boots locally with
+              zero provider secrets.
             </p>
             <div className="rise rise-4 mt-9 flex flex-wrap items-center gap-3">
               <Link

@@ -10,7 +10,7 @@ tags: [effect, capabilities]
 
 ## Services
 
-Each domain (workspace, Starter Module, Adoption Readiness, audit, API tokens, webhooks) is a `Context.Service` with a tagged error type. Implementations are layered with D1 access at the edges: `Seed*` for tests and the Seed Workspace, `Live*` for D1-backed reads/writes.
+Each domain (workspace, audit, API tokens, webhooks, notifications) is a `Context.Service` with a tagged error type. Implementations are layered with D1 access at the edges: `Seed*` for tests and the Seed Workspace, `Live*` for D1-backed reads/writes.
 
 ## Schemas as contracts
 

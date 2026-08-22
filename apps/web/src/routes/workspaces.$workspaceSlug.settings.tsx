@@ -3,10 +3,8 @@ import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
 import { InvitationPanel } from '@/components/invitation-panel'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell, type SignOut } from '@/components/workspace-shell'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { viewerCan } from '@/lib/permissions'
 import {
   loadWorkspaceSettings,
@@ -49,7 +47,7 @@ export function WorkspaceSettingsPage({
   readonly data: WorkspaceSettingsPayload
   /**
    * The server calls this page's children make, forwarded so a test supplies
-   * them instead of replacing the modules they live in. Omitted everywhere but
+   * them instead of replacing the ports they live in. Omitted everywhere but
    * a test, where each child falls back to its production default.
    */
   readonly ports?: {
@@ -57,12 +55,8 @@ export function WorkspaceSettingsPage({
     readonly signOut?: SignOut
   }
 }) {
-  const { viewer, modules, apiTokenCount, webhookCount, unreadCount, invitations } =
-    data
+  const { viewer, apiTokenCount, webhookCount, unreadCount, invitations } = data
   // A `null` segment is the server's answer that this actor may not read it.
-  // The permission checks below decide the actions inside a section the actor
-  // can see; both come from the one role table in `@b2b-saas-starter/authz`.
-  const canUpdateModules = viewerCan(viewer, { module: ['update'] })
   const canCreateApiToken = viewerCan(viewer, { apiToken: ['create'] })
   const canInvite = viewerCan(viewer, { invitation: ['create'] })
 
@@ -71,50 +65,15 @@ export function WorkspaceSettingsPage({
       workspaceSlug={workspaceSlug}
       {...(ports?.signOut === undefined ? {} : { signOut: ports.signOut })}
       title="Workspace settings"
-      description="Module toggles, provider readiness, report schedule, API tokens, and webhook configuration."
+      description="API tokens, members, and webhook configuration."
       unreadCount={unreadCount}
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Module state</CardTitle>
-            {canUpdateModules ? null : (
-              <p className="text-xs text-muted-foreground">
-                Your role cannot change module state.
-              </p>
-            )}
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {modules.map((module) => (
-              <div
-                key={module.id}
-                className="flex items-center justify-between gap-4 rounded-md border border-border p-3"
-              >
-                <div>
-                  <p className="text-sm font-medium">{module.name}</p>
-                  <p className="text-xs text-muted-foreground">{module.summary}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary">{module.state.status}</Badge>
-                  <Switch checked={module.state.enabled} disabled />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Operational settings</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-5">
-            <div className="grid gap-2">
-              <Label>Report schedule</Label>
-              <p className="text-sm text-muted-foreground">
-                Weekly implementation report delivery through Cloudflare Email activates
-                when email configuration exists.
-              </p>
-            </div>
             {apiTokenCount === null ? null : (
               <div className="grid gap-2">
                 <Label>API tokens</Label>

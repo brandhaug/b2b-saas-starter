@@ -4,21 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 
-type ModuleToggleRow = {
+type FeatureToggleRow = {
   readonly id: string
   readonly name: string
   readonly status: 'ready' | 'configuring' | 'unconfigured'
   readonly enabled: boolean
 }
 
-function SettingsPanel({ rows }: { readonly rows: readonly ModuleToggleRow[] }) {
+function SettingsPanel({ rows }: { readonly rows: readonly FeatureToggleRow[] }) {
   return (
     <Card className="w-128">
       <CardHeader>
-        <CardTitle>Module state</CardTitle>
+        <CardTitle>Feature state</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Toggle starter modules per workspace. Provider readiness is reflected on the
-          right.
+          Toggle workspace features. Provider configuration is reflected on the right.
         </p>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -29,7 +28,7 @@ function SettingsPanel({ rows }: { readonly rows: readonly ModuleToggleRow[] }) 
           >
             <div className="grid gap-0.5">
               <Label
-                htmlFor={`module-${row.id}`}
+                htmlFor={`feature-${row.id}`}
                 className="text-sm font-medium leading-none"
               >
                 {row.name}
@@ -38,7 +37,7 @@ function SettingsPanel({ rows }: { readonly rows: readonly ModuleToggleRow[] }) 
                 {row.status}
               </Badge>
             </div>
-            <Switch id={`module-${row.id}`} defaultChecked={row.enabled} />
+            <Switch id={`feature-${row.id}`} defaultChecked={row.enabled} />
           </div>
         ))}
       </CardContent>
@@ -54,7 +53,7 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const ModuleToggles: Story = {
+export const FeatureToggles: Story = {
   args: {
     rows: [
       { id: 'auth', name: 'Better Auth', status: 'ready', enabled: true },

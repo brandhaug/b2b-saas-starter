@@ -21,9 +21,7 @@ export const starterResources = {
   apiToken: ['list', 'create', 'revoke'],
   webhook: ['list', 'create', 'disable', 'rotateSecret'],
   auditLog: ['read'],
-  module: ['read', 'update'],
-  notification: ['read'],
-  integration: ['read']
+  notification: ['read']
 } as const
 
 /**

@@ -20,43 +20,36 @@ Capabilities are grouped by bounded context so the package can grow without flat
 
 ```
 src/
-├── catalog/            – starter modules, refresh history, adoption readiness, implementation reports
 ├── developer-platform/ – API tokens, webhook endpoints
 ├── governance/         – audit events, workspace membership, workspace identity types
-├── notifications/      – notification feed, integration surfaces
+├── notifications/      – notification feed
 ├── internal/           – shared crypto / id helpers
 ├── errors.ts           – shared typed errors
 ├── workspace-context.ts – per-request workspace resolution
 ├── workspace-projections.ts – named read projections composed from the services below
 ├── seed-fixture.ts     – in-memory fixture data
 ├── layers.ts           – SeedLayer + makeLiveCapabilitiesLayer composition (pure wiring)
-├── module-env-overlay.ts – withModuleEnvStatus + env-module-id mapping tables
 ├── runtime.ts          – Effect runtime helpers (StarterEnv → layer selection)
 └── index.ts            – public barrel; the only path consumers should import from
 ```
 
-`StarterEnv` (`runtime.ts`) selects Seed vs Live by the `DB` binding and optionally carries `moduleConfig` — env-derived module statuses computed by the app via `@b2b-saas-starter/env` (ADR 0035). When present, `withModuleEnvStatus` (`module-env-overlay.ts`) decorates `StarterModuleCatalog` and `IntegrationSurfaces` so their reported status/`missingConfig` reflects the worker's real env (needs-config / attention / ready) instead of stored fixture or D1 state. Only env var _names_ pass through — never values. The env-module-id ↔ catalog-module-id / integration-provider mappings live beside the overlay in `module-env-overlay.ts`; env module ids without a mapping (e.g. `ai`, which has no catalog module or integration surface yet) are ignored.
+`StarterEnv` (`runtime.ts`) selects Seed vs Live by the `DB` binding.
 
-`workspace-projections.ts` holds named read projections (`workspaceOverview`, `workspaceDashboard`, `listWorkspacesForUser`, `countModuleStatuses`) — pure compositions over the capability services with pre-computed aggregates (readiness score, unread count, per-status module tallies, per-workspace counts). They have **no Seed/Live adapters of their own** (ADR 0044 removed that god-object shape); web loaders and the REST `overview` endpoint consume them so app and Capability Interface views assemble the same data. Compute an aggregate here, not in a route handler or `useMemo`. `listWorkspacesForUser(userId)` is the "my workspaces" model: it takes no ambient `WorkspaceContext`, resolving the user's memberships via `WorkspaceMembership.listWorkspacesForUser` and scoping each per-workspace read itself.
+`workspace-projections.ts` holds named read projections (`workspaceOverview`, `workspaceDashboard`, `listWorkspacesForUser`) — pure compositions over the capability services with pre-computed aggregates (unread count, per-workspace counts). They have **no Seed/Live adapters of their own** (ADR 0044 removed that god-object shape); web loaders and the REST `overview` endpoint consume them so app and Capability Interface views assemble the same data. Compute an aggregate here, not in a route handler or `useMemo`. `listWorkspacesForUser(userId)` is the "my workspaces" model: it takes no ambient `WorkspaceContext`, resolving the user's memberships via `WorkspaceMembership.listWorkspacesForUser` and scoping each per-workspace read itself.
 
-A projection covers **one** permission. `workspaceDashboard` is everything `module:read` reaches, and webhook endpoints are deliberately not in it: `webhook:list` is a separate permission a `member` does not hold, and a projection cannot check authorization (rule 2 below). The caller reads such a segment itself and drops it when the actor may not have it — see `apps/web/src/lib/server/workspace-dashboard.ts`. The old `workspaceSettingsSummary` was removed for exactly this reason: it bundled five permissions into one read, so a member's settings page received an API-token count and a webhook count the matrix denies them. A permission-shaped payload is assembled **above** this package.
+A projection covers **one** permission. `workspaceDashboard` is everything `notification:read` reaches, and webhook endpoints are deliberately not in it: `webhook:list` is a separate permission a `member` does not hold, and a projection cannot check authorization (rule 2 below). The caller reads such a segment itself and drops it when the actor may not have it — see `apps/web/src/lib/server/workspace-dashboard.ts`. The old `workspaceSettingsSummary` was removed for exactly this reason: it bundled five permissions into one read, so a member's settings page received an API-token count and a webhook count the matrix denies them. A permission-shaped payload is assembled **above** this package.
 
 Each capability gets a leaf intent node alongside its source file. Read it before changing the capability's contract.
 
-| Context            | Capability                                                                  | Reads from D1 tables                                    | Status                                                          |
-| ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------- |
-| catalog            | [`adoption-readiness`](src/catalog/adoption-readiness.AGENTS.md)            | (computed)                                              | live stub — returns empty trend                                 |
-| catalog            | [`catalog-refresh-history`](src/catalog/catalog-refresh-history.AGENTS.md)  | `catalogRefreshRuns`                                    | full read + write                                               |
-| catalog            | [`implementation-reports`](src/catalog/implementation-reports.AGENTS.md)    | `implementationReports`, `workspaces`                   | read-only                                                       |
-| catalog            | [`starter-module-catalog`](src/catalog/starter-module-catalog.AGENTS.md)    | `starterModules`, `workspaceModuleStates`, `workspaces` | read-only                                                       |
-| developer-platform | [`api-token-registry`](src/developer-platform/api-token-registry.AGENTS.md) | `apiTokens`, `workspaces`                               | list, create, revoke, verify bearer (audit-emitting)            |
-| developer-platform | [`webhook-endpoints`](src/developer-platform/webhook-endpoints.AGENTS.md)   | `webhookEndpoints`, `webhookDeliveries`, `workspaces`   | list, create, disable, rotate secret (audit-emitting)           |
-| developer-platform | [`webhook-publisher`](src/developer-platform/webhook-publisher.AGENTS.md)   | `webhookEndpoints`                                      | enqueue-only fan-out to `WEBHOOK_QUEUE` (no-op without binding) |
-| governance         | [`audit-event-log`](src/governance/audit-event-log.AGENTS.md)               | `auditEvents`, `user`, `workspaces`                     | list + `record(input)` for upstream emitters                    |
-| governance         | [`workspace-invitations`](src/governance/workspace-invitations.AGENTS.md)   | `workspaceInvitations`, `workspaces`                    | reads direct; create/cancel/accept via the plugin binding       |
-| governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`                | reads direct; add/remove/change-role via the plugin binding     |
-| notifications      | [`integration-surfaces`](src/notifications/integration-surfaces.AGENTS.md)  | `integrationConnections`, `workspaces`                  | read-only                                                       |
-| notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                           | read-only                                                       |
+| Context            | Capability                                                                  | Reads from D1 tables                                  | Status                                                          |
+| ------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------- |
+| developer-platform | [`api-token-registry`](src/developer-platform/api-token-registry.AGENTS.md) | `apiTokens`, `workspaces`                             | list, create, revoke, verify bearer (audit-emitting)            |
+| developer-platform | [`webhook-endpoints`](src/developer-platform/webhook-endpoints.AGENTS.md)   | `webhookEndpoints`, `webhookDeliveries`, `workspaces` | list, create, disable, rotate secret (audit-emitting)           |
+| developer-platform | [`webhook-publisher`](src/developer-platform/webhook-publisher.AGENTS.md)   | `webhookEndpoints`                                    | enqueue-only fan-out to `WEBHOOK_QUEUE` (no-op without binding) |
+| governance         | [`audit-event-log`](src/governance/audit-event-log.AGENTS.md)               | `auditEvents`, `user`, `workspaces`                   | list + `record(input)` for upstream emitters                    |
+| governance         | [`workspace-invitations`](src/governance/workspace-invitations.AGENTS.md)   | `workspaceInvitations`, `workspaces`                  | reads direct; create/cancel/accept via the plugin binding       |
+| governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`              | reads direct; add/remove/change-role via the plugin binding     |
+| notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                         | read-only                                                       |
 
 `governance/workspace-identity.ts` is not a capability: it owns the workspace identity vocabulary (`WORKSPACE_ROLES`, `SYSTEM_ROLES`, `Workspace`, `Member`, `toMember`, `findWorkspaceMember`) so `workspace-context.ts` and `governance/workspace-membership.ts` no longer import each other. `workspace-membership.ts` depends on `WorkspaceContext` for its member reads, so the shared types and the member lookup live below both. Import identity types from this module, not from the membership capability.
 

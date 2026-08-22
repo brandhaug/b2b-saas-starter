@@ -48,9 +48,7 @@ export const memberRole = accessControl.newRole({
   apiToken: [],
   webhook: [],
   auditLog: [],
-  module: ['read'],
-  notification: ['read'],
-  integration: ['read']
+  notification: ['read']
 })
 
 export const workspaceRoleAccess = {
@@ -70,9 +68,7 @@ const readScopeStatements = {
   apiToken: ['list'],
   webhook: ['list'],
   auditLog: ['read'],
-  module: ['read'],
-  notification: ['read'],
-  integration: ['read']
+  notification: ['read']
 } as const
 
 export const readScopeRole = accessControl.newRole(readScopeStatements)
@@ -88,8 +84,7 @@ export const readScopeRole = accessControl.newRole(readScopeStatements)
 export const writeScopeRole = accessControl.newRole({
   ...readScopeStatements,
   invitation: ['create'],
-  webhook: ['list', 'create'],
-  module: ['read', 'update']
+  webhook: ['list', 'create']
 })
 
 /**

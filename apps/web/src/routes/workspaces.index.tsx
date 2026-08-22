@@ -51,28 +51,25 @@ function WorkspacesPage() {
           </Card>
         ) : (
           <div className="mt-8 grid gap-4">
-            {workspaces.map(
-              ({ workspace, moduleCount, memberCount, notificationCount }) => (
-                <Link
-                  key={workspace.id}
-                  to="/workspaces/$workspaceSlug"
-                  params={{ workspaceSlug: workspace.slug }}
-                  className="group/workspace-link block rounded-none focus-visible:outline-none"
-                >
-                  <Card className="transition-colors hover:bg-muted/40 group-focus-visible/workspace-link:ring-2 group-focus-visible/workspace-link:ring-ring group-focus-visible/workspace-link:ring-offset-2">
-                    <CardHeader>
-                      <CardTitle>{workspace.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">
-                        {moduleCount} starter modules, {memberCount} members,{' '}
-                        {notificationCount} notifications
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              )
-            )}
+            {workspaces.map(({ workspace, memberCount, notificationCount }) => (
+              <Link
+                key={workspace.id}
+                to="/workspaces/$workspaceSlug"
+                params={{ workspaceSlug: workspace.slug }}
+                className="group/workspace-link block rounded-none focus-visible:outline-none"
+              >
+                <Card className="transition-colors hover:bg-muted/40 group-focus-visible/workspace-link:ring-2 group-focus-visible/workspace-link:ring-ring group-focus-visible/workspace-link:ring-offset-2">
+                  <CardHeader>
+                    <CardTitle>{workspace.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      {memberCount} members, {notificationCount} notifications
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
           </div>
         )}
       </main>

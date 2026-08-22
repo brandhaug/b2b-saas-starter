@@ -14,12 +14,8 @@ import {
   AuditEventLog,
   AuthorizationDenied,
   type CapabilityUnavailable,
-  CatalogRefreshHistory,
-  ImplementationReports,
-  IntegrationSurfaces,
   NotificationFeed,
   selectWorkspaceLayer,
-  StarterModuleCatalog,
   type WebhookEndpoint,
   WebhookEndpoints,
   WebhookPublisher,
@@ -247,19 +243,10 @@ export function workspaceGroup(env: ApiEnv) {
         .handle('overview', ({ params, request }) =>
           read(
             'overview',
-            { module: ['read'] },
+            { notification: ['read'] },
             params.slug,
             request,
             workspaceOverview
-          )
-        )
-        .handle('modules', ({ params, request }) =>
-          read(
-            'modules',
-            { module: ['read'] },
-            params.slug,
-            request,
-            Effect.flatMap(StarterModuleCatalog, (catalog) => catalog.listModules)
           )
         )
         // Listing members exposes who holds which role, which is what `ac:read`
@@ -299,26 +286,6 @@ export function workspaceGroup(env: ApiEnv) {
             params.slug,
             request,
             Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
-          )
-        )
-        .handle('integrations', ({ params, request }) =>
-          read(
-            'integrations',
-            { integration: ['read'] },
-            params.slug,
-            request,
-            Effect.flatMap(IntegrationSurfaces, (integrations) => integrations.list)
-          )
-        )
-        // Implementation reports describe module adoption, so they read as module
-        // content rather than a resource of their own.
-        .handle('reports', ({ params, request }) =>
-          read(
-            'reports',
-            { module: ['read'] },
-            params.slug,
-            request,
-            Effect.flatMap(ImplementationReports, (reports) => reports.list)
           )
         )
         .handle('audit-events', ({ params, request }) =>
@@ -466,44 +433,6 @@ export function webhookGroup(env: ApiEnv) {
   )
 }
 
-export function catalogGroup(env: ApiEnv) {
-  return HttpApiBuilder.group(StarterApi, 'catalog', (handlers) =>
-    handlers
-      .handle('modules', ({ request }) =>
-        observed(
-          env,
-          request,
-          'catalog.modules',
-          {},
-          Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_read')
-            yield* enforcePermission(request, { module: ['read'] })
-            return yield* Effect.flatMap(
-              StarterModuleCatalog,
-              (catalog) => catalog.listAllModules
-            )
-          })
-        )
-      )
-      .handle('refresh-history', ({ request }) =>
-        observed(
-          env,
-          request,
-          'catalog.refresh-history',
-          {},
-          Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_read')
-            yield* enforcePermission(request, { module: ['read'] })
-            return yield* Effect.flatMap(
-              CatalogRefreshHistory,
-              (history) => history.listRecent
-            )
-          })
-        )
-      )
-  )
-}
-
 export function assistantGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'assistant', (handlers) =>
     handlers.handle('answer', ({ payload, request }) =>
@@ -514,7 +443,7 @@ export function assistantGroup(env: ApiEnv) {
         {},
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'assistant')
-          yield* enforcePermission(request, { module: ['read'] })
+          yield* enforcePermission(request, { notification: ['read'] })
           const service = yield* AssistantService
           const reply = yield* service.ask(payload)
           return {
@@ -540,7 +469,7 @@ export function mcpGroup(env: ApiEnv) {
         {},
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'mcp')
-          yield* enforcePermission(request, { module: ['read'] })
+          yield* enforcePermission(request, { notification: ['read'] })
           return {
             name: 'b2b-saas-starter-mcp',
             resources: ['workspace://starter-lab/overview'],

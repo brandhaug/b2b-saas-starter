@@ -1,22 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   auditRequiredEnv,
-  makeStarterEnvModuleConfig,
-  moduleConfigStatus,
   optionalModuleEnvKeys,
   readServerEnv,
-  redactedEnvStatus,
   serverEnvKeys,
   ServerEnvSchema
 } from './server.ts'
-
-function statusFor(env: Record<string, string | undefined>, moduleId: string) {
-  const status = moduleConfigStatus(readServerEnv(env)).find(
-    (item) => item.moduleId === moduleId
-  )
-  if (status === undefined) throw new Error(`unknown module ${moduleId}`)
-  return status
-}
 
 describe('readServerEnv', () => {
   it('boots provider-light: an empty env decodes via local defaults', () => {
@@ -58,126 +47,6 @@ describe('schema-derived key lists', () => {
     for (const key of optionalModuleEnvKeys) {
       expect(serverEnvKeys).toContain(key)
     }
-  })
-})
-
-describe('moduleConfigStatus', () => {
-  it('reports missing var names (redacted: names only) when env is unset', () => {
-    const github = statusFor({}, 'github-oauth')
-    expect(github.envPresent).toBe(false)
-    expect(github.configured).toBe(false)
-    expect(github.missing).toEqual(['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'])
-  })
-
-  it('requires every var: a partially configured module stays unconfigured', () => {
-    const github = statusFor({ GITHUB_CLIENT_ID: 'iv1.abc' }, 'github-oauth')
-    expect(github.envPresent).toBe(false)
-    expect(github.missing).toEqual(['GITHUB_CLIENT_SECRET'])
-  })
-
-  it('treats empty strings as unset', () => {
-    const turnstile = statusFor(
-      { TURNSTILE_SITE_KEY: '', TURNSTILE_SECRET_KEY: '' },
-      'turnstile'
-    )
-    expect(turnstile.envPresent).toBe(false)
-    expect(turnstile.missing).toEqual(['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'])
-  })
-
-  it('marks a module configured when all required vars are present', () => {
-    const email = statusFor(
-      { CLOUDFLARE_EMAIL_FROM: 'no-reply@example.com' },
-      'cloudflare-email'
-    )
-    expect(email.envPresent).toBe(true)
-    expect(email.configured).toBe(true)
-    expect(email.missing).toEqual([])
-  })
-
-  it('keeps runtime-unwired modules unconfigured even with env present', () => {
-    const billing = statusFor(
-      { STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'whsec_x' },
-      'billing'
-    )
-    expect(billing.envPresent).toBe(true)
-    expect(billing.configured).toBe(false)
-  })
-
-  it('observability configures on the OTLP endpoint alone', () => {
-    const observability = statusFor(
-      { OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318' },
-      'observability'
-    )
-    expect(observability.configured).toBe(true)
-    expect(observability.envPresent).toBe(true)
-    expect(observability.missing).toEqual([])
-  })
-
-  it('treats Sentry and PostHog as independent reserved hooks', () => {
-    // Either hook alone means "present but unwired" — they activate different
-    // providers, so neither implies the other.
-    const sentryOnly = statusFor(
-      { SENTRY_DSN: 'https://key@sentry.io/1' },
-      'observability'
-    )
-    expect(sentryOnly.envPresent).toBe(true)
-    expect(sentryOnly.configured).toBe(false)
-    // `missing` names what reaching `configured` needs, not what env lacks.
-    expect(sentryOnly.missing).toEqual(['OTEL_EXPORTER_OTLP_ENDPOINT'])
-
-    const posthogOnly = statusFor({ POSTHOG_KEY: 'phc_test' }, 'observability')
-    expect(posthogOnly.envPresent).toBe(true)
-    expect(posthogOnly.configured).toBe(false)
-    expect(posthogOnly.missing).toEqual(['OTEL_EXPORTER_OTLP_ENDPOINT'])
-  })
-
-  it('reports observability unset when no exporter and no reserved hook exist', () => {
-    const observability = statusFor({}, 'observability')
-    expect(observability.configured).toBe(false)
-    expect(observability.envPresent).toBe(false)
-    expect(observability.missing).toEqual(['OTEL_EXPORTER_OTLP_ENDPOINT'])
-  })
-
-  it('ai activates on either Workers AI flag or an OpenAI key', () => {
-    const unset = statusFor({}, 'ai')
-    expect(unset.configured).toBe(false)
-    expect(unset.missing).toEqual(['WORKERS_AI_ENABLED', 'OPENAI_API_KEY'])
-
-    // WORKERS_AI_ENABLED must be the literal 'true' — 'false' is not "present".
-    expect(statusFor({ WORKERS_AI_ENABLED: 'false' }, 'ai').configured).toBe(false)
-    expect(statusFor({ WORKERS_AI_ENABLED: 'true' }, 'ai').configured).toBe(true)
-    expect(statusFor({ OPENAI_API_KEY: 'sk-x' }, 'ai').configured).toBe(true)
-  })
-})
-
-describe('makeStarterEnvModuleConfig', () => {
-  it('is the readServerEnv + moduleConfigStatus recipe over a raw worker env', () => {
-    const raw = {
-      DB: { fake: 'd1-binding' },
-      CLOUDFLARE_EMAIL_FROM: 'no-reply@example.com'
-    }
-    expect(makeStarterEnvModuleConfig(raw)).toEqual(
-      moduleConfigStatus(readServerEnv(raw))
-    )
-    const email = makeStarterEnvModuleConfig(raw).find(
-      (item) => item.moduleId === 'cloudflare-email'
-    )
-    expect(email?.configured).toBe(true)
-  })
-})
-
-describe('redactedEnvStatus', () => {
-  it('summarizes without leaking values', () => {
-    const status = redactedEnvStatus(
-      readServerEnv({ CLOUDFLARE_EMAIL_FROM: 'no-reply@example.com' })
-    )
-    const email = status.find((item) => item.moduleId === 'cloudflare-email')
-    expect(email?.values).toBe('configured')
-    // The assertion IS about the raw serialization: no secret value may appear anywhere
-    // in the serialized status, whatever its shape. A Schema codec would only check the
-    // fields it declares, which is a strictly weaker redaction guarantee.
-    // oxlint-disable-next-line effect/noGlobals -- serialization is the thing under test
-    expect(JSON.stringify(status)).not.toContain('no-reply@example.com')
   })
 })
 

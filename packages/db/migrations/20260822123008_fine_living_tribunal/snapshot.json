@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "5c377e06-dbdd-44e8-a74b-c747fac7f134",
+  "id": "5c5cea99-2664-43f8-9e8d-bcb580e45458",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
@@ -17,31 +17,11 @@
       "entityType": "tables"
     },
     {
-      "name": "catalog_refresh_runs",
-      "entityType": "tables"
-    },
-    {
-      "name": "implementation_reports",
-      "entityType": "tables"
-    },
-    {
-      "name": "integration_connections",
-      "entityType": "tables"
-    },
-    {
       "name": "notifications",
       "entityType": "tables"
     },
     {
-      "name": "report_schedules",
-      "entityType": "tables"
-    },
-    {
       "name": "session",
-      "entityType": "tables"
-    },
-    {
-      "name": "starter_modules",
       "entityType": "tables"
     },
     {
@@ -66,10 +46,6 @@
     },
     {
       "name": "workspace_members",
-      "entityType": "tables"
-    },
-    {
-      "name": "workspace_module_states",
       "entityType": "tables"
     },
     {
@@ -394,196 +370,6 @@
       "generated": null,
       "name": "id",
       "entityType": "columns",
-      "table": "catalog_refresh_runs"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "workspace_id",
-      "entityType": "columns",
-      "table": "catalog_refresh_runs"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "status",
-      "entityType": "columns",
-      "table": "catalog_refresh_runs"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "started_at",
-      "entityType": "columns",
-      "table": "catalog_refresh_runs"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "completed_at",
-      "entityType": "columns",
-      "table": "catalog_refresh_runs"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "summary",
-      "entityType": "columns",
-      "table": "catalog_refresh_runs"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
-      "table": "implementation_reports"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "workspace_id",
-      "entityType": "columns",
-      "table": "implementation_reports"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "title",
-      "entityType": "columns",
-      "table": "implementation_reports"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "status",
-      "entityType": "columns",
-      "table": "implementation_reports"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "summary",
-      "entityType": "columns",
-      "table": "implementation_reports"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "table": "implementation_reports"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
-      "table": "integration_connections"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "workspace_id",
-      "entityType": "columns",
-      "table": "integration_connections"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "provider",
-      "entityType": "columns",
-      "table": "integration_connections"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "display_name",
-      "entityType": "columns",
-      "table": "integration_connections"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "status",
-      "entityType": "columns",
-      "table": "integration_connections"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "connected_at",
-      "entityType": "columns",
-      "table": "integration_connections"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "last_checked_at",
-      "entityType": "columns",
-      "table": "integration_connections"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
       "table": "notifications"
     },
     {
@@ -645,66 +431,6 @@
       "name": "created_at",
       "entityType": "columns",
       "table": "notifications"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
-      "table": "report_schedules"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "workspace_id",
-      "entityType": "columns",
-      "table": "report_schedules"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "frequency",
-      "entityType": "columns",
-      "table": "report_schedules"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "true",
-      "generated": null,
-      "name": "enabled",
-      "entityType": "columns",
-      "table": "report_schedules"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "recipients",
-      "entityType": "columns",
-      "table": "report_schedules"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "updated_at",
-      "entityType": "columns",
-      "table": "report_schedules"
     },
     {
       "type": "text",
@@ -805,66 +531,6 @@
       "name": "activeOrganizationId",
       "entityType": "columns",
       "table": "session"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
-      "table": "starter_modules"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "name",
-      "entityType": "columns",
-      "table": "starter_modules"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "summary",
-      "entityType": "columns",
-      "table": "starter_modules"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "category",
-      "entityType": "columns",
-      "table": "starter_modules"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "docs_path",
-      "entityType": "columns",
-      "table": "starter_modules"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "false",
-      "generated": null,
-      "name": "optional",
-      "entityType": "columns",
-      "table": "starter_modules"
     },
     {
       "type": "text",
@@ -1348,66 +1014,6 @@
     },
     {
       "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "workspace_id",
-      "entityType": "columns",
-      "table": "workspace_module_states"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "module_id",
-      "entityType": "columns",
-      "table": "workspace_module_states"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "status",
-      "entityType": "columns",
-      "table": "workspace_module_states"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "true",
-      "generated": null,
-      "name": "enabled",
-      "entityType": "columns",
-      "table": "workspace_module_states"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "'[]'",
-      "generated": null,
-      "name": "missing_config",
-      "entityType": "columns",
-      "table": "workspace_module_states"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "updated_at",
-      "entityType": "columns",
-      "table": "workspace_module_states"
-    },
-    {
-      "type": "text",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -1548,39 +1154,6 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_catalog_refresh_runs_workspace_id_workspaces_id_fk",
-      "entityType": "fks",
-      "table": "catalog_refresh_runs"
-    },
-    {
-      "columns": ["workspace_id"],
-      "tableTo": "workspaces",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "name": "fk_implementation_reports_workspace_id_workspaces_id_fk",
-      "entityType": "fks",
-      "table": "implementation_reports"
-    },
-    {
-      "columns": ["workspace_id"],
-      "tableTo": "workspaces",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "name": "fk_integration_connections_workspace_id_workspaces_id_fk",
-      "entityType": "fks",
-      "table": "integration_connections"
-    },
-    {
-      "columns": ["workspace_id"],
-      "tableTo": "workspaces",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
       "name": "fk_notifications_workspace_id_workspaces_id_fk",
       "entityType": "fks",
       "table": "notifications"
@@ -1595,17 +1168,6 @@
       "name": "fk_notifications_user_id_user_id_fk",
       "entityType": "fks",
       "table": "notifications"
-    },
-    {
-      "columns": ["workspace_id"],
-      "tableTo": "workspaces",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "name": "fk_report_schedules_workspace_id_workspaces_id_fk",
-      "entityType": "fks",
-      "table": "report_schedules"
     },
     {
       "columns": ["userId"],
@@ -1685,35 +1247,6 @@
       "table": "workspace_members"
     },
     {
-      "columns": ["workspace_id"],
-      "tableTo": "workspaces",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "name": "fk_workspace_module_states_workspace_id_workspaces_id_fk",
-      "entityType": "fks",
-      "table": "workspace_module_states"
-    },
-    {
-      "columns": ["module_id"],
-      "tableTo": "starter_modules",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "name": "fk_workspace_module_states_module_id_starter_modules_id_fk",
-      "entityType": "fks",
-      "table": "workspace_module_states"
-    },
-    {
-      "columns": ["workspace_id", "module_id"],
-      "nameExplicit": false,
-      "name": "workspace_module_states_pk",
-      "entityType": "pks",
-      "table": "workspace_module_states"
-    },
-    {
       "columns": ["id"],
       "nameExplicit": false,
       "name": "account_pk",
@@ -1737,27 +1270,6 @@
     {
       "columns": ["id"],
       "nameExplicit": false,
-      "name": "catalog_refresh_runs_pk",
-      "table": "catalog_refresh_runs",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "implementation_reports_pk",
-      "table": "implementation_reports",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "integration_connections_pk",
-      "table": "integration_connections",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
       "name": "notifications_pk",
       "table": "notifications",
       "entityType": "pks"
@@ -1765,22 +1277,8 @@
     {
       "columns": ["id"],
       "nameExplicit": false,
-      "name": "report_schedules_pk",
-      "table": "report_schedules",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
       "name": "session_pk",
       "table": "session",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "starter_modules_pk",
-      "table": "starter_modules",
       "entityType": "pks"
     },
     {
@@ -1916,51 +1414,9 @@
       "isUnique": false,
       "where": null,
       "origin": "manual",
-      "name": "implementation_reports_workspace_id_idx",
-      "entityType": "indexes",
-      "table": "implementation_reports"
-    },
-    {
-      "columns": [
-        {
-          "value": "workspace_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "name": "integration_connections_workspace_id_idx",
-      "entityType": "indexes",
-      "table": "integration_connections"
-    },
-    {
-      "columns": [
-        {
-          "value": "workspace_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
       "name": "notifications_workspace_id_idx",
       "entityType": "indexes",
       "table": "notifications"
-    },
-    {
-      "columns": [
-        {
-          "value": "workspace_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "name": "report_schedules_workspace_id_idx",
-      "entityType": "indexes",
-      "table": "report_schedules"
     },
     {
       "columns": [

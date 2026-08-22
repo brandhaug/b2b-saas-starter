@@ -1,18 +1,4 @@
 import { Effect, Layer } from 'effect'
-import {
-  AdoptionReadiness,
-  projectReadiness,
-  type ReadinessPoint
-} from './catalog/adoption-readiness.ts'
-import {
-  CatalogRefreshHistory,
-  type CatalogRefreshRun
-} from './catalog/catalog-refresh-history.ts'
-import {
-  StarterModuleCatalog,
-  type ModuleStatus,
-  type StarterModuleWithState
-} from './catalog/starter-module-catalog.ts'
 import { type Workspace } from './governance/workspace-identity.ts'
 import { WorkspaceMembership } from './governance/workspace-membership.ts'
 import {
@@ -32,34 +18,9 @@ import { WorkspaceContext } from './workspace-context.ts'
  * being re-derived in route handlers and UI components.
  */
 
-const MODULE_STATUS_ORDER: readonly ModuleStatus[] = [
-  'ready',
-  'needs-config',
-  'attention',
-  'disabled'
-]
-
-export type ModuleStatusCount = {
-  readonly status: ModuleStatus
-  readonly count: number
-}
-
-/** Per-status Module State tally, in stable display order. */
-export function countModuleStatuses(
-  modules: readonly StarterModuleWithState[]
-): readonly ModuleStatusCount[] {
-  return MODULE_STATUS_ORDER.map((status) => ({
-    status,
-    count: modules.filter((module) => module.state.status === status).length
-  }))
-}
-
 export type WorkspaceOverviewProjection = {
   readonly workspace: Workspace
-  readonly readinessScore: number
-  readonly modules: readonly StarterModuleWithState[]
   readonly notifications: readonly Notification[]
-  readonly readinessTrend: readonly ReadinessPoint[]
 }
 
 /**
@@ -70,35 +31,24 @@ export type WorkspaceOverviewProjection = {
 export const workspaceOverview: Effect.Effect<
   WorkspaceOverviewProjection,
   CapabilityUnavailable,
-  WorkspaceContext | StarterModuleCatalog | NotificationFeed | AdoptionReadiness
+  WorkspaceContext | NotificationFeed
 > = Effect.gen(function* () {
   const ctx = yield* WorkspaceContext
-  const catalog = yield* StarterModuleCatalog
   const feed = yield* NotificationFeed
-  const readiness = yield* AdoptionReadiness
-  const [modules, notifications, readinessTrend] = yield* Effect.all(
-    [catalog.listModules, feed.list, readiness.getTrend],
-    { concurrency: 'unbounded' }
-  )
+  const notifications = yield* feed.list
   return {
     workspace: ctx.workspace,
-    readinessScore: projectReadiness(modules.map((module) => module.state)).score,
-    modules,
-    notifications,
-    readinessTrend
+    notifications
   }
 })
 
 export type WorkspaceDashboardProjection = WorkspaceOverviewProjection & {
-  readonly refreshRuns: readonly CatalogRefreshRun[]
-  readonly readyCount: number
   readonly unreadCount: number
-  readonly moduleStatusCounts: readonly ModuleStatusCount[]
 }
 
 /**
  * Everything the workspace dashboard renders under one permission, aggregates
- * pre-computed. `module:read` covers all of it.
+ * pre-computed. `notification:read` covers all of it.
  *
  * Webhook endpoints are deliberately NOT here: `webhook:list` is a separate
  * permission a `member` does not hold, and a projection cannot check
@@ -110,31 +60,17 @@ export type WorkspaceDashboardProjection = WorkspaceOverviewProjection & {
 export const workspaceDashboard: Effect.Effect<
   WorkspaceDashboardProjection,
   CapabilityUnavailable,
-  | WorkspaceContext
-  | StarterModuleCatalog
-  | NotificationFeed
-  | AdoptionReadiness
-  | CatalogRefreshHistory
-> = Effect.gen(function* () {
-  const refreshHistory = yield* CatalogRefreshHistory
-  const [overview, refreshRuns] = yield* Effect.all(
-    [workspaceOverview, refreshHistory.listRecent],
-    { concurrency: 'unbounded' }
-  )
-  return {
+  WorkspaceContext | NotificationFeed
+> = workspaceOverview.pipe(
+  Effect.map((overview) => ({
     ...overview,
-    refreshRuns,
-    readyCount: projectReadiness(overview.modules.map((module) => module.state))
-      .readyCount,
     unreadCount: overview.notifications.filter((notification) => !notification.read)
-      .length,
-    moduleStatusCounts: countModuleStatuses(overview.modules)
-  }
-})
+      .length
+  }))
+)
 
 export type WorkspaceListItemProjection = {
   readonly workspace: Workspace
-  readonly moduleCount: number
   readonly memberCount: number
   readonly notificationCount: number
 }
@@ -152,22 +88,20 @@ export function listWorkspacesForUser(
 ): Effect.Effect<
   readonly WorkspaceListItemProjection[],
   CapabilityUnavailable,
-  WorkspaceMembership | StarterModuleCatalog | NotificationFeed
+  WorkspaceMembership | NotificationFeed
 > {
   return Effect.gen(function* () {
     const membership = yield* WorkspaceMembership
-    const catalog = yield* StarterModuleCatalog
     const feed = yield* NotificationFeed
     const memberships = yield* membership.listWorkspacesForUser(userId)
     return yield* Effect.forEach(
       memberships,
       ({ workspace, member }) =>
-        Effect.all([catalog.listModules, membership.listMembers, feed.list], {
+        Effect.all([membership.listMembers, feed.list], {
           concurrency: 'unbounded'
         }).pipe(
-          Effect.map(([modules, members, notifications]) => ({
+          Effect.map(([members, notifications]) => ({
             workspace,
-            moduleCount: modules.length,
             memberCount: members.length,
             notificationCount: notifications.length
           })),

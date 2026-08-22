@@ -12,7 +12,7 @@ Built on `createAccessControl` from `better-auth/plugins/access`, which is pure 
 
 Four concepts, in dependency order:
 
-1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac`) plus the starter's six (`apiToken`, `webhook`, `auditLog`, `module`, `notification`, `integration`).
+1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac`) plus the starter's four (`apiToken`, `webhook`, `auditLog`, `notification`).
 2. **Roles** (`roles.ts`) — `owner`, `admin`, `member`, plus the synthetic roles that API token scopes map onto.
 3. **Principal** (`principal.ts`) — who is asking, and the pure `authorize(principal, request)` decision.
 4. **Guard** (`guard.ts`) — `requirePermission(principal, request)`, the Effect that fails `AuthorizationDenied`.
@@ -28,19 +28,19 @@ Four concepts, in dependency order:
 
 ## The matrix
 
-| Role     | Gets                                                              |
-| -------- | ----------------------------------------------------------------- |
-| `owner`  | every statement, including `organization:delete`                  |
-| `admin`  | every statement except `organization:delete`                      |
-| `member` | `ac:read`, `module:read`, `notification:read`, `integration:read` |
+| Role     | Gets                                             |
+| -------- | ------------------------------------------------ |
+| `owner`  | every statement, including `organization:delete` |
+| `admin`  | every statement except `organization:delete`     |
+| `member` | `ac:read`, `notification:read`                   |
 
 `member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away.
 
-| Token scope | Gets                                                               |
-| ----------- | ------------------------------------------------------------------ |
-| `read`      | every `list` and `read` action                                     |
-| `write`     | `read` plus `webhook:create`, `module:update`, `invitation:create` |
-| `admin`     | the `owner` set, shared by reference                               |
+| Token scope | Gets                                              |
+| ----------- | ------------------------------------------------- |
+| `read`      | every `list` and `read` action                    |
+| `write`     | `read` plus `webhook:create`, `invitation:create` |
+| `admin`     | the `owner` set, shared by reference              |
 
 `apiToken:create` is deliberately **not** in the `write` set. Minting is the one mutation that lets a token escalate itself: a `write` token allowed to create tokens could issue an `admin` one. It stays with the owner set, which `admin` scope reaches.
 

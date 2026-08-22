@@ -6,16 +6,16 @@ Cloudflare-first B2B SaaS monorepo. TanStack Start, Effect v4, Drizzle on D1, Be
 
 ## About
 
-A starter repository for shipping a B2B SaaS on Cloudflare's platform without making the early architectural decisions yourself. The public homepage showcases the repo and its architecture. The authenticated reference application demonstrates workspaces, starter modules, adoption readiness, integrations, API tokens, webhooks, reports, notifications, audit events, and a Better Auth admin dashboard — proving the foundation works end-to-end before you fork.
+A starter repository for shipping a B2B SaaS on Cloudflare's platform without making the early architectural decisions yourself. The public homepage showcases the repo and its architecture. The authenticated reference application demonstrates workspaces, members/RBAC, API tokens, webhooks, notifications, audit events, and a Better Auth admin dashboard — proving the foundation works end-to-end before you fork.
 
 ## Features
 
 - **TanStack Start** web app (SSR + server functions) on a Cloudflare Worker, plus a separate Worker for public REST and MCP.
 - **Effect v4** application layer in [`packages/capabilities`](./packages/capabilities) shared across web, API, MCP, background, and tests.
 - **Drizzle ORM** over a single shared Cloudflare **D1** database, with Better Auth tables included.
-- **Better Auth** with email/password, username, GitHub OAuth scaffolding, and the admin plugin.
+- **Better Auth** with email/password, username, and the admin plugin.
 - **Alchemy v2** IaC in [`alchemy.run.ts`](./alchemy.run.ts) — provisions D1, Queues + DLQ, Email Service, RateLimit bindings, and the three Workers.
-- **Background worker** with cron-based catalog refresh and queue-backed outbound webhook delivery (with DLQ).
+- **Background worker** with queue-backed outbound webhook delivery (with DLQ).
 - **React Email** templates wired to Cloudflare's `SendEmail` binding.
 - **Wide-event observability** via Effect's `Logger`, with `x-trace-id` propagation across services.
 - **Storybook** for UI states, **Vitest** for unit/integration, **Playwright** for E2E.
@@ -43,16 +43,16 @@ Cloudflare account, D1, and secrets setup for `bun run deploy` is described in [
 apps/
   web/          TanStack Start worker — showcase site, reference app, auth, admin
   api/          Cloudflare Worker — public REST + MCP capability interfaces
-  background/   Cloudflare Worker — catalog refresh cron + webhook queue consumer
+  background/   Cloudflare Worker — webhook queue consumer
 packages/
-  capabilities/ Effect application layer (workspaces, starter modules, audit, ...)
+  capabilities/ Effect application layer (workspaces, webhooks, audit, ...)
   db/           Drizzle schema for the shared D1 database
   auth/         Better Auth factory
   email/        React Email templates + SendEmail binding
   api/          Shared API contracts
   ai/           Effect AI starter assistant
   logger/       Wide-event Effect logger
-  env/          Module-aware env validation
+  env/          Schema-derived env validation
   config/       Shared TS/tooling configs
 alchemy.run.ts  Cloudflare IaC entry
 docs/adr/       Architectural decision records
@@ -79,7 +79,6 @@ bun run db:migrate:local
 bun run db:migrate:remote
 bun run db:seed
 
-bun run catalog:refresh  # refresh starter module catalog
 bun run deploy           # alchemy.run.ts
 bun run destroy          # alchemy.run.ts --destroy
 ```
@@ -97,7 +96,7 @@ bun run destroy          # alchemy.run.ts --destroy
 ## Acknowledgments
 
 - **Hexwardens** — Effect v4, Alchemy v2, pre-commit hooks, AGENTS.md intent nodes, architecture discipline, Vitest, Playwright, D1 patterns.
-- **Contributor** — design language, public pages, docs/search pattern, React Email, OAuth, REST/MCP, settings, catalog updater, admin-style B2B surfaces.
+- **Contributor** — design language, public pages, docs/search pattern, React Email, REST/MCP, settings, admin-style B2B surfaces.
 
 ## License
 

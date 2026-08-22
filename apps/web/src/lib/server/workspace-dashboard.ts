@@ -1,10 +1,7 @@
 import { Effect, type Scope } from 'effect'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz'
 import {
-  type AdoptionReadiness,
-  type CatalogRefreshHistory,
   type NotificationFeed,
-  type StarterModuleCatalog,
   WebhookEndpoints,
   WorkspaceContext,
   workspaceDashboard,
@@ -18,7 +15,7 @@ import { requireWorkspacePermission, whenPermitted } from './authorize'
 
 /**
  * The dashboard payload, assembled per actor: the `workspaceDashboard`
- * projection (everything `module:read` covers) plus the webhook segment, which
+ * projection (everything `notification:read` covers) plus the webhook segment, which
  * is `null` for an actor without `webhook:list`. See
  * `workspace-settings.ts` for why a permission-shaped payload is declared in
  * the app rather than in `@b2b-saas-starter/capabilities`.
@@ -31,15 +28,9 @@ export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
 const dashboardPayload: Effect.Effect<
   WorkspaceDashboardPayload,
   AuthorizationDenied | CapabilityUnavailable,
-  | Scope.Scope
-  | WorkspaceContext
-  | WebhookEndpoints
-  | StarterModuleCatalog
-  | NotificationFeed
-  | AdoptionReadiness
-  | CatalogRefreshHistory
+  Scope.Scope | WorkspaceContext | WebhookEndpoints | NotificationFeed
 > = Effect.gen(function* () {
-  yield* requireWorkspacePermission({ module: ['read'] })
+  yield* requireWorkspacePermission({ notification: ['read'] })
   const ctx = yield* WorkspaceContext
   const webhooks = yield* WebhookEndpoints
   const [core, endpoints] = yield* Effect.all(

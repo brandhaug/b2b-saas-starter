@@ -21,10 +21,8 @@ type DocArticle = {
 export const DOC_CATEGORIES = {
   'getting-started': 'Getting started',
   architecture: 'Architecture',
-  'starter-modules': 'Starter modules',
   'capability-interfaces': 'Capability interfaces',
   integrations: 'Integration surfaces',
-  'adoption-readiness': 'Adoption & reports',
   operations: 'Operations',
   governance: 'Governance'
 }
@@ -38,10 +36,8 @@ export function isDocCategory(value: string): value is DocCategory {
 export const DOC_CATEGORY_ORDER: readonly DocCategory[] = [
   'getting-started',
   'architecture',
-  'starter-modules',
   'capability-interfaces',
   'integrations',
-  'adoption-readiness',
   'operations',
   'governance'
 ]

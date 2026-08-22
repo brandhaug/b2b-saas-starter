@@ -86,17 +86,16 @@ const BETTER_AUTH_TRUSTED_ORIGINS =
   readEnv('BETTER_AUTH_TRUSTED_ORIGINS') ?? BETTER_AUTH_URL
 // Optional: when unset, the SendEmail binding is skipped and the email
 // module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
-// read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalModuleEnv` below —
+// read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalProviderEnv` below —
 // there is no second email var name.
 const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
 
-// Optional module env, forwarded to the web, API, and background workers so
-// the shared module-aware env validation (`@b2b-saas-starter/env`, ADR 0035)
-// reports module status from the deployed environment. Unset values leave the
-// module in needs-config instead of failing the deploy. The key lists (and
+// Optional provider env, forwarded to the web, API, and background workers so
+// a deployed worker receives its provider configuration. Unset values leave
+// the relevant provider inactive instead of failing the deploy. The key lists(and
 // the secret-vs-plain split) live in `packages/env/src/server.ts` next to the
 // schema — adding a var there is the ONE place to edit.
-const optionalModuleEnv = {
+const optionalProviderEnv = {
   ...Object.fromEntries(
     optionalModuleEnvSecretKeys.map((key) => [key, optionalSecret(key)])
   ),
@@ -160,7 +159,7 @@ export const Stack = Alchemy.Stack(
         WEBHOOK_QUEUE: webhookQueue,
         ...emailBinding
       },
-      env: optionalModuleEnv,
+      env: optionalProviderEnv,
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
@@ -178,7 +177,7 @@ export const Stack = Alchemy.Stack(
         WEBHOOK_QUEUE: webhookQueue,
         ...emailBinding
       },
-      env: optionalModuleEnv,
+      env: optionalProviderEnv,
       compatibility: { date: '2026-05-16' },
       observability,
       placement: smartPlacement
@@ -207,7 +206,7 @@ export const Stack = Alchemy.Stack(
         ...emailBinding
       },
       env: {
-        ...optionalModuleEnv,
+        ...optionalProviderEnv,
         BETTER_AUTH_SECRET,
         BETTER_AUTH_URL,
         BETTER_AUTH_TRUSTED_ORIGINS

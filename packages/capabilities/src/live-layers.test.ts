@@ -6,13 +6,11 @@ import {
   Database,
   layerFromD1,
   type EffectDatabase,
-  starterModules,
   user,
   webhookDeliveries,
   webhookEndpoints,
   workspaceInvitations,
   workspaceMembers,
-  workspaceModuleStates,
   workspaces
 } from '@b2b-saas-starter/db'
 import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
@@ -36,11 +34,6 @@ import {
   CONTRACT_UNEXPIRED_AT,
   workspaceInvitationsContractCases
 } from './governance/workspace-invitations.contract.ts'
-import { StarterModuleCatalog } from './catalog/starter-module-catalog.ts'
-import {
-  CatalogRefreshHistory,
-  LiveCatalogRefreshHistory
-} from './catalog/catalog-refresh-history.ts'
 import { makeLiveCapabilitiesLayer, type CapabilityServices } from './layers.ts'
 import {
   selectCapabilitiesLayer,
@@ -60,7 +53,7 @@ import {
 
 const iso = '2026-07-03T09:00:00.000Z'
 
-/** Workspaces, members, and one starter module every test in this file reads. */
+/** Workspaces, members, and fixtures every test in this file reads. */
 const insertFixtureRows = Effect.gen(function* () {
   const db = yield* Database
   yield* db.insert(user).values([
@@ -91,22 +84,6 @@ const insertFixtureRows = Effect.gen(function* () {
     workspaceId: 'wrk_live',
     userId: 'usr_owner',
     role: 'owner'
-  })
-  yield* db.insert(starterModules).values({
-    id: 'mod_live',
-    name: 'Live module',
-    summary: 'live-layer test module',
-    category: 'test',
-    docsPath: '/docs/live',
-    optional: false
-  })
-  yield* db.insert(workspaceModuleStates).values({
-    workspaceId: 'wrk_live',
-    moduleId: 'mod_live',
-    status: 'ready',
-    enabled: true,
-    missingConfig: [],
-    updatedAt: iso
   })
   // Already past its expiry when the suite starts: the invitation contract
   // needs one, and no case can age an invitation from inside the interface.
@@ -335,45 +312,6 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           true
         )
       })
-    )
-  })
-
-  describe('live starter module catalog', () => {
-    it.effect('joins module state for the workspace with typed booleans', () =>
-      Effect.gen(function* () {
-        const modules = yield* inWorkspace(
-          'live-lab',
-          Effect.gen(function* () {
-            const catalog = yield* StarterModuleCatalog
-            return yield* catalog.listModules
-          })
-        )
-        const module = modules.find((candidate) => candidate.id === 'mod_live')
-        expect(module?.state.status).toBe('ready')
-        expect(module?.state.enabled).toBe(true)
-      })
-    )
-  })
-
-  describe('live catalog refresh history', () => {
-    it.effect('records a run and reads it back with a weekday label', () =>
-      Effect.gen(function* () {
-        const history = yield* CatalogRefreshHistory
-        yield* history.recordRun({
-          label: 'derived on read',
-          status: 'ok',
-          modules: 3,
-          durationMs: 42,
-          startedAt: iso
-        })
-        const runs = yield* history.listRecent
-        const run = runs.find((candidate) => candidate.startedAt === iso)
-        expect(run?.status).toBe('ok')
-        expect(run?.modules).toBe(3)
-        expect(run?.durationMs).toBe(42)
-        // The label is derived from the stored start date, not from the input.
-        expect(run?.label).toBe('Fri')
-      }).pipe(Effect.provide(LiveCatalogRefreshHistory))
     )
   })
 

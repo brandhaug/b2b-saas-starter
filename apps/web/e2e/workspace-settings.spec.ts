@@ -32,9 +32,6 @@ test('a member sees no api token form and no webhook delivery card', async ({
 }) => {
   await signIn(page, 'engineer@example.com', '/workspaces/starter-lab/settings')
   await expect(page.getByRole('heading', { name: 'Workspace settings' })).toBeVisible()
-  // Module state is module:read, which a member holds — but module:update is
-  // not, so the read-only toggles say why.
-  await expect(page.getByText('Your role cannot change module state.')).toBeVisible()
   // Everything the matrix denies a member is absent, not disabled: the loader
   // never read it, so there is nothing on the page to disable.
   await expect(page.getByRole('button', { name: 'Create token' })).toHaveCount(0)
@@ -44,6 +41,5 @@ test('a member sees no api token form and no webhook delivery card', async ({
   await expect(page.getByText('Outbound webhooks', { exact: true })).toHaveCount(0)
 
   await page.goto('/workspaces/starter-lab')
-  await expect(page.getByText('Starter modules', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('Webhook delivery')).toHaveCount(0)
 })

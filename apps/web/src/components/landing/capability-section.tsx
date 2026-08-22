@@ -7,8 +7,6 @@ const REST_SNIPPET = `curl -H "Authorization: Bearer bsk_live_xxx" \\
 
 {
   "workspace": { "slug": "starter-lab", "name": "Starter Lab" },
-  "readinessScore": 84,
-  "modules": [],
   "notifications": []
 }`
 

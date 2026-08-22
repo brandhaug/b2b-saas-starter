@@ -43,37 +43,6 @@ CREATE TABLE `audit_events` (
 	CONSTRAINT `fk_audit_events_actor_user_id_user_id_fk` FOREIGN KEY (`actor_user_id`) REFERENCES `user`(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `catalog_refresh_runs` (
-	`id` text PRIMARY KEY,
-	`workspace_id` text,
-	`status` text NOT NULL,
-	`started_at` text NOT NULL,
-	`completed_at` text,
-	`summary` text NOT NULL,
-	CONSTRAINT `fk_catalog_refresh_runs_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE
-);
---> statement-breakpoint
-CREATE TABLE `implementation_reports` (
-	`id` text PRIMARY KEY,
-	`workspace_id` text NOT NULL,
-	`title` text NOT NULL,
-	`status` text NOT NULL,
-	`summary` text NOT NULL,
-	`created_at` text NOT NULL,
-	CONSTRAINT `fk_implementation_reports_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE
-);
---> statement-breakpoint
-CREATE TABLE `integration_connections` (
-	`id` text PRIMARY KEY,
-	`workspace_id` text NOT NULL,
-	`provider` text NOT NULL,
-	`display_name` text NOT NULL,
-	`status` text NOT NULL,
-	`connected_at` text,
-	`last_checked_at` text,
-	CONSTRAINT `fk_integration_connections_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE
-);
---> statement-breakpoint
 CREATE TABLE `notifications` (
 	`id` text PRIMARY KEY,
 	`workspace_id` text,
@@ -84,16 +53,6 @@ CREATE TABLE `notifications` (
 	`created_at` text NOT NULL,
 	CONSTRAINT `fk_notifications_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE,
 	CONSTRAINT `fk_notifications_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
-);
---> statement-breakpoint
-CREATE TABLE `report_schedules` (
-	`id` text PRIMARY KEY,
-	`workspace_id` text NOT NULL,
-	`frequency` text NOT NULL,
-	`enabled` integer DEFAULT true NOT NULL,
-	`recipients` text NOT NULL,
-	`updated_at` text NOT NULL,
-	CONSTRAINT `fk_report_schedules_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
 CREATE TABLE `session` (
@@ -108,15 +67,6 @@ CREATE TABLE `session` (
 	`impersonatedBy` text,
 	`activeOrganizationId` text,
 	CONSTRAINT `fk_session_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON DELETE CASCADE
-);
---> statement-breakpoint
-CREATE TABLE `starter_modules` (
-	`id` text PRIMARY KEY,
-	`name` text NOT NULL,
-	`summary` text NOT NULL,
-	`category` text NOT NULL,
-	`docs_path` text NOT NULL,
-	`optional` integer DEFAULT false NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `user` (
@@ -191,18 +141,6 @@ CREATE TABLE `workspace_members` (
 	CONSTRAINT `fk_workspace_members_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
-CREATE TABLE `workspace_module_states` (
-	`workspace_id` text NOT NULL,
-	`module_id` text NOT NULL,
-	`status` text NOT NULL,
-	`enabled` integer DEFAULT true NOT NULL,
-	`missing_config` text DEFAULT '[]' NOT NULL,
-	`updated_at` text NOT NULL,
-	CONSTRAINT `workspace_module_states_pk` PRIMARY KEY(`workspace_id`, `module_id`),
-	CONSTRAINT `fk_workspace_module_states_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE,
-	CONSTRAINT `fk_workspace_module_states_module_id_starter_modules_id_fk` FOREIGN KEY (`module_id`) REFERENCES `starter_modules`(`id`) ON DELETE CASCADE
-);
---> statement-breakpoint
 CREATE TABLE `workspaces` (
 	`id` text PRIMARY KEY,
 	`name` text NOT NULL,
@@ -219,10 +157,7 @@ CREATE INDEX `api_tokens_workspace_id_idx` ON `api_tokens` (`workspace_id`);--> 
 CREATE INDEX `api_tokens_created_by_user_id_idx` ON `api_tokens` (`created_by_user_id`);--> statement-breakpoint
 CREATE INDEX `audit_events_workspace_created_at_idx` ON `audit_events` (`workspace_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `audit_events_actor_user_id_idx` ON `audit_events` (`actor_user_id`);--> statement-breakpoint
-CREATE INDEX `implementation_reports_workspace_id_idx` ON `implementation_reports` (`workspace_id`);--> statement-breakpoint
-CREATE INDEX `integration_connections_workspace_id_idx` ON `integration_connections` (`workspace_id`);--> statement-breakpoint
 CREATE INDEX `notifications_workspace_id_idx` ON `notifications` (`workspace_id`);--> statement-breakpoint
-CREATE INDEX `report_schedules_workspace_id_idx` ON `report_schedules` (`workspace_id`);--> statement-breakpoint
 CREATE INDEX `session_user_id_idx` ON `session` (`userId`);--> statement-breakpoint
 CREATE INDEX `verification_identifier_idx` ON `verification` (`identifier`);--> statement-breakpoint
 CREATE INDEX `webhook_deliveries_endpoint_id_idx` ON `webhook_deliveries` (`endpoint_id`);--> statement-breakpoint

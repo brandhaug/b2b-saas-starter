@@ -53,7 +53,6 @@ beforeAll(
               secret: 'test-secret-at-least-32-characters-long',
               baseURL: 'http://localhost:3071',
               trustedOrigins: [],
-              github: null,
               emails: capturingEmailSender
             }))
           )
@@ -229,22 +228,22 @@ describe('organization plugin', () => {
           },
           headers: member.headers
         })
-        const memberReadsModules = yield* auth.api.hasPermission({
+        const memberReadsNotifications = yield* auth.api.hasPermission({
           body: {
             organizationId: workspace.id,
-            permissions: { module: ['read'] }
+            permissions: { notification: ['read'] }
           },
           headers: member.headers
         })
 
         // `organization:update` is the plugin's own statement — a custom role
         // table that dropped it would break the plugin's endpoints, not just a
-        // starter permission. `module:read` is the starter's, and only
+        // starter permission. `notification:read` is the starter's, and only
         // `memberRole` grants it. Together they prove the two sets merged
         // rather than one replacing the other.
         expect(ownerUpdates.success).toBe(true)
         expect(memberUpdates.success).toBe(false)
-        expect(memberReadsModules.success).toBe(true)
+        expect(memberReadsNotifications.success).toBe(true)
       })
     ))
 

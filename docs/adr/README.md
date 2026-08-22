@@ -32,11 +32,9 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0026 — Workspace API tokens](./0026-workspace-api-tokens.md)
 - [0027 — Public content search first](./0027-public-content-search-first.md)
 - [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md)
-- [0043 — Starter-specific charts](./0043-starter-specific-charts.md)
 
 ## Background work and delivery
 
-- [0005 — Background catalog refresh](./0005-background-catalog-refresh.md)
 - [0033 — Cloudflare Queues for webhook delivery](./0033-cloudflare-queues-for-webhook-delivery.md)
 
 ## Observability, security, and configuration
@@ -45,7 +43,6 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0050 — OpenTelemetry export, scoped per invocation](./0050-opentelemetry-export-scoped-per-invocation.md)
 - [0030 — Sensitive surface rate limiting](./0030-sensitive-surface-rate-limiting.md)
 - [0031 — Env-gated Turnstile](./0031-env-gated-turnstile.md)
-- [0035 — Shared module-aware env validation](./0035-shared-module-aware-env-validation.md)
 - [0051 — Workspace membership on Better Auth's organization plugin](./0051-workspace-membership-on-better-auth-organization-plugin.md)
 
 ## Optional providers

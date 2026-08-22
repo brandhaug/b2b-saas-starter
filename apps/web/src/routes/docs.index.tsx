@@ -10,13 +10,13 @@ export const Route = createFileRoute('/docs/')({
       {
         name: 'description',
         content:
-          'Concepts, recipes, and references for the starter architecture, modules, capability interfaces, integrations, adoption readiness, operations, and governance.'
+          'Concepts, recipes, and references for the starter architecture, capability interfaces, operations, and governance.'
       },
       { property: 'og:title', content: 'Documentation | B2B SaaS Starter' },
       {
         property: 'og:description',
         content:
-          'Concepts, recipes, and references for the starter architecture, modules, capability interfaces, integrations, adoption readiness, operations, and governance.'
+          'Concepts, recipes, and references for the starter architecture, capability interfaces, operations, and governance.'
       }
     ]
   })

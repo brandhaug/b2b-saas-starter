@@ -12,7 +12,7 @@ function HelpPage() {
         <h1 className="text-3xl font-semibold">Help</h1>
         <p className="mt-4 text-muted-foreground">
           Help content explains how to run the starter locally, configure optional
-          providers, understand module readiness, and operate the reference workspace.
+          providers, and operate the reference workspace.
         </p>
       </main>
     </PublicLayout>

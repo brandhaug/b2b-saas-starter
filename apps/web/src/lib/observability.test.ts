@@ -79,7 +79,7 @@ describe('runWebRequestScope', () => {
         await Effect.runPromise(
           withWebRequestScope(
             { event: 'capability.workspace', metadata: { workspaceSlug: 'acme' } },
-            annotateWide({ readinessScore: 42 }),
+            annotateWide({ unreadCount: 42 }),
             lookupRequest
           )
         )
@@ -111,7 +111,7 @@ describe('runWebRequestScope', () => {
       {
         event: 'capability.workspace',
         workspaceSlug: 'acme',
-        readinessScore: 42,
+        unreadCount: 42,
         status: 'ok'
       },
       { event: 'capability.global', status: 'error' }

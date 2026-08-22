@@ -1,5 +1,5 @@
 import { type ProviderEnv, type WorkersAIBinding } from '@b2b-saas-starter/ai'
-import { makeStarterEnvModuleConfig, type ServerEnv } from '@b2b-saas-starter/env'
+import { type ServerEnv } from '@b2b-saas-starter/env'
 import {
   type StarterEnv,
   type WebhookQueueBinding
@@ -13,16 +13,10 @@ export type ApiEnv = RateLimitBindings &
     readonly DB?: D1Database
     readonly AI?: WorkersAIBinding
     readonly WEBHOOK_QUEUE?: WebhookQueueBinding
-    /**
-     * Read only by module-config readiness (ADR 0035), which reports the
-     * `cloudflare-email` module from it. This worker sends no email of its own
-     * — see the intent node.
-     */
-    readonly CLOUDFLARE_EMAIL_FROM?: string
   }
 
 // Only configured provider vars are copied across: an absent key leaves the
-// assistant in its mock/needs-config state, while a present-but-undefined key
+// assistant on its mock provider, while a present-but-undefined key
 // would claim configuration that does not exist.
 export function providerEnv(env: ApiEnv): ProviderEnv {
   const provider: { -readonly [K in keyof ProviderEnv]: ProviderEnv[K] } = {}
@@ -34,13 +28,11 @@ export function providerEnv(env: ApiEnv): ProviderEnv {
   return provider
 }
 
-// Module-aware env validation (ADR 0035): derive module config status from
-// this worker's real env so REST module/integration status reflects the
-// deployment instead of stored fixture state.
+// Capability env: the D1 binding selects Live vs Seed, and the webhook queue
+// binding enables real fan-out.
 export function starterEnv(env: ApiEnv): StarterEnv {
   return {
     DB: env.DB,
-    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
-    moduleConfig: makeStarterEnvModuleConfig(env)
+    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE
   }
 }

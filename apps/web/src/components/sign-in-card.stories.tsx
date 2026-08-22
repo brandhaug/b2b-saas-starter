@@ -1,23 +1,17 @@
 import { type Meta, type StoryObj } from '@storybook/react-vite'
-import { GitBranchIcon, KeyRoundIcon } from 'lucide-react'
+import { KeyRoundIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-function SignInCard({
-  errorMessage,
-  githubEnabled
-}: {
-  readonly errorMessage?: string
-  readonly githubEnabled?: boolean
-}) {
+function SignInCard({ errorMessage }: { readonly errorMessage?: string }) {
   return (
     <Card className="w-112">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Sign in with email and password, or use GitHub when configured.
+          Sign in with your email and password.
         </p>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -42,15 +36,6 @@ function SignInCard({
             {errorMessage}
           </p>
         ) : null}
-        <Button type="button" variant="outline" disabled={!githubEnabled}>
-          <GitBranchIcon className="size-4" />
-          Continue with GitHub
-        </Button>
-        {githubEnabled ? null : (
-          <p className="text-xs text-muted-foreground">
-            Configure GitHub OAuth secrets to enable.
-          </p>
-        )}
       </CardContent>
     </Card>
   )
@@ -65,10 +50,6 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-
-export const WithGithubEnabled: Story = {
-  args: { githubEnabled: true }
-}
 
 export const WithError: Story = {
   args: { errorMessage: 'Invalid email or password' }

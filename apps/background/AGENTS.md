@@ -1,10 +1,13 @@
 # apps/background
 
-Cloudflare Worker for recurring and queued work.
+Cloudflare Worker for queued work.
 
 ## Owned today
 
-- **Catalog refresh** — cron at `0 6 * * *` (daily 06:00 UTC, `wrangler.jsonc`) runs `runCatalogRefresh` (`@b2b-saas-starter/capabilities`), which owns the "no run goes unrecorded" sequence: capture the refresh outcome, write a `catalogRefreshRuns` row (ok or failed, real duration), then re-raise failures. The handler adds only the env-selected layer and the wide-event scope; don't re-implement the capture-record-refail block here.
+Cloudflare Worker for queued work.
+
+## Owned today
+
 - **Webhook delivery** — Queue consumer for `b2b-saas-starter-webhooks`. Decodes each message body against the shared `WebhookQueueMessage` schema, signs payloads (see recipe below), and persists attempt history to `webhookDeliveries` via `WebhookEndpoints`.
 - **Webhook dead letters** — Queue consumer for `b2b-saas-starter-webhooks-dlq` (same worker; the `queue` handler branches on `batch.queue`). Records a terminal `dead_lettered` delivery row and a `webhook_dead_letter` wide event, then acks.
 
@@ -53,16 +56,15 @@ Pure helpers (`backoffSeconds`, `classifyResponseStatus`, `computeWebhookSignatu
 
 ## Planned, not wired
 
-- Email fan-out and report scheduling are referenced in the starter narrative but have no handlers in `src/index.ts` yet. Wire alongside their capability counterparts (`@b2b-saas-starter/email`, `implementation-reports`).
+- Email fan-out is referenced in the starter narrative but has no handler in `src/index.ts` yet. Wire alongside its capability counterpart (`@b2b-saas-starter/email`).
 - Notification emission on `failed_permanent` and `dead_lettered` deliveries (the audit events are wired — see the delivery contract above).
 
 ## Conventions
 
 - Use Cloudflare Queues for retryable webhook work and D1 for delivery attempt history.
-- Handlers build the capabilities env through `starterEnv(env)` (`src/index.ts`), which attaches `moduleConfig` via `makeStarterEnvModuleConfig(env)` (`@b2b-saas-starter/env`, ADR 0035). Alchemy forwards the optional module env to this worker under its canonical names (e.g. `CLOUDFLARE_EMAIL_FROM`) — no remapping.
-- Wide-event envelopes come from `withTriggerScope` (`@b2b-saas-starter/logger`) — cron and queue handlers pass `{ service, event, env, parent?, spanKind?, metadata }` and never hand-assemble `withRequestScope` options.
+- Handlers build the capabilities env through `starterEnv(env)` (`src/index.ts`). Alchemy forwards the optional provider env to this worker under its canonical names (e.g. `CLOUDFLARE_EMAIL_FROM`) — no remapping.
+- Wide-event envelopes come from `withTriggerScope` (`@b2b-saas-starter/logger`) — queue handlers pass `{ service, event, env, parent?, spanKind?, metadata }` and never hand-assemble `withRequestScope` options.
 - **Trace continuation across the queue.** The producer stamps the request's W3C `traceparent` onto `WebhookQueueMessage`; `queueParentSpan(envelope)` decodes it via `parentSpanFromHeaders` (through the same boundary schema — an undecodable body just starts its own trace) and both consumers pass it as `parent` with `spanKind: 'consumer'`. The `x-trace-id` forwarded on the delivery POST is `currentTraceId`, i.e. this scope's OTel trace id, so the header a receiver quotes back resolves in the trace backend. Don't mint a fresh id here — `currentTraceId` is the only source. The `traceparent`/`b3` headers on that POST are injected by Effect's `HttpClient` — don't set them by hand.
 - **Every invocation runs through `runInvocation(env, effect)`**, which provides `makeOtlpLayer('background', env)` per invocation (`Effect.provide(..., { local: true })`, never per isolate — see ADR 0050), the same split `apps/api` and `apps/web` use. `WideEventLoggerLive` is provided isolate-level from a module-scope `ManagedRuntime` in `src/index.ts`, not rebuilt per invocation.
 - Local development may direct-dispatch when queues are unavailable — follow the rate-limit fallback pattern in `apps/api/src/rate-limit.ts` when adding new queue consumers.
-- `catalog-refresh.ts` is a CLI/test entry point — the scheduled handler lives in `src/index.ts`.
 - Queue consumers are wired in both `wrangler.jsonc` (local dev) and the root `alchemy.run.ts` (deploy). Queue names and consumer settings are single-sourced in `infra/bindings.ts` — alchemy imports the constants directly, and the drift test `infra/bindings.test.ts` fails red if `wrangler.jsonc` disagrees. Change a setting there first, then update `wrangler.jsonc` until the test passes.

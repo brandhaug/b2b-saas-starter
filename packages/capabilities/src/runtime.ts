@@ -10,7 +10,6 @@ import {
   type CapabilitiesLayer,
   type CapabilityServices
 } from './layers.ts'
-import { withModuleEnvStatus, type ModuleEnvStatus } from './module-env-overlay.ts'
 import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
 import {
   liveWorkspaceContext,
@@ -25,14 +24,6 @@ type D1Binding = Parameters<typeof layerFromD1>[0]
 export type StarterEnv = {
   readonly DB?: D1Binding | undefined
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding | undefined
-  /**
-   * Env-derived module configuration, computed by the app from its real
-   * worker env via `moduleConfigStatus(readServerEnv(env))` in
-   * `@b2b-saas-starter/env`. When present, `StarterModuleCatalog` and
-   * `IntegrationSurfaces` report these statuses instead of stored fixture
-   * state — a module with unset env vars shows needs-config (ADR 0035).
-   */
-  readonly moduleConfig?: readonly ModuleEnvStatus[] | undefined
   /**
    * Adapter onto the organization plugin's member endpoints, supplied by the
    * app because two of the three endpoints need the request's session headers
@@ -54,14 +45,14 @@ export type StarterEnv = {
 
 export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
   if (env.DB === undefined) {
-    return withModuleEnvStatus(SeedLayer, env.moduleConfig)
+    return SeedLayer
   }
   const live = makeLiveLayerFromD1(env.DB, {
     webhookQueue: env.WEBHOOK_QUEUE,
     memberBinding: env.memberBinding,
     invitationBinding: env.invitationBinding
   })
-  return withModuleEnvStatus(live, env.moduleConfig)
+  return live
 }
 
 export function selectWorkspaceLayer(
@@ -75,13 +66,12 @@ export function selectWorkspaceLayer(
   if (env.DB === undefined) {
     // Passing `seedMembers` makes the seed path enforce the same actor
     // membership semantics as the live path (fixture members allowed).
-    const seeded = Layer.merge(
+    return Layer.merge(
       SeedLayer,
       seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers)
     )
-    return withModuleEnvStatus(seeded, env.moduleConfig)
   }
-  const live = Layer.mergeAll(
+  return Layer.mergeAll(
     makeLiveCapabilitiesLayer({
       webhookQueue: env.WEBHOOK_QUEUE,
       memberBinding: env.memberBinding,
@@ -89,5 +79,4 @@ export function selectWorkspaceLayer(
     }),
     liveWorkspaceContext(slug, actor)
   ).pipe(Layer.provide(layerFromD1(env.DB)))
-  return withModuleEnvStatus(live, env.moduleConfig)
 }

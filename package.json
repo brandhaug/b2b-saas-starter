@@ -38,7 +38,6 @@
     "db:seed": "bun scripts/seed.ts",
     "deploy": "bun alchemy.run.ts",
     "destroy": "bun alchemy.run.ts --destroy",
-    "catalog:refresh": "bun --cwd apps/background catalog:refresh",
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {

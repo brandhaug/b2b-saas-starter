@@ -84,13 +84,4 @@ describe('SignInPage', () => {
     expect(alert.textContent).toContain('Invalid email or password')
     expect(router.state.location.pathname).toBe('/sign-in')
   })
-
-  it('keeps the GitHub button disabled until OAuth is configured', async () => {
-    await renderPage()
-    const github = screen.getByRole<HTMLButtonElement>('button', {
-      name: 'Continue with GitHub'
-    })
-    expect(github.disabled).toBe(true)
-    screen.getByText('Configure GitHub OAuth secrets to enable.')
-  })
 })
