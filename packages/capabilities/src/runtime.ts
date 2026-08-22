@@ -2,6 +2,7 @@ import { Layer } from 'effect'
 import { layerFromD1 } from '@b2b-saas-starter/db'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
 import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
+import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'
 import { type WorkspaceMemberBinding } from './governance/workspace-membership.ts'
 import {
   makeLiveCapabilitiesLayer,
@@ -41,6 +42,11 @@ export type StarterEnv = {
    * Absent, invitation reads work and mutations fail `CapabilityUnavailable`.
    */
   readonly invitationBinding?: WorkspaceInvitationBinding | undefined
+  /**
+   * Adapter onto the organization plugin's workspace lifecycle endpoints.
+   * Absent, lifecycle mutations fail `CapabilityUnavailable`.
+   */
+  readonly lifecycleBinding?: WorkspaceLifecycleBinding | undefined
 }
 
 export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
@@ -50,7 +56,8 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
   const live = makeLiveLayerFromD1(env.DB, {
     webhookQueue: env.WEBHOOK_QUEUE,
     memberBinding: env.memberBinding,
-    invitationBinding: env.invitationBinding
+    invitationBinding: env.invitationBinding,
+    lifecycleBinding: env.lifecycleBinding
   })
   return live
 }
@@ -75,7 +82,8 @@ export function selectWorkspaceLayer(
     makeLiveCapabilitiesLayer({
       webhookQueue: env.WEBHOOK_QUEUE,
       memberBinding: env.memberBinding,
-      invitationBinding: env.invitationBinding
+      invitationBinding: env.invitationBinding,
+      lifecycleBinding: env.lifecycleBinding
     }),
     liveWorkspaceContext(slug, actor)
   ).pipe(Layer.provide(layerFromD1(env.DB)))

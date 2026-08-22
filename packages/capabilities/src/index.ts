@@ -13,6 +13,7 @@ export * from './governance/audit-event-log.ts'
 export * from './governance/plugin-binding-failure.ts'
 export * from './governance/workspace-identity.ts'
 export * from './governance/workspace-invitations.ts'
+export * from './governance/workspace-lifecycle.ts'
 export * from './governance/workspace-membership.ts'
 
 // notifications

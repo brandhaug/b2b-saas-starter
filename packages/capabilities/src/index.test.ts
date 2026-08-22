@@ -27,6 +27,11 @@ import {
   SeedNotificationFeed
 } from './notifications/notification-feed.ts'
 import { testWorkspaceContext, type Actor } from './workspace-context.ts'
+import {
+  SeedWorkspaceLifecycle,
+  WorkspaceLifecycle
+} from './governance/workspace-lifecycle.ts'
+import { workspaceLifecycleContractCases } from './governance/workspace-lifecycle.contract.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
 import {
   CONTRACT_EXPIRED_AT,
@@ -386,6 +391,53 @@ describe('seed workspace invitations contract', () => {
       contractCase.assert.pipe(Effect.provide(invitationLayer))
     )
   }
+})
+
+// The Live half of this same list runs in live-layers.test.ts.
+describe('seed workspace lifecycle contract', () => {
+  const cases = workspaceLifecycleContractCases(
+    { creator: 'usr_newcomer', existingSlug: 'starter-lab' },
+    expect
+  )
+  for (const contractCase of cases) {
+    it.effect(contractCase.name, () =>
+      contractCase.assert.pipe(Effect.provide(seedWorkspaceLayer))
+    )
+  }
+})
+
+// Deletion acts on whatever workspace the context resolves, so the seed
+// adapter's delete coverage uses its own throwaway context rather than the
+// shared fixture layer above.
+describe('seed workspace lifecycle deletion', () => {
+  const doomed = {
+    id: 'wrk_doomed_seed',
+    slug: 'doomed-lab',
+    name: 'Doomed',
+    planId: 'starter'
+  }
+
+  it.effect('removes a created workspace from its own context', () =>
+    Effect.gen(function* () {
+      const lifecycle = yield* WorkspaceLifecycle
+      const created = yield* lifecycle.create({
+        name: 'Doomed Lab',
+        slug: 'created-doomed-lab',
+        userId: 'usr_newcomer'
+      })
+      yield* Effect.provide(
+        lifecycle.remove,
+        testWorkspaceContext({ ...doomed, id: created.id, slug: created.slug })
+      )
+      // Creating again under the same slug now succeeds — the row is gone.
+      const recreated = yield* lifecycle.create({
+        name: 'Doomed Lab II',
+        slug: created.slug,
+        userId: 'usr_newcomer'
+      })
+      expect(recreated.slug).toBe(created.slug)
+    }).pipe(Effect.provide(SeedWorkspaceLifecycle({ workspace: seedWorkspaceRecord })))
+  )
 })
 
 describe('bearer verification write throttling', () => {

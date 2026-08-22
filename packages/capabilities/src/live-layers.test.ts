@@ -26,6 +26,11 @@ import {
 } from './governance/workspace-membership.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
 import {
+  WorkspaceLifecycle,
+  type WorkspaceLifecycleBinding
+} from './governance/workspace-lifecycle.ts'
+import { workspaceLifecycleContractCases } from './governance/workspace-lifecycle.contract.ts'
+import {
   WorkspaceInvitations,
   type WorkspaceInvitationBinding
 } from './governance/workspace-invitations.ts'
@@ -150,6 +155,7 @@ function inWorkspace<A, E>(
   bindings?: {
     readonly memberBinding?: WorkspaceMemberBinding
     readonly invitationBinding?: WorkspaceInvitationBinding
+    readonly lifecycleBinding?: WorkspaceLifecycleBinding
   }
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database> {
   return Effect.provide(
@@ -157,7 +163,8 @@ function inWorkspace<A, E>(
     Layer.merge(
       makeLiveCapabilitiesLayer({
         memberBinding: bindings?.memberBinding,
-        invitationBinding: bindings?.invitationBinding
+        invitationBinding: bindings?.invitationBinding,
+        lifecycleBinding: bindings?.lifecycleBinding
       }),
       liveWorkspaceContext(slug, actor)
     )
@@ -649,6 +656,175 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
         })
       )
     }
+  })
+
+  // The Seed half of this same list runs in index.test.ts.
+  describe('live workspace lifecycle contract', () => {
+    /**
+     * A stand-in for the organization plugin's lifecycle endpoints, on the
+     * same terms as `fakeMemberBinding`. Create also inserts the owner member
+     * row, because the real plugin does — and the delete test needs a member
+     * to resolve a live `WorkspaceContext` for the created workspace.
+     */
+    let mintedWorkspaces = 0
+
+    function fakeLifecycleBinding(db: EffectDatabase) {
+      const calls: unknown[] = []
+      const binding: WorkspaceLifecycleBinding = {
+        create: (input) => {
+          calls.push(input)
+          // The real plugin refuses a taken slug with a 4xx before it writes;
+          // the fake must too, or the unique index would throw and the
+          // capability would misread the refusal as the store failing.
+          return Effect.runPromise(
+            Effect.gen(function* () {
+              const existing = yield* db
+                .select()
+                .from(workspaces)
+                .where(eq(workspaces.slug, input.slug))
+                .limit(1)
+              if (existing.length > 0) {
+                throw Object.assign(new Error('slug already in use'), {
+                  statusCode: 409
+                })
+              }
+              mintedWorkspaces += 1
+              const id = `wrk_lc_${mintedWorkspaces}`
+              yield* db.insert(workspaces).values({
+                id,
+                slug: input.slug,
+                name: input.name
+              })
+              yield* db.insert(workspaceMembers).values({
+                id: `mem_lc_${mintedWorkspaces}`,
+                workspaceId: id,
+                userId: input.userId,
+                role: 'owner'
+              })
+            })
+          )
+        },
+        rename: (input) => {
+          calls.push(input)
+          return Effect.runPromise(
+            Effect.asVoid(
+              db
+                .update(workspaces)
+                .set({ name: input.name })
+                .where(eq(workspaces.id, input.workspaceId))
+            )
+          )
+        },
+        remove: (input) => {
+          calls.push(input)
+          return Effect.runPromise(
+            Effect.asVoid(
+              db.delete(workspaces).where(eq(workspaces.id, input.workspaceId))
+            )
+          )
+        }
+      }
+      return { binding, calls }
+    }
+
+    const cases = workspaceLifecycleContractCases(
+      { creator: 'usr_joiner', existingSlug: 'live-lab' },
+      expect
+    )
+    for (const contractCase of cases) {
+      it.effect(contractCase.name, () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          const { binding } = fakeLifecycleBinding(db)
+          yield* inWorkspace(
+            'live-lab',
+            contractCase.assert,
+            { userId: 'usr_owner' },
+            { lifecycleBinding: binding }
+          )
+        })
+      )
+    }
+
+    it.effect(
+      'deletes a workspace through the binding and audits it as a system event',
+      () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          const { binding, calls } = fakeLifecycleBinding(db)
+          function run<A, E>(
+            slug: string,
+            effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices>
+          ) {
+            return inWorkspace(
+              slug,
+              effect,
+              { userId: 'usr_owner' },
+              { lifecycleBinding: binding }
+            )
+          }
+
+          const created = yield* run(
+            'live-lab',
+            Effect.flatMap(WorkspaceLifecycle, (lifecycle) =>
+              lifecycle.create({
+                name: 'Doomed Live',
+                slug: 'doomed-live-lab',
+                userId: 'usr_owner'
+              })
+            )
+          )
+
+          // The context resolves for the new owner only because the real plugin
+          // makes its creator the first owner — which is what the fake mimics.
+          yield* run(
+            created.slug,
+            WorkspaceLifecycle.pipe(Effect.flatMap((l) => l.remove))
+          )
+
+          // Called with the resolved workspace id, never a slug.
+          expect(calls[1]).toEqual({ workspaceId: created.id })
+
+          // The delete's audit row survives the cascade: attributed to no
+          // workspace, naming the removed one.
+          const rows = yield* Effect.flatMap(Database, (database) =>
+            database
+              .select()
+              .from(auditEvents)
+              .where(eq(auditEvents.eventType, 'workspace.deleted'))
+          )
+          const event = rows.find((row) => row.targetId === created.id)
+          expect(event?.workspaceId).toBeNull()
+
+          const remaining = yield* Effect.flatMap(Database, (database) =>
+            database.select().from(workspaces).where(eq(workspaces.id, created.id))
+          )
+          expect(remaining).toHaveLength(0)
+        })
+    )
+
+    it.effect('fails as unavailable when no binding is configured', () =>
+      Effect.gen(function* () {
+        const error = yield* Effect.flip(
+          inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              const lifecycle = yield* WorkspaceLifecycle
+              return yield* lifecycle.create({
+                name: 'Unbound Lab',
+                slug: 'unbound-live-lab',
+                userId: 'usr_joiner'
+              })
+            }),
+            { userId: 'usr_owner' }
+          )
+        )
+        expect(error).toBeInstanceOf(CapabilityUnavailable)
+        expect(error instanceof CapabilityUnavailable && error.reason).toBe(
+          'no_lifecycle_binding'
+        )
+      })
+    )
   })
 
   describe('live workspace invitation mutations', () => {
