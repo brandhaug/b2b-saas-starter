@@ -1,8 +1,12 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { type WorkspaceSettingsPayload } from '@/lib/server/workspace-settings'
 import { renderWithRouter } from '@/test/router-harness'
 import { type CreateApiToken } from '@/components/api-token-form'
+import {
+  type DeleteWorkspace,
+  type RenameWorkspace
+} from '@/components/workspace-general-settings'
 import { type SignOut } from '@/components/workspace-shell'
 import { WorkspaceSettingsPage } from './workspaces.$workspaceSlug.settings'
 
@@ -14,6 +18,7 @@ const signOut = vi.fn<SignOut>()
 
 const settingsSummary: WorkspaceSettingsPayload = {
   viewer: { role: 'owner' },
+  workspaceName: 'Starter Lab',
   apiTokenCount: 3,
   webhookCount: 1,
   unreadCount: 2,
@@ -76,5 +81,69 @@ describe('WorkspaceSettingsPage as a member', () => {
     expect(screen.queryByText('Members')).toBeNull()
     expect(screen.queryByLabelText('Email')).toBeNull()
     expect(screen.queryByText('Outbound webhooks')).toBeNull()
+  })
+})
+
+describe('WorkspaceSettingsPage lifecycle sections', () => {
+  it('offers rename and delete to an owner', async () => {
+    await renderPage()
+    screen.getByLabelText('Workspace name')
+    screen.getByRole('button', { name: 'Save name' })
+    screen.getByRole('button', { name: 'Delete workspace' })
+  })
+
+  it('hides both from a member and says why', async () => {
+    await renderPage(memberSettings)
+    expect(screen.queryByRole('button', { name: 'Delete workspace' })).toBeNull()
+    expect(screen.getByText(/cannot change or delete the workspace/)).toBeTruthy()
+  })
+
+  it('renames through the port and reports success', async () => {
+    const rename = vi.fn<RenameWorkspace>().mockResolvedValue({ name: 'Renamed Lab' })
+    await renderWithRouter(
+      <WorkspaceSettingsPage
+        workspaceSlug="starter-lab"
+        data={settingsSummary}
+        ports={{ createToken, signOut, renameWorkspace: rename }}
+      />,
+      { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
+    )
+    await screen.findByRole('heading', { name: 'Workspace settings' })
+    fireEvent.change(screen.getByLabelText('Workspace name'), {
+      target: { value: 'Renamed Lab' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save name' }))
+    await waitFor(() =>
+      expect(rename).toHaveBeenCalledWith({
+        data: { workspaceSlug: 'starter-lab', name: 'Renamed Lab' }
+      })
+    )
+    await screen.findByText(/renamed to “Renamed Lab”/)
+  })
+
+  it('deletes through the port after the confirm step', async () => {
+    const remove = vi.fn<DeleteWorkspace>().mockResolvedValue(undefined)
+    // `window.location.assign` is how the page lands on /workspaces; stub the
+    // one property the page reads instead of replacing the Location object.
+    const assign = vi.fn()
+    Object.defineProperty(window, 'location', {
+      value: { assign },
+      writable: true
+    })
+    await renderWithRouter(
+      <WorkspaceSettingsPage
+        workspaceSlug="starter-lab"
+        data={settingsSummary}
+        ports={{ createToken, signOut, deleteWorkspace: remove }}
+      />,
+      { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
+    )
+    await screen.findByRole('heading', { name: 'Workspace settings' })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete workspace' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete Starter Lab permanently' })
+    )
+    expect(remove).toHaveBeenCalledWith({ data: { workspaceSlug: 'starter-lab' } })
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/workspaces'))
   })
 })

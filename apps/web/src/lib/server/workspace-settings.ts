@@ -29,6 +29,8 @@ import { requireWorkspacePermission, whenPermitted } from './authorize'
  */
 export type WorkspaceSettingsPayload = {
   readonly viewer: { readonly role: WorkspaceRole } | null
+  /** The workspace itself; every member may read its own name. */
+  readonly workspaceName: string
   readonly unreadCount: number
   readonly apiTokenCount: number | null
   readonly webhookCount: number | null
@@ -77,6 +79,7 @@ const settingsPayload: Effect.Effect<
   )
   return {
     viewer: ctx.actor ? { role: ctx.actor.role } : null,
+    workspaceName: ctx.workspace.name,
     unreadCount,
     apiTokenCount,
     webhookCount,
