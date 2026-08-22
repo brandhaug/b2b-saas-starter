@@ -33,6 +33,7 @@ TanStack Start web app served by a Cloudflare Worker (`vite.config.ts` uses the 
 - The registry is a `WeakMap` keyed by the request object (an isolate interleaves concurrent requests, so a module-level "current" would race). `src/lib/request-context.ts` exposes the lookup as `currentRequest()`, wrapping `createIsomorphicFn`/`getRequest` in one place: it keeps `getRequest` out of the browser bundle, returns `undefined` rather than throwing with no ambient request, and is the seam tests mock.
 - `authRuntime` holds only the `Auth` service. Loggers, tracer, and exporters belong to one request and must not live on a per-isolate runtime — the auth gates reach them by joining the request scope (above), not by reading `authRuntime`.
 - `OTEL_EXPORTER_OTLP_ENDPOINT` (plus `SERVICE_VERSION` / `GIT_COMMIT_SHA` / `ENVIRONMENT`) reaches local dev through `src/lib/cloudflare-workers-shim.ts`. Unset, the console JSON event is the whole story and nothing fails.
+- **The required-env gate runs before the request scope.** `src/start.ts` registers `configGateMiddleware` ahead of the observability middleware; it calls `enforceRequiredEnvOnce` (`src/lib/server/env-gate.ts`) once per isolate. With `ENVIRONMENT=production` and an insecure `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` (missing, placeholder, or too-short — see `auditRequiredEnv` in `@b2b-saas-starter/env`) every request throws `InsecureProductionEnvError`; with another `ENVIRONMENT` value it emits one standalone `config.insecure` wide event and continues. Unset `ENVIRONMENT` is local dev and stays silent.
 
 ## Auth
 
