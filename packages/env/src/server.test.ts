@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  auditRequiredEnv,
   makeStarterEnvModuleConfig,
   moduleConfigStatus,
   optionalModuleEnvKeys,
@@ -177,5 +178,88 @@ describe('redactedEnvStatus', () => {
     // fields it declares, which is a strictly weaker redaction guarantee.
     // oxlint-disable-next-line effect/noGlobals -- serialization is the thing under test
     expect(JSON.stringify(status)).not.toContain('no-reply@example.com')
+  })
+})
+
+describe('auditRequiredEnv', () => {
+  const realSecret = 'a-real-deployment-secret-at-least-32-chars-long'
+  const realUrl = 'https://app.acme.test'
+
+  it('stays silent in local mode: no ENVIRONMENT means dev/test defaults are expected', () => {
+    expect(auditRequiredEnv({})).toEqual({ mode: 'local', problems: [] })
+  })
+
+  it('reports a missing secret and URL in production', () => {
+    const audit = auditRequiredEnv({ ENVIRONMENT: 'production' })
+    expect(audit.mode).toBe('production')
+    expect(audit.problems).toContainEqual({
+      key: 'BETTER_AUTH_SECRET',
+      reason: 'missing'
+    })
+    expect(audit.problems).toContainEqual({
+      key: 'BETTER_AUTH_URL',
+      reason: 'missing'
+    })
+  })
+
+  it('rejects the local-dev default secret by value in production', () => {
+    // The exact mistake the audit exists for: a copied-from-dev secret is
+    // 40 chars, so only value rejection — not the length check — catches it.
+    const audit = auditRequiredEnv({
+      ENVIRONMENT: 'production',
+      BETTER_AUTH_SECRET: 'local-dev-secret-change-me-minimum-32-chars',
+      BETTER_AUTH_URL: realUrl
+    })
+    expect(audit.problems).toEqual([
+      { key: 'BETTER_AUTH_SECRET', reason: 'placeholder' }
+    ])
+  })
+
+  it('rejects Better Auth own fallback and short secrets', () => {
+    const fallback = auditRequiredEnv({
+      ENVIRONMENT: 'production',
+      BETTER_AUTH_SECRET: 'better-auth-secret-12345678901234567890',
+      BETTER_AUTH_URL: realUrl
+    })
+    expect(fallback.problems).toEqual([
+      { key: 'BETTER_AUTH_SECRET', reason: 'placeholder' }
+    ])
+    const short = auditRequiredEnv({
+      ENVIRONMENT: 'production',
+      BETTER_AUTH_SECRET: 'too-short-secret',
+      BETTER_AUTH_URL: realUrl
+    })
+    expect(short.problems).toEqual([{ key: 'BETTER_AUTH_SECRET', reason: 'too-short' }])
+  })
+
+  it('rejects placeholder URLs: the documented one, example.com hosts, localhost', () => {
+    for (const url of [
+      'https://b2b-saas-starter.example.com',
+      'https://app.example.com',
+      'http://localhost:3071'
+    ]) {
+      const audit = auditRequiredEnv({
+        ENVIRONMENT: 'production',
+        BETTER_AUTH_SECRET: realSecret,
+        BETTER_AUTH_URL: url
+      })
+      expect(audit.problems).toEqual([
+        { key: 'BETTER_AUTH_URL', reason: 'placeholder' }
+      ])
+    }
+  })
+
+  it('passes real values in production and audits non-production deploys too', () => {
+    expect(
+      auditRequiredEnv({
+        ENVIRONMENT: 'production',
+        BETTER_AUTH_SECRET: realSecret,
+        BETTER_AUTH_URL: realUrl
+      })
+    ).toEqual({ mode: 'production', problems: [] })
+
+    const staging = auditRequiredEnv({ ENVIRONMENT: 'staging' })
+    expect(staging.mode).toBe('deployed')
+    expect(staging.problems.length).toBeGreaterThan(0)
   })
 })

@@ -222,6 +222,80 @@ export function makeStarterEnvModuleConfig(
   return moduleConfigStatus(readServerEnv(env))
 }
 
+/**
+ * Values that must never authenticate a deployed worker. Local development
+ * legitimately boots on these (the local-mode defaults and the test/dev
+ * workers shim supply them), so they are rejected by value, not by absence:
+ * a copied-from-dev secret is exactly the deployment mistake this audit
+ * exists to catch. Better Auth's own fallback is listed so a worker that
+ * somehow reaches it is flagged too.
+ */
+const PLACEHOLDER_AUTH_SECRETS: ReadonlySet<string> = new Set([
+  'local-dev-secret-change-me-minimum-32-chars',
+  'local-dev-secret',
+  'better-auth-secret-12345678901234567890'
+])
+
+/** The documented placeholder URL and its obvious variants. */
+function isPlaceholderAuthUrl(value: string): boolean {
+  if (value === 'https://b2b-saas-starter.example.com') return true
+  // oxlint-disable-next-line effect/noTryCatch -- `new URL` throws on a malformed value and "not a URL" is the answer, not a failure to handle; there is no Effect context here to lift it into
+  try {
+    const { hostname } = new URL(value)
+    return hostname === 'localhost' || hostname.endsWith('.example.com')
+  } catch {
+    return false
+  }
+}
+
+export type RequiredEnvProblem = {
+  readonly key: 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL'
+  readonly reason: 'missing' | 'placeholder' | 'too-short'
+}
+
+export type RequiredEnvAudit = {
+  /** `local` — ENVIRONMENT unset (dev/test); `deployed` — set, not production. */
+  readonly mode: 'local' | 'deployed' | 'production'
+  readonly problems: readonly RequiredEnvProblem[]
+}
+
+function requiredEnvMode(source: RawEnvSource): RequiredEnvAudit['mode'] {
+  if (source.ENVIRONMENT === 'production') return 'production'
+  if (hasValue(source.ENVIRONMENT)) return 'deployed'
+  return 'local'
+}
+
+/**
+ * Audit of the two required baseline vars, for a worker that consumes them
+ * (the web worker — auth's only consumer). `ENVIRONMENT` decides the stance:
+ * unset means local development, where the local-mode defaults are expected
+ * and the audit stays silent. A deployment that bypasses alchemy should set
+ * `ENVIRONMENT` or it is treated as local.
+ */
+export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
+  const mode = requiredEnvMode(source)
+  if (mode === 'local') return { mode, problems: [] }
+
+  const problems: Array<RequiredEnvProblem> = []
+  const secret = source.BETTER_AUTH_SECRET
+  if (secret === undefined || secret.length === 0) {
+    problems.push({ key: 'BETTER_AUTH_SECRET', reason: 'missing' })
+  } else if (PLACEHOLDER_AUTH_SECRETS.has(secret)) {
+    problems.push({ key: 'BETTER_AUTH_SECRET', reason: 'placeholder' })
+  } else if (secret.length < 32) {
+    problems.push({ key: 'BETTER_AUTH_SECRET', reason: 'too-short' })
+  }
+
+  const url = source.BETTER_AUTH_URL
+  if (url === undefined || url.length === 0) {
+    problems.push({ key: 'BETTER_AUTH_URL', reason: 'missing' })
+  } else if (isPlaceholderAuthUrl(url)) {
+    problems.push({ key: 'BETTER_AUTH_URL', reason: 'placeholder' })
+  }
+
+  return { mode, problems }
+}
+
 export type RedactedValueSummary = 'configured' | 'env-present' | 'missing'
 
 export type RedactedModuleConfigStatus = ModuleConfigStatus & {
