@@ -7,7 +7,7 @@ Cloudflare Worker for external interfaces. Dev server on `:8787`. **Serves the `
 - `src/index.ts` — thin `fetch` that delegates to a per-isolate web handler (`getWebHandler(env)`).
 - `src/env.ts` — Cloudflare bindings + env type, plus `starterEnv(env)` for the capability layer.
 - `src/http.ts` — assembles the app layer: `HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' })`, the Scalar UI (`/reference`), Workers-safe platform services, and request-scoped capabilities via `HttpRouter.provideRequest`.
-- `src/handlers.ts` — one `HttpApiBuilder.group(...)` per contract group: health, workspace, api-token-registry, webhook-endpoints, catalog, assistant, mcp.
+- `src/handlers.ts` — one `HttpApiBuilder.group(...)` per contract group: health, workspace, api-token-registry, webhook-endpoints, assistant, mcp.
 
 ## Owned today
 

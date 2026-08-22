@@ -48,7 +48,9 @@ export const memberRole = accessControl.newRole({
   apiToken: [],
   webhook: [],
   auditLog: [],
-  notification: ['read']
+  notification: ['read'],
+  assistant: ['read'],
+  mcp: ['read']
 })
 
 export const workspaceRoleAccess = {
@@ -68,7 +70,9 @@ const readScopeStatements = {
   apiToken: ['list'],
   webhook: ['list'],
   auditLog: ['read'],
-  notification: ['read']
+  notification: ['read'],
+  assistant: ['read'],
+  mcp: ['read']
 } as const
 
 export const readScopeRole = accessControl.newRole(readScopeStatements)

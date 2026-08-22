@@ -147,11 +147,10 @@ const MATRIX: readonly GatedOperation[] = [
     })
   },
 
-  // The account-wide surfaces. None has a statement of its own — both fold
-  // into `notification:read`, which is the decision this half records.
+  // The assistant and MCP surfaces each carry their own statement now.
   {
     operation: 'POST /assistant/answer',
-    permission: 'notification:read',
+    permission: 'assistant:read',
     expected: 200,
     request: makeRequest('POST', '/assistant/answer', {
       workspaceSlug: SLUG,
@@ -160,7 +159,7 @@ const MATRIX: readonly GatedOperation[] = [
   },
   {
     operation: 'GET /mcp',
-    permission: 'notification:read',
+    permission: 'mcp:read',
     expected: 200,
     request: makeRequest('GET', '/mcp')
   }

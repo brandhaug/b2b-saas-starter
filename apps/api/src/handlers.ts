@@ -249,9 +249,10 @@ export function workspaceGroup(env: ApiEnv) {
             workspaceOverview
           )
         )
-        // Listing members exposes who holds which role, which is what `ac:read`
-        // names. The plugin's `member` statement covers mutations only — it has
-        // no `read` action.
+        // Listing members exposes who holds which role, which is what `ac`
+        // (Better Auth's abbreviation of "access control") names. The key is
+        // fixed by the plugin; see statements.ts. The plugin's `member`
+        // statement covers mutations only — it has no `read` action.
         .handle('members', ({ params, request }) =>
           read(
             'members',
@@ -443,7 +444,7 @@ export function assistantGroup(env: ApiEnv) {
         {},
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'assistant')
-          yield* enforcePermission(request, { notification: ['read'] })
+          yield* enforcePermission(request, { assistant: ['read'] })
           const service = yield* AssistantService
           const reply = yield* service.ask(payload)
           return {
@@ -469,7 +470,7 @@ export function mcpGroup(env: ApiEnv) {
         {},
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'mcp')
-          yield* enforcePermission(request, { notification: ['read'] })
+          yield* enforcePermission(request, { mcp: ['read'] })
           return {
             name: 'b2b-saas-starter-mcp',
             resources: ['workspace://starter-lab/overview'],

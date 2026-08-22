@@ -21,12 +21,19 @@ export const starterResources = {
   apiToken: ['list', 'create', 'revoke'],
   webhook: ['list', 'create', 'disable', 'rotateSecret'],
   auditLog: ['read'],
-  notification: ['read']
+  notification: ['read'],
+  assistant: ['read'],
+  mcp: ['read']
 } as const
 
 /**
  * The full statement set: the organization plugin's own resources
  * (`organization`, `member`, `invitation`, `team`, `ac`) plus the starter's.
+ *
+ * `ac` is Better Auth's abbreviation of "access control" and must keep that
+ * exact key: the plugin's own routes check `permissions: { ac: ['read'] }` by
+ * name, so a friendlier spelling would break member management. The starter's
+ * own resources all use full names.
  *
  * The plugin defaults are not optional. Every custom role is checked against
  * them by the plugin's own endpoints, so dropping one breaks member and
