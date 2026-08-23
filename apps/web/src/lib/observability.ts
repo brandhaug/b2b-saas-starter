@@ -1,3 +1,10 @@
+import {
+  annotateWide,
+  makeOtlpLayer,
+  WideEventLoggerLive,
+  withHttpRequestScope,
+  withTriggerScope
+} from '@b2b-saas-starter/logger'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import {
   Cause,
@@ -10,13 +17,7 @@ import {
   type Scope,
   type Tracer
 } from 'effect'
-import {
-  annotateWide,
-  makeOtlpLayer,
-  WideEventLoggerLive,
-  withHttpRequestScope,
-  withTriggerScope
-} from '@b2b-saas-starter/logger'
+
 import { currentRequest } from './request-context'
 
 /**

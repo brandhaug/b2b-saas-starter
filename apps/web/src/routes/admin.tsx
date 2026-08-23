@@ -1,3 +1,7 @@
+import {
+  AuditEventLog,
+  type AuditEvent
+} from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import { createFileRoute } from '@tanstack/react-router'
 import { Effect } from 'effect'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
@@ -8,7 +12,6 @@ import { RoutePending } from '@/components/route-pending'
 import { runCapabilities } from '@/lib/capabilities'
 import { listSystemUsersServerFn, type SystemUser } from '@/lib/server/admin'
 import { requireAdmin } from '@/lib/server/auth'
-import { AuditEventLog, type AuditEvent } from '@b2b-saas-starter/capabilities'
 
 // Column definitions are static — module scope keeps the cell renderers out of
 // the render body (they would remount every render) and drops a useMemo.

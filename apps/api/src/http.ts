@@ -1,10 +1,10 @@
+import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/src/runtime.ts'
+import { StarterApi } from '@b2b-saas-starter/api'
+import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { FileSystem, Layer, Path } from 'effect'
 import { Etag, HttpPlatform, HttpRouter } from 'effect/unstable/http'
 import { HttpApiBuilder, HttpApiScalar } from 'effect/unstable/httpapi'
-import { selectAssistantLayer } from '@b2b-saas-starter/ai'
-import { StarterApi } from '@b2b-saas-starter/api'
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities'
-import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import {
   apiTokenGroup,

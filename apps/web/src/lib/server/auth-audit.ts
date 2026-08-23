@@ -1,11 +1,11 @@
-import { Effect, Result, Schema, type Scope } from 'effect'
+import { annotateWide } from '@b2b-saas-starter/logger'
 import {
   AuditEventLog,
-  type AuditEventType,
-  type CapabilityUnavailable,
   type RecordAuditEventInput
-} from '@b2b-saas-starter/capabilities'
-import { annotateWide } from '@b2b-saas-starter/logger'
+} from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
+import { type AuditEventType } from '@b2b-saas-starter/capabilities/src/governance/audit-event-taxonomy.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+import { Effect, Result, Schema, type Scope } from 'effect'
 import { runCapabilities } from '@/lib/capabilities'
 import { causeMessage } from '@/lib/cause-message'
 

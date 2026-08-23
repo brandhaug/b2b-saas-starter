@@ -1,5 +1,5 @@
-import { Effect, type Scope } from 'effect'
 import { annotateWide } from '@b2b-saas-starter/logger'
+import { Effect, type Scope } from 'effect'
 import { AuthorizationDenied } from './errors.ts'
 import { authorize, type PermissionRequest, type Principal } from './principal.ts'
 

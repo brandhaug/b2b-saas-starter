@@ -78,7 +78,7 @@ declare global {
 
   rule.invalid(
     'reports a namespace declaration inside a module',
-    `import { type ServerEnv } from '@b2b-saas-starter/env'
+    `import { type ServerEnv } from '@b2b-saas-starter/env/src/server.ts'
 declare namespace Cloudflare {
   interface Env {
     readonly vars: ServerEnv

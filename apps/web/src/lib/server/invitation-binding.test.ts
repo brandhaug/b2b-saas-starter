@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { Option, Schema } from 'effect'
 import {
   readPluginBindingFailure,
   type PluginBindingFailure
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/src/governance/plugin-binding-failure.ts'
+import { describe, expect, it } from 'vitest'
+import { Option, Schema } from 'effect'
+
 import { webInvitationBinding } from './invitation-binding'
 
 /**

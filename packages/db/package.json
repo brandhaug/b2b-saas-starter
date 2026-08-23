@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
     "./client": "./src/client.ts",
     "./schema": "./src/schema.ts",
     "./service": "./src/service.ts",
-    "./testing": "./src/testing.ts"
+    "./testing": "./src/testing.ts",
+    "./src/*": "./src/*"
   },
   "scripts": {
     "build": "tsc --noEmit",

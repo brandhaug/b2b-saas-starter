@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./templates": "./src/templates.tsx"
+    "./templates": "./src/templates.tsx",
+    "./src/*": "./src/*"
   },
   "scripts": {
     "build": "tsc --noEmit",

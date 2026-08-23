@@ -1,12 +1,8 @@
+import { auditEvents, user, type JsonObject } from '@b2b-saas-starter/db/src/schema.ts'
+import { Database, type BatchStatement } from '@b2b-saas-starter/db/src/service.ts'
 import { Context, DateTime, Effect, Encoding, Layer, Result, Schema } from 'effect'
 import { and, desc, eq, gte, lt, lte, or, type SQL } from 'drizzle-orm'
-import {
-  auditEvents,
-  Database,
-  user,
-  type BatchStatement,
-  type JsonObject
-} from '@b2b-saas-starter/db'
+
 import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'

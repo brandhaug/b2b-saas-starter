@@ -1,6 +1,7 @@
+import { Database } from '@b2b-saas-starter/db/src/service.ts'
+import { notifications } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, count, desc, eq, isNull, or } from 'drizzle-orm'
-import { Database, notifications } from '@b2b-saas-starter/db'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
@@ -28,6 +29,7 @@ export type NotificationFeedInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
   readonly unreadCount: Effect.Effect<number, CapabilityUnavailable, WorkspaceContext>
 }
 

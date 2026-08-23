@@ -1,6 +1,6 @@
+import { annotateWide } from '@b2b-saas-starter/logger'
 import { Effect, Schema } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { annotateWide } from '@b2b-saas-starter/logger'
 
 import { runWebRequestScope, withWebRequestScope } from './observability'
 

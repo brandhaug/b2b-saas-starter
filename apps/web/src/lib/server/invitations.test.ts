@@ -1,23 +1,28 @@
-import { describe, expect, it } from 'vitest'
-import { Effect, Layer, Ref, type Scope } from 'effect'
+import { makeSeedRoster } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
 import {
-  makeSeedRoster,
   SeedWorkspaceInvitations,
-  testWorkspaceContext,
   WorkspaceInvitations,
+  type Invitation
+} from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+import {
+  testWorkspaceContext,
   type WorkspaceContext,
-  type Actor,
-  type Invitation,
+  type Actor
+} from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import {
   type Member,
   type Workspace,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 import {
   EmailDispatcher,
   EmailSendError,
   type EmailDeliveryResult,
   type EmailMessage
 } from '@b2b-saas-starter/email'
+import { describe, expect, it } from 'vitest'
+import { Effect, Layer, Ref, type Scope } from 'effect'
+
 import {
   acceptInvitation,
   cancelInvitation,

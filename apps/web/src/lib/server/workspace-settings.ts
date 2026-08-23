@@ -1,15 +1,16 @@
-import { Effect, type Scope } from 'effect'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import {
-  ApiTokenRegistry,
-  type CapabilityUnavailable,
-  NotificationFeed,
-  WebhookEndpoints,
-  WorkspaceContext,
   WorkspaceInvitations,
-  type Invitation,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities'
+  type Invitation
+} from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { Effect, type Scope } from 'effect'
+
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
 
@@ -75,6 +76,7 @@ const settingsPayload: Effect.Effect<
       // workspace security posture in the same way an API-token list is.
       whenPermitted({ invitation: ['create'] }, invites.list)
     ],
+
     { concurrency: 'unbounded' }
   )
   return {

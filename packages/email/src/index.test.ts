@@ -4,10 +4,10 @@ import {
   EmailDispatcher,
   LogEmailDispatcherLayer,
   makeCloudflareEmailDispatcherLayer,
-  WorkspaceInvitationEmail,
   type SendEmailBinding,
   type SendEmailBuilderArgs
 } from './index.ts'
+import { WorkspaceInvitationEmail } from './templates.tsx'
 
 describe('EmailDispatcher', () => {
   it('logs delivery when no binding is configured', () =>

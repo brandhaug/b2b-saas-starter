@@ -1,3 +1,4 @@
+import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
 import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { Cause, Effect, Exit, Option, Schema } from 'effect'
@@ -14,7 +15,6 @@ import {
   invitationPreviewServerFn,
   type InvitationPreview
 } from '@/lib/server/invitations'
-import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities'
 
 const ACCEPT_FAILED = 'Could not accept the invitation'
 
@@ -102,7 +102,7 @@ function UnusableInvitation() {
         </CardHeader>
         <CardContent className="grid gap-4 text-sm text-muted-foreground">
           {/* Naming which failure it was would tell a link-guesser whether a
-              given workspace exists. */}
+                given workspace exists. */}
           <p>
             It may have expired, been cancelled, already been accepted, or been sent to
             a different address. Ask whoever invited you to send a new one.

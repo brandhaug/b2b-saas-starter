@@ -1,6 +1,7 @@
+import { Database } from '@b2b-saas-starter/db/src/service.ts'
+import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
-import { Database, user, workspaceMembers, workspaces } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -26,6 +27,7 @@ export type WorkspaceMembershipInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
   /**
    * Every workspace the user is a member of, with their membership row.
    * Cross-workspace read keyed by user id (no `WorkspaceContext`) — this is
@@ -42,6 +44,7 @@ export type WorkspaceMembershipInterface = {
     CapabilityUnavailable | MembershipChangeRejected,
     WorkspaceContext
   >
+
   readonly removeMember: (
     input: MemberRef
   ) => Effect.Effect<
@@ -49,6 +52,7 @@ export type WorkspaceMembershipInterface = {
     CapabilityUnavailable | MembershipChangeRejected,
     WorkspaceContext
   >
+
   readonly changeRole: (
     input: MemberRoleInput
   ) => Effect.Effect<

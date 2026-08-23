@@ -1,6 +1,6 @@
+import { layerFromD1 } from '@b2b-saas-starter/db/src/service.ts'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
-import { layerFromD1 } from '@b2b-saas-starter/db'
 import { SeedLayer } from './layers.ts'
 import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.ts'

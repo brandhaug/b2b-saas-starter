@@ -1,6 +1,6 @@
+import { type Notification as CapabilityNotification } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
 import { useQuery } from '@tanstack/react-query'
 import { BellIcon, RefreshCwIcon } from 'lucide-react'
-import { type Notification as CapabilityNotification } from '@b2b-saas-starter/capabilities'
 import { causeMessage } from '@/lib/cause-message'
 import {
   listNotificationsServerFn,

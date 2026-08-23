@@ -1,4 +1,25 @@
 import {
+  annotateWide,
+  currentTraceId,
+  makeOtlpLayer,
+  parentSpanFromHeaders,
+  TRACE_HEADER,
+  WideEventLoggerLive,
+  withTriggerScope
+} from '@b2b-saas-starter/logger'
+import {
+  selectCapabilitiesLayer,
+  type StarterEnv
+} from '@b2b-saas-starter/capabilities/src/runtime.ts'
+import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import {
+  WebhookQueueMessage,
+  type WebhookQueueBinding
+} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+import { type ServerEnv } from '@b2b-saas-starter/env/src/server.ts'
+import {
   Clock,
   DateTime,
   Duration,
@@ -10,25 +31,6 @@ import {
   type Scope
 } from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient } from 'effect/unstable/http'
-import {
-  selectCapabilitiesLayer,
-  validateWebhookUrl,
-  WebhookEndpoints,
-  WebhookQueueMessage,
-  type CapabilityUnavailable,
-  type StarterEnv,
-  type WebhookQueueBinding
-} from '@b2b-saas-starter/capabilities'
-import { type ServerEnv } from '@b2b-saas-starter/env'
-import {
-  annotateWide,
-  currentTraceId,
-  makeOtlpLayer,
-  parentSpanFromHeaders,
-  TRACE_HEADER,
-  WideEventLoggerLive,
-  withTriggerScope
-} from '@b2b-saas-starter/logger'
 
 // Bindings plus optional env. The same shape `ApiEnv` describes for apps/api.
 type Env = Partial<ServerEnv> & {

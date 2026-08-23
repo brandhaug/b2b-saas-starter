@@ -1,5 +1,5 @@
-import { Clock, Effect, Result, Schema, type Scope } from 'effect'
 import { annotateWide } from '@b2b-saas-starter/logger'
+import { Clock, Effect, Result, Schema, type Scope } from 'effect'
 
 // Cloudflare Rate Limiting binding shape (subset). The actual bindings are
 // provisioned via each worker's wrangler.jsonc (`unsafe.bindings`) and

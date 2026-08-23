@@ -1,13 +1,12 @@
+import { type AuthEmailSender } from '@b2b-saas-starter/auth'
+import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
+import {
+  EmailVerificationEmail,
+  PasswordResetEmail
+} from '@b2b-saas-starter/email/src/templates.tsx'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { Effect } from 'effect'
 import { type ReactElement } from 'react'
-import { type AuthEmailSender } from '@b2b-saas-starter/auth'
-import {
-  EmailDispatcher,
-  EmailVerificationEmail,
-  PasswordResetEmail,
-  selectEmailDispatcherLayer
-} from '@b2b-saas-starter/email'
 
 /**
  * The adapter that lets Better Auth's account-lifecycle callbacks reach the

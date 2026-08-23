@@ -1,5 +1,5 @@
+import { type Database, layerFromD1 } from '@b2b-saas-starter/db/src/service.ts'
 import { Effect, Layer } from 'effect'
-import { type Database, layerFromD1 } from '@b2b-saas-starter/db'
 
 // developer-platform
 import {

@@ -61,7 +61,11 @@ export function WorkspaceGeneralSettings({
         />
       ) : null}
       {canDelete ? (
-        <DeleteSection workspaceSlug={workspaceSlug} name={currentName} remove={remove} />
+        <DeleteSection
+          workspaceSlug={workspaceSlug}
+          name={currentName}
+          remove={remove}
+        />
       ) : null}
     </div>
   )

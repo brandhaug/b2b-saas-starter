@@ -1,10 +1,11 @@
-import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema } from 'effect'
 import {
   ApiTokenRegistry,
   ApiTokenScope,
   type CreatedApiToken
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { createServerFn } from '@tanstack/react-start'
+import { Effect, Schema } from 'effect'
+
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'

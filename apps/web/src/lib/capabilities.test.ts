@@ -1,6 +1,6 @@
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities'
 import { ForbiddenError } from './capability-error'
 import { runWorkspaceCapabilities } from './capabilities'
 import { requireWorkspacePermission } from './server/authorize'

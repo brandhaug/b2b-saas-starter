@@ -1,11 +1,8 @@
+import { batch, Database } from '@b2b-saas-starter/db/src/service.ts'
+import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
 import { and, count, eq, sql } from 'drizzle-orm'
-import {
-  batch,
-  Database,
-  webhookDeliveries,
-  webhookEndpoints
-} from '@b2b-saas-starter/db'
+
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
 import { type CapabilityUnavailable } from '../errors.ts'
@@ -107,6 +104,7 @@ export type WebhookEndpointsInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
   readonly create: (
     input: CreateWebhookEndpointInput
   ) => Effect.Effect<
@@ -114,6 +112,7 @@ export type WebhookEndpointsInterface = {
     CapabilityUnavailable | InvalidWebhookUrl,
     WorkspaceContext
   >
+
   /** Resolves `true` when an endpoint was disabled, `false` when nothing matched. */
   readonly disable: (
     input: DisableWebhookEndpointInput
@@ -130,6 +129,7 @@ export type WebhookEndpointsInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
   /**
    * Background-worker surface — no `WorkspaceContext` exists on the queue
    * consumer, so the workspace ID travels in the queue message (stamped by
@@ -149,6 +149,7 @@ export type WebhookEndpointsInterface = {
     } | null,
     CapabilityUnavailable
   >
+
   readonly recordDeliveryAttempt: (
     input: WebhookDeliveryAttemptInput
   ) => Effect.Effect<void, CapabilityUnavailable>

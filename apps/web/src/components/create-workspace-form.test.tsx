@@ -1,9 +1,6 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  CreateWorkspaceForm,
-  type CreateWorkspace
-} from './create-workspace-form'
+import { CreateWorkspaceForm, type CreateWorkspace } from './create-workspace-form'
 import { renderWithRouter } from '@/test/router-harness'
 
 const userId = 'usr_tester'
@@ -16,7 +13,9 @@ const createdWorkspace = {
 }
 
 async function renderForm(createWorkspace: CreateWorkspace) {
-  return renderWithRouter(<CreateWorkspaceForm userId={userId} createWorkspace={createWorkspace} />)
+  return renderWithRouter(
+    <CreateWorkspaceForm userId={userId} createWorkspace={createWorkspace} />
+  )
 }
 
 describe('CreateWorkspaceForm', () => {

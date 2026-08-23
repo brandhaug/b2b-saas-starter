@@ -22,7 +22,7 @@ type WebWorkerEnv = {
   // the invite email goes through the logging dispatcher, which is what keeps
   // the invitation flow working with no provider configured (CLAUDE.md rule 3).
   readonly EMAIL?: import('@b2b-saas-starter/email').SendEmailBinding
-} & Readonly<import('@b2b-saas-starter/env').ServerEnv>
+} & Readonly<import('@b2b-saas-starter/env/src/server.ts').ServerEnv>
 
 // `env` from `cloudflare:workers` is typed as `Cloudflare.Env`
 // (@cloudflare/workers-types uses `export = CloudflareWorkersModule`, so a

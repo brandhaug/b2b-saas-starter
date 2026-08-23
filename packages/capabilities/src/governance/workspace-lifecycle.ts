@@ -1,6 +1,7 @@
+import { Database } from '@b2b-saas-starter/db/src/service.ts'
+import { workspaces } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
-import { Database, workspaces } from '@b2b-saas-starter/db'
 import { CapabilityUnavailable, WorkspaceChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -45,6 +46,7 @@ export type WorkspaceLifecycleInterface = {
     CapabilityUnavailable | WorkspaceChangeRejected,
     WorkspaceContext
   >
+
   /**
    * Hard-deletes the workspace in context. Members, invitations, tokens,
    * webhooks and deliveries go with it through the schema's cascade deletes;

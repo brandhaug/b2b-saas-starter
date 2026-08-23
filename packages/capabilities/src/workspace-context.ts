@@ -1,6 +1,7 @@
+import { Database } from '@b2b-saas-starter/db/src/service.ts'
+import { workspaces } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
-import { Database, workspaces } from '@b2b-saas-starter/db'
 import { WorkspaceNotFound, type CapabilityUnavailable } from './errors.ts'
 import { orUnavailable } from './internal/unavailable.ts'
 import {

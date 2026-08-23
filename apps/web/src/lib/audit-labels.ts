@@ -1,4 +1,4 @@
-import { AUDIT_EVENT_TYPES } from '@b2b-saas-starter/capabilities'
+import { AUDIT_EVENT_TYPES } from '@b2b-saas-starter/capabilities/src/governance/audit-event-taxonomy.ts'
 
 /** The human label map for audit event types (issue #87 resolution: web owns
  * the labels, the capabilities package owns the vocabulary). A `Map` keyed by

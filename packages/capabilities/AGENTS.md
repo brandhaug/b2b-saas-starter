@@ -30,7 +30,6 @@ src/
 ├── seed-fixture.ts     – in-memory fixture data
 ├── layers.ts           – SeedLayer + makeLiveCapabilitiesLayer composition (pure wiring)
 ├── runtime.ts          – Effect runtime helpers (StarterEnv → layer selection)
-└── index.ts            – public barrel; the only path consumers should import from
 ```
 
 `StarterEnv` (`runtime.ts`) selects Seed vs Live by the `DB` binding.
@@ -56,7 +55,7 @@ Each capability gets a leaf intent node alongside its source file. Read it befor
 
 Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (404), `CapabilityUnavailable` (503 — every Live-layer D1/queue failure surfaces as this via `internal/unavailable.ts`, never as a defect), and `MembershipChangeRejected` (409 — a membership change the workspace refuses, as against a store it cannot reach). `AuthorizationDenied` (403 — raised by `verifyBearerToken` for an unknown token, and by `requirePermission` for a denied one) is **declared in [`@b2b-saas-starter/authz`](../authz/AGENTS.md)** and re-exported from `errors.ts`, so this package and the guard raise one class. Never redeclare it here. Seed fixtures live in [`seed-fixture.ts`](src/seed-fixture.ts) and are consumed by [`layers.ts`](src/layers.ts).
 
-`readPluginBindingFailure` (`governance/plugin-binding-failure.ts`) is exported from the barrel as well. It is how a rejected plugin-binding call is classified — 4xx means the workspace refused, anything else means the store is unreachable — and the app that writes a binding needs it to assert its own rejections land on the right side (`apps/web/src/lib/server/invitation-binding.test.ts`).
+`readPluginBindingFailure` (`governance/plugin-binding-failure.ts`) is imported directly as well. It is how a rejected plugin-binding call is classified — 4xx means the workspace refused, anything else means the store is unreachable — and the app that writes a binding needs it to assert its own rejections land on the right side (`apps/web/src/lib/server/invitation-binding.test.ts`).
 
 ## Where to put a new capability
 
@@ -64,7 +63,7 @@ Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (40
 2. Add `src/<context>/<capability>.ts` (Schema + Service + Seed + Live).
 3. Add `src/<context>/<capability>.AGENTS.md` describing the public surface, storage, and anti-patterns.
 4. Wire `Seed*`/`Live*` into [`layers.ts`](src/layers.ts) — keep imports grouped by context.
-5. Re-export through [`index.ts`](src/index.ts) under its context section.
+5. Consumers import the capability module directly, e.g. `@b2b-saas-starter/capabilities/src/<context>/<capability>.ts` (enabled by the `./src/*` exports map).
 6. Add a row to the table above.
 
 ## Cross-cutting invariants
@@ -82,7 +81,7 @@ Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (40
    **The exception is the plugin-backed mutations** — `WorkspaceMembership` and `WorkspaceInvitations`. Their write happens over HTTP inside the binding adapter, so it cannot be enlisted into a `batch()`, and D1 rejects an explicit `BEGIN` (Drizzle's `d1/session.js` issues a raw `begin`, so `db.transaction()` does not work either). They call `record(input)` after the write and the two can therefore diverge. This is an accepted, recorded trade (ADR 0051), not an oversight to "fix" by dropping back to direct Drizzle writes — that would skip the plugin's validation and its lifecycle hooks.
 
 4. **Seed and Live must satisfy the same `Interface`.** The `XxxInterface` type is the contract; both layers must implement it identically. Tests bind `Seed*` plus `testWorkspaceContext(...)` and rely on this equivalence to exercise route logic without D1. Where a capability mutates, matching types are not enough — write the cases once and run them against both adapters, as `governance/workspace-membership.contract.ts` does from `index.test.ts` and `live-layers.test.ts`.
-5. **No barrel re-exports outside `index.ts`.** Internal files import from `./<context>/<capability>.ts` (or `../<context>/<capability>.ts` from within a context). Consumers go through `@b2b-saas-starter/capabilities`.
+5. **No barrel files.** Internal files import from `./<context>/<capability>.ts` (or `../<context>/<capability>.ts` from within a context). Consumers import `@b2b-saas-starter/capabilities/src/<context>/<capability>.ts` directly.
 6. **Cross-context imports are explicit.** When a capability in one context depends on another (e.g. `developer-platform/*` → `governance/audit-event-log`), the relative path makes the seam visible. Don't paper over it with re-exports.
 
 ## Anti-patterns
