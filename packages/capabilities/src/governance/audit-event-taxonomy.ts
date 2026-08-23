@@ -57,6 +57,10 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'auth.password_reset_failed',
   'auth.email_verified',
   'auth.email_verification_failed',
+  'auth.sign_out',
+  'auth.sign_out_failed',
+  'auth.session_revoked',
+  'auth.session_revocation_failed',
   // Better Auth admin endpoints (system-level)
   'system_admin.user_created',
   'system_admin.user_creation_failed',

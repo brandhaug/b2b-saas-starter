@@ -5,8 +5,9 @@ import {
   authAuditInput,
   isAdminAuthExchange,
   isAuditedAuthExchange,
+  needsPreHandlerActor,
   recordAuthAudit,
-  type AdminAuditContext,
+  type AuthAuditContext,
   type AuthAuditOutcome,
   type RunAuditCapabilities
 } from './auth-audit'
@@ -42,7 +43,25 @@ describe('isAuditedAuthExchange', () => {
       isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-in/email' })
     ).toBe(true)
     expect(
+      isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-in/username' })
+    ).toBe(true)
+    expect(
       isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-up/email' })
+    ).toBe(true)
+    expect(
+      isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-out' })
+    ).toBe(true)
+    expect(
+      isAuditedAuthExchange({
+        method: 'POST',
+        pathname: '/api/auth/user/revoke-session'
+      })
+    ).toBe(true)
+    expect(
+      isAuditedAuthExchange({
+        method: 'POST',
+        pathname: '/api/auth/user/revoke-sessions'
+      })
     ).toBe(true)
     expect(
       isAuditedAuthExchange({
@@ -63,13 +82,38 @@ describe('isAuditedAuthExchange', () => {
       isAuditedAuthExchange({ method: 'GET', pathname: '/api/auth/sign-in/email' })
     ).toBe(false)
     expect(
-      isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-out' })
+      isAuditedAuthExchange({ method: 'GET', pathname: '/api/auth/get-session' })
     ).toBe(false)
     // The reset token-exchange redirect validates without mutating.
     expect(
       isAuditedAuthExchange({
         method: 'GET',
         pathname: '/api/auth/reset-password/tok_reset'
+      })
+    ).toBe(false)
+  })
+})
+
+describe('needsPreHandlerActor', () => {
+  it('flags the session-ending rows and the admin mutations', () => {
+    for (const pathname of [
+      '/api/auth/sign-out',
+      '/api/auth/user/revoke-session',
+      '/api/auth/user/revoke-sessions',
+      '/api/auth/admin/set-role'
+    ]) {
+      expect(needsPreHandlerActor({ method: 'POST', pathname })).toBe(true)
+    }
+  })
+
+  it('leaves body-attributed exchanges to the response read', () => {
+    expect(
+      needsPreHandlerActor({ method: 'POST', pathname: '/api/auth/sign-in/email' })
+    ).toBe(false)
+    expect(
+      needsPreHandlerActor({
+        method: 'POST',
+        pathname: '/api/auth/sign-in/username'
       })
     ).toBe(false)
   })
@@ -151,7 +195,7 @@ describe('authAuditInput', () => {
       actorUserId: null,
       eventType: 'auth.password_reset_requested',
       targetType: 'user',
-      metadata: { method: 'email', statusCode: 200 }
+      metadata: { statusCode: 200 }
     })
   })
 
@@ -217,13 +261,81 @@ describe('authAuditInput', () => {
     expect(input?.actorUserId).toBe('usr_demo')
   })
 
+  it('maps a username sign-in to the same event pair, method named', () => {
+    const input = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/sign-in/username',
+      status: 200,
+      userId: 'usr_demo'
+    })
+    expect(input?.eventType).toBe('auth.sign_in')
+    expect(input?.actorUserId).toBe('usr_demo')
+    expect(input?.targetType).toBe('session')
+    expect(input?.metadata).toEqual({ method: 'username', statusCode: 200 })
+
+    const failed = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/sign-in/username',
+      status: 401,
+      userId: null
+    })
+    expect(failed?.eventType).toBe('auth.sign_in_failed')
+  })
+
+  it('maps a successful sign-out to an attributed event targeting the session', () => {
+    const input = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/sign-out',
+      status: 200,
+      userId: 'usr_demo'
+    })
+    expect(input?.eventType).toBe('auth.sign_out')
+    expect(input?.actorUserId).toBe('usr_demo')
+    expect(input?.targetType).toBe('session')
+    expect(input?.metadata).toEqual({ statusCode: 200 })
+  })
+
+  it('keeps the pre-handler actor on a failed sign-out or revocation', () => {
+    // The session was resolved before Better Auth judged the request — same
+    // reasoning as the admin events.
+    for (const pathname of [
+      '/api/auth/sign-out',
+      '/api/auth/user/revoke-session',
+      '/api/auth/user/revoke-sessions'
+    ]) {
+      const input = authAuditInput({
+        method: 'POST',
+        pathname,
+        status: 500,
+        userId: 'usr_demo'
+      })
+      expect(input?.eventType).toBe(
+        pathname.endsWith('/sign-out')
+          ? 'auth.sign_out_failed'
+          : 'auth.session_revocation_failed'
+      )
+      expect(input?.actorUserId).toBe('usr_demo')
+    }
+  })
+
+  it('records an unattributed session event when no pre-handler actor exists', () => {
+    const input = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/user/revoke-sessions',
+      status: 200,
+      userId: null
+    })
+    expect(input?.eventType).toBe('auth.session_revoked')
+    expect(input?.actorUserId).toBeNull()
+  })
+
   it('ignores non-lifecycle auth traffic', () => {
     expect(
       authAuditInput({
-        method: 'POST',
-        pathname: '/api/auth/sign-out',
+        method: 'GET',
+        pathname: '/api/auth/get-session',
         status: 200,
-        userId: 'usr_demo'
+        userId: null
       })
     ).toBeNull()
     expect(
@@ -238,9 +350,30 @@ describe('authAuditInput', () => {
 })
 
 describe('recordAuthAudit', () => {
-  it('never touches the response body for non-audit-worthy exchanges', async () => {
+  it('records a sign-out from the pre-handler actor without touching the body', async () => {
+    // The response names nobody — the actor must come from the session read.
     const request = new Request('http://localhost/api/auth/sign-out', {
       method: 'POST'
+    })
+    const response = new Response(JSON.stringify({ success: true }), {
+      status: 200
+    })
+    const clone = vi.spyOn(response, 'clone')
+    const json = vi.spyOn(response, 'json')
+    const outcome = await Effect.runPromise(
+      Effect.scoped(
+        recordAuthAudit(request, response, runCapabilities, { actorUserId: 'usr_demo' })
+      )
+    )
+    expect(outcome).toBe('recorded')
+    expect(runCapabilities).toHaveBeenCalledTimes(1)
+    expect(clone).not.toHaveBeenCalled()
+    expect(json).not.toHaveBeenCalled()
+  })
+
+  it('records a skipped exchange without touching the response body', async () => {
+    const request = new Request('http://localhost/api/auth/get-session', {
+      method: 'GET'
     })
     const response = new Response(JSON.stringify({ ok: true }), { status: 200 })
     const clone = vi.spyOn(response, 'clone')
@@ -460,14 +593,14 @@ describe('adminAuditInput', () => {
   })
 })
 
-describe('recordAuthAudit with an admin context', () => {
+describe('recordAuthAudit with a pre-handler context', () => {
   function runAdminAudit(
     request: Request,
     response: Response,
-    admin: AdminAuditContext
+    context: AuthAuditContext
   ): Promise<AuthAuditOutcome> {
     return Effect.runPromise(
-      Effect.scoped(recordAuthAudit(request, response, runCapabilities, admin))
+      Effect.scoped(recordAuthAudit(request, response, runCapabilities, context))
     )
   }
 
@@ -526,5 +659,16 @@ describe('recordAuthAudit with an admin context', () => {
         request: request.clone()
       })
     ).resolves.toBe('dropped')
+  })
+
+  it('records a session revocation attributed to the pre-handler actor', async () => {
+    const request = new Request('http://localhost/api/auth/user/revoke-session', {
+      method: 'POST'
+    })
+    const response = new Response('{}', { status: 200 })
+    await expect(
+      runAdminAudit(request, response, { actorUserId: 'usr_demo' })
+    ).resolves.toBe('recorded')
+    expect(runCapabilities).toHaveBeenCalledWith(expect.anything())
   })
 })
