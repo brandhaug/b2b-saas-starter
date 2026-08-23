@@ -2,7 +2,8 @@ import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import viteReact from '@vitejs/plugin-react'
+import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
 import { resolve } from 'node:path'
 // Named export rather than the identical default, so the local name matches
 // what the package exports.
@@ -99,7 +100,14 @@ export default defineConfig(({ command, mode }) => {
           ]
         })
       },
-      viteReact()
+      viteReact(),
+      // React Compiler via the rolldown Babel bridge (plugin-react v6 API).
+      // Email templates are invoked directly (no React dispatcher) when
+      // rendering HTML, so compiler-inserted hooks crash there.
+      babel({
+        exclude: /packages[/\\]email[/\\]/,
+        presets: [reactCompilerPreset()]
+      })
     ],
     test: {
       globals: true,
