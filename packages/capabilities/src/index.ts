@@ -10,6 +10,7 @@ export * from './developer-platform/webhook-url.ts'
 
 // governance
 export * from './governance/audit-event-log.ts'
+export * from './governance/audit-event-taxonomy.ts'
 export * from './governance/plugin-binding-failure.ts'
 export * from './governance/workspace-identity.ts'
 export * from './governance/workspace-invitations.ts'

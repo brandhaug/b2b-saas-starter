@@ -1,9 +1,12 @@
 import { Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  adminAuditInput,
   authAuditInput,
+  isAdminAuthExchange,
   isAuditedAuthExchange,
   recordAuthAudit,
+  type AdminAuditContext,
   type AuthAuditOutcome,
   type RunAuditCapabilities
 } from './auth-audit'
@@ -291,5 +294,237 @@ describe('recordAuthAudit', () => {
       status: 200
     })
     await expect(runRecordAuthAudit(request, response)).resolves.toBe('dropped')
+  })
+
+  it('skips admin paths when no admin context was gathered', async () => {
+    const request = new Request('http://localhost/api/auth/admin/set-role', {
+      method: 'POST'
+    })
+    const response = new Response(JSON.stringify({ user: { id: 'usr_dev' } }), {
+      status: 200
+    })
+    const clone = vi.spyOn(response, 'clone')
+    await expect(runRecordAuthAudit(request, response)).resolves.toBe('skipped')
+    expect(clone).not.toHaveBeenCalled()
+  })
+})
+
+describe('isAdminAuthExchange', () => {
+  it('accepts the audited admin mutations', () => {
+    for (const suffix of [
+      '/admin/set-role',
+      '/admin/ban-user',
+      '/admin/unban-user',
+      '/admin/create-user',
+      '/admin/remove-user',
+      '/admin/set-user-password',
+      '/admin/impersonate-user',
+      '/admin/stop-impersonating',
+      '/admin/revoke-user-session',
+      '/admin/revoke-user-sessions'
+    ]) {
+      expect(
+        isAdminAuthExchange({ method: 'POST', pathname: `/api/auth${suffix}` })
+      ).toBe(true)
+    }
+  })
+
+  it('rejects reads and non-admin auth traffic', () => {
+    expect(
+      isAdminAuthExchange({ method: 'GET', pathname: '/api/auth/admin/list-users' })
+    ).toBe(false)
+    expect(
+      isAdminAuthExchange({ method: 'POST', pathname: '/api/auth/sign-in/email' })
+    ).toBe(false)
+    expect(
+      isAdminAuthExchange({ method: 'POST', pathname: '/api/auth/admin/list-users' })
+    ).toBe(false)
+  })
+})
+
+describe('adminAuditInput', () => {
+  const pathname = '/api/auth/admin/set-role'
+
+  it('maps a successful role change to an attributed system_admin event', () => {
+    expect(
+      adminAuditInput({
+        pathname,
+        status: 200,
+        actorUserId: 'usr_martin',
+        targetUserId: 'usr_dev'
+      })
+    ).toEqual({
+      workspaceId: null,
+      actorUserId: 'usr_martin',
+      eventType: 'system_admin.user_role_changed',
+      targetType: 'user',
+      targetId: 'usr_dev',
+      metadata: { statusCode: 200 }
+    })
+  })
+
+  it('keeps the actor on failure — the session predates the judgment', () => {
+    const input = adminAuditInput({
+      pathname,
+      status: 400,
+      actorUserId: 'usr_martin',
+      targetUserId: 'usr_dev'
+    })
+    expect(input?.eventType).toBe('system_admin.user_role_change_failed')
+    expect(input?.actorUserId).toBe('usr_martin')
+  })
+
+  it('covers the full success/failure pair per endpoint from one table', () => {
+    const pairs: ReadonlyArray<readonly [string, string, string]> = [
+      [
+        '/api/auth/admin/create-user',
+        'system_admin.user_created',
+        'system_admin.user_creation_failed'
+      ],
+      [
+        '/api/auth/admin/remove-user',
+        'system_admin.user_removed',
+        'system_admin.user_removal_failed'
+      ],
+      [
+        '/api/auth/admin/ban-user',
+        'system_admin.user_banned',
+        'system_admin.user_ban_failed'
+      ],
+      [
+        '/api/auth/admin/unban-user',
+        'system_admin.user_unbanned',
+        'system_admin.user_unban_failed'
+      ],
+      [
+        '/api/auth/admin/set-user-password',
+        'system_admin.user_password_set',
+        'system_admin.user_password_set_failed'
+      ],
+      [
+        '/api/auth/admin/impersonate-user',
+        'system_admin.impersonation_started',
+        'system_admin.impersonation_start_failed'
+      ],
+      [
+        '/api/auth/admin/stop-impersonating',
+        'system_admin.impersonation_stopped',
+        'system_admin.impersonation_stop_failed'
+      ],
+      [
+        '/api/auth/admin/revoke-user-sessions',
+        'system_admin.user_session_revoked',
+        'system_admin.user_session_revocation_failed'
+      ]
+    ]
+    for (const [path, success, failure] of pairs) {
+      expect(
+        adminAuditInput({
+          pathname: path,
+          status: 200,
+          actorUserId: 'a',
+          targetUserId: null
+        })?.eventType
+      ).toBe(success)
+      expect(
+        adminAuditInput({
+          pathname: path,
+          status: 500,
+          actorUserId: 'a',
+          targetUserId: null
+        })?.eventType
+      ).toBe(failure)
+    }
+  })
+
+  it('targets an unknown user for stop-impersonating (no id in its request)', () => {
+    const input = adminAuditInput({
+      pathname: '/api/auth/admin/stop-impersonating',
+      status: 200,
+      actorUserId: 'usr_martin',
+      targetUserId: null
+    })
+    expect(input?.targetType).toBe('user')
+    expect(input?.targetId).toBeNull()
+  })
+
+  it('ignores non-admin traffic', () => {
+    expect(
+      adminAuditInput({
+        pathname: '/api/auth/sign-in/email',
+        status: 200,
+        actorUserId: 'usr_martin',
+        targetUserId: 'usr_dev'
+      })
+    ).toBeNull()
+  })
+})
+
+describe('recordAuthAudit with an admin context', () => {
+  function runAdminAudit(
+    request: Request,
+    response: Response,
+    admin: AdminAuditContext
+  ): Promise<AuthAuditOutcome> {
+    return Effect.runPromise(
+      Effect.scoped(recordAuthAudit(request, response, runCapabilities, admin))
+    )
+  }
+
+  it('records a role change attributed to the acting admin, target from the body', async () => {
+    const request = new Request('http://localhost/api/auth/admin/set-role', {
+      method: 'POST',
+      body: JSON.stringify({ userId: 'usr_dev', role: 'admin' }),
+      headers: { 'content-type': 'application/json' }
+    })
+    const response = new Response(JSON.stringify({ user: { id: 'usr_dev' } }), {
+      status: 200
+    })
+    await expect(
+      runAdminAudit(request, response, {
+        actorUserId: 'usr_martin',
+        request: request.clone()
+      })
+    ).resolves.toBe('recorded')
+    expect(runCapabilities).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the response body for create-user, whose request names no user', async () => {
+    const request = new Request('http://localhost/api/auth/admin/create-user', {
+      method: 'POST'
+    })
+    const response = new Response(JSON.stringify({ user: { id: 'usr_new' } }), {
+      status: 201
+    })
+    await expect(
+      runAdminAudit(request, response, { actorUserId: 'usr_martin' })
+    ).resolves.toBe('recorded')
+  })
+
+  it('records a rejected admin mutation with the failure event', async () => {
+    const request = new Request('http://localhost/api/auth/admin/ban-user', {
+      method: 'POST'
+    })
+    const response = new Response(JSON.stringify({ message: 'nope' }), { status: 403 })
+    await expect(
+      runAdminAudit(request, response, {
+        actorUserId: 'usr_martin',
+        request: request.clone()
+      })
+    ).resolves.toBe('recorded')
+  })
+
+  it('reports a dropped admin write instead of throwing', async () => {
+    runCapabilities.mockRejectedValueOnce(new Error('d1 down'))
+    const request = new Request('http://localhost/api/auth/admin/unban-user', {
+      method: 'POST'
+    })
+    const response = new Response('{}', { status: 200 })
+    await expect(
+      runAdminAudit(request, response, {
+        actorUserId: 'usr_martin',
+        request: request.clone()
+      })
+    ).resolves.toBe('dropped')
   })
 })

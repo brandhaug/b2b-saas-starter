@@ -8,7 +8,47 @@ import { annotateWide } from '@b2b-saas-starter/logger'
 import { authRuntime } from '@/lib/auth-runtime'
 import { withWebRequestScope } from '@/lib/observability'
 import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
-import { recordAuthAudit } from '@/lib/server/auth-audit'
+import { runCapabilities } from '@/lib/capabilities'
+import {
+  isAdminAuthExchange,
+  recordAuthAudit,
+  type AdminAuditContext
+} from '@/lib/server/auth-audit'
+
+/**
+ * Everything the admin-endpoint audit needs, gathered BEFORE the auth handler
+ * consumes the request: the acting system admin's session user id (admin
+ * responses never name their actor) and a clone of the JSON body (`userId`
+ * target). `undefined` for anything that is not an audited admin mutation or
+ * carries no session — anonymous probes are rate-limited noise.
+ */
+async function readAdminAuditContext(
+  request: Request
+): Promise<AdminAuditContext | undefined> {
+  const pathname = new URL(request.url).pathname
+  if (
+    request.method !== 'POST' ||
+    !isAdminAuthExchange({ method: request.method, pathname })
+  ) {
+    return undefined
+  }
+  // The clone is taken before the handler runs — Better Auth consumes the
+  // original request's body. A failed session read must never fail the auth
+  // request it observes.
+  const requestClone = request.clone()
+  const session = await authRuntime
+    .runPromise(
+      withWebRequestScope(
+        { event: 'auth.session' },
+        Effect.flatMap(Auth.Tag, (auth) =>
+          auth.api.getSession({ headers: request.headers })
+        )
+      )
+    )
+    .catch(() => null)
+  if (!session) return undefined
+  return { actorUserId: session.user.id, request: requestClone }
+}
 
 async function handleAuth(request: Request): Promise<Response> {
   const bucket = request.method === 'POST' ? 'auth_write' : 'auth_read'
@@ -33,6 +73,10 @@ async function handleAuth(request: Request): Promise<Response> {
             headers: { 'content-type': 'application/json; charset=utf-8' }
           })
         }
+        // Admin audit context before the handler: it reads the session and a
+        // body clone that Better Auth's consumption of the request would
+        // otherwise make unreadable.
+        const admin = yield* Effect.promise(() => readAdminAuditContext(request))
         // The effectful-better-auth mount: toWeb → auth.handler → fromWeb.
         // The Auth service comes from authRuntime's layer; only the request
         // is provided per call.
@@ -47,7 +91,12 @@ async function handleAuth(request: Request): Promise<Response> {
         // best-effort by contract, so it can't fail the auth response. It
         // annotates its own failure reason onto this wide event; the outcome is
         // added below.
-        const authAudit = yield* recordAuthAudit(request, response)
+        const authAudit = yield* recordAuthAudit(
+          request,
+          response,
+          runCapabilities,
+          admin
+        )
         if (authAudit !== 'skipped') {
           yield* annotateWide({ authAudit })
         }

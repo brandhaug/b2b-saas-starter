@@ -1,6 +1,7 @@
 import { Effect, Result, Schema, type Scope } from 'effect'
 import {
   AuditEventLog,
+  type AuditEventType,
   type CapabilityUnavailable,
   type RecordAuditEventInput
 } from '@b2b-saas-starter/capabilities'
@@ -118,7 +119,7 @@ function locationCarriesError(location: string | null): boolean {
 function authExchangeEventType(
   kind: AuthExchangeKind,
   success: boolean
-): string | null {
+): AuditEventType | null {
   switch (kind) {
     case 'sign_in': {
       return success ? 'auth.sign_in' : 'auth.sign_in_failed'
@@ -138,6 +139,150 @@ function authExchangeEventType(
     case 'email_verified': {
       return success ? 'auth.email_verified' : 'auth.email_verification_failed'
     }
+  }
+}
+
+/**
+ * The Better Auth admin endpoints the auth catchall audits, as a path→event
+ * table: one row per mutation endpoint, naming its success/failure event pair
+ * from the `system_admin.` taxonomy namespace. This is the shared mapper — the
+ * account-lifecycle table above and this one are both plain data, so adding a
+ * producer (the remaining auth surface) is a row here, not a new predicate.
+ *
+ * All of these are system-level: no workspace scope, target is the user the
+ * endpoint acts on (`targetId` parsed from the request body or response).
+ */
+const ADMIN_EXCHANGE_EVENTS: ReadonlyArray<{
+  readonly suffix: string
+  readonly success: AuditEventType
+  readonly failure: AuditEventType
+  /** Whether the endpoint's 2xx response carries the acted-on user as `{ user: { id } }` (create-user's body has no id to parse). */
+  readonly namesUserInResponse?: boolean
+}> = [
+  {
+    suffix: '/admin/create-user',
+    success: 'system_admin.user_created',
+    failure: 'system_admin.user_creation_failed',
+    namesUserInResponse: true
+  },
+  {
+    suffix: '/admin/remove-user',
+    success: 'system_admin.user_removed',
+    failure: 'system_admin.user_removal_failed'
+  },
+  {
+    suffix: '/admin/set-role',
+    success: 'system_admin.user_role_changed',
+    failure: 'system_admin.user_role_change_failed'
+  },
+  {
+    suffix: '/admin/ban-user',
+    success: 'system_admin.user_banned',
+    failure: 'system_admin.user_ban_failed'
+  },
+  {
+    suffix: '/admin/unban-user',
+    success: 'system_admin.user_unbanned',
+    failure: 'system_admin.user_unban_failed'
+  },
+  {
+    suffix: '/admin/set-user-password',
+    success: 'system_admin.user_password_set',
+    failure: 'system_admin.user_password_set_failed'
+  },
+  {
+    suffix: '/admin/impersonate-user',
+    success: 'system_admin.impersonation_started',
+    failure: 'system_admin.impersonation_start_failed'
+  },
+  // Stop-impersonating resolves the impersonated user from the session server
+  // side; its request names nobody, so the event targets an unknown user.
+  {
+    suffix: '/admin/stop-impersonating',
+    success: 'system_admin.impersonation_stopped',
+    failure: 'system_admin.impersonation_stop_failed'
+  },
+  {
+    suffix: '/admin/revoke-user-session',
+    success: 'system_admin.user_session_revoked',
+    failure: 'system_admin.user_session_revocation_failed'
+  },
+  {
+    suffix: '/admin/revoke-user-sessions',
+    success: 'system_admin.user_session_revoked',
+    failure: 'system_admin.user_session_revocation_failed'
+  }
+]
+
+/** Whether an auth catchall exchange is one of the audited admin mutations. */
+export function isAdminAuthExchange(exchange: {
+  readonly method: string
+  readonly pathname: string
+}): boolean {
+  return (
+    exchange.method === 'POST' &&
+    ADMIN_EXCHANGE_EVENTS.some((row) => exchange.pathname.endsWith(row.suffix))
+  )
+}
+
+function adminExchangeRow(pathname: string) {
+  return ADMIN_EXCHANGE_EVENTS.find((row) => pathname.endsWith(row.suffix)) ?? null
+}
+
+/**
+ * The request-body fields of admin endpoints this audit path reads.
+ */
+const AdminRequestBody = Schema.Struct({
+  userId: Schema.optionalKey(Schema.String)
+})
+
+const decodeAdminRequestBody = Schema.decodeUnknownSync(AdminRequestBody)
+
+/**
+ * Reads the acted-on user id off an admin request body. Mirrors
+ * `readActorUserId`: the body is an untrusted boundary value, decoded rather
+ * than asserted.
+ */
+function readTargetUserId(request: {
+  readonly json: <T>() => Promise<T>
+}): Effect.Effect<string | null, AuthAuditBodyUnreadable> {
+  return Effect.tryPromise({
+    try: async () => {
+      const body = decodeAdminRequestBody(await request.json())
+      return body.userId ?? null
+    },
+    catch: (cause) =>
+      new AuthAuditBodyUnreadable({
+        reason: causeMessage(cause, BODY_UNREADABLE_REASON)
+      })
+  })
+}
+
+/**
+ * Pure mapping for an audited admin exchange. The actor is always the acting
+ * system admin (read from the request session before the handler ran); the
+ * target is the user the endpoint acts on. Unlike the account-lifecycle
+ * events — where a failed sign-in has no trustworthy actor — the session was
+ * already resolved before Better Auth judged the request, so failures keep
+ * their actor.
+ */
+export function adminAuditInput(exchange: {
+  readonly pathname: string
+  readonly status: number
+  readonly actorUserId: string | null
+  /** `userId` off the request body, when it carried one. */
+  readonly targetUserId: string | null
+}): RecordAuditEventInput | null {
+  const row = adminExchangeRow(exchange.pathname)
+  if (row === null) return null
+  const success = exchange.status >= 200 && exchange.status < 300
+  return {
+    workspaceId: null,
+    actorUserId: exchange.actorUserId,
+    eventType: success ? row.success : row.failure,
+    targetType: 'user',
+    targetId: exchange.targetUserId,
+    metadata: { statusCode: exchange.status }
   }
 }
 
@@ -216,9 +361,24 @@ function writeAuditEvent(
 }
 
 /**
+ * Everything the admin-endpoint audit needs that only the caller can supply:
+ * the acting system admin's user id, read from the request session BEFORE the
+ * handler ran (admin responses never name their actor), and a clone of the
+ * request — Better Auth consumes the original body.
+ */
+export type AdminAuditContext = {
+  readonly actorUserId: string
+  /** A clone of the request, gathered before the handler consumed the body. Only `json()` is read. */
+  readonly request?: { readonly json: <T>() => Promise<T> }
+}
+
+/**
  * Best-effort audit recording for the auth catchall: it never fails, so a D1
  * hiccup can't fail an auth exchange that Better Auth already answered. Under
  * the Seed layer (no DB binding) `record` is a no-op by design.
+ *
+ * Pass an `AdminAuditContext` to also audit the Better Auth admin mutations
+ * (`POST /api/auth/admin/*`); without one they are skipped.
  *
  * "Best effort" applies to the auth response, not to the failure itself — an
  * audit path must never drop a failure silently. Both failure modes are
@@ -229,11 +389,17 @@ function writeAuditEvent(
 export function recordAuthAudit(
   request: Request,
   response: Response,
-  run: RunAuditCapabilities = runCapabilities
+  run: RunAuditCapabilities = runCapabilities,
+  admin?: AdminAuditContext
 ): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> {
   return Effect.gen(function* () {
     const method = request.method
     const pathname = new URL(request.url).pathname
+
+    if (admin !== undefined && isAdminAuthExchange({ method, pathname })) {
+      return yield* recordAdminAudit({ pathname, response, run, admin })
+    }
+
     const kind = authExchangeKind({ method, pathname })
     if (kind === null) return 'skipped'
 
@@ -272,4 +438,70 @@ export function recordAuthAudit(
     }
     return 'recorded'
   })
+}
+
+/**
+ * The admin half of the catchall audit: same best-effort contract, same
+ * tagged-error annotations, but the actor comes from the caller's session
+ * read (admin responses never name their actor) and the target from the
+ * request body — or, for create-user, from the response it answers with.
+ */
+function recordAdminAudit(args: {
+  readonly pathname: string
+  readonly response: Response
+  readonly run: RunAuditCapabilities
+  readonly admin: AdminAuditContext
+}): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const { pathname, response, run, admin } = args
+    if (adminExchangeRow(pathname) === null) return 'skipped'
+
+    let targetUserId: string | null = null
+    if (admin.request !== undefined) {
+      const parsed = yield* Effect.result(readTargetUserId(admin.request))
+      if (Result.isFailure(parsed)) {
+        // A request body that does not parse still records an event — just an
+        // untargeted one — with the reason on the wide event.
+        yield* annotateWide({
+          authAuditBodyError: parsed.failure.reason,
+          authAuditBodyErrorTag: parsed.failure._tag
+        })
+      } else {
+        targetUserId = parsed.success
+      }
+    }
+    if (targetUserId === null && response.ok && rowNamesUserInResponse(pathname)) {
+      const actor = yield* Effect.result(readActorUserId(response))
+      if (Result.isFailure(actor)) {
+        yield* annotateWide({
+          authAuditBodyError: actor.failure.reason,
+          authAuditBodyErrorTag: actor.failure._tag
+        })
+      } else {
+        targetUserId = actor.success
+      }
+    }
+
+    const input = adminAuditInput({
+      pathname,
+      status: response.status,
+      actorUserId: admin.actorUserId,
+      targetUserId
+    })
+    if (!input) return 'skipped'
+
+    const written = yield* Effect.result(writeAuditEvent(input, run))
+    if (Result.isFailure(written)) {
+      yield* annotateWide({
+        authAuditError: written.failure.reason,
+        authAuditErrorTag: written.failure._tag
+      })
+      return 'dropped'
+    }
+    return 'recorded'
+  })
+}
+
+function rowNamesUserInResponse(pathname: string): boolean {
+  return adminExchangeRow(pathname)?.namesUserInResponse === true
 }
