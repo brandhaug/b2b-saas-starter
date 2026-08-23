@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from 'effect'
+import { Context, DateTime, Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { count, eq } from 'drizzle-orm'
 import {
@@ -19,7 +19,11 @@ import {
   WebhookEndpoints,
   type WebhookDeliveryAttemptInput
 } from './developer-platform/webhook-endpoints.ts'
-import { AuditEventLog } from './governance/audit-event-log.ts'
+import { AUDIT_EVENT_PAGE_SIZE, AuditEventLog } from './governance/audit-event-log.ts'
+import {
+  auditEventContractDataset,
+  auditEventLogContractCases
+} from './governance/audit-event-log.contract.ts'
 import {
   WorkspaceMembership,
   type WorkspaceMemberBinding
@@ -75,15 +79,34 @@ const insertFixtureRows = Effect.gen(function* () {
       id: 'usr_accepter',
       email: 'accepter@live-invite.test',
       name: 'Accepter'
-    }
+    },
+    // Actors on the audit read-contract dataset rows (FK to `user`).
+    { id: 'usr_alice', email: 'alice@live.test', name: 'Alice' },
+    { id: 'usr_bob', email: 'bob@live.test', name: 'Bob' }
   ])
   // `workspaces` and `workspace_members` are owned by the organization plugin:
   // their timestamps default to epoch integers, and a member row carries a
   // surrogate id rather than a composite key.
   yield* db.insert(workspaces).values([
     { id: 'wrk_live', slug: 'live-lab', name: 'Live Lab' },
-    { id: 'wrk_other', slug: 'other-lab', name: 'Other Lab' }
+    { id: 'wrk_other', slug: 'other-lab', name: 'Other Lab' },
+    // Home of the audit read-contract dataset and the full-page pagination
+    // suite — isolated so their rows never leak into other suites' counts.
+    { id: 'wrk_audit', slug: 'audit-lab', name: 'Audit Lab' },
+    { id: 'wrk_audit_pages', slug: 'audit-pages-lab', name: 'Audit Pages Lab' }
   ])
+  yield* db.insert(auditEvents).values(
+    auditEventContractDataset('wrk_audit').map((row) => ({
+      id: row.id,
+      workspaceId: row.workspaceId ?? null,
+      actorUserId: row.actorUserId ?? null,
+      eventType: row.eventType,
+      targetType: row.targetType,
+      targetId: row.targetId ?? null,
+      metadata: {},
+      createdAt: row.createdAt
+    }))
+  )
   yield* db.insert(workspaceMembers).values({
     id: 'mem_live_owner',
     workspaceId: 'wrk_live',
@@ -271,7 +294,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           'live-lab',
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
-            return yield* audit.list
+            return (yield* audit.list()).events
           })
         )
         const types = events.map((event) => event.eventType)
@@ -281,6 +304,69 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           events.find((event) => event.eventType === 'api_token.created')?.actor
         ).toBe('Owner One')
       })
+    )
+  })
+
+  describe('live audit event read contract', () => {
+    const cases = auditEventLogContractCases(
+      (input) => Effect.flatMap(AuditEventLog, (log) => log.list(input)),
+      expect
+    )
+    for (const contractCase of cases) {
+      it.effect(contractCase.name, () => inWorkspace('audit-lab', contractCase.assert))
+    }
+  })
+
+  describe('live audit event keyset pagination', () => {
+    // More rows than the fixed page cap, so the first page must cut off and
+    // offer a cursor — the one shared-contract case the dataset is too small
+    // to exercise.
+    function insertPage(start: number, rowCount: number) {
+      return Effect.gen(function* () {
+        const db = yield* Database
+        const rows = Array.from({ length: rowCount }, (_, index) => ({
+          id: `aud_pg_${String(start + index).padStart(4, '0')}`,
+          workspaceId: 'wrk_audit_pages',
+          eventType: 'page.filler',
+          targetType: 'test',
+          targetId: null,
+          metadata: {},
+          // Fixed literal base, not a clock read.
+          createdAt: DateTime.formatIso(
+            DateTime.makeUnsafe(Date.UTC(2026, 5, 10, 0, index * 2))
+          )
+        }))
+        // D1 binds at most 100 parameters per statement (8 per row here).
+        for (let i = 0; i < rows.length; i += 10) {
+          yield* db.insert(auditEvents).values(rows.slice(i, i + 10))
+        }
+      })
+    }
+
+    it.effect('caps a full page and resumes from its cursor', () =>
+      Effect.flatMap(insertPage(0, AUDIT_EVENT_PAGE_SIZE + 7), () =>
+        inWorkspace(
+          'audit-pages-lab',
+          Effect.gen(function* () {
+            const audit = yield* AuditEventLog
+            const first = yield* audit.list()
+            expect(first.events).toHaveLength(AUDIT_EVENT_PAGE_SIZE)
+            if (first.nextCursor === null) {
+              throw new Error('expected a cursor on a full page')
+            }
+            const second = yield* audit.list({ cursor: first.nextCursor })
+            expect(second.events).toHaveLength(7)
+            expect(second.nextCursor).toBe(null)
+            // No overlap across the page boundary.
+            const firstIds = new Set(first.events.map((event) => event.id))
+            expect(second.events.some((event) => firstIds.has(event.id))).toBe(false)
+            // And an empty filter result offers no cursor.
+            const none = yield* audit.list({ eventType: 'no.such.event' })
+            expect(none.events).toHaveLength(0)
+            expect(none.nextCursor).toBe(null)
+          })
+        )
+      )
     )
   })
 
@@ -302,7 +388,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           'live-lab',
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
-            return yield* audit.list
+            return (yield* audit.list()).events
           })
         )
         expect(liveEvents.some((event) => event.eventType === 'isolation.check')).toBe(
@@ -312,7 +398,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           'other-lab',
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
-            return yield* audit.list
+            return (yield* audit.list()).events
           })
         )
         expect(otherEvents.some((event) => event.eventType === 'isolation.check')).toBe(
@@ -398,7 +484,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           'live-lab',
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
-            return yield* audit.list
+            return (yield* audit.list()).events
           }),
           { userId: 'usr_owner' }
         )
@@ -472,7 +558,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
         const events = yield* run(
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
-            return yield* audit.list
+            return (yield* audit.list()).events
           })
         )
         const types = events.map((event) => event.eventType)
@@ -858,7 +944,9 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
 
         const events = yield* inWorkspace(
           'live-lab',
-          Effect.flatMap(AuditEventLog, (audit) => audit.list),
+          Effect.flatMap(AuditEventLog, (audit) =>
+            Effect.map(audit.list(), (page) => page.events)
+          ),
           { userId: 'usr_owner' }
         )
         expect(events.map((event) => event.eventType)).toContain(

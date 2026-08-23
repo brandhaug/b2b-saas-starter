@@ -6,9 +6,9 @@ Append-only stream of workspace and system events for compliance, security revie
 
 ## Public surface
 
-- `AuditEvent` — `{ id, eventType, targetType, actor, createdAt }`. `actor` is the user's display name (joined from `user`) or `'system'` if `actorUserId` is null.
-- `AuditEventLog.list` — `readonly AuditEvent[]` for the current `WorkspaceContext`. Returns up to 100 most recent events for the workspace.
-- `AuditEventLog.listGlobal` — `readonly AuditEvent[]`. Top 100 across all workspaces, including `workspaceId = null` system events. Admin-only consumer.
+- `AuditEvent` — `{ id, eventType, targetType, targetId, actor, createdAt }`. `actor` is the user's display name (joined from `user`) or `'system'` if `actorUserId` is null. `targetId` is what was acted on (`string | null`).
+- `AuditEventLog.list(input?)` — a page `{ events, nextCursor }` for the current `WorkspaceContext`. `input` carries optional server-side filters: `actorUserId`, `eventType`, `since`/`until` (inclusive ISO bounds), and an opaque keyset `cursor`. Pages are exactly `AUDIT_EVENT_PAGE_SIZE` (100) events ordered by `(createdAt DESC, id DESC)`; `nextCursor` is non-null only when the cap cut rows off. An undecodable cursor addresses no position — empty page.
+- `AuditEventLog.listGlobal` — `readonly AuditEvent[]`. Top 100 across all workspaces, including `workspaceId = null` system events. Admin-only consumer. Deliberately unpaginated and unfiltered (the `/admin` upgrade is out of scope).
 - `AuditEventLog.record(input)` — append-only insert. `RecordAuditEventInput` is `{ workspaceId?, actorUserId?, eventType, targetType, targetId?, metadata? }`. `eventType` and `targetType` are free-form strings on the wire; producers should namespace (`api_token.created`, `api_token.revoked`, `workspace_member.role_changed` — there is deliberately no per-request `api_token.used`; see the API-token registry node). The Seed layer is a no-op so tests can assert call-site invocation without a fixture.
 - `AuditEventLog.prepareRecord(input)` — resolves the audit insert statement (this capability still owns id + timestamp) **without executing it**, so mutating capabilities can `yield*` it and run `batch(db, [mutation, auditInsert])` from `@b2b-saas-starter/db` for an atomic D1 write. It is an effect because id and `createdAt` come from `Clock`. The Seed layer returns an inert `select 1` statement.
 
@@ -16,7 +16,9 @@ Append-only stream of workspace and system events for compliance, security revie
 
 - Table: `auditEvents` (see [`@b2b-saas-starter/db`](../../../db/AGENTS.md)).
 - Joins to `user` on `actorUserId` to resolve the display name. Left join — `auditUser?.name ?? 'system'` is the fallback.
-- 100-row cap is hardcoded in the Live layer. Increase carefully — this is also what bounds the admin UI's payload.
+- 100-row cap is fixed (`AUDIT_EVENT_PAGE_SIZE`), paired with keyset pagination on `(createdAt DESC, id DESC)` — the cap is the page size, not a silent truncation. Don't widen it without revisiting this contract. `listGlobal` keeps its plain top-100 shape.
+- The read contract (filters + keyset pagination) is written once in `audit-event-log.contract.ts` and run against both adapters — Seed filters its enriched `SeedAuditEventRow`s in memory, Live pushes everything into SQL. Full-page pagination is covered Live-side only (needs > cap rows).
+- Follow-up: no compound index on `(workspaceId, createdAt DESC, id DESC)` yet; `audit_events_workspace_created_at_idx` answers both query shapes at starter scale. Revisit if a workspace's event volume makes keyset pages scan.
 - `record()`/`prepareRecord()` mint IDs via the shared `newCapabilityId('aud')` helper (`aud_${Clock millis}_${8-byte hex}`). If you migrate to a domain ULID/cuid, update `internal/ids.ts` and any callers asserting on the ID shape.
 
 ## Status & follow-ups

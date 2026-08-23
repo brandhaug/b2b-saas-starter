@@ -295,7 +295,9 @@ export function workspaceGroup(env: ApiEnv) {
             { auditLog: ['read'] },
             params.slug,
             request,
-            Effect.flatMap(AuditEventLog, (log) => log.list)
+            Effect.flatMap(AuditEventLog, (log) =>
+              Effect.map(log.list(), (page) => page.events)
+            )
           )
         )
     )

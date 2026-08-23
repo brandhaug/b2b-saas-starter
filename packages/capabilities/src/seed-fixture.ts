@@ -1,5 +1,5 @@
 import { type ApiToken } from './developer-platform/api-token-registry.ts'
-import { type AuditEvent } from './governance/audit-event-log.ts'
+import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type Notification } from './notifications/notification-feed.ts'
 import { type WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
@@ -88,19 +88,23 @@ export const seedWebhookEndpoints: readonly WebhookEndpoint[] = [
   }
 ]
 
-export const seedAuditEvents: readonly AuditEvent[] = [
+export const seedAuditEvents: readonly SeedAuditEventRow[] = [
   {
     id: 'aud_admin',
     eventType: 'system_admin.user_role_changed',
     targetType: 'user',
+    targetId: 'usr_dev',
     actor: 'Martin Brandhaug',
+    actorUserId: 'usr_martin',
     createdAt: '2026-05-15T12:10:00.000Z'
   },
   {
     id: 'aud_token',
     eventType: 'api_token.created',
     targetType: 'api_token',
+    targetId: 'tok_ops',
     actor: 'Ops Lead',
+    actorUserId: 'usr_ops',
     createdAt: '2026-05-14T08:20:00.000Z'
   }
 ]
