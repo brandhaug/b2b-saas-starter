@@ -5,6 +5,7 @@ import {
   BellIcon,
   BoxesIcon,
   HistoryIcon,
+  KeyRoundIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   MenuIcon,
@@ -51,6 +52,7 @@ export function WorkspaceShell({
   unreadCount,
   workspaceSlug,
   canReadAuditLog = false,
+  canReadApiTokens = false,
   signOut = signOutWithAuthClient
 }: {
   readonly children: ReactNode
@@ -74,6 +76,13 @@ export function WorkspaceShell({
    * direct URL meets instead.
    */
   readonly canReadAuditLog?: boolean
+  /**
+   * Whether the viewer may list API tokens — computed by the page from its
+   * payload's role via `viewerCan`, never by comparing role names here. A
+   * member gets no API-tokens nav entry at all; the loader's hard gate is what
+   * a direct URL meets instead.
+   */
+  readonly canReadApiTokens?: boolean
   readonly signOut?: SignOut
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -86,7 +95,11 @@ export function WorkspaceShell({
         Skip to content
       </a>
       <aside className="hidden border-r border-border p-4 lg:block">
-        <WorkspaceNav workspaceSlug={workspaceSlug} canReadAuditLog={canReadAuditLog} />
+        <WorkspaceNav
+          workspaceSlug={workspaceSlug}
+          canReadAuditLog={canReadAuditLog}
+          canReadApiTokens={canReadApiTokens}
+        />
       </aside>
       <div className="min-w-0">
         <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
@@ -110,6 +123,7 @@ export function WorkspaceShell({
                 <WorkspaceNav
                   workspaceSlug={workspaceSlug}
                   canReadAuditLog={canReadAuditLog}
+                  canReadApiTokens={canReadApiTokens}
                   onNavigate={() => setMobileNavOpen(false)}
                 />
               </div>
@@ -182,10 +196,12 @@ function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
 function WorkspaceNav({
   workspaceSlug,
   canReadAuditLog,
+  canReadApiTokens,
   onNavigate
 }: {
   readonly workspaceSlug: string | null
   readonly canReadAuditLog: boolean
+  readonly canReadApiTokens: boolean
   readonly onNavigate?: (() => void) | undefined
 }) {
   return (
@@ -224,6 +240,15 @@ function WorkspaceNav({
               icon={<SettingsIcon className="size-4" />}
               onNavigate={onNavigate}
             />
+            {canReadApiTokens ? (
+              <NavLink
+                to="/workspaces/$workspaceSlug/api-tokens"
+                workspaceSlug={workspaceSlug}
+                label="API tokens"
+                icon={<KeyRoundIcon className="size-4" />}
+                onNavigate={onNavigate}
+              />
+            ) : null}
             {canReadAuditLog ? (
               <NavLink
                 to="/workspaces/$workspaceSlug/audit"
@@ -257,6 +282,7 @@ function NavLink({
 }: {
   readonly to:
     | '/workspaces/$workspaceSlug'
+    | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/audit'

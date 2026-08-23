@@ -10,7 +10,7 @@ API Tokens are the credential type for REST and MCP. They belong to a Workspace,
 
 ## Creation
 
-A workspace admin creates a token from the workspace settings UI, which calls `POST /workspaces/:slug/api-tokens` on the API Worker (scope `admin`). The token's plaintext value is shown exactly once at creation — `randomToken()` in `packages/capabilities/src/developer-platform/api-token-registry.ts` returns a `bsk_live_<48-hex>` value; D1 stores only the SHA-256 `tokenHash` and a 17-character `tokenPrefix` for display. `ApiTokenRegistry.create` requires `WorkspaceContext` (supplied by the route layer from the URL slug) and writes an `api_token.created` Audit Event through `AuditEventLog.record`.
+A workspace admin creates a token from the API tokens page (`/workspaces/:slug/api-tokens`, gated on `apiToken:create`; the settings page links to it). The web app calls `ApiTokenRegistry.create` directly through a server function — the API Worker's `POST /workspaces/:slug/api-tokens` is the same capability's external surface for programmatic callers. The token's plaintext value is shown exactly once at creation — `randomToken()` in `packages/capabilities/src/developer-platform/api-token-registry.ts` returns a `bsk_live_<48-hex>` value; D1 stores only the SHA-256 `tokenHash` and a 17-character `tokenPrefix` for display. `ApiTokenRegistry.create` requires `WorkspaceContext` (supplied by the route layer from the URL slug) and writes an `api_token.created` Audit Event through `AuditEventLog.record`.
 
 ## Scopes
 
@@ -20,7 +20,7 @@ The API Worker's `enforcePermission(request, permission)` guard (`apps/api/src/h
 
 ## Revocation
 
-Revocation is immediate. `ApiTokenRegistry.revoke` stamps `revokedAt` on the row and `verifyBearerToken` filters `isNull(revokedAt)` — subsequent requests get HTTP 401, the same answer as any unknown token. Revocation also writes an `api_token.revoked` Audit Event via `AuditEventLog.record`; user-facing Notification emission on revocation is not yet wired.
+Revocation is immediate, from the API tokens page (`apiToken:revoke`) or the external endpoint. `ApiTokenRegistry.revoke` stamps `revokedAt` on the row and `verifyBearerToken` filters `isNull(revokedAt)` — subsequent requests get HTTP 401, the same answer as any unknown token. Revocation also writes an `api_token.revoked` Audit Event via `AuditEventLog.record`; user-facing Notification emission on revocation is not yet wired.
 
 ## What tokens are not
 
