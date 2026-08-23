@@ -44,6 +44,12 @@ import {
   type WorkspaceLifecycle,
   type WorkspaceLifecycleBinding
 } from './governance/workspace-lifecycle.ts'
+import {
+  LivePlatformUserAdmin,
+  SeedPlatformUserAdmin,
+  type PlatformUserAdmin,
+  type PlatformUserAdminBinding
+} from './governance/platform-user-admin.ts'
 
 // notifications
 import {
@@ -57,6 +63,8 @@ import {
   seedAuditEvents,
   seedMembers,
   seedNotifications,
+  seedSystemUsers,
+  seedUserAdminMemberships,
   seedWebhookEndpoints,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
@@ -65,6 +73,7 @@ export type CapabilityServices =
   | ApiTokenRegistry
   | AuditEventLog
   | NotificationFeed
+  | PlatformUserAdmin
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceInvitations
@@ -96,7 +105,8 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedNotificationFeed(seedNotifications),
   SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
-  SeedGovernance
+  SeedGovernance,
+  SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships)
 )
 
 export type LiveCapabilitiesOptions = {
@@ -121,6 +131,12 @@ export type LiveCapabilitiesOptions = {
    * `CapabilityUnavailable`.
    */
   readonly lifecycleBinding?: WorkspaceLifecycleBinding | undefined
+  /**
+   * Adapter onto the admin plugin's user endpoints plus one organization-plugin
+   * member call. Absent, `/admin` reads work and its mutations fail
+   * `CapabilityUnavailable`.
+   */
+  readonly userAdminBinding?: PlatformUserAdminBinding | undefined
 }
 
 export function makeLiveCapabilitiesLayer(
@@ -139,6 +155,9 @@ export function makeLiveCapabilitiesLayer(
       Layer.provide(LiveAuditEventLog)
     ),
     LiveWorkspaceLifecycle(options.lifecycleBinding).pipe(
+      Layer.provide(LiveAuditEventLog)
+    ),
+    LivePlatformUserAdmin(options.userAdminBinding).pipe(
       Layer.provide(LiveAuditEventLog)
     )
   )

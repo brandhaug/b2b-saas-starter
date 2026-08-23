@@ -35,7 +35,7 @@ export { CapabilityUnavailableError, ForbiddenError }
  */
 export type CapabilityBindings = Pick<
   StarterEnv,
-  'memberBinding' | 'invitationBinding' | 'lifecycleBinding'
+  'memberBinding' | 'invitationBinding' | 'lifecycleBinding' | 'userAdminBinding'
 >
 
 // Real Worker bindings (same import as `server-context.ts`). In production the

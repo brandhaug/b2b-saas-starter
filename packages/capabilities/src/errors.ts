@@ -40,6 +40,19 @@ export class MembershipChangeRejected extends Schema.TaggedErrorClass<Membership
  * because the two fail for different reasons and callers word their errors
  * accordingly.
  */
+/**
+ * A platform-user change the system refuses: an unknown user id, a role the
+ * plugin will not accept on that member. Same reading as
+ * `MembershipChangeRejected` — the request was answerable and the answer is no
+ * — but it names a user account at system level (`/admin`) rather than one of a
+ * workspace's members.
+ */
+export class UserAdminRejected extends Schema.TaggedErrorClass<UserAdminRejected>()(
+  'UserAdminRejected',
+  { reason: Schema.String },
+  { httpApiStatus: 409 }
+) {}
+
 export class WorkspaceChangeRejected extends Schema.TaggedErrorClass<WorkspaceChangeRejected>()(
   'WorkspaceChangeRejected',
   { reason: Schema.String },

@@ -31,6 +31,8 @@ import {
   type WorkspaceMemberBinding
 } from './governance/workspace-membership.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
+import { type PlatformUserAdminBinding } from './governance/platform-user-admin.ts'
+import { platformUserAdminContractCases } from './governance/platform-user-admin.contract.ts'
 import {
   WorkspaceLifecycle,
   type WorkspaceLifecycleBinding
@@ -115,6 +117,19 @@ const insertFixtureRows = Effect.gen(function* () {
     userId: 'usr_owner',
     role: 'owner'
   })
+  // Home of the platform-user-admin contract: an isolated workspace where
+  // `usr_owner` holds a membership the role-change case mutates.
+  yield* db.insert(workspaces).values({
+    id: 'wrk_user_admin_contract',
+    slug: 'user-admin-contract',
+    name: 'User Admin Contract'
+  })
+  yield* db.insert(workspaceMembers).values({
+    id: 'mem_uac_owner',
+    workspaceId: 'wrk_user_admin_contract',
+    userId: 'usr_owner',
+    role: 'member'
+  })
   // Already past its expiry when the suite starts: the invitation contract
   // needs one, and no case can age an invitation from inside the interface.
   yield* db.insert(workspaceInvitations).values({
@@ -181,6 +196,7 @@ function inWorkspace<A, E>(
     readonly memberBinding?: WorkspaceMemberBinding
     readonly invitationBinding?: WorkspaceInvitationBinding
     readonly lifecycleBinding?: WorkspaceLifecycleBinding
+    readonly userAdminBinding?: PlatformUserAdminBinding
   }
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database> {
   return Effect.provide(
@@ -189,7 +205,8 @@ function inWorkspace<A, E>(
       makeLiveCapabilitiesLayer({
         memberBinding: bindings?.memberBinding,
         invitationBinding: bindings?.invitationBinding,
-        lifecycleBinding: bindings?.lifecycleBinding
+        lifecycleBinding: bindings?.lifecycleBinding,
+        userAdminBinding: bindings?.userAdminBinding
       }),
       liveWorkspaceContext(slug, actor)
     )
@@ -629,6 +646,60 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
             contractCase.assert,
             { userId: 'usr_owner' },
             { memberBinding: binding }
+          )
+        })
+      )
+    }
+  })
+
+  // A stand-in for the admin plugin's user endpoints, on the same terms as
+  // `fakeMemberBinding`: the capability's half of the contract only.
+  function fakeUserAdminBinding(db: EffectDatabase): PlatformUserAdminBinding {
+    return {
+      banUser: (input) =>
+        Effect.runPromise(
+          Effect.asVoid(
+            db.update(user).set({ banned: true }).where(eq(user.id, input.userId))
+          )
+        ),
+      unbanUser: (input) =>
+        Effect.runPromise(
+          Effect.asVoid(
+            db.update(user).set({ banned: false }).where(eq(user.id, input.userId))
+          )
+        ),
+      setMemberRole: (input) =>
+        Effect.runPromise(
+          Effect.asVoid(
+            db
+              .update(workspaceMembers)
+              .set({ role: input.role })
+              .where(eq(workspaceMembers.id, input.memberId))
+          )
+        )
+    }
+  }
+
+  // The Seed half of this same list runs in index.test.ts.
+  describe('live platform user admin contract', () => {
+    for (const contractCase of platformUserAdminContractCases(
+      {
+        existing: 'usr_owner',
+        outsider: 'usr_outsider',
+        unknown: 'usr_nobody',
+        workspaceId: 'wrk_user_admin_contract'
+      },
+      expect
+    )) {
+      it.effect(contractCase.name, () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          const binding = fakeUserAdminBinding(db)
+          yield* inWorkspace(
+            'live-lab',
+            contractCase.assert,
+            { userId: 'usr_owner' },
+            { userAdminBinding: binding }
           )
         })
       )
