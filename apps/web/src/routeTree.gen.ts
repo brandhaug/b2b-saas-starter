@@ -33,6 +33,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as DocsCategorySlugRouteImport } from './routes/docs.$category.$slug'
 import { Route as WorkspacesWorkspaceSlugIndexRouteImport } from './routes/workspaces.$workspaceSlug.index'
 import { Route as WorkspacesWorkspaceSlugAuditRouteImport } from './routes/workspaces.$workspaceSlug.audit'
+import { Route as WorkspacesWorkspaceSlugMembersRouteImport } from './routes/workspaces.$workspaceSlug.members'
 import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/workspaces.$workspaceSlug.settings'
 
 const IndexRoute = IndexRouteImport.update({
@@ -157,6 +158,12 @@ const WorkspacesWorkspaceSlugAuditRoute =
     path: '/$workspaceSlug/audit',
     getParentRoute: () => WorkspacesRoute,
   } as any)
+const WorkspacesWorkspaceSlugMembersRoute =
+  WorkspacesWorkspaceSlugMembersRouteImport.update({
+    id: '/$workspaceSlug/members',
+    path: '/$workspaceSlug/members',
+    getParentRoute: () => WorkspacesRoute,
+  } as any)
 const WorkspacesWorkspaceSlugSettingsRoute =
   WorkspacesWorkspaceSlugSettingsRouteImport.update({
     id: '/$workspaceSlug/settings',
@@ -188,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+  '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
 }
@@ -213,6 +221,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+  '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugIndexRoute
 }
@@ -241,6 +250,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+  '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
 }
@@ -270,6 +280,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/audit'
+    | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/'
   fileRoutesByTo: FileRoutesByTo
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/audit'
+    | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug'
   id:
@@ -322,6 +334,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/audit'
+    | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/'
   fileRoutesById: FileRoutesById
@@ -518,6 +531,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWorkspaceSlugAuditRouteImport
       parentRoute: typeof WorkspacesRoute
     }
+    '/workspaces/$workspaceSlug/members': {
+      id: '/workspaces/$workspaceSlug/members'
+      path: '/$workspaceSlug/members'
+      fullPath: '/workspaces/$workspaceSlug/members'
+      preLoaderRoute: typeof WorkspacesWorkspaceSlugMembersRouteImport
+      parentRoute: typeof WorkspacesRoute
+    }
     '/workspaces/$workspaceSlug/settings': {
       id: '/workspaces/$workspaceSlug/settings'
       path: '/$workspaceSlug/settings'
@@ -543,6 +563,7 @@ const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 interface WorkspacesRouteChildren {
   WorkspacesIndexRoute: typeof WorkspacesIndexRoute
   WorkspacesWorkspaceSlugAuditRoute: typeof WorkspacesWorkspaceSlugAuditRoute
+  WorkspacesWorkspaceSlugMembersRoute: typeof WorkspacesWorkspaceSlugMembersRoute
   WorkspacesWorkspaceSlugSettingsRoute: typeof WorkspacesWorkspaceSlugSettingsRoute
   WorkspacesWorkspaceSlugIndexRoute: typeof WorkspacesWorkspaceSlugIndexRoute
 }
@@ -550,6 +571,7 @@ interface WorkspacesRouteChildren {
 const WorkspacesRouteChildren: WorkspacesRouteChildren = {
   WorkspacesIndexRoute: WorkspacesIndexRoute,
   WorkspacesWorkspaceSlugAuditRoute: WorkspacesWorkspaceSlugAuditRoute,
+  WorkspacesWorkspaceSlugMembersRoute: WorkspacesWorkspaceSlugMembersRoute,
   WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
   WorkspacesWorkspaceSlugIndexRoute: WorkspacesWorkspaceSlugIndexRoute,
 }

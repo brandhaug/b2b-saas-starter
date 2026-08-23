@@ -9,7 +9,8 @@ import {
   LogOutIcon,
   MenuIcon,
   SettingsIcon,
-  ShieldIcon
+  ShieldIcon,
+  UsersIcon
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Badge } from '@/components/ui/badge'
@@ -210,6 +211,13 @@ function WorkspaceNav({
               onNavigate={onNavigate}
             />
             <NavLink
+              to="/workspaces/$workspaceSlug/members"
+              workspaceSlug={workspaceSlug}
+              label="Members"
+              icon={<UsersIcon className="size-4" />}
+              onNavigate={onNavigate}
+            />
+            <NavLink
               to="/workspaces/$workspaceSlug/settings"
               workspaceSlug={workspaceSlug}
               label="Settings"
@@ -249,6 +257,7 @@ function NavLink({
 }: {
   readonly to:
     | '/workspaces/$workspaceSlug'
+    | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/audit'
   readonly workspaceSlug: string

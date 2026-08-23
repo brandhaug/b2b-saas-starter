@@ -2,8 +2,15 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 30_000,
+  // 90s, not 30s: specs run in parallel workers, and the first ones to open
+  // /sign-in pay Vite's full cold-transform bill — much heavier since React
+  // Compiler joined the dev pipeline (#135). On a cold CI runner that bill
+  // alone ate the old 30s budget before hydration could finish.
+  timeout: 90_000,
   expect: { timeout: 5000 },
+  // One retry in CI: the remaining variance is dev-server warm-up, not app
+  // behaviour, and a rerun lands on an already-warm transform cache.
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: 'http://localhost:3071',
     trace: 'on-first-retry'
