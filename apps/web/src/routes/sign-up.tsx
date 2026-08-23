@@ -3,9 +3,10 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Schema } from 'effect'
 import { UserPlusIcon } from 'lucide-react'
+import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
+import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
 import { PublicLayout } from '@/components/public-layout'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
@@ -148,16 +149,7 @@ export function SignUpPage({
                 )}
               </form.Field>
 
-              <form.Field
-                name="email"
-                validators={{
-                  onChange: ({ value }) => {
-                    if (value.length === 0) return 'Email is required'
-                    if (!value.includes('@')) return 'Enter a valid email'
-                    return
-                  }
-                }}
-              >
+              <form.Field name="email" validators={{ onChange: emailValidator }}>
                 {(field) => (
                   <FormTextField
                     name={field.name}
@@ -174,15 +166,7 @@ export function SignUpPage({
                 )}
               </form.Field>
 
-              <form.Field
-                name="password"
-                validators={{
-                  onChange: ({ value }) =>
-                    value.length < 8
-                      ? 'Password must be at least 8 characters'
-                      : undefined
-                }}
-              >
+              <form.Field name="password" validators={{ onChange: passwordValidator }}>
                 {(field) => (
                   <FormTextField
                     name={field.name}
@@ -198,19 +182,12 @@ export function SignUpPage({
                 )}
               </form.Field>
 
-              <form.Subscribe
-                selector={(state): readonly [boolean, boolean] => [
-                  state.canSubmit,
-                  state.isSubmitting
-                ]}
-              >
-                {([canSubmit, isSubmitting]) => (
-                  <Button type="submit" disabled={!canSubmit}>
-                    <UserPlusIcon className="size-4" />
-                    {isSubmitting ? 'Creating account…' : 'Create account'}
-                  </Button>
-                )}
-              </form.Subscribe>
+              <AuthSubmitButton
+                form={form}
+                icon={<UserPlusIcon className="size-4" />}
+                label="Create account"
+                submittingLabel="Creating account…"
+              />
 
               {submitError ? (
                 <p className="text-xs text-destructive" role="alert">

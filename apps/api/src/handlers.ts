@@ -308,6 +308,41 @@ export function workspaceGroup(env: ApiEnv) {
 }
 
 export function apiTokenGroup(env: ApiEnv) {
+  // `revoke` and `delete` are the same operation on this registry — the schema
+  // keeps both routes for REST-shape compatibility, and both answer
+  // identically. Only the wide-event name distinguishes them.
+  function revokeOrDelete(
+    event: 'api-tokens.revoke' | 'api-tokens.delete',
+    params: { readonly slug: string; readonly tokenId: string },
+    request: HttpServerRequest.HttpServerRequest
+  ) {
+    return observed(
+      env,
+      request,
+      event,
+      { workspaceSlug: params.slug },
+      Effect.gen(function* () {
+        yield* enforceRateLimit(request, 'rest_write')
+        yield* enforcePermission(request, { apiToken: ['revoke'] }, params.slug)
+        yield* provideWorkspace(
+          env,
+          params.slug,
+          Effect.gen(function* () {
+            const tokens = yield* ApiTokenRegistry
+            const revoked = yield* tokens.revoke({ tokenId: params.tokenId })
+            if (revoked) {
+              yield* publishWebhookEvent({
+                eventType: 'api_token.revoked',
+                payload: { tokenId: params.tokenId }
+              })
+            }
+          })
+        )
+        return TOKEN_REVOKED
+      })
+    )
+  }
+
   return HttpApiBuilder.group(StarterApi, 'api-token-registry', (handlers) =>
     handlers
       .handle('create', ({ params, payload, request }) =>
@@ -347,58 +382,10 @@ export function apiTokenGroup(env: ApiEnv) {
         )
       )
       .handle('revoke', ({ params, request }) =>
-        observed(
-          env,
-          request,
-          'api-tokens.revoke',
-          { workspaceSlug: params.slug },
-          Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_write')
-            yield* enforcePermission(request, { apiToken: ['revoke'] }, params.slug)
-            yield* provideWorkspace(
-              env,
-              params.slug,
-              Effect.gen(function* () {
-                const tokens = yield* ApiTokenRegistry
-                const revoked = yield* tokens.revoke({ tokenId: params.tokenId })
-                if (revoked) {
-                  yield* publishWebhookEvent({
-                    eventType: 'api_token.revoked',
-                    payload: { tokenId: params.tokenId }
-                  })
-                }
-              })
-            )
-            return TOKEN_REVOKED
-          })
-        )
+        revokeOrDelete('api-tokens.revoke', params, request)
       )
       .handle('delete', ({ params, request }) =>
-        observed(
-          env,
-          request,
-          'api-tokens.delete',
-          { workspaceSlug: params.slug },
-          Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_write')
-            yield* enforcePermission(request, { apiToken: ['revoke'] }, params.slug)
-            yield* provideWorkspace(
-              env,
-              params.slug,
-              Effect.gen(function* () {
-                const tokens = yield* ApiTokenRegistry
-                const revoked = yield* tokens.revoke({ tokenId: params.tokenId })
-                if (revoked) {
-                  yield* publishWebhookEvent({
-                    eventType: 'api_token.revoked',
-                    payload: { tokenId: params.tokenId }
-                  })
-                }
-              })
-            )
-            return TOKEN_REVOKED
-          })
-        )
+        revokeOrDelete('api-tokens.delete', params, request)
       )
   )
 }

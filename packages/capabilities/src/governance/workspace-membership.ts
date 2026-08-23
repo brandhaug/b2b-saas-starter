@@ -2,12 +2,13 @@ import { Database } from '@b2b-saas-starter/db/src/service.ts'
 import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
-import { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
-import { readPluginBindingFailure } from './plugin-binding-failure.ts'
+import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
+  fabricateSeedMember,
   findWorkspaceMember,
   Member,
   toMember,
@@ -132,13 +133,7 @@ export function SeedWorkspaceMembership(
       Effect.gen(function* () {
         // No `user` table to join, so the fixture fabricates the identity
         // fields the way `SeedApiTokenRegistry.create` fabricates a token.
-        const added: Member = {
-          id: input.userId,
-          name: input.userId,
-          email: `${input.userId}@seed.local`,
-          role: input.role,
-          systemRole: 'user'
-        }
+        const added = fabricateSeedMember(input.userId, input.role)
         yield* Ref.update(roster, (current) => [...current, added])
         return added
       }),
@@ -178,7 +173,7 @@ export function SeedWorkspaceMembership(
  *
  * Promise-returning on purpose: an Effect-shaped port would have to name the
  * plugin's error type, which is exactly the leak this avoids. Rejections are
- * classified by `classifyBindingFailure` below.
+ * classified by `makeBindingCaller`'s `callBinding`.
  *
  * Resolving to `void`, not to the plugin's response: the capability re-reads the
  * member from D1 after every call, because the plugin's own response shape is
@@ -201,30 +196,14 @@ export type WorkspaceMemberBinding = {
   }) => Promise<void>
 }
 
-const noBinding = new CapabilityUnavailable({
+const { callBinding } = makeBindingCaller<
+  WorkspaceMemberBinding,
+  MembershipChangeRejected
+>({
   capability: 'workspace-membership',
-  reason: 'no_member_binding'
+  noBindingReason: 'no_member_binding',
+  Rejected: MembershipChangeRejected
 })
-
-/**
- * A refusal from the plugin means the workspace declined the change — an
- * unknown user, a role it will not accept. Anything else (a dropped connection,
- * a thrown TypeError) is the store failing, which is what
- * `CapabilityUnavailable` means. `readPluginBindingFailure` owns that reading;
- * `workspace-invitations.ts` classifies its own binding through the same call.
- */
-function classifyBindingFailure(
-  cause: unknown
-): CapabilityUnavailable | MembershipChangeRejected {
-  const failure = readPluginBindingFailure(cause)
-  if (failure.refusedByWorkspace) {
-    return new MembershipChangeRejected({ reason: failure.reason })
-  }
-  return new CapabilityUnavailable({
-    capability: 'workspace-membership',
-    reason: failure.reason
-  })
-}
 
 export function LiveWorkspaceMembership(
   binding?: WorkspaceMemberBinding
@@ -280,16 +259,6 @@ export function LiveWorkspaceMembership(
         return member
       })
 
-      const callBinding = Effect.fnUntraced(function* (
-        call: (bound: WorkspaceMemberBinding) => Promise<void>
-      ) {
-        if (!binding) return yield* Effect.fail(noBinding)
-        return yield* Effect.tryPromise({
-          try: () => call(binding),
-          catch: classifyBindingFailure
-        })
-      })
-
       return {
         listMembers: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
@@ -326,7 +295,7 @@ export function LiveWorkspaceMembership(
         addMember: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
-            yield* callBinding((bound) =>
+            yield* callBinding(binding, (bound) =>
               bound.addMember({
                 workspaceId: ctx.workspace.id,
                 userId: input.userId,
@@ -352,7 +321,7 @@ export function LiveWorkspaceMembership(
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
             const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
-            yield* callBinding((bound) =>
+            yield* callBinding(binding, (bound) =>
               bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
             )
             yield* audit.record({
@@ -367,7 +336,7 @@ export function LiveWorkspaceMembership(
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
             const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
-            yield* callBinding((bound) =>
+            yield* callBinding(binding, (bound) =>
               bound.changeRole({
                 workspaceId: ctx.workspace.id,
                 memberId,

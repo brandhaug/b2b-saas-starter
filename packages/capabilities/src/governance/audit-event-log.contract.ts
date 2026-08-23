@@ -1,4 +1,5 @@
 import { Effect, Encoding } from 'effect'
+import { type ContractExpectMatchers } from './contract-expect.ts'
 import { type CapabilityUnavailable } from '../errors.ts'
 import {
   type AuditEventLog,
@@ -30,11 +31,9 @@ export type AuditEventLogContractCase = {
 }
 
 /** The slice of vitest's `expect` these cases use — see the lifecycle contract. */
-export type ContractExpect = <A>(actual: A) => {
-  readonly toBe: (expected: A) => void
-  readonly toEqual: (expected: A) => void
-  readonly toHaveLength: (expected: number) => void
-}
+export type ContractExpect = <A>(
+  actual: A
+) => Pick<ContractExpectMatchers<A>, 'toBe' | 'toEqual' | 'toHaveLength'>
 
 /**
  * The dataset every adapter installs before running the cases, all attributed

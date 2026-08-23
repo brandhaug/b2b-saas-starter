@@ -1,4 +1,6 @@
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
+
+import { CapabilityUnavailable } from '../errors.ts'
 
 /**
  * The only shape this starter reads off a rejected Better Auth plugin call.
@@ -44,4 +46,49 @@ export function readPluginBindingFailure(cause: unknown): PluginBindingFailure {
     refusedByWorkspace: statusCode >= 400 && statusCode < 500,
     reason: reasonOf(cause)
   }
+}
+
+/**
+ * The shared shape of the governance Live adapters' plugin calls, built once
+ * per capability: the "no binding wired" error and a `callBinding` wrapper
+ * that classifies rejections through `readPluginBindingFailure`. A 4xx means
+ * the workspace declined the change on its merits — the caller's `Rejected`
+ * error — while anything else is the store failing (`CapabilityUnavailable`).
+ */
+export function makeBindingCaller<Binding, RejectedError>(options: {
+  readonly capability: string
+  readonly noBindingReason: string
+  readonly Rejected: new (args: { reason: string }) => RejectedError
+}) {
+  const noBinding = new CapabilityUnavailable({
+    capability: options.capability,
+    reason: options.noBindingReason
+  })
+
+  function classifyBindingFailure(
+    cause: unknown
+  ): CapabilityUnavailable | RejectedError {
+    const failure = readPluginBindingFailure(cause)
+    if (failure.refusedByWorkspace) {
+      return new options.Rejected({ reason: failure.reason })
+    }
+    return new CapabilityUnavailable({
+      capability: options.capability,
+      reason: failure.reason
+    })
+  }
+
+  /** Fails with `noBinding` when unset, else runs the call through the classifier. */
+  function callBinding(
+    binding: Binding | undefined,
+    call: (bound: Binding) => Promise<void>
+  ) {
+    if (!binding) return Effect.fail(noBinding)
+    return Effect.tryPromise({
+      try: () => call(binding),
+      catch: classifyBindingFailure
+    })
+  }
+
+  return { noBinding, callBinding }
 }

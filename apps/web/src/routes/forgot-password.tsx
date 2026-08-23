@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { MailQuestionIcon } from 'lucide-react'
+import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
+import { emailValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
 import { PublicLayout } from '@/components/public-layout'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
@@ -96,16 +97,7 @@ export function ForgotPasswordPage({
                 }}
                 className="grid gap-4"
               >
-                <form.Field
-                  name="email"
-                  validators={{
-                    onChange: ({ value }) => {
-                      if (value.length === 0) return 'Email is required'
-                      if (!value.includes('@')) return 'Enter a valid email'
-                      return
-                    }
-                  }}
-                >
+                <form.Field name="email" validators={{ onChange: emailValidator }}>
                   {(field) => (
                     <FormTextField
                       name={field.name}
@@ -122,19 +114,12 @@ export function ForgotPasswordPage({
                   )}
                 </form.Field>
 
-                <form.Subscribe
-                  selector={(state): readonly [boolean, boolean] => [
-                    state.canSubmit,
-                    state.isSubmitting
-                  ]}
-                >
-                  {([canSubmit, isSubmitting]) => (
-                    <Button type="submit" disabled={!canSubmit}>
-                      <MailQuestionIcon className="size-4" />
-                      {isSubmitting ? 'Sending…' : 'Send reset link'}
-                    </Button>
-                  )}
-                </form.Subscribe>
+                <AuthSubmitButton
+                  form={form}
+                  icon={<MailQuestionIcon className="size-4" />}
+                  label="Send reset link"
+                  submittingLabel="Sending…"
+                />
 
                 {submitError ? (
                   <p className="text-xs text-destructive" role="alert">

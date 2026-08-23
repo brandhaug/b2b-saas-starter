@@ -10,7 +10,7 @@ import {
   type WorkspaceDashboardProjection
 } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 import { Effect, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
@@ -24,7 +24,7 @@ import { requireWorkspacePermission, whenPermitted } from './authorize'
  * the app rather than in `@b2b-saas-starter/capabilities`.
  */
 export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
-  readonly viewer: { readonly role: WorkspaceRole } | null
+  readonly viewer: WorkspaceViewer | null
   readonly webhooks: readonly WebhookEndpoint[] | null
 }
 

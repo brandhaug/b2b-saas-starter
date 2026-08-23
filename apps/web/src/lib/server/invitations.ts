@@ -14,13 +14,13 @@ import {
   type CapabilityUnavailable,
   type MembershipChangeRejected
 } from '@b2b-saas-starter/capabilities/src/errors.ts'
-import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
+import { EmailDispatcher } from '@b2b-saas-starter/email'
 import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/src/templates.tsx'
-import { env as cloudflareEnv } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Option, Result, Schema, type Scope } from 'effect'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { currentRequest } from '../request-context'
+import { emailDispatcherLayer } from './auth-emails'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { webInvitationBinding } from './invitation-binding'
@@ -70,19 +70,6 @@ const AcceptInvitationInput = Schema.Struct({
 const decodeSend = Schema.decodeUnknownSync(SendInvitationInput)
 const decodeCancel = Schema.decodeUnknownSync(CancelInvitationInput)
 const decodeAccept = Schema.decodeUnknownSync(AcceptInvitationInput)
-
-/**
- * Provider-light by the same selector the API worker used to use: with no
- * `EMAIL` binding configured this is the logging dispatcher, so the invite flow
- * works end to end locally and in tests without an email provider (CLAUDE.md
- * rule 3).
- */
-function emailDispatcherLayer() {
-  return selectEmailDispatcherLayer({
-    EMAIL: cloudflareEnv.EMAIL,
-    EMAIL_FROM_ADDRESS: cloudflareEnv.CLOUDFLARE_EMAIL_FROM
-  })
-}
 
 /**
  * Absolute origin of the in-flight request, so the emailed link is clickable.

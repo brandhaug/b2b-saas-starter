@@ -7,13 +7,17 @@ import {
 import { Context, DateTime, Effect, Layer, Option, Ref, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 
-import { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
-import { readPluginBindingFailure } from './plugin-binding-failure.ts'
-import { WorkspaceRole, type Member, type Workspace } from './workspace-identity.ts'
+import { makeBindingCaller } from './plugin-binding-failure.ts'
+import {
+  WorkspaceRole,
+  type Workspace,
+  fabricateSeedMember
+} from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 
 export const InvitationStatus = Schema.Literals(invitationStatuses)
@@ -154,30 +158,14 @@ export type WorkspaceInvitationBinding = {
   readonly accept: (input: { readonly invitationId: string }) => Promise<void>
 }
 
-const noBinding = new CapabilityUnavailable({
+const { callBinding } = makeBindingCaller<
+  WorkspaceInvitationBinding,
+  MembershipChangeRejected
+>({
   capability: 'workspace-invitations',
-  reason: 'no_invitation_binding'
+  noBindingReason: 'no_invitation_binding',
+  Rejected: MembershipChangeRejected
 })
-
-/**
- * A 4xx from the plugin means the workspace refused the invitation — an address
- * that is already a member, an address already invited, a role it will not
- * accept. Anything else is the store failing. Same classification as
- * `workspace-membership.ts`, and getting it backwards tells a caller to retry a
- * request that can never succeed.
- */
-function classifyBindingFailure(
-  cause: unknown
-): CapabilityUnavailable | MembershipChangeRejected {
-  const failure = readPluginBindingFailure(cause)
-  if (failure.refusedByWorkspace) {
-    return new MembershipChangeRejected({ reason: failure.reason })
-  }
-  return new CapabilityUnavailable({
-    capability: 'workspace-invitations',
-    reason: failure.reason
-  })
-}
 
 /** How long a fixture invitation stays pending — the plugin's own 48 hours. */
 const SEED_INVITATION_TTL_MS = 48 * 60 * 60 * 1000
@@ -321,14 +309,9 @@ export function SeedWorkspaceInvitations(options: {
 
             yield* settle(store, input.invitationId, 'accepted')
             // No `user` table to join, so the fixture fabricates the identity
-            // fields the way `SeedWorkspaceMembership.addMember` does.
-            const joined: Member = {
-              id: input.userId,
-              name: input.userId,
-              email: input.email,
-              role: pending.role,
-              systemRole: 'user'
-            }
+            // fields the way `SeedWorkspaceMembership.addMember` does — but the
+            // invitation's real address is known, so it rides along.
+            const joined = fabricateSeedMember(input.userId, pending.role, input.email)
             yield* Ref.update(options.roster, (current) => [...current, joined])
             return {
               workspaceSlug: options.workspace.slug,
@@ -364,16 +347,6 @@ export function LiveWorkspaceInvitations(
       const audit = yield* AuditEventLog
 
       const unavailable = orUnavailable('workspace-invitations')
-
-      const callBinding = Effect.fnUntraced(function* (
-        call: (bound: WorkspaceInvitationBinding) => Promise<void>
-      ) {
-        if (!binding) return yield* Effect.fail(noBinding)
-        return yield* Effect.tryPromise({
-          try: () => call(binding),
-          catch: classifyBindingFailure
-        })
-      })
 
       /**
        * Reads the invitation back through the same table `list` reads, rather
@@ -466,7 +439,7 @@ export function LiveWorkspaceInvitations(
         create: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
-            yield* callBinding((bound) =>
+            yield* callBinding(binding, (bound) =>
               bound.create({
                 workspaceId: ctx.workspace.id,
                 email: input.email,
@@ -494,7 +467,7 @@ export function LiveWorkspaceInvitations(
               ctx.workspace.id,
               input.invitationId
             )
-            yield* callBinding((bound) =>
+            yield* callBinding(binding, (bound) =>
               bound.cancel({ invitationId: input.invitationId })
             )
             yield* audit.record({
@@ -524,7 +497,7 @@ export function LiveWorkspaceInvitations(
 
             // The plugin settles the invitation and creates the member row in
             // one call; this capability never writes either itself.
-            yield* callBinding((bound) =>
+            yield* callBinding(binding, (bound) =>
               bound.accept({ invitationId: input.invitationId })
             )
             yield* audit.record({

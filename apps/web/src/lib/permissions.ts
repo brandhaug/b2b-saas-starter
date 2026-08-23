@@ -1,9 +1,9 @@
 import {
   authorize,
   memberPrincipal,
-  type PermissionRequest,
-  type WorkspaceRole
+  type PermissionRequest
 } from '@b2b-saas-starter/authz/src/client.ts'
+import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 
 /**
  * Client-side permission checks for workspace UI.
@@ -17,7 +17,7 @@ import {
  * is the enforcement, and every mutation still goes through
  * `requireWorkspacePermission` on the server.
  */
-export type Viewer = { readonly role: WorkspaceRole } | null
+export type Viewer = WorkspaceViewer | null
 
 export function viewerCan(viewer: Viewer, permission: PermissionRequest): boolean {
   if (!viewer) return false

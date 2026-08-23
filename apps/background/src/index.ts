@@ -7,6 +7,7 @@ import {
   WideEventLoggerLive,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
+import { bytesToHex } from '@b2b-saas-starter/capabilities/src/crypto.ts'
 import {
   selectCapabilitiesLayer,
   type StarterEnv
@@ -171,12 +172,6 @@ function nextAttemptAt(
   return null
 }
 
-function bytesToHex(bytes: ArrayBuffer): string {
-  return Array.from(new Uint8Array(bytes), (byte) =>
-    byte.toString(16).padStart(2, '0')
-  ).join('')
-}
-
 /**
  * Stripe-style signature: HMAC-SHA256 over `"<timestamp>.<body>"` with the
  * endpoint's plaintext signing secret, hex-encoded. Signing the timestamp
@@ -229,6 +224,59 @@ const WebhookDeliveryBody = Schema.Struct({
 const encodeDeliveryBody = Schema.encodeSync(Schema.fromJsonString(WebhookDeliveryBody))
 
 /**
+ * The envelope-decode preamble both consumers share: decode at the boundary,
+ * and on a malformed body annotate `skipReason: 'malformed_message'` on the
+ * wide event with the consumer's own outcome and yield nothing — there is no
+ * trusted endpointId for a delivery row, so the message is acked.
+ */
+function decodeEnvelope(
+  envelope: WebhookQueueEnvelope,
+  outcome: string
+): Effect.Effect<WebhookMessage | undefined, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const decoded = decodeWebhookQueueMessage(envelope.body)
+    if (Result.isFailure(decoded)) {
+      yield* annotateWide({ outcome, skipReason: 'malformed_message' })
+      return
+    }
+    return decoded.success
+  })
+}
+
+/** Fields every consumer stamps onto its wide event once decoded. */
+function annotateMessageFields(message: WebhookMessage) {
+  return annotateWide({
+    endpointId: message.endpointId,
+    workspaceId: message.workspaceId,
+    eventType: message.eventType
+  })
+}
+
+/**
+ * A terminal delivery row: no HTTP response to record and no next attempt.
+ * Shared by the invalid-URL branch of `processWebhookMessage` and
+ * `processDeadLetterMessage`.
+ */
+function terminalAttemptRow(input: {
+  readonly deliveryId: string
+  readonly endpointId: string
+  readonly message: WebhookMessage
+  readonly attempts: number
+  readonly status: 'failed_permanent' | 'dead_lettered'
+}) {
+  return {
+    id: input.deliveryId,
+    endpointId: input.endpointId,
+    workspaceId: input.message.workspaceId,
+    eventType: input.message.eventType,
+    status: input.status,
+    attempts: input.attempts,
+    responseStatus: null,
+    nextAttemptAt: null
+  }
+}
+
+/**
  * Delivers one webhook message: resolve the dispatch target, re-check the
  * SSRF guard, sign, POST, persist the attempt row, and decide ack/retry.
  * Capability and HTTP requirements stay open so tests inject stub
@@ -249,21 +297,10 @@ export function processWebhookMessage(
     // there is no trusted endpointId to attach a delivery row to, so it is
     // recorded on the wide event only and acked — mirroring how permanent
     // delivery failures ack instead of retrying forever.
-    const decoded = decodeWebhookQueueMessage(envelope.body)
-    if (Result.isFailure(decoded)) {
-      yield* annotateWide({
-        outcome: 'failed_permanent',
-        skipReason: 'malformed_message'
-      })
-      return 'ack' satisfies DeliveryOutcome
-    }
-    const message = decoded.success
+    const message = yield* decodeEnvelope(envelope, 'failed_permanent')
+    if (!message) return 'ack' satisfies DeliveryOutcome
     const attempts = envelope.attempts
-    yield* annotateWide({
-      endpointId: message.endpointId,
-      workspaceId: message.workspaceId,
-      eventType: message.eventType
-    })
+    yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
     // The workspace ID from the message is verified inside the capability:
     // a cross-workspace mismatch resolves null, same as a disabled or deleted
@@ -283,16 +320,15 @@ export function processWebhookMessage(
     // starter (see validateWebhookUrl).
     const urlCheck = validateWebhookUrl(target.url)
     if (!urlCheck.valid) {
-      yield* webhooks.recordDeliveryAttempt({
-        id: yield* newDeliveryId,
-        endpointId: target.id,
-        workspaceId: message.workspaceId,
-        eventType: message.eventType,
-        status: 'failed_permanent',
-        attempts,
-        responseStatus: null,
-        nextAttemptAt: null
-      })
+      yield* webhooks.recordDeliveryAttempt(
+        terminalAttemptRow({
+          deliveryId: yield* newDeliveryId,
+          endpointId: target.id,
+          message,
+          attempts,
+          status: 'failed_permanent'
+        })
+      )
       yield* annotateWide({
         outcome: 'failed_permanent',
         skipReason: `invalid_url: ${urlCheck.reason}`
@@ -394,31 +430,19 @@ export function processDeadLetterMessage(
   return Effect.gen(function* () {
     // Same boundary decode as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
-    const decoded = decodeWebhookQueueMessage(envelope.body)
-    if (Result.isFailure(decoded)) {
-      yield* annotateWide({
-        outcome: 'dead_lettered',
-        skipReason: 'malformed_message'
-      })
-      return
-    }
-    const message = decoded.success
-    yield* annotateWide({
-      endpointId: message.endpointId,
-      workspaceId: message.workspaceId,
-      eventType: message.eventType
-    })
+    const message = yield* decodeEnvelope(envelope, 'dead_lettered')
+    if (!message) return
+    yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
-    yield* webhooks.recordDeliveryAttempt({
-      id: yield* newDeliveryId,
-      endpointId: message.endpointId,
-      workspaceId: message.workspaceId,
-      eventType: message.eventType,
-      status: 'dead_lettered',
-      attempts: envelope.attempts,
-      responseStatus: null,
-      nextAttemptAt: null
-    })
+    yield* webhooks.recordDeliveryAttempt(
+      terminalAttemptRow({
+        deliveryId: yield* newDeliveryId,
+        endpointId: message.endpointId,
+        message,
+        attempts: envelope.attempts,
+        status: 'dead_lettered'
+      })
+    )
     yield* annotateWide({ outcome: 'dead_lettered' })
   })
 }

@@ -8,7 +8,7 @@ import {
   WorkspaceInvitations,
   type Invitation
 } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 import { Effect, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
@@ -29,7 +29,7 @@ import { requireWorkspacePermission, whenPermitted } from './authorize'
  * shown a form that would only fail on submit.
  */
 export type WorkspaceSettingsPayload = {
-  readonly viewer: { readonly role: WorkspaceRole } | null
+  readonly viewer: WorkspaceViewer | null
   /** The workspace itself; every member may read its own name. */
   readonly workspaceName: string
   readonly unreadCount: number
