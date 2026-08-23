@@ -159,7 +159,18 @@ export function WorkspaceSettingsPage({
               <div className="grid gap-2">
                 <Label>Outbound webhooks</Label>
                 <p className="text-sm text-muted-foreground">
-                  {webhookCount} endpoint is configured for selected workspace events.
+                  {webhookCount} endpoint
+                  {webhookCount === 1 ? ' is' : 's are'} configured for selected
+                  workspace events. Registration, delivery history, and secret rotation
+                  live on the{' '}
+                  <Link
+                    to="/workspaces/$workspaceSlug/webhooks"
+                    params={{ workspaceSlug }}
+                    className="underline underline-offset-2"
+                  >
+                    Webhooks page
+                  </Link>
+                  .
                 </p>
               </div>
             )}

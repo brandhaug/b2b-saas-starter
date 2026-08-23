@@ -419,16 +419,17 @@ export function webhookGroup(env: ApiEnv) {
             params.slug,
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
-              const endpoint = yield* webhooks.create({
+              const createdEndpoint = yield* webhooks.create({
                 url: payload.url,
                 events: payload.events,
                 description: payload.description
               })
               yield* publishWebhookEvent({
                 eventType: 'webhook_endpoint.created',
-                payload: endpoint
+                // The projection, never the signing secret.
+                payload: createdEndpoint.endpoint
               })
-              return endpoint
+              return createdEndpoint.endpoint
             })
           )
           yield* annotateWide({ webhookEndpointId: created.id })
