@@ -102,7 +102,12 @@ export default defineConfig(({ command, mode }) => {
       },
       viteReact(),
       // React Compiler via the rolldown Babel bridge (plugin-react v6 API).
-      babel({ presets: [reactCompilerPreset()] })
+      // Email templates are invoked directly (no React dispatcher) when
+      // rendering HTML, so compiler-inserted hooks crash there.
+      babel({
+        exclude: /packages[/\\]email[/\\]/,
+        presets: [reactCompilerPreset()]
+      })
     ],
     test: {
       globals: true,
