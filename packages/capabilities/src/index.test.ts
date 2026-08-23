@@ -2,7 +2,7 @@ import { layerFromD1 } from '@b2b-saas-starter/db/src/service.ts'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedLayer } from './layers.ts'
-import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
+import { seedMembers, seedWorkspaceRecord, demoUserIdentity } from './seed-fixture.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.ts'
 import {
   makeSeedRoster,
@@ -41,6 +41,7 @@ import {
   SeedAuditEventLog
 } from './governance/audit-event-log.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
+import { platformUserAdminContractCases } from './governance/platform-user-admin.contract.ts'
 import {
   CONTRACT_EXPIRED_AT,
   workspaceInvitationsContractCases
@@ -367,6 +368,23 @@ describe('seed workspace membership contract', () => {
   for (const contractCase of cases) {
     it.effect(contractCase.name, () =>
       contractCase.assert.pipe(Effect.provide(seedWorkspaceLayer))
+    )
+  }
+})
+
+describe('seed platform user admin contract', () => {
+  const cases = platformUserAdminContractCases(
+    {
+      existing: demoUserIdentity.id,
+      outsider: 'usr_outsider',
+      unknown: 'usr_stranger',
+      workspaceId: seedWorkspaceRecord.id
+    },
+    expect
+  )
+  for (const contractCase of cases) {
+    it.effect(contractCase.name, () =>
+      contractCase.assert.pipe(Effect.provide(SeedLayer))
     )
   }
 })

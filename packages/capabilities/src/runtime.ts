@@ -4,6 +4,7 @@ import { type WebhookQueueBinding } from './developer-platform/webhook-publisher
 import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'
 import { type WorkspaceMemberBinding } from './governance/workspace-membership.ts'
+import { type PlatformUserAdminBinding } from './governance/platform-user-admin.ts'
 import {
   makeLiveCapabilitiesLayer,
   makeLiveLayerFromD1,
@@ -47,6 +48,12 @@ export type StarterEnv = {
    * Absent, lifecycle mutations fail `CapabilityUnavailable`.
    */
   readonly lifecycleBinding?: WorkspaceLifecycleBinding | undefined
+  /**
+   * Adapter onto the admin plugin's user endpoints plus one organization-plugin
+   * member call. Absent, `/admin` reads work and its mutations fail
+   * `CapabilityUnavailable`.
+   */
+  readonly userAdminBinding?: PlatformUserAdminBinding | undefined
 }
 
 export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
@@ -57,7 +64,8 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
     webhookQueue: env.WEBHOOK_QUEUE,
     memberBinding: env.memberBinding,
     invitationBinding: env.invitationBinding,
-    lifecycleBinding: env.lifecycleBinding
+    lifecycleBinding: env.lifecycleBinding,
+    userAdminBinding: env.userAdminBinding
   })
   return live
 }
@@ -83,7 +91,8 @@ export function selectWorkspaceLayer(
       webhookQueue: env.WEBHOOK_QUEUE,
       memberBinding: env.memberBinding,
       invitationBinding: env.invitationBinding,
-      lifecycleBinding: env.lifecycleBinding
+      lifecycleBinding: env.lifecycleBinding,
+      userAdminBinding: env.userAdminBinding
     }),
     liveWorkspaceContext(slug, actor)
   ).pipe(Layer.provide(layerFromD1(env.DB)))

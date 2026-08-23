@@ -3,6 +3,10 @@ import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type Notification } from './notifications/notification-feed.ts'
 import { type WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
+import {
+  type SeedMembership,
+  type SystemUserAccount
+} from './governance/platform-user-admin.ts'
 
 export const seedWorkspaceRecord: Workspace = {
   id: 'wrk_starter',
@@ -58,6 +62,34 @@ export const seedMembers: readonly Member[] = [
   },
   demoMemberIdentity
 ]
+
+export const seedSystemUsers: readonly SystemUserAccount[] = [
+  ...seedMembers.map((member) => ({
+    id: member.id,
+    name: member.name,
+    email: member.email,
+    systemRole: member.systemRole,
+    banned: false
+  })),
+  // An account with no membership anywhere — the user-admin contract's
+  // role-change rejection needs one on the seed side.
+  {
+    id: 'usr_outsider',
+    name: 'No Workspaces',
+    email: 'outsider@example.com',
+    systemRole: 'user',
+    banned: false
+  }
+]
+
+/** The (workspace, user) pairs the seed `changeWorkspaceRole` treats as real. */
+export const seedUserAdminMemberships: readonly SeedMembership[] = seedMembers.map(
+  (member) => ({
+    workspaceId: seedWorkspaceRecord.id,
+    userId: member.id,
+    role: member.role
+  })
+)
 
 export const seedApiTokens: readonly ApiToken[] = [
   {
