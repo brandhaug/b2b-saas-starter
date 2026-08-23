@@ -206,7 +206,16 @@ export function SeedAuditEventLog(
   seed: readonly SeedAuditEventRow[]
 ): Layer.Layer<AuditEventLog> {
   return Layer.succeed(AuditEventLog)({
-    list: (input) => Effect.succeed(pagedSeedRows(seed, undefined, input)),
+    // Same scoping as Live: the per-workspace read filters on the resolved
+    // workspace from `WorkspaceContext` (invariant 1) — never an unscoped pass
+    // over the fixture. Like the other Seed adapters, the context arrives
+    // from the runner (selectWorkspaceLayer / testWorkspaceContext), not from
+    // this layer.
+    list: (input) =>
+      Effect.gen(function* () {
+        const ctx = yield* WorkspaceContext
+        return pagedSeedRows(seed, ctx.workspace.id, input)
+      }),
     listGlobal: Effect.succeed(toWire(seed)),
     record: () => Effect.void,
     prepareRecord: () => Effect.succeed(noopStatement)
