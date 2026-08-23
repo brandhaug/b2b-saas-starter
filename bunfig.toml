@@ -1,4 +1,6 @@
 [install]
 saveTextLockfile = true
+# Pin every saved dependency to an exact version (no ^ / ~ ranges).
+exact = true
 
 [install.scopes]
