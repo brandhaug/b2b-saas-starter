@@ -5,7 +5,7 @@ import {
 } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
@@ -45,7 +45,7 @@ export type LoadWorkspaceAuditEventsInput = {
  * and the hard gate above already decided who reaches this payload.
  */
 export type WorkspaceAuditPayload = {
-  readonly viewer: { readonly role: WorkspaceRole } | null
+  readonly viewer: WorkspaceViewer | null
   readonly events: readonly AuditEvent[]
   /** Opaque keyset cursor for the next older page, or null on the last one. */
   readonly nextCursor: string | null

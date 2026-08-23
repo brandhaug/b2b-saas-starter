@@ -469,6 +469,48 @@ export type AuthAuditContext = {
  * (`authAuditError` / `authAuditBodyError`) before the outcome is returned, so
  * a dropped write is always queryable.
  */
+/**
+ * Reads an untrusted body value, reporting a decode failure on the wide event
+ * (`authAuditBodyError`) instead of failing: a body that does not parse still
+ * records an event — just an unattributed or untargeted one.
+ */
+function readAndReportBody<A>(
+  reader: Effect.Effect<A, AuthAuditBodyUnreadable>
+): Effect.Effect<A | null, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const parsed = yield* Effect.result(reader)
+    if (Result.isFailure(parsed)) {
+      yield* annotateWide({
+        authAuditBodyError: parsed.failure.reason,
+        authAuditBodyErrorTag: parsed.failure._tag
+      })
+      return null
+    }
+    return parsed.success
+  })
+}
+
+/**
+ * Writes one audit event best-effort: a failed write is annotated on the wide
+ * event (`authAuditError`) and reported as `dropped` rather than thrown.
+ */
+function writeAndReport(
+  input: RecordAuditEventInput,
+  run: RunAuditCapabilities
+): Effect.Effect<'recorded' | 'dropped', never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const written = yield* Effect.result(writeAuditEvent(input, run))
+    if (Result.isFailure(written)) {
+      yield* annotateWide({
+        authAuditError: written.failure.reason,
+        authAuditErrorTag: written.failure._tag
+      })
+      return 'dropped'
+    }
+    return 'recorded'
+  })
+}
+
 export function recordAuthAudit(
   request: Request,
   response: Response,
@@ -492,18 +534,10 @@ export function recordAuthAudit(
       // session read, or the event records unattributed.
       userId = context?.actorUserId ?? null
     } else if (response.ok && row.namesUserInResponse === true) {
-      const actor = yield* Effect.result(readActorUserId(response))
-      if (Result.isFailure(actor)) {
-        // A 2xx lifecycle response with a non-JSON body is unexpected. The
-        // event is still recorded, unattributed, and the reason lands on the
-        // wide event.
-        yield* annotateWide({
-          authAuditBodyError: actor.failure.reason,
-          authAuditBodyErrorTag: actor.failure._tag
-        })
-      } else {
-        userId = actor.success
-      }
+      // A 2xx lifecycle response with a non-JSON body is unexpected. The
+      // event is still recorded, unattributed, and the reason lands on the
+      // wide event.
+      userId = yield* readAndReportBody(readActorUserId(response))
     }
 
     const input = authAuditInput({
@@ -515,15 +549,7 @@ export function recordAuthAudit(
     })
     if (!input) return 'skipped'
 
-    const written = yield* Effect.result(writeAuditEvent(input, run))
-    if (Result.isFailure(written)) {
-      yield* annotateWide({
-        authAuditError: written.failure.reason,
-        authAuditErrorTag: written.failure._tag
-      })
-      return 'dropped'
-    }
-    return 'recorded'
+    return yield* writeAndReport(input, run)
   })
 }
 
@@ -545,28 +571,12 @@ function recordAdminAudit(args: {
 
     let targetUserId: string | null = null
     if (admin.request !== undefined) {
-      const parsed = yield* Effect.result(readTargetUserId(admin.request))
-      if (Result.isFailure(parsed)) {
-        // A request body that does not parse still records an event — just an
-        // untargeted one — with the reason on the wide event.
-        yield* annotateWide({
-          authAuditBodyError: parsed.failure.reason,
-          authAuditBodyErrorTag: parsed.failure._tag
-        })
-      } else {
-        targetUserId = parsed.success
-      }
+      // A request body that does not parse still records an event — just an
+      // untargeted one — with the reason on the wide event.
+      targetUserId = yield* readAndReportBody(readTargetUserId(admin.request))
     }
     if (targetUserId === null && response.ok && rowNamesUserInResponse(pathname)) {
-      const actor = yield* Effect.result(readActorUserId(response))
-      if (Result.isFailure(actor)) {
-        yield* annotateWide({
-          authAuditBodyError: actor.failure.reason,
-          authAuditBodyErrorTag: actor.failure._tag
-        })
-      } else {
-        targetUserId = actor.success
-      }
+      targetUserId = yield* readAndReportBody(readActorUserId(response))
     }
 
     const input = adminAuditInput({
@@ -577,15 +587,7 @@ function recordAdminAudit(args: {
     })
     if (!input) return 'skipped'
 
-    const written = yield* Effect.result(writeAuditEvent(input, run))
-    if (Result.isFailure(written)) {
-      yield* annotateWide({
-        authAuditError: written.failure.reason,
-        authAuditErrorTag: written.failure._tag
-      })
-      return 'dropped'
-    }
-    return 'recorded'
+    return yield* writeAndReport(input, run)
   })
 }
 

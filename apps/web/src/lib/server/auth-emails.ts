@@ -25,7 +25,14 @@ import { type ReactElement } from 'react'
  * The log-mode dispatcher never fails; only a real, broken `EMAIL` binding
  * can, and failing loudly there is the honest behavior.
  */
-function emailDispatcherLayer() {
+/**
+ * Provider-light by the same selector the invitation flow uses (`invitations.ts`
+ * imports this): with no `EMAIL` binding configured this is the logging
+ * dispatcher, so password reset and email verification work end to end locally
+ * without an email provider — the link lands in the console log instead of an
+ * inbox.
+ */
+export function emailDispatcherLayer() {
   return selectEmailDispatcherLayer({
     EMAIL: cloudflareEnv.EMAIL,
     EMAIL_FROM_ADDRESS: cloudflareEnv.CLOUDFLARE_EMAIL_FROM

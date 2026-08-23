@@ -3,9 +3,10 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Schema } from 'effect'
 import { KeyRoundIcon } from 'lucide-react'
+import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
+import { passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
 import { PublicLayout } from '@/components/public-layout'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
@@ -150,15 +151,7 @@ export function ResetPasswordPage({
               }}
               className="grid gap-4"
             >
-              <form.Field
-                name="password"
-                validators={{
-                  onChange: ({ value }) =>
-                    value.length < 8
-                      ? 'Password must be at least 8 characters'
-                      : undefined
-                }}
-              >
+              <form.Field name="password" validators={{ onChange: passwordValidator }}>
                 {(field) => (
                   <FormTextField
                     name={field.name}
@@ -196,19 +189,12 @@ export function ResetPasswordPage({
                 )}
               </form.Field>
 
-              <form.Subscribe
-                selector={(state): readonly [boolean, boolean] => [
-                  state.canSubmit,
-                  state.isSubmitting
-                ]}
-              >
-                {([canSubmit, isSubmitting]) => (
-                  <Button type="submit" disabled={!canSubmit}>
-                    <KeyRoundIcon className="size-4" />
-                    {isSubmitting ? 'Resetting…' : 'Reset password'}
-                  </Button>
-                )}
-              </form.Subscribe>
+              <AuthSubmitButton
+                form={form}
+                icon={<KeyRoundIcon className="size-4" />}
+                label="Reset password"
+                submittingLabel="Resetting…"
+              />
 
               {submitError ? (
                 <p className="text-xs text-destructive" role="alert">

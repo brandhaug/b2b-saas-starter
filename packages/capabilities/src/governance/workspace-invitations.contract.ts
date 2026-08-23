@@ -1,4 +1,5 @@
 import { Effect, Option } from 'effect'
+import { type ContractExpectMatchers } from './contract-expect.ts'
 import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
@@ -74,7 +75,7 @@ export type InvitationContractCase = {
 }
 
 /** The slice of vitest's `expect` these cases use — narrow on purpose. */
-export type ContractExpect = <A>(actual: A) => { readonly toBe: (expected: A) => void }
+export type ContractExpect = <A>(actual: A) => Pick<ContractExpectMatchers<A>, 'toBe'>
 
 export function workspaceInvitationsContractCases(
   ids: InvitationContractIds,

@@ -30,6 +30,12 @@ export type WorkspaceRole = typeof WorkspaceRole.Type
 export const SystemRole = Schema.Literals(SYSTEM_ROLES)
 export type SystemRole = typeof SystemRole.Type
 
+/**
+ * The resolved viewer shape loaders hand to permission checks and UI: only
+ * the workspace role, or nothing when no viewer is signed in.
+ */
+export type WorkspaceViewer = { readonly role: WorkspaceRole }
+
 export const Workspace = Schema.Struct({
   id: Schema.String,
   slug: Schema.String,
@@ -46,6 +52,26 @@ export const Member = Schema.Struct({
   systemRole: SystemRole
 })
 export type Member = typeof Member.Type
+
+/**
+ * Fabricates the identity fields the seed fixtures have no `user` table to
+ * join, the way `SeedApiTokenRegistry.create` fabricates a token. The email is
+ * derived unless one is known — an accepted invitation carries its real
+ * address.
+ */
+export function fabricateSeedMember(
+  userId: string,
+  role: WorkspaceRole,
+  email?: string
+): Member {
+  return {
+    id: userId,
+    name: userId,
+    email: email ?? `${userId}@seed.local`,
+    role,
+    systemRole: 'user'
+  }
+}
 
 type MemberRow = {
   readonly member: typeof workspaceMembers.$inferSelect

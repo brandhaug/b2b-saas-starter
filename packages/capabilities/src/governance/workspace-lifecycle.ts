@@ -2,14 +2,14 @@ import { Database } from '@b2b-saas-starter/db/src/service.ts'
 import { workspaces } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
-import { CapabilityUnavailable, WorkspaceChangeRejected } from '../errors.ts'
+import { type CapabilityUnavailable, WorkspaceChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
-import { readPluginBindingFailure } from './plugin-binding-failure.ts'
+import { makeBindingCaller } from './plugin-binding-failure.ts'
 import { type SeedRoster } from './workspace-membership.ts'
-import { type Member, Workspace } from './workspace-identity.ts'
+import { Workspace, fabricateSeedMember } from './workspace-identity.ts'
 
 export const CreatedWorkspace = Schema.Struct({
   ...Workspace.fields,
@@ -84,34 +84,14 @@ export type WorkspaceLifecycleBinding = {
   readonly remove: (input: { readonly workspaceId: string }) => Promise<void>
 }
 
-const noBinding = new CapabilityUnavailable({
+const { callBinding } = makeBindingCaller<
+  WorkspaceLifecycleBinding,
+  WorkspaceChangeRejected
+>({
   capability: 'workspace-lifecycle',
-  reason: 'no_lifecycle_binding'
+  noBindingReason: 'no_lifecycle_binding',
+  Rejected: WorkspaceChangeRejected
 })
-
-function classifyBindingFailure(
-  cause: unknown
-): CapabilityUnavailable | WorkspaceChangeRejected {
-  const failure = readPluginBindingFailure(cause)
-  if (failure.refusedByWorkspace) {
-    return new WorkspaceChangeRejected({ reason: failure.reason })
-  }
-  return new CapabilityUnavailable({
-    capability: 'workspace-lifecycle',
-    reason: failure.reason
-  })
-}
-
-/** Fabricates the identity fields the fixture has no `user` table to join. */
-function seedOwnerMember(userId: string): Member {
-  return {
-    id: userId,
-    name: userId,
-    email: `${userId}@seed.local`,
-    role: 'owner',
-    systemRole: 'user'
-  }
-}
 
 /**
  * In-memory lifecycle, never Better Auth. Created workspaces land in a local
@@ -158,7 +138,9 @@ export function SeedWorkspaceLifecycle(options: {
             if (options.roster) {
               yield* Ref.update(options.roster, (members) => [
                 ...members,
-                seedOwnerMember(input.userId)
+                // Fabricates the identity fields the fixture has no `user`
+                // table to join; the creator enters as owner.
+                fabricateSeedMember(input.userId, 'owner')
               ])
             }
             return workspace
@@ -201,16 +183,6 @@ export function LiveWorkspaceLifecycle(
 
       const unavailable = orUnavailable('workspace-lifecycle')
 
-      const callBinding = Effect.fnUntraced(function* (
-        call: (bound: WorkspaceLifecycleBinding) => Promise<void>
-      ) {
-        if (!binding) return yield* Effect.fail(noBinding)
-        return yield* Effect.tryPromise({
-          try: () => call(binding),
-          catch: classifyBindingFailure
-        })
-      })
-
       /** Reads the workspace back rather than trusting the binding's response. */
       const readBySlug = Effect.fnUntraced(function* (slug: string) {
         const rows = yield* unavailable(
@@ -233,7 +205,7 @@ export function LiveWorkspaceLifecycle(
       return {
         create: (input) =>
           Effect.gen(function* () {
-            yield* callBinding((bound) => bound.create(input))
+            yield* callBinding(binding, (bound) => bound.create(input))
             const workspace = yield* readBySlug(input.slug)
             // Not atomic with the write above, and it cannot be — the same
             // accepted ADR 0051 trade the other plugin-backed capabilities
@@ -251,7 +223,7 @@ export function LiveWorkspaceLifecycle(
         rename: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
-            yield* callBinding((bound) =>
+            yield* callBinding(binding, (bound) =>
               bound.rename({ workspaceId: ctx.workspace.id, name: input.name })
             )
             // The plugin's response shape is not this package's contract; the
@@ -291,7 +263,9 @@ export function LiveWorkspaceLifecycle(
           // cascaded children, and the audit event must still name what was
           // removed.
           const removed = ctx.workspace
-          yield* callBinding((bound) => bound.remove({ workspaceId: ctx.workspace.id }))
+          yield* callBinding(binding, (bound) =>
+            bound.remove({ workspaceId: ctx.workspace.id })
+          )
           // A system event on purpose: `audit_events.workspace_id` cascades from
           // `workspaces.id`, so attributing this row to the deleted workspace
           // would delete it alongside the thing it describes.
