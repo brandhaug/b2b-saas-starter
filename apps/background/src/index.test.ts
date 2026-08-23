@@ -111,6 +111,7 @@ function stubEndpoints(
     create: () => Effect.die('unused in delivery tests'),
     disable: () => Effect.die('unused in delivery tests'),
     rotateSecret: () => Effect.die('unused in delivery tests'),
+    listDeliveries: () => Effect.die('unused in delivery tests'),
     getDispatchTarget: (endpointId, workspaceId) =>
       Effect.succeed(resolveTarget(dispatchTarget, endpointId, workspaceId)),
     recordDeliveryAttempt: (input) =>

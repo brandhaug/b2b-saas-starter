@@ -36,6 +36,7 @@ import { Route as WorkspacesWorkspaceSlugApiTokensRouteImport } from './routes/w
 import { Route as WorkspacesWorkspaceSlugAuditRouteImport } from './routes/workspaces.$workspaceSlug.audit'
 import { Route as WorkspacesWorkspaceSlugMembersRouteImport } from './routes/workspaces.$workspaceSlug.members'
 import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/workspaces.$workspaceSlug.settings'
+import { Route as WorkspacesWorkspaceSlugWebhooksRouteImport } from './routes/workspaces.$workspaceSlug.webhooks'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -177,6 +178,12 @@ const WorkspacesWorkspaceSlugSettingsRoute =
     path: '/$workspaceSlug/settings',
     getParentRoute: () => WorkspacesRoute,
   } as any)
+const WorkspacesWorkspaceSlugWebhooksRoute =
+  WorkspacesWorkspaceSlugWebhooksRouteImport.update({
+    id: '/$workspaceSlug/webhooks',
+    path: '/$workspaceSlug/webhooks',
+    getParentRoute: () => WorkspacesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
 }
 export interface FileRoutesByTo {
@@ -232,6 +240,7 @@ export interface FileRoutesByTo {
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugIndexRoute
 }
 export interface FileRoutesById {
@@ -262,6 +271,7 @@ export interface FileRoutesById {
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
 }
 export interface FileRouteTypes {
@@ -293,6 +303,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/audit'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/webhooks'
     | '/workspaces/$workspaceSlug/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -320,6 +331,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/audit'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/webhooks'
     | '/workspaces/$workspaceSlug'
   id:
     | '__root__'
@@ -349,6 +361,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/audit'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/webhooks'
     | '/workspaces/$workspaceSlug/'
   fileRoutesById: FileRoutesById
 }
@@ -565,6 +578,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWorkspaceSlugSettingsRouteImport
       parentRoute: typeof WorkspacesRoute
     }
+    '/workspaces/$workspaceSlug/webhooks': {
+      id: '/workspaces/$workspaceSlug/webhooks'
+      path: '/$workspaceSlug/webhooks'
+      fullPath: '/workspaces/$workspaceSlug/webhooks'
+      preLoaderRoute: typeof WorkspacesWorkspaceSlugWebhooksRouteImport
+      parentRoute: typeof WorkspacesRoute
+    }
   }
 }
 
@@ -586,6 +606,7 @@ interface WorkspacesRouteChildren {
   WorkspacesWorkspaceSlugAuditRoute: typeof WorkspacesWorkspaceSlugAuditRoute
   WorkspacesWorkspaceSlugMembersRoute: typeof WorkspacesWorkspaceSlugMembersRoute
   WorkspacesWorkspaceSlugSettingsRoute: typeof WorkspacesWorkspaceSlugSettingsRoute
+  WorkspacesWorkspaceSlugWebhooksRoute: typeof WorkspacesWorkspaceSlugWebhooksRoute
   WorkspacesWorkspaceSlugIndexRoute: typeof WorkspacesWorkspaceSlugIndexRoute
 }
 
@@ -595,6 +616,7 @@ const WorkspacesRouteChildren: WorkspacesRouteChildren = {
   WorkspacesWorkspaceSlugAuditRoute: WorkspacesWorkspaceSlugAuditRoute,
   WorkspacesWorkspaceSlugMembersRoute: WorkspacesWorkspaceSlugMembersRoute,
   WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
+  WorkspacesWorkspaceSlugWebhooksRoute: WorkspacesWorkspaceSlugWebhooksRoute,
   WorkspacesWorkspaceSlugIndexRoute: WorkspacesWorkspaceSlugIndexRoute,
 }
 

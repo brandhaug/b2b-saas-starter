@@ -11,7 +11,8 @@ import {
   MenuIcon,
   SettingsIcon,
   ShieldIcon,
-  UsersIcon
+  UsersIcon,
+  WebhookIcon
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Badge } from '@/components/ui/badge'
@@ -53,6 +54,7 @@ export function WorkspaceShell({
   workspaceSlug,
   canReadAuditLog = false,
   canReadApiTokens = false,
+  canReadWebhooks = false,
   signOut = signOutWithAuthClient
 }: {
   readonly children: ReactNode
@@ -83,6 +85,11 @@ export function WorkspaceShell({
    * a direct URL meets instead.
    */
   readonly canReadApiTokens?: boolean
+  /**
+   * Whether the viewer may list webhook endpoints — same contract as
+   * `canReadApiTokens`.
+   */
+  readonly canReadWebhooks?: boolean
   readonly signOut?: SignOut
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -99,6 +106,7 @@ export function WorkspaceShell({
           workspaceSlug={workspaceSlug}
           canReadAuditLog={canReadAuditLog}
           canReadApiTokens={canReadApiTokens}
+          canReadWebhooks={canReadWebhooks}
         />
       </aside>
       <div className="min-w-0">
@@ -124,6 +132,7 @@ export function WorkspaceShell({
                   workspaceSlug={workspaceSlug}
                   canReadAuditLog={canReadAuditLog}
                   canReadApiTokens={canReadApiTokens}
+                  canReadWebhooks={canReadWebhooks}
                   onNavigate={() => setMobileNavOpen(false)}
                 />
               </div>
@@ -197,11 +206,13 @@ function WorkspaceNav({
   workspaceSlug,
   canReadAuditLog,
   canReadApiTokens,
+  canReadWebhooks,
   onNavigate
 }: {
   readonly workspaceSlug: string | null
   readonly canReadAuditLog: boolean
   readonly canReadApiTokens: boolean
+  readonly canReadWebhooks: boolean
   readonly onNavigate?: (() => void) | undefined
 }) {
   return (
@@ -249,6 +260,15 @@ function WorkspaceNav({
                 onNavigate={onNavigate}
               />
             ) : null}
+            {canReadWebhooks ? (
+              <NavLink
+                to="/workspaces/$workspaceSlug/webhooks"
+                workspaceSlug={workspaceSlug}
+                label="Webhooks"
+                icon={<WebhookIcon className="size-4" />}
+                onNavigate={onNavigate}
+              />
+            ) : null}
             {canReadAuditLog ? (
               <NavLink
                 to="/workspaces/$workspaceSlug/audit"
@@ -286,6 +306,7 @@ function NavLink({
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/audit'
+    | '/workspaces/$workspaceSlug/webhooks'
   readonly workspaceSlug: string
   readonly label: string
   readonly icon: ReactNode

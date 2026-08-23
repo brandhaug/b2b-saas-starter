@@ -22,6 +22,34 @@ export const WebhookEndpoint = Schema.Struct({
 export type WebhookEndpoint = typeof WebhookEndpoint.Type
 
 /**
+ * The creation result: the projected endpoint plus the signing secret shown
+ * once to the caller. The secret rides beside — never inside — the endpoint
+ * projection, so adapters that publish the projection as an event payload
+ * (`webhook_endpoint.created`) cannot leak it to the endpoint being registered.
+ */
+export type CreatedWebhookEndpoint = {
+  readonly endpoint: WebhookEndpoint
+  readonly signingSecret: string
+}
+
+/** A recorded delivery attempt, newest first in `listDeliveries`. */
+export const WebhookDelivery = Schema.Struct({
+  id: Schema.String,
+  endpointId: Schema.String,
+  eventType: Schema.String,
+  status: Schema.String,
+  attempts: Schema.Number,
+  lastAttemptAt: Schema.NullOr(Schema.String),
+  nextAttemptAt: Schema.NullOr(Schema.String),
+  responseStatus: Schema.NullOr(Schema.Number)
+})
+export type WebhookDelivery = typeof WebhookDelivery.Type
+
+export type ListWebhookDeliveriesInput = {
+  readonly endpointId: string
+}
+
+/**
  * Delivery status vocabulary (free-text column, keep these values consistent):
  * - `delivered` — 2xx response.
  * - `failed` — retryable failure (5xx, 408, 429, network error, timeout); the
@@ -80,6 +108,24 @@ export type CreateWebhookEndpointInput = {
   readonly actorUserId?: string
 }
 
+/**
+ * The event types this starter currently publishes (see the API worker's
+ * `publishWebhookEvent` call sites). Subscriptions are free-text strings so a
+ * producer can grow without a migration; this list is what the management UI
+ * offers as checkboxes.
+ */
+export type WebhookEventType =
+  | 'api_token.created'
+  | 'api_token.revoked'
+  | 'webhook_endpoint.created'
+
+// oxlint-disable-next-line effect/noAs -- a const assertion, not a type assertion
+export const WEBHOOK_EVENT_TYPES = [
+  'api_token.created',
+  'api_token.revoked',
+  'webhook_endpoint.created'
+] as const satisfies readonly WebhookEventType[]
+
 /** Wire payload for endpoint creation, shared by the REST contract and the API worker. */
 export const CreateWebhookEndpointPayload = Schema.Struct({
   url: Schema.String,
@@ -108,8 +154,21 @@ export type WebhookEndpointsInterface = {
   readonly create: (
     input: CreateWebhookEndpointInput
   ) => Effect.Effect<
-    WebhookEndpoint,
+    CreatedWebhookEndpoint,
     CapabilityUnavailable | InvalidWebhookUrl,
+    WorkspaceContext
+  >
+
+  /**
+   * Recent delivery attempts for one of this workspace's endpoints, newest
+   * first. Workspace scoping comes from `WorkspaceContext`; an endpoint id
+   * from another workspace yields an empty list, never its deliveries.
+   */
+  readonly listDeliveries: (
+    input: ListWebhookDeliveriesInput
+  ) => Effect.Effect<
+    readonly WebhookDelivery[],
+    CapabilityUnavailable,
     WorkspaceContext
   >
 
@@ -175,14 +234,16 @@ export function SeedWebhookEndpoints(
     list: Effect.succeed(seed),
     create: Effect.fnUntraced(function* (input) {
       yield* ensureValidWebhookUrl(input.url)
-      return {
+      const endpoint: WebhookEndpoint = {
         id: yield* newCapabilityId('wh'),
         url: input.url,
         enabled: true,
         events: [...input.events],
         successRate: 100
       }
+      return { endpoint, signingSecret: 'whsec_seed_created' }
     }),
+    listDeliveries: () => Effect.succeed([]),
     disable: (input) =>
       Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
     rotateSecret: (input) => {
@@ -348,12 +409,47 @@ export const LiveWebhookEndpoints: Layer.Layer<
             batch(db, [db.insert(webhookEndpoints).values(endpoint), auditCreated])
           )
           return {
-            id: endpoint.id,
-            url: endpoint.url,
-            enabled: endpoint.enabled,
-            events: endpoint.events,
-            successRate: 100
+            endpoint: {
+              id: endpoint.id,
+              url: endpoint.url,
+              enabled: endpoint.enabled,
+              events: endpoint.events,
+              successRate: 100
+            },
+            signingSecret
           }
+        }),
+      listDeliveries: (input) =>
+        Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          // The join scopes to the calling workspace: a foreign endpoint id
+          // matches no row of its own and yields an empty list.
+          return yield* unavailable(
+            db
+              .select({
+                id: webhookDeliveries.id,
+                endpointId: webhookDeliveries.endpointId,
+                eventType: webhookDeliveries.eventType,
+                status: webhookDeliveries.status,
+                attempts: webhookDeliveries.attempts,
+                lastAttemptAt: webhookDeliveries.lastAttemptAt,
+                nextAttemptAt: webhookDeliveries.nextAttemptAt,
+                responseStatus: webhookDeliveries.responseStatus
+              })
+              .from(webhookDeliveries)
+              .innerJoin(
+                webhookEndpoints,
+                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+              )
+              .where(
+                and(
+                  eq(webhookDeliveries.endpointId, input.endpointId),
+                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
+                )
+              )
+              .orderBy(sql`${webhookDeliveries.lastAttemptAt} desc`)
+              .limit(20)
+          )
         }),
       disable: (input) =>
         auditedEndpointUpdate(input, 'webhook_endpoint.disabled', () => ({
