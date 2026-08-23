@@ -1,5 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { InvitationPanel } from '@/components/invitation-panel'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell, type SignOut } from '@/components/workspace-shell'
@@ -56,7 +55,6 @@ export function WorkspaceSettingsPage({
    * a test, where each child falls back to its production default.
    */
   readonly ports?: {
-    readonly createToken?: CreateApiToken
     readonly signOut?: SignOut
     readonly renameWorkspace?: RenameWorkspace
     readonly deleteWorkspace?: DeleteWorkspace
@@ -71,7 +69,6 @@ export function WorkspaceSettingsPage({
     invitations
   } = data
   // A `null` segment is the server's answer that this actor may not read it.
-  const canCreateApiToken = viewerCan(viewer, { apiToken: ['create'] })
   const canInvite = viewerCan(viewer, { invitation: ['create'] })
   const canRename = viewerCan(viewer, { organization: ['update'] })
   const canDelete = viewerCan(viewer, { organization: ['delete'] })
@@ -126,21 +123,17 @@ export function WorkspaceSettingsPage({
               <div className="grid gap-2">
                 <Label>API tokens</Label>
                 <p className="text-sm text-muted-foreground">
-                  {apiTokenCount} workspace-scoped tokens are seeded. New tokens should
-                  be hashed and audited.
+                  {apiTokenCount} active workspace-scoped tokens. Creation and
+                  revocation live on the{' '}
+                  <Link
+                    to="/workspaces/$workspaceSlug/api-tokens"
+                    params={{ workspaceSlug }}
+                    className="underline underline-offset-2"
+                  >
+                    API tokens page
+                  </Link>
+                  .
                 </p>
-                {canCreateApiToken ? (
-                  <ApiTokenForm
-                    workspaceSlug={workspaceSlug}
-                    {...(ports?.createToken === undefined
-                      ? {}
-                      : { createToken: ports.createToken })}
-                  />
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Your role cannot mint tokens.
-                  </p>
-                )}
               </div>
             )}
             {invitations === null ? null : (
