@@ -21,7 +21,6 @@ import {
   WebhookEndpoints
 } from './developer-platform/webhook-endpoints.ts'
 import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
-import { LiveAuditEventLog } from './governance/audit-event-log.ts'
 import {
   NotificationFeed,
   SeedNotificationFeed
@@ -32,6 +31,15 @@ import {
   WorkspaceLifecycle
 } from './governance/workspace-lifecycle.ts'
 import { workspaceLifecycleContractCases } from './governance/workspace-lifecycle.contract.ts'
+import {
+  auditEventContractDataset,
+  auditEventLogContractCases
+} from './governance/audit-event-log.contract.ts'
+import {
+  AuditEventLog,
+  LiveAuditEventLog,
+  SeedAuditEventLog
+} from './governance/audit-event-log.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
 import {
   CONTRACT_EXPIRED_AT,
@@ -47,6 +55,26 @@ const seedWorkspaceLayer = Layer.merge(
   SeedLayer,
   testWorkspaceContext(seedWorkspaceRecord)
 )
+
+describe('seed audit event log contract', () => {
+  const workspaceId = 'wrk_audit_contract'
+  const layer = Layer.merge(
+    SeedAuditEventLog(auditEventContractDataset(workspaceId)),
+    testWorkspaceContext({
+      id: workspaceId,
+      slug: 'audit-lab',
+      name: 'Audit Lab',
+      planId: 'team'
+    })
+  )
+  const cases = auditEventLogContractCases(
+    (input) => Effect.flatMap(AuditEventLog, (log) => log.list(input)),
+    expect
+  )
+  for (const contractCase of cases) {
+    it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
+  }
+})
 
 describe('starter capabilities', () => {
   it.effect('counts unread notifications through the feed interface', () =>
