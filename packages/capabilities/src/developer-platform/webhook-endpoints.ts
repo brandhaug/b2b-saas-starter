@@ -7,6 +7,7 @@ import {
   webhookEndpoints
 } from '@b2b-saas-starter/db'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
+import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -64,7 +65,10 @@ export type WebhookDeliveryAttemptInput = {
  * out of the governance log. Naming follows the `auth.sign_in` /
  * `auth.sign_in_failed` convention from the web app's auth audit.
  */
-export const terminalDeliveryAuditEventType = new Map<WebhookDeliveryStatus, string>([
+export const terminalDeliveryAuditEventType = new Map<
+  WebhookDeliveryStatus,
+  AuditEventType
+>([
   ['failed_permanent', 'webhook.delivery_failed'],
   ['dead_lettered', 'webhook.delivery_dead_lettered']
 ])
@@ -246,7 +250,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
       S extends Partial<typeof webhookEndpoints.$inferInsert>
     >(
       input: { readonly endpointId: string; readonly actorUserId?: string },
-      eventType: string,
+      eventType: AuditEventType,
       makeSet: () => S
     ): Effect.Effect<Option.Option<S>, CapabilityUnavailable, WorkspaceContext> {
       return Effect.gen(function* () {

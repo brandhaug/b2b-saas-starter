@@ -379,8 +379,8 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
             const audit = yield* AuditEventLog
             yield* audit.record({
               workspaceId: 'wrk_other',
-              eventType: 'isolation.check',
-              targetType: 'test'
+              eventType: 'workspace.created',
+              targetType: 'workspace'
             })
           })
         )
@@ -391,9 +391,9 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
             return (yield* audit.list()).events
           })
         )
-        expect(liveEvents.some((event) => event.eventType === 'isolation.check')).toBe(
-          false
-        )
+        expect(
+          liveEvents.some((event) => event.eventType === 'workspace.created')
+        ).toBe(false)
         const otherEvents = yield* inWorkspace(
           'other-lab',
           Effect.gen(function* () {
@@ -401,9 +401,9 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
             return (yield* audit.list()).events
           })
         )
-        expect(otherEvents.some((event) => event.eventType === 'isolation.check')).toBe(
-          true
-        )
+        expect(
+          otherEvents.some((event) => event.eventType === 'workspace.created')
+        ).toBe(true)
       })
     )
   })

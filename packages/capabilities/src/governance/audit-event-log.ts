@@ -9,6 +9,7 @@ import {
 } from '@b2b-saas-starter/db'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
@@ -79,8 +80,12 @@ export type SeedAuditEventRow = AuditEvent & {
 export type RecordAuditEventInput = {
   readonly workspaceId?: string | null
   readonly actorUserId?: string | null
-  readonly eventType: string
-  readonly targetType: string
+  /**
+   * From the taxonomy module — the write boundary is where the vocabulary is
+   * enforced. The read path stays a lenient `Schema.String`.
+   */
+  readonly eventType: AuditEventType
+  readonly targetType: AuditTargetType
   readonly targetId?: string | null
   /**
    * Per-event-type detail (token name + scopes, webhook url + events, delivery

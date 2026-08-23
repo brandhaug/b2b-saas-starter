@@ -29,7 +29,7 @@ Append-only stream of workspace and system events for compliance, security revie
 - **Workspace admin** — role changes, member invites, member removals, plan changes.
 - **Webhook lifecycle** — endpoint create/update/disable, secret rotation ([`webhook-endpoints`](../developer-platform/webhook-endpoints.AGENTS.md)).
 
-API token lifecycle is wired today — see [`api-token-registry`](../developer-platform/api-token-registry.AGENTS.md). When the producer list grows, consider tightening `eventType`/`targetType` to a tagged union at the capability boundary while keeping the wire shape stringly-typed.
+API token lifecycle is wired today — see [`api-token-registry`](../developer-platform/api-token-registry.AGENTS.md). The event/target vocabulary now lives in [`audit-event-taxonomy`](src/governance/audit-event-taxonomy.ts) and is enforced here at the write boundary; add new producer names to the module first (the read path stays stringly by design).
 
 ## Anti-patterns
 
