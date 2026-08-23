@@ -76,9 +76,9 @@ describe('WorkspaceSettingsPage as a member', () => {
     expect(screen.queryByRole('button', { name: 'Create token' })).toBeNull()
   })
 
-  it('does not render the members or webhook sections', async () => {
+  it('does not render the invitation or webhook sections', async () => {
     await renderPage(memberSettings)
-    expect(screen.queryByText('Members')).toBeNull()
+    expect(screen.queryByLabelText('Invite by email')).toBeNull()
     expect(screen.queryByLabelText('Email')).toBeNull()
     expect(screen.queryByText('Outbound webhooks')).toBeNull()
   })
