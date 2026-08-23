@@ -37,6 +37,10 @@ const EVENT_LABELS = new Map<string, string>(
     'auth.password_reset_failed': 'Password reset failed',
     'auth.email_verified': 'Email verified',
     'auth.email_verification_failed': 'Email verification failed',
+    'auth.sign_out': 'Signed out',
+    'auth.sign_out_failed': 'Sign-out failed',
+    'auth.session_revoked': 'Session revoked',
+    'auth.session_revocation_failed': 'Session revocation failed',
     // Better Auth admin endpoints (system-level)
     'system_admin.user_created': 'System user created',
     'system_admin.user_creation_failed': 'System user creation failed',

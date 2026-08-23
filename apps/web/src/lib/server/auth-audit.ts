@@ -10,17 +10,113 @@ import { runCapabilities } from '@/lib/capabilities'
 import { causeMessage } from '@/lib/cause-message'
 
 /**
- * The lifecycle exchanges the auth catchall audits. Better Auth owns these
- * endpoints; this table is the whole decision of which ones are
- * governance-sensitive enough to record (ADR 0025's boundary, applied to the
- * account lifecycle rather than just credential sign-in).
+ * The lifecycle exchanges the auth catchall audits, as a path→event table: one
+ * row per endpoint, naming its success/failure event pair (or a single event,
+ * where the endpoint's contract is to answer identically either way). Better
+ * Auth owns these endpoints; this table is the whole decision of which ones
+ * are governance-sensitive enough to record (ADR 0025's boundary, applied to
+ * the account lifecycle rather than just credential sign-in). Both this table
+ * and `ADMIN_EXCHANGE_EVENTS` below are plain data, so adding a producer is a
+ * row here, not a new predicate.
+ *
+ * All of these are system-level: no workspace scope. A row whose response body
+ * names the acting user (`namesUserInResponse`) gets its actor from there; a
+ * row with `actorFromSession` — sign-out and the session revocations, whose
+ * responses name nobody — needs the actor read from the session BEFORE the
+ * handler runs (`needsPreHandlerActor` / `AuthAuditContext`).
  */
-export type AuthExchangeKind =
-  | 'sign_in'
-  | 'sign_up'
-  | 'password_reset_requested'
-  | 'password_reset'
-  | 'email_verified'
+type LifecycleExchangeRow = {
+  readonly method: 'POST' | 'GET'
+  readonly suffix: string
+  readonly success: AuditEventType
+  /** `null` = one event regardless of outcome (the non-disclosing reset request). */
+  readonly failure: AuditEventType | null
+  readonly targetType: 'session' | 'user'
+  /** Whether the 2xx response carries the acting user as `{ user: { id } }`. */
+  readonly namesUserInResponse?: boolean
+  /** Whether the actor must come from the pre-handler session read. */
+  readonly actorFromSession?: boolean
+  /** Set on the two sign-in rows, so the event says how the credential was presented. */
+  readonly signInMethod?: string
+}
+
+const LIFECYCLE_EXCHANGE_EVENTS: ReadonlyArray<LifecycleExchangeRow> = [
+  {
+    method: 'POST',
+    suffix: '/sign-in/email',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    targetType: 'session',
+    namesUserInResponse: true,
+    signInMethod: 'email'
+  },
+  {
+    method: 'POST',
+    suffix: '/sign-in/username',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    targetType: 'session',
+    namesUserInResponse: true,
+    signInMethod: 'username'
+  },
+  {
+    method: 'POST',
+    suffix: '/sign-up/email',
+    success: 'auth.sign_up',
+    failure: 'auth.sign_up_failed',
+    targetType: 'user',
+    namesUserInResponse: true
+  },
+  {
+    method: 'POST',
+    suffix: '/request-password-reset',
+    // One event per request, success or not: the endpoint's contract is to
+    // answer identically whether the email exists, and the event matches it.
+    success: 'auth.password_reset_requested',
+    failure: null,
+    targetType: 'user'
+  },
+  {
+    method: 'POST',
+    suffix: '/reset-password',
+    success: 'auth.password_reset',
+    failure: 'auth.password_reset_failed',
+    targetType: 'user'
+  },
+  {
+    method: 'GET',
+    suffix: '/verify-email',
+    success: 'auth.email_verified',
+    failure: 'auth.email_verification_failed',
+    targetType: 'user',
+    // Only the no-callback branch of the success answers with a JSON body.
+    namesUserInResponse: true
+  },
+  {
+    method: 'POST',
+    suffix: '/sign-out',
+    success: 'auth.sign_out',
+    failure: 'auth.sign_out_failed',
+    targetType: 'session',
+    actorFromSession: true
+  },
+  {
+    method: 'POST',
+    suffix: '/user/revoke-session',
+    success: 'auth.session_revoked',
+    failure: 'auth.session_revocation_failed',
+    targetType: 'session',
+    actorFromSession: true
+  },
+  {
+    method: 'POST',
+    suffix: '/user/revoke-sessions',
+    success: 'auth.session_revoked',
+    failure: 'auth.session_revocation_failed',
+    targetType: 'session',
+    actorFromSession: true
+  }
+]
 
 /**
  * Whether an auth catchall exchange is audit-worthy at all. Cheap by design:
@@ -30,41 +126,44 @@ export function isAuditedAuthExchange(exchange: {
   readonly method: string
   readonly pathname: string
 }): boolean {
-  return authExchangeKind(exchange) !== null
+  return lifecycleExchangeRow(exchange) !== null
 }
 
-function authExchangeKind(exchange: {
+function lifecycleExchangeRow(exchange: {
   readonly method: string
   readonly pathname: string
-}): AuthExchangeKind | null {
-  const { method, pathname } = exchange
-  if (method === 'POST') {
-    if (pathname.endsWith('/sign-in/email')) return 'sign_in'
-    if (pathname.endsWith('/sign-up/email')) return 'sign_up'
-    if (pathname.endsWith('/request-password-reset')) return 'password_reset_requested'
-    if (pathname.endsWith('/reset-password')) return 'password_reset'
-    return null
-  }
-  if (method === 'GET' && pathname.endsWith('/verify-email')) return 'email_verified'
-  return null
+}): LifecycleExchangeRow | null {
+  return (
+    LIFECYCLE_EXCHANGE_EVENTS.find(
+      (row) => exchange.method === row.method && exchange.pathname.endsWith(row.suffix)
+    ) ?? null
+  )
 }
 
 /**
- * The audit event kinds whose 2xx response body carries the acting user as
- * `{ user: { id } }`: credential sign-in, sign-up, and the no-callback branch
- * of email verification. The reset endpoints answer with constant,
- * non-attributing bodies, so they never get a body read.
+ * Whether the caller must read the actor off the request session BEFORE the
+ * handler runs: the audited admin mutations (their responses never name their
+ * actor) and the session-ending rows above (whose responses name nobody). The
+ * route gathers an `AuthAuditContext` for exactly these exchanges.
  */
-function carriesUserIdInBody(kind: AuthExchangeKind): boolean {
-  return kind === 'sign_in' || kind === 'sign_up' || kind === 'email_verified'
+export function needsPreHandlerActor(exchange: {
+  readonly method: string
+  readonly pathname: string
+}): boolean {
+  return (
+    isAdminAuthExchange(exchange) ||
+    lifecycleExchangeRow(exchange)?.actorFromSession === true
+  )
 }
 
 /**
  * Pure mapping from an auth catchall exchange to the audit event it should
  * record, or `null` when the exchange is not audit-worthy. Success attributes
  * the actor where the response body names one; failure records the attempt as
- * a system event (workspaceId null on both — sessions are not
- * workspace-scoped).
+ * a system event — except the session-ending rows, whose actor was read from
+ * the session before the handler ran and therefore survives a failure (same
+ * reasoning as the admin events). `workspaceId` is null on both — sessions
+ * are not workspace-scoped.
  *
  * The password-reset request records exactly one event whether or not the
  * email exists: the response is deliberately identical either way, and so is
@@ -81,31 +180,38 @@ export function authAuditInput(exchange: {
   readonly userId: string | null
   readonly locationHeader?: string | null
 }): RecordAuditEventInput | null {
-  const kind = authExchangeKind(exchange)
-  if (kind === null) return null
+  const row = lifecycleExchangeRow(exchange)
+  if (row === null) return null
 
   const success =
     (exchange.status >= 200 && exchange.status < 300) ||
     // The verify-email hop answers successful verification with a redirect to
     // the callback URL, and failed verification with a redirect carrying an
     // `error` param — the param is the discriminator.
-    (kind === 'email_verified' &&
+    (row.suffix === '/verify-email' &&
       exchange.status >= 300 &&
       exchange.status < 400 &&
       !locationCarriesError(exchange.locationHeader ?? null))
 
-  const eventType = authExchangeEventType(kind, success)
-  if (eventType === null) return null
+  const eventType = success || row.failure === null ? row.success : row.failure
 
-  const attributed = success && exchange.userId !== null
+  // A session read before the handler predates Better Auth's judgment, so it
+  // keeps the actor on a failure too; an actor scraped from a response body
+  // is only trustworthy on success.
+  const attributed = row.actorFromSession
+    ? exchange.userId !== null
+    : success && exchange.userId !== null
   return {
     workspaceId: null,
     actorUserId: attributed ? exchange.userId : null,
     eventType,
     // Sign-in's target is the session it opens (the established shape); the
     // lifecycle events target the account they change.
-    targetType: kind === 'sign_in' ? 'session' : 'user',
-    metadata: { method: 'email', statusCode: exchange.status }
+    targetType: row.targetType,
+    metadata:
+      row.signInMethod === undefined
+        ? { statusCode: exchange.status }
+        : { method: row.signInMethod, statusCode: exchange.status }
   }
 }
 
@@ -114,32 +220,6 @@ function locationCarriesError(location: string | null): boolean {
   // An unparseable or absent Location is not a success this audit vouches for.
   if (location === null) return true
   return URL.parse(location)?.searchParams.has('error') ?? true
-}
-
-function authExchangeEventType(
-  kind: AuthExchangeKind,
-  success: boolean
-): AuditEventType | null {
-  switch (kind) {
-    case 'sign_in': {
-      return success ? 'auth.sign_in' : 'auth.sign_in_failed'
-    }
-    case 'sign_up': {
-      return success ? 'auth.sign_up' : 'auth.sign_up_failed'
-    }
-    case 'password_reset_requested': {
-      // One event per request, success or not: the endpoint's contract is to
-      // answer identically whether the email exists, and the audit event
-      // matches that contract.
-      return 'auth.password_reset_requested'
-    }
-    case 'password_reset': {
-      return success ? 'auth.password_reset' : 'auth.password_reset_failed'
-    }
-    case 'email_verified': {
-      return success ? 'auth.email_verified' : 'auth.email_verification_failed'
-    }
-  }
 }
 
 /**
@@ -361,12 +441,13 @@ function writeAuditEvent(
 }
 
 /**
- * Everything the admin-endpoint audit needs that only the caller can supply:
- * the acting system admin's user id, read from the request session BEFORE the
- * handler ran (admin responses never name their actor), and a clone of the
- * request — Better Auth consumes the original body.
+ * Everything the pre-handler-actor audits need that only the caller can
+ * supply: the acting user's id, read from the request session BEFORE the
+ * handler ran (admin responses never name their actor, sign-out and session
+ * revocation name nobody), and — for the admin mutations — a clone of the
+ * request, since Better Auth consumes the original body.
  */
-export type AdminAuditContext = {
+export type AuthAuditContext = {
   readonly actorUserId: string
   /** A clone of the request, gathered before the handler consumed the body. Only `json()` is read. */
   readonly request?: { readonly json: <T>() => Promise<T> }
@@ -377,8 +458,10 @@ export type AdminAuditContext = {
  * hiccup can't fail an auth exchange that Better Auth already answered. Under
  * the Seed layer (no DB binding) `record` is a no-op by design.
  *
- * Pass an `AdminAuditContext` to also audit the Better Auth admin mutations
- * (`POST /api/auth/admin/*`); without one they are skipped.
+ * Pass an `AuthAuditContext` to also audit the exchanges whose responses
+ * never name their actor: the Better Auth admin mutations
+ * (`POST /api/auth/admin/*`) and the session-ending rows (sign-out, the user
+ * session revocations). Without one those record unattributed.
  *
  * "Best effort" applies to the auth response, not to the failure itself — an
  * audit path must never drop a failure silently. Both failure modes are
@@ -390,21 +473,25 @@ export function recordAuthAudit(
   request: Request,
   response: Response,
   run: RunAuditCapabilities = runCapabilities,
-  admin?: AdminAuditContext
+  context?: AuthAuditContext
 ): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> {
   return Effect.gen(function* () {
     const method = request.method
     const pathname = new URL(request.url).pathname
 
-    if (admin !== undefined && isAdminAuthExchange({ method, pathname })) {
-      return yield* recordAdminAudit({ pathname, response, run, admin })
+    if (context !== undefined && isAdminAuthExchange({ method, pathname })) {
+      return yield* recordAdminAudit({ pathname, response, run, admin: context })
     }
 
-    const kind = authExchangeKind({ method, pathname })
-    if (kind === null) return 'skipped'
+    const row = lifecycleExchangeRow({ method, pathname })
+    if (row === null) return 'skipped'
 
     let userId: string | null = null
-    if (response.ok && carriesUserIdInBody(kind)) {
+    if (row.actorFromSession === true) {
+      // The response names nobody: the actor comes from the pre-handler
+      // session read, or the event records unattributed.
+      userId = context?.actorUserId ?? null
+    } else if (response.ok && row.namesUserInResponse === true) {
       const actor = yield* Effect.result(readActorUserId(response))
       if (Result.isFailure(actor)) {
         // A 2xx lifecycle response with a non-JSON body is unexpected. The
@@ -450,7 +537,7 @@ function recordAdminAudit(args: {
   readonly pathname: string
   readonly response: Response
   readonly run: RunAuditCapabilities
-  readonly admin: AdminAuditContext
+  readonly admin: AuthAuditContext
 }): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> {
   return Effect.gen(function* () {
     const { pathname, response, run, admin } = args
