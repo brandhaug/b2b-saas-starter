@@ -2,8 +2,6 @@ import { render } from '@react-email/render'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { type ReactElement } from 'react'
 
-export * from './templates.tsx'
-
 export const EmailDeliveryMode = Schema.Literals(['cloudflare-email', 'log'])
 export type EmailDeliveryMode = typeof EmailDeliveryMode.Type
 

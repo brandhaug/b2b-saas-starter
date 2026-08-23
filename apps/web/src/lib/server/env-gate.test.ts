@@ -1,5 +1,5 @@
+import { type RequiredEnvProblem } from '@b2b-saas-starter/env/src/server.ts'
 import { describe, expect, it } from 'vitest'
-import { type RequiredEnvProblem } from '@b2b-saas-starter/env'
 import { enforceRequiredEnvAudit, InsecureProductionEnvError } from './env-gate.ts'
 
 describe('enforceRequiredEnvAudit', () => {
@@ -34,6 +34,7 @@ describe('enforceRequiredEnvAudit', () => {
       { key: 'BETTER_AUTH_SECRET', reason: 'placeholder' },
       { key: 'BETTER_AUTH_URL', reason: 'missing' }
     ]
+
     // The thrown message names the vars and the reason — never the secret's
     // value — which is what a failing deployment's operator needs to see.
     expect(() => enforceRequiredEnvAudit({ mode: 'production', problems })).toThrow(

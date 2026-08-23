@@ -1,9 +1,9 @@
+import { annotateWide } from '@b2b-saas-starter/logger'
+import { Auth, type Session } from '@b2b-saas-starter/auth'
 import { notFound, redirect } from '@tanstack/react-router'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { Effect } from 'effect'
-import { Auth, type Session } from '@b2b-saas-starter/auth'
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { authRuntime } from '../auth-runtime'
 import { withWebRequestScope } from '../observability'
 

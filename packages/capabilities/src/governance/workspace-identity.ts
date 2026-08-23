@@ -1,11 +1,12 @@
-import { Effect, Schema } from 'effect'
-import { and, eq } from 'drizzle-orm'
 import {
   user,
   workspaceMembers,
-  workspaceRoles,
-  type EffectDatabase
-} from '@b2b-saas-starter/db'
+  workspaceRoles
+} from '@b2b-saas-starter/db/src/schema.ts'
+import { type EffectDatabase } from '@b2b-saas-starter/db/src/service.ts'
+import { Effect, Schema } from 'effect'
+import { and, eq } from 'drizzle-orm'
+
 import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 

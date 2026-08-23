@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { useForm } from '@tanstack/react-form'
-import { Cause, Effect, Exit, Option } from 'effect'
 import {
   API_TOKEN_SCOPES,
   type ApiTokenScope,
   type CreatedApiToken
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { useState } from 'react'
+import { useForm } from '@tanstack/react-form'
+import { Cause, Effect, Exit, Option } from 'effect'
+
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -148,6 +149,7 @@ export function ApiTokenForm({
                           )
                         }}
                       />
+
                       <span>{scope}</span>
                     </Label>
                   )

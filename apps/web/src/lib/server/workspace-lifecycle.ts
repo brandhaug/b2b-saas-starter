@@ -1,10 +1,11 @@
-import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema } from 'effect'
 import {
   type CreatedWorkspace,
-  type Workspace,
   WorkspaceLifecycle
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/src/governance/workspace-lifecycle.ts'
+import { type Workspace } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { createServerFn } from '@tanstack/react-start'
+import { Effect, Schema } from 'effect'
+
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'

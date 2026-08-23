@@ -1,8 +1,8 @@
+import { annotateWide } from '@b2b-saas-starter/logger'
+import { Auth } from '@b2b-saas-starter/auth'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { Effect } from 'effect'
-import { Auth } from '@b2b-saas-starter/auth'
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { authRuntime } from '../auth-runtime'
 import { withWebRequestScope } from '../observability'
 

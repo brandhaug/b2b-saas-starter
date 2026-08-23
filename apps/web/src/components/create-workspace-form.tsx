@@ -1,7 +1,7 @@
+import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities/src/governance/workspace-lifecycle.ts'
 import { useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { Cause, Effect, Exit, Option } from 'effect'
-import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { causeMessage } from '@/lib/cause-message'
@@ -80,8 +80,9 @@ export function CreateWorkspaceForm({
       )
       if (Exit.isFailure(exit)) {
         setSubmitError(
-          Option.getOrElse(Cause.findErrorOption(exit.cause), () =>
-            CREATE_WORKSPACE_FAILED
+          Option.getOrElse(
+            Cause.findErrorOption(exit.cause),
+            () => CREATE_WORKSPACE_FAILED
           )
         )
         return

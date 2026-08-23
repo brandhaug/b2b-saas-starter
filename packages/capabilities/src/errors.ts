@@ -6,7 +6,7 @@ import { Schema } from 'effect'
  * re-exported here — not redeclared — so consumers keep one import path and
  * the HTTP contract keeps one class identity.
  */
-export { AuthorizationDenied } from '@b2b-saas-starter/authz'
+export { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
 
 export class WorkspaceNotFound extends Schema.TaggedErrorClass<WorkspaceNotFound>()(
   'WorkspaceNotFound',

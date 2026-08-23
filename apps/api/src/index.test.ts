@@ -1,6 +1,6 @@
+import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { describe, expect, test } from 'vitest'
 import { Effect, Schema } from 'effect'
-import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities'
 import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 

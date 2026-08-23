@@ -1,7 +1,7 @@
+import { createDb } from '@b2b-saas-starter/db/src/client.ts'
+import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
 import { env } from 'cloudflare:workers'
 import { Layer, ManagedRuntime, Schema } from 'effect'
-import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
-import { createDb } from '@b2b-saas-starter/db/client'
 import { makeAuthEmailSender } from './server/auth-emails'
 
 /**

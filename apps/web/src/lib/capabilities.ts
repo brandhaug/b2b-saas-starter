@@ -1,17 +1,22 @@
+import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import {
+  CapabilityUnavailable,
+  WorkspaceNotFound
+} from '@b2b-saas-starter/capabilities/src/errors.ts'
+import {
+  selectCapabilitiesLayer,
+  selectWorkspaceLayer,
+  type StarterEnv
+} from '@b2b-saas-starter/capabilities/src/runtime.ts'
+import {
+  type ActorRef,
+  type WorkspaceContext
+} from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import { type CapabilityServices } from '@b2b-saas-starter/capabilities/src/layers.ts'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { notFound } from '@tanstack/react-router'
 import { Cause, Effect, Exit, Option, type Scope } from 'effect'
-import {
-  AuthorizationDenied,
-  CapabilityUnavailable,
-  selectCapabilitiesLayer,
-  selectWorkspaceLayer,
-  WorkspaceNotFound,
-  type ActorRef,
-  type CapabilityServices,
-  type StarterEnv,
-  type WorkspaceContext
-} from '@b2b-saas-starter/capabilities'
+
 import { CapabilityUnavailableError, ForbiddenError } from './capability-error'
 import { withWebRequestScope } from './observability'
 

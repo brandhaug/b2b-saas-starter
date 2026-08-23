@@ -1,11 +1,14 @@
-import { Effect } from 'effect'
-import { describe, expect, it } from 'vitest'
 import {
   testWorkspaceContext,
-  type Actor,
+  type Actor
+} from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import {
   type Workspace,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities'
+} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { Effect } from 'effect'
+import { describe, expect, it } from 'vitest'
+
 import { requireWorkspacePermission } from './authorize'
 
 const workspace: Workspace = {

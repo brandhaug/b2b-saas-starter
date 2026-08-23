@@ -1,19 +1,21 @@
-import { Context, DateTime, Effect, Layer } from 'effect'
-import { describe, expect, layer } from '@effect/vitest'
-import { count, eq } from 'drizzle-orm'
 import {
   auditEvents,
-  Database,
-  layerFromD1,
-  type EffectDatabase,
   user,
   webhookDeliveries,
   webhookEndpoints,
   workspaceInvitations,
   workspaceMembers,
   workspaces
-} from '@b2b-saas-starter/db'
-import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
+} from '@b2b-saas-starter/db/src/schema.ts'
+import {
+  Database,
+  layerFromD1,
+  type EffectDatabase
+} from '@b2b-saas-starter/db/src/service.ts'
+import { provisionTestD1 } from '@b2b-saas-starter/db/src/testing.ts'
+import { Context, DateTime, Effect, Layer } from 'effect'
+import { describe, expect, layer } from '@effect/vitest'
+import { count, eq } from 'drizzle-orm'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
 import {
   WebhookEndpoints,

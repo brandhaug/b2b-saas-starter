@@ -1,12 +1,12 @@
-import { Context, DateTime, Effect, Layer, Option, Ref, Schema } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { Database, type EffectDatabase } from '@b2b-saas-starter/db/src/service.ts'
 import {
-  Database,
   invitationStatuses,
   workspaceInvitations,
-  workspaces,
-  type EffectDatabase
-} from '@b2b-saas-starter/db'
+  workspaces
+} from '@b2b-saas-starter/db/src/schema.ts'
+import { Context, DateTime, Effect, Layer, Option, Ref, Schema } from 'effect'
+import { and, eq } from 'drizzle-orm'
+
 import { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -81,6 +81,7 @@ export type WorkspaceInvitationsInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
   readonly create: (
     input: CreateInvitationInput
   ) => Effect.Effect<
@@ -88,6 +89,7 @@ export type WorkspaceInvitationsInterface = {
     CapabilityUnavailable | MembershipChangeRejected,
     WorkspaceContext
   >
+
   readonly cancel: (
     input: InvitationRef
   ) => Effect.Effect<
@@ -95,6 +97,7 @@ export type WorkspaceInvitationsInterface = {
     CapabilityUnavailable | MembershipChangeRejected,
     WorkspaceContext
   >
+
   /**
    * One invitation by id, with its workspace. No `WorkspaceContext` and no
    * membership check, for the same reason `accept` has neither — this is the

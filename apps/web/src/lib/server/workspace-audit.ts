@@ -1,12 +1,13 @@
-import { Effect } from 'effect'
 import {
   AuditEventLog,
-  WorkspaceContext,
-  WorkspaceMembership,
   type AuditEvent,
-  type ListAuditEventsInput,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities'
+  type ListAuditEventsInput
+} from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { Effect } from 'effect'
+
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireWorkspacePermission } from './authorize'
 

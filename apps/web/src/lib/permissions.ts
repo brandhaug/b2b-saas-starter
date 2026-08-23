@@ -3,7 +3,7 @@ import {
   memberPrincipal,
   type PermissionRequest,
   type WorkspaceRole
-} from '@b2b-saas-starter/authz/client'
+} from '@b2b-saas-starter/authz/src/client.ts'
 
 /**
  * Client-side permission checks for workspace UI.

@@ -1,12 +1,12 @@
-import { Context, DateTime, Effect, Layer, Schema } from 'effect'
-import { and, desc, eq, isNull } from 'drizzle-orm'
 import {
   apiTokens,
   apiTokenScopes,
-  batch,
-  Database,
   workspaces
-} from '@b2b-saas-starter/db'
+} from '@b2b-saas-starter/db/src/schema.ts'
+import { batch, Database } from '@b2b-saas-starter/db/src/service.ts'
+import { Context, DateTime, Effect, Layer, Schema } from 'effect'
+import { and, desc, eq, isNull } from 'drizzle-orm'
+
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { AuthorizationDenied, type CapabilityUnavailable } from '../errors.ts'
 import { hashSha256, randomHex } from '../internal/crypto.ts'
@@ -75,6 +75,7 @@ export type ApiTokenRegistryInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
   readonly create: (
     input: CreateApiTokenInput
   ) => Effect.Effect<CreatedApiToken, CapabilityUnavailable, WorkspaceContext>

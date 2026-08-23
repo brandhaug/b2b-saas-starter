@@ -1,3 +1,9 @@
+import {
+  accessControl,
+  workspaceRoleAccess
+} from '@b2b-saas-starter/authz/src/client.ts'
+import { type Database } from '@b2b-saas-starter/db/client'
+import * as schema from '@b2b-saas-starter/db/schema'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { organization } from 'better-auth/plugins/organization'
@@ -9,9 +15,6 @@ import {
   service,
   type Session as InferredSession
 } from 'effectful-better-auth'
-import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz'
-import { type Database } from '@b2b-saas-starter/db/client'
-import * as schema from '@b2b-saas-starter/db/schema'
 
 /**
  * The account-lifecycle emails Better Auth sends (password reset, email

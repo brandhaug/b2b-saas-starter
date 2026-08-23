@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./src/*": "./src/*"
   },
   "scripts": {
     "build": "tsc --noEmit",

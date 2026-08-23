@@ -1,5 +1,5 @@
+import { layerFromD1 } from '@b2b-saas-starter/db/src/service.ts'
 import { Layer } from 'effect'
-import { layerFromD1 } from '@b2b-saas-starter/db'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
 import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'

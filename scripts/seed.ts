@@ -1,17 +1,4 @@
 import {
-  ApiTokenRegistry,
-  AuditEventLog,
-  demoMemberIdentity,
-  demoUserIdentity,
-  hashApiToken,
-  NotificationFeed,
-  SEED_API_TOKEN,
-  selectWorkspaceLayer,
-  WebhookEndpoints,
-  WorkspaceContext,
-  WorkspaceMembership
-} from '@b2b-saas-starter/capabilities'
-import {
   account,
   apiTokens,
   auditEvents,
@@ -20,7 +7,23 @@ import {
   webhookEndpoints,
   workspaceMembers,
   workspaces
-} from '@b2b-saas-starter/db'
+} from '@b2b-saas-starter/db/src/schema.ts'
+import {
+  ApiTokenRegistry,
+  hashApiToken,
+  SEED_API_TOKEN
+} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
+import {
+  demoMemberIdentity,
+  demoUserIdentity
+} from '@b2b-saas-starter/capabilities/src/seed-fixture.ts'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
+import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/src/runtime.ts'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+
 import { getColumns, getTableName, type Table } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'
 import { hashPassword } from 'better-auth/crypto'
@@ -328,6 +331,7 @@ function writeAndExecute(sql: string) {
             '--config=packages/db/wrangler.jsonc',
             '--file=.context/seed-starter-lab.sql'
           ],
+
           { stdout: 'inherit', stderr: 'inherit' }
         ).exited
     )

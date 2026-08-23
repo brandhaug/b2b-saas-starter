@@ -1,12 +1,13 @@
+import {
+  WORKSPACE_ROLES,
+  type WorkspaceRole
+} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { type Invitation } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Cause, Effect, Exit, Option } from 'effect'
-import {
-  WORKSPACE_ROLES,
-  type Invitation,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities'
+
 import { FormTextField } from '@/components/form-text-field'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

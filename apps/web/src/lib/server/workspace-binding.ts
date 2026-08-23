@@ -1,6 +1,6 @@
-import { Effect, Result, Schema } from 'effect'
 import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
-import { type WorkspaceLifecycleBinding } from '@b2b-saas-starter/capabilities'
+import { type WorkspaceLifecycleBinding } from '@b2b-saas-starter/capabilities/src/governance/workspace-lifecycle.ts'
+import { Effect, Result, Schema } from 'effect'
 import { type Service } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
 import { currentRequest } from '../request-context'
@@ -52,7 +52,9 @@ function requireHeaders(headers: Headers | undefined): Headers {
 export const webWorkspaceLifecycleBinding: WorkspaceLifecycleBinding = {
   create: (input) =>
     runBinding((auth, headers) => {
-      const options = { body: { name: input.name, slug: input.slug, userId: input.userId } }
+      const options = {
+        body: { name: input.name, slug: input.slug, userId: input.userId }
+      }
       // Create alone is headerless; the plugin takes the creator from the body.
       if (headers) {
         return auth.api.createOrganization({ ...options, headers })

@@ -1,3 +1,4 @@
+import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { CreateWorkspaceForm } from '@/components/create-workspace-form'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
@@ -5,7 +6,6 @@ import { PublicLayout } from '@/components/public-layout'
 import { RoutePending } from '@/components/route-pending'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { runCapabilities } from '@/lib/capabilities'
-import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities'
 
 export const Route = createFileRoute('/workspaces/')({
   // "My workspaces" is a cross-workspace projection: possibly empty, never a
@@ -29,7 +29,7 @@ function WorkspacesPage() {
           Every workspace your account is a member of.
         </p>
         {/* The unverified state surfaces here rather than gating anything:
-            verification is encouraged, not enforced (provider-light rule). */}
+              verification is encouraged, not enforced (provider-light rule). */}
         {session.user.emailVerified ? null : (
           <div className="mt-6">
             <EmailVerificationBanner email={session.user.email} />
@@ -42,16 +42,19 @@ function WorkspacesPage() {
             </CardHeader>
             <CardContent className="grid gap-5">
               {/* Creating is the way in: the creator becomes the workspace's
-                  first owner, so a fresh account never needs a seed script or
-                  an existing owner to let them in. */}
+                first owner, so a fresh account never needs a seed script or
+                an existing owner to let them in. */}
               <p className="text-sm text-muted-foreground">
-                Your account is not a member of any workspace. Create one below and
-                you will be its first owner, or ask a workspace owner to add you.
+                Your account is not a member of any workspace. Create one below and you
+                will be its first owner, or ask a workspace owner to add you.
               </p>
               <CreateWorkspaceForm
                 userId={session.user.id}
                 onCreated={(workspace) =>
-                  void navigate({ to: '/workspaces/$workspaceSlug', params: { workspaceSlug: workspace.slug } })
+                  void navigate({
+                    to: '/workspaces/$workspaceSlug',
+                    params: { workspaceSlug: workspace.slug }
+                  })
                 }
               />
             </CardContent>

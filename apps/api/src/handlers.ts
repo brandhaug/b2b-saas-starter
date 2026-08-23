@@ -1,28 +1,3 @@
-import { Effect, Result, type Scope } from 'effect'
-import { type HttpServerRequest } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
-import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
-import { RateLimited, StarterApi, Unauthorized } from '@b2b-saas-starter/api'
-import {
-  requirePermission,
-  tokenPrincipal,
-  type PermissionRequest
-} from '@b2b-saas-starter/authz'
-import {
-  ApiTokenRegistry,
-  type ApiToken,
-  AuditEventLog,
-  AuthorizationDenied,
-  type CapabilityUnavailable,
-  NotificationFeed,
-  selectWorkspaceLayer,
-  type WebhookEndpoint,
-  WebhookEndpoints,
-  WebhookPublisher,
-  workspaceOverview,
-  type WorkspaceContext,
-  WorkspaceMembership
-} from '@b2b-saas-starter/capabilities'
 import {
   annotateWide,
   makeOtlpLayer,
@@ -31,6 +6,34 @@ import {
   TRACE_HEADER,
   withRequestScope
 } from '@b2b-saas-starter/logger'
+import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { requirePermission } from '@b2b-saas-starter/authz/src/guard.ts'
+import {
+  tokenPrincipal,
+  type PermissionRequest
+} from '@b2b-saas-starter/authz/src/client.ts'
+import {
+  ApiTokenRegistry,
+  type ApiToken
+} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
+import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/src/runtime.ts'
+import {
+  type WebhookEndpoint,
+  WebhookEndpoints
+} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { WebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
+import { workspaceOverview } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+import { RateLimited, StarterApi, Unauthorized } from '@b2b-saas-starter/api'
+import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
+import { Effect, Result, type Scope } from 'effect'
+import { type HttpServerRequest } from 'effect/unstable/http'
+import { HttpApiBuilder } from 'effect/unstable/httpapi'
+
 import { providerEnv, starterEnv, type ApiEnv } from './env.ts'
 import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
 

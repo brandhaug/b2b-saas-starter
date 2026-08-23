@@ -1,23 +1,24 @@
+import { annotateWide } from '@b2b-saas-starter/logger'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import {
+  WORKSPACE_ROLES,
+  type WorkspaceRole
+} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import {
+  WorkspaceInvitations,
+  type AcceptedInvitation,
+  type Invitation
+} from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+import {
+  type CapabilityUnavailable,
+  type MembershipChangeRejected
+} from '@b2b-saas-starter/capabilities/src/errors.ts'
+import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
+import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/src/templates.tsx'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Option, Result, Schema, type Scope } from 'effect'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz'
-import {
-  WORKSPACE_ROLES,
-  WorkspaceContext,
-  WorkspaceInvitations,
-  type AcceptedInvitation,
-  type CapabilityUnavailable,
-  type Invitation,
-  type MembershipChangeRejected,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities'
-import {
-  EmailDispatcher,
-  selectEmailDispatcherLayer,
-  WorkspaceInvitationEmail
-} from '@b2b-saas-starter/email'
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { currentRequest } from '../request-context'
 import { requireRequestSession } from './auth'

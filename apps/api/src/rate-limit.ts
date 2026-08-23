@@ -1,4 +1,3 @@
-import { Context, Layer } from 'effect'
 import {
   clientKey,
   makeRateLimiter,
@@ -6,6 +5,7 @@ import {
   type RateLimitInput as GenericRateLimitInput,
   type RateLimiterInterface as GenericRateLimiterInterface
 } from '@b2b-saas-starter/rate-limit'
+import { Context, Layer } from 'effect'
 
 // Thin config module over @b2b-saas-starter/rate-limit: this file owns the
 // api worker's bucket union, fallback limits, and env-binding map; the

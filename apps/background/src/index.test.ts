@@ -1,3 +1,9 @@
+import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
+import {
+  WebhookEndpoints,
+  type WebhookDeliveryAttemptInput
+} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { describe, expect, it } from 'vitest'
 import { Effect, Layer, type Scope } from 'effect'
 import {
@@ -5,12 +11,7 @@ import {
   HttpClientResponse,
   type HttpClientRequest
 } from 'effect/unstable/http'
-import {
-  validateWebhookUrl,
-  WebhookEndpoints,
-  type CapabilityUnavailable,
-  type WebhookDeliveryAttemptInput
-} from '@b2b-saas-starter/capabilities'
+
 import {
   backoffSeconds,
   classifyResponseStatus,
@@ -355,6 +356,7 @@ describe('validateWebhookUrl (dispatch-time SSRF guard)', () => {
       'https://[fd12:3456::1]/hooks',
       'https://[fe80::1]/hooks'
     ]
+
     // Asserting the accepted set (instead of per-URL with a message argument)
     // still names every URL that wrongly passed the guard in the diff.
     expect(urls.filter((url) => validateWebhookUrl(url).valid)).toEqual([])

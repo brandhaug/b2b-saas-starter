@@ -1,4 +1,4 @@
-// oxlint-disable-next-line react-doctor/prefer-dynamic-import -- TanStack Start's autoCodeSplitting (default on) puts this module in the dashboard route's chunk, so recharts never loads outside this route. Lazy-loading inside the page would trade an SSR'd card flash for bytes on the app's main screen.
+import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts' // oxlint-disable-next-line react-doctor/prefer-dynamic-import -- TanStack Start's autoCodeSplitting (default on) puts this module in the dashboard route's chunk, so recharts never loads outside this route. Lazy-loading inside the page would trade an SSR'd card flash for bytes on the app's main screen.
 import {
   Bar,
   BarChart,
@@ -9,7 +9,6 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
-import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities'
 import { AXIS_TICK, CHART_MARGIN, TOOLTIP_STYLE } from '../chart-defaults'
 
 export function WebhookSuccessChart({
@@ -42,6 +41,7 @@ export function WebhookSuccessChart({
             contentStyle={TOOLTIP_STYLE}
             formatter={(value) => [`${String(value)}%`, 'Success']}
           />
+
           <Bar dataKey="successRate" radius={4}>
             {data.map((entry) => (
               <Cell
