@@ -4,6 +4,7 @@ import { Cause, Effect, Exit, Option } from 'effect'
 import {
   BellIcon,
   BoxesIcon,
+  HistoryIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   MenuIcon,
@@ -48,6 +49,7 @@ export function WorkspaceShell({
   description,
   unreadCount,
   workspaceSlug,
+  canReadAuditLog = false,
   signOut = signOutWithAuthClient
 }: {
   readonly children: ReactNode
@@ -64,6 +66,13 @@ export function WorkspaceShell({
    * instead of borrowing a workspace.
    */
   readonly workspaceSlug: string | null
+  /**
+   * Whether the viewer may read the audit log — computed by the page from its
+   * payload's role via `viewerCan`, never by comparing role names here. A
+   * member gets no Audit nav entry at all; the loader's hard gate is what a
+   * direct URL meets instead.
+   */
+  readonly canReadAuditLog?: boolean
   readonly signOut?: SignOut
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -76,7 +85,7 @@ export function WorkspaceShell({
         Skip to content
       </a>
       <aside className="hidden border-r border-border p-4 lg:block">
-        <WorkspaceNav workspaceSlug={workspaceSlug} />
+        <WorkspaceNav workspaceSlug={workspaceSlug} canReadAuditLog={canReadAuditLog} />
       </aside>
       <div className="min-w-0">
         <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
@@ -99,6 +108,7 @@ export function WorkspaceShell({
               <div className="p-4">
                 <WorkspaceNav
                   workspaceSlug={workspaceSlug}
+                  canReadAuditLog={canReadAuditLog}
                   onNavigate={() => setMobileNavOpen(false)}
                 />
               </div>
@@ -170,9 +180,11 @@ function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
 
 function WorkspaceNav({
   workspaceSlug,
+  canReadAuditLog,
   onNavigate
 }: {
   readonly workspaceSlug: string | null
+  readonly canReadAuditLog: boolean
   readonly onNavigate?: (() => void) | undefined
 }) {
   return (
@@ -204,6 +216,15 @@ function WorkspaceNav({
               icon={<SettingsIcon className="size-4" />}
               onNavigate={onNavigate}
             />
+            {canReadAuditLog ? (
+              <NavLink
+                to="/workspaces/$workspaceSlug/audit"
+                workspaceSlug={workspaceSlug}
+                label="Audit trail"
+                icon={<HistoryIcon className="size-4" />}
+                onNavigate={onNavigate}
+              />
+            ) : null}
           </>
         )}
         <Link
@@ -226,7 +247,10 @@ function NavLink({
   icon,
   onNavigate
 }: {
-  readonly to: '/workspaces/$workspaceSlug' | '/workspaces/$workspaceSlug/settings'
+  readonly to:
+    | '/workspaces/$workspaceSlug'
+    | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/audit'
   readonly workspaceSlug: string
   readonly label: string
   readonly icon: ReactNode

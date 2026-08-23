@@ -6,6 +6,7 @@ import {
 import { RoutePending } from '@/components/route-pending'
 import { WebhookSuccessChart } from '@/components/charts/webhook-success-chart'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { viewerCan } from '@/lib/permissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   loadWorkspaceDashboard,
@@ -44,7 +45,7 @@ export function WorkspaceDashboardPage({
   /** The one server call this page's children make, forwarded for tests. */
   readonly ports?: { readonly listNotifications?: ListNotifications }
 }) {
-  const { workspace, notifications, webhooks, unreadCount } = data
+  const { workspace, notifications, webhooks, unreadCount, viewer } = data
 
   return (
     <WorkspaceShell
@@ -52,6 +53,7 @@ export function WorkspaceDashboardPage({
       title={workspace.name}
       description="Notifications, API tokens, webhooks, and reports."
       unreadCount={unreadCount}
+      canReadAuditLog={viewerCan(viewer, { auditLog: ['read'] })}
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="grid gap-6">

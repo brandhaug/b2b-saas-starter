@@ -62,12 +62,20 @@ export function WorkspaceSettingsPage({
     readonly deleteWorkspace?: DeleteWorkspace
   }
 }) {
-  const { viewer, workspaceName, apiTokenCount, webhookCount, unreadCount, invitations } = data
+  const {
+    viewer,
+    workspaceName,
+    apiTokenCount,
+    webhookCount,
+    unreadCount,
+    invitations
+  } = data
   // A `null` segment is the server's answer that this actor may not read it.
   const canCreateApiToken = viewerCan(viewer, { apiToken: ['create'] })
   const canInvite = viewerCan(viewer, { invitation: ['create'] })
   const canRename = viewerCan(viewer, { organization: ['update'] })
   const canDelete = viewerCan(viewer, { organization: ['delete'] })
+  const canReadAuditLog = viewerCan(viewer, { auditLog: ['read'] })
 
   return (
     <WorkspaceShell
@@ -76,6 +84,7 @@ export function WorkspaceSettingsPage({
       title="Workspace settings"
       description="API tokens, members, and webhook configuration."
       unreadCount={unreadCount}
+      canReadAuditLog={canReadAuditLog}
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
