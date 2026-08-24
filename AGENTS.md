@@ -45,3 +45,10 @@ bun run test
 5. Keep Contributor's visual patterns but do not import Contributor's developer-productivity domain language.
 6. Keep Hexwardens' architecture discipline but do not copy game, PWA, realtime, or Durable Object requirements without a starter use case.
 7. Put every declaration merge (`declare module`, same-name interface merges) in a `.d.ts` file. Match the augmentation to the file: `declare module 'x'` needs a top-level import so the file is a module, while `declare global` and `declare namespace` need the file to have none. Elsewhere `consistent-type-definitions` rewrites `interface` to `type`, and `oxlint --fix` runs in the pre-commit hook. Two lint rules enforce this now (`starter/no-interface-merge-outside-dts`, `starter/no-mismatched-augmentation-context`); see `apps/web/src/router-register.d.ts` for the module case and `apps/web/src/worker-env.d.ts` for the global one.
+## Commit & Release Conventions
+
+- **All commits and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/)**: `type(scope): subject`, where `type` is one of `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `revert`. Use `!` or a `BREAKING CHANGE:` footer for breaking changes.
+- This convention is enforced by the **PR Gate** workflow (`.github/workflows/pr-gate.yml`), which fails any PR whose title does not conform.
+- Releases are automated by [release-please](https://github.com/googleapis/release-please-action): merging Conventional Commits to `master` opens a release PR titled `chore(master): release ...`; merging it tags and publishes the release.
+- `CLAUDE.md` is a symlink to this file so Claude Code reads the same conventions.
+
