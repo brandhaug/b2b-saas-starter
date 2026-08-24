@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/public-layout'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const Route = createFileRoute('/pricing')({
@@ -51,11 +50,24 @@ function PricingPage() {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <p className="text-sm text-muted-foreground">{plan.description}</p>
-                <Button variant="outline" size="lg" disabled>
-                  Get started
-                </Button>
+                {plan.name === 'Enterprise' ? (
+                  <Link
+                    to="/sign-up"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    Contact sales
+                  </Link>
+                ) : (
+                  <Link
+                    to="/sign-up"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    Get started
+                  </Link>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Available once a billing provider is configured.
+                  Checkout completes on your workspace's Billing page. Stripe checkout
+                  activates once a billing provider is configured.
                 </p>
               </CardContent>
             </Card>

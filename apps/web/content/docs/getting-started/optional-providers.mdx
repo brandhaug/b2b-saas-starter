@@ -77,14 +77,15 @@ The response's `provider` field reads `workers-ai` or `openai-compatible` and `a
 
 ## Stripe billing
 
-The env gate for billing. Checkout, the customer portal, and the inbound webhook route are planned and not yet implemented — see the Stripe doc in the Integration surfaces section for the planned scope.
+Billing is implemented and provider-light: plan display on `/workspaces/$slug/billing` and entitlement gating (Starter caps API tokens at 2 and webhook endpoints at 1) work with every variable below unset. Setting them activates the checkout handoff and the inbound webhook route — see the Stripe doc in the Integration surfaces section for the full flow.
 
 | Variable                | Value                                                            |
 | ----------------------- | ---------------------------------------------------------------- |
 | `STRIPE_SECRET_KEY`     | Stripe Dashboard → Developers → API keys                         |
 | `STRIPE_WEBHOOK_SECRET` | Signing secret shown when you create the Stripe webhook endpoint |
+| `STRIPE_PRICE_ID_TEAM`  | Price id of the Team plan's recurring price                      |
 
-There is no billing UI yet.
+Verify activation: with all three set, the Billing page shows an "Upgrade to Team" button for owners, and `POST /webhooks/stripe` on the background Worker accepts signed events (it answers 503 while `STRIPE_WEBHOOK_SECRET` is unset).
 
 ## Sentry and PostHog (observability)
 

@@ -10,6 +10,7 @@ import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notificatio
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 import { createServerFn } from '@tanstack/react-start'
+import { assertWithinPlanLimit } from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
 import { Effect, Option, Schema, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
@@ -35,6 +36,13 @@ export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
         // The session gate above proves who is asking; this proves they may.
         yield* requireWorkspacePermission({ webhook: ['create'] })
         const webhooks = yield* WebhookEndpoints
+        // Entitlement gate: the workspace's plan caps endpoint count. The
+        // rule lives in the billing capability; the count is this caller's.
+        const existing = yield* webhooks.list
+        yield* assertWithinPlanLimit({
+          resource: 'webhook_endpoint',
+          used: existing.length
+        })
         return yield* webhooks.create({
           url: data.url,
           events: data.events,

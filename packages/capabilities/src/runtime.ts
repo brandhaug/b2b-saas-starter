@@ -54,6 +54,15 @@ export type StarterEnv = {
    * `CapabilityUnavailable`.
    */
   readonly userAdminBinding?: PlatformUserAdminBinding | undefined
+  /**
+   * Stripe checkout configuration, forwarded to the Live billing layer.
+   * Absent (env unset), checkout fails `provider_not_configured` and the rest
+   * of the app is unaffected — provider-light degradation.
+   */
+  readonly billing?: {
+    readonly secretKey?: string | undefined
+    readonly priceIds?: Readonly<Record<string, string>> | undefined
+  }
 }
 
 export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
@@ -65,7 +74,8 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
     memberBinding: env.memberBinding,
     invitationBinding: env.invitationBinding,
     lifecycleBinding: env.lifecycleBinding,
-    userAdminBinding: env.userAdminBinding
+    userAdminBinding: env.userAdminBinding,
+    billing: env.billing
   })
   return live
 }
@@ -92,7 +102,8 @@ export function selectWorkspaceLayer(
       memberBinding: env.memberBinding,
       invitationBinding: env.invitationBinding,
       lifecycleBinding: env.lifecycleBinding,
-      userAdminBinding: env.userAdminBinding
+      userAdminBinding: env.userAdminBinding,
+      billing: env.billing
     }),
     liveWorkspaceContext(slug, actor)
   ).pipe(Layer.provide(layerFromD1(env.DB)))

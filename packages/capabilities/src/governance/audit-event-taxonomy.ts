@@ -47,6 +47,9 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'workspace_invitation.sent',
   'workspace_invitation.canceled',
   'workspace_invitation.accepted',
+  // billing
+  'billing.checkout_started',
+  'billing.plan_changed',
   // account lifecycle over the auth catchall
   'auth.sign_in',
   'auth.sign_in_failed',

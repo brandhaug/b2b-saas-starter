@@ -4,6 +4,7 @@ import { Cause, Effect, Exit, Option } from 'effect'
 import {
   BellIcon,
   BoxesIcon,
+  CreditCardIcon,
   HistoryIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
@@ -251,6 +252,13 @@ function WorkspaceNav({
               icon={<SettingsIcon className="size-4" />}
               onNavigate={onNavigate}
             />
+            <NavLink
+              to="/workspaces/$workspaceSlug/billing"
+              workspaceSlug={workspaceSlug}
+              label="Billing"
+              icon={<CreditCardIcon className="size-4" />}
+              onNavigate={onNavigate}
+            />
             {canReadApiTokens ? (
               <NavLink
                 to="/workspaces/$workspaceSlug/api-tokens"
@@ -303,6 +311,7 @@ function NavLink({
   readonly to:
     | '/workspaces/$workspaceSlug'
     | '/workspaces/$workspaceSlug/api-tokens'
+    | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/audit'

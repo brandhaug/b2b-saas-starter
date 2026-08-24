@@ -7,6 +7,7 @@ import {
 import { AuditEvent } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import {
   CapabilityUnavailable,
+  PlanLimitExceeded,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import {
@@ -139,7 +140,7 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
       params: SlugParams,
       payload: CreateApiTokenPayload,
       success: CreatedApiTokenSchema.pipe(HttpApiSchema.status(201)),
-      error: WORKSPACE_ERRORS
+      error: [PlanLimitExceeded, ...WORKSPACE_ERRORS]
     })
   )
   .add(
@@ -162,7 +163,7 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
     params: SlugParams,
     payload: CreateWebhookEndpointPayload,
     success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
-    error: [InvalidWebhookUrl, ...WORKSPACE_ERRORS]
+    error: [InvalidWebhookUrl, PlanLimitExceeded, ...WORKSPACE_ERRORS]
   })
 )
 

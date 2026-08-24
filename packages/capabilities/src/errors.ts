@@ -58,3 +58,18 @@ export class WorkspaceChangeRejected extends Schema.TaggedErrorClass<WorkspaceCh
   { reason: Schema.String },
   { httpApiStatus: 409 }
 ) {}
+
+/**
+ * An entitlement ceiling the workspace's current plan refuses to cross: a
+ * second webhook endpoint on Starter, a third API token. The request was
+ * answerable and the plan says no — an upgrade, not a retry, resolves it.
+ */
+export class PlanLimitExceeded extends Schema.TaggedErrorClass<PlanLimitExceeded>()(
+  'PlanLimitExceeded',
+  {
+    planId: Schema.String,
+    resource: Schema.String,
+    limit: Schema.Number
+  },
+  { httpApiStatus: 402 }
+) {}
