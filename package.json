@@ -151,7 +151,7 @@
     "@vitest/coverage-v8": "4.1.11",
     "alchemy": "2.0.0-beta.40",
     "babel-plugin-react-compiler": "1.0.0",
-    "better-auth": "1.6.29",
+    "better-auth": "1.7.1",
     "bun-types": "1.4.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
