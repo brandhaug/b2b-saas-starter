@@ -13,6 +13,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@b2b-saas-starter/ai": "workspace:*",
     "@b2b-saas-starter/auth": "workspace:*",
     "@b2b-saas-starter/authz": "workspace:*",
     "@b2b-saas-starter/capabilities": "workspace:*",
