@@ -22,6 +22,10 @@ type WebWorkerEnv = {
   // the invite email goes through the logging dispatcher, which is what keeps
   // the invitation flow working with no provider configured (CLAUDE.md rule 3).
   readonly EMAIL?: import('@b2b-saas-starter/email').SendEmailBinding
+  // Cloudflare Workers AI binding for the assistant. Optional and unwired by
+  // default: without it (or without WORKERS_AI_ENABLED=true) the assistant
+  // stays on its mock provider and the UI shows the honest not-enabled copy.
+  readonly AI?: import('@b2b-saas-starter/ai').WorkersAIBinding
 } & Readonly<import('@b2b-saas-starter/env/src/server.ts').ServerEnv>
 
 // `env` from `cloudflare:workers` is typed as `Cloudflare.Env`

@@ -19,6 +19,12 @@
       "database_id": "placeholder"
     }
   ],
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "WORKERS_AI_ENABLED": "false"
+  },
   "unsafe": {
     "bindings": [
       {

@@ -33,6 +33,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as DocsCategorySlugRouteImport } from './routes/docs.$category.$slug'
 import { Route as WorkspacesWorkspaceSlugIndexRouteImport } from './routes/workspaces.$workspaceSlug.index'
 import { Route as WorkspacesWorkspaceSlugApiTokensRouteImport } from './routes/workspaces.$workspaceSlug.api-tokens'
+import { Route as WorkspacesWorkspaceSlugAssistantRouteImport } from './routes/workspaces.$workspaceSlug.assistant'
 import { Route as WorkspacesWorkspaceSlugAuditRouteImport } from './routes/workspaces.$workspaceSlug.audit'
 import { Route as WorkspacesWorkspaceSlugBillingRouteImport } from './routes/workspaces.$workspaceSlug.billing'
 import { Route as WorkspacesWorkspaceSlugMembersRouteImport } from './routes/workspaces.$workspaceSlug.members'
@@ -161,6 +162,12 @@ const WorkspacesWorkspaceSlugApiTokensRoute =
     path: '/$workspaceSlug/api-tokens',
     getParentRoute: () => WorkspacesRoute,
   } as any)
+const WorkspacesWorkspaceSlugAssistantRoute =
+  WorkspacesWorkspaceSlugAssistantRouteImport.update({
+    id: '/$workspaceSlug/assistant',
+    path: '/$workspaceSlug/assistant',
+    getParentRoute: () => WorkspacesRoute,
+  } as any)
 const WorkspacesWorkspaceSlugAuditRoute =
   WorkspacesWorkspaceSlugAuditRouteImport.update({
     id: '/$workspaceSlug/audit',
@@ -216,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
+  '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
@@ -245,6 +253,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
+  '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
@@ -277,6 +286,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
+  '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
+    | '/workspaces/$workspaceSlug/assistant'
     | '/workspaces/$workspaceSlug/audit'
     | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
+    | '/workspaces/$workspaceSlug/assistant'
     | '/workspaces/$workspaceSlug/audit'
     | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
@@ -370,6 +382,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
+    | '/workspaces/$workspaceSlug/assistant'
     | '/workspaces/$workspaceSlug/audit'
     | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
@@ -570,6 +583,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWorkspaceSlugApiTokensRouteImport
       parentRoute: typeof WorkspacesRoute
     }
+    '/workspaces/$workspaceSlug/assistant': {
+      id: '/workspaces/$workspaceSlug/assistant'
+      path: '/$workspaceSlug/assistant'
+      fullPath: '/workspaces/$workspaceSlug/assistant'
+      preLoaderRoute: typeof WorkspacesWorkspaceSlugAssistantRouteImport
+      parentRoute: typeof WorkspacesRoute
+    }
     '/workspaces/$workspaceSlug/audit': {
       id: '/workspaces/$workspaceSlug/audit'
       path: '/$workspaceSlug/audit'
@@ -623,6 +643,7 @@ const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 interface WorkspacesRouteChildren {
   WorkspacesIndexRoute: typeof WorkspacesIndexRoute
   WorkspacesWorkspaceSlugApiTokensRoute: typeof WorkspacesWorkspaceSlugApiTokensRoute
+  WorkspacesWorkspaceSlugAssistantRoute: typeof WorkspacesWorkspaceSlugAssistantRoute
   WorkspacesWorkspaceSlugAuditRoute: typeof WorkspacesWorkspaceSlugAuditRoute
   WorkspacesWorkspaceSlugBillingRoute: typeof WorkspacesWorkspaceSlugBillingRoute
   WorkspacesWorkspaceSlugMembersRoute: typeof WorkspacesWorkspaceSlugMembersRoute
@@ -634,6 +655,7 @@ interface WorkspacesRouteChildren {
 const WorkspacesRouteChildren: WorkspacesRouteChildren = {
   WorkspacesIndexRoute: WorkspacesIndexRoute,
   WorkspacesWorkspaceSlugApiTokensRoute: WorkspacesWorkspaceSlugApiTokensRoute,
+  WorkspacesWorkspaceSlugAssistantRoute: WorkspacesWorkspaceSlugAssistantRoute,
   WorkspacesWorkspaceSlugAuditRoute: WorkspacesWorkspaceSlugAuditRoute,
   WorkspacesWorkspaceSlugBillingRoute: WorkspacesWorkspaceSlugBillingRoute,
   WorkspacesWorkspaceSlugMembersRoute: WorkspacesWorkspaceSlugMembersRoute,
