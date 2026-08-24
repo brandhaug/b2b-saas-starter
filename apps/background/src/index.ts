@@ -1,4 +1,8 @@
 import {
+  Billing,
+  verifyStripeSignature
+} from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
+import {
   annotateWide,
   currentTraceId,
   makeOtlpLayer,
@@ -473,9 +477,160 @@ function recordDeadLetter(
   ).pipe(Effect.catchCause((_cause) => Effect.void))
 }
 
+/**
+ * The subset of a Stripe event body this worker understands. Everything else
+ * decodes fine and is ignored — an unknown event type is not an error, the
+ * same leniency the webhook delivery reader applies.
+ */
+export const StripeEventBody = Schema.Struct({
+  type: Schema.String,
+  data: Schema.Struct({
+    object: Schema.Struct({
+      client_reference_id: Schema.optionalKey(Schema.String),
+      metadata: Schema.optionalKey(
+        Schema.Struct({
+          workspaceId: Schema.optionalKey(Schema.String),
+          planId: Schema.optionalKey(Schema.String)
+        })
+      )
+    })
+  })
+})
+// One codec for the raw-body boundary: JSON parse and shape decode in one
+// total step, so malformed input is a `Result` failure rather than a throw.
+const decodeStripeEvent = Schema.decodeUnknownResult(
+  Schema.fromJsonString(StripeEventBody)
+)
+
+/**
+ * Core of the Stripe webhook: map the event onto a plan change and hand it to
+ * the billing capability, which updates `workspaces.planId` and writes the
+ * matching audit event atomically. Exported with requirements open for tests,
+ * like `processWebhookMessage`.
+ */
+export function processStripeEvent(
+  payload: string
+): Effect.Effect<void, never, Billing | Scope.Scope> {
+  return Effect.gen(function* () {
+    const decoded = decodeStripeEvent(payload)
+    if (Result.isFailure(decoded)) {
+      yield* annotateWide({ outcome: 'skipped', skipReason: 'unexpected_shape' })
+      return
+    }
+    const event = decoded.success
+    const object = event.data.object
+    const metadata = object.metadata ?? {}
+    const workspaceId = metadata.workspaceId ?? object.client_reference_id
+    yield* annotateWide({ stripeEventType: event.type })
+    if (event.type === 'checkout.session.completed') {
+      if (!workspaceId || !metadata.planId) {
+        yield* annotateWide({
+          outcome: 'skipped',
+          skipReason: 'missing_workspace_or_plan'
+        })
+        return
+      }
+      const billing = yield* Billing
+      const applied = yield* billing.applyProviderEvent({
+        workspaceId,
+        planId: metadata.planId,
+        detail: { source: 'checkout.session.completed' }
+      })
+      if (applied) {
+        yield* annotateWide({ outcome: 'applied' })
+      } else {
+        yield* annotateWide({ outcome: 'unknown_workspace' })
+      }
+      return
+    }
+    if (event.type === 'customer.subscription.deleted') {
+      if (!workspaceId) {
+        yield* annotateWide({
+          outcome: 'skipped',
+          skipReason: 'missing_workspace'
+        })
+        return
+      }
+      const billing = yield* Billing
+      const applied = yield* billing.applyProviderEvent({
+        workspaceId,
+        planId: 'starter',
+        detail: { source: 'customer.subscription.deleted' }
+      })
+      if (applied) {
+        yield* annotateWide({ outcome: 'applied' })
+      } else {
+        yield* annotateWide({ outcome: 'unknown_workspace' })
+      }
+      return
+    }
+    yield* annotateWide({ outcome: 'ignored', reason: 'unhandled_event_type' })
+  }).pipe(Effect.catchCause((_cause) => Effect.void))
+}
+
+/**
+ * Entry wrapper for the Stripe webhook: provides the real capabilities layer
+ * and a wide event so operators can see every inbound provider event, then
+ * swallows failures — Stripe retries on non-2xx, which the fetch handler
+ * returns from the rejection branch.
+ */
+function handleStripeWebhook(
+  payload: string,
+  env: Env
+): Effect.Effect<void, never, HttpClient.HttpClient> {
+  const program = processStripeEvent(payload).pipe(
+    Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
+  )
+  return withTriggerScope(
+    {
+      service: 'background',
+      event: 'stripe_webhook',
+      env,
+      spanKind: 'consumer'
+    },
+    program
+    // The handler answers 500 on rejection so Stripe schedules a redelivery.
+  ).pipe(Effect.catchCause((_cause) => Effect.void))
+}
+
 export default {
   // The handler is not `async`: the Workers runtime awaits the promise it
   // returns, and there is nothing to await before returning it.
+
+  // Inbound Stripe webhooks (see docs/integrations/stripe-billing.mdx). The
+  // route verifies Stripe's signature scheme against `STRIPE_WEBHOOK_SECRET`
+  // and applies subscription changes to `workspaces.planId` through the
+  // billing capability — unset env degrades to a 503, never to an unverified
+  // state change.
+  // oxlint-disable-next-line effect/noAsyncFunction -- the Workers fetch handler contract is a plain async function; this is the platform adapter boundary
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const { pathname } = new URL(request.url)
+    if (pathname !== '/webhooks/stripe') {
+      return new Response('Not found', { status: 404 })
+    }
+    if (request.method !== 'POST') {
+      return new Response('Method not allowed', { status: 405 })
+    }
+    const secret = env.STRIPE_WEBHOOK_SECRET
+    if (secret === undefined || secret.length === 0) {
+      return Response.json({ error: 'billing_not_configured' }, { status: 503 })
+    }
+    // oxlint-disable-next-line effect/noAsyncFunction -- reading the raw body and verifying the HMAC are the handler's two awaits, both total here
+    const payload = await request.text()
+    // oxlint-disable-next-line effect/noAsyncFunction -- see above
+    const valid = await verifyStripeSignature({
+      secret,
+      payload,
+      header: request.headers.get('stripe-signature')
+    })
+    if (!valid) {
+      return Response.json({ error: 'invalid_signature' }, { status: 400 })
+    }
+    return runInvocation(env, handleStripeWebhook(payload, env)).then(
+      () => new Response(null, { status: 200 }),
+      () => Response.json({ error: 'processing_failed' }, { status: 500 })
+    )
+  },
 
   // Queue message bodies are untyped at runtime; `processWebhookMessage` and
   // `processDeadLetterMessage` decode the envelope at their boundary. The batch

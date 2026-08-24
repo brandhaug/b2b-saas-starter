@@ -34,6 +34,7 @@ import { Route as DocsCategorySlugRouteImport } from './routes/docs.$category.$s
 import { Route as WorkspacesWorkspaceSlugIndexRouteImport } from './routes/workspaces.$workspaceSlug.index'
 import { Route as WorkspacesWorkspaceSlugApiTokensRouteImport } from './routes/workspaces.$workspaceSlug.api-tokens'
 import { Route as WorkspacesWorkspaceSlugAuditRouteImport } from './routes/workspaces.$workspaceSlug.audit'
+import { Route as WorkspacesWorkspaceSlugBillingRouteImport } from './routes/workspaces.$workspaceSlug.billing'
 import { Route as WorkspacesWorkspaceSlugMembersRouteImport } from './routes/workspaces.$workspaceSlug.members'
 import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/workspaces.$workspaceSlug.settings'
 import { Route as WorkspacesWorkspaceSlugWebhooksRouteImport } from './routes/workspaces.$workspaceSlug.webhooks'
@@ -166,6 +167,12 @@ const WorkspacesWorkspaceSlugAuditRoute =
     path: '/$workspaceSlug/audit',
     getParentRoute: () => WorkspacesRoute,
   } as any)
+const WorkspacesWorkspaceSlugBillingRoute =
+  WorkspacesWorkspaceSlugBillingRouteImport.update({
+    id: '/$workspaceSlug/billing',
+    path: '/$workspaceSlug/billing',
+    getParentRoute: () => WorkspacesRoute,
+  } as any)
 const WorkspacesWorkspaceSlugMembersRoute =
   WorkspacesWorkspaceSlugMembersRouteImport.update({
     id: '/$workspaceSlug/members',
@@ -210,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+  '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
@@ -238,6 +246,7 @@ export interface FileRoutesByTo {
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+  '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
@@ -269,6 +278,7 @@ export interface FileRoutesById {
   '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+  '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
@@ -301,6 +311,7 @@ export interface FileRouteTypes {
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/audit'
+    | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/webhooks'
@@ -329,6 +340,7 @@ export interface FileRouteTypes {
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/audit'
+    | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/webhooks'
@@ -359,6 +371,7 @@ export interface FileRouteTypes {
     | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/audit'
+    | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/webhooks'
@@ -564,6 +577,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWorkspaceSlugAuditRouteImport
       parentRoute: typeof WorkspacesRoute
     }
+    '/workspaces/$workspaceSlug/billing': {
+      id: '/workspaces/$workspaceSlug/billing'
+      path: '/$workspaceSlug/billing'
+      fullPath: '/workspaces/$workspaceSlug/billing'
+      preLoaderRoute: typeof WorkspacesWorkspaceSlugBillingRouteImport
+      parentRoute: typeof WorkspacesRoute
+    }
     '/workspaces/$workspaceSlug/members': {
       id: '/workspaces/$workspaceSlug/members'
       path: '/$workspaceSlug/members'
@@ -604,6 +624,7 @@ interface WorkspacesRouteChildren {
   WorkspacesIndexRoute: typeof WorkspacesIndexRoute
   WorkspacesWorkspaceSlugApiTokensRoute: typeof WorkspacesWorkspaceSlugApiTokensRoute
   WorkspacesWorkspaceSlugAuditRoute: typeof WorkspacesWorkspaceSlugAuditRoute
+  WorkspacesWorkspaceSlugBillingRoute: typeof WorkspacesWorkspaceSlugBillingRoute
   WorkspacesWorkspaceSlugMembersRoute: typeof WorkspacesWorkspaceSlugMembersRoute
   WorkspacesWorkspaceSlugSettingsRoute: typeof WorkspacesWorkspaceSlugSettingsRoute
   WorkspacesWorkspaceSlugWebhooksRoute: typeof WorkspacesWorkspaceSlugWebhooksRoute
@@ -614,6 +635,7 @@ const WorkspacesRouteChildren: WorkspacesRouteChildren = {
   WorkspacesIndexRoute: WorkspacesIndexRoute,
   WorkspacesWorkspaceSlugApiTokensRoute: WorkspacesWorkspaceSlugApiTokensRoute,
   WorkspacesWorkspaceSlugAuditRoute: WorkspacesWorkspaceSlugAuditRoute,
+  WorkspacesWorkspaceSlugBillingRoute: WorkspacesWorkspaceSlugBillingRoute,
   WorkspacesWorkspaceSlugMembersRoute: WorkspacesWorkspaceSlugMembersRoute,
   WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
   WorkspacesWorkspaceSlugWebhooksRoute: WorkspacesWorkspaceSlugWebhooksRoute,

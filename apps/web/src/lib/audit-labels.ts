@@ -27,6 +27,9 @@ const EVENT_LABELS = new Map<string, string>(
     'workspace_invitation.sent': 'Invitation sent',
     'workspace_invitation.canceled': 'Invitation canceled',
     'workspace_invitation.accepted': 'Invitation accepted',
+    // billing
+    'billing.checkout_started': 'Checkout started',
+    'billing.plan_changed': 'Plan changed',
     // account lifecycle over the auth catchall
     'auth.sign_in': 'Signed in',
     'auth.sign_in_failed': 'Sign-in failed',

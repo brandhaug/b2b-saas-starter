@@ -1,25 +1,35 @@
 ---
 title: Stripe billing integration
-description: The env gate that keeps billing optional, and the planned scope behind it.
+description: The env-gated billing implementation — plan display, checkout handoff, entitlement gating, and the inbound webhook.
 category: integrations
 order: 20
 tags: [stripe, billing, webhooks]
 ---
 
-Billing is an env-gated feature with Stripe as its provider. Public pricing content renders without Stripe, and the starter validates `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` when they are present. Checkout, portal redirect, and webhook handler routes are planned but not yet implemented in `apps/{web,api,background}/src`.
+Billing is an **Optional Provider** built on Stripe. Plan display and entitlement gating work with no Stripe configuration at all; only the two provider touchpoints — checkout and the inbound webhook — activate when their environment variables are present. Everything else in the app keeps working when they are unset.
+
+## What exists where
+
+- **Plan catalog** — `packages/capabilities/src/billing/billing.ts` owns the `PLANS` constant (Starter / Team / Enterprise) and each plan's entitlement ceilings. The public pricing page, the workspace billing page, and the entitlement gate all read this one list.
+- **Billing page** — `/workspaces/$slug/billing` shows the current plan and catalog. With Stripe configured, owners can start a checkout for Team; Enterprise says "contact sales" and downgrades ride the provider's subscription flow.
+- **Checkout handoff** — the `startCheckoutServerFn` server function composes success/cancel URLs server-side from `BETTER_AUTH_URL` (the client names only its slug and plan), calls Stripe's REST API directly over form-encoded fetch (no SDK), and records a `billing.checkout_started` audit event.
+- **Entitlement gate** — `assertWithinPlanLimit` caps Starter workspaces at 2 API tokens and 1 webhook endpoint; paid plans do not cap. The web server functions and the API worker both compose it before creates, failing with a 402 `PlanLimitExceeded`.
+- **Inbound webhook** — `POST /webhooks/stripe` on the background Worker verifies Stripe's signature scheme against `STRIPE_WEBHOOK_SECRET`, then applies `checkout.session.completed` and `customer.subscription.deleted` events to `workspaces.planId`, writing the matching `billing.plan_changed` audit event atomically with the update.
 
 ## Env gate
 
-The Stripe variables are optional fields in `packages/env/src/server.ts` (see the secret matrix in `ARCHITECTURE.md`). Leaving them unset keeps billing inactive — public pricing still renders, and subscribe buttons fall back to a "Configure billing" message.
+| Variable                | Purpose                                                                  |
+| ----------------------- | ------------------------------------------------------------------------ |
+| `STRIPE_SECRET_KEY`     | API key used to create Checkout sessions                                 |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret of the webhook endpoint pointing at the background Worker |
+| `STRIPE_PRICE_ID_TEAM`  | Stripe price id for the self-serve Team plan                             |
 
-## Webhook handling
+All three are optional fields in `packages/env/src/server.ts`. Unset, checkout answers `provider_not_configured` (and the webhook route answers 503) while plan display and entitlements stay fully functional.
 
-Inbound Stripe webhooks will land on the background Worker. The route, signature verification, plan-state updates, and `auditEvents` writes are not yet implemented.
+## Webhook setup
 
-## Customer portal
-
-A workspace customer-portal redirect is part of the planned billing surface. It lands together with workspace-role enforcement at the route layer when billing activates.
+Point a Stripe webhook endpoint at `<background-worker>/webhooks/stripe` subscribed to `checkout.session.completed` and `customer.subscription.deleted`. The handler matches Stripe's `t=/v1=` signature header scheme with HMAC-SHA256, rejects timestamps older than five minutes, and returns non-2xx on processing failure so Stripe schedules redelivery.
 
 ## What Stripe is not used for
 
-Stripe is not used for user authentication, not for invitation emails, and not for storing PII beyond the customer ID and last-four card display. The starter's domain stays in D1.
+Stripe is not used for user authentication, not for invitation emails, and not for storing PII beyond what the subscription metadata carries (a workspace id and plan id). The starter's domain stays in D1.

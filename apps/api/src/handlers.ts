@@ -7,6 +7,7 @@ import {
   withRequestScope
 } from '@b2b-saas-starter/logger'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { assertWithinPlanLimit } from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
 import { requirePermission } from '@b2b-saas-starter/authz/src/guard.ts'
 import {
   tokenPrincipal,
@@ -359,6 +360,13 @@ export function apiTokenGroup(env: ApiEnv) {
               params.slug,
               Effect.gen(function* () {
                 const tokens = yield* ApiTokenRegistry
+                // Entitlement gate: the plan caps token count (billing rule
+                // owned by the billing capability).
+                const existing = yield* tokens.list
+                yield* assertWithinPlanLimit({
+                  resource: 'api_token',
+                  used: existing.length
+                })
                 const next = yield* tokens.create({
                   name: payload.name,
                   scopes: payload.scopes
@@ -406,6 +414,13 @@ export function webhookGroup(env: ApiEnv) {
             params.slug,
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
+              // Entitlement gate: the plan caps endpoint count (billing rule
+              // owned by the billing capability).
+              const existing = yield* webhooks.list
+              yield* assertWithinPlanLimit({
+                resource: 'webhook_endpoint',
+                used: existing.length
+              })
               const createdEndpoint = yield* webhooks.create({
                 url: payload.url,
                 events: payload.events,

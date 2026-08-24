@@ -44,3 +44,21 @@ export class ForbiddenError extends Error {
     this.name = FORBIDDEN_ERROR_NAME
   }
 }
+
+/** Companion discriminant for the 402 entitlement case, same `name`-only rules. */
+export const PLAN_LIMIT_ERROR_NAME = 'PlanLimitError'
+
+/**
+ * Thrown when the workspace's plan refuses a create (token/webhook ceiling).
+ * Only `name`/`message` survive the SSR boundary, so the upgrade guidance is
+ * built here, where the calling form reads it.
+ */
+export class PlanLimitError extends Error {
+  constructor(planId: string, limit: number) {
+    super(
+      `Your workspace's ${planId} plan allows at most ${limit} of this resource. ` +
+        'Upgrade the plan on the Billing page to create more.'
+    )
+    this.name = PLAN_LIMIT_ERROR_NAME
+  }
+}
