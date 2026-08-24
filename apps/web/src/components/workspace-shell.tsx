@@ -13,6 +13,7 @@ import {
   SettingsIcon,
   ShieldIcon,
   SparklesIcon,
+  UserRoundIcon,
   UsersIcon,
   WebhookIcon
 } from 'lucide-react'
@@ -296,6 +297,14 @@ function WorkspaceNav({
             ) : null}
           </>
         )}
+        <Link
+          to="/account"
+          onClick={onNavigate}
+          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <UserRoundIcon className="size-4" />
+          Account
+        </Link>
         <Link
           to="/admin"
           onClick={onNavigate}

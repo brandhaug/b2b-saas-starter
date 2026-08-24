@@ -42,7 +42,19 @@ type SignInValues = {
 export type SignInWithEmail = (input: {
   readonly email: string
   readonly password: string
-}) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
+}) => Promise<{
+  readonly error?: { readonly message?: string | undefined } | null
+  // Opaque on purpose: Better Auth's client types don't expose the
+  // two-factor marker, so the response body is decoded below rather than
+  // asserted.
+  readonly data?: unknown
+}>
+
+const SignInResponseData = Schema.Struct({
+  twoFactorRedirect: Schema.optionalKey(Schema.Boolean)
+})
+
+const decodeSignInResponseData = Schema.decodeUnknownSync(SignInResponseData)
 
 /**
  * The route's thin wrapper: reads the search param the router validated and
@@ -88,6 +100,21 @@ export function SignInPage({
       })
       if (result.error) {
         setSubmitError(result.error.message ?? 'Sign-in failed')
+        return
+      }
+      const twoFactorRedirect =
+        result.data !== null &&
+        result.data !== undefined &&
+        decodeSignInResponseData(result.data).twoFactorRedirect === true
+      if (twoFactorRedirect) {
+        // Two-factor is enabled: the credentials set a short-lived challenge
+        // cookie, not a session. The code lands on the challenge page, which
+        // preserves the redirect target through its own search param.
+        router.history.push(
+          redirect
+            ? `/two-factor?redirect=${encodeURIComponent(redirect)}`
+            : '/two-factor'
+        )
         return
       }
       router.history.push(safeRedirect(redirect))

@@ -264,6 +264,79 @@ describe('organization plugin', () => {
     ))
 })
 
+describe('two-factor plugin', () => {
+  // The otpauth URI carries the secret base32-encoded (Better Auth's encoder);
+  // the server-side code generator wants the raw string back.
+  function decodeUriSecret(encoded: string): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+    let buffer = 0
+    let bits = 0
+    const bytes: number[] = []
+    for (const char of encoded) {
+      const value = alphabet.indexOf(char)
+      if (value === -1) throw new Error(`bad base32 char: ${char}`)
+      buffer = (buffer << 5) | value
+      bits += 5
+      if (bits >= 8) {
+        bits -= 8
+        bytes.push((buffer >> bits) & 255)
+      }
+    }
+    return new TextDecoder().decode(Uint8Array.from(bytes))
+  }
+
+  it('enables TOTP, verifies it, and flips twoFactorEnabled on the user', () =>
+    run(
+      Effect.gen(function* () {
+        const { headers, userId } = yield* signUpSession('totp@twofactor.test')
+        const auth = yield* Auth.Tag
+
+        // Enabling rotates the session token, so the response's cookies
+        // supersede the sign-up ones. The raw instance API (not the effectful
+        // proxy) is used because `returnHeaders` is what carries those
+        // cookies. The response body is the one-time reveal: the otpauth URI
+        // (with its secret) and backup codes.
+        const enabled = yield* Effect.promise(() =>
+          auth.instance.api.enableTwoFactor({
+            body: { password: 'correct-horse-battery-staple' },
+            headers,
+            returnHeaders: true
+          })
+        )
+        if (enabled.response.method !== 'totp') {
+          throw new Error('expected TOTP enable response')
+        }
+        expect(enabled.response.totpURI).toContain('otpauth://totp/')
+        const secret = new URL(enabled.response.totpURI).searchParams.get('secret')
+        expect(secret).not.toBeNull()
+        expect(enabled.response.backupCodes.length).toBeGreaterThan(0)
+
+        const freshCookies = new Map(
+          [...headers.getSetCookie(), ...enabled.headers.getSetCookie()].map(
+            (cookie) => [cookie.split('=')[0], cookie.split(';')[0]]
+          )
+        )
+        const cookieHeader = [...freshCookies.values()].join('; ')
+
+        // Server-side helper endpoint: turns a secret into a valid code, so
+        // the test plays its own authenticator.
+        const { code } = yield* auth.api.generateTOTP({
+          body: { secret: decodeUriSecret(secret!) }
+        })
+
+        yield* auth.api.verifyTOTP({
+          body: { code },
+          headers: new Headers({ cookie: cookieHeader })
+        })
+
+        const rows = yield* Effect.promise(() =>
+          db.select().from(user).where(eq(user.id, userId))
+        )
+        expect(rows[0]?.twoFactorEnabled).toBe(true)
+      })
+    ))
+})
+
 describe('account lifecycle email flows', () => {
   it('sends a verification email on sign-up and verifies through the token hop', () =>
     run(
