@@ -136,6 +136,7 @@ export const account = sqliteTable(
     id: id(),
     accountId: text('accountId').notNull(),
     providerId: text('providerId').notNull(),
+    issuer: text('issuer').notNull(),
     userId: text('userId')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -152,7 +153,10 @@ export const account = sqliteTable(
     password: text('password'),
     ...authTimestamps()
   },
-  (table) => [index('account_user_id_idx').on(table.userId)]
+  (table) => [
+    index('account_user_id_idx').on(table.userId),
+    uniqueIndex('account_issuer_accountId_uidx').on(table.issuer, table.accountId)
+  ]
 )
 
 export const verification = sqliteTable(
