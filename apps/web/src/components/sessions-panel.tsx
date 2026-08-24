@@ -1,0 +1,206 @@
+import { LaptopIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { authClient } from '@/lib/auth-client'
+import { Button } from '@/components/ui/button'
+
+/**
+ * One row of the panel's own view model: a Better Auth session plus the
+ * expiry label, which is formatted at load time (inside the post-mount
+ * effect) so server rendering never formats dates.
+ */
+export type SessionRowView = {
+  readonly token: string
+  readonly deviceLabel: string
+  readonly expiresLabel: string
+  readonly ipAddress: string | null | undefined
+}
+
+export type SessionRecord = {
+  readonly token: string
+  readonly createdAt: Date
+  readonly expiresAt: Date
+  readonly ipAddress?: string | null | undefined
+  readonly userAgent?: string | null | undefined
+}
+
+/**
+ * The three Better Auth session endpoints this panel drives, as ports.
+ * Injected rather than reaching for the `authClient` singleton at the call
+ * site so a test drives the panel with real functions of these shapes instead
+ * of replacing `@/lib/auth-client`.
+ */
+export type ListSessions = () => Promise<{
+  readonly data?: readonly SessionRecord[] | null
+  readonly error?: { readonly message?: string | undefined } | null
+}>
+
+export type RevokeSession = (input: { readonly token: string }) => Promise<{
+  readonly error?: { readonly message?: string | undefined } | null
+}>
+
+/** Better Auth's "revoke all sessions except the current one". */
+export type RevokeOtherSessions = () => Promise<{
+  readonly error?: { readonly message?: string | undefined } | null
+}>
+
+function listSessionsWithAuthClient(): ReturnType<ListSessions> {
+  return authClient.listSessions()
+}
+
+function revokeSessionWithAuthClient(input: Parameters<RevokeSession>[0]) {
+  return authClient.revokeSession(input)
+}
+
+function revokeOtherSessionsWithAuthClient() {
+  return authClient.revokeOtherSessions()
+}
+
+function describeUserAgent(userAgent: string | null | undefined): string {
+  if (!userAgent) return 'Unknown device'
+  if (userAgent.includes('iPhone') || userAgent.includes('Android')) {
+    return 'Mobile browser'
+  }
+  if (userAgent.includes('Macintosh')) return 'Mac'
+  if (userAgent.includes('Windows')) return 'Windows'
+  if (userAgent.includes('Linux')) return 'Linux'
+  return 'Browser'
+}
+
+function toViewModels(sessions: readonly SessionRecord[]): SessionRowView[] {
+  // Formatting happens here — inside the caller's post-mount effect or action,
+  // never during render — so SSR and the browser cannot disagree on the date.
+  return sessions
+    .toSorted((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .map((session) => ({
+      token: session.token,
+      deviceLabel: describeUserAgent(session.userAgent),
+      expiresLabel: session.expiresAt.toLocaleDateString(undefined, {
+        dateStyle: 'medium',
+        timeZone: 'UTC'
+      }),
+      ipAddress: session.ipAddress
+    }))
+}
+
+/**
+ * Active-session management for the signed-in user: list, revoke a single
+ * other session, or "sign out everywhere else". The current session is marked
+ * and cannot be revoked from here — signing out of it is the shell's
+ * sign-out button.
+ */
+export function SessionsPanel({
+  currentSessionToken,
+  listSessions = listSessionsWithAuthClient,
+  revokeSession = revokeSessionWithAuthClient,
+  revokeOtherSessions = revokeOtherSessionsWithAuthClient
+}: {
+  readonly currentSessionToken: string
+  readonly listSessions?: ListSessions
+  readonly revokeSession?: RevokeSession
+  readonly revokeOtherSessions?: RevokeOtherSessions
+}) {
+  const [rows, setRows] = useState<readonly SessionRowView[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  // Bumped by every successful action: refetch without manual memoization.
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoadError(null)
+      const result = await listSessions()
+      if (cancelled) return
+      if (result.error) {
+        setLoadError(result.error.message ?? 'Could not load sessions')
+        return
+      }
+      setRows(toViewModels(result.data ?? []))
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `reloadKey` is the refetch trigger: every successful action bumps it to re-run this fetch
+  }, [listSessions, reloadKey])
+
+  async function act(
+    action: () => Promise<{
+      readonly error?: { readonly message?: string | undefined } | null
+    }>
+  ) {
+    setActionError(null)
+    const result = await action()
+    if (result.error) {
+      setActionError(result.error.message ?? 'The change could not be made')
+      return
+    }
+    setReloadKey((key) => key + 1)
+  }
+
+  const othersExist = rows?.some((row) => row.token !== currentSessionToken)
+
+  return (
+    <section className="grid gap-4" aria-label="Active sessions">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <LaptopIcon className="size-4 text-muted-foreground" />
+          <h3 className="text-sm font-medium">Active sessions</h3>
+        </div>
+        {othersExist ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void act(() => revokeOtherSessions())}
+          >
+            Sign out everywhere else
+          </Button>
+        ) : null}
+      </header>
+
+      {loadError ? (
+        <p role="alert" className="text-xs text-destructive">
+          {loadError}
+        </p>
+      ) : null}
+      {actionError ? (
+        <p role="alert" className="text-xs text-destructive">
+          {actionError}
+        </p>
+      ) : null}
+
+      <ul className="grid gap-2">
+        {(rows ?? []).map((row) => {
+          const isCurrent = row.token === currentSessionToken
+          return (
+            <li
+              key={row.token}
+              className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-border px-3 py-2"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">
+                  {row.deviceLabel}{' '}
+                  {isCurrent ? (
+                    <span className="text-muted-foreground">· This device</span>
+                  ) : null}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {row.ipAddress ? `${row.ipAddress} · ` : ''}Expires {row.expiresLabel}
+                </p>
+              </div>
+              {isCurrent ? null : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void act(() => revokeSession({ token: row.token }))}
+                >
+                  Revoke
+                </Button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}

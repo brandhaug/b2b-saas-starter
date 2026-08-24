@@ -115,6 +115,35 @@ const LIFECYCLE_EXCHANGE_EVENTS: ReadonlyArray<LifecycleExchangeRow> = [
     failure: 'auth.session_revocation_failed',
     targetType: 'session',
     actorFromSession: true
+  },
+  // Two-factor lifecycle. Enable and disable demand an authenticated session
+  // and answer with secrets (totpURI, backup codes), never an actor, so both
+  // take the pre-handler actor — a failed enable is exactly the event worth
+  // attributing. Verify-totp is the sign-in challenge hop: its response names
+  // the user on success, and on failure there may be no session at all yet.
+  {
+    method: 'POST',
+    suffix: '/two-factor/enable',
+    success: 'auth.two_factor_enabled',
+    failure: 'auth.two_factor_enabled_failed',
+    targetType: 'user',
+    actorFromSession: true
+  },
+  {
+    method: 'POST',
+    suffix: '/two-factor/disable',
+    success: 'auth.two_factor_disabled',
+    failure: 'auth.two_factor_disable_failed',
+    targetType: 'user',
+    actorFromSession: true
+  },
+  {
+    method: 'POST',
+    suffix: '/two-factor/verify-totp',
+    success: 'auth.two_factor_verified',
+    failure: 'auth.two_factor_verification_failed',
+    targetType: 'session',
+    namesUserInResponse: true
   }
 ]
 

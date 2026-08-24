@@ -442,6 +442,71 @@ describe('recordAuthAudit', () => {
   })
 })
 
+describe('two-factor lifecycle exchanges', () => {
+  const enable = { method: 'POST', pathname: '/api/auth/two-factor/enable' }
+  const disable = { method: 'POST', pathname: '/api/auth/two-factor/disable' }
+  const verifyTotp = { method: 'POST', pathname: '/api/auth/two-factor/verify-totp' }
+
+  it('audits enabling and disabling two-factor', () => {
+    expect(isAuditedAuthExchange(enable)).toBe(true)
+    expect(isAuditedAuthExchange(disable)).toBe(true)
+    // Both endpoints require an authenticated session and their responses
+    // carry secrets (totpURI, backupCodes), never an actor.
+    expect(needsPreHandlerActor(enable)).toBe(true)
+    expect(needsPreHandlerActor(disable)).toBe(true)
+  })
+
+  it('maps enable to an attributed pair, failures keeping the pre-handler actor', () => {
+    expect(
+      authAuditInput({ ...enable, status: 200, userId: 'usr_demo' })
+    ).toMatchObject({
+      eventType: 'auth.two_factor_enabled',
+      actorUserId: 'usr_demo',
+      targetType: 'user'
+    })
+    expect(
+      authAuditInput({ ...enable, status: 400, userId: 'usr_demo' })
+    ).toMatchObject({
+      eventType: 'auth.two_factor_enabled_failed',
+      actorUserId: 'usr_demo'
+    })
+  })
+
+  it('maps disable to an attributed pair', () => {
+    expect(
+      authAuditInput({ ...disable, status: 200, userId: 'usr_demo' })
+    ).toMatchObject({
+      eventType: 'auth.two_factor_disabled',
+      actorUserId: 'usr_demo',
+      targetType: 'user'
+    })
+    expect(
+      authAuditInput({ ...disable, status: 401, userId: 'usr_demo' })
+    ).toMatchObject({
+      eventType: 'auth.two_factor_disable_failed',
+      actorUserId: 'usr_demo'
+    })
+  })
+
+  it('audits the TOTP verification challenge', () => {
+    expect(isAuditedAuthExchange(verifyTotp)).toBe(true)
+    // The verification response names its user on success; on failure there is
+    // no trustworthy actor (the sign-in challenge may carry no session yet).
+    expect(needsPreHandlerActor(verifyTotp)).toBe(false)
+    expect(
+      authAuditInput({ ...verifyTotp, status: 200, userId: 'usr_challenge' })
+    ).toMatchObject({
+      eventType: 'auth.two_factor_verified',
+      actorUserId: 'usr_challenge',
+      targetType: 'session'
+    })
+    expect(authAuditInput({ ...verifyTotp, status: 401, userId: null })).toMatchObject({
+      eventType: 'auth.two_factor_verification_failed',
+      actorUserId: null
+    })
+  })
+})
+
 describe('isAdminAuthExchange', () => {
   it('accepts the audited admin mutations', () => {
     for (const suffix of [

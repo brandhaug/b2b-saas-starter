@@ -104,6 +104,12 @@ export const user = sqliteTable('user', {
   banned: integer('banned', { mode: 'boolean' }).default(false),
   banReason: text('banReason'),
   banExpires: integer('banExpires', { mode: 'timestamp' }),
+  // The twoFactor plugin declares this field on `user` (input: false — only
+  // its own verify/disable endpoints flip it), so the column must exist for
+  // the plugin writes to land.
+  twoFactorEnabled: integer('twoFactorEnabled', { mode: 'boolean' })
+    .default(false)
+    .notNull(),
   ...authTimestamps()
 })
 
@@ -169,6 +175,32 @@ export const verification = sqliteTable(
     ...authTimestamps()
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)]
+)
+
+// Owned by Better Auth's `twoFactor` plugin — the export key must stay the
+// plugin's model name (`twoFactor`) because the drizzle adapter resolves
+// `schema[modelName]`. One row per user; the secret is encrypted at rest by
+// the plugin with the auth secret.
+export const twoFactor = sqliteTable(
+  'two_factor',
+  {
+    id: id(),
+    secret: text('secret').notNull(),
+    // A JSON string of the hashed backup codes — the plugin encodes and
+    // decodes it itself, so plain `text`, like `workspaces.metadata`.
+    backupCodes: text('backupCodes').notNull(),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    verified: integer('verified', { mode: 'boolean' }).default(true).notNull(),
+    failedVerificationCount: integer('failedVerificationCount').default(0).notNull(),
+    lockedUntil: integer('lockedUntil', { mode: 'timestamp' }),
+    ...authTimestamps()
+  },
+  (table) => [
+    index('two_factor_user_id_idx').on(table.userId),
+    index('two_factor_secret_idx').on(table.secret)
+  ]
 )
 
 // The three tables below are owned by Better Auth's `organization` plugin.

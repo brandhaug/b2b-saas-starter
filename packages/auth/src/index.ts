@@ -7,6 +7,7 @@ import * as schema from '@b2b-saas-starter/db/schema'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { organization } from 'better-auth/plugins/organization'
+import { twoFactor } from 'better-auth/plugins/two-factor'
 import { username } from 'better-auth/plugins/username'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { Context, Effect } from 'effect'
@@ -128,6 +129,15 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     },
     plugins: plugins(
       username(),
+      // TOTP only: `otp` (email one-time codes) and backup-code sign-in UI are
+      // out of scope for the starter, but the plugin still generates backup
+      // codes on enable — they are stored, just not surfaced in the UI yet.
+      twoFactor({
+        issuer: 'B2B SaaS Starter',
+        // The starter's account surface is password-first; asking for the
+        // second factor again inside settings would be ceremony.
+        skipVerificationOnEnable: true
+      }),
       admin({
         adminRoles: ['admin']
       }),

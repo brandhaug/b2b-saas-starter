@@ -48,6 +48,7 @@
     "mermaid": "catalog:",
     "next-themes": "catalog:",
     "posthog-js": "catalog:",
+    "qrcode.react": "^4.2.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "recharts": "catalog:",

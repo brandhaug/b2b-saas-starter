@@ -64,6 +64,13 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'auth.sign_out_failed',
   'auth.session_revoked',
   'auth.session_revocation_failed',
+  // two-factor lifecycle over the auth catchall
+  'auth.two_factor_enabled',
+  'auth.two_factor_enabled_failed',
+  'auth.two_factor_disabled',
+  'auth.two_factor_disable_failed',
+  'auth.two_factor_verified',
+  'auth.two_factor_verification_failed',
   // Better Auth admin endpoints (system-level)
   'system_admin.user_created',
   'system_admin.user_creation_failed',
