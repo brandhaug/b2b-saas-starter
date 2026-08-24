@@ -22,7 +22,8 @@ import { currentRequest } from '../request-context'
 
 type AuthService = Service<AuthOptions>
 
-class MissingRequestHeaders extends Schema.TaggedErrorClass<MissingRequestHeaders>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
   'MissingRequestHeaders',
   { message: Schema.String }
 ) {}

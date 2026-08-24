@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 
-export class AssistantUnavailable extends Schema.TaggedErrorClass<AssistantUnavailable>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class AssistantUnavailable extends Schema.TaggedError<AssistantUnavailable>()(
   'AssistantUnavailable',
   {
     reason: Schema.String

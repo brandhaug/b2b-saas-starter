@@ -25,11 +25,12 @@ describe('starter/no-schema-class', () => {
   )
 
   rule.valid(
-    'allows Schema.TaggedErrorClass for typed errors',
+    'allows Schema.TaggedError for typed errors',
     `
 			import { Schema } from 'effect'
 
-			export class NotFound extends Schema.TaggedErrorClass<NotFound>()('NotFound', {
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+			export class NotFound extends Schema.TaggedError<NotFound>()('NotFound', {
 				id: Schema.String
 			}) {}
 		`

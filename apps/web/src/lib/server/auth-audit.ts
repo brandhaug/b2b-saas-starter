@@ -369,13 +369,15 @@ export function adminAuditInput(exchange: {
 export type AuthAuditOutcome = 'skipped' | 'recorded' | 'dropped'
 
 /** A 2xx auth response whose body did not parse as JSON. */
-export class AuthAuditBodyUnreadable extends Schema.TaggedErrorClass<AuthAuditBodyUnreadable>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class AuthAuditBodyUnreadable extends Schema.TaggedError<AuthAuditBodyUnreadable>()(
   'AuthAuditBodyUnreadable',
   { reason: Schema.String }
 ) {}
 
 /** The audit write itself failed (D1 hiccup, layer unavailable). */
-export class AuthAuditWriteFailed extends Schema.TaggedErrorClass<AuthAuditWriteFailed>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class AuthAuditWriteFailed extends Schema.TaggedError<AuthAuditWriteFailed>()(
   'AuthAuditWriteFailed',
   { reason: Schema.String }
 ) {}

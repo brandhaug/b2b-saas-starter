@@ -4,7 +4,8 @@ import { Schema } from 'effect'
  * Raised by `WebhookEndpoints.create` when the destination URL fails the
  * shared SSRF/shape validation below.
  */
-export class InvalidWebhookUrl extends Schema.TaggedErrorClass<InvalidWebhookUrl>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class InvalidWebhookUrl extends Schema.TaggedError<InvalidWebhookUrl>()(
   'InvalidWebhookUrl',
   { url: Schema.String, reason: Schema.String },
   { httpApiStatus: 400 }
